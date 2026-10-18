@@ -1316,12 +1316,153 @@ void testConnectionPreAdmissionNativePoll(
     assert(!tlsIdle.readable);
     assert(!tlsIdle.writable);
 
-    connection.revoke();
+    // Drive a real nonblocking HYBRID TLS handshake with the same production
+    // R10 readiness boundary used by serve. SSL is still owned exclusively
+    // by R1; this fixture never reads/writes a second server SSL instance.
+    assert(setNonblocking(clientDescriptor));
+    const TestSslContext clientContext{
+        SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
+    assert(clientContext);
+    assert(SSL_CTX_set_min_proto_version(
+               clientContext.get(), TLS1_2_VERSION) == 1);
+    SSL_CTX_set_verify(clientContext.get(), SSL_VERIFY_NONE, nullptr);
+    TestSsl clientTls{SSL_new(clientContext.get()), SSL_free};
+    assert(clientTls);
+    SSL_set_connect_state(clientTls.get());
+    assert(SSL_set_fd(clientTls.get(), clientDescriptor) == 1);
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    const auto handshakeDeadline =
+        std::chrono::steady_clock::now() + 5s;
+    for (std::size_t attempt = 0;
+         attempt < 16384 &&
+         std::chrono::steady_clock::now() < handshakeDeadline;
+         ++attempt)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(clientTls.get());
+            if (result == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = SSL_get_error(clientTls.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (!serverEstablished)
+        {
+            const auto event = connection.pollSocketReadinessOnce(
+                handshakeDeadline, 5ms);
+            assert(event.status == Poll::Ready ||
+                   event.status == Poll::NoEvent);
+            if (event.status == Poll::Ready)
+            {
+                const auto handshake = connection.advancePreAdmission(
+                    event.readable, event.writable, tlsContext);
+                assert(handshake.plaintextBytesRead == 0);
+                assert(handshake.plaintextBytesWritten == 0);
+                assert(handshake.status == Step::Progress ||
+                       handshake.status == Step::NeedRead ||
+                       handshake.status == Step::NeedWrite ||
+                       handshake.status == Step::TlsEstablished);
+                serverEstablished =
+                    handshake.status == Step::TlsEstablished;
+            }
+        }
+        if (clientEstablished && serverEstablished) break;
+    }
+    assert(clientEstablished && serverEstablished);
+    assert(connection.ready());
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Read);
+    assert(connection.gssStage() == SpnegoStage::AwaitInitialToken);
+    assert(!connection.hasAdmissionLease());
+
+    // Real encrypted CredSSP bytes must then take the same R1/R10 poll path.
+    // A deliberately invalid SPNEGO token triggers the production R2
+    // failure reply without ever granting native/MCS admission.
+    const auto request = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, kRejectedInitialSpnego);
+    assert(writeTlsClientAll(clientTls.get(), request));
+
+    std::size_t plaintextRead = 0;
+    std::size_t plaintextWritten = 0;
+    bool terminal = false;
+    const auto credSspDeadline =
+        std::chrono::steady_clock::now() + 5s;
+    for (std::size_t attempt = 0;
+         attempt < 16384 &&
+         std::chrono::steady_clock::now() < credSspDeadline;
+         ++attempt)
+    {
+        // No fabricated readability: SSL_pending may allow a bounded step
+        // from already-decrypted R1 plaintext without a new socket POLLIN.
+        auto credStep = connection.advancePreAdmission(
+            false, false, tlsContext);
+        plaintextRead += credStep.plaintextBytesRead;
+        plaintextWritten += credStep.plaintextBytesWritten;
+        assert(plaintextRead <= request.size());
+        assert(plaintextWritten <= kV6LogonFailure.size());
+
+        if (credStep.status == Step::Invalid ||
+            credStep.status == Step::Closed)
+        {
+            terminal = true;
+            break;
+        }
+        assert(credStep.status == Step::Progress ||
+               credStep.status == Step::NeedRead ||
+               credStep.status == Step::NeedWrite);
+        if (credStep.status == Step::Progress) continue;
+
+        const auto event = connection.pollSocketReadinessOnce(
+            credSspDeadline, 5ms);
+        assert(event.status == Poll::Ready ||
+               event.status == Poll::NoEvent);
+        if (event.status != Poll::Ready) continue;
+
+        credStep = connection.advancePreAdmission(
+            event.readable, event.writable, tlsContext);
+        plaintextRead += credStep.plaintextBytesRead;
+        plaintextWritten += credStep.plaintextBytesWritten;
+        assert(plaintextRead <= request.size());
+        assert(plaintextWritten <= kV6LogonFailure.size());
+        if (credStep.status == Step::Invalid ||
+            credStep.status == Step::Closed)
+        {
+            terminal = true;
+            break;
+        }
+        assert(credStep.status == Step::Progress ||
+               credStep.status == Step::NeedRead ||
+               credStep.status == Step::NeedWrite);
+    }
+
+    assert(terminal);
+    assert(plaintextRead == request.size());
+    assert(plaintextWritten == kV6LogonFailure.size());
+    assert(!connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    std::array<std::uint8_t, kV6LogonFailure.size()> rejection{};
+    assert(readTlsClientAll(clientTls.get(), rejection));
+    assert(rejection == kV6LogonFailure);
+
     const auto stale =
-        connection.pollSocketReadinessOnce(deadline, 0ms);
+        connection.pollSocketReadinessOnce(
+            std::chrono::steady_clock::now() + 1s, 0ms);
     assert(stale.status == Poll::Closed);
     assert(!stale.readable);
     assert(!stale.writable);
+    const auto denied = connection.advancePreAdmission(
+        true, true, tlsContext);
+    assert(denied.status == Step::Closed);
+    assert(denied.plaintextBytesRead == 0);
+    assert(denied.plaintextBytesWritten == 0);
+    connection.revoke();
     assert(::close(clientDescriptor) == 0);
 }
 

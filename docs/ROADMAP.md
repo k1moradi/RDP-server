@@ -1,3 +1,19 @@
+## R7 CI workflow repair (2026-10-18)
+
+The R7 GUI/status commit `6a94a5d2010f46e84c0358a3723bd2bca7d92a78`
+was published atomically but its primary workflow did not parse. Standalone
+structure run [39138747361](https://github.com/k1moradi/RDP-server/actions/runs/39138747361)
+reported invalid YAML at line 1940: JavaScript string replacement interpreted
+the shell test selector's literal `$'` as an unmatched-source suffix,
+splicing trailing workflow content after the Linux GUI job. No Qt/macOS
+test on that SHA may be claimed PASS. This correction reconstructs the full
+workflow from clean parent `d268d27058c027f6fe95a9318dd409a70f51df56`, inserts the same offscreen CTest
+and extracted-app ad-hoc-signature verification steps using callback-based
+literal replacement, and leaves all other jobs intact. Exact corrective
+SHA hosted structure, Qt, macOS packaging and ordinary CTest evidence:
+**PENDING**. Normal Finder/Aqua double-click and notarization remain
+**NOT RUN / BLOCKED**; R10 HostControl and R2 macOS UID lease still absent.
+
 ## R7 macOS packaging convergence and Qt interface/client UI (2026-10-18)
 
 On exact descendant `495a3371aea5e780e00c2ac6303d3a2264b8a857`,

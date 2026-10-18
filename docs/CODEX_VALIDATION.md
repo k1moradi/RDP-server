@@ -1,3 +1,11 @@
+## R9 focused assurance for dormant production-linked native bridges (2026-10-18)
+
+R10 `fb02757297a20d6e6a14ffb7b7e68c1361a3809f` conditionally links the R5 protected slow-path input bridge into the production Linux server, and R8 `01440dbfe5f48d381df6e36a23a4f0fd7dd13eba` conditionally links the R3/X11 clipboard bridge after correcting its CMake comments. Both linkages are intentionally dormant: their source-level CTests require the dependencies while forbidding `main.cpp` from dispatching native input or constructing/dispatching clipboard state before R10 owns one persistent post-Share R1 complete-TPKT/TLS router and the same live X11/logind owner.
+
+Those two CMake-script guards were covered by ordinary full CTest but were not explicitly pinned in R9's focused assurance job. R9 now selects exactly `runtime.linux-x11-authorized-input-production-linkage` and `runtime.linux-x11-clipboard-production-linkage`, requires both names and an exact count of **2**, and executes them in the focused job. They remain outside sanitizer-instrumented executable inventories, so the existing direct runtime-security **40** and R5 X11 **39** counts do not change. The workflow structure validator requires the same two names and count.
+
+Packaging state at authoring: descendant `aaff05a9` has the Windows native package/PE/smoke job and R9 sanitizer job green; the sole primary failure is the macOS portable lane. R7 `19e4dfffa808fed3cda5aeffd9c4c915063cfff8` has landed a direct install-ID normalization/ad-hoc-signing correction for that failure, with exact hosted execution **PENDING**. No live server, native desktop, listener, credentials, input or clipboard operation is performed by this R9 change.
+
 ## R8 production-links the dormant Linux clipboard bridge (2026-10-18)
 
 Authoring correction: publication `225e3a7e13b726ac237444bfaf24eb9f1c2d8cd8`

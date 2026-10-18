@@ -1334,6 +1334,29 @@ jobs:
             exit 1
           fi
           ctest --test-dir build --build-config Debug --timeout 60 -R "$protected_read_selection" --output-on-failure
+
+      # R10/R8 production linkage guards are source/build-graph contracts, not
+      # sanitizer-instrumented executables. Pin both explicitly so a full CTest
+      # pass cannot hide accidental native input/clipboard activation in main.
+      - name: Run dormant native bridge linkage guards in focused assurance
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          native_bridge_linkage_selection='^runtime[.]linux-x11-(authorized-input|clipboard)-production-linkage$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_bridge_linkage_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-x11-authorized-input-production-linkage' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-x11-clipboard-production-linkage' <<< "$selected_tests"
+          readonly native_bridge_linkage_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$native_bridge_linkage_expected_test_count" ]]; then
+            printf 'R9 native bridge linkage registry mismatch: expected %s tests, found %s\n' \
+              "$native_bridge_linkage_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$native_bridge_linkage_selection" --output-on-failure
+
       # R10's real R1 descriptor-poll boundary is additive. Keep the fixed
       # 30-case R10/R2 security selector intact; this one test has its own sentinel.
       - name: Run R10 production native poll with sanitizers

@@ -4197,3 +4197,7 @@ bytes. Trusted/release signing remains false and notarization remains false.
 `packaging.macos-portable-gui-install-id-normalization` injects tool
 execution and proves framework/Cocoa IDs are rewritten before the final
 ad-hoc sign without invoking AppKit, TCC, networking or a live server.
+
+## Dormant production native bridges need focused source-linkage sentinels (R9, 2026-10-18)
+
+A production-linked native bridge that is intentionally dormant until a later serialized runtime owner exists must have its source/build-graph denial CTest pinned explicitly in focused assurance, even when ordinary full CTest already runs it. Keep these CMake-script guards separate from sanitizer-instrumented executable counts. For the current Linux input and clipboard links, require both exact test names and an exact-two registry count; any premature `main.cpp` dispatch/construction must remain a hard failure.

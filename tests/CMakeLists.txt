@@ -1009,6 +1009,17 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
+    # Dedicated production-runtime R2/R3 classifier gateway denial: the
+    # existing Linux runtime executable receives no synthetic native lease.
+    # Keep this outside R9's fixed 40-case legacy sanitizer selector.
+    add_test(NAME runtime.linux-connection-personal-post-share-classifier-authority-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-personal-post-share-classifier-authority-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-personal-post-share-classifier-authority-denials
+        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+
     # R10 must compose the real post-STATUS_VALID_CLIENT Share owner without
     # fabricating a positive OS lease in ordinary CI. The production R3 profile
     # must derive admitted Client Core geometry and R10 may supply only feature

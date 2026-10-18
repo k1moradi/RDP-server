@@ -693,6 +693,17 @@ public:
     [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
+    // Classify exactly one immutable, complete post-Share TPKT through the
+    // current R2 lease and the existing R3 MCS/channel owner. The result
+    // borrows caller bytes only until this synchronous call returns; R10
+    // must immediately dispatch its single route, never trial-dispatch.
+    // A missing authority, unsupported route or stale packet retires the
+    // connection, and this method does not read another TLS byte.
+    [[nodiscard]] rdp_server::server::transport::RdpPostShareTpktRoute
+    classifyPersonalDesktopPostShareTpkt(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // R2/R3 post-Share input gateway. R10 supplies one complete TPKT obtained
     // through the sole R1 TLS reader and a synchronous destination. Neither
     // bytes nor callback grant authority: the broker revalidates the concrete

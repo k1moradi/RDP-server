@@ -2996,6 +2996,42 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
     return {0U, 0U, Step::Invalid};
 }
 
+rdp_server::server::transport::RdpPostShareTpktRoute
+LinuxRuntimeConnection::classifyPersonalDesktopPostShareTpkt(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Kind = rdp_server::server::transport::RdpPostShareTpktRouteKind;
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+
+    if (personalGraphicsDvcIoAction_ != Action::Ready ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        completeTpkt.empty() || !ready() || !broker_ || !lease_ ||
+        lease_->isRevoked())
+    {
+        revoke();
+        return {};
+    }
+
+    // R2 revalidates the native owner both before and after R3's read-only
+    // route inspection. No route is an authorization grant to its consumer.
+    const auto route = broker_->classifyR3PersonalDesktopPostShareTpkt(
+        *lease_, acceptor_, connection_, session_, deploymentPolicy,
+        completeTpkt);
+    if (route.kind == Kind::UnsupportedOrMalformed ||
+        route.completeTpkt.data() != completeTpkt.data() ||
+        route.completeTpkt.size() != completeTpkt.size())
+    {
+        revoke();
+        return {};
+    }
+    return route;
+}
+
 bool LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu(
     const RuntimeDeploymentPolicy &deploymentPolicy,
     std::span<const std::uint8_t> completeTpkt,

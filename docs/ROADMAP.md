@@ -445,6 +445,21 @@ R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
 The external R10 single-reader integration and genuine X11 host remain
 BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
 
+**R10 R2/R3 classifier consumption (2026-10-18):** R10 now exposes
+`LinuxRuntimeConnection::classifyPersonalDesktopPostShareTpkt` as the
+connection-local, fail-closed synchronous wrapper around the immutable R3
+classifier through the current R2 broker and PersonalDesktop/Graphics-Ready
+authority. Unsupported routes and missing leases retire the connection;
+no new socket/TLS reader, framer, queue or speculative dispatch was added.
+Dedicated production-backed offline CTest
+`runtime.linux-connection-personal-post-share-classifier-authority-denials`
+uses the genuine Linux runtime aggregate without fabricating admission.
+Source base `1c8f0984c446a2379e905435ddae62c6dd7ac65f`; local build/full CTest **NOT RUN** (GitHub DNS
+unavailable for the approved checkout); publication-SHA CI **PENDING**.
+**Remaining P0 gate:** integrate the existing sole R1 reader and TPKT frame
+owner into the persistent X11/logind/R3 schedule, then frame DATA/ACK and
+protected input. Physical seat0 Microsoft-client acceptance **NOT RUN**.
+
 **R3 classifier CI follow-up (2026-10-18):** R3's test registry static extent
 was updated 155 → 158 after Linux/macOS compilation detected three added
 cases. Exact-head route/graphics/sanitizer tests remain PENDING.

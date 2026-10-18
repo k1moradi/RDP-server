@@ -2725,6 +2725,39 @@ bool recordUnexpectedSlowPathInput(
     return true;
 }
 
+void testConnectionPersonalDesktopPostShareClassifierAuthorityDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Kind =
+        rdp_server::server::transport::RdpPostShareTpktRouteKind;
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-post-share-classifier.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(true, 3389U));
+
+    const std::array<std::uint8_t, 4U> candidate{
+        0x03U, 0x00U, 0x00U, 0x04U};
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    // A syntactically complete TPKT is not a genuine R2 admission, joined
+    // route or Share/Graphics lifetime. Classification never upgrades it.
+    const auto result = connection.classifyPersonalDesktopPostShareTpkt(
+        personalPolicy, candidate);
+    assert(result.kind == Kind::UnsupportedOrMalformed);
+    assert(result.completeTpkt.empty());
+    assert(!connection.ready());
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopSlowPathInputGatewayDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3307,6 +3340,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-valid-client-r1-write-denials")
     {
         testConnectionPersonalDesktopValidClientR1WriteDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-post-share-classifier-authority-denials")
+    {
+        testConnectionPersonalDesktopPostShareClassifierAuthorityDenials(
             fixtureDirectory);
         return 0;
     }

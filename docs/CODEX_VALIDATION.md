@@ -24,6 +24,22 @@ Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
 **NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
 native release acceptance or human Microsoft-client success is claimed.
 
+## R10 protected post-Share route consumption (2026-10-18)
+
+R3 delivered the immutable, R2-revalidated authenticated TPKT route classifier
+at `e7c6a13c`. R10 now connects it to the genuine LinuxRuntimeConnection
+lease/policy/Graphics-Ready gate without adding another SSL reader/framer.
+The dedicated `runtime.linux-connection-personal-post-share-classifier-authority-denials`
+CTest uses a production `LinuxRuntimeConnection` and syntactically complete
+TPKT; it asserts a missing R2 lease cannot yield a route or retain a live
+connection. No fixture mints or substitutes positive OS admission.
+Base main `1c8f0984c446a2379e905435ddae62c6dd7ac65f`. Local build/CTest **NOT RUN**: this execution
+container has no `~/rdp-server` checkout and `git ls-remote` reports
+`Could not resolve host: github.com`. Hosted exact-SHA CI **PENDING**.
+The persistent app loop, actual X11 frame publication, post-Share
+Graphics/FRAME_ACK intake, input, LAN GUI backend and physical-seat0
+Microsoft-client acceptance are still **NOT RUN / BLOCKED**.
+
 ## R8 clipboard linkage assurance-label correction (2026-10-18)
 
 The production-linkage source guard is intentionally not part of the fixed

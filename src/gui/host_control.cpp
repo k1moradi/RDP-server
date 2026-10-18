@@ -3,6 +3,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace rdp::gui
 {
@@ -104,7 +105,7 @@ bool HostControl::start(const HostRequest& request)
         return false;
 
     const std::string selectedAddress = request.interfaceAddress.toStdString();
-    const RuntimeHostInterface* matchedInterface = nullptr;
+    std::string selectedInterfaceId;
     for (const RuntimeHostInterface& candidate : runtime_.enumerateLocalInterfaces())
     {
         if (!candidate.lanEligible || candidate.loopback)
@@ -121,15 +122,15 @@ bool HostControl::start(const HostRequest& request)
         }
         if (!containsAddress)
             continue;
-        if (matchedInterface != nullptr)
+        if (!selectedInterfaceId.empty())
             return false; // R10 must disambiguate duplicate-address interfaces.
-        matchedInterface = &candidate;
+        selectedInterfaceId = candidate.stableId;
     }
-    if (matchedInterface == nullptr)
+    if (selectedInterfaceId.empty())
         return false;
 
     const RuntimeHostOptions options{
-        matchedInterface->stableId,
+        std::move(selectedInterfaceId),
         selectedAddress,
         request.port,
         true,

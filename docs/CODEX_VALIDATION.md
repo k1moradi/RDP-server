@@ -5978,3 +5978,12 @@ macOS AppKit ownership and cross-platform R9 package acceptance remain
 BLOCKED. Added `gui.offscreen-r10-control-adapter-denials`.
 Connector environment has no local Qt build: configure/build/CTest NOT RUN;
 publication-SHA hosted CI PENDING.
+
+## R7 adapter interface-selection lifetime correction (2026-10-18)
+
+Immediate source review of `901bf774` found the selected-interface pointer
+would have referred into the temporary vector returned by
+`enumerateLocalInterfaces()` after the range-for ended. The correction
+copies only the matched stable interface ID before building
+`RuntimeHostOptions`; no runtime interface object is retained or borrowed.
+Build/CTest remains PENDING.

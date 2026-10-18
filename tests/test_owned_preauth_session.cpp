@@ -4937,6 +4937,78 @@ void testOwnedTlsApplicationTerminalReadiness()
     }
 }
 
+#ifdef __linux__
+// SO_LINGER{on,0} on this POSIX loopback peer requests an abortive TCP
+// close. No assumption is made about the iteration on which RST arrives:
+// the existing nonblocking TLS owner is driven to a bounded deadline.
+void testOwnedTlsApplicationTcpResetTerminal()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using Clock = std::chrono::steady_clock;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{std::move(accepted.connection)};
+    NativeTcpIo clientIo{static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    establishOwnedApplicationTls(owner, clientIo, tls);
+
+    std::array<std::uint8_t, 32> plaintext{};
+    const auto pendingRead = owner.readTlsApplicationData(plaintext);
+    assert(pendingRead.outcome == Outcome::NeedRead);
+    assert(pendingRead.bytes == 0);
+    assert(owner.ioInterest() == Interest::Read);
+
+    const linger abortiveClose{1, 0};
+    assert(::setsockopt(pair.client.value, SOL_SOCKET, SO_LINGER,
+                        &abortiveClose, sizeof(abortiveClose)) == 0);
+    pair.client.close();
+
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    TlsApplicationIoResult result{};
+    while (Clock::now() < deadline)
+    {
+        result = owner.readTlsApplicationData(plaintext);
+        if (result.outcome != Outcome::NeedRead &&
+            result.outcome != Outcome::NeedWrite)
+            break;
+        assert(result.bytes == 0);
+        const auto direction = result.outcome == Outcome::NeedRead
+            ? Interest::Read : Interest::Write;
+        assert(owner.ioInterest() == direction);
+        const auto polled = owner.pollSocketOnce(deadline);
+        assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+               polled.outcome == TcpConnectionPollOutcome::NoEvent);
+    }
+
+    // ECONNRESET can reach OpenSSL as SYSCALL or SSL protocol failure,
+    // depending on its version. Both must terminate without plaintext.
+    assert(result.outcome == Outcome::TransportClosed ||
+           result.outcome == Outcome::FatalTlsFailure);
+    assert(result.bytes == 0);
+    assert(!owner.active());
+    assert(owner.ioInterest() == Interest::Closed);
+    assert(!owner.tlsApplicationReadReady());
+    assert(owner.establishedTls() == nullptr);
+    assert(!owner.peerEndpoint().valid());
+    assert(owner.readTlsApplicationData(plaintext).outcome ==
+           Outcome::TransportClosed);
+    assert(owner.writeTlsApplicationData(plaintext).outcome ==
+           Outcome::TransportClosed);
+    assert(owner.onSocketReady(true, true) == Interest::Closed);
+    assert(owner.onSocketReady(false, true) == Interest::Closed);
+    assert(owner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+    assert(owner.onMcsIoReady().status == McsIntakeStatus::Closed);
+    assert(owner.pollSocketOnce(deadline).outcome ==
+           TcpConnectionPollOutcome::Closed);
+    owner.cancel();
+    owner.cancel();
+}
+#endif
+
 void testOwnedTlsApplicationCancellation()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -10591,6 +10663,9 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-r3-platform-challenge-response-read", &testR3ClientPlatformChallengeResponseReadThroughOwnedTls},
     {"tcp-owned-tls-terminal-readiness", &testOwnedTlsApplicationTerminalReadiness},
     {"tcp-owned-tls-application-cancellation", &testOwnedTlsApplicationCancellation},
+#ifdef __linux__
+    {"tcp-owned-tls-application-tcp-rst-terminal", &testOwnedTlsApplicationTcpResetTerminal},
+#endif
     {"tls-nonblocking-handshake", &testNonblockingTlsHandshakeProgress},
     {"tls-nonblocking-failures", &testNonblockingTlsHandshakeFailures},
     {"tcp-native-loopback-tls", &testNativeLoopbackTlsAndMcs},

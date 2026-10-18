@@ -18,6 +18,24 @@ enum class LanListenerError : std::uint8_t {
     CertificateMismatch
 };
 
+// Fixed redacted text for R7/R10 status surfaces. Never include raw socket,
+// peer, TLS, certificate path, interface-address or credential diagnostics.
+[[nodiscard]] constexpr std::string_view lanListenerErrorMessage(
+    LanListenerError error) noexcept
+{
+    switch (error) {
+    case LanListenerError::None: return "No error";
+    case LanListenerError::InvalidSelection: return "Invalid LAN listener selection";
+    case LanListenerError::InterfaceUnavailable: return "Selected local interface unavailable";
+    case LanListenerError::PermissionDenied: return "Permission denied while opening LAN listener";
+    case LanListenerError::PortOccupied: return "Requested LAN port is occupied";
+    case LanListenerError::ListenerNotReady: return "LAN listener is not ready";
+    case LanListenerError::TerminalDisconnect: return "LAN transport disconnected";
+    case LanListenerError::CertificateMismatch: return "TLS identity does not match the selected LAN endpoint";
+    }
+    return "LAN listener failed";
+}
+
 struct LanListenerResult;
 struct LanListenerRequest {
     std::string_view interfaceName;
@@ -37,6 +55,16 @@ public:
     [[nodiscard]] bool valid() const noexcept { return socket_ != OwnedNativeTcpSocket::kInvalidSocket; }
     [[nodiscard]] std::uintptr_t nativeSocket() const noexcept { return socket_; }
     [[nodiscard]] TcpPeerEndpoint boundEndpoint() const noexcept { return endpoint_; }
+    // Exact interface identity R1 validated at bind time. R10 may render this
+    // value, but it is descriptive metadata and never an admission capability.
+    [[nodiscard]] std::string_view interfaceName() const noexcept
+    {
+        return valid() ? std::string_view{interfaceName_} : std::string_view{};
+    }
+    [[nodiscard]] std::uint32_t interfaceIndex() const noexcept
+    {
+        return valid() ? interfaceIndex_ : 0U;
+    }
     // Detect address removal/interface down/reassignment. Caller must retire
     // listener and all associated connections on false; no automatic rebind.
     [[nodiscard]] bool interfaceStillMatches() const noexcept;

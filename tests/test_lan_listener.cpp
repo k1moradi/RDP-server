@@ -31,6 +31,20 @@ int main() {
     assert(!missing.listener.valid());
     auto zeroPort = openLanListener({"eth0", "192.168.1.5", 0});
     assert(zeroPort.error == LanListenerError::InvalidSelection);
+    assert(lanListenerErrorMessage(LanListenerError::InterfaceUnavailable) ==
+           "Selected local interface unavailable");
+    assert(lanListenerErrorMessage(LanListenerError::PortOccupied) ==
+           "Requested LAN port is occupied");
+    assert(lanListenerErrorMessage(LanListenerError::PermissionDenied) ==
+           "Permission denied while opening LAN listener");
+    assert(lanListenerErrorMessage(LanListenerError::CertificateMismatch) ==
+           "TLS identity does not match the selected LAN endpoint");
+    assert(lanListenerErrorMessage(LanListenerError::ListenerNotReady) ==
+           "LAN listener is not ready");
+    assert(lanListenerErrorMessage(LanListenerError::TerminalDisconnect) ==
+           "LAN transport disconnected");
+    assert(lanListenerErrorMessage(static_cast<LanListenerError>(255U)) ==
+           "LAN listener failed");
 
 #if !defined(_WIN32)
     // Discover a real UP, non-loopback RFC1918 address, if present in the
@@ -75,6 +89,8 @@ int main() {
         if (listener.error == LanListenerError::None) {
             assert(listener.listener.valid());
             assert(listener.listener.boundEndpoint().port == port);
+            assert(listener.listener.interfaceName() == name);
+            assert(listener.listener.interfaceIndex() == ::if_nametoindex(name.c_str()));
             assert(listener.listener.interfaceStillMatches());
             auto occupied = openLanListener({name, address, port});
             assert(occupied.error == LanListenerError::PortOccupied);
@@ -97,6 +113,66 @@ int main() {
             ::close(client);
             listener.listener.close();
             assert(!listener.listener.interfaceStillMatches());
+        } else {
+            assert(listener.error == LanListenerError::PortOccupied ||
+                   listener.error == LanListenerError::InterfaceUnavailable);
+        }
+    }
+
+    // Exercise the production IPv6 bind/getsockname/scope path when this
+    // machine genuinely owns an eligible ULA or link-local address. Do not
+    // invent an address or interface merely to make the positive case pass.
+    assert(::getifaddrs(&interfaces) == 0);
+    name.clear();
+    address.clear();
+    std::uint32_t selectedScope = 0U;
+    for (auto *entry = interfaces; entry; entry = entry->ifa_next) {
+        if (!entry->ifa_addr || entry->ifa_addr->sa_family != AF_INET6 ||
+            (entry->ifa_flags & (IFF_UP | IFF_RUNNING)) != (IFF_UP | IFF_RUNNING) ||
+            (entry->ifa_flags & IFF_LOOPBACK)) continue;
+        const auto &native = *reinterpret_cast<const sockaddr_in6 *>(entry->ifa_addr);
+        const auto *bytes = native.sin6_addr.s6_addr;
+        const bool eligible = (bytes[0] & 0xfeU) == 0xfcU ||
+            (bytes[0] == 0xfeU && (bytes[1] & 0xc0U) == 0x80U);
+        if (!eligible) continue;
+        char numeric[INET6_ADDRSTRLEN]{};
+        if (::inet_ntop(AF_INET6, &native.sin6_addr, numeric, sizeof(numeric))) {
+            name = entry->ifa_name;
+            address = numeric;
+            selectedScope = ::if_nametoindex(name.c_str());
+            break;
+        }
+    }
+    ::freeifaddrs(interfaces);
+    interfaces = nullptr;
+    if (!address.empty()) {
+        const int probe = ::socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+        assert(probe >= 0);
+        int ipv6Only = 1;
+        assert(::setsockopt(probe, IPPROTO_IPV6, IPV6_V6ONLY,
+                            &ipv6Only, sizeof(ipv6Only)) == 0);
+        sockaddr_in6 endpoint{};
+        endpoint.sin6_family = AF_INET6;
+        endpoint.sin6_scope_id = selectedScope;
+        assert(::inet_pton(AF_INET6, address.c_str(), &endpoint.sin6_addr) == 1);
+        assert(::bind(probe, reinterpret_cast<const sockaddr *>(&endpoint),
+                      sizeof(endpoint)) == 0);
+        socklen_t bytes = sizeof(endpoint);
+        assert(::getsockname(probe, reinterpret_cast<sockaddr *>(&endpoint), &bytes) == 0);
+        const auto port = ntohs(endpoint.sin6_port);
+        ::close(probe);
+
+        auto listener = openLanListener({name, address, port});
+        if (listener.error == LanListenerError::None) {
+            assert(listener.listener.valid());
+            assert(listener.listener.interfaceName() == name);
+            assert(listener.listener.interfaceIndex() == selectedScope);
+            const auto bound = listener.listener.boundEndpoint();
+            assert(bound.family == TcpPeerAddressFamily::Ipv6);
+            assert(bound.port == port);
+            if (address.rfind("fe", 0) == 0 || address.rfind("FE", 0) == 0)
+                assert(bound.ipv6ScopeId == selectedScope);
+            assert(listener.listener.interfaceStillMatches());
         } else {
             assert(listener.error == LanListenerError::PortOccupied ||
                    listener.error == LanListenerError::InterfaceUnavailable);

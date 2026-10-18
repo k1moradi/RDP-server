@@ -2582,6 +2582,19 @@ McsSessionLifecycle::consumeVerifiedR2GraphicsFrameAcknowledge(
     return intake;
 }
 
+RdpGraphicsFramePublicationReadiness
+McsSessionLifecycle::preflightVerifiedR2GraphicsFramePublication(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint32_t frameId) const noexcept
+{
+    using Readiness = RdpGraphicsFramePublicationReadiness;
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        !graphicsDynamicVirtualChannel_.presentationMapped())
+        return Readiness::Rejected;
+
+    return graphicsDynamicVirtualChannel_.preflightFramePublication(frameId);
+}
+
 std::optional<RdpGraphicsDvcWriteView>
 McsSessionLifecycle::beginVerifiedR2GraphicsClearCodecFramePublication(
     const SecurityNegotiationProvenance &provenance,
@@ -3165,6 +3178,35 @@ queueFrameRecord() noexcept
     bytesWritten_ = 0U;
     pendingKind_ = RdpGraphicsDvcWriteKind::GraphicsFrameData;
     return true;
+}
+
+RdpGraphicsFramePublicationReadiness
+RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
+    std::uint32_t frameId) const noexcept
+{
+    using Readiness = RdpGraphicsFramePublicationReadiness;
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        !presentationMapped() ||
+        allocation_.generation == 0U ||
+        pendingLength_ != 0U || bytesWritten_ != 0U ||
+        pendingKind_ != RdpGraphicsDvcWriteKind::None ||
+        frame_ || !frameRecordMap_.empty())
+    {
+        return Readiness::Rejected;
+    }
+
+    if (presentationLifecycle_.canReserveFrame(
+            allocation_.generation, frameId))
+        return Readiness::Ready;
+
+    if (presentationLifecycle_.expectingFrameAcknowledgements() &&
+        presentationLifecycle_.outstandingFrames() >=
+            rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames)
+    {
+        return Readiness::DeferredForFrameAcknowledge;
+    }
+
+    return Readiness::Rejected;
 }
 
 bool RdpGraphicsDynamicVirtualChannelLifecycle::

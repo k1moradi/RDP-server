@@ -4591,6 +4591,91 @@ void testGraphicsFrameAcknowledgeHandoffStale()
     assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
 }
 
+
+void testGraphicsFrameCreditPreflight()
+{
+    using Readiness = RdpGraphicsFramePublicationReadiness;
+    constexpr RdpDynamicVirtualChannelAllocation allocation{10U, 204U};
+    constexpr std::uint32_t firstFrameId = 1000U;
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+    assert(dvc.preflightFramePublication(firstFrameId) ==
+           Readiness::Ready);
+
+    const auto deliverFrame = [&dvc](std::uint32_t frameId)
+    {
+        rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+        prepareTestClearCodecFrame(dvc, frameId, frame);
+        assert(dvc.beginFramePublication(
+            std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
+            kRdpStaticVirtualChannelDefaultChunkBytes));
+
+        RdpGraphicsDvcWriteOutcome completion =
+            RdpGraphicsDvcWriteOutcome::Pending;
+        for (std::size_t count = 0U;
+             count < 256U &&
+             completion == RdpGraphicsDvcWriteOutcome::Pending;
+             ++count)
+        {
+            const auto write = dvc.pendingServerWrite();
+            assert(write &&
+                   write.kind ==
+                       RdpGraphicsDvcWriteKind::GraphicsFrameData);
+            completion = dvc.onServerBytesWritten(
+                write.channelGeneration, write.replySequence,
+                write.writeSliceSequence, write.bytes.size());
+        }
+        assert(completion == RdpGraphicsDvcWriteOutcome::Delivered);
+    };
+
+    for (std::size_t index = 0U;
+         index < rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames;
+         ++index)
+    {
+        deliverFrame(
+            firstFrameId + static_cast<std::uint32_t>(index));
+    }
+
+    assert(dvc.outstandingGraphicsFrames() ==
+           rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.frameRecordMap().empty());
+
+    constexpr std::uint32_t deferredFrameId = 2000U;
+    assert(dvc.preflightFramePublication(deferredFrameId) ==
+           Readiness::DeferredForFrameAcknowledge);
+    assert(dvc.outstandingGraphicsFrames() ==
+           rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.frameRecordMap().empty());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(dvc.presentationMapped());
+
+    assert(dvc.onClientTpkt(
+        allocation.generation,
+        makeR3GraphicsFrameAcknowledgeTpkt(
+            allocation.channelId, firstFrameId, 4096U, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(dvc.outstandingGraphicsFrames() + 1U ==
+           rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames);
+    assert(dvc.preflightFramePublication(deferredFrameId) ==
+           Readiness::Ready);
+
+    assert(dvc.preflightFramePublication(firstFrameId + 1U) ==
+           Readiness::Rejected);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(dvc.presentationMapped());
+
+    dvc.close();
+    assert(dvc.preflightFramePublication(deferredFrameId + 1U) ==
+           Readiness::Rejected);
+}
+
 void testGraphicsPresentationInitializationWire()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 901U};
@@ -11552,7 +11637,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 162> kMcsTestCases{{
+constexpr std::array<McsTestCase, 163> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -11694,6 +11779,7 @@ constexpr std::array<McsTestCase, 162> kMcsTestCases{{
     {"dvc-graphics-frame-ack-handoff-wire", &testGraphicsFrameAcknowledgeHandoffWire},
     {"dvc-graphics-frame-ack-handoff-malformed", &testGraphicsFrameAcknowledgeHandoffMalformed},
     {"dvc-graphics-frame-ack-handoff-stale", &testGraphicsFrameAcknowledgeHandoffStale},
+    {"dvc-graphics-frame-credit-preflight", &testGraphicsFrameCreditPreflight},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},

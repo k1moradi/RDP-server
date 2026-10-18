@@ -1019,6 +1019,15 @@ enum class RdpGraphicsFrameAcknowledgeIntake : std::uint8_t
     Rejected,
 };
 
+// Ephemeral scheduler observation only. R4 remains the sole owner of the ACK
+// window and frame-ID set; R3 exposes no transferable credit token.
+enum class RdpGraphicsFramePublicationReadiness : std::uint8_t
+{
+    Ready,
+    DeferredForFrameAcknowledge,
+    Rejected,
+};
+
 enum class RdpGraphicsFrameCodec : std::uint8_t
 {
     ClearCodec,
@@ -1072,6 +1081,8 @@ public:
     // Prepare the mandatory ClearCodec fallback only against this R3-owned
     // mapped presentation. The caller supplies pixels/frame ID, never a
     // graphics generation or surface ID.
+    [[nodiscard]] RdpGraphicsFramePublicationReadiness
+    preflightFramePublication(std::uint32_t frameId) const noexcept;
     [[nodiscard]] bool prepareClearCodecFrame(
         std::uint32_t frameId,
         ::FramebufferView framebuffer,
@@ -1791,6 +1802,14 @@ private:
     [[nodiscard]] RdpGraphicsFrameAcknowledgeIntake
     consumeVerifiedR2GraphicsFrameAcknowledge(
         const SecurityNegotiationProvenance &provenance) noexcept;
+
+    // Read-only credit preflight before capture/encoding. R2 revalidates the
+    // ephemeral result before exposing it; only ACK-window saturation is a
+    // nonterminal defer. No frame, receipt, wire bytes or ACK state is created.
+    [[nodiscard]] RdpGraphicsFramePublicationReadiness
+    preflightVerifiedR2GraphicsFramePublication(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint32_t frameId) const noexcept;
 
     // R3 mints the mandatory ClearCodec fallback against its own current
     // Graphics DVC generation and mapped surface. Callers supply only the

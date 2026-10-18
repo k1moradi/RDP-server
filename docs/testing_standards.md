@@ -1,3 +1,15 @@
+## R3/R4 frame-credit preflight stays read-only (2026-10-18)
+
+`transport.dvc-graphics-frame-credit-preflight` must fill the production R4
+ACK window through complete R3 frame delivery, prove the 65th fresh frame is
+reported as `DeferredForFrameAcknowledge` with no pending wire record or
+state mutation, consume one real FRAME_ACK through R3's existing handoff, and
+prove capacity becomes `Ready` again. A duplicate outstanding frame ID with
+available capacity must be `Rejected`, not misreported as credit pressure.
+Keep this case in R9's exact-count R3 Graphics ASan/UBSan selector. Do not add a
+second ACK counter, caller-supplied generation, synthetic admission or frame
+reservation to the preflight.
+
 ## R10 shared Linux verified listener policy CTest (2026-10-18)
 
 `runtime.linux-serve-loopback-listener-exact-endpoint-denials` uses the

@@ -1,3 +1,21 @@
+## R3 authenticated non-mutating Graphics frame-credit preflight (2026-10-18)
+
+R4 remains the sole owner of the RDPGFX ACK window and outstanding frame IDs.
+R3 now exposes only an ephemeral scheduling observation from its current
+authenticated Graphics DVC/presentation: `Ready`,
+`DeferredForFrameAcknowledge`, or `Rejected`. The observation reserves no
+frame, encodes no pixels, advances no sequence/receipt and mutates no ACK state.
+Only an otherwise-clean R3 Ready presentation with the authoritative R4
+64-frame window full returns `DeferredForFrameAcknowledge`; duplicate frame
+IDs and all other refusals remain `Rejected`.
+
+The live seam is private to `McsSessionLifecycle` and is reached through the
+concrete R2 Linux broker, which revalidates the same native lease, R1 security
+provenance and PersonalDesktop policy both before and after the read-only
+observation. The returned enum is not a capability: R10 must reauthorize again
+when it later begins the actual frame. R10 owns scheduling and must interpret
+only `DeferredForFrameAcknowledge` as nonterminal backpressure.
+
 ## R6/R4 native capture-generation compatibility (2026-10-17)
 
 R4's optional `openBgraCapture()` ingress epoch is deliberately separate from

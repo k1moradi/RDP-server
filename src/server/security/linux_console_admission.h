@@ -689,6 +689,20 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
+    // Read-only R3/R4 frame-credit observation. R2 checks the exact native
+    // lease and R1/R3 provenance both before and after classification.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
+    preflightR3PersonalDesktopGraphicsFramePublication(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint32_t frameId) noexcept;
+
     // Begin mandatory ClearCodec DATA only after the same fresh protected
     // transition. R3 owns the presentation generation/surface and prepares the
     // R4 frame synchronously from borrowed pixels before queuing any wire byte.

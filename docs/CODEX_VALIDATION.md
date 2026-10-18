@@ -1,3 +1,28 @@
+## R3 Graphics ACK-credit preflight authoring receipt (2026-10-18)
+
+The previously blocking R10 persistent post-Share reader/router is now landed
+and consumed, and exact shared-main `9a036d098bc183c051c02e4bb233733c89a33a3c`
+is fully hosted-green in primary Actions `39147713490` plus structure
+`39147713471`. Its four R3 post-Share classifier cases, existing 19-case
+Graphics DVC/FRAME_ACK sanitizer selector and R4
+`graphics.frame-publication-backpressure` all PASS. R4 then strengthened
+mapped-geometry nonmutation without changing runtime ownership.
+
+This increment adds the missing R3→R10 scheduler observation without adding a
+scheduler: one read-only R3 preflight distinguishes `Ready`,
+`DeferredForFrameAcknowledge` and `Rejected`; R2 revalidates the exact
+lease/provenance before and after exposing it. The dedicated production-backed
+`transport.dvc-graphics-frame-credit-preflight` fills all 64 ACK slots,
+proves nonmutating defer, reclaims one slot through the existing FRAME_ACK
+consumer, then proves Ready recovery and duplicate-ID rejection. R9's Graphics
+selector increases 19→20 with the new exact sentinel.
+
+Owner-local `~/rdp-server/build` execution and real physical-seat0 client
+acceptance are **NOT RUN** in this connector environment. Publication-SHA
+hosted CI is **PENDING**. R10 must consume only the Deferred result as
+nonterminal scheduler backpressure; the actual frame-start operation remains a
+separate freshly authorized transition.
+
 ## R10 reusable verified Linux listener lifetime (2026-10-18)
 
 From `eeea6b751e095028ba00cc5d25526eae85a7cdda`, the original production `openVerifiedLinuxLoopbackListener`

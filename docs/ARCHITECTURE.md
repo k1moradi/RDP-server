@@ -7077,3 +7077,16 @@ perform dispatch, authorize input or clipboard, change lifecycle state,
 consume MCS/DRDYNVC fragments or allocate any channel. Unsupported/malformed
 packets produce an empty span. The selected existing route consumer repeats
 its permission, share and wire checks; R4 retains decode-progress/ACK state.
+
+## R3/R2 Graphics FRAME_ACK consumer contract (2026-10-18)
+
+After `authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu` reports
+`GraphicsDataAccepted`, the single R10 event owner calls
+`LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge`
+with the same current lease, connection, session and policy, before receiving
+another DVC DATA packet. R2 rechecks native admission; R3 checks the current
+Share and joined Graphics static VC and invokes R4's embedded presentation
+`onFrameAcknowledge` on the stored complete DATA buffer. R4 alone correlates
+frame IDs, queueDepth and totalFramesDecoded and handles suspension. R3 then
+clears its completed DVC payload. Zero bytes or stale generations cannot
+advance decode progress. Rejected or malformed ACKs close the R3 owner.

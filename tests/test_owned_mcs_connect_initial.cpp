@@ -4467,6 +4467,125 @@ void prepareTestClearCodecFrame(
            kMaximumRdpDynamicVirtualChannelDataPayloadBytes);
 }
 
+
+[[nodiscard]] std::array<std::uint8_t, 20>
+makeR3FrameAcknowledge(
+    std::uint32_t frameId, std::uint32_t queueDepth,
+    std::uint32_t totalDecoded) noexcept
+{
+    // MS-RDPEGFX 2.2.2.13 exact FRAME_ACKNOWLEDGE, no second parser.
+    std::array<std::uint8_t, 20> result{
+        0x0dU,0x00U,0x00U,0x00U,0x14U,0x00U,0x00U,0x00U};
+    const auto write = [&result](std::size_t offset, std::uint32_t value)
+    {
+        for (std::size_t byteIndex = 0U; byteIndex < 4U; ++byteIndex)
+            result[offset + byteIndex] = static_cast<std::uint8_t>(
+                value >> (byteIndex * 8U));
+    };
+    write(8U, queueDepth);
+    write(12U, frameId);
+    write(16U, totalDecoded);
+    return result;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+makeR3GraphicsFrameAcknowledgeTpkt(
+    std::uint32_t channelId,
+    std::uint32_t frameId,
+    std::uint32_t queueDepth,
+    std::uint32_t totalDecoded)
+{
+    assert(channelId != 0U && channelId <= 0xffU);
+    std::vector<std::uint8_t> dvcPdu{
+        0x30U, static_cast<std::uint8_t>(channelId)};
+    const auto ack = makeR3FrameAcknowledge(
+        frameId, queueDepth, totalDecoded);
+    dvcPdu.insert(dvcPdu.end(), ack.begin(), ack.end());
+    return makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, dvcPdu);
+}
+
+void testGraphicsFrameAcknowledgeHandoffWire()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 201U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(dvc, 712U, frame);
+    assert(dvc.beginFramePublication(
+        std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    RdpGraphicsDvcWriteOutcome completion =
+        RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t count = 0U; count < 256U &&
+         completion == RdpGraphicsDvcWriteOutcome::Pending; ++count)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        completion = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+    assert(completion == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    assert(dvc.onClientTpkt(
+        allocation.generation,
+        makeR3GraphicsFrameAcknowledgeTpkt(
+            allocation.channelId, 712U, 4096U, 7U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.pendingClientGraphicsData().size() ==
+           rdp_server::rdp::kGfxFrameAcknowledgePduBytes);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.pendingClientGraphicsData().empty());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    // Replayed completion without fresh DATA cannot consume another ACK.
+}
+
+void testGraphicsFrameAcknowledgeHandoffMalformed()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 202U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+    auto malformed = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, 712U, 0U, 1U);
+    // DVC carries an exact ACK-sized payload, but R4's PDU signature is bad.
+    malformed[24U] = 0xffU;
+    assert(dvc.onClientTpkt(
+        allocation.generation, malformed) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation) ==
+        RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(dvc.pendingClientGraphicsData().empty());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+}
+
+void testGraphicsFrameAcknowledgeHandoffStale()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 203U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+    assert(dvc.onClientTpkt(
+        allocation.generation,
+        makeR3GraphicsFrameAcknowledgeTpkt(
+            allocation.channelId, 712U, 0U, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(
+        allocation.generation - 1U) ==
+        RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(dvc.pendingClientGraphicsData().empty());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+}
+
 void testGraphicsPresentationInitializationWire()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 901U};
@@ -11356,7 +11475,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 158> kMcsTestCases{{
+constexpr std::array<McsTestCase, 161> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -11495,6 +11614,9 @@ constexpr std::array<McsTestCase, 158> kMcsTestCases{{
     {"dvc-graphics-caps-selection", &testGraphicsDynamicVirtualChannelCapabilitiesSelection},
     {"dvc-graphics-caps-unsupported-denial", &testGraphicsDynamicVirtualChannelCapabilitiesUnsupportedDenial},
     {"dvc-graphics-presentation-wire", &testGraphicsPresentationInitializationWire},
+    {"dvc-graphics-frame-ack-handoff-wire", &testGraphicsFrameAcknowledgeHandoffWire},
+    {"dvc-graphics-frame-ack-handoff-malformed", &testGraphicsFrameAcknowledgeHandoffMalformed},
+    {"dvc-graphics-frame-ack-handoff-stale", &testGraphicsFrameAcknowledgeHandoffStale},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},

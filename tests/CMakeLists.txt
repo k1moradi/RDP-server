@@ -282,6 +282,9 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-caps-selection
                 dvc-graphics-caps-unsupported-denial
                 dvc-graphics-presentation-wire
+                dvc-graphics-frame-ack-handoff-wire
+                dvc-graphics-frame-ack-handoff-malformed
+                dvc-graphics-frame-ack-handoff-stale
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial

@@ -1666,6 +1666,40 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
 }
 
 
+
+rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake
+LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    using Intake = rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake;
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return Intake::Rejected;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Intake::Rejected;
+    }
+
+    const auto result =
+        session.consumeVerifiedR2GraphicsFrameAcknowledge(*provenance);
+    if (result == Intake::Rejected ||
+        !authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+    {
+        revokeR3Session(acceptor, session);
+        return Intake::Rejected;
+    }
+    return result;
+}
+
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublication(
     const LinuxConsoleAdmissionLease &lease,

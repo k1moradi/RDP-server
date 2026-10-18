@@ -1008,6 +1008,17 @@ enum class RdpGraphicsDvcClientIntake : std::uint8_t
     Closed,
 };
 
+// The existing R4 presentation ACK window remains the sole owner of decode
+// progress, outstanding IDs and suspension. R3 only supplies the authorized,
+// complete reassembled client DATA payload and retires its DVC buffer.
+enum class RdpGraphicsFrameAcknowledgeIntake : std::uint8_t
+{
+    Acknowledged,
+    Unmatched,
+    Suspended,
+    Rejected,
+};
+
 enum class RdpGraphicsFrameCodec : std::uint8_t
 {
     ClearCodec,
@@ -1082,6 +1093,11 @@ public:
                    : std::span<const std::uint8_t>{};
     }
     [[nodiscard]] bool consumeClientGraphicsData(
+        std::uint64_t channelGeneration) noexcept;
+    // Call only after GraphicsDataAccepted in the Ready presentation state.
+    // Dispatch this exact one client PDU to R4's existing ACK window.
+    [[nodiscard]] RdpGraphicsFrameAcknowledgeIntake
+    consumePendingClientFrameAcknowledge(
         std::uint64_t channelGeneration) noexcept;
     [[nodiscard]] bool cancelUnwrittenFramePublication(
         std::uint64_t channelGeneration) noexcept;
@@ -1769,6 +1785,13 @@ private:
     acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
+    // Synchronously pass one completed post-Ready Graphics client DATA
+    // FRAME_ACKNOWLEDGE into R4's sole presentation ACK window. R2 freshly
+    // reauthorizes immediately before this private stateful handoff.
+    [[nodiscard]] RdpGraphicsFrameAcknowledgeIntake
+    consumeVerifiedR2GraphicsFrameAcknowledge(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+
     // R3 mints the mandatory ClearCodec fallback against its own current
     // Graphics DVC generation and mapped surface. Callers supply only the
     // frame ID and borrowed pixels; neither is an authorization capability.

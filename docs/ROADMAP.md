@@ -448,3 +448,13 @@ BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
 **R3 classifier CI follow-up (2026-10-18):** R3's test registry static extent
 was updated 155 → 158 after Linux/macOS compilation detected three added
 cases. Exact-head route/graphics/sanitizer tests remain PENDING.
+
+**Separate R3 Graphics client FRAME_ACK handoff (2026-10-18):** The
+post-Ready DVC DATA receiver retains the completed client PDU until the
+R2-authorized `consumeR3PersonalDesktopGraphicsFrameAcknowledge` invokes
+R4's existing `GfxPresentationLifecycle::onFrameAcknowledge` and clears the
+DVC reassembly buffer. R4 remains sole owner of decode progress, matching
+frame IDs, queue depth and ACK suspension. R10 must call this immediately
+after `GraphicsDataAccepted`, before reading another DATA packet. This is a
+separate bounded production commit from the non-mutating classifier; neither
+changes R10's TLS reader or native admission. Exact CI PENDING.

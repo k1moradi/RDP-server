@@ -2501,6 +2501,32 @@ McsSessionLifecycle::acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
 }
 
 
+
+RdpGraphicsFrameAcknowledgeIntake
+McsSessionLifecycle::consumeVerifiedR2GraphicsFrameAcknowledge(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    using Intake = RdpGraphicsFrameAcknowledgeIntake;
+    const auto channel = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::DynamicVirtualChannels);
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        !connectResponseAllocation_ || !channel ||
+        !joins_.channelJoinConfirmed(*channel) ||
+        graphicsDynamicVirtualChannel_.channelGeneration() == 0U)
+    {
+        close();
+        return Intake::Rejected;
+    }
+
+    const auto intake =
+        graphicsDynamicVirtualChannel_.consumePendingClientFrameAcknowledge(
+            graphicsDynamicVirtualChannel_.channelGeneration());
+    if (intake == Intake::Rejected)
+        close();
+    return intake;
+}
+
 std::optional<RdpGraphicsDvcWriteView>
 McsSessionLifecycle::beginVerifiedR2GraphicsClearCodecFramePublication(
     const SecurityNegotiationProvenance &provenance,
@@ -3207,6 +3233,49 @@ clearClientDvcReassembly() noexcept
     clientDvcExpectedBytes_ = 0U;
     clientDvcFragmented_ = false;
     clientGraphicsDataReady_ = false;
+}
+
+
+RdpGraphicsFrameAcknowledgeIntake
+RdpGraphicsDynamicVirtualChannelLifecycle::
+consumePendingClientFrameAcknowledge(
+    std::uint64_t channelGeneration) noexcept
+{
+    using Intake = RdpGraphicsFrameAcknowledgeIntake;
+    using AckResult = rdp_server::rdp::GfxFrameAckWindowResult;
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        channelGeneration == 0U ||
+        allocation_.generation != channelGeneration ||
+        !clientGraphicsDataReady_)
+    {
+        fail();
+        return Intake::Rejected;
+    }
+
+    // No second R4 window or ACK counter: the existing mapped presentation
+    // validates the exact RDPGFX FRAME_ACKNOWLEDGE and records decode progress.
+    AckResult result = AckResult::InvalidPdu;
+    if (!presentationLifecycle_.onFrameAcknowledge(
+            channelGeneration,
+            std::as_bytes(pendingClientGraphicsData()), result))
+    {
+        fail();
+        return Intake::Rejected;
+    }
+    // The DVC reassembly buffer is retained through R4's synchronous parse
+    // and cleared exactly once afterwards. No borrowed view survives.
+    clearClientDvcReassembly();
+    switch (result)
+    {
+    case AckResult::Acknowledged: return Intake::Acknowledged;
+    case AckResult::Unmatched: return Intake::Unmatched;
+    case AckResult::Suspended: return Intake::Suspended;
+    case AckResult::InvalidPdu:
+    case AckResult::StaleGeneration:
+        break;
+    }
+    fail();
+    return Intake::Rejected;
 }
 
 bool RdpGraphicsDynamicVirtualChannelLifecycle::

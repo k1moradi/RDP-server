@@ -6795,3 +6795,18 @@ Exact-head Linux/macOS protocol CI for e7c6a13 failed at compile because
 three new behavior-named cases were added to a fixed 155-element test array
 without raising its extent. Updated to 158; test execution on this correction
 remains PENDING, prior commit's CTests NOT RUN.
+
+## R3 post-Ready Graphics DATA / FRAME_ACK handoff (2026-10-18)
+
+Existing DRDYNVC onClientTpkt returned `GraphicsDataAccepted` and retained
+one completed client Graphics PDU, but no authenticated R3/R2 production
+consumer forwarded it to R4's presentation ACK owner. Added the narrow
+`RdpGraphicsDynamicVirtualChannelLifecycle::consumePendingClientFrameAcknowledge`
+with private session gate and R2 broker facade. After fresh real native
+admission R3 forwards the exact reassembled bytes to the pre-existing R4
+`GfxPresentationLifecycle::onFrameAcknowledge`, maps its receipt result,
+then retires the DVC buffer. No new ACK decoder/window, frame ID cache,
+graphics writer, TLS loop, or R10 generation argument. Unsupported/stale
+messages fail closed. Added behavior CTests for matching ACK, malformed
+ACK and stale generation. Exact-SHA CI/sanitizer outcomes: PENDING;
+local CTests NOT RUN in connector.

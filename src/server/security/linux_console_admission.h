@@ -678,6 +678,17 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // After GraphicsDataAccepted, synchronously deliver the reassembled
+    // FRAME_ACKNOWLEDGE to R4's existing presentation/ACK owner. Fresh R2
+    // admission is mandatory; there is no R10 or R3 duplicate ACK window.
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake
+    consumeR3PersonalDesktopGraphicsFrameAcknowledge(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
     // Begin mandatory ClearCodec DATA only after the same fresh protected
     // transition. R3 owns the presentation generation/surface and prepares the
     // R4 frame synchronously from borrowed pixels before queuing any wire byte.

@@ -852,18 +852,19 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# R5 stateless authorized-input route. Build only where the concrete native
-# Linux R2/R3 broker and the one-XCB desktop owner are both present. This
-# target owns no session/input state and is never installed or linked runtime.
-if(TARGET rdp-server-linux-gssapi AND
+# R5 stateless authorized-input route. Build only where R10's concrete
+# R2 input gateway and the one-XCB native desktop owner both exist. It owns
+# no session/lease/input state; R10 links this only with its sole event loop.
+if(TARGET rdp-server-linux-runtime-security AND
    TARGET rdp-server-linux-x11-desktop)
     add_library(rdp-server-linux-x11-authorized-input STATIC
-        src/x11/x11_authorized_input_route.cpp)
+        src/x11/x11_authorized_input_route.cpp
+        src/x11/x11_rdp_slow_path_input.cpp)
     target_compile_features(rdp-server-linux-x11-authorized-input PUBLIC cxx_std_23)
     target_include_directories(rdp-server-linux-x11-authorized-input PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
     target_link_libraries(rdp-server-linux-x11-authorized-input PUBLIC
-        rdp-server-linux-gssapi
+        rdp-server-linux-runtime-security
         rdp-server-linux-x11-desktop)
     target_compile_options(rdp-server-linux-x11-authorized-input PRIVATE
         -Wall -Wextra -Wpedantic -Werror)

@@ -1,3 +1,29 @@
+## R5 consumes R2's per-event slow-path input gateway (2026-10-18)
+
+R2's post-Share `LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu`
+is present on `main`; it performs per-event R2/GSS/TLS/lease/native/R3/input
+checks and remains the single authorization owner. R5 adds a stateless
+`X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt` and private
+decoded-event sink on the single borrowed R10 X11 desktop. No R1 TLS reader,
+R2 lease or XCB connection is duplicated. R5 checks native generation
+before and after gated event dispatch, converts only spec-checked mouse
+move/single button and lock-state events, and uses no-post retirement
+on denial. Unsupported keyboard, wheel, Unicode, relative, extended input
+remains rejected; `Unused` is an authorized no-op.
+Dedicated native-optional, offline CTest
+`x11.input-r2-authorized-slow-path-native-mapping-denials` checks pointer
+button numbering, bounds, malformed/unsupported flags, lock bits and typed
+gateway signature. The existing R2 gateway tests still deny all callbacks
+without a real admission lease.
+
+Current `src/server/runtime/main.cpp` stops after one R2-fenced native
+poll cycle and does not deliver complete post-Share R1 TLS TPKTs, so this
+bridge is **not** invoked by a live RDP client. Owner full build/CTest:
+**NOT RUN**; exact publication-SHA hosted CI: **PENDING**; positive
+physical seat0/XTEST/Microsoft-client acceptance: **BLOCKED / NOT RUN**.
+Next gate: R10 persistent R1/TLS native owner loop and authenticated
+frame/input routing; R5 expands unsupported formats after tested semantics.
+
 ## R9 Windows system-DLL classification after recursive R6 staging (2026-10-18)
 
 R6 `ab63d1bbeb41e19dc447dfde4cb7c1e0260da3b1` resolves the demonstrated windeployqt omission by staging the recursive non-system Windows runtime closure before hashing. The preceding native R9 verifier log also reports three imports that are Windows-provided rather than redistributable application runtime: `AUTHZ.dll`, `d3d9.dll` and `ncrypt.dll`. R9 adds only those names to the existing system-DLL allowlist and extends the portable verifier unit case accordingly. Compiler, Qt, ICU, compression, font/image and GLib dependencies remain non-system and must still be present app-local after extraction. Exact correction-SHA CI: **PENDING**.

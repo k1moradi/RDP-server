@@ -2252,6 +2252,24 @@ if(TARGET rdp-server-linux-x11-desktop)
     endif()
 endif()
 
+# R5 production R2-gated decoded slow-path native event mapping, fully
+# offline. Only deterministic X11 pointer buttons/motion and lock-sync map;
+# unknown, keyboard, wheel and unsupported negotiated variants deny natively.
+if(TARGET rdp-server-linux-x11-authorized-input)
+    add_executable(test_x11_rdp_slow_path_input
+        test_x11_rdp_slow_path_input.cpp)
+    target_link_libraries(test_x11_rdp_slow_path_input PRIVATE
+        rdp-server-linux-x11-authorized-input)
+    target_compile_options(test_x11_rdp_slow_path_input PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME x11.input-r2-authorized-slow-path-native-mapping-denials
+        COMMAND test_x11_rdp_slow_path_input)
+    set_tests_properties(
+        x11.input-r2-authorized-slow-path-native-mapping-denials PROPERTIES
+        LABELS "x11;linux-adapter;security;input;offline"
+        TIMEOUT 20)
+endif()
+
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop
 # freshness cannot authorize XTEST and that a mismatched geometry generation

@@ -1,3 +1,21 @@
+## R5 decoded RDP slow-path input to native X11, per-event (2026-10-18)
+
+R2 `dispatchPersonalDesktopSlowPathInputPdu` is the only gateway permitted
+to call R5's private XTEST sink. The sink is synchronous and retains no
+authorization grant. It must recheck the current R5 capture geometry
+generation beside injection; mismatch or unsupported syntax terminates
+and retires held native state without cleanup XTEST. The typed translator
+currently permits only exactly one MOVE or button1/2/3 event (mapping RDP
+right=button2 to X11 right=button3), and lock synchronization's supported
+caps/num/scroll flags. Input coordinates must fit the exact native
+geometry; mixed/wheel/unknown flags, extended/relative and all unmapped
+keyboard variants fail closed. `Unused` stays an authorized no-op.
+Use `x11.input-r2-authorized-slow-path-native-mapping-denials` with
+explicit positive/negative decoded-event fixtures and never mint a
+synthetic R2 lease in native tests. The R10 serve loop must read each
+complete TPKT via the single R1 TLS owner and register no second X11
+connection or authorization controller.
+
 ## R6 Windows GUI recursive dependency staging regression (2026-10-18)
 
 A successful `windeployqt` invocation is not sufficient evidence that a

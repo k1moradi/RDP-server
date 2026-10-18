@@ -1365,6 +1365,30 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$persistent_owner_selection" --output-on-failure
 
+      # R8's new outbound CLIPRDR R1 TLS writer is production-backed
+      # but deliberately denies unleased native clipboard publication.
+      # This is not part of the fixed 87-case clipboard component inventory.
+      - name: Run R8 clipboard TLS receipt denials with sanitizers
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          clipboard_tls_selection='^runtime[.]linux-connection-personal-clipboard-tls-write-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$clipboard_tls_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-clipboard-tls-write-denials' <<< "$selected_tests"
+          readonly clipboard_tls_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$clipboard_tls_expected_test_count" ]]; then
+            printf 'R9 R8 clipboard TLS receipt registry mismatch: expected %s test, found %s\n' \
+              "$clipboard_tls_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$clipboard_tls_selection" --output-on-failure
+
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
       # of the fixed 40-case executable-backed selector, but require it in the

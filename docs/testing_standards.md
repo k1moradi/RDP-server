@@ -1,3 +1,15 @@
+## R9 new production clipboard TLS writer sanitizer inventory (2026-10-18)
+
+A new R8 connection-local R1/TLS clipboard writer must retain a
+separately counted exact-one production-backed CTest in the focused
+Linux Clang ASan/UBSan lane, with CI structure sentinels for the test
+name and expected count. Do not silently fold it into the existing 87
+R8 component-only clipboard cases, two dormant native bridge guards,
+two post-Share R10 negative cases, or 40 R2 executable security tests.
+A no-R2-lease denial is not a positive native CLIPRDR acceptance claim.
+Actual extracted macOS framework `codesign --verify --deep --strict`
+and an owner-authorized Aqua GUI launch remain separate obligations.
+
 ## R8 serialized CLIPRDR TLS writes preserve R1/R2/R3 receipts (2026-10-18)
 
 A live post-Share R8 clipboard writer must reborrow the current R3

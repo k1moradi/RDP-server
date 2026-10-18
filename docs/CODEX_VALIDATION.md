@@ -1,3 +1,26 @@
+## R9 R8 clipboard TLS writer focused sanitizer coverage (2026-10-18)
+
+The existing R9 fixed **87/87** clipboard component selection does not
+contain the new production connection-local R8 outbound TLS denial test.
+Following R8 `7c22b9a`, R9 adds one dedicated Clang ASan+UBSan gate
+for `runtime.linux-connection-personal-clipboard-tls-write-denials`.
+It requires exactly one registered CTest and a literal behavior-name
+sentinel, and the independently executed structure validator checks
+the YAML name/selector/count/test token. The code still fails closed
+before real clipboard native publication; no active R8/CLIPRDR
+roundtrip or real R2 lease is claimed.
+
+Native hosted R7 macOS arm64 `r7-macos-portable-gui` in
+[Actions 39140555244](https://github.com/k1moradi/RDP-server/actions/runs/39140555244)
+**PASS** (including signing/closure gate). The previous
+`codesign --verify --deep --strict` failure affected older SHAs,
+not this corrected descendant. This is ad-hoc development identity,
+not production signing/notarization or an actual Aqua first-screen.
+R10 `e00593e` corrected wrapped native `poll`/retirement source
+check false negatives; exact-head **primary full CI PENDING**, and
+three-platform same-SHA owner-local / Microsoft clients **NOT RUN**.
+No PORTABLE-GUI or SERVER-TEST promotion from this evidence.
+
 ## R8 R1 TLS clipboard outbound write and receipt boundary (2026-10-18)
 
 With R10's persistent post-Share scheduler now in production source, the

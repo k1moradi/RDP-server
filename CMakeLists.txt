@@ -176,6 +176,7 @@ add_library(rdp-server-protocol STATIC
     src/server/transport/security_negotiation.cpp
     src/server/transport/preauth_session.cpp
     src/server/transport/nonblocking_tcp_adapter.cpp
+    src/server/transport/lan_listener.cpp
     src/server/security/base64_codec.cpp
     src/server/security/credssp_tsrequest.cpp
     src/server/security/credssp_credentials.cpp
@@ -262,7 +263,7 @@ endif()
 # Native nonblocking TCP is a thin platform adapter. The portable RDP
 # connection owner and its protocol/authorization semantics stay shared.
 if(WIN32)
-    target_link_libraries(rdp-server-protocol PUBLIC ws2_32)
+    target_link_libraries(rdp-server-protocol PUBLIC ws2_32 iphlpapi)
 endif()
 
 # First native XShm translation-unit target. Optional Linux XCB developer

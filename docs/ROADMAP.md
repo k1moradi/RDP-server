@@ -523,6 +523,17 @@ R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
 The external R10 single-reader integration and genuine X11 host remain
 BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
 
+**R10 persistent poll/borrow correction (2026-10-18):** The combined
+socket/X11/logind poll now narrows runtime-dependent POSIX event masks to the
+actual `short` field, rejects a bad socket interest before registering the
+borrowed watcher, explicitly retires rejected watcher registrations, and
+passes a mutable synchronous stack context into the existing capture callback
+without `const_cast`. The Graphics source CTest checks native capture call
+ordering (not declaration position); the persistent owner guard rejects
+reintroduced const-discarding. Source parent `1cebf88942edd7f9e0294a40eba4eff10a574114`;
+local CTest **NOT RUN**, hosted exact-head CI **PENDING**, live physical
+seat0/mstsc **NOT RUN**.
+
 **R10 persistent Linux post-Share runtime (2026-10-18):** R10 now composes the
 R1 socket, R2 borrowed logind registration, one R5 XCB desktop and the R3
 Share/Graphics lifetime in one bounded three-fd poll loop. The exact borrowed

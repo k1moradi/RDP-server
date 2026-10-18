@@ -199,6 +199,18 @@ Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
 **NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
 native release acceptance or human Microsoft-client success is claimed.
 
+## R10 persistent poll and borrowed-frame guard correction (2026-10-18)
+
+Follow-up on `1cebf88942edd7f9e0294a40eba4eff10a574114`: native poll's runtime-selected POSIX event mask
+is narrowed explicitly to its `short` field; R2 borrowed monitor
+registration is deferred until the R1 descriptor/interest is valid and
+retired even on invalid-generation admission; the synchronous R5 frame
+publication context is non-const stack storage, not a `const_cast`.
+The production source Graphics test now verifies native capture invocation
+ordering, not helper declaration order, and the owner test rejects unsafe
+const casts. Local configure/compile/CTest **NOT RUN** because GitHub DNS
+prevents a checkout; publication CI **PENDING**. No human admission claimed.
+
 ## R10 persistent post-Share Linux scheduler (2026-10-18)
 
 New production server main loop retains R2-selected X11 resources and native

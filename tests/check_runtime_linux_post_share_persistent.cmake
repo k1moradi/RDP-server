@@ -52,6 +52,12 @@ foreach(needed IN ITEMS
         message(FATAL_ERROR "Missing existing R1/R2/R3 backing: ${needed}")
     endif()
 endforeach()
+# The publication borrow context must remain stack-owned without casting
+# away constness to satisfy a callback ABI.
+string(FIND "${runtime_source}" "const_cast<LinuxFramePublicationContext" bad_borrow)
+if(NOT bad_borrow EQUAL -1)
+    message(FATAL_ERROR "R10 must not cast away native frame borrow constness")
+endif()
 # R10 may call exactly the established R1-owned TLS application reader.
 string(FIND "${runtime_source}" "SSL_read_ex" extra_tls_reader)
 if(NOT extra_tls_reader EQUAL -1)

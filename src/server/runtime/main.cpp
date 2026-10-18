@@ -1650,14 +1650,25 @@ struct LinuxFramePublicationContext final {
         }
         const int socketDescriptor = connection.nativeSocketPollDescriptor();
         const auto socketInterest = connection.ioInterest();
-        const auto nativeChange = connection.registerNativeChange();
-        if (socketDescriptor < 0 || !nativeChange ||
-            nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
-            nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
-            nativeChange->events >
-                static_cast<int>((std::numeric_limits<short>::max)()) ||
+        if (socketDescriptor < 0 ||
             (socketInterest != Interest::Read &&
              socketInterest != Interest::Write)) {
+            break;
+        }
+        const auto nativeChange = connection.registerNativeChange();
+        if (!nativeChange) {
+            break;
+        }
+        if (nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
+            nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
+            nativeChange->events >
+                static_cast<int>((std::numeric_limits<short>::max)())) {
+            // A borrowed descriptor has been registered but was never added
+            // to poll: explicitly retire it before connection revocation.
+            if (connection.unregisterNativeChange(*nativeChange)) {
+                (void)connection.releaseNativeChangeWithoutDispatch(
+                    *nativeChange);
+            }
             break;
         }
 
@@ -1666,7 +1677,8 @@ struct LinuxFramePublicationContext final {
              static_cast<short>(nativeChange->events), 0},
             {nativeOwner.desktop->fileDescriptor(), POLLIN, 0},
             {socketDescriptor,
-             socketInterest == Interest::Read ? POLLIN : POLLOUT, 0},
+             static_cast<short>(
+                 socketInterest == Interest::Read ? POLLIN : POLLOUT), 0},
         }};
         const auto now = Clock::now();
         const bool bufferedApplicationData = !frameWritePending &&
@@ -1786,14 +1798,13 @@ struct LinuxFramePublicationContext final {
             if (nextFrameId == 0U) {
                 break; // Never wrap a live Graphics frame ID.
             }
-            const LinuxFramePublicationContext frameContext{
+            LinuxFramePublicationContext frameContext{
                 &connection, context->policy, nextFrameId,
                 nativeOwner.desktop->captureGeneration()};
             if (!nativeOwner.desktop->consumeR4Frame(
                     frameContext.expectedGeneration,
                     X11R4BgraFrameConsumer{
-                        const_cast<LinuxFramePublicationContext*>(&frameContext),
-                        &publishLinuxCapturedFrame})) {
+                        &frameContext, &publishLinuxCapturedFrame})) {
                 break;
             }
             ++nextFrameId;

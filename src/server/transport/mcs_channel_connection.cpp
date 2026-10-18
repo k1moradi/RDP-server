@@ -1987,6 +1987,124 @@ bool McsSessionLifecycle::verifiedR2ApplicationTrafficReady(
            joins_.allConfiguredChannelsJoined();
 }
 
+std::optional<RdpClipboardStaticChannelView>
+McsSessionLifecycle::resolveVerifiedR2ActivatedClipboardChannel(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_)
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto channel = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::Clipboard);
+    if (!channel ||
+        !joins_.channelJoinConfirmed(
+            static_cast<std::uint16_t>(allocatedUserId_)) ||
+        !joins_.channelJoinConfirmed(connectResponseAllocation_.ioChannelId) ||
+        !joins_.channelJoinConfirmed(*channel))
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const auto current = clipboardStaticChannel_.view();
+    if (current)
+    {
+        if (current.channelId != *channel)
+        {
+            close();
+            return std::nullopt;
+        }
+        return current;
+    }
+
+    const auto previousGeneration = clipboardStaticChannel_.lastGeneration();
+    if (previousGeneration == std::numeric_limits<std::uint64_t>::max() ||
+        !clipboardStaticChannel_.start(
+            allocatedUserId_, *channel, previousGeneration + 1U,
+            shareActivation_.serverToClientVirtualChannelChunkBytes()))
+    {
+        close();
+        return std::nullopt;
+    }
+    return clipboardStaticChannel_.view();
+}
+
+RdpClipboardChunkIntake
+McsSessionLifecycle::acceptVerifiedR2ClipboardTpkt(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt,
+    std::span<const std::uint8_t> &completePdu) noexcept
+{
+    completePdu = {};
+    const auto channel = resolveVerifiedR2ActivatedClipboardChannel(provenance);
+    if (!channel)
+        return RdpClipboardChunkIntake::Rejected;
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        parsed.request.kind != McsChannelRequestKind::SendDataRequest ||
+        parsed.request.initiator != allocatedUserId_ ||
+        parsed.request.channelId != channel->channelId ||
+        parsed.request.segmentation != 3U)
+    {
+        close();
+        return RdpClipboardChunkIntake::Rejected;
+    }
+    const auto outcome = clipboardStaticChannel_.receive(
+        parsed.request.channelId, channel->generation,
+        parsed.request.userData, completePdu);
+    if (outcome == RdpClipboardChunkIntake::Rejected)
+        close();
+    return outcome;
+}
+
+std::optional<RdpClipboardStaticChannelWriteView>
+McsSessionLifecycle::queueVerifiedR2ClipboardPdu(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    if (!resolveVerifiedR2ActivatedClipboardChannel(provenance) ||
+        !clipboardStaticChannel_.queue(completePdu))
+    {
+        close();
+        return std::nullopt;
+    }
+    return clipboardStaticChannel_.pending();
+}
+
+std::optional<RdpClipboardStaticChannelWriteView>
+McsSessionLifecycle::pendingVerifiedR2ClipboardWrite(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (!resolveVerifiedR2ActivatedClipboardChannel(provenance))
+        return std::nullopt;
+    const auto pending = clipboardStaticChannel_.pending();
+    return pending ? std::optional{pending} : std::nullopt;
+}
+
+RdpClipboardWriteOutcome
+McsSessionLifecycle::completeVerifiedR2ClipboardWrite(
+    const SecurityNegotiationProvenance &provenance,
+    std::uint64_t generation, std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept
+{
+    const auto channel = resolveVerifiedR2ActivatedClipboardChannel(provenance);
+    if (!channel || channel->generation != generation)
+    {
+        close();
+        return RdpClipboardWriteOutcome::Rejected;
+    }
+    const auto outcome = clipboardStaticChannel_.onAcceptedBytes(
+        generation, replySequence, writeSliceSequence, acceptedBytes);
+    if (outcome == RdpClipboardWriteOutcome::Rejected)
+        close();
+    return outcome;
+}
+
 std::optional<RdpSlowPathInputPdu>
 McsSessionLifecycle::routeVerifiedR2SlowPathInputPdu(
     const SecurityNegotiationProvenance &provenance,

@@ -137,6 +137,14 @@ public:
             provenance).has_value();
     }
 
+    [[nodiscard]] static bool routeClipboardWithoutAdmission(
+        McsSessionLifecycle &session) noexcept
+    {
+        const SecurityNegotiationProvenance provenance{};
+        return session.resolveVerifiedR2ActivatedClipboardChannel(
+            provenance).has_value();
+    }
+
     [[nodiscard]] static bool routeSlowPathInputWithoutAdmission(
         McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept
@@ -5049,6 +5057,14 @@ void testGraphicsDynamicVirtualChannelGenerationCancellation()
 
     allocator.close();
     assert(!allocator.allocate());
+}
+
+void testClipboardPreShareDenial()
+{
+    McsSessionLifecycle session;
+    assert(!McsSessionLifecycleTestAccess::
+               routeClipboardWithoutAdmission(session));
+    assert(session.phase() == McsSessionPhase::Closed);
 }
 
 void testGraphicsDynamicVirtualChannelPreShareDenial()
@@ -10941,7 +10957,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 151> kMcsTestCases{{
+constexpr std::array<McsTestCase, 152> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -11080,6 +11096,7 @@ constexpr std::array<McsTestCase, 151> kMcsTestCases{{
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},
+    {"cliprdr-pre-share-denial", &testClipboardPreShareDenial},
     {"dvc-graphics-frame-zero-publication", &testGraphicsFrameZeroPublication},
     {"dvc-graphics-frame-multifragment-delivery", &testGraphicsFrameMultiFragmentDelivery},
     {"dvc-graphics-frame-header-partial-abort", &testGraphicsFrameHeaderPartialAbort},

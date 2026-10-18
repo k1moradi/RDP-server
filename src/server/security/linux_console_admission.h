@@ -794,6 +794,12 @@ private:
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy) noexcept;
+    [[nodiscard]] bool authorizeR3PersonalDesktopClipboardTransition(
+        const LinuxConsoleAdmissionLease *lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
     [[nodiscard]] bool ownsActiveLease(
         const LinuxConsoleAdmissionLease &lease) const noexcept;
     [[nodiscard]] ConsoleEvidenceRequest requestView(

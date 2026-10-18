@@ -228,6 +228,7 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial
+                cliprdr-pre-share-denial
                 dvc-graphics-frame-zero-publication
                 dvc-graphics-frame-multifragment-delivery
                 dvc-graphics-frame-header-partial-abort
@@ -580,6 +581,29 @@ endfunction()
 add_rdp_test(test_owned_rdp_x224.cpp transport x224)
 add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
+# R3 production static-VC framing exercised offline, with no R2 OS lease.
+add_executable(test_r3_clipboard_static_channel
+    test_r3_clipboard_static_channel.cpp)
+target_link_libraries(test_r3_clipboard_static_channel PRIVATE
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(test_r3_clipboard_static_channel PRIVATE /UNDEBUG)
+else()
+    target_compile_options(test_r3_clipboard_static_channel PRIVATE -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        fragment-reassembly
+        generation-replacement
+        wrong-role-compression
+        fragment-abort-conditions
+        outbound-write-receipts
+        stale-receipt-abort
+        terminal-partial-abort)
+    add_test(NAME "transport.cliprdr-${case_name}"
+        COMMAND test_r3_clipboard_static_channel "${case_name}")
+    set_tests_properties("transport.cliprdr-${case_name}" PROPERTIES
+        LABELS "protocol;transport;clipboard;security;offline")
+endforeach()
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.
 target_link_libraries(test_owned_mcs_connect_initial PRIVATE

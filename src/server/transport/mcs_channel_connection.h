@@ -3,6 +3,7 @@
 
 #include "gcc_conference_create.h"
 #include "mcs_connect_response.h"
+#include "rdp_clipboard_static_channel.h"
 #include "rdp_licensing.h"
 #include "rdp/gfx_avc420_segmented_frame.h"
 
@@ -1272,6 +1273,30 @@ struct RdpSlowPathInputEventSink
 };
 
 
+// R8 callbacks borrow only a validated PDU or an ephemeral route observation.
+// No callback or caller-owned Boolean serves as an authentication capability.
+struct RdpClipboardCompletePduSink
+{
+    void *context{};
+    bool (*consume)(void *, std::span<const std::uint8_t>) noexcept{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return context != nullptr && consume != nullptr;
+    }
+};
+
+struct RdpClipboardChannelVisitor
+{
+    void *context{};
+    bool (*visit)(void *, RdpClipboardStaticChannelView) noexcept{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return context != nullptr && visit != nullptr;
+    }
+};
+
 class McsSessionLifecycle final
 {
 public:
@@ -1387,6 +1412,7 @@ public:
         serverPlatformChallengeWrite_.close();
         personalDesktopValidClientWrite_.close();
         shareActivation_.close();
+        clipboardStaticChannel_.close();
         graphicsDynamicVirtualChannel_.close();
         dynamicVirtualChannels_.close();
         licensingCredentialFingerprint_.fill(0U);
@@ -1582,6 +1608,29 @@ private:
     [[nodiscard]] bool verifiedR2ApplicationTrafficReady(
         const SecurityNegotiationProvenance &provenance) const noexcept;
 
+    // Sole post-Share static-VC CLIPRDR route. Private: the concrete R2
+    // broker first verifies the same live lease, R1 HYBRID provenance,
+    // PersonalDesktop policy and clipboard permission for every operation.
+    // The result is a revocable observation, not a transferable capability.
+    [[nodiscard]] std::optional<RdpClipboardStaticChannelView>
+    resolveVerifiedR2ActivatedClipboardChannel(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpClipboardChunkIntake acceptVerifiedR2ClipboardTpkt(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt,
+        std::span<const std::uint8_t> &completePdu) noexcept;
+    [[nodiscard]] std::optional<RdpClipboardStaticChannelWriteView>
+    queueVerifiedR2ClipboardPdu(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completePdu) noexcept;
+    [[nodiscard]] std::optional<RdpClipboardStaticChannelWriteView>
+    pendingVerifiedR2ClipboardWrite(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] RdpClipboardWriteOutcome completeVerifiedR2ClipboardWrite(
+        const SecurityNegotiationProvenance &provenance,
+        std::uint64_t generation, std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept;
+
     // Route exactly one already decrypted slow-path Input Event PDU through
     // the joined global-I/O channel and current activated Share. The returned
     // view borrows completeTpkt and is usable only synchronously by the R2
@@ -1644,6 +1693,7 @@ private:
     RdpPersonalDesktopValidClientWriteGate
         personalDesktopValidClientWrite_{licensing_};
     RdpShareActivationLifecycle shareActivation_{};
+    RdpClipboardStaticChannelRoute clipboardStaticChannel_{};
     RdpDynamicVirtualChannelAllocator dynamicVirtualChannels_{};
     RdpGraphicsDynamicVirtualChannelLifecycle
         graphicsDynamicVirtualChannel_{};

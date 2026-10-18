@@ -1647,6 +1647,182 @@ cancelR3PersonalDesktopUnwrittenGraphicsFrame(
     return true;
 }
 
+bool LinuxConsoleAdmissionBroker::
+authorizeR3PersonalDesktopClipboardTransition(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    if (lease == nullptr ||
+        !personalDesktopPolicyMatches(deploymentPolicy) ||
+        !authorizeR3ProtectedTransition(
+            *lease, acceptor, connection, session,
+            kConsoleViewPermission | kConsoleClipboardPermission))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    return true;
+}
+
+bool LinuxConsoleAdmissionBroker::visitR3PersonalDesktopClipboardChannel(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    rdp_server::server::transport::RdpClipboardChannelVisitor visitor) noexcept
+{
+    if (!visitor ||
+        !authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    const auto provenance = connection.securityNegotiationProvenance();
+    const auto route = provenance
+        ? session.resolveVerifiedR2ActivatedClipboardChannel(*provenance)
+        : std::nullopt;
+    if (!route || !visitor.visit(visitor.context, *route))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    return true;
+}
+
+bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopClipboardTpkt(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt,
+    rdp_server::server::transport::RdpClipboardCompletePduSink sink) noexcept
+{
+    if (!sink ||
+        !authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+
+    std::span<const std::uint8_t> completePdu;
+    const auto result = session.acceptVerifiedR2ClipboardTpkt(
+        *provenance, completeTpkt, completePdu);
+    if (result == rdp_server::server::transport::RdpClipboardChunkIntake::Rejected)
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    if (result == rdp_server::server::transport::RdpClipboardChunkIntake::NeedMore)
+        return true;
+
+    // A complete PDU is the only publication seam. Reauthorize *again*
+    // immediately before the synchronous R8 callback, which must not retain
+    // the borrowed PDU span or reenter this connection event loop.
+    if (!authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy) ||
+        !session.verifiedR2ApplicationTrafficReady(*provenance) ||
+        !sink.consume(sink.context, completePdu))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    return true;
+}
+
+std::optional<
+    rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+LinuxConsoleAdmissionBroker::queueR3PersonalDesktopClipboardPdu(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completePdu) noexcept
+{
+    if (!authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+    const auto provenance = connection.securityNegotiationProvenance();
+    const auto result = provenance
+        ? session.queueVerifiedR2ClipboardPdu(*provenance, completePdu)
+        : std::nullopt;
+    if (!result)
+        revokeR3Session(acceptor, session);
+    return result;
+}
+
+std::optional<
+    rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+LinuxConsoleAdmissionBroker::pendingR3PersonalDesktopClipboardWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    if (!authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+    const auto result = session.pendingVerifiedR2ClipboardWrite(*provenance);
+    if (session.phase() ==
+        rdp_server::server::transport::McsSessionPhase::Closed)
+        revokeR3Session(acceptor, session);
+    return result;
+}
+
+rdp_server::server::transport::RdpClipboardWriteOutcome
+LinuxConsoleAdmissionBroker::completeR3PersonalDesktopClipboardWrite(
+    const LinuxConsoleAdmissionLease *lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::uint64_t generation, std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept
+{
+    using Outcome = rdp_server::server::transport::RdpClipboardWriteOutcome;
+    if (!authorizeR3PersonalDesktopClipboardTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return Outcome::Rejected;
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Outcome::Rejected;
+    }
+    const auto result = session.completeVerifiedR2ClipboardWrite(
+        *provenance, generation, replySequence, writeSliceSequence,
+        acceptedBytes);
+    if (result == Outcome::Rejected)
+        revokeR3Session(acceptor, session);
+    return result;
+}
+
 bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
     const LinuxConsoleAdmissionLease *lease,
     GssapiSpnegoAcceptor &acceptor,

@@ -1,3 +1,44 @@
+## R3 post-Share static CLIPRDR production boundary (2026-10-18)
+
+
+**R3 CLIPRDR boundary authored (2026-10-18; base `9f2ef97f`, publication verification pending):** The noninstalled R3 `RdpClipboardStaticChannelRoute` now provides bounded uncompressed CHANNEL_PDU_HEADER FIRST/MIDDLE/LAST reassembly, exact decoded PDU handoff, and MCS SendDataIndication TPKT chunking with monotonic R3 route/write-slice generations. The production route is **private to `McsSessionLifecycle`** and can be reached only through `LinuxConsoleAdmissionBroker` methods that revalidate the concrete lease, exact R1 HYBRID provenance, PersonalDesktop policy, activated Share, complete configured joins, exact `cliprdr` role and clipboard permission. Null leases deny; fixture codec starts are syntax-only and never mint R2 OS admission. Broker APIs for R8: `visitR3PersonalDesktopClipboardChannel` (ephemeral channel/generation), `dispatchR3PersonalDesktopClipboardTpkt` (complete PDU callback only), `queueR3PersonalDesktopClipboardPdu`, `pendingR3PersonalDesktopClipboardWrite`, and `completeR3PersonalDesktopClipboardWrite` (exact R1-accepted positive plaintext bytes, not network ACK). Every borrow and receipt gets a fresh R2 check. Terminal partial/late receipts erase the pending packet; old generations cannot restart or publish. No R10 service-loop change and **runtime CLIPRDR/FileContents remains unadvertised and disabled**. Dedicated offline CTests exercise fragment ordering, role-channel mismatch/compression, overflow, generation replacement, partial/full/stale receipts, terminal abort, and unadmitted pre-Share denial. **Authoring verification: local build/CTest NOT RUN (checkout unavailable in this execution environment), hosted exact-head CI PENDING; owner native and live positive R2/Windows App validation NOT RUN/BLOCKED.** R8 must integrate only after R2/R10 positive composition and cannot treat the offline codec as authority.
+
+## R10 R2-admitted MCS Attach User and Confirm (2026-10-18)
+
+**Inspected parent `8d9dd947e678f9c649fcde301e41c7c3c1098fce`; publication-SHA hosted CI PENDING and owner
+local Debug build/CTest NOT RUN at authoring.** Runtime reuses the Erect
+TPKT reader only after R2/R3 consumes the complete previous PDU. The
+unchanged PersonalDesktop loopback policy and exact R2/R3 authority are
+revalidated before every bounded R1 TLS read of Attach User. The complete
+TPKT is passed to the existing R2 private Attach transition. R3 alone
+supplies Attach User Confirm bytes; R1 TLS owns accepted plaintext and SSL
+WANT direction; R2 reauthorizes the exact R1 receipt before R3 advances.
+The service stops after real Confirm delivery, not synthetic joins.
+Dedicated ordinary production CTests
+`runtime.linux-connection-post-admission-attach-user-denials` and
+`runtime.linux-connection-post-admission-attach-confirm-write-denials`
+cover missing lease, zero I/O, terminal teardown and stale events on
+actual accepted loopback sockets without minting R2 authority. Genuine
+positive Attach/short-write, ChannelJoin and Microsoft client validation
+remain **NOT RUN / owner authorization required**.
+
+## R9 Erect Domain sanitizer registry correction (2026-10-18)
+
+Audited latest full-green hosted source `9f2ef97f64488c105076b7a6741848fcc75a95c1`: primary
+[39106560615](https://github.com/k1moradi/RDP-server/actions/runs/39106560615)
+and structure [39106560683](https://github.com/k1moradi/RDP-server/actions/runs/39106560683)
+**PASS**, including ordinary Linux, Windows/MSVC, Windows CLANG64, macOS,
+R9/R7 sanitizers and three-platform startup-disabled SERVER-TEST status.
+The ordinary Linux full CTest registered and passed R10's
+`runtime.linux-connection-post-admission-erect-domain-denials`, but R9's
+direct runtime-security ASan/UBSan selection included only the prior 31.
+This correction adds the anchored Erect alternative, exact-name preflight
+and **32-test** cardinality to CI and its workflow structure guard.
+No production service, owner-native credential, desktop or client evidence
+is asserted. Correction publication-SHA hosted CI: **NOT RUN / pending**.
+Next R9 gate: 32/32 direct sanitizer and full exact-head primary/structure
+PASS; M1 still awaits R10's short freeze and same-SHA owner-native receipts.
+
 ## R9 Attach User / Confirm sanitizer registry reconciliation (2026-10-18)
 
 At R10 source `af0cee994736bd016689b34f2cdc98ce1b49ebe3`, the newly registered

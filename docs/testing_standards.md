@@ -1,3 +1,7 @@
+## R3 CLIPRDR whole-PDU/receipt gate (2026-10-18)
+
+MS-RDPBCGR 2.2.6.1.1 and 3.1.5.2 require the eight-byte static-VC header and the exact negotiated channel-data bound (1600 unless both optional VCChunkSize fields apply; maximum 16256). Channel data must preserve FIRST/LAST with SHOW_PROTOCOL for fragmented traffic. Unsupported compression and interleaved, overflowing or underlength fragments must terminate the owner rather than offer partial clipboard data. Only R3 decodes complete MCS SendDataRequests and emits complete MCS SendDataIndication TPKTs; R8 must not add a framing owner. Every positive SSL_write_ex application-plaintext accepted-byte receipt must be bound to the current R3 route/reply/slice and reauthorized by R2; zero/would-block is not progress. A partial accepted packet needs only its suffix resent, and retirement discards it. Test source/parser/receipt mechanics offline without inventing R2 OS admission. The seven behavior-named `transport.cliprdr-*` CTests plus `transport.cliprdr-pre-share-denial` are authored; full build/CTest NOT RUN in authoring environment, hosted exact-head and genuine physical seat0 proof pending.
+
 ## R6 hosted reparse proof and reused WTS-number denial (2026-10-18)
 
 A successful aggregate Windows packaging CTest alone does not prove its reparse

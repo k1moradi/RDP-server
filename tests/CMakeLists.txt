@@ -2547,3 +2547,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security" TIMEOUT 30)
 endif()
+
+# R9 separate PORTABLE-GUI archive integrity contract; no listener, auth,
+# native desktop, or GUI process is started by these synthetic ZIP fixtures.
+add_test(NAME packaging.portable-gui-archive-integrity-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_portable_gui_archive.py")
+set_tests_properties(packaging.portable-gui-archive-integrity-denials
+    PROPERTIES LABELS "packaging;gui;security;offline" TIMEOUT 30)

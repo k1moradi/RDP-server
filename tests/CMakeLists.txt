@@ -20,7 +20,7 @@ set_tests_properties(security.lan-credential-mode-denials PROPERTIES
     LABELS "security;credentials;offline")
 
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
-# guard plus a separate future provider-verified principal gate. Pure/offline.
+# guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter
     test_authentication_attempt_limiter.cpp)
 target_link_libraries(test_authentication_attempt_limiter PRIVATE rdp-server-protocol)
@@ -34,6 +34,14 @@ add_test(NAME security.bounded-peer-global-and-account-attempts
     COMMAND test_authentication_attempt_limiter
         bounded-peer-global-and-account-attempts)
 set_tests_properties(security.bounded-peer-global-and-account-attempts
+    PROPERTIES LABELS "security;credentials;offline")
+
+# Dedicated same-owner account table exhaustion/expiry invariant. This
+# reuses the exact production limiter and existing CTest executable.
+add_test(NAME security.verified-account-table-exhaustion
+    COMMAND test_authentication_attempt_limiter
+        verified-account-table-exhaustion)
+set_tests_properties(security.verified-account-table-exhaustion
     PROPERTIES LABELS "security;credentials;offline")
 
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.

@@ -1,3 +1,19 @@
+## R2 fixed-slot verified-principal saturation and expiry (2026-10-18)
+
+A service-wide account-attempt policy must not evict an unexpired
+provider-verified principal because a 65th unique principal arrives.
+Keep the bounded table at 64 fixed slots, with eight attempts per
+principal per monotonic 60-second window and generic fail-closed
+overflow. Account expiry permits reset/reuse only at the exact deadline;
+malformed identities must not consume or displace slots. Key the
+budget by case-sensitive GSS-derived principal bytes, never by the
+client-delegated local username. Account pressure may not corrupt
+the same service owner's independent peer/global budget.
+`security.verified-account-table-exhaustion` is the ordinary
+non-networked production-code CTest for this state-lifetime contract,
+separate from `security.bounded-peer-global-and-account-attempts`
+and the Linux GSS/PAM source and binding gates.
+
 ## R7 avoid transient Qt AutoText status parsing (2026-10-18)
 
 The status-label constructor must create a blank QLabel, set

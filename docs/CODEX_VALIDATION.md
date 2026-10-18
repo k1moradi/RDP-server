@@ -1,3 +1,21 @@
+## R2 verified-principal slot-capacity exhaustion coverage (2026-10-18)
+
+With R2 GSS-to-PAM account limiting already in the serialized Linux
+service, the existing `test_authentication_attempt_limiter` now dispatches
+one additional behavior-named case
+`security.verified-account-table-exhaustion`. It checks that all 64
+service-RAM principal slots can be filled, a 65th fails rather than
+evicting live state, an existing principal remains rate-limited,
+invalid/overlong byte identities fail, and all expired slots can
+reset exactly at the 60-second boundary. It additionally checks that
+per-peer reservations remain independent and exact case identities
+remain distinct. No new socket/GSS/PAM/native owner is constructed.
+Exact earlier R2 corrective SHA `79efe8f2` primary
+[39145740980](https://github.com/k1moradi/RDP-server/actions/runs/39145740980)
+**PASS**; new test's owner-local Debug/full CTest **NOT RUN**
+(approved checkout unavailable); new exact-SHA hosted CI **PENDING**.
+Microsoft-client/physical-X11 acceptance remains **NOT RUN**.
+
 ## R7 runtime-label PlainText ordering correction (2026-10-18)
 
 The R7 `6648ea720cd57d3fcf9461cae127ff6b96b7e8cd` GUI commit

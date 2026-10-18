@@ -1,3 +1,24 @@
+## R2 bounded account-table exhaustion and expiry (2026-10-18)
+
+The GSS-provider-verified principal budget is now in the live Linux
+GSS-to-PAM path (`1aa476e5`), and the exact R2 parser correction
+`79efe8f2` has fully green hosted primary CI
+([39145740980](https://github.com/k1moradi/RDP-server/actions/runs/39145740980)).
+The existing offline attempt limiter CTest exercised account 8-attempt
+limits but not exhausting all 64 tracked *distinct* principal slots.
+New dedicated ordinary CTest
+`security.verified-account-table-exhaustion` reuses the production-backed
+test executable and verifies 64 live verified-principal slots, denial of a
+65th rather than unexpired eviction, budget retention on repeated
+existing-principal attempts, pre-expiry overflow denial, exact-window
+reuse/reset, malformed/overlong principal denial, case-sensitive identity
+and independence of the original peer/global budget. It neither performs
+PAM, manufactures GSS identity nor asserts native acceptance.
+Local approved checkout/full Debug CTest: **NOT RUN**; exact
+publication-SHA hosted CI: **PENDING**. Next genuine admission/client
+gate remains owner-authorized physical X11 seat0 with real OS
+credentials/consent; independent GUI password **BLOCKED**.
+
 ## R7 runtime-label PlainText ordering correction (2026-10-18)
 
 The R7 `6648ea720cd57d3fcf9461cae127ff6b96b7e8cd` GUI commit

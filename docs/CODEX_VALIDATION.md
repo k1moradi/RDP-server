@@ -1,3 +1,25 @@
+## R9 independent R2 PAM attempt source fence (2026-10-18)
+
+R2 `79efe8f21d7028190a678d0f584535f2ef67922b` repaired the sole
+Linux ordinary-CTest regression on `549a12c0`: a missing `endif()`
+in the existing R2 GSS/PAM attempt-fence CMake source script.
+Prior GitHub primary `39142229897` showed **763/764 PASS**
+with this source-guard parser error only, while Windows MSVC,
+CLANG64, macOS, R7 macOS GUI and the R9 sanitizer job passed.
+R9 now executes the **same existing** source guard in an exact-one
+focused CI selection, requires its name/count, and pins selection in
+the independent workflow validator. No authentication behavior,
+synthetic native admission, GSS-verified principal or security
+budget ordering was changed by R9.
+
+The new complete hosted-green baseline remains R9
+`440b4e46c81b2e0341ca107dc7be51e2c0897ca5`,
+[primary 39141709666](https://github.com/k1moradi/RDP-server/actions/runs/39141709666)
+and [structure 39141709747](https://github.com/k1moradi/RDP-server/actions/runs/39141709747).
+Local Debug configure/build/CTest on owners' three target systems
+**NOT RUN** from this GitHub connector runtime. Publication-SHA CI
+**PENDING**. Real LAN client/service evidence **NOT RUN**.
+
 ## R4 post-Share first-frame dependency reconciliation (2026-10-18)
 
 On exact source `549a12c0a364`, R10's previously absent persistent

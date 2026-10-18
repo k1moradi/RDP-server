@@ -1,3 +1,15 @@
+## R9 credential-source guard focused CTest assurance (2026-10-18)
+
+Because malformed CMake source-level R2 security tests can go
+undetected by green ASan-backed executable suites, enroll the
+existing `security.linux-verified-account-pam-attempt-fence-source`
+as its own **one** behavior-named focused CTest. Require a
+registration count and literal name sentinel, plus independent
+workflow-structure validation for the step/selector/cardinality.
+Do not fold source-level CMake scripts into the 40-case sanitizer
+executable inventory or skip ordinary full Linux CTest. Preserve
+the R2 GSS-verified principal/one-shot PAM budget security assertions.
+
 ## R7 macOS extracted GUI LaunchServices and package CTests (2026-10-18)
 
 The native macOS arm64 GUI packaging lane explicitly enumerates and

@@ -1389,6 +1389,27 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$clipboard_tls_selection" --output-on-failure
 
+      # This R2 GSS-verified PAM per-account attempt budget is a source
+      # CTest, not a sanitized executable. Keep its syntax and ordering
+      # checks independently visible in the R9 focused assurance job.
+      - name: Run R2 verified-account PAM attempt source fence in focused assurance
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          pam_attempt_source_selection='^security[.]linux-verified-account-pam-attempt-fence-source$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$pam_attempt_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'security.linux-verified-account-pam-attempt-fence-source' <<< "$selected_tests"
+          readonly pam_attempt_source_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$pam_attempt_source_expected_test_count" ]]; then
+            printf 'R9 R2 PAM attempt source-fence registry mismatch: expected %s test, found %s\n' \
+              "$pam_attempt_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$pam_attempt_source_selection" --output-on-failure
+
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
       # of the fixed 40-case executable-backed selector, but require it in the

@@ -1,3 +1,30 @@
+## R9 focused R2 verified-account source-fence coverage (2026-10-18)
+
+The last complete independently checked hosted-green SHA advanced to
+`440b4e46c81b2e0341ca107dc7be51e2c0897ca5`:
+[primary 39141709666](https://github.com/k1moradi/RDP-server/actions/runs/39141709666)
+and [independent structure 39141709747](https://github.com/k1moradi/RDP-server/actions/runs/39141709747).
+Later head `549a12c0a3647708a48e51d1bb1a298745edc6e2` failed exactly
+one Ubuntu ordinary Debug CTest:
+`security.linux-verified-account-pam-attempt-fence-source`, because
+`tests/check_runtime_verified_account_attempt_fence.cmake` omitted
+the closing `endif()` after its verified-account budget assertion.
+R2 independently resolved that parsing defect at
+`79efe8f21d7028190a678d0f584535f2ef67922b`, without changing
+credential policy or fake-positive admission.
+
+R9 now selects this existing R2 guard with one dedicated exact-one
+focused CTest and independent CI-structure tokens. The source-level
+guard is not an ASan-instrumented executable, so the R2 40-case
+security sanitizer inventory, R8 87 component cases, R10 2
+post-Share executable denials, R9 2 native-linkage guards,
+and existing R2 protected-read generation fence remain unchanged.
+This does not introduce a duplicate CTest or bypass the full ordinary
+Linux suite. Exact publication-SHA primary and independent structure
+workflow outcomes: **PENDING**. Owner-local Linux/X11, Windows
+CLANG64 and macOS 27 acceptance **NOT RUN**; Microsoft-client,
+operational GUI Start/Stop and native R8 clipboard remain unverified.
+
 ## R7 macOS extracted Cocoa normal-launch gate (2026-10-18)
 
 R7's signed-framework ZIP-alias correction `57103ca` is hosted-green on

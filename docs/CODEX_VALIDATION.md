@@ -1,3 +1,21 @@
+## R9 workflow-parse correction for protected-read focused gate (2026-10-18)
+
+R9 publication `8484d88ebadd3a5b8ff2d8f9be95471b5b28625b` attempted to add
+an exact-one focused gate for R2's
+`runtime.linux-connection-protected-read-generation-denials`, but the inserted
+shell/YAML block was malformed before the native-poll step. GitHub primary run
+`39116558577` completed **FAIL** with zero jobs, so no build or test evidence
+exists for that SHA. This is the first true exact-head failure for the R9
+correction and is R9-owned.
+
+This descendant reconstructs the focused step without changing production
+code or the existing 38-case executable-backed runtime-security selector.
+The repaired step first enumerates an anchored exact test name, requires
+`protected_read_expected_test_count=1`, checks the literal sentinel, and runs
+that one CTest in the already configured focused assurance job. The structure
+guard tokens added by the preceding R9 commit remain unchanged. Exact
+publication-SHA primary/structure CI is **NOT RUN / pending** at authorship.
+
 ## R9 R2 protected-read focused-gate reconciliation (2026-10-18)
 
 Exact source `9902199f4f09a1e8bceb9de71025414c52f10e2d` is hosted-green:

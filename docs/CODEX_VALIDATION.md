@@ -6269,3 +6269,13 @@ digest after extraction, and rejects Mach-O dependency records that retain
 Homebrew or runner-home absolute paths. First-screen Aqua launch,
 codesign/notarization release trust, owner macOS 27 and live client acceptance
 remain NOT RUN. Publication-SHA job result is PENDING.
+
+### R7 macOS PORTABLE-GUI workflow insertion correction (2026-10-18)
+
+Commit `32f8482a4e36` failed at workflow parse/dispatch before any job because
+the authoring script used JavaScript replacement-string semantics: the literal
+`$'` at the end of the CTest regex was interpreted as a replacement token and
+spliced the following job into the shell command. No macOS packaging code ran.
+This corrective commit rebuilds the workflow from parent `880011cf0aac` and
+uses a function-based insertion so the literal anchored regex is preserved.
+Primary workflow validation is PENDING on the corrective publication SHA.

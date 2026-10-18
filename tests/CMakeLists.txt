@@ -19,6 +19,24 @@ add_test(NAME security.lan-credential-mode-denials
 set_tests_properties(security.lan-credential-mode-denials PROPERTIES
     LABELS "security;credentials;offline")
 
+# R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
+add_executable(test_runtime_host_control test_runtime_host_control.cpp)
+target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)
+if(MSVC)
+    target_compile_options(test_runtime_host_control PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_host_control PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(host_control_case IN ITEMS
+        host-control-unavailable-denials
+        host-control-credential-setup-denials)
+    add_test(NAME "runtime.${host_control_case}"
+        COMMAND test_runtime_host_control "${host_control_case}")
+    set_tests_properties("runtime.${host_control_case}" PROPERTIES
+        LABELS "runtime;security;host-control;offline")
+endforeach()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test

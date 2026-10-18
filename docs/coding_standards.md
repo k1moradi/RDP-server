@@ -1,3 +1,19 @@
+## R2 production Linux startup-security preflight (2026-10-17)
+
+Production Linux GSS/PAM/logind support must not be selected by a TEST_* option
+or depend on BUILD_TESTING. The explicit production build gate must fail CMake
+configuration when required GSSAPI/Kerberos, PAM or libsystemd dependencies are
+missing. Runtime credentials remain separately provisioned restricted files;
+build options, environment variables and command-line arguments never carry
+private keys, keytabs, passwords or admission generations.
+
+R2 preflight is non-authorizing. It may report that the sealed GSS acceptor
+credential is usable, an explicit PAM service is configured, the immutable
+deployment object is PersonalDesktop, and fresh NSS/logind evidence matches the
+configured physical X11 seat policy. It must still report authenticated
+admission as false. Only a live TLS-bound CredSSP/GSS exchange followed by
+PAM/NSS/logind validation can mint the private revocable admission lease.
+
 ## R10 Graphics control composition stops at R3 CAPS readiness (2026-10-17)
 
 Post-Share DRDYNVC/Graphics control follows the same single-owner rule as Share:

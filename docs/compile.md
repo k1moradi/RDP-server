@@ -1,3 +1,17 @@
+## R2 production Linux runtime-security build (2026-10-17)
+
+For an explicitly production-capable Linux runtime build, configure with
+`-DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON`. This option is independent of
+`BUILD_TESTING` and the developer-only `RDP_SERVER_TEST_LINUX_GSSAPI` /
+`RDP_SERVER_TEST_LINUX_PAM` selectors. It requires GSSAPI/Kerberos, PAM and
+libsystemd; configuration fails instead of silently compiling a non-authorizing
+provider when any required dependency is absent. Credentials are not CMake
+inputs and must be provisioned separately as restricted runtime files.
+
+The ordinary owner validation command remains unchanged. Live host admission is
+a separate explicitly authorized test and is never implied by successful build
+or preflight.
+
 ## R7 macOS optional LaunchAgent packaging boundary (2026-10-17)
 
 The macOS SERVER-TEST artifact now carries

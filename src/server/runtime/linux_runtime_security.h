@@ -2,6 +2,7 @@
 #pragma once
 
 #include "server/security/console_identity_policy.h"
+#include "server/security/console_os_evidence.h"
 #include "server/security/gssapi_spnego_acceptor.h"
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
 #include "server/security/linux_pam_password_verifier.h"
@@ -13,6 +14,28 @@
 
 namespace rdp_server::server::runtime
 {
+
+class RuntimeDeploymentPolicy;
+
+// Non-secret pre-listener R2 facts. This is deliberately not an admission
+// capability: authenticatedAdmission is false because only a live, TLS-bound
+// per-client CredSSP/GSS exchange followed by PAM/NSS/logind admission can
+// produce the private LinuxConsoleAdmissionLease.
+struct LinuxRuntimeSecurityPreflightVerdict final
+{
+    bool gssAcceptorCredentialAvailable{};
+    bool pamServiceConfigured{};
+    bool personalDesktopPolicyConfigured{};
+    bool nativeSessionEvidenceAvailable{};
+    bool authenticatedAdmission{};
+
+    [[nodiscard]] bool readyForAuthenticatedAdmissionAttempt() const noexcept
+    {
+        return gssAcceptorCredentialAvailable && pamServiceConfigured &&
+               personalDesktopPolicyConfigured &&
+               nativeSessionEvidenceAvailable && !authenticatedAdmission;
+    }
+};
 
 // Linux-only pre-listener security provisioning. The object owns one sealed,
 // anonymous snapshot of the securely opened keytab plus one immutable
@@ -75,6 +98,15 @@ public:
     // False is terminal for the supplied acceptor.
     [[nodiscard]] bool configureAcceptor(
         rdp_server::server::security::GssapiSpnegoAcceptor &acceptor)
+        const noexcept;
+
+    // Samples genuine NSS/logind evidence for the configured policy and the
+    // exact PersonalDesktop deployment object. It never authenticates a user,
+    // starts a listener, opens X11 or creates an admission generation.
+    [[nodiscard]] LinuxRuntimeSecurityPreflightVerdict
+    preflightPersonalDesktopAdmission(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        const rdp_server::server::security::ConsoleEvidenceRequest &request)
         const noexcept;
 
     [[nodiscard]] bool configured() const noexcept { return configured_; }

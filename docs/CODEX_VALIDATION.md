@@ -1,3 +1,20 @@
+## R2 production build/preflight increment (2026-10-17)
+
+**Reconciled shared-main parent:** `d5a65467c816ac413aaf206e1b82222a1e7acb1f`.
+
+Source separates production Linux GSS/PAM/logind runtime security from TEST_*
+selectors with explicit `RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY`; production
+configuration requires all three native dependency families and fails closed.
+The R2-owned PersonalDesktop preflight verdict contains no secrets and never
+claims authenticated admission. Dedicated production-backed CTest:
+`runtime.linux-security-personal-desktop-preflight-denials`.
+
+**Validation in this connector environment:** build/CTest **NOT RUN**; no second
+build root or live host was used. Hosted publication-SHA CI and owner-local
+Linux/X11 evidence remain pending. Positive Kerberos/PAM/NSS/logind seat0
+admission requires explicit owner authorization. R3 Graphics DATA publication
+is independent and still required for visible desktop acceptance.
+
 ## R7 LaunchAgent CTest platform registration correction (2026-10-17)
 
 The LaunchAgent renderer is intentionally a macOS POSIX-path/mode contract.

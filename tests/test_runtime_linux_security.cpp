@@ -621,6 +621,68 @@ void testExplicitKeytabContinuity(
     assert(configuration.configured());
 }
 
+void testPersonalDesktopPreflightDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-security-personal-preflight.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    const std::string keytabUri = "FILE:" + keytab.string();
+
+    RuntimeDeploymentPolicy personalPolicy;
+    RuntimeDeploymentPolicy appServerPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+    assert(appServerPolicy.configureAppServerIssuerBacked());
+
+    const ConsoleEvidenceRequest request{
+        "different-user@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+
+    LinuxRuntimeSecurityConfiguration unconfigured;
+    const auto unconfiguredVerdict =
+        unconfigured.preflightPersonalDesktopAdmission(personalPolicy, request);
+    assert(!unconfiguredVerdict.gssAcceptorCredentialAvailable);
+    assert(!unconfiguredVerdict.pamServiceConfigured);
+    assert(!unconfiguredVerdict.nativeSessionEvidenceAvailable);
+    assert(!unconfiguredVerdict.authenticatedAdmission);
+    assert(!unconfiguredVerdict.readyForAuthenticatedAdmissionAttempt());
+
+    LinuxRuntimeSecurityConfiguration configuration;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule(), "rdp-server-r2-ci"));
+#else
+    assert(configuration.configure(
+        kServicePrincipal, keytabUri, validRule()));
+#endif
+
+    const auto wrongModeVerdict =
+        configuration.preflightPersonalDesktopAdmission(appServerPolicy, request);
+    assert(wrongModeVerdict.gssAcceptorCredentialAvailable);
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    assert(wrongModeVerdict.pamServiceConfigured);
+#else
+    assert(!wrongModeVerdict.pamServiceConfigured);
+#endif
+    assert(!wrongModeVerdict.personalDesktopPolicyConfigured);
+    assert(!wrongModeVerdict.nativeSessionEvidenceAvailable);
+    assert(!wrongModeVerdict.authenticatedAdmission);
+    assert(!wrongModeVerdict.readyForAuthenticatedAdmissionAttempt());
+
+    const auto personalVerdict =
+        configuration.preflightPersonalDesktopAdmission(personalPolicy, request);
+    assert(personalVerdict.gssAcceptorCredentialAvailable);
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    assert(personalVerdict.pamServiceConfigured);
+    assert(personalVerdict.personalDesktopPolicyConfigured);
+#else
+    assert(!personalVerdict.pamServiceConfigured);
+#endif
+    assert(!personalVerdict.nativeSessionEvidenceAvailable);
+    assert(!personalVerdict.authenticatedAdmission);
+    assert(!personalVerdict.readyForAuthenticatedAdmissionAttempt());
+}
+
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
 void testPamVerifierProvisioning(
     const std::filesystem::path &fixtureDirectory)
@@ -2248,6 +2310,11 @@ int main(int argumentCount, char **argumentValues)
         return 0;
     }
 #endif
+    if (testCase == "linux-security-personal-desktop-preflight-denials")
+    {
+        testPersonalDesktopPreflightDenials(fixtureDirectory);
+        return 0;
+    }
     if (testCase == "linux-security-keytab-snapshot-mutation-continuity")
     {
         testSealedKeytabSnapshotSurvivesSourceMutation(fixtureDirectory);

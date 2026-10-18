@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_security.h"
 
+#include "runtime_deployment_policy.h"
+#include "server/security/linux_logind_console_evidence.h"
+
 #include <openssl/crypto.h>
 
 #include <algorithm>
@@ -422,6 +425,46 @@ bool LinuxRuntimeSecurityConfiguration::configureInternal(
 
     configured_ = true;
     return true;
+}
+
+LinuxRuntimeSecurityPreflightVerdict
+LinuxRuntimeSecurityConfiguration::preflightPersonalDesktopAdmission(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    const rdp_server::server::security::ConsoleEvidenceRequest &request)
+    const noexcept
+{
+    LinuxRuntimeSecurityPreflightVerdict verdict{};
+    verdict.gssAcceptorCredentialAvailable =
+        configured_ && keytabDescriptor_ >= 0 &&
+        servicePrincipalLength_ != 0U;
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    verdict.pamServiceConfigured =
+        configured_ && passwordVerifier_.configured() &&
+        !passwordVerifier_.serviceName().empty();
+#endif
+    verdict.personalDesktopPolicyConfigured =
+        deploymentPolicy.usesPersonalTerminalServerLicensingFlow() &&
+        deploymentPolicy.requiresNativeSessionRevocation() &&
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() ==
+            1U;
+
+    if (!verdict.gssAcceptorCredentialAvailable ||
+        !verdict.pamServiceConfigured ||
+        !verdict.personalDesktopPolicyConfigured)
+    {
+        return verdict;
+    }
+
+    rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource evidence;
+    const rdp_server::server::security::ConsoleOsEvidenceInspector inspector;
+    verdict.nativeSessionEvidenceAvailable =
+        inspector.inspect(policy_, request, evidence) ==
+        rdp_server::server::security::ConsoleEvidenceMatch::CandidateOnly;
+
+    // Preflight is intentionally non-authorizing. Only the per-connection
+    // broker can set authenticated admission by minting its private lease.
+    verdict.authenticatedAdmission = false;
+    return verdict;
 }
 
 bool LinuxRuntimeSecurityConfiguration::configureAcceptor(

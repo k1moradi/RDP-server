@@ -114,6 +114,22 @@ option(RDP_SERVER_TEST_LINUX_PAM
        "Compile/test the Linux PAM password verifier boundary (no admission)" OFF)
 option(RDP_SERVER_TEST_REAL_KERBEROS
        "Opt-in REAL external FILE: keytab+ticket SPNEGO validation (no OS admission)" OFF)
+option(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY
+       "Build production Linux GSS/PAM/logind runtime security support" OFF)
+if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY AND
+   NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    message(FATAL_ERROR
+        "RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY requires Linux")
+endif()
+
+# Production runtime security is deliberately independent of BUILD_TESTING and
+# TEST_* options. The test switches remain developer/CI selectors only.
+set(RDP_SERVER_BUILD_LINUX_GSSAPI ${RDP_SERVER_TEST_LINUX_GSSAPI})
+set(RDP_SERVER_BUILD_LINUX_PAM ${RDP_SERVER_TEST_LINUX_PAM})
+if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY)
+    set(RDP_SERVER_BUILD_LINUX_GSSAPI ON)
+    set(RDP_SERVER_BUILD_LINUX_PAM ON)
+endif()
 if(RDP_SERVER_TEST_LINUX_PAM)
     if(NOT RDP_SERVER_TEST_LINUX_GSSAPI OR
        NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
@@ -694,21 +710,31 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-if(RDP_SERVER_TEST_LINUX_GSSAPI)
-    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
-       NOT BUILD_TESTING OR NOT RDP_SERVER_BUILD_TESTING)
-        message(FATAL_ERROR "Linux GSSAPI validation requires Linux with tests enabled")
+if(RDP_SERVER_BUILD_LINUX_GSSAPI)
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        message(FATAL_ERROR "Linux GSSAPI runtime security requires Linux")
+    endif()
+    if(RDP_SERVER_TEST_LINUX_GSSAPI AND
+       (NOT BUILD_TESTING OR NOT RDP_SERVER_BUILD_TESTING))
+        message(FATAL_ERROR
+            "Linux GSSAPI validation requires Linux with tests enabled")
     endif()
     find_path(RDP_SERVER_GSSAPI_INCLUDE_DIR NAMES gssapi/gssapi.h REQUIRED)
     find_library(RDP_SERVER_GSSAPI_LIBRARY NAMES gssapi_krb5 REQUIRED)
-    if(RDP_SERVER_TEST_LINUX_PAM)
+    if(RDP_SERVER_BUILD_LINUX_PAM)
         find_path(RDP_SERVER_PAM_INCLUDE_DIR NAMES security/pam_appl.h REQUIRED)
         find_library(RDP_SERVER_PAM_LIBRARY NAMES pam REQUIRED)
     endif()
-    find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
+    if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN REQUIRED IMPORTED_TARGET
             libsystemd)
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
+                libsystemd)
+        endif()
     endif()
     add_library(rdp-server-linux-gssapi STATIC
         src/server/security/gssapi_spnego_acceptor.cpp
@@ -747,7 +773,7 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
     # R2 real Linux password-verifier boundary. It is deliberately separate
     # from GSS/native admission: no synthetic result can set the private R2
     # completion latch, and ordinary non-Linux/default builds gain no PAM.
-    if(RDP_SERVER_TEST_LINUX_PAM)
+    if(RDP_SERVER_BUILD_LINUX_PAM)
         add_library(rdp-server-linux-pam-password-verifier STATIC
             src/server/security/linux_pam_password_verifier.cpp)
         target_compile_features(
@@ -783,7 +809,7 @@ if(RDP_SERVER_TEST_LINUX_GSSAPI)
         rdp-server-linux-gssapi
         rdp-server-runtime-tls
         rdp-server-runtime-licensing)
-    if(RDP_SERVER_TEST_LINUX_PAM)
+    if(RDP_SERVER_BUILD_LINUX_PAM)
         target_link_libraries(rdp-server-linux-runtime-security PRIVATE
             rdp-server-linux-pam-password-verifier)
         target_compile_definitions(rdp-server-linux-runtime-security PUBLIC

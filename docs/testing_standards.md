@@ -1,3 +1,15 @@
+## R2 production preflight denial coverage (2026-10-17)
+
+`runtime.linux-security-personal-desktop-preflight-denials` executes the
+production R2 preflight API without a live desktop. It must prove that an
+unconfigured security owner, AppServer policy, missing PAM production support,
+or nonmatching native identity cannot become admission. The fixture must never
+invent positive logind/seat0 evidence or a lease. Positive physical-seat
+preflight and authenticated admission remain owner-authorized external tests.
+
+Existing policy-replacement, native-session-change and late-receipt tests remain
+the reauthorization evidence; do not duplicate their private positive seams.
+
 ## R7 optional macOS LaunchAgent remains inert until explicit owner action (2026-10-17)
 
 `packaging.macos-user-launch-agent-offline-contract` executes only the

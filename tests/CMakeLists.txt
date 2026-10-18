@@ -756,6 +756,7 @@ if(TARGET rdp-server-linux-runtime-security)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     foreach(runtime_linux_security_case IN ITEMS
             linux-security-explicit-keytab-continuity
+            linux-security-personal-desktop-preflight-denials
             linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials
             linux-connection-credssp-owner-framing

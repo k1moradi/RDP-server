@@ -1,3 +1,11 @@
+## R9 sanitizer enrollment for R5 R2-protected slow-path native mapping (2026-10-18)
+
+R5 `746bf766f68f38cd8d71fb67b24b6d7e604044c5` adds production `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt` plus behavior CTest `x11.input-r2-authorized-slow-path-native-mapping-denials`. Descendant `746bf766` passes the existing R9 sanitizer lane, but that lane still builds only `test_x11_authorized_input_route` and selects the prior anchored 38-case X11 inventory, so the new decoded-event/native-mapping boundary is visible only to ordinary full CTest. R10 `fb02757297a20d6e6a14ffb7b7e68c1361a3809f` now links the landed R5 library into the production server but deliberately does not dispatch it until a safe post-Share TPKT router exists.
+
+R9 now builds `test_x11_rdp_slow_path_input` under ASan/UBSan, extends the anchored R5 selector with the exact new CTest, increments the fixed inventory **38→39**, adds an explicit name sentinel, and updates `scripts/validate_ci_workflow.py` to require both the target and test name/count. This changes no R2/R3/R5/R10 authority or native behavior.
+
+Packaging evidence on exact `f8e4d056f89626f38fc611168e9ad063c4fcdf16`: Windows archive structure PASS and recursive PE closure PASS (**41 images, 571 imports**); the later extracted command-mode timeout is resolved by R6 `199887cdd79a0a5e5386f2f178647146ae584396`. The macOS failure on that SHA was the Homebrew macdeployqt symlink rejection, resolved by R7 `42e14927a2bdf049879e43f9a2fa2a944605245c`. Exact publication-SHA CI for this assurance change is **PENDING**.
+
 ## R10 consumes landed R5 protected-input bridge as a production dependency (2026-10-18)
 
 Authoring base `fac0024b37074241c1857950239c9848550ffa95`. R5 `746bf766f68f38cd8d71fb67b24b6d7e604044c5` resolved the previously missing typed R2-decoded slow-path-input to X11 adapter. R10 now conditionally links `rdp-server-linux-x11-authorized-input` into the production `rdp-server` target only when the complete Linux runtime-security and X11 desktop dependency graph produced that target. The compile definition `RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT` therefore records build availability only; it is not an admission, permission or native-input flag.

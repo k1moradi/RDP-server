@@ -4133,3 +4133,7 @@ remain unchanged. The dedicated
 `packaging.macos-portable-gui-macdeployqt-symlink-resolution` CTest covers a
 Homebrew-style symlink, non-executable target and broken link without invoking
 Qt, AppKit, TCC or networking.
+
+## R5 protected decoded-input mappings belong in the focused sanitizer inventory (2026-10-18)
+
+When R5 adds a production-backed decoded RDP input translation or R2-protected native dispatch CTest, R9 must build its concrete test target under ASan/UBSan and include the exact test name in the anchored X11 selector/count. Ordinary full CTest alone is insufficient for pointer/lock conversion and no-post retirement boundaries immediately beside XTEST. The selector count, explicit sentinel and CI structure-validator tokens must advance atomically.

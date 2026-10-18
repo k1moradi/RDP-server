@@ -469,6 +469,26 @@ struct LinuxClipboardTlsWriteResult final
     rdp_server::server::transport::RdpClipboardWriteOutcome receipt{
         rdp_server::server::transport::RdpClipboardWriteOutcome::Rejected};
     LinuxClipboardTlsWriteStatus status{LinuxClipboardTlsWriteStatus::Closed};
+
+    // Present only when R1 accepted positive bytes. These scalars are copied
+    // before R2/R3 can invalidate the borrowed static-VC packet on receipt.
+    std::size_t offeredBytes{};
+    std::uint64_t routeGeneration{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+
+    constexpr LinuxClipboardTlsWriteResult() noexcept = default;
+    constexpr LinuxClipboardTlsWriteResult(
+        std::size_t accepted,
+        rdp_server::server::transport::RdpClipboardWriteOutcome outcome,
+        LinuxClipboardTlsWriteStatus step,
+        std::size_t offered = 0U, std::uint64_t route = 0U,
+        std::uint64_t reply = 0U, std::uint64_t slice = 0U) noexcept
+        : acceptedBytes(accepted), receipt(outcome), status(step),
+          offeredBytes(offered), routeGeneration(route),
+          replySequence(reply), writeSliceSequence(slice)
+    {
+    }
 };
 
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.

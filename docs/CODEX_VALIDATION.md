@@ -1,3 +1,28 @@
+## R8 scalar-safe connection-to-bridge CLIPRDR receipt (2026-10-18)
+
+The R1 connection-owned `advancePersonalDesktopClipboardTlsWrite` copies
+the current R3 route/reply/write-slice sequence and actual offered TLS bytes
+before any mutating R2/R3 receipt. A positive result returns those stable
+scalars and actual accepted bytes with R3 Pending/Delivered/Rejected.
+Missing lease, zero acceptance, WANT and closed results disclose no
+identities. `R3ClipboardTransferBridge::recordAcceptedWriteReceipt`
+accepts already-committed scalars without borrowing an invalidated R3
+packet, requiring current bound route/reply, nonzero slice and positive
+bounded bytes; only Delivered with the whole offered slice completes R8.
+The former view-taking bridge method delegates to this scalar path.
+No R3 slice owner, offset, SSL owner or native permission is duplicated.
+
+New isolated ordinary CTest
+`runtime.r8-r3-stable-scalar-write-receipt` uses the real R3 static
+channel for partial/complete write, verified response, stale reconnect
+rejection and zero-byte terminal rejection. The existing production
+no-lease TLS denial test also asserts zero route/reply/slice/offered bytes.
+Source review **PASS**; owner-local compile and full CTest **NOT RUN**,
+exact-head hosted CI **PENDING**. Native CLIPRDR and physical
+Microsoft-client/X11 video-input and INCR tests **NOT RUN**.
+Baseline `9a036d09` full CI `39147713490`, structure
+`39147713471` **PASS**. The live R10 CLIPRDR branch stays disabled.
+
 ## R3 Graphics ACK-credit preflight authoring receipt (2026-10-18)
 
 The previously blocking R10 persistent post-Share reader/router is now landed

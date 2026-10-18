@@ -249,6 +249,86 @@ void partialPositiveReceiptRetirement()
     assert(bridge.transfer().generation() == 1U);
 }
 
+void stableScalarReceiptAfterR3Mutation()
+{
+    // R1's positive receipt can mutate R3's pending packet before R10 can
+    // notify R8. No borrowed span survives either R3 onAcceptedBytes call.
+    constexpr RdpClipboardStaticChannelView view{1008U, 53U};
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, view.channelId, view.generation, 1600U));
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingApplicationPdu(bridge, route);
+
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginFormatDataRequest(
+        rdp_server::clipboard::kFormatUnicodeText));
+    assert(route.queue(bridge.pendingApplicationPdu()));
+    const auto first = route.pending();
+    assert(first);
+    assert(bridge.bindQueuedWrite(first));
+    const auto firstRoute = first.routeGeneration;
+    const auto firstReply = first.replySequence;
+    const auto firstSlice = first.writeSliceSequence;
+    const auto firstOffered = first.wireBytes.size();
+    assert(firstOffered > 1U);
+    const auto partial = route.onAcceptedBytes(
+        firstRoute, firstReply, firstSlice, 1U);
+    assert(partial == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        firstRoute, firstReply, firstSlice, firstOffered, 1U, partial));
+
+    const auto last = route.pending();
+    assert(last);
+    assert(bridge.bindQueuedWrite(last));
+    const auto lastRoute = last.routeGeneration;
+    const auto lastReply = last.replySequence;
+    const auto lastSlice = last.writeSliceSequence;
+    const auto lastOffered = last.wireBytes.size();
+    assert(lastSlice != firstSlice);
+    const auto delivered = route.onAcceptedBytes(
+        lastRoute, lastReply, lastSlice, lastOffered);
+    assert(delivered == RdpClipboardWriteOutcome::Delivered);
+    assert(bridge.recordAcceptedWriteReceipt(
+        lastRoute, lastReply, lastSlice, lastOffered,
+        lastOffered, delivered));
+    assert(route.idle());
+    assert(bridge.pendingApplicationPdu().empty());
+
+    assert(visitor.visit(visitor.context, view));
+    const std::array<std::uint8_t, 4> text{'B', 0U, 0U, 0U};
+    assert(sink.consume(sink.context, formatDataResponse(text)));
+    const auto verified = bridge.transfer().verifiedUnicodeText();
+    assert(verified && *verified == "B");
+
+    bridge.retireR3ChannelState();
+    route.close();
+    constexpr RdpClipboardStaticChannelView reconnect{1008U, 54U};
+    assert(visitor.visit(visitor.context, reconnect));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    // A late rejected receipt cannot retire an unrelated new R3 route.
+    assert(!bridge.recordAcceptedWriteReceipt(
+        firstRoute, firstReply, firstSlice, firstOffered,
+        1U, RdpClipboardWriteOutcome::Rejected));
+    assert(bridge.active() && bridge.routeGeneration() == reconnect.generation);
+
+    // Zero accepted bytes can never masquerade as an R2-committed receipt.
+    RdpClipboardStaticChannelRoute fresh;
+    assert(fresh.start(1005U, reconnect.channelId,
+                       reconnect.generation, 1600U));
+    assert(fresh.queue(bridge.pendingApplicationPdu()));
+    const auto zero = fresh.pending();
+    assert(zero && bridge.bindQueuedWrite(zero));
+    assert(!bridge.recordAcceptedWriteReceipt(
+        zero.routeGeneration, zero.replySequence,
+        zero.writeSliceSequence, zero.wireBytes.size(),
+        0U, RdpClipboardWriteOutcome::Pending));
+    assert(!bridge.active());
+}
+
 struct FileSink final
 {
     bool called{};
@@ -356,6 +436,8 @@ int main(int argc, char **argv)
         oldRouteGenerationRetirement();
     else if (behavior == "partial-positive-receipt-retirement")
         partialPositiveReceiptRetirement();
+    else if (behavior == "stable-scalar-receipt-after-r3-mutation")
+        stableScalarReceiptAfterR3Mutation();
     else if (behavior == "filecontents-request-receipt")
         fileContentsRequestReceipt();
     else

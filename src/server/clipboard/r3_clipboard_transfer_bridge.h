@@ -105,6 +105,15 @@ public:
         std::size_t acceptedBytes,
         transport::RdpClipboardWriteOutcome outcome) noexcept;
 
+    // R2/R3 may invalidate the borrowed R3 span during the R1 write
+    // receipt. Observe copied scalars after R2 committed those bytes;
+    // this bridge never creates a second write-offset or receipt owner.
+    [[nodiscard]] bool recordAcceptedWriteReceipt(
+        std::uint64_t routeGeneration, std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence, std::size_t offeredBytes,
+        std::size_t acceptedBytes,
+        transport::RdpClipboardWriteOutcome outcome) noexcept;
+
     // Call before discarding/replacing the authenticated R3 route. Monotonic
     // route/source/request identities are preserved by their respective owners.
     void retireR3ChannelState() noexcept;

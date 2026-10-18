@@ -2927,6 +2927,10 @@ void testConnectionPersonalDesktopClipboardTlsWriteDenials(
         assert(first.status == Status::AdmissionDenied);
         assert(first.receipt == Outcome::Rejected);
         assert(first.acceptedBytes == 0U);
+        assert(first.offeredBytes == 0U);
+        assert(first.routeGeneration == 0U);
+        assert(first.replySequence == 0U);
+        assert(first.writeSliceSequence == 0U);
         assert(!connection.ready());
         const auto late =
             connection.advancePersonalDesktopClipboardTlsWrite(
@@ -2934,6 +2938,10 @@ void testConnectionPersonalDesktopClipboardTlsWriteDenials(
         assert(late.status == Status::Closed);
         assert(late.receipt == Outcome::Rejected);
         assert(late.acceptedBytes == 0U);
+        assert(late.offeredBytes == 0U);
+        assert(late.routeGeneration == 0U);
+        assert(late.replySequence == 0U);
+        assert(late.writeSliceSequence == 0U);
         assert(::close(clientDescriptor) == 0);
     }
 }

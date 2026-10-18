@@ -3712,6 +3712,12 @@ LinuxRuntimeConnection::advancePersonalDesktopClipboardTlsWrite(
     const auto payload = pending->wireBytes.first((std::min)(
         pending->wireBytes.size(),
         rdp_server::server::transport::kMaximumTlsApplicationIoBytes));
+    // R2/R3 completion can replace or close pendingPacket_ before returning.
+    // Copy the accepted slice's identity before that mutating receipt.
+    const auto routeGeneration = pending->routeGeneration;
+    const auto replySequence = pending->replySequence;
+    const auto writeSliceSequence = pending->writeSliceSequence;
+    const auto offeredBytes = payload.size();
     const auto io = connection_.writeTlsApplicationData(payload);
     switch (io.outcome)
     {
@@ -3724,19 +3730,23 @@ LinuxRuntimeConnection::advancePersonalDesktopClipboardTlsWrite(
             return {0U, Outcome::Rejected, Step::Invalid};
         }
         const auto receipt = completePersonalDesktopClipboardWrite(
-            deploymentPolicy, pending->routeGeneration,
-            pending->replySequence, pending->writeSliceSequence, io.bytes);
+            deploymentPolicy, routeGeneration, replySequence,
+            writeSliceSequence, io.bytes);
         if (receipt == Outcome::Rejected || !ready())
         {
             revoke();
-            return {io.bytes, Outcome::Rejected, Step::AdmissionDenied};
+            return {io.bytes, Outcome::Rejected, Step::AdmissionDenied,
+                    offeredBytes, routeGeneration, replySequence,
+                    writeSliceSequence};
         }
         if (receipt == Outcome::Delivered)
         {
             personalClipboardWriteInProgress_ = false;
-            return {io.bytes, receipt, Step::Delivered};
+            return {io.bytes, receipt, Step::Delivered, offeredBytes,
+                    routeGeneration, replySequence, writeSliceSequence};
         }
-        return {io.bytes, receipt, Step::Progress};
+        return {io.bytes, receipt, Step::Progress, offeredBytes,
+                routeGeneration, replySequence, writeSliceSequence};
     }
     case IoOutcome::NeedRead:
         personalClipboardTlsRetryPending_ = true;

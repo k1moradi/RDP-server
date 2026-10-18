@@ -336,22 +336,38 @@ bool R3ClipboardTransferBridge::recordAcceptedWrite(
     const std::size_t acceptedBytes,
     const transport::RdpClipboardWriteOutcome outcome) noexcept
 {
+    return recordAcceptedWriteReceipt(
+        write.routeGeneration, write.replySequence, write.writeSliceSequence,
+        write.wireBytes.size(), acceptedBytes, outcome);
+}
+
+bool R3ClipboardTransferBridge::recordAcceptedWriteReceipt(
+    const std::uint64_t routeGeneration,
+    const std::uint64_t replySequence,
+    const std::uint64_t writeSliceSequence,
+    const std::size_t offeredBytes,
+    const std::size_t acceptedBytes,
+    const transport::RdpClipboardWriteOutcome outcome) noexcept
+{
     using transport::RdpClipboardWriteOutcome;
 
     if (outcome == RdpClipboardWriteOutcome::Rejected)
     {
-        if (write.routeGeneration == routeGeneration_)
+        if (routeGeneration == routeGeneration_)
             retireR3ChannelState();
         return false;
     }
 
+    // R3 alone has already validated the exact writeSliceSequence and
+    // advanced accepted plaintext; R8 never duplicates that write offset.
     if (!active() || !outboundBound_ ||
-        outboundKind_ == OutboundKind::None || !write ||
-        write.routeGeneration != routeGeneration_ ||
-        write.routeGeneration != outboundRouteGeneration_ ||
-        write.replySequence != outboundReplySequence_ ||
-        acceptedBytes == 0U ||
-        acceptedBytes > write.wireBytes.size())
+        outboundKind_ == OutboundKind::None ||
+        routeGeneration != routeGeneration_ ||
+        routeGeneration != outboundRouteGeneration_ ||
+        replySequence == 0U ||
+        replySequence != outboundReplySequence_ ||
+        writeSliceSequence == 0U || offeredBytes == 0U ||
+        acceptedBytes == 0U || acceptedBytes > offeredBytes)
     {
         return failCurrentRoute();
     }
@@ -360,7 +376,7 @@ bool R3ClipboardTransferBridge::recordAcceptedWrite(
         return true;
 
     if (outcome != RdpClipboardWriteOutcome::Delivered ||
-        acceptedBytes != write.wireBytes.size())
+        acceptedBytes != offeredBytes)
     {
         return failCurrentRoute();
     }

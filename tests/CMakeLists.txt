@@ -794,6 +794,14 @@ foreach(case_name IN ITEMS
         LABELS "protocol;clipboard;r8-r3;security;offline")
 endforeach()
 
+# Stable R2-committed scalars require no R3 borrowed span after mutation.
+# This ordinary test is outside the fixed 87 clipboard sanitizer selection.
+add_test(NAME runtime.r8-r3-stable-scalar-write-receipt
+    COMMAND test_r8_r3_clipboard_bridge
+        stable-scalar-receipt-after-r3-mutation)
+set_tests_properties(runtime.r8-r3-stable-scalar-write-receipt
+    PROPERTIES LABELS "runtime;security;r8-receipt;offline")
+
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.
 target_link_libraries(test_owned_mcs_connect_initial PRIVATE

@@ -1,3 +1,21 @@
+## R8 clipboard TLS receipt avoids stale R3 borrowed packet (2026-10-18)
+
+Before R2/R3 commits actual R1 accepted clipboard plaintext, copy the
+exact route/reply/slice identity and offered TLS length. R3 may replace
+or retire its borrowed wire slice during that commit; notify R8 only
+through copied scalars, never by retaining or dereferencing a stale
+pending span. R3 remains the sole byte-offset/write-sequence owner.
+Only positive accepted bytes carry route identity. Missing lease, SSL
+WANT and terminal zero-byte paths have no route identity. R8 observes
+Pending or Delivered only after R2/R3 committed it, with full offered
+slice required for Delivered.
+
+Keep dedicated `runtime.r8-r3-stable-scalar-write-receipt` ordinary
+CTest outside R9's fixed 87 clipboard sanitizer cases and two native
+linkage guards; exercise R3 partial+full acceptance, stale reconnect,
+zero-byte terminal denial and production no-lease identity non-disclosure.
+The tests do not authorize native X11 clipboard or live client admission.
+
 ## R3/R4 frame-credit preflight stays read-only (2026-10-18)
 
 `transport.dvc-graphics-frame-credit-preflight` must fill the production R4

@@ -1,3 +1,12 @@
+## R3 slow-path input compile-order correction (2026-10-17)
+
+Corrective descendant of `8b1a9d9f`: the slow-path input value types now
+appear before `McsSessionLifecycle`, whose private route returns
+`std::optional<RdpSlowPathInputPdu>`. This is declaration-order only; input
+wire parsing, per-event R2 authorization and callback semantics are unchanged.
+The initial hosted run failed during common Linux/macOS compilation before the
+new input cases executed. Corrected hosted CI is pending.
+
 ## R3 authenticated slow-path input boundary (2026-10-17)
 
 **Authored on exact main b28da7b2c6e0be9d5b50949dbb868b9cdf369ded; hosted CI pending.** R3 now decodes the

@@ -2507,3 +2507,20 @@ add_test(NAME transport.lan-listener-native-bind-denials
     COMMAND test_lan_listener)
 set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
     LABELS "protocol;transport;native;security" TIMEOUT 20)
+
+# R7 layout/state tests run offscreen and never authorize real host start.
+if(RDP_SERVER_BUILD_DESKTOP_GUI)
+    add_executable(test_desktop_gui_offline test_desktop_gui_offline.cpp)
+    target_link_libraries(test_desktop_gui_offline PRIVATE rdp-server-desktop-ui)
+    if(MSVC)
+        target_compile_options(test_desktop_gui_offline PRIVATE /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_desktop_gui_offline PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME gui.offscreen-first-run-authorization-revocation
+        COMMAND test_desktop_gui_offline)
+    set_tests_properties(gui.offscreen-first-run-authorization-revocation PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security" TIMEOUT 30)
+endif()

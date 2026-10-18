@@ -984,6 +984,28 @@ if(WIN32)
     endif()
 endif()
 
+
+# R7: separate, opt-in desktop shell. No protocol/runtime/native authorization link.
+option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" OFF)
+if(RDP_SERVER_BUILD_DESKTOP_GUI)
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
+    add_library(rdp-server-desktop-ui STATIC src/gui/desktop_window.cpp)
+    target_include_directories(rdp-server-desktop-ui PUBLIC
+        "${PROJECT_SOURCE_DIR}/src/gui")
+    target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
+    target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
+    add_executable(rdp-server-desktop src/gui/main.cpp)
+    target_link_libraries(rdp-server-desktop PRIVATE rdp-server-desktop-ui)
+    if(APPLE)
+        set_target_properties(rdp-server-desktop PROPERTIES MACOSX_BUNDLE TRUE)
+    endif()
+    if(MSVC)
+        target_compile_options(rdp-server-desktop-ui PRIVATE /W4 /WX)
+    else()
+        target_compile_options(rdp-server-desktop-ui PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
     add_subdirectory(tests)
 endif()

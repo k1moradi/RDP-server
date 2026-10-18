@@ -5922,3 +5922,7 @@ The original R9 sanitizer selector at the source-verification SHA still named on
 Canonical `~/rdp-server/build/` remains **NOT RUN** in this connector environment; no alternate persistent build root was created.
 
 Current live blocker after R10's later `e486dca4b6b43bdacaccdafc98153a4977e910eb` client-licensing composition: the Linux R2 broker/runtime surface still has only `authorizeR3PersonalDesktopApplicationTraffic()` / `authorizePersonalDesktopApplicationTraffic()` after Share activation and no Graphics/DVC-specific broker methods. R3 already owns private post-Share `beginVerifiedR2GraphicsDynamicVirtualChannel()`, pending-write, accepted-byte completion and client-TPKT intake methods. R2/R10 must wrap those four operations with fresh genuine-lease, exact policy-identity and R1 TLS-owner/provenance reauthorization, and R10 must drive every resulting plaintext write/read through R1's sole TLS application-I/O boundary. A real owner-authorized Kerberos/PAM/NSS/logind/X11 `seat0` positive lease remains required; offline protocol success does not create R2 admission.
+
+## R7 initial Qt desktop GUI (2026-10-18)
+
+Optional GUI shell and `gui.offscreen-first-run-authorization-revocation` CTest added. This GitHub connector session cannot compile/build the owner's native checkout; GUI compile, CTest, CI and packaging **NOT RUN**. The in-memory fake is restricted to GUI tests. Production control is deny-only. R10 control/admission, R9 Qt ZIP closure and Mac `.app` distribution **BLOCKED**.

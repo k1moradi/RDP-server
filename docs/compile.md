@@ -1021,3 +1021,7 @@ start ScreenCaptureKit, post input or start an AppKit observer. Linux and the
 portable installed SDK gain neither dependency. Use the existing canonical
 `build/` root and ordinary full CTest; no second build root or opt-in credential
 cache is introduced.
+
+## R7 Qt desktop GUI shell (2026-10-18)
+
+Build optionally with `-DRDP_SERVER_BUILD_DESKTOP_GUI=ON` and Qt 6.4+ Widgets; run `ctest --test-dir build -R '^gui[.]offscreen-' --output-on-failure`. The default headless build remains Qt-free. Shipping `rdp-server-desktop` has a deny-only R10 adapter: opening the window creates no listener, capture or TCC request. R9 still must package redistributable Qt libraries/plugins and a macOS double-clickable `.app` in ZIP, verify LGPL/GPL compliance and measure archive size. R10 must provide the real typed admitted host-control API before Start can function; fake UI tests are not host acceptance.

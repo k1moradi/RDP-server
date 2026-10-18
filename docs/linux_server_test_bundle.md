@@ -4,8 +4,8 @@
 has an explicit `serve --config FILE` path, but it is loopback-only. R10 now
 passes accepted sockets to the serialized R1 TLS/CredSSP/R2 admission path;
 without genuine R2 authority it fails closed, and even an admitted connection
-is retired after first MCS Connect Initial pending the production MCS response,
-AttachUser and ChannelJoin writers. The bundle installs no enabled service or
+is retired after the R2-authorized MCS Connect Response pending production
+Erect Domain, AttachUser, ChannelJoin and Client Info composition. The bundle installs no enabled service or
 autostart and cannot offer a real RDP desktop. It remains independent of
 the protocol SDK, whose CMake install/CPack exports are unchanged.
 
@@ -69,9 +69,10 @@ Modified files prevent removal to avoid destroying user edits. No
 
 ## Future explicitly authorized service lifecycle (NOT YET ALLOWED)
 
-Only after R10 composes the remaining production MCS Connect Response,
-AttachUser and ChannelJoin writes, R1/R2 review the completed connection,
-R3 supplies the fresh-authority decoded input route, and the owner approves
+Only after R10 composes the remaining Erect Domain, AttachUser,
+ChannelJoin and Client Info writers, R1/R2 review the completed connection,
+R10 binds R3's fresh-authority decoded input route to an admitted R5 desktop,
+and the owner approves
 the exact real seat0 host: copy the example to a separate
 `~/.config/rdp-server-test/server.conf` owned by the desktop account,
 mode 0600. Provision genuine TLS certificate/private key and GSS

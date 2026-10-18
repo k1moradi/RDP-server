@@ -1264,6 +1264,28 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$rst_selection" --output-on-failure
 
+      # R3's authenticated slow-path input route remains non-authorizing until
+      # the native session owner consumes it; pin its new wire/denial tests.
+      - name: Run R9 R3 slow-path input with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          slow_path_selection='^transport\.share-input-slow-path-(wire|rejections)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$slow_path_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq "transport.share-input-slow-path-wire" <<< "$selected_tests"
+          grep -Fq "transport.share-input-slow-path-rejections" <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 2 ]]; then
+            printf 'R9 R3 slow-path registry mismatch: expected 2 tests, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$slow_path_selection" --output-on-failure
+
       - name: Run all R5 native X11 CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

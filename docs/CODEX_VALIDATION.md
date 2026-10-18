@@ -1,3 +1,15 @@
+## R9 new authenticated R3 slow-path input sanitizer sentinel (2026-10-18)
+
+R3 now parses complete slow-path Input PDUs, rejects malformed event/count
+encodings and requires fresh R2 and R3 Share authority before each callback.
+R9 runs the registered `transport.share-input-slow-path-wire` and
+`transport.share-input-slow-path-rejections` CTests under Clang ASan/UBSan
+with an exact-two-test registry sentinel. This adds no native input owner,
+test-only lease or automatic service. R2 independently added the R10 MCS
+Connect Response denial test to the 31-case runtime-security sanitizer gate;
+the 31-case gate and all other R3/R4/R5/R6/R7/R8 selectors are unchanged here.
+Exact publication-SHA hosted CI remains required before claiming PASS.
+
 ## R2 review of R10 admitted MCS response and sanitizer coverage (2026-10-17)
 
 **Reviewed R10 source SHA:** `b7f0ab66b91628ef4eb448021d102834097cd9fb`.

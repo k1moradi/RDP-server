@@ -218,6 +218,17 @@ LinuxRuntimeConnection::ioInterest() const noexcept
                    ? required : Interest::Closed;
     }
 
+    if (mcsPhase ==
+            rdp_server::server::transport::McsSessionPhase::AwaitChannelJoin &&
+        mcsChannelJoinIoAction_ == McsChannelJoinIoAction::Write)
+    {
+        if (!mcsChannelJoinTlsWritePending_)
+            return Interest::Write;
+        const auto required = connection_.ioInterest();
+        return required == Interest::Read || required == Interest::Write
+                   ? required : Interest::Closed;
+    }
+
     const bool tlsApplicationWriteOutstanding =
         personalLicenseRequestTlsWritePending_ ||
         personalValidClientTlsWritePending_ ||
@@ -1115,9 +1126,16 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachUser(
 
         const Intake intake = broker_->authorizeR3AttachUser(
             *lease_, acceptor_, connection_, session_, completeTpkt);
-        mcsErectDomainFrameReader_.close();
         if (intake == Intake::AttachUserAccepted)
+        {
+            if (!mcsErectDomainFrameReader_.reset())
+            {
+                revoke();
+                return {io.bytes, Step::Invalid};
+            }
             return {io.bytes, Step::AttachUserAccepted};
+        }
+        mcsErectDomainFrameReader_.close();
         revoke();
         return {io.bytes,
                 intake == Intake::AdmissionDenied
@@ -1225,7 +1243,12 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachConfirmWrite(
         if (outcome == Outcome::Pending)
             return {io.bytes, Step::Progress};
         if (outcome == Outcome::Delivered)
+        {
+            // A fully accepted Attach confirm is only the entry to the real
+            // R3 join phase; not even one requested join is implied.
+            mcsChannelJoinIoAction_ = McsChannelJoinIoAction::Read;
             return {io.bytes, Step::Delivered};
+        }
         revoke();
         return {io.bytes, Step::AdmissionDenied};
     }
@@ -1248,6 +1271,261 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachConfirmWrite(
     }
     revoke();
     return {0U, Step::Invalid};
+}
+
+LinuxPostAdmissionMcsChannelJoinStepResult
+LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Phase = rdp_server::server::transport::McsSessionPhase;
+    using Action = McsChannelJoinIoAction;
+    using Step = LinuxPostAdmissionMcsChannelJoinStepStatus;
+    using Start = rdp_server::server::transport::McsJoinStartOutcome;
+    using Written = rdp_server::server::transport::McsJoinWriteOutcome;
+
+    if (!ready())
+        return {0U, 0U, Step::Closed};
+    if (!broker_ || !lease_ || lease_->isRevoked() ||
+        credSspReplyPending() || session_.phase() != Phase::AwaitChannelJoin ||
+        postAdmissionMcsPolicy_ != &deploymentPolicy ||
+        !postAdmissionMcsPolicyMatches(deploymentPolicy) ||
+        mcsChannelJoinIoAction_ == Action::Idle)
+    {
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+
+    if (mcsChannelJoinIoAction_ == Action::Read)
+    {
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Closed)
+        {
+            revoke();
+            return {0U, 0U, Step::Closed};
+        }
+        const bool bufferedRead =
+            required == Interest::Read &&
+            connection_.tlsApplicationReadReady();
+        if (required == Interest::Read && !readable && !bufferedRead)
+            return {0U, 0U, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, 0U, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+
+        // The read is never an authorization cache: check exact admission,
+        // native generation, TLS owner and R3 session immediately before it.
+        if (!broker_->authorizeR3ProtectedTransition(
+                *lease_, acceptor_, connection_, session_,
+                rdp_server::server::security::kConsoleViewPermission))
+        {
+            revoke();
+            return {0U, 0U, Step::AdmissionDenied};
+        }
+
+        constexpr std::size_t kReadChunkBytes = 512U;
+        std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+        const std::size_t needed = mcsErectDomainFrameReader_.bytesNeeded();
+        if (needed == 0U ||
+            needed >
+                rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+        {
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+        const std::size_t requested =
+            (std::min)(plaintext.size(), needed);
+        const auto io = connection_.readTlsApplicationData(
+            std::span<std::uint8_t>{plaintext}.first(requested));
+        switch (io.outcome)
+        {
+        case IoOutcome::Progress:
+        {
+            if (io.bytes == 0U || io.bytes > requested)
+            {
+                revoke();
+                return {0U, 0U, Step::Invalid};
+            }
+            const auto framed = mcsErectDomainFrameReader_.consume(
+                std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+            std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+            if (framed.bytesConsumed != io.bytes ||
+                framed.status == LinuxRuntimeMcsTpktFrameStatus::Invalid ||
+                framed.status == LinuxRuntimeMcsTpktFrameStatus::Closed)
+            {
+                revoke();
+                return {io.bytes, 0U, Step::Invalid};
+            }
+            if (framed.status == LinuxRuntimeMcsTpktFrameStatus::NeedMore)
+                return {io.bytes, 0U, Step::Progress};
+            const auto completeTpkt = mcsErectDomainFrameReader_.completeTpkt();
+            if (completeTpkt.empty())
+            {
+                revoke();
+                return {io.bytes, 0U, Step::Invalid};
+            }
+            const Start outcome = broker_->authorizeR3ChannelJoin(
+                *lease_, acceptor_, connection_, session_, completeTpkt);
+            if (!mcsErectDomainFrameReader_.reset())
+            {
+                revoke();
+                return {io.bytes, 0U, Step::Invalid};
+            }
+            if (outcome == Start::ReplyPending)
+            {
+                mcsChannelJoinIoAction_ = Action::Write;
+                return {io.bytes, 0U, Step::Progress};
+            }
+            if (outcome == Start::AlreadyJoined ||
+                outcome == Start::AlreadyPending)
+            {
+                // T.125 duplicate requests never cause fabricated second
+                // confirmations. Pending joins remain R3-owned.
+                return {io.bytes, 0U, Step::Progress};
+            }
+            // This serial runtime never reads ahead with a queued reply.
+            // An unexpected queue or unallocated channel is terminal.
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
+        }
+        case IoOutcome::NeedRead:
+            return {0U, 0U, Step::NeedRead};
+        case IoOutcome::NeedWrite:
+            return {0U, 0U, Step::NeedWrite};
+        case IoOutcome::TlsClosed:
+        case IoOutcome::TransportClosed:
+            revoke();
+            return {0U, 0U, Step::Closed};
+        case IoOutcome::FatalTlsFailure:
+        case IoOutcome::Invalid:
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+
+    if (mcsChannelJoinIoAction_ != Action::Write)
+    {
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+    if (mcsChannelJoinTlsWritePending_)
+    {
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Read && !readable)
+            return {0U, 0U, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, 0U, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+    }
+    else if (!writable)
+    {
+        return {0U, 0U, Step::NeedWrite};
+    }
+
+    const auto pending = broker_->authorizeR3ChannelJoinConfirmWrite(
+        *lease_, acceptor_, connection_, session_);
+    if (!pending || !*pending)
+    {
+        revoke();
+        return {0U, 0U, Step::AdmissionDenied};
+    }
+    const auto payload = pending->bytes.first((std::min)(
+        pending->bytes.size(),
+        rdp_server::server::transport::kMaximumTlsApplicationIoBytes));
+    const auto io = connection_.writeTlsApplicationData(payload);
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        mcsChannelJoinTlsWritePending_ = false;
+        if (io.bytes == 0U || io.bytes > payload.size())
+        {
+            revoke();
+            return {0U, 0U, Step::Invalid};
+        }
+        // R1 TLS progress is not a channel confirmation until the exact R2
+        // receipt validates the same R3-owned reply/slice identity.
+        if (!postAdmissionMcsPolicyMatches(deploymentPolicy))
+        {
+            revoke();
+            return {0U, io.bytes, Step::AdmissionDenied};
+        }
+        const Written outcome = broker_->completeR3ChannelJoinConfirmWrite(
+            lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+            acceptor_, connection_, session_,
+            pending->replySequence, pending->writeSliceSequence, io.bytes);
+        if (outcome == Written::Pending)
+            return {0U, io.bytes, Step::Progress};
+        if (outcome != Written::Confirmed)
+        {
+            revoke();
+            return {0U, io.bytes, Step::AdmissionDenied};
+        }
+
+        // R3 owns the expected negotiated user, I/O and static channel IDs.
+        // Read its state only after the exact receipt and fresh R2 check.
+        if (!broker_->authorizeR3ProtectedTransition(
+                *lease_, acceptor_, connection_, session_,
+                rdp_server::server::security::kConsoleViewPermission))
+        {
+            revoke();
+            return {0U, io.bytes, Step::AdmissionDenied};
+        }
+        const std::uint32_t allocatedUser = session_.allocatedUserId();
+        const std::uint16_t allocatedIo = session_.allocatedIoChannelId();
+        if (allocatedUser == 0U || allocatedUser > 65535U ||
+            allocatedIo == 0U)
+        {
+            revoke();
+            return {0U, io.bytes, Step::Invalid};
+        }
+        bool allConfirmed =
+            session_.channelJoinConfirmed(
+                static_cast<std::uint16_t>(allocatedUser)) &&
+            session_.channelJoinConfirmed(allocatedIo);
+        for (const std::uint16_t channel :
+             session_.allocatedStaticChannelIds())
+        {
+            allConfirmed = allConfirmed &&
+                           session_.channelJoinConfirmed(channel);
+        }
+        mcsChannelJoinIoAction_ = Action::Read;
+        return {0U, io.bytes,
+                allConfirmed ? Step::AllChannelsJoined : Step::Progress};
+    }
+    case IoOutcome::NeedRead:
+        mcsChannelJoinTlsWritePending_ = true;
+        return {0U, 0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        mcsChannelJoinTlsWritePending_ = true;
+        return {0U, 0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        mcsChannelJoinTlsWritePending_ = false;
+        revoke();
+        return {0U, 0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        mcsChannelJoinTlsWritePending_ = false;
+        revoke();
+        return {0U, 0U, Step::Invalid};
+    }
+    revoke();
+    return {0U, 0U, Step::Invalid};
 }
 
 bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
@@ -2822,6 +3100,8 @@ void LinuxRuntimeConnection::revoke() noexcept
     mcsErectDomainFrameReader_.close();
     postAdmissionMcsPolicy_ = nullptr;
     mcsAttachConfirmTlsWritePending_ = false;
+    mcsChannelJoinIoAction_ = McsChannelJoinIoAction::Idle;
+    mcsChannelJoinTlsWritePending_ = false;
     personalClientLicensingFrameReader_.close();
     personalShareActivationFrameReader_.close();
     personalGraphicsDvcFrameReader_.close();

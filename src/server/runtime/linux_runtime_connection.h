@@ -200,6 +200,22 @@ struct LinuxPostAdmissionMcsAttachConfirmStepResult
         LinuxPostAdmissionMcsAttachConfirmStepStatus::Closed};
 };
 
+// One real joined-channel handshake step. R3 alone stores negotiated IDs,
+// ordering and per-reply accepted-byte sequence. No data channel privilege.
+enum class LinuxPostAdmissionMcsChannelJoinStepStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, AllChannelsJoined,
+    AdmissionDenied, Invalid, Closed,
+};
+
+struct LinuxPostAdmissionMcsChannelJoinStepResult
+{
+    std::size_t plaintextBytesRead{};
+    std::size_t plaintextBytesWritten{};
+    LinuxPostAdmissionMcsChannelJoinStepStatus status{
+        LinuxPostAdmissionMcsChannelJoinStepStatus::Closed};
+};
+
 enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
 {
     Progress,
@@ -517,6 +533,15 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
+    // Consume exactly one genuine Channel Join Request TPKT at a time,
+    // publish only the correlated R3 Join Confirm through R1 SSL, and require
+    // fresh R2 checks before both TLS reads and accepted-byte receipts.
+    // The same bounded reader is reset only after R2/R3 consumed a packet.
+    [[nodiscard]] LinuxPostAdmissionMcsChannelJoinStepResult
+    advancePostAdmissionMcsChannelJoins(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
@@ -758,10 +783,18 @@ private:
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
     bool mcsConnectResponseTlsWritePending_{};
+    enum class McsChannelJoinIoAction : std::uint8_t
+    {
+        Idle, Read, Write,
+    };
+
     // One frame owner is reused sequentially; no second large buffer.
     LinuxRuntimeMcsTpktFrameReader mcsErectDomainFrameReader_{};
     const RuntimeDeploymentPolicy *postAdmissionMcsPolicy_{};
     bool mcsAttachConfirmTlsWritePending_{};
+    McsChannelJoinIoAction mcsChannelJoinIoAction_{
+        McsChannelJoinIoAction::Idle};
+    bool mcsChannelJoinTlsWritePending_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalGraphicsDvcFrameReader_{};

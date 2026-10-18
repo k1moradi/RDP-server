@@ -1,3 +1,27 @@
+## R10 real ChannelJoin/Confirm serialized composition (2026-10-18)
+
+**Parent `cd5dc6f3c08b16c59029b71c07e7e17fd1421a09`; exact publication-SHA hosted build/CTest
+PENDING; owner-local Debug and genuine native client NOT RUN.**
+After real R3 Attach Confirm delivery the R10 Linux service reads exactly
+one complete ChannelJoinRequest TPKT through the original R1 TLS owner
+with fresh R2 lease, policy, native and TLS reauthorization. One bounded
+TPKT reader is reused across Erect, Attach and actual joins and never
+reads beyond the current frame. The existing private R2/R3 join gate
+alone checks negotiated user/channel IDs, duplicates, expected membership
+and reply-sequence correlation. A single next-I/O action drives R1-only
+encrypted JoinConfirm output with R2-protected exact accepted-byte
+receipts, positive-short-write suffix and SSL WANT retry. R10 checks R3
+confirmed user/I/O/static channels after fresh R2 reauthorization,
+never treating supplied IDs or counts as admission. The current serve
+path stops after all expected real joins, before protected Client Info.
+
+Dedicated ordinary production CTest
+`runtime.linux-connection-post-admission-channel-join-denials`:
+real accepted loopback socket, no authenticated R2 lease, no plaintext
+I/O, terminal teardown and stale callback. No synthetic positive broker
+lease. Genuine positive joins, duplicate/wrong joined traffic through a
+live R2 session and Microsoft-client proof are **NOT RUN**.
+
 ## R3 post-Share static CLIPRDR production boundary (2026-10-18)
 
 

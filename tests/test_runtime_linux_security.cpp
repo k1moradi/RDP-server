@@ -1033,6 +1033,50 @@ void testConnectionPostAdmissionAttachUserDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPostAdmissionChannelJoinDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsChannelJoinStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-channel-join-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy deploymentPolicy;
+    assert(deploymentPolicy.configurePersonalDesktop(true, 3389U));
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // No client can join a negotiated channel without R2-authorized Attach
+    // and full confirmation. Peer-controlled channel IDs grant no authority.
+    const auto denied =
+        connection.advancePostAdmissionMcsChannelJoins(deploymentPolicy, true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesRead == 0U &&
+           denied.plaintextBytesWritten == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    const auto stale =
+        connection.advancePostAdmissionMcsChannelJoins(deploymentPolicy, true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesRead == 0U &&
+           stale.plaintextBytesWritten == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPostAdmissionAttachConfirmWriteDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2814,6 +2858,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-post-admission-attach-confirm-write-denials")
     {
         testConnectionPostAdmissionAttachConfirmWriteDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-channel-join-denials")
+    {
+        testConnectionPostAdmissionChannelJoinDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

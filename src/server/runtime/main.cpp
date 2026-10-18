@@ -1008,7 +1008,8 @@ struct LinuxServeAcceptContext final {
     }
     if (!acceptedErectDomain || !connection.hasAdmissionLease()) {
         return true;
-    }    using AttachStep =
+    }
+    using AttachStep =
         rdp_server::server::runtime::LinuxPostAdmissionMcsAttachStepStatus;
     {
     // Attach User: only current R2/R3 authority may advance this stage.
@@ -1058,7 +1059,8 @@ struct LinuxServeAcceptContext final {
     // Attach User Confirm: only current R2/R3 authority may advance this stage.
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool deliveredAttachConfirm = false;
+    while (connection.ready() && !deliveredAttachConfirm) {
         const auto step = connection.advancePostAdmissionMcsAttachConfirmWrite(
             *context->policy, readable, writable);
         readable = false;
@@ -1084,17 +1086,61 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case ConfirmStep::Delivered:
-            // No joins are invented. The next increment begins here.
-            connection.revoke();
-            return true;
+            deliveredAttachConfirm = true;
+            break;
         case ConfirmStep::AdmissionDenied:
         case ConfirmStep::Invalid:
         case ConfirmStep::Closed:
             return true;
         }
     }
-    return true;
+    if (!deliveredAttachConfirm || !connection.hasAdmissionLease()) {
+        return true;
+    }
 
+    // R3's private join gate owns the expected channels, reply correlation
+    // and exact accepted plaintext receipts. Stop only after real joins.
+    using JoinStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsChannelJoinStepStatus;
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step = connection.advancePostAdmissionMcsChannelJoins(
+            *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case JoinStep::Progress:
+            continue;
+        case JoinStep::NeedRead:
+        case JoinStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case JoinStep::AllChannelsJoined:
+            // A client's actual Info packet is the next separate R2/R3
+            // increment; joins alone grant no Share/desktop authority.
+            connection.revoke();
+            return true;
+        case JoinStep::AdmissionDenied:
+        case JoinStep::Invalid:
+        case JoinStep::Closed:
+            return true;
+        }
+    }
+    return true;
 }
 
 [[nodiscard]] bool runLinuxPersonalDesktopServe(

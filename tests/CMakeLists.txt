@@ -858,6 +858,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-post-admission-erect-domain-denials
             linux-connection-post-admission-attach-user-denials
             linux-connection-post-admission-attach-confirm-write-denials
+            linux-connection-post-admission-channel-join-denials
             linux-connection-credssp-revocation-order
             linux-connection-credssp-authorization-denials
             linux-connection-final-credential-native-admission-denials

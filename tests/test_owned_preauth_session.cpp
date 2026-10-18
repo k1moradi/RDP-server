@@ -5314,12 +5314,23 @@ void testOwnedTlsApplicationTcpResetTerminal()
             ? Interest::Read : Interest::Write;
         assert(owner.ioInterest() == direction);
         const auto polled = owner.pollSocketOnce(deadline);
+        if (polled.outcome == TcpConnectionPollOutcome::Failure ||
+            polled.outcome == TcpConnectionPollOutcome::Closed)
+        {
+            // Linux may surface the RST as POLLERR before SSL_read_ex
+            // consumes ECONNRESET. R1 must already have revoked the exact
+            // SSL/BIO/socket owner; the public read now denies retry.
+            assert(!owner.active());
+            result = owner.readTlsApplicationData(plaintext);
+            break;
+        }
         assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
                polled.outcome == TcpConnectionPollOutcome::NoEvent);
     }
 
-    // ECONNRESET can reach OpenSSL as SYSCALL or SSL protocol failure,
-    // depending on its version. Both must terminate without plaintext.
+    // ECONNRESET may reach OpenSSL as SYSCALL/protocol failure or may be
+    // retired first by R1's native POLLERR path. All are terminal with
+    // zero plaintext and no replay through the original SSL/BIO owner.
     assert(result.outcome == Outcome::TransportClosed ||
            result.outcome == Outcome::FatalTlsFailure);
     assert(result.bytes == 0);

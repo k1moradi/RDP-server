@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath
 import plistlib
 import re
@@ -111,14 +112,25 @@ def validate_source_app(app: Path) -> None:
         require(inside(path, app), "input app escapes its root")
 
 
+def resolve_macdeployqt(macdeployqt: Path) -> Path:
+    try:
+        resolved = macdeployqt.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise MacGuiBundleError("macdeployqt path is unavailable") from error
+    require(resolved.is_file() and not resolved.is_symlink(),
+            "macdeployqt must resolve to a regular file")
+    require(os.access(resolved, os.X_OK),
+            "macdeployqt target must be executable")
+    return resolved
+
+
 def deploy_with_macdeployqt(app: Path, staging: Path,
                             macdeployqt: Path) -> None:
-    require(macdeployqt.is_file() and not macdeployqt.is_symlink(),
-            "macdeployqt must be a regular file")
+    deployment_tool = resolve_macdeployqt(macdeployqt)
     staged_app = staging / APP_NAME
     shutil.copytree(app, staged_app, symlinks=False)
     subprocess.run(
-        [str(macdeployqt), str(staged_app), "-always-overwrite"],
+        [str(deployment_tool), str(staged_app), "-always-overwrite"],
         check=True, timeout=240, cwd=staging, stdin=subprocess.DEVNULL)
 
 

@@ -1136,3 +1136,12 @@ the canonical checkout-local `build/` root with
 archive is checked with `otool -L`; absolute Homebrew and hosted-runner home
 paths are forbidden. This lane intentionally stops short of an Aqua
 first-screen smoke and release signing/notarization acceptance.
+
+## macOS macdeployqt Homebrew path resolution (2026-10-18)
+
+The macOS GUI packager accepts a caller-supplied Homebrew
+`$qt_prefix/bin/macdeployqt` even when the tool or an ancestor path is a
+symlink. It resolves that path strictly and executes only the resulting
+regular executable target. Broken links, directories and non-executable
+targets fail closed. This does not permit symlink members in the source app or
+portable archive.

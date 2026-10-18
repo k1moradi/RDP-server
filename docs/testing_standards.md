@@ -4092,3 +4092,15 @@ guarded so this intake continues reading rather than triggering a write.
 ## Windows PE closure distinguishes OS DLLs from redistributable runtime (2026-10-18)
 
 The extracted portable-GUI PE verifier may exempt only documented Windows OS/API-set imports. Observed imports AUTHZ.dll, d3d9.dll and ncrypt.dll are system-provided and must not be copied from System32 into the archive. Toolchain, Qt, ICU, compression, font/image and GLib DLLs remain application closure and must be bundled; never broaden the system allowlist to hide a missing redistributable dependency.
+
+## macOS deployment-tool symlinks resolve before execution (R7, 2026-10-18)
+
+Homebrew may expose `macdeployqt` through one or more symlinked path
+components. The PORTABLE-GUI packager may canonicalize that caller-supplied
+tool path, but the resolved target must exist, be a regular executable file
+and is the exact path passed to `subprocess.run`. This exception applies only
+to the local deployment tool; source-app and archive payload symlink denials
+remain unchanged. The dedicated
+`packaging.macos-portable-gui-macdeployqt-symlink-resolution` CTest covers a
+Homebrew-style symlink, non-executable target and broken link without invoking
+Qt, AppKit, TCC or networking.

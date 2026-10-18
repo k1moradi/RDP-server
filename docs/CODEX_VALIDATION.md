@@ -6412,3 +6412,23 @@ the same no-listener/no-TCC package job. Exact correction-SHA structure,
 native app build, archive CTest, macdeployqt, R9 verifier and Mach-O closure
 results are PENDING. Live Start remains BLOCKED on the absent concrete
 `RuntimeHostControl` backend.
+
+### R7 macOS PORTABLE-GUI Homebrew macdeployqt path correction (2026-10-18)
+
+Exact `1b32443a3759` hosted evidence advances the R7 packaging lane past
+the prior `otool` defect: workflow structure PASS, Ubuntu protocol PASS,
+R9 sanitizer PASS, R5 Linux GUI ZIP PASS, R2 complete/missing-systemd PASS,
+R7 native lifecycle PASS, R7 session sanitizer PASS and macOS protocol PASS.
+The dedicated `r7-macos-portable-gui` job built the real
+`rdp-server-desktop.app` and PASSed
+`packaging.macos-portable-gui-app-integrity-denials`, then failed before
+deployment because Homebrew's `macdeployqt` path is symlinked and the
+packager required the caller path itself to be a non-symlink regular file.
+
+This correction canonicalizes only the deployment-tool path, requires its
+resolved target to be a regular executable, and executes that resolved target.
+Source-app/archive symlink policy is unchanged. Added dedicated
+`packaging.macos-portable-gui-macdeployqt-symlink-resolution`. Local/native
+macOS execution in this connector environment is NOT RUN; publication-SHA
+macdeployqt, R9 archive verification and Mach-O closure are PENDING. Live GUI
+Start remains BLOCKED on R10's absent concrete `RuntimeHostControl` backend.

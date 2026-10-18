@@ -152,6 +152,33 @@ class MacGuiBundleTests(unittest.TestCase):
                 deployer=self.deploy,
                 architecture_inspector=self.architectures)
 
+    @unittest.skipIf(
+        sys.platform == "win32",
+        "Windows symlink creation is irrelevant to the macOS deployment tool")
+    def test_macdeployqt_symlink_resolution_requires_executable_target(self):
+        tool_directory = self.root / "Homebrew Cellar" / "qt" / "bin"
+        tool_directory.mkdir(parents=True)
+        target = tool_directory / "macdeployqt-real"
+        target.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        target.chmod(0o755)
+        link = self.root / "Homebrew opt macdeployqt"
+        link.symlink_to(target)
+
+        self.assertEqual(
+            bundle.resolve_macdeployqt(link),
+            target.resolve(strict=True))
+
+        target.chmod(0o644)
+        with self.assertRaisesRegex(
+                bundle.MacGuiBundleError, "target must be executable"):
+            bundle.resolve_macdeployqt(link)
+
+        broken = self.root / "broken-macdeployqt"
+        broken.symlink_to(self.root / "missing-macdeployqt")
+        with self.assertRaisesRegex(
+                bundle.MacGuiBundleError, "path is unavailable"):
+            bundle.resolve_macdeployqt(broken)
+
     def test_packager_has_no_host_activation_or_permission_mutator(self):
         source = (
             ROOT / "packaging/macos/gui_bundle.py"

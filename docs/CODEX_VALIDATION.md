@@ -1,3 +1,12 @@
+## R3 slow-path input registry correction (2026-10-17)
+
+The two new canonical slow-path input cases increase the existing
+`test_owned_mcs_connect_initial` behavior registry from **149 to 151**.
+The declaration-order-corrected hosted run reached test compilation and failed
+because the fixed `std::array` extent still named 149. This correction updates
+that compile-time bound and the roadmap assurance count; protocol and
+authorization semantics are unchanged.
+
 ## R10 exact-R2-authorized MCS Connect Response publication (2026-10-17)
 
 **Source parent `f18ea734`; hosted validation pending.** Full C++23 and

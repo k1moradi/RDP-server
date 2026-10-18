@@ -1,3 +1,28 @@
+## R1 real nonblocking TCP RST terminal assurance (2026-10-17)
+
+**Main commits:** `db3da707` (native owner regression), `4f971f15`
+(Linux-only CTest registration), `cb5b7c7f` (buffered plaintext revocation).
+`transport.tcp-owned-tls-application-tcp-rst-terminal` drives the real
+`OwnedPreauthTcpConnection`/NativeTcpIo/OpenSSL stack on loopback after
+a completed X.224 and TLS handshake. A Linux SO_LINGER abortive peer close
+triggers TCP reset while a bounded application read is pending; the test
+waits for terminal SSL handling without assuming a specific RST arrival
+iteration or OpenSSL error classification. It then denies late read/write,
+TLS/MCS, socket readiness, buffered-read readiness and poll callbacks.
+A second real TLS record supplies decrypted, buffered plaintext; cancellation
+must destroy SSL/BIO before any further plaintext can be consumed.
+
+Existing clean close_notify and EOF tests are retained unchanged.
+R10 commit `76813ac4` and its three outbound runtime scheduler CTests
+are already on main; the old ioInterest deficit is **resolved**.
+No R10 runnable serve listener code was identified in the reviewed head.
+Hosted exact-head CI: **NOT YET VERIFIED** (GitHub commit status list empty;
+PR-filtered workflow-run lookup empty). Local build/CTest: **NOT RUN**;
+this connector environment cannot clone GitHub. No R2 host lease or
+Microsoft-client version is claimed. Genuine CredSSP→MCS positive
+admission remains blocked on owner-authorized physical Linux X11 seat0,
+Kerberos/PAM.
+
 ## R6 cross-platform package self-scan and CLANG64 Rectangle failures (2026-10-17)
 
 Exact head `0b260b39ce0831fecf511b44c35bce08f5853ec0`, primary Actions

@@ -1,3 +1,33 @@
+## R7 macOS extracted Cocoa normal-launch gate (2026-10-18)
+
+R7's signed-framework ZIP-alias correction `57103ca` is hosted-green on
+descendant `f57d9c68`, native macOS 26 arm64
+[Actions 39140555244](https://github.com/k1moradi/RDP-server/actions/runs/39140555244):
+the Qt app built, 5/5 offscreen GUI CTests passed, the archive and
+extracted Mach-O dependency checks passed, and
+`codesign --verify --deep --strict` on the extracted .app **PASSED**
+(`Signature=adhoc`, `TeamIdentifier=not set`). This closes the prior
+QtDBus.framework extracted signature failure but **not** release signing.
+
+This R7 follow-up explicitly runs all three preexisting macOS
+archive/framework-link CTests in the native packaging job, then after
+archive extraction and strict signature validation invokes the exact
+extracted app by LaunchServices `open -n -a`. It requires a persistent
+GUI process, denies TCP LISTEN sockets for its PID and terminates it.
+If the runner has no usable Aqua session, the test fails explicitly;
+a successful `open` return alone is not a launch PASS. This is an
+automated normal Cocoa/LaunchServices launch, **not** a human Finder
+double-click, quarantined Gatekeeper trust, Developer ID signature,
+notarization or live authorized session. Exact new-head CI: **PENDING**.
+
+R3 authenticated post-Share classification and R10 persistent Linux
+loopback CLI single-reader/frame/input routing have landed, but the
+concrete R10 Qt LAN Start/Stop backend and serialized macOS AppKit/session
+owner, as well as R2's genuine credential-bound revocable macOS UID
+lease, are still absent. `src/gui/main.cpp` retains
+`UnavailableRuntimeHostControl`. Neither UI launch nor TCC consent
+authorizes ScreenCaptureKit/Quartz serving.
+
 ## R1/R8 clipboard outbound TLS polling interest (2026-10-18)
 
 Source parent `f7226e60c1b1c55b3a485c27c8018b6b2bacdc8a`. A newly landed R8 R2/R3-authorized

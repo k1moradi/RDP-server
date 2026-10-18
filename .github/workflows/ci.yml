@@ -1709,13 +1709,20 @@ jobs:
             --target rdp-server-desktop --parallel 2
           test -x build/rdp-server-desktop.app/Contents/MacOS/rdp-server-desktop
           test -f build/rdp-server-desktop.app/Contents/Info.plist
-      - name: Run macOS portable GUI archive contract CTest
+      - name: Run macOS portable GUI integrity and framework-alias CTests
         shell: bash
         run: |
           set -euo pipefail
-          ctest --test-dir build -C Release \
-            -R '^packaging[.]macos-portable-gui-app-integrity-denials$' \
-            --output-on-failure
+          selector='^(packaging[.]macos-portable-gui-(app-integrity-denials|framework-alias-integrity-denials)|packaging[.]portable-gui-macos-framework-link-verifier-denials)$'
+          inventory="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          for required in \
+            packaging.macos-portable-gui-app-integrity-denials \
+            packaging.macos-portable-gui-framework-alias-integrity-denials \
+            packaging.portable-gui-macos-framework-link-verifier-denials; do
+            grep -Fq "$required" <<< "$inventory"
+          done
+          ctest --test-dir build -C Release -R "$selector" --output-on-failure
       - name: Build and run R7 Qt GUI offscreen behavior CTests
         shell: bash
         run: |
@@ -1783,6 +1790,12 @@ jobs:
             echo "Preview unexpectedly reports a production signing identity" >&2
             exit 1
           fi
+      - name: Launch extracted Cocoa app normally without opening TCP listeners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/smoke_macos_gui_open.py \
+            --app "build/Extracted macOS PORTABLE GUI/rdp-server-desktop.app"
 
   r7-macos-session-sanitizers:
     needs: ci-workflow-structure

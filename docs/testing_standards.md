@@ -1,3 +1,16 @@
+## R7 macOS extracted GUI LaunchServices and package CTests (2026-10-18)
+
+The native macOS arm64 GUI packaging lane explicitly enumerates and
+runs three integrity CTests (archive, signed framework aliases, shared
+malicious-link verifier), then verifies the extracted `.app` with
+`codesign --verify --deep --strict`. `scripts/smoke_macos_gui_open.py`
+uses LaunchServices `open -n -a` on the extracted Cocoa app, requires
+a sustained GUI process, rejects TCP LISTEN sockets owned by that
+process, and terminates it. Failure to obtain a usable Aqua session
+must fail the smoke rather than be silently called PASS. This is not a
+human Finder double-click or Gatekeeper/notarization approval and
+grants no R2 credential authority or R10 native host ownership.
+
 ## R1/R8 clipboard output interest regression (2026-10-18)
 
 Register `runtime.linux-connection-clipboard-outbound-want-precedence`

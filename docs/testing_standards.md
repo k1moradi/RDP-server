@@ -1,3 +1,8 @@
+## R6 Windows PORTABLE-GUI offline contract (2026-10-18)
+
+windows.gui-portable-zip-integrity-path-uninstall-denials is a portable synthetic-PE test of the Windows ZIP builder and passes its output through R9's production PORTABLE-GUI verifier. It exercises Unicode/space paths, full payload and outer hashes, disabled listen/autostart example configuration, Qt platform-plugin presence, case-alias/helper denial and clean removal. It never starts Qt, opens a socket, changes a firewall rule, elevates, installs a service or mints R2 admission.
+
+Native Windows assurance still requires the real windeployqt package, recursive non-system PE dependency closure, extracted --offline-self-test and --offline-start-denial-test, and before/after firewall-state comparison.
 ## R8 clipboard GUI state is descriptive, never authority (2026-10-18)
 
 Clipboard UI tests may render the four shared R10 status states

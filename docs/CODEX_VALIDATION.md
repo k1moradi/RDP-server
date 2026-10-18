@@ -1,3 +1,8 @@
+## R6 consumes R7/R10/R9 GUI packaging contracts (2026-10-18)
+
+R7's Qt HostControl adapter and R10 typed RuntimeHostControl are now on main, so R6 does not add another runtime owner. R9's PORTABLE-GUI verifier is also available. This increment adds packaging/windows/gui_bundle.py and the registered windows.gui-portable-zip-integrity-path-uninstall-denials CTest. The builder uses local windeployqt staging, rejects unsafe/reparse/case aliases and installer/script/extra-EXE helpers, emits the R9 manifest/checksum contract, and produces an adjacent outer digest.
+
+Portable synthetic test, native Windows build, real windeployqt closure, extracted GUI launch, firewall comparison and full CTest are **NOT RUN** in this connector environment. R2's newly landed OS-account policy generation/revocation lifecycle does not implement Windows SSPI/CredSSP authentication; no Windows R2 SID/WTS admission lease or concrete R10 Windows interactive owner exists. Native Start remains **BLOCKED**.
 ## R8 fail-closed clipboard GUI status projection (2026-10-18)
 
 Authored from main parent `7044183db5a12d637bbb432d035a582224d12792`. R10's typed host status now owns

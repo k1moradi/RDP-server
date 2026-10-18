@@ -1,3 +1,8 @@
+## R6 Windows PORTABLE-GUI builder boundary (2026-10-18)
+
+packaging/windows/gui_bundle.py packages only the already-built RDP-server-GUI.exe plus files staged by a local windeployqt. It does not download dependencies, invoke an installer, mutate PATH, create a service, touch the firewall or start the GUI. It rejects additional EXE/BAT/CMD/PowerShell/MSI helpers, reparse/symlink content, unsafe or case-colliding names, and missing Qt Core/Gui/Widgets or plugins/platforms/qwindows.dll.
+
+The emitted archive follows R9's PORTABLE-GUI manifest/checksum format and writes an adjacent outer SHA-256 receipt. Synthetic cross-host tests do not prove recursive PE imports; R9's native Windows job must run the builder, scan non-system PE/DLL closure and launch the extracted GUI with only archive and OS system paths available.
 ## R8 post-Share CLIPRDR bridge build boundary (2026-10-18)
 
 `rdp-server-r8-r3-clipboard` is a noninstalled C++23 static target containing

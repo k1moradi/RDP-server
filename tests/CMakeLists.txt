@@ -2575,3 +2575,11 @@ add_test(NAME packaging.portable-gui-archive-integrity-denials
         "${PROJECT_SOURCE_DIR}/tests/test_portable_gui_archive.py")
 set_tests_properties(packaging.portable-gui-archive-integrity-denials
     PROPERTIES LABELS "packaging;gui;security;offline" TIMEOUT 30)
+
+# R6 Windows PORTABLE-GUI builder contract. Synthetic PE fixtures run on
+# every host; native windeployqt/launch/PE-import closure remains Windows CI.
+add_test(NAME windows.gui-portable-zip-integrity-path-uninstall-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_windows_gui_bundle.py")
+set_tests_properties(windows.gui-portable-zip-integrity-path-uninstall-denials
+    PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 30)

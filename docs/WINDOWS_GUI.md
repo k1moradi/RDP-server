@@ -51,3 +51,10 @@ and removal of extracted tree plus private settings without touching Windows
 RDP. Genuine native-serving acceptance remains BLOCKED until R2/R10 provide
 real interfaces. Windows App and mstsc.exe should first exercise the
 Linux-host server separately from this Windows-host milestone.
+
+
+## R10/R9 contracts now consumed by Windows packaging
+
+R7 now supplies the shared Qt adapter to R10's typed RuntimeHostControl, and the Windows launcher instantiates that production contract through the deny-only runtime facade. R6 therefore does not add a second control owner. The remaining positive Start path still depends on a concrete R10 Windows backend and genuine R2 Windows admission.
+
+R6 now provides packaging/windows/gui_bundle.py. It packages the built RDP-server-GUI.exe with a local windeployqt result, requires Qt6Core/Gui/Widgets and plugins/platforms/qwindows.dll, rejects reparse links, unsafe or case-colliding paths, installer/script helpers and unexpected extra executables, and emits R9's exact PORTABLE-GUI manifest/checksum contract plus an adjacent outer SHA-256 receipt. The portable CTest uses Unicode and space-containing paths, validates the archive with R9's production verifier and exercises extraction/removal without executing or installing anything. Native Windows CI still owes recursive PE dependency closure, extracted-GUI offline launch and a before/after firewall-state check.

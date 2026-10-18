@@ -2629,11 +2629,10 @@ startPersonalDesktopGraphicsDynamicVirtualChannel(
 
 
 bool LinuxRuntimeConnection::
-startPersonalDesktopGraphicsFramePublication(
+startPersonalDesktopClearCodecFramePublication(
     const RuntimeDeploymentPolicy &deploymentPolicy,
-    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
-    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
-    rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept
+    std::uint32_t frameId,
+    rdp_server::rdp::FramebufferView framebuffer) noexcept
 {
     using Action = PersonalDesktopGraphicsDvcIoAction;
     using Kind =
@@ -2653,10 +2652,9 @@ startPersonalDesktopGraphicsFramePublication(
     }
 
     const auto pending =
-        broker_->authorizeR3PersonalDesktopGraphicsFramePublication(
+        broker_->authorizeR3PersonalDesktopClearCodecFramePublication(
             *lease_, acceptor_, connection_, session_,
-            deploymentPolicy, presentationLifecycle,
-            std::move(frame), codec);
+            deploymentPolicy, frameId, framebuffer);
     if (!pending ||
         pending->kind != Kind::GraphicsFrameData)
     {
@@ -2811,6 +2809,10 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
                 personalGraphicsDvcIoAction_ = Action::Read;
                 return {0U, io.bytes, Step::Progress};
             case Kind::GraphicsCapabilitiesConfirm:
+            case Kind::GraphicsCreateSurface:
+                personalGraphicsDvcIoAction_ = Action::Write;
+                return {0U, io.bytes, Step::Progress};
+            case Kind::GraphicsMapSurfaceToOutput:
                 personalGraphicsDvcFrameReader_.close();
                 personalGraphicsDvcIoAction_ = Action::Ready;
                 return {0U, io.bytes, Step::Ready};

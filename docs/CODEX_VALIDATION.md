@@ -6705,3 +6705,44 @@ Dependency recheck: R5 now includes MouseX side-button mapping and R8 links
 its dormant clipboard bridge, but R10 still has no persistent single-reader
 post-Share TPKT router and no concrete `RuntimeHostControl`; live Qt Start
 remains BLOCKED at that authority boundary.
+
+
+## R3 authenticated RDPGFX presentation ownership (2026-10-18)
+
+**Authoring parent:** `95333b0bddb19acebf3c690ffe3e192f45b032a2`.
+
+The previous dependency review showed that R10 had already composed genuine
+Share activation, DRDYNVC creation/CAPS and the R2-selected X11 owner, while
+the first-frame path still lacked one R3-owned presentation/surface lifetime.
+This increment reuses R4's existing `GfxPresentationLifecycle`; it does not
+create a second surface state machine.
+
+The R3 Graphics DVC now opens that lifecycle on its own monotonic DVC
+generation, passes the exact accepted client RDPGFX capability advertisement
+into it, and publishes its receipt-bound CAPS_CONFIRM followed by
+CREATE_SURFACE and MAP_SURFACE_TO_OUTPUT. Surface 0 is protocol-valid and the
+geometry comes from the admitted GCC Client Core values already used by the
+Demand Active profile. The DVC is not `Ready` until all three application
+commands have been fully accepted by R1 and their R4 receipts complete.
+
+The production frame boundary is narrowed to mandatory ClearCodec fallback:
+R10/R2 supplies only frame ID and a synchronous borrowed framebuffer. R3
+prepares the R4 segmented frame against its embedded current presentation and
+then moves it directly into the existing DATA_FIRST/DATA outer-record owner.
+The old production API accepting a caller `GfxPresentationLifecycle`,
+graphics generation/surface identity or caller-prepared frame is removed.
+Zero-byte cancellation, partial-write terminal abort and exact complete
+delivery remain on the existing frame receipt path.
+
+Dedicated portable CTest:
+`transport.dvc-graphics-presentation-wire`. Existing Graphics frame
+zero-publication, multi-fragment delivery, header/payload partial abort, stale
+receipt and Share-loss tests now use the R3-owned presentation rather than an
+independent test lifecycle.
+
+The repository-mandated local `~/rdp-server/build` configure/build/full CTest
+is **NOT RUN** in this connector environment. No synthetic R2 lease, listener,
+desktop, XTEST event or Microsoft client was created. Exact publication-SHA
+hosted CI is **PENDING**; live first-frame evidence remains blocked on R10's
+persistent post-Share R1 router/owner loop plus explicit owner authorization
+for the physical X11 seat.

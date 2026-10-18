@@ -951,6 +951,8 @@ enum class RdpGraphicsDvcPhase : std::uint8_t
     AwaitCreateResponse,
     Created,
     GraphicsCapabilitiesConfirmPending,
+    GraphicsCreateSurfacePending,
+    GraphicsMapSurfacePending,
     Ready,
     Failed,
     Closed,
@@ -962,6 +964,8 @@ enum class RdpGraphicsDvcWriteKind : std::uint8_t
     CapabilitiesRequest,
     CreateRequest,
     GraphicsCapabilitiesConfirm,
+    GraphicsCreateSurface,
+    GraphicsMapSurfaceToOutput,
     GraphicsFrameData,
 };
 
@@ -1040,7 +1044,8 @@ public:
     [[nodiscard]] bool begin(
         std::uint32_t clientUserId,
         std::uint16_t staticChannelId,
-        RdpDynamicVirtualChannelAllocation allocation) noexcept;
+        RdpDynamicVirtualChannelAllocation allocation,
+        rdp_server::rdp::PixelSize desktopGeometry) noexcept;
     [[nodiscard]] RdpGraphicsDvcWriteView pendingServerWrite() const noexcept;
     [[nodiscard]] RdpGraphicsDvcWriteOutcome onServerBytesWritten(
         std::uint64_t channelGeneration,
@@ -1051,8 +1056,14 @@ public:
         std::uint64_t channelGeneration,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Prepare the mandatory ClearCodec fallback only against this R3-owned
+    // mapped presentation. The caller supplies pixels/frame ID, never a
+    // graphics generation or surface ID.
+    [[nodiscard]] bool prepareClearCodecFrame(
+        std::uint32_t frameId,
+        rdp_server::rdp::FramebufferView framebuffer,
+        rdp_server::rdp::GfxAvc420SegmentedFrame &output) noexcept;
     [[nodiscard]] bool beginFramePublication(
-        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
         rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
         RdpGraphicsFrameCodec codec,
         std::size_t staticChannelChunkBytes) noexcept;
@@ -1088,6 +1099,8 @@ public:
         return phase_ == RdpGraphicsDvcPhase::Created ||
                phase_ ==
                    RdpGraphicsDvcPhase::GraphicsCapabilitiesConfirmPending ||
+               phase_ == RdpGraphicsDvcPhase::GraphicsCreateSurfacePending ||
+               phase_ == RdpGraphicsDvcPhase::GraphicsMapSurfacePending ||
                phase_ == RdpGraphicsDvcPhase::Ready;
     }
     [[nodiscard]] std::uint32_t dynamicChannelId() const noexcept
@@ -1107,7 +1120,7 @@ public:
     // activation from racing a short or canceled confirmation write.
     [[nodiscard]] bool graphicsCapabilitiesConfirmed() const noexcept
     {
-        return phase_ == RdpGraphicsDvcPhase::Ready;
+        return graphicsCapabilitiesConfirmed_;
     }
     [[nodiscard]] std::uint32_t
     confirmedGraphicsCapabilityVersion() const noexcept
@@ -1133,12 +1146,28 @@ public:
         return graphicsCapabilitiesConfirmed() &&
                selectedGraphicsAvc420Enabled_;
     }
+    [[nodiscard]] bool presentationMapped() const noexcept
+    {
+        return phase_ == RdpGraphicsDvcPhase::Ready &&
+               presentationLifecycle_.stage() ==
+                   rdp_server::rdp::GfxPresentationStage::Mapped;
+    }
+    [[nodiscard]] std::size_t outstandingGraphicsFrames() const noexcept
+    {
+        return presentationMapped()
+                   ? presentationLifecycle_.outstandingFrames()
+                   : 0U;
+    }
 
 private:
     [[nodiscard]] bool queueCapabilitiesRequest() noexcept;
     [[nodiscard]] bool queueCreateRequest() noexcept;
-    [[nodiscard]] bool queueGraphicsCapabilitiesConfirm(
-        std::span<const std::byte> confirmation) noexcept;
+    [[nodiscard]] bool queueGraphicsApplicationPdu(
+        RdpGraphicsDvcWriteKind kind,
+        std::span<const std::byte> graphicsPdu) noexcept;
+    [[nodiscard]] bool queuePresentationCommand(
+        rdp_server::rdp::GfxPresentationCommand expectedCommand,
+        RdpGraphicsDvcWriteKind kind) noexcept;
     [[nodiscard]] bool queueControlPdu(
         RdpGraphicsDvcWriteKind kind,
         std::span<const std::uint8_t> dvcPdu) noexcept;
@@ -1170,7 +1199,10 @@ private:
     std::uint32_t selectedGraphicsCapabilityVersion_{};
     std::uint32_t selectedGraphicsCapabilityFlags_{};
     bool selectedGraphicsAvc420Enabled_{};
-    rdp_server::rdp::GfxPresentationLifecycle *framePresentationLifecycle_{};
+    bool graphicsCapabilitiesConfirmed_{};
+    rdp_server::rdp::PixelSize presentationGeometry_{};
+    rdp_server::rdp::GfxPresentationLifecycle presentationLifecycle_{};
+    rdp_server::rdp::GfxPresentationReceipt presentationReceipt_{};
     std::optional<rdp_server::rdp::GfxAvc420SegmentedFrame> frame_{};
     std::vector<RdpGraphicsDvcOuterRecordMapEntry> frameRecordMap_{};
     std::size_t frameRecordIndex_{};
@@ -1713,12 +1745,14 @@ private:
     acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
+    // R3 mints the mandatory ClearCodec fallback against its own current
+    // Graphics DVC generation and mapped surface. Callers supply only the
+    // frame ID and borrowed pixels; neither is an authorization capability.
     [[nodiscard]] std::optional<RdpGraphicsDvcWriteView>
-    beginVerifiedR2GraphicsFramePublication(
+    beginVerifiedR2GraphicsClearCodecFramePublication(
         const SecurityNegotiationProvenance &provenance,
-        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
-        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
-        RdpGraphicsFrameCodec codec) noexcept;
+        std::uint32_t frameId,
+        rdp_server::rdp::FramebufferView framebuffer) noexcept;
     [[nodiscard]] bool cancelVerifiedR2UnwrittenGraphicsFrame(
         const SecurityNegotiationProvenance &provenance) noexcept;
     [[nodiscard]] bool abortVerifiedR2GraphicsFrame(

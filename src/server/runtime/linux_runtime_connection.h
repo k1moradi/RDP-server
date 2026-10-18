@@ -677,15 +677,13 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
-    // Transfer one prepared R4 frame into the current R3 Graphics DVC. This
-    // method owns no protocol IDs or receipt accounting; R2 reauthorizes the
-    // move and R3 maps every frame byte to the R1 plaintext records driven by
-    // advancePersonalDesktopGraphicsDynamicVirtualChannel().
-    [[nodiscard]] bool startPersonalDesktopGraphicsFramePublication(
+    // Prepare and start one mandatory ClearCodec fallback publication. R10
+    // supplies only a frame ID and a synchronous borrowed framebuffer. R3 owns
+    // the current Graphics DVC generation, surface identity and R4 receipts.
+    [[nodiscard]] bool startPersonalDesktopClearCodecFramePublication(
         const RuntimeDeploymentPolicy &deploymentPolicy,
-        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
-        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
-        rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept;
+        std::uint32_t frameId,
+        rdp_server::rdp::FramebufferView framebuffer) noexcept;
 
     // Legal only while R3 proves that R1 accepted zero outer plaintext bytes.
     // Positive or uncertain progress is never translated into cancellation.

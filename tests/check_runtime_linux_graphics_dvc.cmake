@@ -22,10 +22,10 @@ foreach(required_text IN ITEMS
 endforeach()
 
 string(FIND "${runtime_source}"
-    "startPersonalDesktopGraphicsFramePublication" frame_publication)
+    "startPersonalDesktopClearCodecFramePublication" frame_publication)
 if(NOT frame_publication EQUAL -1)
     message(FATAL_ERROR
-        "R10 serve loop must not publish a synthetic frame before the R2-selected R5/R4 owner exists")
+        "R10 serve loop must not publish a frame before the persistent R2-selected R5/R4 owner exists")
 endif()
 
 # R10 may now hand off to the genuine R2-selected native owner before

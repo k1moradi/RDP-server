@@ -2038,3 +2038,21 @@ Synchronize/Control/Font state machine, create a second queue, or treat the
 discard as input authorization. After Share activation, each decoded event
 still needs both negotiated protocol support and the existing fresh R2 native
 authorization immediately before dispatch.
+
+
+## R3 owns RDPGFX presentation identity (2026-10-18)
+
+The authenticated Graphics DVC owner is the sole production owner of RDPGFX
+presentation generation and surface identity. R10, GUI/native capture code and
+R2 wrappers must not supply a `GfxPresentationLifecycle`, DVC generation or
+surface ID. R3 opens the existing R4 presentation lifecycle on the current DVC
+generation, derives initial geometry from the admitted Client Core settings and
+does not expose the DVC as frame-ready until CAPS_CONFIRM, CREATE_SURFACE and
+MAP_SURFACE_TO_OUTPUT have completed through accepted-byte receipts.
+
+For the mandatory first-frame fallback, accept only a synchronous borrowed
+framebuffer and frame ID, prepare ClearCodec against the embedded presentation,
+and transfer the move-only R4 frame directly into the existing R3 record
+publisher. Keep cancellation legal only at zero accepted outer bytes; any
+positive or uncertain partial delivery remains terminal and must abort the
+presentation receipt.

@@ -4233,3 +4233,21 @@ A production-linked native bridge that is intentionally dormant until a later se
 ## Shared packaging fixtures must be idempotent with their class setup (R9, 2026-10-18)
 
 When a packaging behavior test reuses an app tree created by `setUp()`, directory preparation for that same tree must tolerate directories already created by the fixture. Use `exist_ok=True` only for expected fixture-owned directories; do not catch or suppress unexpected filesystem failures. This keeps the test focused on the packaging behavior under assertion rather than failing before it reaches that behavior.
+
+
+## R3 RDPGFX presentation/surface ownership coverage (2026-10-18)
+
+Graphics DVC tests must not construct a separate presentation lifecycle with an
+arbitrary generation or surface ID and then hand that object to production R3.
+The DVC owner must derive presentation generation from its own DVC allocation
+and geometry from the admitted session. After client CAPS_ADVERTISE, assert the
+exact R4-generated CAPS_CONFIRM, CREATE_SURFACE (XRGB8888) and
+MAP_SURFACE_TO_OUTPUT bytes and require complete accepted-byte receipts before
+`Ready`.
+
+The production ClearCodec boundary accepts frame ID plus a borrowed framebuffer
+only. Tests prepare the fallback through that R3-owned mapped presentation,
+then preserve the existing zero-write cancellation, multi-record accepted-byte
+mapping, partial-write abort and stale-generation denial assertions. Ordinary
+CI must never fabricate a positive R2 lease or native desktop merely to reach
+these protocol tests.

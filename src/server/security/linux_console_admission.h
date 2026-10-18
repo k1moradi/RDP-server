@@ -667,11 +667,12 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
-    // Begin/cancel R4 application DATA only after the same fresh protected
-    // transition. The move-only frame is transferred into R3 only on success.
+    // Begin mandatory ClearCodec DATA only after the same fresh protected
+    // transition. R3 owns the presentation generation/surface and prepares the
+    // R4 frame synchronously from borrowed pixels before queuing any wire byte.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpGraphicsDvcWriteView>
-    authorizeR3PersonalDesktopGraphicsFramePublication(
+    authorizeR3PersonalDesktopClearCodecFramePublication(
         const LinuxConsoleAdmissionLease &lease,
         GssapiSpnegoAcceptor &acceptor,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
@@ -679,9 +680,8 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy,
-        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
-        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
-        rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept;
+        std::uint32_t frameId,
+        rdp_server::rdp::FramebufferView framebuffer) noexcept;
 
     [[nodiscard]] bool
     cancelR3PersonalDesktopUnwrittenGraphicsFrame(

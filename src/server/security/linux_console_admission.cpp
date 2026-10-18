@@ -1636,16 +1636,15 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
 
 
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
-LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsFramePublication(
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublication(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy,
-    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
-    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
-    rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept
+    std::uint32_t frameId,
+    rdp_server::rdp::FramebufferView framebuffer) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
             lease, acceptor, connection, session, deploymentPolicy))
@@ -1660,9 +1659,8 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsFramePublication(
     }
 
     const auto pending =
-        session.beginVerifiedR2GraphicsFramePublication(
-            *provenance, presentationLifecycle,
-            std::move(frame), codec);
+        session.beginVerifiedR2GraphicsClearCodecFramePublication(
+            *provenance, frameId, framebuffer);
     if (!pending)
         revokeR3Session(acceptor, session);
     return pending;

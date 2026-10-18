@@ -616,6 +616,17 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Ephemeral post-Share classifier for R10's one complete-TPKT reader.
+    // R2 revalidates native view admission before exposing a borrowed route.
+    [[nodiscard]] rdp_server::server::transport::RdpPostShareTpktRoute
+    classifyR3PersonalDesktopPostShareTpkt(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Graphics DVC control remains owned by R3 after Share activation. R2
     // freshly reauthorizes the exact PersonalDesktop policy, R1 TLS/GSS owner,
     // lease/native session and generation pair before every begin, slice,

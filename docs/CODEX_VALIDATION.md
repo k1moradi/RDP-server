@@ -6768,3 +6768,23 @@ and adjusted the real TLS fixture to complete CAPS_CONFIRM, CREATE_SURFACE,
 MAP_SURFACE_TO_OUTPUT before preparing its ClearCodec frame against R3's
 actual mapped presentation. New hosted CI and sanitizer outcomes: PENDING.
 Local compile/CTest: NOT RUN in connector environment.
+
+## R3 non-mutating authenticated post-Share route (2026-10-18)
+
+The R3 session classifies exactly one borrowed, complete TPKT using its
+already-joined global I/O / positional GCC `drdynvc` / `cliprdr` roles,
+current Share and allocated Graphics/clipboard generations. Unsupported
+frames return no borrowed payload; the R2 broker checks the exact real
+PersonalDesktop view lease before and after classification, and all consumers
+must reauthorize their operation-specific permissions. No native callbacks,
+reader duplication, protocol mutation or new graphics sender.
+
+Added production CTests: `transport.post-share-classifier-joined-routes`,
+`transport.post-share-classifier-malformed-and-wrong-role`, and
+`transport.post-share-classifier-generations-share-disconnect`.
+These use offline-only session fixtures and do not establish R2 admission.
+The R1 TLS Graphics test was also corrected to use the embedded presentation
+frame-count instead of its removed independent presentation owner.
+Local configure/build/CTest/sanitizers: NOT RUN in this GitHub connector.
+Hosted exact-head CI and frame completion/cancellation: PENDING.
+R10 integration and first physical seat0/client evidence: BLOCKED.

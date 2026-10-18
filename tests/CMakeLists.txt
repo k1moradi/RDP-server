@@ -285,6 +285,9 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial
+                post-share-classifier-joined-routes
+                post-share-classifier-malformed-and-wrong-role
+                post-share-classifier-generations-share-disconnect
                 cliprdr-pre-share-denial
                 dvc-graphics-frame-zero-publication
                 dvc-graphics-frame-multifragment-delivery

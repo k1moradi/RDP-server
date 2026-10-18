@@ -766,6 +766,8 @@ inline constexpr std::size_t kMaximumRdpClientCapabilityBytes = 16383U;
 // output is complete MCS SendDataIndication packets with receipt-bound slices.
 class RdpShareActivationLifecycle final
 {
+    // Offline fixture may stage joined/activated state without real OS admission.
+    friend class McsSessionLifecycleTestAccess;
 public:
     RdpShareActivationLifecycle() noexcept = default;
     RdpShareActivationLifecycle(const RdpShareActivationLifecycle &) = delete;
@@ -1368,6 +1370,22 @@ struct RdpClipboardChannelVisitor
     }
 };
 
+// A synchronous borrowed route observation, never an authorization token.
+enum class RdpPostShareTpktRouteKind : std::uint8_t
+{
+    UnsupportedOrMalformed,
+    SlowPathInput,
+    GraphicsDynamicVirtualChannel,
+    ClipboardStaticChannel,
+};
+struct RdpPostShareTpktRoute
+{
+    RdpPostShareTpktRouteKind kind{
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed};
+    // Borrowed from the caller's immutable complete TPKT, never retained.
+    std::span<const std::uint8_t> completeTpkt{};
+};
+
 class McsSessionLifecycle final
 {
 public:
@@ -1685,6 +1703,12 @@ private:
     // transition may query it immediately before protocol application I/O.
     [[nodiscard]] bool verifiedR2ApplicationTrafficReady(
         const SecurityNegotiationProvenance &provenance) const noexcept;
+
+    // Read-only post-Share classification; R2 revalidates the result before
+    // publication. Never allocates, changes session state or consumes bytes.
+    [[nodiscard]] RdpPostShareTpktRoute classifyVerifiedR2PostShareTpkt(
+        const SecurityNegotiationProvenance &provenance,
+        std::span<const std::uint8_t> completeTpkt) const noexcept;
 
     // Sole post-Share static-VC CLIPRDR route. Private: the concrete R2
     // broker first verifies the same live lease, R1 HYBRID provenance,

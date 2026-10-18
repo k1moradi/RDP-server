@@ -3617,7 +3617,7 @@ void testR3GraphicsFrameSliceThroughOwnedTls()
     // Delivery proves complete R1 plaintext acceptance only. The presentation
     // remains outstanding until a separate client FRAME_ACKNOWLEDGE proves
     // client-side decode/presentation progress.
-    assert(presentation.outstandingFrames() == 1U);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
     owner.cancel();
 }
 

@@ -7061,3 +7061,19 @@ borrow-only framebuffer boundary for later native integrations.
 None of these interfaces grants publication authority. Graphics stays off
 until R2/R3 establish the authenticated/licensed/activated session, joined
 DRDYNVC and successfully created Graphics DVC.
+## R3/R2 post-Share complete-TPKT classification contract (2026-10-18)
+
+The sole runtime reader (R10) supplies one exact already TLS-decrypted
+complete TPKT to
+`LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt`.
+R2 must freshly authorize the current lease, TLS/provenance and real native
+session before entry and again before revealing R3's result. R3 checks its
+retained authenticated Share, fully confirmed joined MCS identities, negotiated
+GCC role names, and current active Graphics DVC/static clipboard generations.
+The route holds only a `RdpPostShareTpktRouteKind` and a
+`std::span<const uint8_t>` borrowing the original complete TPKT; caller
+must consume it synchronously before reusing the read buffer. It cannot
+perform dispatch, authorize input or clipboard, change lifecycle state,
+consume MCS/DRDYNVC fragments or allocate any channel. Unsupported/malformed
+packets produce an empty span. The selected existing route consumer repeats
+its permission, share and wire checks; R4 retains decode-progress/ACK state.

@@ -1278,6 +1278,8 @@ private:
     friend class RdpServerPlatformChallengeWriteGate;
     friend class RdpServerLicenseGrantWriteGate;
     friend class McsSessionLifecycle;
+    // Test-only offline classifier fixture, never a production credential.
+    friend class McsSessionLifecycleTestAccess;
     friend class RdpPersonalDesktopValidClientWriteGate;
 
     // Only the receipt gate may advance this transition after every byte of

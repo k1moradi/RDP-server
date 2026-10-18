@@ -434,3 +434,13 @@ frame/sanitizer CTests remain NOT RUN until CI executes the corrected head.
 remaining global `FramebufferView` references at R2/R10 handoffs and a stale
 R1 Graphics TLS fixture calling the old DVC presentation API. Corrected
 those exact incompatibilities; full CI and affected CTests still PENDING.
+
+**R3 post-Share classifier (2026-10-18):** R3's read-only
+`McsSessionLifecycle::classifyVerifiedR2PostShareTpkt` inspects a single
+complete TPKT using negotiated joined MCS roles and current clipboard/DVC
+state. R2 exposes only the synchronous borrowed result via
+`LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt`
+after two independent native admission checks. It does not invoke any
+R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
+The external R10 single-reader integration and genuine X11 host remain
+BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.

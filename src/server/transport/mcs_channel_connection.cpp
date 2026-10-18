@@ -2149,6 +2149,93 @@ bool McsSessionLifecycle::verifiedR2ApplicationTrafficReady(
            joins_.allConfiguredChannelsJoined();
 }
 
+
+RdpPostShareTpktRoute McsSessionLifecycle::classifyVerifiedR2PostShareTpkt(
+    const SecurityNegotiationProvenance &provenance,
+    std::span<const std::uint8_t> completeTpkt) const noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !joins_.channelJoinConfirmed(
+            static_cast<std::uint16_t>(allocatedUserId_)) ||
+        !joins_.channelJoinConfirmed(connectResponseAllocation_.ioChannelId))
+        return {};
+
+    // One complete-TPKT/X.224/T.125 PER parse. The session's negotiated
+    // and fully confirmed MCS identities are the only route authority.
+    const auto parsed = parseMcsChannelRequest(completeTpkt);
+    if (!parsed ||
+        parsed.request.kind != McsChannelRequestKind::SendDataRequest ||
+        parsed.request.initiator != allocatedUserId_ ||
+        parsed.request.segmentation != 3U)
+        return {};
+
+    const auto userData = parsed.request.userData;
+    if (parsed.request.channelId == connectResponseAllocation_.ioChannelId)
+    {
+        const auto input = parseRdpSlowPathInputPdu(userData);
+        if (!input ||
+            input.value.pduSource !=
+                static_cast<std::uint16_t>(allocatedUserId_) ||
+            !shareActivation_.matchesActivatedClientShare(
+                input.value.shareId, input.value.pduSource) ||
+            !slowPathInputAllowed(
+                input.value, shareActivation_.negotiatedSlowPathInputFlags()))
+            return {};
+        return {RdpPostShareTpktRouteKind::SlowPathInput, completeTpkt};
+    }
+
+    const auto graphicsChannel = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::DynamicVirtualChannels);
+    if (graphicsChannel && parsed.request.channelId == *graphicsChannel &&
+        joins_.channelJoinConfirmed(*graphicsChannel))
+    {
+        using Phase = RdpGraphicsDvcPhase;
+        const auto phase = graphicsDynamicVirtualChannel_.phase();
+        if (graphicsDynamicVirtualChannel_.channelGeneration() == 0U ||
+            graphicsDynamicVirtualChannel_.dynamicChannelId() == 0U ||
+            (phase != Phase::AwaitCapabilitiesResponse &&
+             phase != Phase::AwaitCreateResponse &&
+             phase != Phase::Created && phase != Phase::Ready) ||
+            userData.size() < 9U ||
+            readLe32At(userData, 0U) != userData.size() - 8U ||
+            (readLe32At(userData, 4U) & 0x00000003U) != 0x00000003U ||
+            (readLe32At(userData, 4U) & ~0x000000f3U) != 0U ||
+            userData.size() - 8U >
+                kRdpStaticVirtualChannelDefaultChunkBytes)
+            return {};
+        // The existing Graphics consumer validates CAPS/CREATE/DATA and
+        // reassembly under fresh R2 authorization; inspection does not.
+        return {RdpPostShareTpktRouteKind::GraphicsDynamicVirtualChannel,
+                completeTpkt};
+    }
+
+    const auto clipboardChannel = resolveMcsStaticChannelRole(
+        connectResponseClientSettings_, connectResponseAllocation_,
+        McsStaticChannelRole::Clipboard);
+    const auto clipboard = clipboardStaticChannel_.view();
+    if (clipboardChannel &&
+        parsed.request.channelId == *clipboardChannel &&
+        joins_.channelJoinConfirmed(*clipboardChannel) && clipboard &&
+        clipboard.channelId == *clipboardChannel &&
+        clipboard.generation != 0U &&
+        userData.size() > 8U &&
+        userData.size() - 8U <=
+            kRdpStaticVirtualChannelDefaultChunkBytes)
+    {
+        constexpr std::uint32_t permittedFlags = 0x000000f3U;
+        const auto flags = readLe32At(userData, 4U);
+        const auto totalLength = readLe32At(userData, 0U);
+        if ((flags & ~permittedFlags) == 0U &&
+            totalLength >= 8U &&
+            totalLength <= clipboard::kMaximumPduBytes)
+            return {RdpPostShareTpktRouteKind::ClipboardStaticChannel,
+                    completeTpkt};
+    }
+    return {};
+}
+
 std::optional<RdpClipboardStaticChannelView>
 McsSessionLifecycle::resolveVerifiedR2ActivatedClipboardChannel(
     const SecurityNegotiationProvenance &provenance) noexcept

@@ -145,6 +145,97 @@ public:
             provenance).has_value();
     }
 
+    // Offline-only routed state fixture. This bypasses real R2 admission
+    // deliberately and is never exposed outside the test executable.
+    [[nodiscard]] static bool stagePostShareClassifier(
+        McsSessionLifecycle &session) noexcept
+    {
+        session.allocatedUserId_ = 1007U;
+        session.admissionGeneration_ = 41U;
+        session.sessionGeneration_ = 43U;
+        session.phase_ = McsSessionPhase::ShareActivated;
+        session.connectResponseProvenanceBound_ = true;
+        session.connectResponseBoundProvenance_ =
+            {kRdpProtocolHybrid, kRdpProtocolHybrid};
+        session.licensing_.phase_ = RdpLicensingPhase::Licensed;
+        session.shareActivation_.phase_ = RdpShareActivationPhase::Activated;
+        session.shareActivation_.shareId_ = 0x000103eaU;
+        session.shareActivation_.clientUserId_ = 1007U;
+        session.shareActivation_.clientCapabilitiesConfirmed_ = true;
+        session.shareActivation_.negotiatedSlowPathInputFlags_ = 0x0015U;
+        session.connectResponseAllocation_.gccNodeId = 1002U;
+        session.connectResponseAllocation_.ioChannelId = 1003U;
+        session.connectResponseAllocation_.staticChannelCount = 2U;
+        session.connectResponseAllocation_.staticChannelIds[0] = 1004U;
+        session.connectResponseAllocation_.staticChannelIds[1] = 1005U;
+        auto &settings = session.connectResponseClientSettings_;
+        settings.hasNetworkData = true;
+        settings.channelCount = 2U;
+        settings.channels[0].name = {'c','l','i','p','r','d','r',0};
+        settings.channels[1].name = {'d','r','d','y','n','v','c',0};
+        constexpr std::array<std::uint16_t, 4> channels{
+            1007U, 1003U, 1004U, 1005U};
+        if (!session.joins_.configure(1007U, channels))
+            return false;
+        McsChannelRequest join{};
+        join.kind = McsChannelRequestKind::ChannelJoin;
+        join.initiator = 1007U;
+        for (auto channelId : channels)
+        {
+            join.channelId = channelId;
+            if (session.joins_.beginJoin(join) !=
+                McsJoinStartOutcome::ReplyPending)
+                return false;
+            const auto pending = session.joins_.pendingBytes();
+            if (session.joins_.onReplyBytesWritten(
+                    session.joins_.pendingReplySequence(),
+                    session.joins_.pendingWriteSliceSequence(),
+                    pending.size()) != McsJoinWriteOutcome::Confirmed)
+                return false;
+        }
+        if (!session.joins_.allConfiguredChannelsJoined() ||
+            !session.clipboardStaticChannel_.start(
+                1007U, 1004U, 47U,
+                kRdpStaticVirtualChannelDefaultChunkBytes) ||
+            !session.graphicsDynamicVirtualChannel_.begin(
+                1007U, 1005U, {9U, 91U}, {64U, 64U}))
+            return false;
+        const auto graphicsWrite =
+            session.graphicsDynamicVirtualChannel_.pendingServerWrite();
+        return graphicsWrite &&
+            session.graphicsDynamicVirtualChannel_.onServerBytesWritten(
+                graphicsWrite.channelGeneration,
+                graphicsWrite.replySequence,
+                graphicsWrite.writeSliceSequence,
+                graphicsWrite.bytes.size()) ==
+                RdpGraphicsDvcWriteOutcome::Delivered;
+    }
+
+    [[nodiscard]] static RdpPostShareTpktRoute classifyPostShare(
+        const McsSessionLifecycle &session,
+        std::span<const std::uint8_t> packet) noexcept
+    {
+        return session.classifyVerifiedR2PostShareTpkt(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid}, packet);
+    }
+    static void wrongDynamicRole(McsSessionLifecycle &session) noexcept
+    {
+        session.connectResponseClientSettings_.channels[1].name =
+            {'r','d','p','s','n','d',0,0};
+    }
+    static void staleGraphics(McsSessionLifecycle &session) noexcept
+    {
+        session.graphicsDynamicVirtualChannel_.close();
+    }
+    static void staleClipboard(McsSessionLifecycle &session) noexcept
+    {
+        session.clipboardStaticChannel_.close();
+    }
+    static void replaceShare(McsSessionLifecycle &session) noexcept
+    {
+        session.shareActivation_.shareId_ ^= 1U;
+    }
+
     [[nodiscard]] static bool routeSlowPathInputWithoutAdmission(
         McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept
@@ -5272,6 +5363,107 @@ void testClipboardPreShareDenial()
     assert(!McsSessionLifecycleTestAccess::
                routeClipboardWithoutAdmission(session));
     assert(session.phase() == McsSessionPhase::Closed);
+}
+
+
+void testPostShareClassifierJoinedRoutes()
+{
+    McsSessionLifecycle session;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(session));
+    const auto slowPdu = makeActivationScancodeInputSharePdu();
+    const auto slowPacket = makeClientShareTpkt(1007U, 1003U, slowPdu);
+    constexpr std::array<std::uint8_t, 4> dvcCaps{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    const auto graphics = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, dvcCaps);
+    constexpr std::array<std::uint8_t, 8> clipboardPdu{
+        0x08U, 0x00U, 0x00U, 0x00U, 0x01U, 0x00U, 0x08U, 0x00U};
+    const auto clipboardPacket = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1004U, clipboardPdu);
+    const auto slow = McsSessionLifecycleTestAccess::classifyPostShare(
+        session, slowPacket);
+    const auto gfx = McsSessionLifecycleTestAccess::classifyPostShare(
+        session, graphics);
+    const auto clip = McsSessionLifecycleTestAccess::classifyPostShare(
+        session, clipboardPacket);
+    assert(slow.kind == RdpPostShareTpktRouteKind::SlowPathInput);
+    assert(gfx.kind ==
+           RdpPostShareTpktRouteKind::GraphicsDynamicVirtualChannel);
+    assert(clip.kind ==
+           RdpPostShareTpktRouteKind::ClipboardStaticChannel);
+    assert(slow.completeTpkt.data() == slowPacket.data());
+    assert(slow.completeTpkt.size() == slowPacket.size());
+    assert(gfx.completeTpkt.data() == graphics.data());
+    assert(clip.completeTpkt.data() == clipboardPacket.data());
+    assert(session.phase() == McsSessionPhase::ShareActivated);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        session, slowPacket).kind == RdpPostShareTpktRouteKind::SlowPathInput);
+    assert(session.phase() == McsSessionPhase::ShareActivated);
+}
+
+void testPostShareClassifierMalformedAndWrongJoinedRole()
+{
+    McsSessionLifecycle session;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(session));
+    constexpr std::array<std::uint8_t, 4> caps{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    const auto graphics = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, caps);
+    auto malformed = graphics;
+    malformed[3] ^= 1U;
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        session, malformed).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+    std::vector<std::uint8_t> oversized(65536U);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        session, oversized).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+    McsSessionLifecycleTestAccess::wrongDynamicRole(session);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        session, graphics).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+    assert(session.phase() == McsSessionPhase::ShareActivated);
+}
+
+void testPostShareClassifierGenerationShareAndDisconnect()
+{
+    McsSessionLifecycle graphicsSession;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(
+        graphicsSession));
+    constexpr std::array<std::uint8_t, 4> caps{
+        0x50U, 0x00U, 0x01U, 0x00U};
+    const auto graphics = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1005U, caps);
+    McsSessionLifecycleTestAccess::staleGraphics(graphicsSession);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        graphicsSession, graphics).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+
+    McsSessionLifecycle clipboardSession;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(
+        clipboardSession));
+    constexpr std::array<std::uint8_t, 8> clipboardBytes{
+        0x08U,0U,0U,0U, 0x01U,0U,0x08U,0U};
+    const auto clipboardPacket = makeClientDynamicVirtualChannelTpkt(
+        1007U, 1004U, clipboardBytes);
+    McsSessionLifecycleTestAccess::staleClipboard(clipboardSession);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        clipboardSession, clipboardPacket).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+
+    McsSessionLifecycle shareSession;
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(
+        shareSession));
+    const auto input = makeClientShareTpkt(
+        1007U, 1003U, makeActivationScancodeInputSharePdu());
+    McsSessionLifecycleTestAccess::replaceShare(shareSession);
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        shareSession, input).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+    shareSession.close();
+    assert(McsSessionLifecycleTestAccess::classifyPostShare(
+        shareSession, graphics).kind ==
+        RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
 }
 
 void testGraphicsDynamicVirtualChannelPreShareDenial()
@@ -11306,6 +11498,9 @@ constexpr std::array<McsTestCase, 155> kMcsTestCases{{
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},
+    {"post-share-classifier-joined-routes", &testPostShareClassifierJoinedRoutes},
+    {"post-share-classifier-malformed-and-wrong-role", &testPostShareClassifierMalformedAndWrongJoinedRole},
+    {"post-share-classifier-generations-share-disconnect", &testPostShareClassifierGenerationShareAndDisconnect},
     {"cliprdr-pre-share-denial", &testClipboardPreShareDenial},
     {"dvc-graphics-frame-zero-publication", &testGraphicsFrameZeroPublication},
     {"dvc-graphics-frame-multifragment-delivery", &testGraphicsFrameMultiFragmentDelivery},

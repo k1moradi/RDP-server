@@ -1603,6 +1603,37 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChan
     return outcome;
 }
 
+
+rdp_server::server::transport::RdpPostShareTpktRoute
+LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return {};
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return {};
+    }
+
+    const auto route =
+        session.classifyVerifiedR2PostShareTpkt(*provenance, completeTpkt);
+    // Never expose a stale route after native admission changes.
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return {};
+    return route;
+}
+
 rdp_server::server::transport::RdpGraphicsDvcClientIntake
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
     const LinuxConsoleAdmissionLease &lease,

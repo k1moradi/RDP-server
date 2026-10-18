@@ -1,3 +1,9 @@
+## R9 Linux Qt plugin discovery repair after native GUI build (2026-10-18)
+
+On descendant `7908c02faa08fcf867927a024d87481698985e2d`, hosted job `r5-linux-gui-zip` passes both R5 offline GUI package tests and builds the real R7 Qt desktop target successfully. Its next step exits before `packaging/linux/gui_bundle.py` runs because the workflow assumes `dpkg-query -L qt6-qpa-plugins` owns `platforms/libqxcb.so`. Ubuntu 24.04 installs the XCB platform plugin under Qt's plugin root without exposing that file through the queried package inventory.
+
+R9 changes only discovery: CI now asks the selected Qt installation for `QT_INSTALL_PLUGINS` via `qmake6 -query`, appends `platforms/libqxcb.so`, and still requires that exact file before bundle creation. The R5 builder's ELF/dependency closure, archive integrity, executable modes, no-server payload, extraction, ldd checks and Xvfb idle smoke are unchanged. This repairs a hosted-environment assumption rather than weakening packaging evidence. Canonical owner build/CTest: **NOT RUN**. Exact publication-SHA full CI and Linux GUI artifact: **PENDING**. R6 Windows builder is present but native windeployqt closure remains a subsequent R9 gate; macOS .app portable packaging and live R2/R10 hosting remain blocked.
+
 ## R6 consumes R7/R10/R9 GUI packaging contracts (2026-10-18)
 
 R7's Qt HostControl adapter and R10 typed RuntimeHostControl are now on main, so R6 does not add another runtime owner. R9's PORTABLE-GUI verifier is also available. This increment adds packaging/windows/gui_bundle.py and the registered windows.gui-portable-zip-integrity-path-uninstall-denials CTest. The builder uses local windeployqt staging, rejects unsafe/reparse/case aliases and installer/script/extra-EXE helpers, emits the R9 manifest/checksum contract, and produces an adjacent outer digest.

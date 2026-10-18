@@ -3946,3 +3946,7 @@ command return is not authorization: GUI readiness refreshes solely from
 R10 owner return command success without changing status and verifies the UI
 remains blocked until a later authoritative snapshot changes. Production
 `UnavailableRuntimeHostControl` denies both requests.
+
+## Discover Qt deployment roots through Qt metadata, not distro package ownership (2026-10-18)
+
+Native GUI packaging CI must resolve Qt plugin locations from the selected Qt installation (for example `qmake6 -query QT_INSTALL_PLUGINS`) and then require the specific platform plugin file. Do not infer plugin ownership from a Debian/RPM package name: distributions can move `libqxcb.so` or equivalent platform plugins between runtime packages without changing the Qt install layout. This affects discovery only; dependency closure, hashes and extracted launch remain mandatory.

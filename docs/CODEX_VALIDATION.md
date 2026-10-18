@@ -1,3 +1,19 @@
+## Shared runtime clipboard optional-guard compile correction (2026-10-18)
+
+Exact-head hosted Linux production/runtime-security builds after the R8 runtime
+clipboard gateway landed stopped in
+`LinuxRuntimeConnection::completePersonalDesktopClipboardWrite()` because
+`broker_` is a `std::optional<LinuxConsoleAdmissionBroker>` but the wrapper
+compared it to `nullptr`. This correction uses `broker_.has_value()` and
+changes no R2/R3/R8 authorization semantics. The already-registered behavior
+CTest `runtime.linux-connection-personal-desktop-clipboard-gateway-denials`
+continues to cover the affected wrapper once compilation proceeds.
+
+Authoring parent: `6a5193babc4ade88206f3678e824f1aca0aed6a6`. No positive R2 lease, native clipboard owner,
+listener, X11 input, or live Microsoft-client session is created. Local owner
+build/full CTest is **NOT RUN** in this connector environment; exact
+publication-SHA hosted CI is **PENDING**.
+
 ## R5 first bounded XCB event servicing through R10 sole owner (2026-10-18)
 
 Authoring source base `1eafbf5980feeb9e6f3e5a6996fa0af84b76c616`. R10's R2-selected single X11 owner and

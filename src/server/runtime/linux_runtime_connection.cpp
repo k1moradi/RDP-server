@@ -3114,7 +3114,7 @@ LinuxRuntimeConnection::completePersonalDesktopClipboardWrite(
         rdp_server::server::transport::RdpClipboardWriteOutcome;
 
     const auto outcome =
-        broker_ != nullptr && personalDesktopPolicy_ == &deploymentPolicy
+        broker_.has_value() && personalDesktopPolicy_ == &deploymentPolicy
             ? broker_->completeR3PersonalDesktopClipboardWrite(
                   lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
                   acceptor_, connection_, session_, deploymentPolicy,

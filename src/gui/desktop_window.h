@@ -26,10 +26,14 @@ private:
     QSpinBox* port_;
     QLineEdit* password_;
     QLineEdit* confirmation_;
+    QPushButton* configureOsAccount_;
+    QPushButton* requestHostPermission_;
     QPushButton* start_;
     QPushButton* stop_;
     QPushButton* copy_;
     QLabel* desktopStatus_;
+    QLabel* credentialStatus_;
+    QLabel* permissionStatus_;
     QLabel* clipboardStatus_;
     QLabel* status_;
     QLabel* activity_;

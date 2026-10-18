@@ -3933,3 +3933,16 @@ not a second interface owner: it derives eligible LAN addresses from
 `UnavailableRuntimeHostControl` and verifies no interface, Start, listener
 or sharing state appears. The layout fake implements `RuntimeHostControl`
 itself and command success alone must not produce an active state.
+
+## R7 OS-account and host-permission request status gate (2026-10-18)
+
+The credentials page may request only R2's supported
+`ExistingOsAccount` mode through R10 `requestCredentialSetup()`; it never
+submits an application password as NLA material. Host permission is a separate
+explicit user action through R10 `requestHostPermissionSetup()`. Successful
+command return is not authorization: GUI readiness refreshes solely from
+`RuntimeHostStatus.credentialsConfigured` and `hostOwnerAuthorized`.
+`gui.offscreen-r2-os-account-request-status-gate` makes the isolated fake
+R10 owner return command success without changing status and verifies the UI
+remains blocked until a later authoritative snapshot changes. Production
+`UnavailableRuntimeHostControl` denies both requests.

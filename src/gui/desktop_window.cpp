@@ -42,10 +42,14 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
       desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
       port_(new QSpinBox(this)), password_(new QLineEdit(this)),
-      confirmation_(new QLineEdit(this)), start_(new QPushButton("Start Sharing", this)),
+      confirmation_(new QLineEdit(this)),
+      configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
+      requestHostPermission_(new QPushButton("Request Host Permission", this)),
+      start_(new QPushButton("Start Sharing", this)),
       stop_(new QPushButton("Stop Sharing / Revoke", this)),
       copy_(new QPushButton("Copy LAN Address", this)),
-      desktopStatus_(label({})), clipboardStatus_(label({})),
+      desktopStatus_(label({})), credentialStatus_(label({})),
+      permissionStatus_(label({})), clipboardStatus_(label({})),
       status_(label({})), activity_(label({})) {
     setWindowTitle("RDP-server - LAN desktop sharing");
     setMinimumSize(600, 440);
@@ -74,6 +78,9 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     auto* credentials = page("Credentials: OS-backed RDP/NLA authentication");
     credentials->addWidget(label("OS-backed credentials require an R2 compatible provider. "
         "Application access password is a future feature and is NOT an RDP/NLA password."));
+    configureOsAccount_->setObjectName("configureOsAccount");
+    credentials->addWidget(configureOsAccount_);
+    credentials->addWidget(credentialStatus_);
     password_->setObjectName("password");
     confirmation_->setObjectName("confirmation");
     password_->setPlaceholderText("Future application access password (disabled)");
@@ -103,6 +110,9 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     permissions->addWidget(label("Linux X11 logged-in seat, Windows interactive desktop, and macOS Screen "
         "Recording/Accessibility/Input Monitoring are platform-dependent. macOS TCC consent is requested "
         "later by the real native owner, never as authentication."));
+    requestHostPermission_->setObjectName("requestHostPermission");
+    permissions->addWidget(requestHostPermission_);
+    permissions->addWidget(permissionStatus_);
     permissions->addStretch();
     auto* sharing = page("Sharing and connection status");
     start_->setObjectName("startSharing");
@@ -129,6 +139,14 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     root->addLayout(navigation);
     connect(back, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() - 1); });
     connect(next, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() + 1); });
+    connect(configureOsAccount_, &QPushButton::clicked, this, [this] {
+        (void)host_.requestExistingOsAccount();
+        refresh(); // Only a later R10 snapshot may report configured state.
+    });
+    connect(requestHostPermission_, &QPushButton::clicked, this, [this] {
+        (void)host_.requestHostPermission();
+        refresh(); // A request never fabricates desktop authorization.
+    });
     connect(start_, &QPushButton::clicked, this, [this] {
         const auto snapshot = host_.status();
         if (snapshot.sharing || snapshot.startPending || !blockedReason(snapshot).isEmpty()) return;
@@ -207,6 +225,17 @@ void DesktopWindow::refresh() {
         ? "R2-authorized desktop reported: " + snapshot.desktop
         : "Authorization unavailable: " + (snapshot.failure.isEmpty()
             ? "No authenticated host-owner admission" : snapshot.failure));
+    credentialStatus_->setText(snapshot.credentialsConfigured
+        ? "Existing OS-account access policy configured. The RDP client must still authenticate with that OS account."
+        : "OS-account access is not configured. Application passwords are unsupported for NLA.");
+    permissionStatus_->setText(snapshot.desktopAuthorized
+        ? "Host-owner desktop permission is current."
+        : "Host-owner permission is not established; Start remains blocked.");
+    configureOsAccount_->setEnabled(
+        snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);
+    requestHostPermission_->setEnabled(
+        snapshot.controlAvailable && snapshot.credentialsConfigured &&
+        !snapshot.sharing && !snapshot.startPending);
     const QString denial = blockedReason(snapshot);
     clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
     start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());

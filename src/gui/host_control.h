@@ -48,6 +48,8 @@ public:
         rdp_server::server::runtime::RuntimeHostControl& runtime) noexcept;
 
     [[nodiscard]] HostStatus status() const;
+    [[nodiscard]] bool requestExistingOsAccount();
+    [[nodiscard]] bool requestHostPermission();
     [[nodiscard]] bool start(const HostRequest& request);
     void stopAndRevoke();
 

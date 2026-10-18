@@ -6064,3 +6064,19 @@ cannot resolve github.com from its shell. Exact-head hosted CI is **PENDING** at
 publication; owner-native Linux/X11, Windows and macOS receipts and live
 Microsoft-client captures remain **NOT RUN**. No positive R2 admission lease,
 desktop, listener or clipboard path was fabricated for these tests.
+
+## R7 consumes R2 OS-account lifecycle request seam (2026-10-18)
+
+Current-main dependency review found R2's generation-fenced OS-account policy
+replacement/revocation lifecycle landed at `7044183d` and R3's canonical
+production Demand Active profile landed at `7908c02f`. R10 still has only
+the deny-only concrete host backend. R7 therefore adds explicit
+`Use Existing OS Account` and `Request Host Permission` actions that call
+only R10's typed request methods. Unsupported application-password fields stay
+disabled. Command success never sets GUI readiness; only later R10 status can
+mark credentials configured or host-owner authorization. Added
+`gui.offscreen-r2-os-account-request-status-gate`. Live credentials,
+listener, Share/native owner and Microsoft-client acceptance remain BLOCKED
+on concrete R10/R2 composition. Authoring base: `8dbe069fae18`.
+Connector-only environment: local Qt configure/build/CTest NOT RUN;
+publication-SHA hosted CI PENDING.

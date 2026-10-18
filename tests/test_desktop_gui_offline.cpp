@@ -25,10 +25,14 @@ public:
     RuntimeHostStatus snapshot;
     RuntimeHostOptions lastOptions;
     int configureCalls{};
+    int credentialSetupCalls{};
+    int permissionSetupCalls{};
     int startCalls{};
     int stopCalls{};
     int revokeCalls{};
     bool configureSucceeds{true};
+    bool credentialSetupSucceeds{};
+    bool permissionSetupSucceeds{};
     bool startSucceeds{};
     bool refuseRetirement{};
 
@@ -47,11 +51,23 @@ public:
     }
 
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
-        rdp_server::server::security::LanCredentialChoice) override
-    { return {RuntimeHostError::ControlUnavailable, false}; }
+        rdp_server::server::security::LanCredentialChoice choice) override
+    {
+        ++credentialSetupCalls;
+        assert(choice ==
+               rdp_server::server::security::LanCredentialChoice::ExistingOsAccount);
+        return credentialSetupSucceeds
+            ? RuntimeHostResult{RuntimeHostError::None, false}
+            : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
+    }
 
     [[nodiscard]] RuntimeHostResult requestHostPermissionSetup() override
-    { return {RuntimeHostError::ControlUnavailable, false}; }
+    {
+        ++permissionSetupCalls;
+        return permissionSetupSucceeds
+            ? RuntimeHostResult{RuntimeHostError::None, false}
+            : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
+    }
 
     [[nodiscard]] RuntimeHostResult startSharing() override
     {
@@ -94,6 +110,8 @@ int main(int argc, char** argv)
         HostControl production(unavailable);
         DesktopWindow window(production);
         assert(!production.status().controlAvailable);
+        assert(!production.requestExistingOsAccount());
+        assert(!production.requestHostPermission());
         assert(!production.start({}));
         assert(!window.canStart());
         assert(unavailable.status().stage == RuntimeHostStage::Stopped);
@@ -102,6 +120,41 @@ int main(int argc, char** argv)
 
     FakeRuntimeHost runtime;
     HostControl host(runtime);
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "access")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.credentialSetupSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        DesktopWindow window(host);
+        auto* configureAccount =
+            window.findChild<QPushButton*>("configureOsAccount");
+        auto* requestPermission =
+            window.findChild<QPushButton*>("requestHostPermission");
+        assert(configureAccount && requestPermission);
+        assert(configureAccount->isEnabled());
+        assert(!requestPermission->isEnabled());
+
+        configureAccount->click();
+        assert(runtime.credentialSetupCalls == 1);
+        assert(!host.status().credentialsConfigured);
+        assert(!requestPermission->isEnabled() && !window.canStart());
+
+        runtime.snapshot.credentialsConfigured = true;
+        window.refresh();
+        assert(requestPermission->isEnabled());
+        requestPermission->click();
+        assert(runtime.permissionSetupCalls == 1);
+        assert(!host.status().desktopAuthorized);
+        assert(!window.canStart());
+
+        runtime.snapshot.hostOwnerAuthorized = true;
+        window.refresh();
+        assert(host.status().desktopAuthorized);
+        assert(!window.canStart()); // TLS/native/interface gates are still absent.
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close")
     {
         DesktopWindow window(host);

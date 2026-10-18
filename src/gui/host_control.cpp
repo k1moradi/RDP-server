@@ -98,6 +98,18 @@ HostStatus HostControl::status() const
     return view;
 }
 
+bool HostControl::requestExistingOsAccount()
+{
+    using rdp_server::server::security::LanCredentialChoice;
+    return runtime_.requestCredentialSetup(
+        LanCredentialChoice::ExistingOsAccount).succeeded();
+}
+
+bool HostControl::requestHostPermission()
+{
+    return runtime_.requestHostPermissionSetup().succeeded();
+}
+
 bool HostControl::start(const HostRequest& request)
 {
     using namespace rdp_server::server::runtime;

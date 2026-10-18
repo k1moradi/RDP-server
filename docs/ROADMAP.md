@@ -1,3 +1,26 @@
+## R5 terminal protected-input route parity (2026-10-18)
+
+The production R10 post-Share scheduler `4795c6dd` and corrected X11
+resource no-post retirement `25a5671d` are landed; R5's hosted Ubuntu,
+Windows/macOS protocol and Linux portable Qt ZIP cases pass on descendant
+`549a12c0`, apart from one independent R2 PAM guard script error.
+The formerly separate R5 `X11AuthorizedInputRoute::dispatch` gateway
+still invoked graceful `desktop.disconnect()` after a native injection
+failure, whereas R10's active authenticated callback always uses
+terminal `retireAfterAuthorizationLoss()`. That discrepancy is now
+corrected: both paths discard native key/button state with **zero
+additional XTEST** on uncertain failure, then revoke their R2/R3
+authority. Dedicated portable offline CTest
+`x11.input-direct-route-native-failure-no-xtest` checks the direct
+gateway's R2 input-permission fence, failure ordering and absence of
+graceful native teardown. It is source evidence only; existing Xvfb
+tests independently cover held-key/button retirement. Owner-local
+full Debug CTest: **NOT RUN** (no approved checkout/toolchain); exact
+publication-SHA hosted CI: **PENDING**. No R10 scheduler, R3 protocol,
+live listener, GUI Start/Stop, native password or OS admission changes.
+The first genuine physical X11 seat0/Windows App/mstsc acceptance
+remains **BLOCKED / NOT RUN** pending explicit owner authorization.
+
 ## R9 focused R2 verified-account source-fence coverage (2026-10-18)
 
 The last complete independently checked hosted-green SHA advanced to

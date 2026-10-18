@@ -1,3 +1,18 @@
+## R5 protected-input terminal failure semantics (2026-10-18)
+
+The two entry points into R5 native input share one terminal rule:
+active R10 `dispatchAuthenticatedSlowPathTpkt` and the
+older `X11AuthorizedInputRoute::dispatch` may use R2-authorized
+`handleAuthorizedInput`, but any failed native injection must call
+`retireAfterAuthorizationLoss()` and never `disconnect()` or emit
+cleanup XTEST. A legacy direct dispatch must also revoke its R3
+session after retirement. The offline source CTest
+`x11.input-direct-route-native-failure-no-xtest` pins the
+permission fence and no-XTEST failure ordering; the Xvfb controller
+test still establishes genuine held-key/button state behavior, not
+OS admission. Explicit graceful disconnect under still-current
+authority alone may release held native input.
+
 ## R9 credential-source guard focused CTest assurance (2026-10-18)
 
 Because malformed CMake source-level R2 security tests can go

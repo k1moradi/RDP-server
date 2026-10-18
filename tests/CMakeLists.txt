@@ -2477,6 +2477,17 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         TIMEOUT 20)
 endif()
 
+# R5's direct legacy route must match the active R10-owned protected
+# slow-path callback: terminal injection failure never sends cleanup XTEST.
+# No native session, GSS/PAM/logind lease or Xvfb is needed for this guard.
+add_test(NAME x11.input-direct-route-native-failure-no-xtest
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_R5_AUTHORIZED_INPUT_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_authorized_input_route.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_x11_authorized_input_terminal_route.cmake")
+set_tests_properties(
+    x11.input-direct-route-native-failure-no-xtest PROPERTIES
+    LABELS "x11;linux-adapter;security;input;offline;r5-terminal")
+
 # R10 production dependency handoff for R5's landed protected input bridge.
 # This is source/build-graph evidence only: main must still not dispatch native
 # input before the single post-Share R1 TPKT router is composed.

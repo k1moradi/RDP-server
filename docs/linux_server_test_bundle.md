@@ -152,6 +152,14 @@ zero accepted TLS bytes and abort partial/uncertain positive delivery with
 the existing terminal receipt semantics. Never infer FRAME_ACK from an R1
 TLS write receipt.
 
+**Native failure parity:** Both R5 input gateways, including the older
+direct `X11AuthorizedInputRoute::dispatch` and R10's authenticated
+slow-path callback, use terminal no-XTEST retirement if native
+injection fails. A native injection error must never fall back to
+a graceful held-key/button cleanup; the R2/R3 connection is revoked
+instead. This is fail-closed lifetime behavior, not a source of
+new native-input authorization.
+
 **Input and revocation:** After R10's **one** R1 TLS reader has assembled and
 R3 classified a complete TPKT as negotiated slow-path input, call
 `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt(connection,

@@ -1,3 +1,30 @@
+## R5 native-injection failure uses one no-XTEST terminal policy (2026-10-18)
+
+Parent `70d3df77517d336966b39b105d829fd4ee482d1a`. Existing active R10 typed post-Share callback retires
+R5 native resources with `retireAfterAuthorizationLoss()` if
+`handleAuthorizedInput()` fails. The dormant compatibility
+`X11AuthorizedInputRoute::dispatch` path instead requested
+`desktop.disconnect()`, whose graceful policy can release held
+XTEST keys/buttons and must not be used after native failure. Changed
+that one failure to call `retireAfterAuthorizationLoss()` before
+`broker.revokeR3Session()`, preserving fresh R2 per-event
+`kConsoleInputPermission` verification. No new public owner, helper
+authenticator, TLS reader or source of OS desktop access.
+
+Registered cross-platform source-backed CTest
+`x11.input-direct-route-native-failure-no-xtest` for the
+first-failure, R2 authorization and terminal ordering contract;
+existing `x11.input-native-authority-retirement-no-native-post`
+uses ephemeral Xvfb to test actual held-key/button no-post semantics.
+Local owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** (approved checkout absent). Source inspection:
+**PASS**; publication-SHA CI: **PENDING**. Hosted descendant
+`549a12c0` Ubuntu **763/764** passed, with only R2
+`security.linux-verified-account-pam-attempt-fence-source` failing
+CMake flow-control nesting; all R5 native tests passed. No real
+PAM/Kerberos/logind positive admission, Microsoft-client input/frame
+ACK or permission to operate a listener is inferred.
+
 ## R9 independent R2 PAM attempt source fence (2026-10-18)
 
 R2 `79efe8f21d7028190a678d0f584535f2ef67922b` repaired the sole

@@ -56,10 +56,10 @@ X11AuthorizedInputRoute::dispatch(
 
     if (!desktop.handleAuthorizedInput(expectedNativeGeneration, event))
     {
-        desktop.disconnect();
-        // A native XTEST failure or unexpected generation loss is terminal
-        // for the admitted session too:
-        // do not leave R3 live after its sole native input endpoint died.
+        // Native injection may have failed after an uncertain XCB/geometry
+        // transition. Never use graceful disconnect here: only a currently
+        // authorized explicit Stop can emit held-key/button XTEST releases.
+        desktop.retireAfterAuthorizationLoss();
         broker.revokeR3Session(acceptor, session);
         return false;
     }

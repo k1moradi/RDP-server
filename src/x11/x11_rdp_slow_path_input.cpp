@@ -61,10 +61,36 @@ std::optional<X11InputEvent> translateRdpSlowPathX11Input(
         return X11PointerButtonInput{
             event.xPos, event.yPos, nativeButton, (flags & down) != 0U};
     }
+    case Kind::ExtendedMouse:
+    {
+        // MS-RDPBCGR TS_POINTERX_EVENT: these are distinct XBUTTON1/2
+        // events, not ordinary RDP button 1/2. X11 core button numbers
+        // 8/9 implement the conventional Back/Forward side buttons.
+        // R3's negotiated MouseX feature and R2's input permission must
+        // have been checked by the sole authenticated callback owner.
+        if (event.xPos >= geometry.widthPixels ||
+            event.yPos >= geometry.heightPixels)
+            return std::nullopt;
+
+        constexpr std::uint16_t down = 0x8000U;
+        constexpr std::uint16_t xbutton1 = 0x0001U;
+        constexpr std::uint16_t xbutton2 = 0x0002U;
+        const std::uint16_t flags = event.pointerFlags;
+        if ((flags & static_cast<std::uint16_t>(
+                ~(down | xbutton1 | xbutton2))) != 0U)
+            return std::nullopt;
+        const std::uint16_t buttonBits = flags & (xbutton1 | xbutton2);
+        if (buttonBits != xbutton1 && buttonBits != xbutton2)
+            return std::nullopt;
+
+        const std::uint8_t nativeButton =
+            buttonBits == xbutton1 ? 8U : 9U;
+        return X11PointerButtonInput{
+            event.xPos, event.yPos, nativeButton, (flags & down) != 0U};
+    }
     case Kind::Unused:
     case Kind::ScancodeKeyboard:
     case Kind::UnicodeKeyboard:
-    case Kind::ExtendedMouse:
     case Kind::RelativeMouse:
         return std::nullopt;
     }

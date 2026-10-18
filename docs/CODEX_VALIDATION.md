@@ -1,3 +1,21 @@
+## R5 negotiated MouseX side-button native input mapping (2026-10-18)
+
+Reconciled on `a2b363600c1f6f3952dbb5f7207f13e80aef8a6d`. R10 has linked the existing R2-gated R5 X11
+input bridge, while production remains disconnected from a post-Share
+R1 complete-TPKT application loop. R5's stateless decoder adds
+TS_POINTERX_EVENT single XBUTTON1/2 press/release mapping to X11
+buttons 8/9, rejecting composite/unknown/ordinary/wheel flags and
+out-of-bounds native geometry. R3 owns MouseX negotiation and R2 remains
+the sole per-event admission/permission owner. Dedicated CTest
+`x11.input-rdp-mousex-side-button-bounds-and-flag-denials` uses only
+decoded in-memory event fixtures; existing mapping test removes MouseX
+from its unsupported-kind list. No XTEST, native capture, listener or
+R2-positive lease is created. Owner Debug build/full CTest: **NOT RUN**
+(checkout unavailable); exact-SHA Actions: **PENDING**; real X11 and
+Microsoft-client results: **BLOCKED / NOT RUN** pending R10 loop and
+explicit owner authorization. R9's fixed sanitizer inventory has not
+yet enrolled this second fixture.
+
 ## R9 workflow reconstruction after selector replacement-string corruption (2026-10-18)
 
 Publication `d83b46bbf323dd9915a27973e75df1d4dd503683` did **not** dispatch the primary workflow. The intended R5 selector replacement ends with the literal shell characters `$'`; the authoring JavaScript used ordinary replacement-string semantics, so `$'` expanded to the unmatched suffix of the source string and spliced the remainder of `ci.yml` into the selector line. GitHub rejected the workflow before any jobs ran. No production source changed in that commit.

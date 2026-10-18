@@ -1,3 +1,14 @@
+## R5 MouseX native decoding under R2 input authority (2026-10-18)
+
+Only the existing R2/R3 per-event authorized callback may reach the R5
+X11 input owner. For TS_POINTERX_EVENT accept one of XBUTTON1/XBUTTON2
+and optional DOWN, map it to X11 core 8/9, and require exact native
+geometry bounds. Do not admit mixed/unknown flags, MOVE, ordinary
+buttons or wheel events. The independent offline CTest
+`x11.input-rdp-mousex-side-button-bounds-and-flag-denials` exercises
+positive press/release and terminal syntax denials without a physical X11
+desktop, XTEST post or fabricated positive R2 lease.
+
 ## R6 packaged Windows GUI command-mode platform regression (2026-10-18)
 
 Portable command-mode smoke must use only Qt plugins guaranteed by the

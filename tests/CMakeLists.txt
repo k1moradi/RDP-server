@@ -2274,6 +2274,18 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         x11.input-r2-authorized-slow-path-native-mapping-denials PROPERTIES
         LABELS "x11;linux-adapter;security;input;offline"
         TIMEOUT 20)
+    add_executable(test_x11_rdp_extended_mouse
+        test_x11_rdp_extended_mouse.cpp)
+    target_link_libraries(test_x11_rdp_extended_mouse PRIVATE
+        rdp-server-linux-x11-authorized-input)
+    target_compile_options(test_x11_rdp_extended_mouse PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME x11.input-rdp-mousex-side-button-bounds-and-flag-denials
+        COMMAND test_x11_rdp_extended_mouse)
+    set_tests_properties(
+        x11.input-rdp-mousex-side-button-bounds-and-flag-denials PROPERTIES
+        LABELS "x11;linux-adapter;security;input;offline"
+        TIMEOUT 20)
 endif()
 
 # R10 production dependency handoff for R5's landed protected input bridge.

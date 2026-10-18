@@ -85,7 +85,6 @@ int main()
     for (const auto unsupported : {
         RdpSlowPathInputEventKind::ScancodeKeyboard,
         RdpSlowPathInputEventKind::UnicodeKeyboard,
-        RdpSlowPathInputEventKind::ExtendedMouse,
         RdpSlowPathInputEventKind::RelativeMouse,
         RdpSlowPathInputEventKind::Unused})
     {

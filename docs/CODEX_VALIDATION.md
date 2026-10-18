@@ -1,3 +1,11 @@
+## R10 R2-selected X11 owner and borrowed logind poll boundary (2026-10-18)
+
+Authoring base `40e2cab05450aacde767ae638be0ef54e4b666c0`. The production Linux runtime now conditionally links the existing R5 `rdp-server-linux-x11-desktop` aggregate only when all native X11 dependencies are present. After genuine R2 admission, Share activation and Graphics control readiness, R10 calls `visitNativeDesktopSelection()` and constructs exactly one `X11DesktopResources` from the ephemeral R2-selected display. No configured `DISPLAY`, environment value, client field or scalar generation can select the desktop.
+
+The XShm owner is resource-bounded to 16,777,216 BGRX pixels (64 MiB). R10 records the exact selection generations, obtains the borrowed logind registration, polls that fd together with the sole R5 XCB fd, ends the stack poll registration before `unregisterNativeChange()`, and only then may dispatch R2 native-change readiness. Change/error paths retire R5 with `retireAfterAuthorizationLoss()`; the current no-publication normal path disconnects while authorization is still current before RDP revocation. No frame publication or native input is fabricated.
+
+Dedicated offline CTest `runtime.linux-serve-r2-selected-x11-owner-composition` source-guards this production composition because ordinary CI must not manufacture a positive Kerberos/PAM/NSS/logind lease or touch a user's real X11 desktop. Owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this connector environment. Exact publication-SHA hosted CI: **PENDING**. Live physical seat0 and Microsoft-client evidence: **NOT RUN / BLOCKED** pending explicit owner authorization.
+
 ## R6 Windows portable GUI hosted-test correction (2026-10-18)
 
 Exact publication `31118f88977011c13e40893383f61abcfc29d88a` structure run

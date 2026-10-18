@@ -998,6 +998,18 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-serve-graphics-dvc-composition PROPERTIES
         LABELS "runtime;security;r10-graphics;offline")
 
+    # R10's live native owner is reachable only behind genuine R2 admission,
+    # so ordinary CI source-guards production composition rather than
+    # fabricating a Kerberos/PAM/logind lease or touching a real X11 desktop.
+    add_test(NAME runtime.linux-serve-r2-selected-x11-owner-composition
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_native_owner.cmake")
+    set_tests_properties(
+        runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
+        LABELS "runtime;security;r10-native;x11;offline")
+
     # R2 post-admission TLS reads must fence the current R3 admission/session
     # generations as well as the live lease/native evidence. This source-level
     # guard is intentionally offline because ordinary CI must not fabricate a

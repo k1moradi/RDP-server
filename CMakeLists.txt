@@ -839,6 +839,15 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         rdp-server-linux-runtime-security)
     target_compile_definitions(rdp-server PRIVATE
         RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY=1)
+    # R10 may construct the one R2-selected R5 desktop only when every native
+    # X11 dependency is available. No fallback DISPLAY or second XCB owner is
+    # linked when this aggregate cannot be built.
+    if(TARGET rdp-server-linux-x11-desktop)
+        target_link_libraries(rdp-server PRIVATE
+            rdp-server-linux-x11-desktop)
+        target_compile_definitions(rdp-server PRIVATE
+            RDP_SERVER_HAVE_LINUX_X11_DESKTOP=1)
+    endif()
     target_compile_options(rdp-server-linux-runtime-security PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

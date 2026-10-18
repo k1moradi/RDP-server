@@ -10,6 +10,9 @@
 #include "linux_runtime_connection.h"
 #include "runtime_deployment_policy.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+#include "x11/x11_desktop_resources.h"
+#endif
 #endif
 
 #include <algorithm>
@@ -18,11 +21,14 @@
 #include <cstdio>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string_view>
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
+#include <cerrno>
 #include <chrono>
 #include <cstring>
+#include <poll.h>
 #endif
 
 #if defined(_WIN32)
@@ -805,6 +811,48 @@ struct LinuxServeAcceptContext final {
     bool endpointViolation{};
 };
 
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+// Bound the sole XShm arena to 64 MiB at the supported four-byte BGRX layout.
+// This is a resource ceiling only: it grants no native/session authority.
+// Full-frame capture above this limit fails closed instead of allocating an
+// unbounded client- or desktop-sized shared-memory segment.
+constexpr std::uint64_t kMaximumSerializedX11CapturePixels =
+    16U * 1024U * 1024U;
+
+struct LinuxAuthorizedX11DesktopOwner final {
+    std::optional<X11DesktopResources> desktop{};
+    std::uint64_t admissionGeneration{};
+    std::uint64_t sessionGeneration{};
+};
+
+[[nodiscard]] bool constructAuthorizedX11Desktop(
+    const rdp_server::server::security::LinuxNativeDesktopSelectionView&
+        selection,
+    void* rawContext) noexcept {
+    auto* context =
+        static_cast<LinuxAuthorizedX11DesktopOwner*>(rawContext);
+    if (context == nullptr || context->desktop.has_value() ||
+        selection.display().empty() ||
+        selection.admissionGeneration() == 0U ||
+        selection.sessionGeneration() == 0U) {
+        return false;
+    }
+
+    // The R2 visitor's display is the only native selector accepted here.
+    // Never consult configured DISPLAY, environment variables or client data.
+    context->desktop.emplace(
+        selection.display(), kMaximumSerializedX11CapturePixels);
+    if (!context->desktop->valid()) {
+        context->desktop.reset();
+        return false;
+    }
+
+    context->admissionGeneration = selection.admissionGeneration();
+    context->sessionGeneration = selection.sessionGeneration();
+    return true;
+}
+#endif
+
 [[nodiscard]] bool runSerializedLinuxCandidate(
     rdp_server::server::transport::OwnedNativeTcpSocket accepted,
     void* rawContext) noexcept {
@@ -1485,9 +1533,76 @@ struct LinuxServeAcceptContext final {
     }
 
     // DRDYNVC capabilities, Graphics CREATE and RDPGFX CAPS are now composed.
-    // R3 DATA requires a genuine R2-selected native desktop and R4 frame; that
-    // is the next separately audited increment, so retire before publication.
+    // Next bind exactly one native owner from R2's synchronous selected-desktop
+    // visitor. The owner never observes configured DISPLAY or client metadata.
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    LinuxAuthorizedX11DesktopOwner nativeOwner{};
+    if (!connection.visitNativeDesktopSelection(
+            &constructAuthorizedX11Desktop, &nativeOwner) ||
+        !nativeOwner.desktop.has_value()) {
+        return true;
+    }
+
+    const auto nativeChange = connection.registerNativeChange();
+    if (!nativeChange ||
+        nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
+        nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
+        nativeChange->events >
+            static_cast<int>((std::numeric_limits<short>::max)())) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+
+    // First real R10 native-poller registration. Keep this bounded to one poll
+    // cycle until frame/input composition lands. The stack poll set owns no
+    // descriptor: R2 owns logind and R5 owns the sole XCB descriptor.
+    std::array<pollfd, 2U> nativePoll{{
+        {nativeChange->descriptor,
+         static_cast<short>(nativeChange->events), 0},
+        {nativeOwner.desktop->fileDescriptor(), POLLIN, 0},
+    }};
+    errno = 0;
+    const int nativePollCount =
+        ::poll(nativePoll.data(), static_cast<nfds_t>(nativePoll.size()), 0);
+    const int nativePollError = errno;
+
+    // poll() has returned, so this stack poll set no longer registers either
+    // descriptor. Acknowledge removal before any callback that can revoke R2.
+    if (!connection.unregisterNativeChange(*nativeChange)) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+
+    const short nativeChangeEvents = nativePoll[0].revents;
+    const short x11Events = nativePoll[1].revents;
+    if (nativePollCount < 0 && nativePollError != EINTR) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+    if (nativeChangeEvents != 0) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        (void)connection.dispatchNativeChangeReady(*nativeChange);
+        return true;
+    }
+    if ((x11Events & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+
+    // R4 frame lifetime and authenticated input dispatch are the next atomic
+    // increment. No native work has been published, so retire gracefully while
+    // current R2 authority still exists, then revoke the RDP connection.
+    nativeOwner.desktop->disconnect();
     connection.revoke();
+#else
+    // Without the complete R5 X11 aggregate this build cannot publish a Linux
+    // desktop even after genuine Share and Graphics control activation.
+    connection.revoke();
+#endif
     return true;
 }
 

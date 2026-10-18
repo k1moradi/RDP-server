@@ -5053,6 +5053,104 @@ void testOwnedTlsApplicationTcpResetTerminal()
     assert(bufferedOwner.writeTlsApplicationData(applicationRecord).outcome ==
            Outcome::TransportClosed);
     assert(bufferedOwner.onSocketReady(true, true) == Interest::Closed);
+
+    // Independently force a real nonblocking server application write to
+    // remain pending by bounding both native TCP queues and deliberately not
+    // consuming client plaintext. Reset that exact peer only after R1 has
+    // recorded a pending write operation; the old write must never replay.
+    LoopbackSocketPair writePair{false};
+    auto writeAccepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(writePair.listener.value));
+    assert(writeAccepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection writeOwner{
+        std::move(writeAccepted.connection)};
+    NativeTcpIo writeClientIo{
+        static_cast<std::uintptr_t>(writePair.client.value)};
+    TlsHandshakeFixture writeTls{false, false};
+    establishOwnedApplicationTls(writeOwner, writeClientIo, writeTls);
+
+    const auto nativeServerSocket = writeOwner.nativeSocket();
+    assert(nativeServerSocket <=
+           static_cast<std::uintptr_t>((std::numeric_limits<int>::max)()));
+    const int serverSocket = static_cast<int>(nativeServerSocket);
+    constexpr int boundedSocketBufferBytes = 4096;
+    assert(::setsockopt(serverSocket, SOL_SOCKET, SO_SNDBUF,
+                        &boundedSocketBufferBytes,
+                        sizeof(boundedSocketBufferBytes)) == 0);
+    assert(::setsockopt(writePair.client.value, SOL_SOCKET, SO_RCVBUF,
+                        &boundedSocketBufferBytes,
+                        sizeof(boundedSocketBufferBytes)) == 0);
+
+    std::array<std::uint8_t, kMaximumTlsApplicationIoBytes> writePayload{};
+    writePayload.fill(0xa5);
+    TlsApplicationIoResult pendingWrite{};
+    const auto pendingWriteDeadline =
+        Clock::now() + std::chrono::seconds{5};
+    for (std::size_t attempt = 0;
+         attempt < 4096 && Clock::now() < pendingWriteDeadline;
+         ++attempt)
+    {
+        pendingWrite = writeOwner.writeTlsApplicationData(writePayload);
+        if (pendingWrite.outcome == Outcome::NeedRead ||
+            pendingWrite.outcome == Outcome::NeedWrite)
+            break;
+        assert(pendingWrite.outcome == Outcome::Progress);
+        assert(pendingWrite.bytes > 0 &&
+               pendingWrite.bytes <= writePayload.size());
+    }
+    assert(pendingWrite.outcome == Outcome::NeedRead ||
+           pendingWrite.outcome == Outcome::NeedWrite);
+    assert(pendingWrite.bytes == 0);
+    const auto pendingWriteInterest =
+        pendingWrite.outcome == Outcome::NeedRead
+            ? Interest::Read : Interest::Write;
+    assert(writeOwner.ioInterest() == pendingWriteInterest);
+
+    const linger writeAbortiveClose{1, 0};
+    assert(::setsockopt(writePair.client.value, SOL_SOCKET, SO_LINGER,
+                        &writeAbortiveClose,
+                        sizeof(writeAbortiveClose)) == 0);
+    writePair.client.close();
+
+    // Let the native R1 poll boundary observe the reset. POLLERR/POLLHUP may
+    // retire the owner before another SSL_write_ex, or OpenSSL may consume the
+    // reset on the exact pending-write retry. Both paths are terminal and
+    // must preserve zero newly accepted plaintext for that pending operation.
+    TlsApplicationIoResult resetWrite = pendingWrite;
+    const auto resetWriteDeadline =
+        Clock::now() + std::chrono::seconds{5};
+    while (writeOwner.active() && Clock::now() < resetWriteDeadline)
+    {
+        const auto polled = writeOwner.pollSocketOnce(
+            resetWriteDeadline, kMaximumTcpPollWait);
+        if (!writeOwner.active()) break;
+        assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+               polled.outcome == TcpConnectionPollOutcome::NoEvent);
+
+        resetWrite = writeOwner.writeTlsApplicationData(writePayload);
+        if (resetWrite.outcome == Outcome::TransportClosed ||
+            resetWrite.outcome == Outcome::FatalTlsFailure ||
+            resetWrite.outcome == Outcome::TlsClosed)
+            break;
+        assert(resetWrite.outcome == Outcome::NeedRead ||
+               resetWrite.outcome == Outcome::NeedWrite);
+        assert(resetWrite.bytes == 0);
+    }
+
+    assert(!writeOwner.active());
+    assert(writeOwner.ioInterest() == Interest::Closed);
+    assert(!writeOwner.tlsApplicationReadReady());
+    assert(writeOwner.establishedTls() == nullptr);
+    assert(!writeOwner.peerEndpoint().valid());
+    assert(writeOwner.writeTlsApplicationData(writePayload).outcome ==
+           Outcome::TransportClosed);
+    std::array<std::uint8_t, 1> deniedLateRead{};
+    assert(writeOwner.readTlsApplicationData(deniedLateRead).outcome ==
+           Outcome::TransportClosed);
+    assert(writeOwner.onSocketReady(true, true) == Interest::Closed);
+    assert(writeOwner.onTlsIoReady() == TlsHandshakeStatus::Closed);
+    assert(writeOwner.onMcsIoReady().status == McsIntakeStatus::Closed);
+    writeOwner.cancel();
 }
 #endif
 

@@ -422,6 +422,8 @@ jobs:
             mingw-w64-clang-x86_64-cmake
             mingw-w64-clang-x86_64-ninja
             mingw-w64-clang-x86_64-openssl
+            mingw-w64-clang-x86_64-qt6-base
+            python
       - name: Verify Clang 23 and MinGW-w64 Windows API packages
         shell: msys2 {0}
         run: |
@@ -584,6 +586,49 @@ jobs:
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
+      - name: R9 package native Windows GUI and verify PE closure
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          pacman -Q mingw-w64-clang-x86_64-qt6-base python
+          cmake --build build --config Release \
+            --target rdp-server-windows-gui --parallel 2
+          test -f build/RDP-server-GUI.exe
+          if command -v windeployqt6.exe >/dev/null 2>&1; then
+            windeployqt="$(command -v windeployqt6.exe)"
+          else
+            windeployqt="$(command -v windeployqt.exe)"
+          fi
+          objdump="$(command -v llvm-objdump.exe)"
+          version="$(sed -n 's/^project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-portable-gui-$version-windows-x86_64-$short_sha.zip"
+          python packaging/windows/gui_bundle.py \
+            --gui build/RDP-server-GUI.exe \
+            --windeployqt "$windeployqt" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          outer_sha="$(sha256sum "$archive" | awk '{print $1}')"
+          test -n "$outer_sha"
+          grep -Fqx "$outer_sha  $(basename "$archive")" "$archive.sha256"
+          python scripts/verify_portable_gui.py \
+            --archive "$archive" \
+            --git-sha "$GITHUB_SHA" \
+            --outer-sha256 "$outer_sha"
+          extracted="build/Extracted PORTABLE GUI"
+          rm -rf "$extracted"
+          mkdir -p "$extracted"
+          python -m zipfile -e "$archive" "$extracted"
+          python scripts/verify_windows_pe_closure.py \
+            --root "$extracted" --objdump "$objdump"
+      - name: R9 smoke extracted Windows GUI offline without sockets
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
+        shell: pwsh
+        run: |
+          ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD "build\Extracted PORTABLE GUI")
       - name: Reconfigure same root for R6 Windows sanitizers
         id: r6_windows_sanitizer_configure
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}

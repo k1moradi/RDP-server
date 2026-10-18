@@ -1103,3 +1103,9 @@ the caller-supplied local macdeployqt; it never launches the GUI, requests
 TCC, installs a LaunchAgent, changes firewall/network state, downloads
 dependencies or enables serving. Signing/notarization are recorded as
 unverified development-preview state until R9/native release checks run.
+
+## R9 Windows PORTABLE-GUI native assurance (2026-10-18)
+
+The hosted Windows CLANG64 lane installs the matching MSYS2 Qt6 base package and builds `rdp-server-windows-gui` in the canonical checkout-local `build/` root. It then runs `packaging/windows/gui_bundle.py` with the local windeployqt, verifies the independently recomputed archive SHA with `scripts/verify_portable_gui.py`, extracts under `build/Extracted PORTABLE GUI`, and runs `scripts/verify_windows_pe_closure.py` with llvm-objdump. The PE verifier requires every non-system imported DLL, including compiler runtimes, to exist in the extracted tree.
+
+`scripts/smoke_windows_portable_gui.ps1` executes the extracted `--offline-self-test` and `--offline-start-denial-test`, then starts the normal GUI twice, waits for a top-level window handle, requires no TCP/UDP endpoints owned by that process, closes through the ordinary window close path, and compares firewall profile state before/after. This is hosted packaging/offline evidence only; it neither starts RDP serving nor substitutes for the required owner-native unprivileged receipt. The lane intentionally does not upload the ZIP before aggregate exact-SHA success.

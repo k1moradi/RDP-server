@@ -20,6 +20,7 @@ namespace rdp_server::server::security
 {
 
 class LinuxPamPasswordVerifier;
+class AuthenticationAttemptLimiter;
 
 // A Linux MIT GSSAPI acceptor adapter, not a CredSSP/NLA authorization
 // decision. Only explicit keytabs and exact TERMSRV/host@REALM service principals
@@ -155,6 +156,11 @@ public:
     // authentication or native admission authority.
     [[nodiscard]] bool bindLinuxPamPasswordVerifier(
         const LinuxPamPasswordVerifier &verifier) noexcept;
+
+    // Bind a service-owned, serialized budget after PAM/GSS provisioning and
+    // before peer token intake. This cannot grant native admission.
+    [[nodiscard]] bool bindVerifiedAccountAttemptLimiter(
+        AuthenticationAttemptLimiter &limiter) noexcept;
 
     // Call exactly once per incoming CredSSP TSRequest negoToken. Only a
     // COMPLETE GSS context with authenticated Kerberos, mutual, confidentiality,
@@ -388,6 +394,7 @@ private:
     const ConsoleIdentityPolicy *identityPolicy_{};
     std::uint64_t identityPolicyGeneration_{};
     const LinuxPamPasswordVerifier *passwordVerifier_{};
+    AuthenticationAttemptLimiter *verifiedAccountAttemptLimiter_{};
 
     SpnegoStage stage_{SpnegoStage::Unconfigured};
     // Borrowed from the one TLS-bound framing owner, never owning SSL.

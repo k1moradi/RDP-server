@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "gssapi_spnego_acceptor.h"
 #include "credssp_credentials_internal.h"
+#include "authentication_attempt_limiter.h"
 
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
 #include "linux_pam_password_verifier.h"
@@ -12,6 +13,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <span>
 #include <string_view>
 
@@ -26,6 +28,7 @@ struct DelegatedPasswordVerificationContext final
     std::uint64_t policyGeneration{};
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
     const LinuxPamPasswordVerifier *passwordVerifier{};
+    AuthenticationAttemptLimiter *attemptLimiter{};
     LinuxPamPasswordVerificationStatus passwordStatus{
         LinuxPamPasswordVerificationStatus::InvalidInput};
     std::array<char, kMaximumDelegatedUnixAccountBytes + 1U>
@@ -59,6 +62,15 @@ void verifyDelegatedPasswordCandidate(
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
     if (context.passwordVerifier != nullptr)
     {
+        // The delegated local account already matches R2 policy. Charge the
+        // real TLS-bound GSS principal, never caller-controlled username
+        // text, before PAM sees the delegated plaintext password.
+        if (context.attemptLimiter != nullptr &&
+            !context.attemptLimiter->reserveVerifiedAccountAttempt(
+                context.authenticatedPrincipal,
+                AuthenticationAttemptLimiter::Clock::now()))
+            return;
+
         // PAM is invoked only while passwordUtf16Le still borrows the live,
         // GSS-unwrapped plaintext guarded by SensitiveBytesGuard. Persist only
         // the already-validated account when PAM authorizes; never password
@@ -162,6 +174,7 @@ bool GssapiSpnegoAcceptor::consumeFramedDelegatedCredentialsForAuthorization(
             verification.policyGeneration = identityPolicyGeneration_;
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
             verification.passwordVerifier = passwordVerifier_;
+            verification.attemptLimiter = verifiedAccountAttemptLimiter_;
 #endif
             const auto visitStatus = visitCredSspPasswordCredential(
                 bytes, &verifyDelegatedPasswordCandidate, &verification);

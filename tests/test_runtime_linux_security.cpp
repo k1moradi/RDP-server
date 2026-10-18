@@ -2,6 +2,7 @@
 #include "server/runtime/linux_runtime_connection.h"
 #include "server/runtime/linux_runtime_security.h"
 #include "server/security/linux_console_admission.h"
+#include "server/security/authentication_attempt_limiter.h"
 
 #include <krb5.h>
 
@@ -2812,6 +2813,48 @@ void testConnectionPersonalDesktopPostShareClassifierAuthorityDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+void testConnectionVerifiedAccountAttemptLimiterBindingDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Limit = rdp_server::server::security::AuthenticationAttemptLimiter;
+    const auto keytab =
+        fixtureDirectory / "runtime-verified-account-attempt-budget.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule(),
+        "rdp-server-account-attempt-test"));
+
+    Limit budget;
+    GssapiSpnegoAcceptor direct;
+    assert(configuration.configureAcceptor(direct));
+    assert(direct.bindVerifiedAccountAttemptLimiter(budget));
+    assert(!direct.bindVerifiedAccountAttemptLimiter(budget));
+    assert(direct.stage() == SpnegoStage::Failed);
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{
+        configuration, std::move(accepted), &budget};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    // Without TLS-bound GSS identity, no peer-controlled text can incur
+    // a provider-verified account charge or trigger PAM.
+    const auto denied = connection.onCredSspIoReady();
+    assert(denied.status == LinuxCredSspStepStatus::Invalid);
+    assert(!connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    const Limit::TimePoint now{};
+    for (std::size_t i = 0; i < Limit::kMaximumAccountAttempts; ++i)
+        assert(budget.reserveVerifiedAccountAttempt("alice@EXAMPLE.TEST", now));
+    assert(!budget.reserveVerifiedAccountAttempt("alice@EXAMPLE.TEST", now));
+    assert(::close(clientDescriptor) == 0);
+}
+#endif
+
 void testConnectionPersonalDesktopSlowPathInputGatewayDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3411,6 +3454,15 @@ int main(int argumentCount, char **argumentValues)
             fixtureDirectory);
         return 0;
     }
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    if (testCase ==
+        "linux-connection-verified-account-attempt-limiter-binding-denials")
+    {
+        testConnectionVerifiedAccountAttemptLimiterBindingDenials(
+            fixtureDirectory);
+        return 0;
+    }
+#endif
     if (testCase ==
         "linux-connection-personal-desktop-slow-path-input-gateway-denials")
     {

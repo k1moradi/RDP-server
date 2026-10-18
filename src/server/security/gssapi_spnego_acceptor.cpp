@@ -195,6 +195,7 @@ void GssapiSpnegoAcceptor::reject() noexcept
     identityPolicy_ = nullptr;
     identityPolicyGeneration_ = 0;
     passwordVerifier_ = nullptr;
+    verifiedAccountAttemptLimiter_ = nullptr;
     deleteContext();
     if (credentials_ != GSS_C_NO_CREDENTIAL)
     {
@@ -264,6 +265,22 @@ bool GssapiSpnegoAcceptor::bindLinuxPamPasswordVerifier(
     reject();
     return false;
 #endif
+}
+
+bool GssapiSpnegoAcceptor::bindVerifiedAccountAttemptLimiter(
+    AuthenticationAttemptLimiter &limiter) noexcept
+{
+    // A later connection callback cannot replace the service-owned budget.
+    if (stage_ != SpnegoStage::AwaitInitialToken ||
+        identityPolicy_ == nullptr || identityPolicyGeneration_ == 0U ||
+        passwordVerifier_ == nullptr ||
+        verifiedAccountAttemptLimiter_ != nullptr)
+    {
+        reject();
+        return false;
+    }
+    verifiedAccountAttemptLimiter_ = &limiter;
+    return true;
 }
 
 bool GssapiSpnegoAcceptor::configure(

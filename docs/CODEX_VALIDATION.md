@@ -163,6 +163,23 @@ Exact publication-SHA primary and independent structure CI: **PENDING**.
 No live host-control Start/Stop, certified ZIP or successful Microsoft
 client is claimed.
 
+## R2 GSS-derived account fence before PAM (2026-10-18)
+
+The actual serialized Linux service now passes its existing peer/global
+attempt budget through LinuxRuntimeConnection into the exact GSS acceptor.
+Only the genuine TLS-bound GSS principal, after CredSSP public-key
+binding and an exact delegated-account R2 policy match, may be
+charged immediately before the PAM verifier. Exhaustion terminates
+the credential path generically without PAM or native admission.
+The acceptor stores only a borrowed service-lifetime pointer, erased
+on rejection. Added Linux/PAM CTest
+`runtime.linux-connection-verified-account-attempt-limiter-binding-denials`
+for real service-keytab binding, duplicate-binding denial and early
+TLS-absent refusal without account charges. The existing pure budget
+CTest covers window/saturation. Local compile/full CTest **NOT RUN**;
+hosted exact-SHA CI **PENDING**; genuine X11 Microsoft clients **NOT RUN**.
+Independent GUI password remains unsupported.
+
 ## R2 bounded Linux NLA attempt-abuse gate (2026-10-18)
 
 Authored `security/authentication_attempt_limiter.h` as a single-owner,

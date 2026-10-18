@@ -109,7 +109,8 @@ void LinuxRuntimeMcsTpktFrameReader::close() noexcept
 
 LinuxRuntimeConnection::LinuxRuntimeConnection(
     LinuxRuntimeSecurityConfiguration &securityConfiguration,
-    rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket)
+    rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter)
     noexcept
     : securityConfiguration_(securityConfiguration),
       connection_(
@@ -119,6 +120,18 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     const auto *const policy = securityConfiguration_.policy();
     if (!connection_.active() || policy == nullptr ||
         !securityConfiguration_.configureAcceptor(acceptor_))
+    {
+        session_.close();
+        acceptor_.reject();
+        connection_.cancel();
+        return;
+    }
+
+    // The real serialized listener always supplies the service-wide peer
+    // and account budget. Offline fixtures may omit it, but no service
+    // invocation can bypass it.
+    if (attemptLimiter != nullptr &&
+        !acceptor_.bindVerifiedAccountAttemptLimiter(*attemptLimiter))
     {
         session_.close();
         acceptor_.reject();

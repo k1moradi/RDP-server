@@ -1152,6 +1152,14 @@ if(TARGET rdp-server-linux-runtime-security)
         LABELS "runtime;security;linux-provider;offline")
 
     if(TARGET rdp-server-linux-pam-password-verifier)
+        add_test(NAME runtime.linux-connection-verified-account-attempt-limiter-binding-denials
+            COMMAND test_runtime_linux_security
+                linux-connection-verified-account-attempt-limiter-binding-denials
+                "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+        set_tests_properties(
+            runtime.linux-connection-verified-account-attempt-limiter-binding-denials
+            PROPERTIES LABELS "runtime;security;linux-provider;pam;offline")
+
         add_test(NAME runtime.linux-security-pam-verifier-provisioning
             COMMAND test_runtime_linux_security
                 linux-security-pam-verifier-provisioning

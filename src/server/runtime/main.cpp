@@ -990,7 +990,8 @@ struct LinuxFramePublicationContext final {
     }
 
     rdp_server::server::runtime::LinuxRuntimeConnection connection{
-        *context->securityConfiguration, std::move(accepted)};
+        *context->securityConfiguration, std::move(accepted),
+        &context->authAttempts};
     if (!connection.ready()) {
         return true;
     }

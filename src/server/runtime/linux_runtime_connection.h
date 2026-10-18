@@ -2,6 +2,7 @@
 #pragma once
 
 #include "linux_runtime_security.h"
+#include "server/security/authentication_attempt_limiter.h"
 #include "runtime_deployment_policy.h"
 #include "runtime_licensing_authority.h"
 #include "runtime_licensing_context.h"
@@ -470,8 +471,9 @@ class LinuxRuntimeConnection final
 public:
     LinuxRuntimeConnection(
         LinuxRuntimeSecurityConfiguration &securityConfiguration,
-        rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket)
-        noexcept;
+        rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+        rdp_server::server::security::AuthenticationAttemptLimiter
+            *attemptLimiter = nullptr) noexcept;
     ~LinuxRuntimeConnection();
 
     LinuxRuntimeConnection(const LinuxRuntimeConnection &) = delete;

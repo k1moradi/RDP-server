@@ -61,6 +61,20 @@ inventory or separate dormant bridge linkage guards. Keep macOS
 extracted `codesign --verify --deep --strict` mandatory after ZIP
 extraction; valid hashes alone are insufficient signing evidence.
 
+## R2 verified GSS principal rate limit at PAM boundary (2026-10-18)
+
+Only the one serialized service budget may be bound to a configured
+GSS/PAM acceptor before any peer token. Reserve a verified account
+attempt only for its TLS-bound GSS principal after CredSSP v5/v6
+public-key proof, final unwrap and exact R2 delegated local account
+match, immediately before invoking PAM. On exhaustion, fail closed
+without PAM and without revealing account existence. Never charge a
+client-provided username or log identity/password/token content.
+Retire borrowed limiter pointer on terminal GSS release.
+`runtime.linux-connection-verified-account-attempt-limiter-binding-denials`
+proves real binding and absent-TLS rejection offline, not positive
+authentication.
+
 ## R2 fixed-memory authentication-attempt budget (2026-10-18)
 
 The serialized Linux listener owns one service-lifetime

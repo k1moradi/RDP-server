@@ -158,6 +158,24 @@ This file is the **only active roadmap and cross-agent communication board**. It
 
 **Current evidence:** source/CTest authored; local Debug build/CTest **NOT RUN** (no approved local checkout); exact publication-SHA hosted CI **PENDING**, live Windows/macOS clients **NOT RUN**. **Next gate:** R2/R10 integrate a truly authenticated OS provider and host-owner consent into start/stop + R3, then record three independent client results. Keep independent GUI password mode Start Sharing **BLOCKED** until fully reviewed interoperable verification and genuine OS authorization are demonstrated.
 
+**R2 GSS-verified account attempt fence (2026-10-18):** The Linux
+serialized serve owner now passes its existing service-lifetime
+`AuthenticationAttemptLimiter` through the concrete R1/R2 connection
+into the provisioned GSS acceptor before peer intake. After genuine
+GSS authentication, CredSSP public-key/TLS binding and R2 identity
+policy match of the decrypted delegated local account, the final
+visitor reserves exactly one verified-principal attempt **before PAM**.
+An exhausted per-account budget causes generic terminal rejection
+without PAM, native admission or Share. It never charges caller-claimed
+names or logs identity/secret material. One-shot budget binding is
+cleared on GSS teardown. New Linux/PAM production-backed offline CTest
+`runtime.linux-connection-verified-account-attempt-limiter-binding-denials`
+tests real keytab service provisioning, duplicate-bind revocation and
+no charge on unauthenticated TLS-absent input. Local full CTest
+**NOT RUN** (approved checkout/GitHub DNS unavailable); exact-SHA
+hosted CI **PENDING**. No owner-client success or application-password
+interoperability is implied.
+
 **R2 NLA attempt-abuse boundary (2026-10-18):** R2's fixed-capacity
 `AuthenticationAttemptLimiter` now reserves a peer/global budget before
 the serialized Linux serve callback constructs R1 TLS or GSS. Only exact

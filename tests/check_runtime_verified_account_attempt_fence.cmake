@@ -48,9 +48,15 @@ if(candidate_match EQUAL -1 OR candidate_deny EQUAL -1 OR
     message(FATAL_ERROR
         "GSS-verified account attempt must follow policy match and precede PAM")
 endif()
-string(FIND "${visitor}" "context.authenticatedPrincipal," reserve_key)
-if(reserve_key EQUAL -1 OR reserve_key LESS account_reserve OR
-   reserve_key GREATER pam_verify)
+# Limit the identity-key check to the reservation-to-PAM span;
+# the same verified principal also legitimately occurs in the earlier policy
+# match, and matching its first occurrence would give a false-negative test.
+math(EXPR reservation_length "${pam_verify} - ${account_reserve}")
+string(SUBSTRING "${visitor}" ${account_reserve}
+    ${reservation_length} reservation_span)
+string(FIND "${reservation_span}"
+    "context.authenticatedPrincipal," reserve_key)
+if(reserve_key EQUAL -1)
     message(FATAL_ERROR "PAM limiter must charge the actual GSS principal")
 endif()
 # The credential visitor must use the bound per-acceptor service budget.

@@ -59,6 +59,7 @@ lose the one-shot GSS limiter binding, omit final authInfo handoff,
 or allow the service-wide budget to disappear between peer gate and
 native broker. The existing executable CTests separately exercise
 real keytab acceptor configuration and bounded fixed-capacity expiry.
+The source guard checks the reservation-to-PAM span for the exact GSS principal; the preceding R2 identity-policy match legitimately uses that principal earlier and must not be mistaken for the reservation key.
 No fake positive provider or OS lease. Local owner Debug/full CTest:
 **NOT RUN** (approved checkout unavailable), hosted exact-SHA:
 **PENDING**; physical X11, GUI LAN sharing and three Microsoft clients:

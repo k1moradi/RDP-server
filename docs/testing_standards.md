@@ -1,3 +1,20 @@
+## R7 client stage and stale host-status UI test (2026-10-18)
+
+A `RuntimeHostClient` in the current R10 status may describe an
+authenticating TCP/NLA peer or a Share-activated session waiting for
+desktop readiness. The R7 Qt status projection must not call these
+records Connected. Require the current global sharing stage and
+`shareActivated && desktopVisible && !authenticating` per-client
+flags to list a connected desktop. Keep pending peers in a distinct
+activity section. Opaque IDs stay R10-owned and may be submitted for
+guarded disconnection, not interpreted as authenticated leases.
+On R10 stopped/revoked/unavailable status, discard stale endpoint,
+peers, and disconnect choices even when raw snapshot fields persist.
+The normal offscreen test
+`gui.offscreen-r10-client-stage-and-retirement-status-denials`
+uses the existing injected mock without a listener, credentials,
+capture or clipboard owner.
+
 ## R4 ClearCodec mapped geometry versus native capture (2026-10-18)
 
 Keep the ordinary `graphics.clearcodec-denials` test production-backed

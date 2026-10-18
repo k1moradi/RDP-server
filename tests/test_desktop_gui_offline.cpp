@@ -137,6 +137,76 @@ int main(int argc, char** argv)
     FakeRuntimeHost runtime;
     HostControl host(runtime);
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "client-stage")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.activeClients = {
+            {10U, "192.168.0.101", true, false, false},
+            {11U, "192.168.0.102", false, true, false},
+            {12U, "192.168.0.103", false, true, true},
+            {13U, "192.168.0.104", false, false, true}};
+        DesktopWindow window(host);
+        auto* activity = window.findChild<QLabel*>("clientStatus");
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        auto* selected = window.findChild<QComboBox*>("activeClientSelection");
+        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
+        assert(activity && endpoint && selected && disconnect);
+
+        const auto authenticating = host.status();
+        assert(authenticating.clients.isEmpty());
+        assert(authenticating.pendingClients.size() == 4);
+        assert(authenticating.activeClients.size() == 4);
+        assert(activity->text().contains("Authenticating: 192.168.0.101"));
+        assert(activity->text().contains(
+            "Share activated; desktop pending: 192.168.0.102"));
+        assert(activity->text().contains(
+            "Desktop not confirmed: 192.168.0.103"));
+        assert(activity->text().contains("Connected clients: None"));
+        assert(selected->count() == 5 && !disconnect->isEnabled());
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        window.refresh();
+        const auto connected = host.status();
+        assert(connected.clients.size() == 1);
+        assert(connected.clients.front() == "192.168.0.103");
+        assert(connected.pendingClients.size() == 3);
+        assert(activity->text().contains(
+            "Connected clients: 192.168.0.103"));
+        assert(!activity->text().contains(
+            "Connected clients: 192.168.0.101"));
+        selected->setCurrentIndex(1);
+        assert(disconnect->isEnabled());
+
+        // R10 retirement hides all former peers and the former endpoint,
+        // even if an inconsistent status payload retains stale field data.
+        runtime.snapshot.stage = RuntimeHostStage::Stopped;
+        window.refresh();
+        assert(host.status().clients.isEmpty());
+        assert(host.status().pendingClients.isEmpty());
+        assert(host.status().activeClients.isEmpty());
+        assert(host.status().lanAddress.isEmpty());
+        assert(endpoint->text().contains("not reported"));
+        assert(activity->text().contains("Connected clients: None"));
+        assert(activity->text().contains(
+            "Authenticating / desktop pending: None"));
+        assert(!activity->text().contains("192.168.0.101"));
+        assert(selected->count() == 1 && !disconnect->isEnabled());
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
+        window.refresh();
+        assert(!host.status().controlAvailable);
+        assert(host.status().clients.isEmpty());
+        assert(host.status().activeClients.isEmpty());
+        assert(host.status().lanAddress.isEmpty());
+        assert(!disconnect->isEnabled());
+        assert(runtime.configureCalls == 0 && runtime.startCalls == 0 &&
+               runtime.disconnectCalls == 0);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "r10-lan-selector")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

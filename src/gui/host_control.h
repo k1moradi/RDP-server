@@ -45,6 +45,7 @@ struct HostStatus
     QString lanAddress;
     QString failure;
     QStringList clients;
+    QStringList pendingClients;
     QStringList authenticationFailures;
     QStringList disconnected;
     QStringList revoked;

@@ -368,6 +368,8 @@ void DesktopWindow::refresh() {
         : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
             : "Not sharing. " + (snapshot.failure.isEmpty() ? denial : snapshot.failure)));
     activity_->setText("Connected clients: " + (snapshot.clients.isEmpty() ? "None" : snapshot.clients.join(", "))
+        + "\nAuthenticating / desktop pending: " +
+            (snapshot.pendingClients.isEmpty() ? "None" : snapshot.pendingClients.join(", "))
         + "\nAuthentication failures: " + (snapshot.authenticationFailures.isEmpty()
             ? "None" : snapshot.authenticationFailures.join(", "))
         + "\nDisconnected: " + (snapshot.disconnected.isEmpty() ? "None" : snapshot.disconnected.join(", "))

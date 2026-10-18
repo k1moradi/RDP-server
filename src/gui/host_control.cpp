@@ -88,15 +88,38 @@ HostStatus HostControl::status() const
         }
     }
 
-    view.lanAddress = toQString(runtimeStatus.boundEndpoint);
-    for (const RuntimeHostClient& client : runtimeStatus.activeClients)
+    // A stale or unavailable runtime snapshot cannot prove a bound endpoint
+    // or client presence. Keep pending and connected clients distinct: an
+    // R2 authentication attempt is not a visible, admitted R3 desktop.
+    const bool sharingStage = isSharingStage(runtimeStatus.stage);
+    const bool activeStage = sharingStage || isPendingStage(runtimeStatus.stage);
+    if (view.controlAvailable && activeStage)
     {
-        const QString displayName = client.peerAddress.empty()
-            ? QStringLiteral("Connected client %1").arg(client.opaqueId)
-            : toQString(client.peerAddress);
-        view.clients.push_back(displayName);
-        if (client.opaqueId != 0)
-            view.activeClients.push_back({client.opaqueId, displayName});
+        view.lanAddress = toQString(runtimeStatus.boundEndpoint);
+        for (const RuntimeHostClient& client : runtimeStatus.activeClients)
+        {
+            const QString displayName = client.peerAddress.empty()
+                ? QStringLiteral("Client %1").arg(client.opaqueId)
+                : toQString(client.peerAddress);
+            if (sharingStage && client.shareActivated &&
+                client.desktopVisible && !client.authenticating)
+                view.clients.push_back(displayName);
+            else if (client.authenticating)
+                view.pendingClients.push_back(
+                    QStringLiteral("Authenticating: ") + displayName);
+            else if (client.shareActivated && !client.desktopVisible)
+                view.pendingClients.push_back(
+                    QStringLiteral("Share activated; desktop pending: ") +
+                    displayName);
+            else
+                view.pendingClients.push_back(
+                    QStringLiteral("Desktop not confirmed: ") + displayName);
+
+            // R10 owns the lifetime of this opaque disconnect handle,
+            // including for authentications which are still pending.
+            if (client.opaqueId != 0)
+                view.activeClients.push_back({client.opaqueId, displayName});
+        }
     }
 
     if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected)

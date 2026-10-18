@@ -1,3 +1,51 @@
+## R7 client authentication-versus-connected projection and retirement (2026-10-18)
+
+The exact-head `9a036d098bc183c051c02e4bb233733c89a33a3c`
+[primary CI 39147713490](https://github.com/k1moradi/RDP-server/actions/runs/39147713490)
+is **HOSTED-GREEN** across macOS, Ubuntu, Windows, R2 security,
+R9 sanitizers, R5/R6 package and R7 macOS portable GUI/lifecycle
+jobs. The Mac arm64 Cocoa `.app` remains a startup-deny-only GUI,
+with strict extracted ad-hoc signing and successful hosted
+LaunchServices/no-listener smoke. This is not macOS 27 owner-native
+Finder double-click, quarantined Gatekeeper trust, Developer ID
+signing, notarization or an authenticated Microsoft-client desktop.
+
+R7 now corrects the *presentation-only* interpretation of R10's
+`RuntimeHostClient` records: `authenticating` and
+`shareActivated` without a visible desktop are displayed as
+**pending**, not **connected**. Only records with genuine
+`shareActivated && desktopVisible && !authenticating` flags
+in a currently sharing R10 stage appear in the Connected clients
+list. Opaque client IDs remain usable solely for R10-owned
+disconnect requests, including for pending connections; neither
+a click nor a returned command result is admission or disconnect proof.
+If the current R10 stage is stopped/revoked, or host control becomes
+unavailable, a stale `boundEndpoint`/client list in the snapshot
+is not projected as an active endpoint/client and cannot be copied
+or selected. This uses no new controller, socket reader, R2 lease,
+native permissions, ScreenCaptureKit/Quartz activation or state cache.
+
+New ordinary Qt offscreen behavior CTest
+`gui.offscreen-r10-client-stage-and-retirement-status-denials`
+exercises mixed per-client stages, global pending vs connected,
+stale Stop and ControlUnavailable projections with fake R10 inputs.
+Implementation parent `cf2ea3daeb028bf6d667713fd2b2bbe6c10e26c9`; owner-local C++23 Qt build/full
+CTest **NOT RUN** (the owner checkout and native Qt toolchain are
+unavailable to this connector environment); exact publication CI
+**PENDING**.
+
+Dependency graph: R3 post-Share classification and R10's serialized
+Linux loopback CLI R1/R2/R5 frame/input/Stop have landed. R10's
+`assessRuntimeSelectedLanEndpoint` shared preflight has landed and
+is used by R7's UI, but the Qt executable still constructs deny-only
+`UnavailableRuntimeHostControl`. R10 has not provided the
+concrete GUI LAN Start/Stop owner or the AppKit console-session
+owner, and R2 has no demonstrated genuine credential-bound,
+revocable macOS UID lease. The R10 status contract still has no
+authoritative TLS certificate SHA-256 fingerprint or client trust
+field. Native macOS hosting and positive client acceptance remain
+**BLOCKED** on those owners, not on package ZIP closure.
+
 docs/ROADMAP.md## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
 
 The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`

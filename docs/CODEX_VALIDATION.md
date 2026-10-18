@@ -1,3 +1,14 @@
+## R9 R10 native-poll sanitizer coverage (2026-10-17)
+
+R10 has landed a bounded production `LinuxRuntimeConnection` socket-readiness
+poll with centrally registered `runtime.linux-connection-pre-admission-native-poll`.
+R9 now runs this single real-socket test under Clang ASan/UBSan with an exact
+one-test registry assertion. It is deliberately **additive** to the existing
+28-test runtime-security selection: neither that count nor the established
+Graphics, R4, R5, R6, R7, or clipboard test gates change. The test cannot mint
+an R2 lease or establish live desktop authority. The next runtime graph edge
+is R10's post-Connect-Initial MCS Response/AttachUser/ChannelJoin composition.
+
 ## R10 serialized Linux accepted-connection scheduler (2026-10-17)
 
 **Authored on current `main`; hosted CI pending.** R1's review of the

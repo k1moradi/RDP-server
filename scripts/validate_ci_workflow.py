@@ -324,6 +324,8 @@ REQUIRED_TOKENS = (
     "post-admission-mcs-framing-denials",
     "runtime.linux-connection-existing-cal-unadmitted-denial",
     "runtime_security_expected_test_count=28",
+    "Run R10 production native poll with sanitizers",
+    "runtime.linux-connection-pre-admission-native-poll",
     "runtime.validates-configuration-windows-private-dacl",
     "runtime.validates-tls-files-private-regular",
     "transport.tcp-owned-runtime-tls-handshake",

@@ -1,3 +1,21 @@
+## R1 listener dependency check — 2026-10-17
+
+R10's loopback listener blocker is **partially resolved** at `4132fa7e`.
+R1 review found the published listener layer compliant with the required exact
+post-listen `getsockname()` loopback/port verification, bounded one-at-a-time
+accept through the existing <=25 ms R1 poller, move-only accepted socket
+ownership and pre-authentication close behavior. No second SSL reader/writer
+is introduced.
+
+The next graph edge remains blocked inside R10: `serve` does not yet hand the
+accepted socket into `LinuxRuntimeConnection`, so the actual listener path
+cannot progress X.224, TLS or CredSSP. Once that composition lands, R1 should
+immediately audit WANT_READ/WANT_WRITE ownership, buffered plaintext,
+partial-write suffix continuation, shutdown ordering and denial of late
+events. R3 DATA and R4-through-R1 are no longer blockers. Genuine positive
+CredSSP→MCS remains separately blocked on the owner-authorized physical Linux
+X11 seat0/Kerberos/PAM host.
+
 ## R1 dependency reconciliation — 2026-10-17
 
 R3's DATA publication edge from the original dependency graph is resolved on

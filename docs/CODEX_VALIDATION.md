@@ -1,3 +1,9 @@
+## R10 canonical Demand Active to genuine Share activation composition (2026-10-18)
+
+Authoring base `409d50524f9b16a832e4d98a76bf9751acb6166b`. R3's production Demand Active provider is now consumed by the real Linux serve loop. R3 derives the profile bitmap dimensions from the exact admitted GCC Client Core settings; R10 supplies only implemented feature bits and never supplies a Share ID, Demand session ID, source descriptor or raw capability set. The serve loop advances beyond delivered `STATUS_VALID_CLIENT`, starts the existing R3 Share owner, and serially drives R1/R2-gated Demand Active, actual client Confirm Active, Synchronize, Control and Font transitions until the existing state machine reports `ShareActivated`. It then revokes before Graphics/native publication, which remains a separate increment.
+
+Dedicated offline CTest `runtime.linux-serve-share-activation-composition` verifies the production composition and absence of the old immediate Valid Client revoke without fabricating Kerberos/PAM/logind admission. Repository-mandated owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this connector environment. Exact publication-SHA hosted CI: **PENDING**. Owner-native Linux/X11 and live mstsc.exe / Windows App acceptance: **NOT RUN / BLOCKED** pending explicit host authorization and real credentials.
+
 ## R9 Linux Qt plugin discovery repair after native GUI build (2026-10-18)
 
 On descendant `7908c02faa08fcf867927a024d87481698985e2d`, hosted job `r5-linux-gui-zip` passes both R5 offline GUI package tests and builds the real R7 Qt desktop target successfully. Its next step exits before `packaging/linux/gui_bundle.py` runs because the workflow assumes `dpkg-query -L qt6-qpa-plugins` owns `platforms/libqxcb.so`. Ubuntu 24.04 installs the XCB platform plugin under Qt's plugin root without exposing that file through the queried package inventory.

@@ -614,14 +614,14 @@ public:
         std::size_t acceptedBytes) noexcept;
 
     // Ask R3 for one immutable, validated Demand Active profile after fresh
-    // R2 authorization. R10 supplies only typed implemented-feature policy;
-    // it never supplies wire capabilities, Share IDs or Demand session IDs.
+    // R2 authorization. R10 supplies only typed implemented feature bits; R3
+    // derives geometry from the admitted GCC Client Core and owns all wire
+    // capabilities, Share IDs and Demand session IDs.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpDemandActiveProfileView>
     preparePersonalDesktopDemandActiveProfile(
         const RuntimeDeploymentPolicy &deploymentPolicy,
-        const rdp_server::server::transport::RdpDemandActiveProfilePolicy
-            &profilePolicy) noexcept;
+        rdp_server::server::transport::RdpDemandActiveFeature features) noexcept;
 
     // Begin R3's one Share transcript without publishing bytes. The profile
     // must be the exact view minted above by this connection's R3 owner.

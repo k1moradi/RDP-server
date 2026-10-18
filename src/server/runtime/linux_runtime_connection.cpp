@@ -2150,8 +2150,7 @@ LinuxRuntimeConnection::completePersonalDesktopValidClientWrite(
 std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
 LinuxRuntimeConnection::preparePersonalDesktopDemandActiveProfile(
     const RuntimeDeploymentPolicy &deploymentPolicy,
-    const rdp_server::server::transport::RdpDemandActiveProfilePolicy
-        &profilePolicy) noexcept
+    rdp_server::server::transport::RdpDemandActiveFeature features) noexcept
 {
     if (personalShareIoAction_ != PersonalDesktopShareIoAction::Idle ||
         personalDesktopPolicy_ != &deploymentPolicy ||
@@ -2168,7 +2167,7 @@ LinuxRuntimeConnection::preparePersonalDesktopDemandActiveProfile(
     const auto profile =
         broker_->authorizeR3PersonalDesktopDemandActiveProfile(
             *lease_, acceptor_, connection_, session_, deploymentPolicy,
-            profilePolicy);
+            features);
     if (!profile)
         revoke();
     return profile;

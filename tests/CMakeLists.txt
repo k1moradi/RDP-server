@@ -973,6 +973,20 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
+    # R10 must compose the real post-STATUS_VALID_CLIENT Share owner without
+    # fabricating a positive OS lease in ordinary CI. The production R3 profile
+    # must derive admitted Client Core geometry and R10 may supply only feature
+    # bits before the existing serialized Share state machine is driven.
+    add_test(NAME runtime.linux-serve-share-activation-composition
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_MCS_SESSION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/mcs_channel_connection.cpp"
+            "-DRDP_RUNTIME_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_share_activation.cmake")
+    set_tests_properties(
+        runtime.linux-serve-share-activation-composition PROPERTIES
+        LABELS "runtime;security;r10-share;offline")
+
     # R2 post-admission TLS reads must fence the current R3 admission/session
     # generations as well as the live lease/native evidence. This source-level
     # guard is intentionally offline because ordinary CI must not fabricate a

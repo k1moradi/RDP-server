@@ -549,8 +549,9 @@ public:
         std::size_t acceptedBytes) noexcept;
 
     // R3 creates the immutable Demand Active profile only after R2 freshly
-    // reauthorizes the exact lease/R1/native-session owner. If slow-path input
-    // will be advertised, current input permission is required here as well.
+    // reauthorizes the exact lease/R1/native-session owner. R10 supplies only
+    // typed implemented feature bits; R3 derives the admitted client geometry.
+    // If slow-path input is advertised, current input permission is required.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpDemandActiveProfileView>
     authorizeR3PersonalDesktopDemandActiveProfile(
@@ -561,8 +562,7 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy,
-        const rdp_server::server::transport::RdpDemandActiveProfilePolicy
-            &profilePolicy) noexcept;
+        rdp_server::server::transport::RdpDemandActiveFeature features) noexcept;
 
     // Demand Active + finalization use the existing R3 Share owner only.
     // The caller can supply no Share ID, session ID or raw capability bytes.

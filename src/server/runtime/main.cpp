@@ -826,6 +826,9 @@ struct LinuxServeAcceptContext final {
     using ValidClientStep =
         rdp_server::server::runtime::
             LinuxPersonalDesktopValidClientWriteStepStatus;
+    using ShareStep =
+        rdp_server::server::runtime::
+            LinuxPersonalDesktopShareActivationStepStatus;
 
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
     if (context == nullptr || context->policy == nullptr ||
@@ -1321,7 +1324,8 @@ struct LinuxServeAcceptContext final {
 
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool validClientDelivered = false;
+    while (connection.ready() && !validClientDelivered) {
         const auto step =
             connection.advancePersonalDesktopValidClientWrite(
                 *context->policy, readable, writable);
@@ -1348,16 +1352,87 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case ValidClientStep::Delivered:
-            // Share activation remains the next separately audited runtime
-            // increment. Licensing completion alone grants no desktop access.
-            connection.revoke();
-            return true;
+            validClientDelivered = true;
+            break;
         case ValidClientStep::AdmissionDenied:
         case ValidClientStep::Invalid:
         case ValidClientStep::Closed:
             return true;
         }
     }
+    if (!validClientDelivered || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    // R10 selects only implemented high-level features. R3 derives the
+    // canonical Demand Active geometry from the admitted GCC Client Core and
+    // owns every Share/session ID and capability byte. Graphics requires the
+    // actually joined drdynvc route; input advertisement additionally requires
+    // current R2 input permission and is revalidated again inside the broker.
+    using DemandFeature =
+        rdp_server::server::transport::RdpDemandActiveFeature;
+    auto demandActiveFeatures = DemandFeature::DynamicVirtualChannels;
+    if ((context->admissionRequest->requestedPermissions &
+         rdp_server::server::security::kConsoleInputPermission) != 0U) {
+        demandActiveFeatures =
+            demandActiveFeatures | DemandFeature::SlowPathInput;
+    }
+
+    const auto demandActiveProfile =
+        connection.preparePersonalDesktopDemandActiveProfile(
+            *context->policy, demandActiveFeatures);
+    if (!demandActiveProfile || !connection.hasAdmissionLease() ||
+        !connection.startPersonalDesktopShareActivation(
+            *context->policy, *demandActiveProfile)) {
+        return true;
+    }
+
+    readable = false;
+    writable = false;
+    bool shareActivated = false;
+    while (connection.ready() && !shareActivated) {
+        const auto step =
+            connection.advancePersonalDesktopShareActivation(
+                *context->policy, readable, writable);
+        readable = false;
+        writable = false;
+        switch (step.status) {
+        case ShareStep::Progress:
+            continue;
+        case ShareStep::NeedRead:
+        case ShareStep::NeedWrite: {
+            const auto ready = connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ShareStep::Activated:
+            shareActivated = true;
+            break;
+        case ShareStep::AdmissionDenied:
+        case ShareStep::Invalid:
+        case ShareStep::Closed:
+            return true;
+        }
+    }
+    if (!shareActivated || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    // Genuine Share activation is now composed through the canonical R3
+    // profile. Graphics/native publication is the next separately audited
+    // runtime increment, so this build still tears down before desktop access.
+    connection.revoke();
     return true;
 }
 

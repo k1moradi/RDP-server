@@ -1344,12 +1344,11 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopDemandActiveProfile(
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy,
-    const rdp_server::server::transport::RdpDemandActiveProfilePolicy
-        &profilePolicy) noexcept
+    rdp_server::server::transport::RdpDemandActiveFeature features) noexcept
 {
     std::uint32_t requiredPermissions = kConsoleViewPermission;
     if (rdp_server::server::transport::hasRdpDemandActiveFeature(
-            profilePolicy.features,
+            features,
             rdp_server::server::transport::RdpDemandActiveFeature::
                 SlowPathInput))
         requiredPermissions |= kConsoleInputPermission;
@@ -1370,8 +1369,7 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopDemandActiveProfile(
     }
 
     const auto profile =
-        session.prepareVerifiedR2DemandActiveProfile(
-            *provenance, profilePolicy);
+        session.prepareVerifiedR2DemandActiveProfile(*provenance, features);
     if (!profile)
         revokeR3Session(acceptor, session);
     return profile;

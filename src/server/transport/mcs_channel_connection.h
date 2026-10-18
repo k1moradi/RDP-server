@@ -1580,14 +1580,15 @@ private:
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
     // R3 alone creates the immutable server Demand Active profile after
-    // selected-mode licensing. The typed policy describes only implemented
-    // presentation/input choices; it is not admission and contains no wire
-    // bytes, Share ID or session ID. Production callers reach this only
-    // through the freshly reauthorizing R2 broker.
+    // selected-mode licensing. R10 supplies only implemented feature bits;
+    // R3 derives bitmap dimensions from the exact admitted GCC Client Core
+    // settings. No caller supplies wire bytes, Share IDs or session IDs.
+    // Production callers reach this only through the freshly reauthorizing R2
+    // broker.
     [[nodiscard]] std::optional<RdpDemandActiveProfileView>
     prepareVerifiedR2DemandActiveProfile(
         const SecurityNegotiationProvenance &provenance,
-        const RdpDemandActiveProfilePolicy &profilePolicy) noexcept;
+        RdpDemandActiveFeature features) noexcept;
 
     // Share activation accepts only the view minted by this exact session's
     // R3 provider. An offline provider or stale view cannot enter live Share.

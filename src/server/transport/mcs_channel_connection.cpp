@@ -1888,7 +1888,7 @@ McsSessionLifecycle::acceptVerifiedR2ClientPlatformChallengeResponse(
 std::optional<RdpDemandActiveProfileView>
 McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
     const SecurityNegotiationProvenance &provenance,
-    const RdpDemandActiveProfilePolicy &profilePolicy) noexcept
+    RdpDemandActiveFeature features) noexcept
 {
     if (phase_ != McsSessionPhase::AwaitDemandActive ||
         admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
@@ -1906,8 +1906,7 @@ McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
     }
 
     if (hasRdpDemandActiveFeature(
-            profilePolicy.features,
-            RdpDemandActiveFeature::DynamicVirtualChannels))
+            features, RdpDemandActiveFeature::DynamicVirtualChannels))
     {
         const auto dynamicVirtualChannel = resolveMcsStaticChannelRole(
             connectResponseClientSettings_, connectResponseAllocation_,
@@ -1920,6 +1919,11 @@ McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
         }
     }
 
+    const RdpDemandActiveProfilePolicy profilePolicy{
+        connectResponseClientSettings_.requestedWidth,
+        connectResponseClientSettings_.requestedHeight,
+        RdpDemandActivePlatform::LinuxX11,
+        features};
     const auto profile =
         demandActiveProfileProvider_.prepare(sessionGeneration_, profilePolicy);
     if (!profile)

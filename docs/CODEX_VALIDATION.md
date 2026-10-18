@@ -1,3 +1,22 @@
+## R6/R7 exact hosted recovery after package self-scan and CLANG64 fix (2026-10-17)
+
+Implementation SHA `a948ddd32d8f774db975408468764e8cf3cf4381` is fully accepted by
+structure Actions `39102167861` and primary Actions `39102167839`.
+Ubuntu passed **665/665 Debug + 665/665 Release**; macOS passed **557/557
+Debug + 557/557 Release**; Windows/MSVC passed **593/593 Debug + 593/593
+Release**; and the dedicated MSYS2 CLANG64 lane passed **593/593 Debug +
+593/593 Release**. The R6 WinGDI `Rectangle` probe passed in native preflight
+and full suites, and `windows.package-user-lifecycle-offline-contract` passed
+on Linux, macOS, Windows/MSVC and Windows/CLANG64 after the PowerShell sentinel
+self-scan correction.
+
+Hosted SERVER-TEST smoke passed for Linux x86_64, macOS arm64 and Windows
+x86_64, and the three-platform aggregate status job passed. R7 native-lifecycle,
+R7 session-sanitizer, R9 sanitizer and documentation-policy jobs also passed.
+This closes the reported package/CLANG64 portability regressions only; it does
+not authorize native Windows/macOS desktop serving. Owner-local CLANG64 rerun
+and owner macOS 27 live-client testing remain separate evidence.
+
 ## R1 pending-write TCP reset coverage (2026-10-17)
 
 **Shared-main commit:** `024b879abbc9944c2d2ee7f3e79b76c5a4b91ad2`.

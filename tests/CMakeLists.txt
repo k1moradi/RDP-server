@@ -2270,6 +2270,18 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         TIMEOUT 20)
 endif()
 
+# R10 production dependency handoff for R5's landed protected input bridge.
+# This is source/build-graph evidence only: main must still not dispatch native
+# input before the single post-Share R1 TPKT router is composed.
+add_test(NAME runtime.linux-x11-authorized-input-production-linkage
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_authorized_input_linkage.cmake")
+set_tests_properties(
+    runtime.linux-x11-authorized-input-production-linkage PROPERTIES
+    LABELS "runtime;security;r10-native;x11;input;offline")
+
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop
 # freshness cannot authorize XTEST and that a mismatched geometry generation

@@ -1,3 +1,11 @@
+## R10 consumes landed R5 protected-input bridge as a production dependency (2026-10-18)
+
+Authoring base `fac0024b37074241c1857950239c9848550ffa95`. R5 `746bf766f68f38cd8d71fb67b24b6d7e604044c5` resolved the previously missing typed R2-decoded slow-path-input to X11 adapter. R10 now conditionally links `rdp-server-linux-x11-authorized-input` into the production `rdp-server` target only when the complete Linux runtime-security and X11 desktop dependency graph produced that target. The compile definition `RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT` therefore records build availability only; it is not an admission, permission or native-input flag.
+
+Live dispatch intentionally remains disabled in `main.cpp`. The current runtime still lacks one generic post-Share R1 complete-TPKT reader/router that can demultiplex the same serialized stream among R3 Graphics DVC intake, R2/R3 slow-path input, and R8 clipboard without destructive trial calls or another TLS reader. Calling `dispatchAuthenticatedSlowPathTpkt` before that router exists would make an unrelated valid application packet terminal. The dedicated offline CTest `runtime.linux-x11-authorized-input-production-linkage` requires production linkage while forbidding that premature dispatch.
+
+Owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this connector environment. Exact publication-SHA hosted CI: **PENDING**. No real X11 input, credentials, listener or Microsoft client was exercised.
+
 ## R2 gateway dependency reconciliation after R5 native bridge (2026-10-18)
 
 R5 publication `746bf766f68f38cd8d71fb67b24b6d7e604044c5` now consumes R2's

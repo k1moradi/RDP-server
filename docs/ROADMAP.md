@@ -1,3 +1,29 @@
+## R9 native macOS R10/R7 LAN policy-to-Qt paired CTests (2026-10-18)
+
+Exact earlier complete-green GitHub head:
+`9a036d098bc183c051c02e4bb233733c89a33a3c`,
+[primary 39147713490](https://github.com/k1moradi/RDP-server/actions/runs/39147713490),
+[independent structure 39147713471](https://github.com/k1moradi/RDP-server/actions/runs/39147713471).
+The R7 GUI now uses R10's pure exact stable-interface-ID/address
+eligibility check before projecting LAN choices. R7's new existing
+`gui.offscreen-r10-selected-lan-endpoint-preflight-denials` passed
+as part of the broad macOS Qt suite, but the separately registered
+`runtime.host-control-selected-lan-interface-denials` was not
+explicitly built/tested in the macOS portable-GUI lane.
+
+R9 now builds both existing fixture executables on that AppleClang/Qt
+Release runner and selects exactly these **two** registered executable
+CTest behaviors before native portable app packaging and extracted
+signature/LaunchServices checks. The independent structure validator
+pins the step, selector, both exact names and cardinality. No
+duplicated tests, native socket bind, R2 credential admission or
+live GUI hosting behavior is introduced. Same-SHA owner-native
+Windows CLANG64, Linux X11, macOS 27 and authenticated Microsoft
+client acceptance: **NOT RUN**; R10 live GUI Start/Stop and
+R8 native CLIPRDR composition: **BLOCKED upstream**. New exact
+publication-SHA hosted primary/structure CI: **PENDING**.
+No macOS downloadable GUI ZIP or release was authorized.
+
 ## R7 client authentication-versus-connected projection and retirement (2026-10-18)
 
 The exact-head `9a036d098bc183c051c02e4bb233733c89a33a3c`

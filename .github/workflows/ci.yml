@@ -1776,6 +1776,30 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
           ctest --test-dir build -C Release --timeout 30 \
             -R '^gui[.]offscreen-' --output-on-failure
+      # Pair R10's production stable-interface/address predicate with R7's
+      # Qt chooser on the same AppleClang/Qt Release packaging runner.
+      # Fixtures are offline and cannot authorize R1/R2 or open sockets.
+      - name: Run R10 R7 shared LAN endpoint selection denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release \
+            --target test_runtime_host_control test_desktop_gui_offline --parallel 2
+          lan_endpoint_selection='^(runtime[.]host-control-selected-lan-interface-denials|gui[.]offscreen-r10-selected-lan-endpoint-preflight-denials)$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$lan_endpoint_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.host-control-selected-lan-interface-denials' <<< "$selected_tests"
+          grep -Fq 'gui.offscreen-r10-selected-lan-endpoint-preflight-denials' <<< "$selected_tests"
+          readonly lan_endpoint_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$lan_endpoint_expected_test_count" ]]; then
+            printf 'R9 R10/R7 LAN registry mismatch: expected %s tests, found %s\n' \
+              "$lan_endpoint_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$lan_endpoint_selection" --output-on-failure
+
       # Run the production GUI constructor-order security guard on the
       # same hosted AppleClang/Qt build that packages and opens the actual
       # extracted .app. Offscreen widget end-state checks cannot expose

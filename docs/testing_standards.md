@@ -1,3 +1,16 @@
+## R9 cross-owner GUI LAN selection validation (2026-10-18)
+
+For a GUI projection of the R10-selected LAN endpoint, native hosted
+AppleClang/Qt CI must explicitly exercise both existing executable
+behavior CTests: the R10 pure stable-ID/address eligibility check and
+the Qt offscreen projection denials. Build both targets and select
+exactly those two tests with a count and name check in the real
+macOS packaging job before extracting/signature-verifying the app.
+Validate the step, selector and exact-two contract separately.
+Fake local addresses and offscreen widgets are only negative-policy
+evidence; R1 bind, R2 OS lease, owner approval and LAN Microsoft
+client success remain distinct requirements.
+
 ## R7 client stage and stale host-status UI test (2026-10-18)
 
 A `RuntimeHostClient` in the current R10 status may describe an

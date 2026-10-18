@@ -1,3 +1,25 @@
+## R9 paired R10/R7 LAN choice CTest gate (2026-10-18)
+
+At earlier exact-green head `9a036d098bc183c051c02e4bb233733c89a33a3c`,
+[primary 39147713490](https://github.com/k1moradi/RDP-server/actions/runs/39147713490)
+and [structure 39147713471](https://github.com/k1moradi/RDP-server/actions/runs/39147713471)
+**PASS**. R9 builds existing `test_runtime_host_control` and
+`test_desktop_gui_offline` in the native macOS Release package job
+and runs one **exact-two** focused selection:
+`runtime.host-control-selected-lan-interface-denials` and
+`gui.offscreen-r10-selected-lan-endpoint-preflight-denials`.
+They exercise real pure R10 selector and R7 Qt choice projection
+against synthetic interface lists without a real socket or admission.
+The independent CI structure validator requires the step name,
+both tests and exact count. R9 kept ordinary CTest registration,
+native macOS offscreen full selector, PlainText source guard,
+extracted Mach-O/strict code-signature and LaunchServices checks.
+The R2 40-case, R8 87-case, R10 post-Share two-case, R5/R8 two
+native-linkage case and R9 sanitizer inventories remain untouched.
+New publication-SHA primary and independent structure CI **PENDING**;
+owner-local three-system native receipts, actual R10 GUI binding
+and Microsoft-client interoperability **NOT RUN**.
+
 ## R7 client authentication-versus-connected projection and retirement (2026-10-18)
 
 The exact-head `9a036d098bc183c051c02e4bb233733c89a33a3c`

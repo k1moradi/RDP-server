@@ -1,3 +1,19 @@
+## R5 R2-fenced native XCB event-service handoff (2026-10-18)
+
+The first bounded native event drain must use only R10's one R2-selected
+`X11DesktopResources` after its borrowed logind poll registration has
+been removed. Each `processEvents()` call uses an explicit event budget,
+a current XCB-readability bit, and fresh R2 PersonalDesktop application
+authorization both before and after. Native connection, RandR or event
+failure revokes without native XTEST release; no callback may mint
+admission, publish a frame or dispatch keyboard/pointer events.
+`runtime.linux-r5-x11-authorized-event-service-denials` source-guards
+the production call ordering under ordinary full offline CTest because
+real Kerberos/PAM/logind admission cannot be simulated by an ephemeral Xvfb
+fixture. Existing `x11.desktop-resource-*` Xvfb CTests continue to
+exercise native event and RandR behavior independently, but are never
+positive R2/client authorization evidence.
+
 ## R2 runtime slow-path input gateway coverage (2026-10-18)
 
 The runtime-facing slow-path input gateway must not expose the private R2 broker

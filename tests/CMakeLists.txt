@@ -1019,6 +1019,17 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
         LABELS "runtime;security;r10-native;x11;offline")
 
+    # R5 follows the one R10 selected XCB owner, immediately after R2's
+    # borrowed logind poll record is unregistered; the native event drain
+    # performs no frame publication or synthetic R2 admission.
+    add_test(NAME runtime.linux-r5-x11-authorized-event-service-denials
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_event_service.cmake")
+    set_tests_properties(
+        runtime.linux-r5-x11-authorized-event-service-denials PROPERTIES
+        LABELS "runtime;security;r5-native;x11;offline")
+
     # R2 post-admission TLS reads must fence the current R3 admission/session
     # generations as well as the live lease/native evidence. This source-level
     # guard is intentionally offline because ordinary CI must not fabricate a

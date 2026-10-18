@@ -1593,9 +1593,45 @@ struct LinuxAuthorizedX11DesktopOwner final {
         return true;
     }
 
-    // R4 frame lifetime and authenticated input dispatch are the next atomic
-    // increment. No native work has been published, so retire gracefully while
-    // current R2 authority still exists, then revoke the RDP connection.
+    // R5 first native event-service handoff: after unregistering R2's
+    // borrowed logind descriptor, drain only the existing sole XCB owner.
+    // R2 must still authorize the real Share session before event dispatch
+    // and again before allowing a graceful teardown. Never infer authority
+    // from poll(), X11 geometry, process environment or capture generation.
+    if (!connection.authorizePersonalDesktopApplicationTraffic(
+            *context->policy)) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+
+    bool nativeWorkMayRemain = false;
+    const ConnectionStatus nativeDispatch =
+        nativeOwner.desktop->processEvents(
+            128U, &nativeWorkMayRemain, (x11Events & POLLIN) != 0);
+    if (nativeDispatch != ConnectionStatus::Ok ||
+        !nativeOwner.desktop->valid() ||
+        nativeOwner.desktop->captureGeneration() == 0U) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+    // A RandR rebuild can advance the R5 capture generation; no consumer
+    // may cache the pre-dispatch generation. Native queued-work state stays
+    // local because production does not yet run a continued frame loop.
+    (void)nativeWorkMayRemain;
+
+    if (!connection.authorizePersonalDesktopApplicationTraffic(
+            *context->policy)) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+
+    // No R4 frame is prepared, borrowed or published in this bounded handoff.
+    // Once native authority has been freshly revalidated, graceful teardown
+    // is permitted. Future frame/input composition must preserve the same
+    // owner and non-post retirement on any loss of authorization.
     nativeOwner.desktop->disconnect();
     connection.revoke();
 #else

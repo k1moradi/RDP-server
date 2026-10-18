@@ -1,3 +1,22 @@
+## R5 first bounded XCB event servicing through R10 sole owner (2026-10-18)
+
+Authoring source base `1eafbf5980feeb9e6f3e5a6996fa0af84b76c616`. R10's R2-selected single X11 owner and
+borrowed logind registration landed at `e6fa65c4`, so R5 now services
+one bounded 128-event XCB batch on the same serialized owner after the
+borrowed logind poll registration is unregistered and native-change
+readiness denied. Both before and after dispatch, R10 invokes its existing
+R2-owned `authorizePersonalDesktopApplicationTraffic()`; failure/error
+uses `retireAfterAuthorizationLoss()` and revokes the connection.
+Current source publishes no R4/R3 frame and injects no native XTEST input.
+Registered offline
+`runtime.linux-r5-x11-authorized-event-service-denials` CTest verifies
+unregister-before-XCB-dispatch, fresh pre/post R2 fences, bounded events,
+terminal retirement, and absence of unauthorized frame/input paths.
+Owner canonical Debug build/full CTest: **NOT RUN** in this connector-only
+environment; exact publication-SHA Actions: **PENDING**; physical seat0
+and Microsoft-client verification: **NOT RUN / BLOCKED** pending explicit
+owner authorization and real frame/input composition.
+
 ## R9 current-head runtime-security and macOS-job structure reconciliation (2026-10-18)
 
 R7 corrective `a949b51b4aaf2cba92a4f942f0ebeff226055478` restores valid YAML after the earlier macOS-job insertion corruption. Its structure run `39127393244` then fails for one R9-owned reason: `scripts/validate_ci_workflow.py` still requires the pre-R8 runtime-security selector literal and `runtime_security_expected_test_count=38`. R8 has since enrolled `runtime.linux-connection-personal-desktop-clipboard-gateway-denials`, and R2 `880011cf0aacab058035c55302113d5172aa5e6f` added `runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials`.

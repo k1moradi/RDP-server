@@ -1336,23 +1336,31 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopValidClientWrite(
     return outcome;
 }
 
-std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
-LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
+std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopDemandActiveProfile(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy,
-    std::uint32_t shareId,
-    std::uint32_t sessionId,
-    std::span<const std::uint8_t> sourceDescriptor,
-    std::uint16_t capabilityCount,
-    std::span<const std::uint8_t> capabilitySets) noexcept
+    const rdp_server::server::transport::RdpDemandActiveProfilePolicy
+        &profilePolicy) noexcept
 {
-    if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+    std::uint32_t requiredPermissions = kConsoleViewPermission;
+    if (rdp_server::server::transport::hasRdpDemandActiveFeature(
+            profilePolicy.features,
+            rdp_server::server::transport::RdpDemandActiveFeature::
+                SlowPathInput))
+        requiredPermissions |= kConsoleInputPermission;
+
+    if (!personalDesktopPolicyMatches(deploymentPolicy) ||
+        !authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, requiredPermissions))
+    {
+        revokeR3Session(acceptor, session);
         return std::nullopt;
+    }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
@@ -1361,9 +1369,49 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
         return std::nullopt;
     }
 
-    const auto pending = session.beginVerifiedR2ShareActivation(
-        *provenance, shareId, sessionId, sourceDescriptor,
-        capabilityCount, capabilitySets);
+    const auto profile =
+        session.prepareVerifiedR2DemandActiveProfile(
+            *provenance, profilePolicy);
+    if (!profile)
+        revokeR3Session(acceptor, session);
+    return profile;
+}
+
+std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    const rdp_server::server::transport::RdpDemandActiveProfileView
+        &profile) noexcept
+{
+    std::uint32_t requiredPermissions = kConsoleViewPermission;
+    if (rdp_server::server::transport::hasRdpDemandActiveFeature(
+            profile.features(),
+            rdp_server::server::transport::RdpDemandActiveFeature::
+                SlowPathInput))
+        requiredPermissions |= kConsoleInputPermission;
+
+    if (!personalDesktopPolicyMatches(deploymentPolicy) ||
+        !authorizeR3ProtectedTransition(
+            lease, acceptor, connection, session, requiredPermissions))
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.beginVerifiedR2ShareActivation(*provenance, profile);
     if (!pending)
         revokeR3Session(acceptor, session);
     return pending;

@@ -610,6 +610,32 @@ endfunction()
 add_rdp_test(test_owned_rdp_x224.cpp transport x224)
 add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
+
+# R3 canonical production Demand Active profile. These cases are pure offline
+# protocol tests and mint no positive R2 admission lease.
+add_executable(test_rdp_demand_active_profile
+    test_rdp_demand_active_profile.cpp)
+target_link_libraries(test_rdp_demand_active_profile PRIVATE
+    rdp-server-protocol)
+if(MSVC)
+    target_compile_options(test_rdp_demand_active_profile PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_rdp_demand_active_profile PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(case_name IN ITEMS
+        exact-wire
+        field-consistency
+        policy-variants
+        count-length-agreement
+        stale-unsupported-denials
+        immutable-lifetime)
+    add_test(NAME "transport.demand-active-profile-${case_name}"
+        COMMAND test_rdp_demand_active_profile "${case_name}")
+    set_tests_properties(
+        "transport.demand-active-profile-${case_name}"
+        PROPERTIES LABELS "protocol;r3-demand-active;offline")
+endforeach()
 # R3 production static-VC framing exercised offline, with no R2 OS lease.
 add_executable(test_r3_clipboard_static_channel
     test_r3_clipboard_static_channel.cpp)

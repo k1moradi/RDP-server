@@ -1885,14 +1885,10 @@ McsSessionLifecycle::acceptVerifiedR2ClientPlatformChallengeResponse(
     return intake;
 }
 
-std::optional<RdpShareActivationWriteView>
-McsSessionLifecycle::beginVerifiedR2ShareActivation(
+std::optional<RdpDemandActiveProfileView>
+McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
     const SecurityNegotiationProvenance &provenance,
-    std::uint32_t shareId,
-    std::uint32_t sessionId,
-    std::span<const std::uint8_t> sourceDescriptor,
-    std::uint16_t capabilityCount,
-    std::span<const std::uint8_t> capabilitySets) noexcept
+    const RdpDemandActiveProfilePolicy &profilePolicy) noexcept
 {
     if (phase_ != McsSessionPhase::AwaitDemandActive ||
         admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
@@ -1900,12 +1896,61 @@ McsSessionLifecycle::beginVerifiedR2ShareActivation(
         !connectResponseProvenanceBound_ ||
         provenance != connectResponseBoundProvenance_ ||
         provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        !personalDesktopPolicySelected_ ||
+        licensing_.protocolMode() != RdpLicensingProtocolMode::PersonalDesktop ||
+        licensing_.phase() != RdpLicensingPhase::Licensed ||
+        !joins_.allConfiguredChannelsJoined())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    if (hasRdpDemandActiveFeature(
+            profilePolicy.features,
+            RdpDemandActiveFeature::DynamicVirtualChannels))
+    {
+        const auto dynamicVirtualChannel = resolveMcsStaticChannelRole(
+            connectResponseClientSettings_, connectResponseAllocation_,
+            McsStaticChannelRole::DynamicVirtualChannels);
+        if (!dynamicVirtualChannel ||
+            !joins_.channelJoinConfirmed(*dynamicVirtualChannel))
+        {
+            close();
+            return std::nullopt;
+        }
+    }
+
+    const auto profile =
+        demandActiveProfileProvider_.prepare(sessionGeneration_, profilePolicy);
+    if (!profile)
+    {
+        close();
+        return std::nullopt;
+    }
+    return profile;
+}
+
+std::optional<RdpShareActivationWriteView>
+McsSessionLifecycle::beginVerifiedR2ShareActivation(
+    const SecurityNegotiationProvenance &provenance,
+    const RdpDemandActiveProfileView &profile) noexcept
+{
+    if (phase_ != McsSessionPhase::AwaitDemandActive ||
+        admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
+        allocatedUserId_ == 0U || !connectResponseAllocation_ ||
+        !connectResponseProvenanceBound_ ||
+        provenance != connectResponseBoundProvenance_ ||
+        provenance.serverSelectedProtocol != kRdpProtocolHybrid ||
+        !personalDesktopPolicySelected_ ||
+        licensing_.protocolMode() != RdpLicensingProtocolMode::PersonalDesktop ||
         licensing_.phase() != RdpLicensingPhase::Licensed ||
         !joins_.allConfiguredChannelsJoined() ||
+        profile.sessionGeneration() != sessionGeneration_ ||
+        !demandActiveProfileProvider_.owns(profile) ||
         !shareActivation_.begin(
             allocatedUserId_, connectResponseAllocation_.ioChannelId,
-            shareId, sessionId, sourceDescriptor, capabilityCount,
-            capabilitySets))
+            profile.shareId(), profile.sessionId(), profile.sourceDescriptor(),
+            profile.capabilityCount(), profile.capabilitySets()))
     {
         close();
         return std::nullopt;

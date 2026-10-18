@@ -2147,13 +2147,37 @@ LinuxRuntimeConnection::completePersonalDesktopValidClientWrite(
     return outcome;
 }
 
+std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
+LinuxRuntimeConnection::preparePersonalDesktopDemandActiveProfile(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    const rdp_server::server::transport::RdpDemandActiveProfilePolicy
+        &profilePolicy) noexcept
+{
+    if (personalShareIoAction_ != PersonalDesktopShareIoAction::Idle ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return std::nullopt;
+    }
+
+    const auto profile =
+        broker_->authorizeR3PersonalDesktopDemandActiveProfile(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            profilePolicy);
+    if (!profile)
+        revoke();
+    return profile;
+}
+
 bool LinuxRuntimeConnection::startPersonalDesktopShareActivation(
     const RuntimeDeploymentPolicy &deploymentPolicy,
-    std::uint32_t shareId,
-    std::uint32_t sessionId,
-    std::span<const std::uint8_t> sourceDescriptor,
-    std::uint16_t capabilityCount,
-    std::span<const std::uint8_t> capabilitySets) noexcept
+    const rdp_server::server::transport::RdpDemandActiveProfileView
+        &profile) noexcept
 {
     using Kind = rdp_server::server::transport::RdpShareServerWriteKind;
 
@@ -2172,8 +2196,7 @@ bool LinuxRuntimeConnection::startPersonalDesktopShareActivation(
     const auto pending =
         broker_->authorizeR3PersonalDesktopShareActivation(
             *lease_, acceptor_, connection_, session_, deploymentPolicy,
-            shareId, sessionId, sourceDescriptor, capabilityCount,
-            capabilitySets);
+            profile);
     if (!pending || pending->kind != Kind::DemandActive ||
         !personalShareActivationFrameReader_.reset())
     {
@@ -2482,11 +2505,8 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
 std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
 LinuxRuntimeConnection::beginPersonalDesktopShareActivation(
     const RuntimeDeploymentPolicy &deploymentPolicy,
-    std::uint32_t shareId,
-    std::uint32_t sessionId,
-    std::span<const std::uint8_t> sourceDescriptor,
-    std::uint16_t capabilityCount,
-    std::span<const std::uint8_t> capabilitySets) noexcept
+    const rdp_server::server::transport::RdpDemandActiveProfileView
+        &profile) noexcept
 {
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked())
     {
@@ -2497,8 +2517,7 @@ LinuxRuntimeConnection::beginPersonalDesktopShareActivation(
     const auto pending =
         broker_->authorizeR3PersonalDesktopShareActivation(
             *lease_, acceptor_, connection_, session_, deploymentPolicy,
-            shareId, sessionId, sourceDescriptor, capabilityCount,
-            capabilitySets);
+            profile);
     if (!pending)
         revoke();
     return pending;

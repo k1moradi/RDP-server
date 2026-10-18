@@ -4,6 +4,7 @@
 #include "gcc_conference_create.h"
 #include "mcs_connect_response.h"
 #include "rdp_clipboard_static_channel.h"
+#include "rdp_demand_active_profile.h"
 #include "rdp_licensing.h"
 #include "rdp/gfx_avc420_segmented_frame.h"
 
@@ -1411,6 +1412,7 @@ public:
         serverLicenseRequestWrite_.close();
         serverPlatformChallengeWrite_.close();
         personalDesktopValidClientWrite_.close();
+        demandActiveProfileProvider_.close();
         shareActivation_.close();
         clipboardStaticChannel_.close();
         graphicsDynamicVirtualChannel_.close();
@@ -1577,17 +1579,22 @@ private:
         const RdpLicensingServiceCredential &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
-    // Share activation can begin only after selected-mode licensing has
-    // completed. Every method remains private to the R2 broker/test shim;
-    // successful syntax alone never creates application-routing authority.
+    // R3 alone creates the immutable server Demand Active profile after
+    // selected-mode licensing. The typed policy describes only implemented
+    // presentation/input choices; it is not admission and contains no wire
+    // bytes, Share ID or session ID. Production callers reach this only
+    // through the freshly reauthorizing R2 broker.
+    [[nodiscard]] std::optional<RdpDemandActiveProfileView>
+    prepareVerifiedR2DemandActiveProfile(
+        const SecurityNegotiationProvenance &provenance,
+        const RdpDemandActiveProfilePolicy &profilePolicy) noexcept;
+
+    // Share activation accepts only the view minted by this exact session's
+    // R3 provider. An offline provider or stale view cannot enter live Share.
     [[nodiscard]] std::optional<RdpShareActivationWriteView>
     beginVerifiedR2ShareActivation(
         const SecurityNegotiationProvenance &provenance,
-        std::uint32_t shareId,
-        std::uint32_t sessionId,
-        std::span<const std::uint8_t> sourceDescriptor,
-        std::uint16_t capabilityCount,
-        std::span<const std::uint8_t> capabilitySets) noexcept;
+        const RdpDemandActiveProfileView &profile) noexcept;
     [[nodiscard]] std::optional<RdpShareActivationWriteView>
     pendingVerifiedR2ShareActivationWrite(
         const SecurityNegotiationProvenance &provenance) noexcept;
@@ -1692,6 +1699,7 @@ private:
         serverPlatformChallengeWrite_{licensing_};
     RdpPersonalDesktopValidClientWriteGate
         personalDesktopValidClientWrite_{licensing_};
+    RdpDemandActiveProfileProvider demandActiveProfileProvider_{};
     RdpShareActivationLifecycle shareActivation_{};
     RdpClipboardStaticChannelRoute clipboardStaticChannel_{};
     RdpDynamicVirtualChannelAllocator dynamicVirtualChannels_{};

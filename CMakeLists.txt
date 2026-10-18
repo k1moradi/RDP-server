@@ -169,6 +169,7 @@ add_library(rdp-server-protocol STATIC
     src/server/transport/tpkt_x224.cpp
     src/server/transport/mcs_connect_initial.cpp
     src/server/transport/mcs_channel_connection.cpp
+    src/server/transport/rdp_demand_active_profile.cpp
     src/server/transport/rdp_clipboard_static_channel.cpp
     src/server/transport/rdp_licensing.cpp
     src/server/transport/mcs_connect_response.cpp

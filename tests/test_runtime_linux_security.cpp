@@ -2575,9 +2575,7 @@ void testConnectionPersonalDesktopShareR1IoDenials(
     assert(personalPolicy.configurePersonalDesktop(false, 0U));
     RuntimeDeploymentPolicy appServerPolicy;
     assert(appServerPolicy.configureAppServerIssuerBacked());
-    constexpr std::array<std::uint8_t, 4> sourceDescriptor{
-        'r', 'd', 'p', 0};
-
+    
     // Share cannot begin from configuration or a socket alone. Failure
     // revokes the aggregate and a later scheduler call stays closed.
     {
@@ -2586,8 +2584,7 @@ void testConnectionPersonalDesktopShareR1IoDenials(
         LinuxRuntimeConnection connection{
             configuration, std::move(accepted)};
 
-        assert(!connection.startPersonalDesktopShareActivation(
-            personalPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+        assert(!connection.startPersonalDesktopShareActivation(\n            personalPolicy, {}));
         assert(!connection.ready());
 
         const auto replay =
@@ -2606,8 +2603,7 @@ void testConnectionPersonalDesktopShareR1IoDenials(
         LinuxRuntimeConnection connection{
             configuration, std::move(accepted)};
 
-        assert(!connection.startPersonalDesktopShareActivation(
-            appServerPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+        assert(!connection.startPersonalDesktopShareActivation(\n            appServerPolicy, {}));
         assert(!connection.ready());
         assert(::close(clientDescriptor) == 0);
     }
@@ -2764,10 +2760,7 @@ void testConnectionPersonalDesktopR3AuthorityDenials(
                    personalPolicy, 1U, 1U, 1U) ==
                RdpPersonalDesktopValidClientWriteOutcome::Rejected);
 
-        constexpr std::array<std::uint8_t, 4> sourceDescriptor{
-            'r', 'd', 'p', 0};
-        assert(!connection.beginPersonalDesktopShareActivation(
-            personalPolicy, 0x10001U, 1U, sourceDescriptor, 0U, {}));
+                assert(!connection.beginPersonalDesktopShareActivation(\n            personalPolicy, {}));
         assert(!connection.authorizePersonalDesktopShareActivationWrite(
             personalPolicy));
         assert(connection.completePersonalDesktopShareActivationWrite(

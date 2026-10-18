@@ -548,9 +548,24 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // R3 creates the immutable Demand Active profile only after R2 freshly
+    // reauthorizes the exact lease/R1/native-session owner. If slow-path input
+    // will be advertised, current input permission is required here as well.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpDemandActiveProfileView>
+    authorizeR3PersonalDesktopDemandActiveProfile(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpDemandActiveProfilePolicy
+            &profilePolicy) noexcept;
+
     // Demand Active + finalization use the existing R3 Share owner only.
-    // Every borrow, accepted-byte receipt and client intake is independently
-    // R2-authorized and policy-bound; none of these APIs mint Share authority.
+    // The caller can supply no Share ID, session ID or raw capability bytes.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpShareActivationWriteView>
     authorizeR3PersonalDesktopShareActivation(
@@ -561,11 +576,8 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy,
-        std::uint32_t shareId,
-        std::uint32_t sessionId,
-        std::span<const std::uint8_t> sourceDescriptor,
-        std::uint16_t capabilityCount,
-        std::span<const std::uint8_t> capabilitySets) noexcept;
+        const rdp_server::server::transport::RdpDemandActiveProfileView
+            &profile) noexcept;
 
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpShareActivationWriteView>

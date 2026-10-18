@@ -613,16 +613,22 @@ public:
         std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
-    // Begin R3's one Share transcript without publishing bytes. The returned
-    // R3 Demand Active borrow is deliberately not exposed; advance... below
-    // reauthorizes it and performs all actual TLS I/O through R1.
+    // Ask R3 for one immutable, validated Demand Active profile after fresh
+    // R2 authorization. R10 supplies only typed implemented-feature policy;
+    // it never supplies wire capabilities, Share IDs or Demand session IDs.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpDemandActiveProfileView>
+    preparePersonalDesktopDemandActiveProfile(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        const rdp_server::server::transport::RdpDemandActiveProfilePolicy
+            &profilePolicy) noexcept;
+
+    // Begin R3's one Share transcript without publishing bytes. The profile
+    // must be the exact view minted above by this connection's R3 owner.
     [[nodiscard]] bool startPersonalDesktopShareActivation(
         const RuntimeDeploymentPolicy &deploymentPolicy,
-        std::uint32_t shareId,
-        std::uint32_t sessionId,
-        std::span<const std::uint8_t> sourceDescriptor,
-        std::uint16_t capabilityCount,
-        std::span<const std::uint8_t> capabilitySets) noexcept;
+        const rdp_server::server::transport::RdpDemandActiveProfileView
+            &profile) noexcept;
 
     // Drive exactly one serialized Share I/O step. R10 owns only whether the
     // next scheduler operation is an R1 read or write; R3 owns Demand Active,
@@ -636,11 +642,8 @@ public:
         rdp_server::server::transport::RdpShareActivationWriteView>
     beginPersonalDesktopShareActivation(
         const RuntimeDeploymentPolicy &deploymentPolicy,
-        std::uint32_t shareId,
-        std::uint32_t sessionId,
-        std::span<const std::uint8_t> sourceDescriptor,
-        std::uint16_t capabilityCount,
-        std::span<const std::uint8_t> capabilitySets) noexcept;
+        const rdp_server::server::transport::RdpDemandActiveProfileView
+            &profile) noexcept;
 
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpShareActivationWriteView>

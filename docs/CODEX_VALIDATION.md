@@ -6026,3 +6026,41 @@ would have referred into the temporary vector returned by
 copies only the matched stable interface ID before building
 `RuntimeHostOptions`; no runtime interface object is retained or borrowed.
 Build/CTest remains PENDING.
+
+
+## R3 production Demand Active profile provider (2026-10-18)
+
+**Publication parent:** `31118f88977011c13e40893383f61abcfc29d88a`.
+
+R3 replaces the live raw Share-ID/session-ID/source/capability argument path with
+one session-owned immutable Demand Active profile. The provider emits canonical
+MS-RDPBCGR Share, General, Bitmap and Order capability sets and conditionally
+adds only the implemented slow-path Input and uncompressed Virtual Channel
+sets. It does not advertise fast-path input/output, codecs, bitmap caches,
+multimonitor, clipboard, RAIL, pointer cache, auto-reconnect or VC compression.
+Demand Active `sessionId` is fixed to zero; the source descriptor is bounded
+to four bytes; Share IDs use a process-wide non-wrapping 32-bit allocator.
+
+Production preparation and consumption are both private R3 transitions reached
+only through the concrete R2 broker. Slow-path Input advertisement requires the
+current R2 input permission, and DVC advertisement is denied unless the
+negotiated `drdynvc` static role is actually joined. A profile produced by an
+offline provider has a different provider identity and cannot enter the live
+`McsSessionLifecycle`.
+
+Six ordinary offline CTests are registered:
+`transport.demand-active-profile-exact-wire`,
+`transport.demand-active-profile-field-consistency`,
+`transport.demand-active-profile-policy-variants`,
+`transport.demand-active-profile-count-length-agreement`,
+`transport.demand-active-profile-stale-unsupported-denials`, and
+`transport.demand-active-profile-immutable-lifetime`.
+
+**Authoring evidence:** the standalone provider was compiled and exercised with
+C++23, `-Wall -Wextra -Wpedantic -Werror` in the available execution
+environment. The repository-mandated `~/rdp-server/build` configure/build/full
+CTest is **NOT RUN** here because this environment has no owner checkout and
+cannot resolve github.com from its shell. Exact-head hosted CI is **PENDING** at
+publication; owner-native Linux/X11, Windows and macOS receipts and live
+Microsoft-client captures remain **NOT RUN**. No positive R2 admission lease,
+desktop, listener or clipboard path was fabricated for these tests.

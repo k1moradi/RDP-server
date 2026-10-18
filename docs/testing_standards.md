@@ -1,3 +1,22 @@
+## R8 serialized CLIPRDR TLS writes preserve R1/R2/R3 receipts (2026-10-18)
+
+A live post-Share R8 clipboard writer must reborrow the current R3
+static-VC slice under fresh R2 lease and permission before every write.
+Only R1's actual accepted plaintext bytes may advance the R3
+route/reply/slice receipt. Positive partial acceptance retains exclusive
+TLS write ownership until the whole TPKT is delivered; SSL WANT_READ
+continues the same write and cannot be reinterpreted as application input.
+No new R1 reader, writer, scheduler, clipboard generation or receipt state
+is permitted. R10 must prioritize this retained slice ahead of Graphics
+DATA and inbound TPKTs; terminal revocation defeats late callbacks.
+
+Keep `runtime.linux-connection-personal-clipboard-tls-write-denials`
+as one ordinary no-lease R1 write/retirement regression, separately from
+R8's fixed 87 clipboard sanitizer cases and R9's two native-linkage
+guards. Positive full/partial receipts and native X11 INCR Stop/reconnect
+retirement must also be verified once the authenticated R10 scheduler
+selects the real R8 clipboard branch. Static linkage is not publication.
+
 ## R1 persistent read-WANT/interleaved outbound frame regression (2026-10-18)
 
 The ordinary full CTest `transport.tcp-owned-tls-read-want-interleaved-frame-write`

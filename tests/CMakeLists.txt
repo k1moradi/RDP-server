@@ -1071,6 +1071,18 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-connection-personal-post-share-single-reader-denials
         PROPERTIES LABELS "runtime;security;r10-post-share;offline")
 
+    # R8 outbound clipboard must borrow the current R3 write and complete
+    # its accepted-byte receipt through the sole R1 TLS owner. An absent
+    # R2 lease forbids either writable or delayed plaintext publication.
+    # Keep this distinct from the fixed 87 clipboard sanitizer inventory.
+    add_test(NAME runtime.linux-connection-personal-clipboard-tls-write-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-personal-clipboard-tls-write-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-personal-clipboard-tls-write-denials
+        PROPERTIES LABELS "runtime;security;r8-r3;offline")
+
     # Real production runtime owner contract, with no synthetic positive R2
     # admission, physical X11 host or auto-start. Source guards complement
     # the executable-backed missing-lease and R1 I/O tests above.

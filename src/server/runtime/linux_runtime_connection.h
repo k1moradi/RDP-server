@@ -457,6 +457,19 @@ struct LinuxPostShareApplicationReadResult final
         LinuxPostShareApplicationReadStatus::Closed};
 };
 
+// Scalar-only result of one authorized R3 clipboard write through R1 TLS.
+enum class LinuxClipboardTlsWriteStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, Delivered, AdmissionDenied, Invalid, Closed,
+};
+struct LinuxClipboardTlsWriteResult final
+{
+    std::size_t acceptedBytes{};
+    rdp_server::server::transport::RdpClipboardWriteOutcome receipt{
+        rdp_server::server::transport::RdpClipboardWriteOutcome::Rejected};
+    LinuxClipboardTlsWriteStatus status{LinuxClipboardTlsWriteStatus::Closed};
+};
+
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
 // It does NOT bind/listen and it does not invent protocol/authentication state:
 // R1 remains the sole socket/BIO/SSL owner, R2 remains the sole native
@@ -806,6 +819,14 @@ public:
         std::uint64_t routeGeneration, std::uint64_t replySequence,
         std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept;
 
+    // R10 calls this for one already queued CLIPRDR slice, before any
+    // other socket operation. The R1 write and R2/R3 receipt share one
+    // serialized invocation; no native publication or new SSL owner.
+    [[nodiscard]] LinuxClipboardTlsWriteResult
+    advancePersonalDesktopClipboardTlsWrite(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable) noexcept;
+
     // Borrow the R2-owned logind monitor fd and libsystemd poll mask only
     // after genuine admission with a live lease. Both are -1 otherwise.
     // Neither value owns/duplicates a descriptor or grants authorization.
@@ -952,6 +973,8 @@ private:
     PersonalDesktopGraphicsDvcIoAction personalGraphicsDvcIoAction_{
         PersonalDesktopGraphicsDvcIoAction::Idle};
     bool personalGraphicsDvcTlsWritePending_{};
+    bool personalClipboardWriteInProgress_{};
+    bool personalClipboardTlsRetryPending_{};
     std::optional<RuntimeExistingCalValidationBinding>
         existingCalValidation_{};
     std::optional<LinuxRuntimeNativeChangeRegistration>

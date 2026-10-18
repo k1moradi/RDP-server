@@ -1,3 +1,29 @@
+## R8 protected clipboard R1 write handoff (2026-10-18)
+
+R10's persistent post-Share Linux scheduler at `4795c6dd` and its
+`2a3f06b0` retirement correction resolved the former missing runtime
+session lifetime. R8 now provides a still-dormant connection-local
+`advancePersonalDesktopClipboardTlsWrite` step: it reborrows the current
+R2-authorized R3 static-VC write, calls only R1's established TLS writer,
+commits actual positive accepted-byte receipts through the existing R2/R3
+gateway, retains SSL WANT direction, and fences an unfinished clipboard
+TPKT against application reads and Graphics DATA publication. Zero/uncertain
+receipts and revoked authority fail terminally. The new production-backed
+`runtime.linux-connection-personal-clipboard-tls-write-denials` CTest
+checks missing-lease denial and late retries without any synthetic admission.
+
+This CTest uses only the distinct runtime/security label, not the fixed
+**87** R8 clipboard component tests or R9's **two** dormant native-linkage
+guards. `main.cpp` still deliberately denies the CLIPRDR route and does
+not instantiate the X11 clipboard adapter: native publication remains
+**disabled**. The next integration boundary is R10's serialized scheduler
+selecting queued R8 writes, passing the exact R2-committed receipt to
+`R3ClipboardTransferBridge`, and composing the R2-permitted native
+X11 owner with terminal Stop/logout/INCR retirement. Real positive
+partial-write/native evidence is still required before enabling clipboard.
+Owner-local configure/build/full CTest: **NOT RUN**; hosted exact-commit
+CI: **PENDING**; authorized physical-X11 Microsoft-client test: **NOT RUN**.
+
 ## R7 macOS signed framework ZIP-alias correction (2026-10-18)
 
 **Observed real blocker:** on corrective R7 SHA

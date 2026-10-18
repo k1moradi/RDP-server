@@ -2679,6 +2679,7 @@ startPersonalDesktopClearCodecFramePublication(
 
     if (personalGraphicsDvcIoAction_ != Action::Ready ||
         personalGraphicsDvcTlsWritePending_ ||
+        personalClipboardWriteInProgress_ ||
         personalDesktopPolicy_ != &deploymentPolicy ||
         !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
         !deploymentPolicy.requiresNativeSessionRevocation() ||
@@ -3103,6 +3104,14 @@ LinuxRuntimeConnection::advancePersonalDesktopPostShareApplicationRead(
         // R1's pending TLS write and R3 receipt must finish first. WANT_READ
         // is part of that same write, not permission to read another TPKT.
         return {0U, ioInterest() == Interest::Read
+                         ? Step::NeedRead : Step::NeedWrite};
+    }
+    if (personalClipboardWriteInProgress_)
+    {
+        // A positive-partial static-VC TPKT or SSL WANT remains the sole R1
+        // writer; reading a new application TPKT here would interleave it.
+        return {0U, personalClipboardTlsRetryPending_ &&
+                          ioInterest() == Interest::Read
                          ? Step::NeedRead : Step::NeedWrite};
     }
     if (personalGraphicsDvcIoAction_ != Action::Ready ||
@@ -3642,6 +3651,110 @@ LinuxRuntimeConnection::cancelExistingCalValidation() noexcept
     return operation;
 }
 
+
+LinuxClipboardTlsWriteResult
+LinuxRuntimeConnection::advancePersonalDesktopClipboardTlsWrite(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable) noexcept
+{
+    using Step = LinuxClipboardTlsWriteStatus;
+    using Outcome = rdp_server::server::transport::RdpClipboardWriteOutcome;
+    using IoOutcome = rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Interest = rdp_server::server::transport::TcpConnectionIoInterest;
+
+    if (!ready())
+        return {0U, Outcome::Rejected, Step::Closed};
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        personalGraphicsDvcIoAction_ !=
+            PersonalDesktopGraphicsDvcIoAction::Ready ||
+        personalGraphicsDvcTlsWritePending_ ||
+        !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return {0U, Outcome::Rejected, Step::AdmissionDenied};
+    }
+
+    // A current R2 lease and exact R3 route are mandatory before any R1 byte.
+    const auto pending = pendingPersonalDesktopClipboardWrite(
+        deploymentPolicy);
+    if (!pending || !*pending || pending->wireBytes.empty() || !ready())
+    {
+        revoke();
+        return {0U, Outcome::Rejected, Step::AdmissionDenied};
+    }
+    personalClipboardWriteInProgress_ = true;
+    if (personalClipboardTlsRetryPending_)
+    {
+        // Reuse R1's existing WANT direction and the very same write suffix.
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Read && !readable)
+            return {0U, Outcome::Pending, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, Outcome::Pending, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            revoke();
+            return {0U, Outcome::Rejected, Step::Invalid};
+        }
+    }
+    else if (!writable)
+    {
+        return {0U, Outcome::Pending, Step::NeedWrite};
+    }
+
+    const auto payload = pending->wireBytes.first((std::min)(
+        pending->wireBytes.size(),
+        rdp_server::server::transport::kMaximumTlsApplicationIoBytes));
+    const auto io = connection_.writeTlsApplicationData(payload);
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        personalClipboardTlsRetryPending_ = false;
+        if (io.bytes == 0U || io.bytes > payload.size())
+        {
+            revoke();
+            return {0U, Outcome::Rejected, Step::Invalid};
+        }
+        const auto receipt = completePersonalDesktopClipboardWrite(
+            deploymentPolicy, pending->routeGeneration,
+            pending->replySequence, pending->writeSliceSequence, io.bytes);
+        if (receipt == Outcome::Rejected || !ready())
+        {
+            revoke();
+            return {io.bytes, Outcome::Rejected, Step::AdmissionDenied};
+        }
+        if (receipt == Outcome::Delivered)
+        {
+            personalClipboardWriteInProgress_ = false;
+            return {io.bytes, receipt, Step::Delivered};
+        }
+        return {io.bytes, receipt, Step::Progress};
+    }
+    case IoOutcome::NeedRead:
+        personalClipboardTlsRetryPending_ = true;
+        return {0U, Outcome::Pending, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        personalClipboardTlsRetryPending_ = true;
+        return {0U, Outcome::Pending, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        revoke();
+        return {0U, Outcome::Rejected, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        revoke();
+        return {0U, Outcome::Rejected, Step::Invalid};
+    }
+    revoke();
+    return {0U, Outcome::Rejected, Step::Invalid};
+}
+
 void LinuxRuntimeConnection::revoke() noexcept
 {
     // Retire untrusted post-admission framing before any authority or transport
@@ -3658,6 +3771,8 @@ void LinuxRuntimeConnection::revoke() noexcept
     personalGraphicsDvcFrameReader_.close();
     personalGraphicsDvcIoAction_ = PersonalDesktopGraphicsDvcIoAction::Idle;
     personalGraphicsDvcTlsWritePending_ = false;
+    personalClipboardWriteInProgress_ = false;
+    personalClipboardTlsRetryPending_ = false;
     personalShareIoAction_ = PersonalDesktopShareIoAction::Idle;
     personalShareTlsWritePending_ = false;
     personalValidClientTlsWritePending_ = false;

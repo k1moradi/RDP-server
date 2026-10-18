@@ -1,3 +1,32 @@
+## R8 R1 TLS clipboard outbound write and receipt boundary (2026-10-18)
+
+With R10's persistent post-Share scheduler now in production source, the
+first R8 outbound integration is the connection-owned, R2-gated
+`advancePersonalDesktopClipboardTlsWrite`: reborrow the exact R3
+static-channel write under fresh R2 authorization, use the sole R1
+`writeTlsApplicationData`, then commit only accepted plaintext bytes via
+the existing R2/R3 clipboard receipt gate. Positive partial progress
+retains exclusive write ownership; SSL WANT_READ is not a new TPKT read
+and neither Graphics DATA nor a second application packet may interleave.
+The result publishes only stable scalar bytes/outcome, never a retained
+transport span. R2/Share/channel/SSL failure causes terminal revocation.
+
+New ordinary production-backed CTest
+`runtime.linux-connection-personal-clipboard-tls-write-denials`
+denies no-lease writes even when the R1 descriptor appears writable,
+verifies zero accepted bytes, and prevents retry after revocation. No
+synthetic R2 lease, OS session or clipboard publication is supplied.
+The test remains outside the 87-case R8 component sanitizer and the
+separate exact-two native-linkage guards.
+
+Owner's Linux, Windows and macOS configure/build/full CTest: **NOT RUN**
+(approved local checkout and toolchain not available in this connector
+environment). Exact publication-SHA CI: **PENDING**. `main.cpp` still
+denies CLIPRDR until R10's one serialized socket/X11 loop schedules
+clipboard writes, connects R8's bridge receipts and composes the native
+adapter with Stop/replacement/INCR retirement. No live Microsoft-client
+clipboard, real native admission or GUI Start/Stop is claimed.
+
 ## R1 post-Share TLS read WANT and outbound Graphics publication (2026-10-18)
 
 Source parent `57103ca14b941a6e7fb5a2c2ebb353d8a3d3c994`. R10's persistent Graphics loop needs R1 to

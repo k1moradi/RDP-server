@@ -2897,6 +2897,47 @@ void testConnectionPersonalDesktopSlowPathInputGatewayDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopClipboardTlsWriteDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Status = rdp_server::server::runtime::LinuxClipboardTlsWriteStatus;
+    using Outcome = rdp_server::server::transport::RdpClipboardWriteOutcome;
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-clipboard-tls-write.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktop(true, 3389U));
+
+    // A configured transport, even writable, is not an R2 admission lease.
+    // Neither a first attempt nor a late retry can emit clipboard plaintext.
+    for (const bool writable : {false, true})
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(connection.ready() && !connection.hasAdmissionLease());
+        const auto first =
+            connection.advancePersonalDesktopClipboardTlsWrite(
+                policy, false, writable);
+        assert(first.status == Status::AdmissionDenied);
+        assert(first.receipt == Outcome::Rejected);
+        assert(first.acceptedBytes == 0U);
+        assert(!connection.ready());
+        const auto late =
+            connection.advancePersonalDesktopClipboardTlsWrite(
+                policy, true, true);
+        assert(late.status == Status::Closed);
+        assert(late.receipt == Outcome::Rejected);
+        assert(late.acceptedBytes == 0U);
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPersonalDesktopClipboardGatewayDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3467,6 +3508,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-desktop-slow-path-input-gateway-denials")
     {
         testConnectionPersonalDesktopSlowPathInputGatewayDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-clipboard-tls-write-denials")
+    {
+        testConnectionPersonalDesktopClipboardTlsWriteDenials(
             fixtureDirectory);
         return 0;
     }

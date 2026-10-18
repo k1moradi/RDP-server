@@ -6337,3 +6337,18 @@ is **NOT RUN** in this connector environment. No alternate persistent build
 root, synthetic R2 lease, desktop, listener, or native input was created.
 Exact publication-SHA hosted CI is **PENDING** at authoring; owner-native and
 Microsoft-client live evidence remain **NOT RUN**.
+
+
+### R3 Confirm Active registry-count correction (2026-10-18)
+
+Hosted macOS compilation of `f6bcc214cfb098cc963297e365af45b002b12378` reached the R3 test executable and
+reported that the fixed-size `kMcsTestCases` registry still declared 152
+entries after the two new Confirm Active/finalization cases were registered.
+This correction changes that declaration to 154; production R3 protocol code
+is unchanged.
+
+The same publication's Linux build stops earlier in R8-authored runtime code at
+`broker_ != nullptr`, where `broker_` is a `std::optional`. That failure
+predates this R3 increment and is recorded as an external exact-head build
+blocker rather than being misattributed to Confirm Active processing. Hosted
+verification of this correction remains pending.

@@ -6368,3 +6368,16 @@ The same publication's Linux build stops earlier in R8-authored runtime code at
 predates this R3 increment and is recorded as an external exact-head build
 blocker rather than being misattributed to Confirm Active processing. Hosted
 verification of this correction remains pending.
+
+### R7 macOS PORTABLE-GUI otool preflight correction (2026-10-18)
+
+Hosted descendants through `a770c4f88501` consistently reached the real
+`macos-26-arm64` runner, installed Homebrew Qt 6.11.2, found
+`macdeployqt`, and reported an arm64 AppleClang target, but the R7 packaging
+lane stopped before CMake because Xcode's `otool` rejects `-version` and
+requires `--version`. Latest observed R7 job `117677321532` failed at that
+single preflight command. This correction changes only that flag and preserves
+the same no-listener/no-TCC package job. Exact correction-SHA structure,
+native app build, archive CTest, macdeployqt, R9 verifier and Mach-O closure
+results are PENDING. Live Start remains BLOCKED on the absent concrete
+`RuntimeHostControl` backend.

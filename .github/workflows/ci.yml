@@ -1594,7 +1594,7 @@ jobs:
           test -x "$qt_prefix/bin/macdeployqt"
           "$qt_prefix/bin/qmake" -query QT_VERSION
           xcrun clang++ --version
-          otool -version
+          otool --version
       - name: Configure and build real R7 Qt app bundle
         shell: bash
         run: |

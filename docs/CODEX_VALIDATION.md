@@ -1,3 +1,27 @@
+## R5 authenticated RDP signed-wheel native mapping (2026-10-18)
+
+Authoring parent `c910823971dd71719ed2f48fdf96283355bdee94`. R3 already checks negotiated
+horizontal-wheel capability; R2's LinuxRuntimeConnection
+reauthorizes every decoded event before R5's stateless native
+XTEST sink. The translator now sign-extends the 9-bit RDP
+TS_POINTER_EVENT wheel rotation, honors vertical precedence,
+ignores unrelated flags and client wheel coordinates, and
+reuses existing X11ScrollInput bounded XTEST wheel injection.
+The XTEST protocol interprets rootX/Y only for motion; no
+client-coordinate pointer reposition is introduced.
+
+New native-optional offline CTest:
+`x11.input-rdp-wheel-sign-extension-axis-and-coordinate-denials`.
+Tests include ±120, extrema/zero, dual axes, ignored flags and
+out-of-range wheel x/y, and invalid geometry/non-wheel syntax.
+The base mapping CTest removes previous WHEEL/HWHEEL invalids.
+Owner canonical Debug/full CTest **NOT RUN** (checkout unavailable);
+exact published SHA hosted CI **PENDING**. R10 still has no
+persistent sole R1 post-Share application packet router;
+real X11 seat0, Kerberos/PAM and Microsoft-client testing
+**BLOCKED / NOT RUN** pending explicit owner authorization.
+R9's anchored sanitizer inventory must be separately enrolled.
+
 ## R9 repairs R7 install-ID fixture directory reuse (2026-10-18)
 
 R7 `19e4dfffa808fed3cda5aeffd9c4c915063cfff8` adds macOS staged install-ID normalization and ad-hoc preview signing. Its hosted primary reaches ordinary CTest on both Ubuntu and macOS but fails the new fixture before the normalization assertions run: shared `MacGuiBundleTests.setUp()` has already created `rdp-server-desktop.app/Contents/MacOS`, while `test_absolute_install_ids_normalized_before_adhoc_signing` calls `mkdir(parents=True)` on that same directory. Both jobs report `FileExistsError`, so this is a test-fixture defect rather than evidence against the packager.

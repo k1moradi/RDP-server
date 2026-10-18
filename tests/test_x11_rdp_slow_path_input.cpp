@@ -56,8 +56,7 @@ int main()
     for (const std::uint16_t invalidFlags : {
          std::uint16_t{0U}, std::uint16_t{0x8000U},
          std::uint16_t{0x3000U}, std::uint16_t{0x1800U},
-         std::uint16_t{0x0200U}, std::uint16_t{0x0400U},
-         std::uint16_t{0xffffU}})
+         std::uint16_t{0x0100U}, std::uint16_t{0x0088U}})
     {
         event.pointerFlags = invalidFlags;
         assert(!translateRdpSlowPathX11Input(event, desktop));

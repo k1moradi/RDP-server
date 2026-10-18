@@ -2292,6 +2292,20 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         x11.input-rdp-mousex-side-button-bounds-and-flag-denials PROPERTIES
         LABELS "x11;linux-adapter;security;input;offline"
         TIMEOUT 20)
+    # R3-decoded signed 9-bit wheel units, vertical precedence, ignored
+    # client coordinates and strict no-XTEST/offline mapping regression.
+    add_executable(test_x11_rdp_wheel
+        test_x11_rdp_wheel.cpp)
+    target_link_libraries(test_x11_rdp_wheel PRIVATE
+        rdp-server-linux-x11-authorized-input)
+    target_compile_options(test_x11_rdp_wheel PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME x11.input-rdp-wheel-sign-extension-axis-and-coordinate-denials
+        COMMAND test_x11_rdp_wheel)
+    set_tests_properties(
+        x11.input-rdp-wheel-sign-extension-axis-and-coordinate-denials PROPERTIES
+        LABELS "x11;linux-adapter;security;input;offline"
+        TIMEOUT 20)
 endif()
 
 # R10 production dependency handoff for R5's landed protected input bridge.

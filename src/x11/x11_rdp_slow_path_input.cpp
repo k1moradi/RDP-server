@@ -31,8 +31,12 @@ std::optional<X11InputEvent> translateRdpSlowPathX11Input(
         // Coordinates come from R3's exact TS_POINTER_EVENT decode. XTEST
         // must not clamp a client-selected out-of-bounds location into an
         // otherwise authorized physical X11 desktop.
-        if (event.xPos >= geometry.widthPixels ||
-            event.yPos >= geometry.heightPixels)
+        constexpr std::uint16_t wheelFlags = 0x0600U;
+        // Wheel coordinate fields are intentionally ignored by the RDP
+        // protocol. Only absolute motion/buttons require geometry bounds.
+        if ((event.pointerFlags & wheelFlags) == 0U &&
+            (event.xPos >= geometry.widthPixels ||
+             event.yPos >= geometry.heightPixels))
             return std::nullopt;
 
         constexpr std::uint16_t move = 0x0800U;
@@ -41,6 +45,30 @@ std::optional<X11InputEvent> translateRdpSlowPathX11Input(
         constexpr std::uint16_t right = 0x2000U;
         constexpr std::uint16_t middle = 0x4000U;
         const std::uint16_t flags = event.pointerFlags;
+
+        constexpr std::uint16_t verticalWheel = 0x0200U;
+        constexpr std::uint16_t horizontalWheel = 0x0400U;
+        constexpr std::uint16_t wheelMask = 0x01ffU;
+        constexpr std::uint16_t wheelSign = 0x0100U;
+        if ((flags & (verticalWheel | horizontalWheel)) != 0U)
+        {
+            // MS-RDPBCGR TS_POINTER_EVENT: a signed 9-bit wheel
+            // rotation. Sign-extension is essential: 0x188 means -120,
+            // not +136. Vertical wins if both axis flags appear.
+            // Other flags are ignored by the wheel interpretation.
+            // Client wheel xPos/yPos MUST NOT affect the X11 cursor.
+            const std::uint16_t wheelBits = flags & wheelMask;
+            const std::int32_t rotation =
+                (wheelBits & wheelSign) != 0U
+                    ? static_cast<std::int32_t>(wheelBits) - 0x200
+                    : static_cast<std::int32_t>(wheelBits);
+            return X11ScrollInput{
+                0, 0, rotation,
+                (flags & verticalWheel) != 0U
+                    ? X11ScrollAxis::Vertical
+                    : X11ScrollAxis::Horizontal};
+        }
+
         if (flags == move)
             return X11PointerMoveInput{event.xPos, event.yPos};
 

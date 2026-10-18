@@ -1,3 +1,24 @@
+## R5 signed wheel and native XTEST scroll contract (2026-10-18)
+
+For RDP MS-RDPBCGR TS_POINTER_EVENT, wheelFlags (0x0200/0x0400)
+identify the event; the 0x01ff WheelRotationMask is signed and
+bit 0x0100 requires 9-bit sign extension. Vertical wins when
+both axis flags are set. Other flags and the untrusted x/y
+wheel fields are ignored for wheel semantics. Emit native
+X11ScrollInput into the existing 120-unit bounded XTEST
+4/5 (vertical) or 6/7 (horizontal) accumulator. XTEST
+rootX/rootY matter only on MotionNotify, not button events:
+never let wheel fields move the pointer. Preserve R3 horizontal
+capability negotiation and R2 per-event input authorization.
+
+Keep a separate offline CTest
+`x11.input-rdp-wheel-sign-extension-axis-and-coordinate-denials`
+for ±120, extrema, both axes, wheel-field ignore and malformed
+non-wheel/zero-geometry denials. Existing MouseX and base
+translator cases remain. Do not claim real R2, XTEST or client
+acceptance from this test; R9 separately adjusts focused
+sanitizer counts.
+
 ## R8 production linkage without clipboard authority (2026-10-18)
 
 The production Linux server may link the existing R8 R3 bridge and X11

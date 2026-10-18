@@ -1,3 +1,18 @@
+## R5 Qt-native Linux seat0 GUI preflight test boundary (2026-10-18)
+
+Opt-in Linux Qt builds compile the GUI's real read-only prerequisite parser,
+register `gui.linux-readonly-seat0-prerequisite-denials` in ordinary CTest,
+and run it in the R5 hosted Linux GUI job before actual extracted GUI smoke.
+The offline fixture injects logind observations (seat/type/active/remote/
+display), tests Wayland/Xvfb-display mismatch, unusable session IDs, missing
+logind reply and libraries, and verifies that a deny-only host-control GUI
+still refuses Start. The read-only probe must be asynchronous, bounded,
+parent-owned, and non-authorizing; native R2 admission, logind-watcher
+registration, pixel capture and XTEST are never created by GUI or test.
+Neither a synthetic positive seat0 observation nor successful Xvfb GUI
+startup is evidence for a true physical seat or an authenticated client.
+Run owner full Debug CTest and record exact hosted SHA before claiming PASS.
+
 ## R6 Windows PORTABLE-GUI offline contract (2026-10-18)
 
 windows.gui-portable-zip-integrity-path-uninstall-denials is a portable synthetic-PE test of the Windows ZIP builder and passes its output through R9's production PORTABLE-GUI verifier. It exercises Unicode/space paths, full payload and outer hashes, disabled listen/autostart example configuration, Qt platform-plugin presence, case-alias/helper denial and clean removal. It never starts Qt, opens a socket, changes a firewall rule, elevates, installs a service or mints R2 admission.

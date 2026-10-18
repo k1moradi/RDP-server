@@ -1006,6 +1006,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     target_include_directories(rdp-server-desktop-ui PUBLIC
         "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}/src/gui")
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # GUI-only, non-authorizing logind/X11 diagnostic; no second watcher.
+        target_sources(rdp-server-desktop-ui PRIVATE
+            src/gui/linux_prerequisites.cpp)
+    endif()
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
     add_executable(rdp-server-desktop src/gui/main.cpp)

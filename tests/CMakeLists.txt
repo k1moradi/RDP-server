@@ -2639,3 +2639,20 @@ add_test(NAME windows.gui-portable-zip-integrity-path-uninstall-denials
         "${PROJECT_SOURCE_DIR}/tests/test_windows_gui_bundle.py")
 set_tests_properties(windows.gui-portable-zip-integrity-path-uninstall-denials
     PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 30)
+
+# R5 read-only Linux GUI preflight has no R2 lease/selection or X11 owner.
+# The production parser is linked to the optional Qt desktop shell.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RDP_SERVER_BUILD_DESKTOP_GUI)
+    add_executable(test_linux_gui_prerequisites
+        test_linux_gui_prerequisites.cpp)
+    target_link_libraries(test_linux_gui_prerequisites PRIVATE
+        rdp-server-desktop-ui)
+    target_compile_options(test_linux_gui_prerequisites PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME gui.linux-readonly-seat0-prerequisite-denials
+        COMMAND test_linux_gui_prerequisites)
+    set_tests_properties(
+        gui.linux-readonly-seat0-prerequisite-denials PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;linux;native-preflight;security;offline" TIMEOUT 20)
+endif()

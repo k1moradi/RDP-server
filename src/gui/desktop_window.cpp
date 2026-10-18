@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "desktop_window.h"
+#if defined(Q_OS_LINUX)
+#include "linux_prerequisites.h"
+#endif
 #include <QApplication>
 #include <QClipboard>
 #include <QCloseEvent>
@@ -12,6 +15,7 @@
 #include <QSpinBox>
 #include <QSignalBlocker>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QVBoxLayout>
 namespace rdp::gui {
 namespace {
@@ -110,6 +114,25 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     permissions->addWidget(label("Linux X11 logged-in seat, Windows interactive desktop, and macOS Screen "
         "Recording/Accessibility/Input Monitoring are platform-dependent. macOS TCC consent is requested "
         "later by the real native owner, never as authentication."));
+#if defined(Q_OS_LINUX)
+    // R5: display read-only native seat/X11 prerequisites without creating
+    // an R2 selection, listener, X11 capture, logind watcher or input owner.
+    auto* linuxPrerequisites = label(
+        "Linux X11 prerequisites not yet inspected; no native admission.");
+    linuxPrerequisites->setObjectName("linuxPrerequisiteStatus");
+    permissions->addWidget(linuxPrerequisites);
+    auto* refreshLinux = new QPushButton("Refresh Linux X11 prerequisites", this);
+    refreshLinux->setObjectName("refreshLinuxPrerequisites");
+    permissions->addWidget(refreshLinux);
+    connect(refreshLinux, &QPushButton::clicked, this, [linuxPrerequisites] {
+        requestLinuxPrerequisites(linuxPrerequisites);
+    });
+    // Probe asynchronously only after the window event loop starts. Launch
+    // remains unprivileged and does not start sharing or capture pixels.
+    QTimer::singleShot(0, linuxPrerequisites, [linuxPrerequisites] {
+        requestLinuxPrerequisites(linuxPrerequisites);
+    });
+#endif
     requestHostPermission_->setObjectName("requestHostPermission");
     permissions->addWidget(requestHostPermission_);
     permissions->addWidget(permissionStatus_);

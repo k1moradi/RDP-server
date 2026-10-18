@@ -1689,14 +1689,18 @@ jobs:
           set -euo pipefail
           python3 tests/test_linux_gui_preflight.py
           python3 tests/test_linux_gui_bundle.py
-      - name: Build R7 Qt desktop shell only
+      - name: Build R7 GUI and run native read-only R5 preflight CTest
         run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTING=OFF -DRDP_SERVER_BUILD_TESTING=OFF \
+            -DBUILD_TESTING=ON -DRDP_SERVER_BUILD_TESTING=ON \
             -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
           cmake --build build --config Release \
-            --target rdp-server-desktop --parallel 2
+            --target rdp-server-desktop test_linux_gui_prerequisites \
+            --parallel 2
+          ctest --test-dir build -C Release \
+            -R '^gui[.]linux-readonly-seat0-prerequisite-denials$' \
+            --output-on-failure
       - name: Package, extract and inspect actual Qt/XCB closure
         shell: bash
         run: |

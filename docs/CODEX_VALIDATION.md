@@ -1,3 +1,21 @@
+## R5 read-only Linux Qt/X11 GUI prerequisite integration (2026-10-18)
+
+Read current `main` R3 canonical Demand Active, R10 serialized Share/Graphics
+control, R2 native lease visitor/logind borrow and R7 Qt host-control code.
+Added `src/gui/linux_prerequisites.h/.cpp` to display advisory seat0 X11,
+logind session/display and X11/XCB prerequisite status asynchronously in
+R7's permissions page. It does not authorize desktop selection, invent
+admission/native generations, start capture/listening, post XTEST or install
+systemd; R10's real host-control implementation remains unavailable.
+Added native Qt `gui.linux-readonly-seat0-prerequisite-denials` CTest and
+the corresponding R5 Linux Qt CI build/CTest gate. Synthetic tests do not
+mint R2 credentials. Owner canonical Debug CTest: NOT RUN (local checkout
+not mounted); Linux Qt and exact publication-SHA hosted jobs: PENDING;
+physical X11/Microsoft-client live acceptance: BLOCKED/NOT RUN. The next
+native gate is R10's sole owner construction through
+`visitNativeDesktopSelection()` after genuine ShareActivated, plus explicit
+owner authorization and serialized native logind retirement.
+
 ## R10 post-Share Graphics DVC control composition (2026-10-18)
 
 Authoring base `5e164e46258487b712d63bc091fa54f82a78c789`. The live Linux serve loop now continues from genuine `ShareActivated` through the existing R3 DRDYNVC/RDPGFX control owner. R1 performs the only TLS application I/O; R2 reauthorizes each control transition and accepted-byte receipt; R3 owns DVC allocation, capabilities, Graphics CREATE and CAPS state. Completion requires `LinuxPersonalDesktopGraphicsDvcStepStatus::Ready` plus a fresh application-traffic authorization check.

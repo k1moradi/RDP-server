@@ -589,7 +589,9 @@ void
 X11DesktopResources::disconnect() noexcept
 {
     const bool wasHealthy = failureReason_ == nullptr;
-    cancelNativeResources();
+    // A graceful caller may release held input only while R2 is still live;
+    // terminal capture/event/injection failure uses the suppressing default.
+    cancelNativeResources(InputRetirementMode::ReleaseHeldState);
     if (wasHealthy)
     {
         failureReason_ = "X11 desktop resources are disconnected";

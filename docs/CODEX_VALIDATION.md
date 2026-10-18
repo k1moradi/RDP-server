@@ -1,3 +1,30 @@
+## R5 fatal X11 resource-error no-input cleanup (2026-10-18)
+
+Parent `788f580665f5ba2b7837f706f3f063a3f5525b7e`. After R10's serialized first-frame/XCB owner landed,
+R5 audited fatal resource cleanup. Previously the private
+`cancelNativeResources()` default could release XTEST-held keys/buttons
+on XCB event error, XShm capture failure, input failure or invalid
+RandR reconstruction. It now defaults to
+`InputRetirementMode::SuppressNativeInput`. The one deliberate
+`X11DesktopResources::disconnect()` still requests graceful
+`ReleaseHeldState` when its caller holds fresh authorization; ordinary
+successful RandR geometry-only rebuild is not changed. No R2/R3/R10
+runtime authority or listener changes.
+
+New cross-host dedicated CTest
+`x11.input-native-failure-terminal-retirement-no-xtest`
+checks the production aggregate's private default and sole graceful
+exception plus fatal paths. Existing Xvfb
+`x11.input-native-authority-retirement-no-native-post`
+provides actual held-key/button no-post controller evidence. Static
+source-contract preflight **PASS**; owner-local full configure/build/CTest
+**NOT RUN** (no checkout/toolchain); exact publication-SHA GitHub CI
+**PENDING**. Synthetic Xvfb/inspection cannot authorize or demonstrate
+a physical seat0 or Microsoft-client session. R10 two native source
+guards were separately corrected by `e00593e`; await its hosted
+results. Next gate: exact-head Linux CI plus owner-authorized physical
+X11 video/input and logout/reconnect.
+
 ## R9 R8 clipboard TLS writer focused sanitizer coverage (2026-10-18)
 
 The existing R9 fixed **87/87** clipboard component selection does not

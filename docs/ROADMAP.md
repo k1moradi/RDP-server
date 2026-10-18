@@ -1,3 +1,24 @@
+## R5 native-error terminal input retirement (2026-10-18)
+
+R10 `4795c6dd` and `2a3f06b0` resolved the persistent
+single-X11-owner/TLS input and first-frame borrow dependency; R5's
+`060297641ad0` native handoff CTests pass on hosted Ubuntu. R10
+`e00593e86700` now repairs its two legacy native-poll source guards;
+exact descendant hosted CTest is pending. R5 found that terminal XCB
+event, XShm capture, XTEST injection and failed RandR error paths
+called `cancelNativeResources()` with an old graceful default that
+could emit key/button releases after native authority became uncertain.
+Full-owner cancellation now defaults to no-XTEST
+`SuppressNativeInput`; only explicit `disconnect()` requests
+`ReleaseHeldState` while still authorized, and successful RandR
+geometry-only retirement is unchanged. New ordinary offline production
+source CTest `x11.input-native-failure-terminal-retirement-no-xtest`
+locks this contract beside existing Xvfb native held-input no-post tests.
+Owner-local full CTest: **NOT RUN** (no approved checkout); exact
+publication-SHA hosted CI: **PENDING**. Real seat0/GSS/PAM/logind and
+Microsoft-client frame/input acceptance: **BLOCKED / NOT RUN** without
+owner authorization; R10 GUI Start/Stop remains deny-only.
+
 ## R9 outbound CLIPRDR TLS receipt sanitizer selection (2026-10-18)
 
 The R8 descendant `7c22b9a2f44ae346380ee556a1092e344f2f22ef`

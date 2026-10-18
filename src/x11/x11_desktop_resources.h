@@ -170,9 +170,11 @@ private:
         PixelSize geometry) noexcept;
     [[nodiscard]] bool initializePointerPositionTracker(
         xcb_connection_t &connection, PixelSize geometry) noexcept;
+    // Fatal XCB/XShm/XTEST teardown must never emit cleanup input.
+    // Only a still-authorized graceful disconnect opts in to releases.
     void cancelNativeResources(
         InputRetirementMode inputRetirementMode =
-            InputRetirementMode::ReleaseHeldState) noexcept;
+            InputRetirementMode::SuppressNativeInput) noexcept;
     [[nodiscard]] bool childrenValid() const noexcept;
 
     // Declaration order keeps the XCB connection alive until after child

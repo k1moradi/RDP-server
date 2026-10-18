@@ -1,3 +1,18 @@
+## R5 native aggregate terminal failure input safety (2026-10-18)
+
+Full X11 desktop `cancelNativeResources()` is used by failures
+in XCB event draining, XShm capture, input injection, geometry rebuild
+and construction. It must default to terminal
+`SuppressNativeInput`, not send best-effort key/button XTEST releases.
+Only the explicit authority-current graceful `disconnect()` may opt
+in to `ReleaseHeldState`; successful RandR geometry-only teardown
+retains its existing separate input-state semantics. Register a
+cross-host production-source test
+`x11.input-native-failure-terminal-retirement-no-xtest`,
+and retain independent Xvfb
+`x11.input-native-authority-retirement-no-native-post`
+for actual held-key/button behavior. Neither is positive OS admission.
+
 ## R9 new production clipboard TLS writer sanitizer inventory (2026-10-18)
 
 A new R8 connection-local R1/TLS clipboard writer must retain a

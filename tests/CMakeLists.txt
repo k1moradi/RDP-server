@@ -1146,6 +1146,18 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
         LABELS "runtime;security;r10-native;x11;offline")
 
+    # The R5 aggregate's terminal XCB/XShm/input failure cleanup must not
+    # post held-key/button releases; the Xvfb native controller fixture
+    # separately exercises actual no-XTEST retirement.
+    add_test(NAME x11.input-native-failure-terminal-retirement-no-xtest
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_R5_NATIVE_HEADER=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.h"
+            "-DRDP_R5_NATIVE_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_x11_native_failure_no_input.cmake")
+    set_tests_properties(
+        x11.input-native-failure-terminal-retirement-no-xtest
+        PROPERTIES LABELS "x11;linux-adapter;security;offline;r5-terminal")
+
     # R5 follows the single R10 R2-selected XCB owner. The production
     # post-Share scheduler must retire its borrowed logind watch before
     # native drain, refresh R2 authority and borrow the first XShm frame

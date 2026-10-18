@@ -1,3 +1,9 @@
+## R9 Windows native package failure isolation and bounded smoke (2026-10-18)
+
+On exact `bdefd837eb8acd3cb7e83e8380befab4742e3a11`, all Windows CLANG64 Debug/Release compile and CTest work before the new package step succeeds, but `R9 package native Windows GUI and verify PE closure` fails. The next smoke step nevertheless starts because it was conditioned only on the Release build outcome, and `Invoke-OfflineMode` used unbounded `Start-Process -Wait`. The job therefore remains in progress after the package failure and GitHub does not expose the completed redirected log needed to diagnose the first package error.
+
+This correction is CI control-flow only. The package step receives id `r9_windows_gui_package`; extracted-GUI smoke runs only if that exact step succeeds. Each deny-only offline mode now uses `WaitForExit(15000)` and force-cleans the process on timeout, matching the already-bounded first-window smoke. Package integrity, recursive PE closure, no-socket, firewall-state, close/rerun and all existing tests remain unchanged. Exact correction-SHA CI: **PENDING**.
+
 ## R9 stale Graphics-DVC source guard repair after R10 native-owner handoff (2026-10-18)
 
 Exact `bdefd837eb8acd3cb7e83e8380befab4742e3a11` hosted Ubuntu full CTest reaches 723 cases and fails only `runtime.linux-serve-graphics-dvc-composition`. The source guard still required the serve loop to revoke immediately after Graphics control readiness. R10 `e6fa65c475b9d322984e34bd6b4cd5ec90cd1126` intentionally inserted the genuine R2-selected X11 owner/native-watch stage there; the adjacent dedicated `runtime.linux-serve-r2-selected-x11-owner-composition` test passes on the same SHA.

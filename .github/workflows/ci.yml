@@ -587,6 +587,7 @@ jobs:
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       - name: R9 package native Windows GUI and verify PE closure
+        id: r9_windows_gui_package
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
@@ -625,7 +626,7 @@ jobs:
           python scripts/verify_windows_pe_closure.py \
             --root "$extracted" --objdump "$objdump"
       - name: R9 smoke extracted Windows GUI offline without sockets
-        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
+        if: ${{ always() && steps.r9_windows_gui_package.outcome == 'success' }}
         shell: pwsh
         run: |
           ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD "build\Extracted PORTABLE GUI")

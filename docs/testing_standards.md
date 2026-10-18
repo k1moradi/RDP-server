@@ -3999,3 +3999,7 @@ Windows portable assurance must run on the actual Qt GUI built by a native Windo
 ## Source guards advance with intentionally inserted production stages (2026-10-18)
 
 A source-level composition guard must assert the current authority boundary, not a historical exact tail sequence. When a new authorized production stage is inserted between guarded stages, update the earlier guard to require the new handoff and preserve its real safety invariant. Graphics control still must not publish a frame, but immediate revocation is no longer correct once the genuine R2-selected native-owner stage exists; poll/revocation details remain owned by the dedicated native-owner guard.
+
+## Native GUI smoke must be downstream of successful package verification (2026-10-18)
+
+A native extracted-GUI smoke step must depend on the package/closure step's explicit success outcome, not merely on an earlier compile. Otherwise a failed package can trigger a misleading secondary smoke failure or hang. Every launched GUI mode, including deny-only command modes, must have a bounded wait and terminal cleanup; timeout is a failure, never a reason to skip package or smoke assertions.

@@ -17,9 +17,19 @@ function Get-FirewallState {
 }
 
 function Invoke-OfflineMode([string]$Argument) {
-    $process = Start-Process -FilePath $Exe -ArgumentList $Argument -WorkingDirectory $Root -PassThru -Wait
-    if ($process.ExitCode -ne 0) {
-        throw "Offline GUI mode failed: $Argument exit=$($process.ExitCode)"
+    $process = Start-Process -FilePath $Exe -ArgumentList $Argument -WorkingDirectory $Root -PassThru
+    try {
+        if (-not $process.WaitForExit(15000)) {
+            throw "Offline GUI mode timed out: $Argument"
+        }
+        if ($process.ExitCode -ne 0) {
+            throw "Offline GUI mode failed: $Argument exit=$($process.ExitCode)"
+        }
+    }
+    finally {
+        if (-not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        }
     }
 }
 

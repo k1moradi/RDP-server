@@ -1,3 +1,17 @@
+## R4 ClearCodec mapped geometry versus native capture (2026-10-18)
+
+Keep the ordinary `graphics.clearcodec-denials` test production-backed
+and ensure a current R3 mapped surface with different dimensions from a
+valid native BGRA capture rejects both direct and segmented ClearCodec
+preparation without mutating caller wire bytes, receipt, ACK window,
+surface mapping or ClearCodec sequence. After zero-byte cancellation of
+a correct old-surface frame and receipt-safe surface DELETE/CREATE/MAP,
+allow only the newly mapped geometry, with complete outer delivery
+accounting and a matching FRAME_ACK. This portable test is not live R10
+resize/surface recreation evidence; never silently crop, stretch, forge a
+lease or conflate TLS write receipts with client-visible pixels. Retain
+the four-case R9 ClearCodec sanitizer selection.
+
 ## R7 shared R10 LAN selection projection (2026-10-18)
 
 The R7 GUI must enumerate native interface choices once per status

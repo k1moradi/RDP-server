@@ -434,6 +434,68 @@ void denials()
     assert(buildGfxClearCodecFrame(
                overlapping, 0U, overlap) == 0U);
     assert(overlap == before);
+
+    // R10 borrows actual X11 capture geometry; R3's current mapped
+    // surface may differ until a Graphics DELETE/CREATE/MAP completes.
+    // R4 must refuse the old geometry without consuming frame IDs,
+    // output bytes, receipt serials, or the remote ClearCodec sequence.
+    constexpr std::uint64_t generation = 9501U;
+    GfxPresentationLifecycle lifecycle;
+    mapClearCodecSurface(lifecycle, generation, {2U, 2U});
+    const GfxClearCodecFrameRequest wrongGeometry{
+        7U, 44U, FramebufferView{pixels, 1U, 2U, 8U}};
+    std::array<std::byte, 96U> directWire{};
+    directWire.fill(std::byte{0xC5});
+    GfxFrameDeliveryReceipt refused{11U, 22U, 33U, 44U};
+    const auto unchanged = refused;
+    assert(!lifecycle.prepareClearCodecFrame(
+        generation, wrongGeometry, directWire, refused));
+    assert(refused == unchanged);
+    for (const std::byte b : directWire)
+        assert(b == std::byte{0xC5});
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+    assert(lifecycle.outstandingFrames() == 0U);
+    assert(lifecycle.canReserveFrame(generation, 44U));
+
+    GfxAvc420SegmentedFrame frame;
+    assert(!prepareGfxClearCodecSegmentedFrame(
+        lifecycle, generation, wrongGeometry, frame));
+    assert(!frame.valid());
+    assert(lifecycle.canReserveFrame(generation, 44U));
+
+    // The old surface can still prepare a valid frame. Retire its zero-
+    // publication reservation before R3 deletes the original surface.
+    assert(prepareGfxClearCodecSegmentedFrame(
+        lifecycle, generation, valid, frame));
+    assert(cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame));
+    assert(!frame.valid());
+    assert(lifecycle.requestSurfaceDelete(generation));
+    completeNextCommand(lifecycle, generation);
+    assert(lifecycle.configureSurface(
+        generation, 7U, {1U, 2U}));
+    completeNextCommand(lifecycle, generation);
+    completeNextCommand(lifecycle, generation);
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+
+    // Once R3 has finished mapping the resized surface, the old full
+    // geometry is refused and the formerly mismatched capture is valid.
+    assert(!prepareGfxClearCodecSegmentedFrame(
+        lifecycle, generation, valid, frame));
+    assert(!frame.valid());
+    assert(prepareGfxClearCodecSegmentedFrame(
+        lifecycle, generation, wrongGeometry, frame));
+    assert(segmentedClearCodecSequence(frame) == 0U);
+    const std::size_t fullFrameBytes = frame.wireBytes().size();
+    assert(completeGfxAvc420SegmentedFrameDelivery(
+        lifecycle, frame, fullFrameBytes));
+    assert(!frame.valid());
+    assert(lifecycle.outstandingFrames() == 1U);
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(44U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
 }
 
 } // namespace

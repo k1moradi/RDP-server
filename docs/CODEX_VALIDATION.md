@@ -1,3 +1,33 @@
+## R4 ClearCodec mapped-geometry reconfiguration boundary (2026-10-18)
+
+R4's previous ACK saturation/zero-outer-write cancellation regression
+(`33b6ae76`) has exact-head hosted-GREEN evidence on Linux, Windows,
+macOS protocol and R9 Clang ASan/UBSan at
+https://github.com/k1moradi/RDP-server/actions/runs/39147227041 .
+The original R10 persistent/X11/R3 publication and R1 outbound TLS WANT
+dependency are already source-landed, but live client geometry changes
+remain unvalidated.
+
+Extended the **existing** `graphics.clearcodec-denials` CTest without
+changing its R9 fixed four-CTest inventory. A 2x2 mapped R3 surface must
+reject a valid 1x2 native BGRA capture before touching R4's caller wire
+buffer, delivery receipt, ACK credit or generation; neither direct nor
+segmented frame preparation may reserve a frame. A correctly sized frame
+may still prepare and undergo zero-outer-byte cancellation. After the
+existing R4 lifecycle has completed R3-authorized DELETE, CREATE and MAP
+of the 1x2 surface, the old 2x2 frame is denied; the same 1x2 native frame
+now prepares, starts at the preserved ClearCodec sequence zero, completes
+its exact full delivery receipt and retires via matching FRAME_ACK.
+
+This is an **offline portable R4 lifecycle and codec test only**, not
+a runtime geometry mapper or synthetic admission. R10/R3 still must
+coordinate actual captured-root versus Client Core surface dimensions,
+RandR changes and backpressure without terminal revocation on ordinary
+frame deferral. GUI LAN Start/Stop, authorized physical seat0 and real
+mstsc/Windows App visible frame/input/ACK are **NOT RUN**. Owner-local
+full CTest **NOT RUN** in the GitHub-only connector workspace;
+exact new publication-SHA CI **PENDING**.
+
 ## R7 GUI now projects only R10-selected LAN endpoints (2026-10-18)
 
 The earlier R10 `abe17d32310cace7b611652e4085476bbc5ca8aa`

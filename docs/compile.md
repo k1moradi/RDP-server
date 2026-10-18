@@ -1109,3 +1109,15 @@ unverified development-preview state until R9/native release checks run.
 The hosted Windows CLANG64 lane installs the matching MSYS2 Qt6 base package and builds `rdp-server-windows-gui` in the canonical checkout-local `build/` root. It then runs `packaging/windows/gui_bundle.py` with the local windeployqt, verifies the independently recomputed archive SHA with `scripts/verify_portable_gui.py`, extracts under `build/Extracted PORTABLE GUI`, and runs `scripts/verify_windows_pe_closure.py` with llvm-objdump. The PE verifier requires every non-system imported DLL, including compiler runtimes, to exist in the extracted tree.
 
 `scripts/smoke_windows_portable_gui.ps1` executes the extracted `--offline-self-test` and `--offline-start-denial-test`, then starts the normal GUI twice, waits for a top-level window handle, requires no TCP/UDP endpoints owned by that process, closes through the ordinary window close path, and compares firewall profile state before/after. This is hosted packaging/offline evidence only; it neither starts RDP serving nor substitutes for the required owner-native unprivileged receipt. The lane intentionally does not upload the ZIP before aggregate exact-SHA success.
+
+## Hosted arm64 macOS GUI closure lane (2026-10-18)
+
+CI job `r7-macos-portable-gui` uses the standard arm64
+`macos-latest` image, installs Homebrew `qt` and `openssl@3`, configures
+the canonical checkout-local `build/` root with
+`RDP_SERVER_BUILD_DESKTOP_GUI=ON`, builds
+`rdp-server-desktop.app`, runs the dedicated package CTest and invokes
+`packaging/macos/gui_bundle.py` with local `macdeployqt`. The extracted
+archive is checked with `otool -L`; absolute Homebrew and hosted-runner home
+paths are forbidden. This lane intentionally stops short of an Aqua
+first-screen smoke and release signing/notarization acceptance.

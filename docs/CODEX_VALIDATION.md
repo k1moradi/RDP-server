@@ -6252,3 +6252,20 @@ manifest/checksum shape and records native_host_ready=false, no R2 macOS
 admission, and unverified signing/notarization. Native macOS Qt packaging,
 otool/codesign, extracted double-click smoke, owner macOS 27 and live client
 acceptance are NOT RUN in this connector environment.
+
+## R7 native macOS PORTABLE-GUI CI authoring (2026-10-18)
+
+Recheck on parent `880011cf0aac`: the R7 archive CTest
+`packaging.macos-portable-gui-app-integrity-denials` PASSed in the Ubuntu
+protocol job for `4aef1a74`; that aggregate matrix was red only because the
+R10 Graphics guard still expected revocation before the newly landed native
+owner. R9 corrected the stale guard at `d2961de6`. R10 still has no concrete
+`RuntimeHostControl` implementation, so live GUI Start remains BLOCKED.
+
+This increment adds `r7-macos-portable-gui`: an arm64 hosted macOS job that
+builds the actual Qt `.app`, runs the package contract CTest, packages it
+with local Homebrew `macdeployqt`, re-verifies the R9 manifest and outer
+digest after extraction, and rejects Mach-O dependency records that retain
+Homebrew or runner-home absolute paths. First-screen Aqua launch,
+codesign/notarization release trust, owner macOS 27 and live client acceptance
+remain NOT RUN. Publication-SHA job result is PENDING.

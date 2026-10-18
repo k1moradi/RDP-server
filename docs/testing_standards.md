@@ -4026,3 +4026,15 @@ A source-level composition guard must assert the current authority boundary, not
 ## Native GUI smoke must be downstream of successful package verification (2026-10-18)
 
 A native extracted-GUI smoke step must depend on the package/closure step's explicit success outcome, not merely on an earlier compile. Otherwise a failed package can trigger a misleading secondary smoke failure or hang. Every launched GUI mode, including deny-only command modes, must have a bounded wait and terminal cleanup; timeout is a failure, never a reason to skip package or smoke assertions.
+
+## Hosted macOS PORTABLE-GUI closure is real-app evidence, not hosting evidence (2026-10-18)
+
+The `r7-macos-portable-gui` job must run on the arm64 `macos-latest`
+runner, build the actual CMake `.app`, execute
+`packaging.macos-portable-gui-app-integrity-denials`, package through the
+local Homebrew Qt `macdeployqt`, re-run the common R9 archive verifier on an
+independently recomputed outer digest, and inspect every extracted Mach-O
+dependency record. Any absolute Homebrew or runner-home dependency path is a
+failure. This proves hosted arm64 bundle shape and relocatable Qt linkage only;
+it does not prove first-screen Aqua launch, signing/notarization trust, TCC,
+R2 admission, LAN listening or Microsoft-client interoperability.

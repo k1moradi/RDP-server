@@ -1,3 +1,43 @@
+## R1 R10-native-poll and TCP-reset review (2026-10-17)
+
+**Reviewed R10 source:** `10baf2c10d1b2335d8bfbed194e2f01f902d38af`.
+Accepted loopback peers now enter exactly one `LinuxRuntimeConnection` using
+the move-only R1 socket owner. `pollSocketReadinessOnce()` borrows R1's
+descriptor, clamps each native poll to 25 ms, honors the current read/write
+interest (including TLS WANT directions), dispatches HUP once, and revokes the
+aggregate on native POLLERR/POLLNVAL/deadline. `advancePreAdmission()` remains
+the only server X.224/TLS/CredSSP progression path. No competing SSL/BIO reader,
+writer or descriptor ownership was added. Positive admission still calls the
+genuine R2 `issueAdmission()`, not a test-only lease.
+
+**R1 assurance commits:**
+- `2599158096586365035bc1b29793622f4b17115c` expands the existing
+  `runtime.linux-connection-pre-admission-native-poll` CTest to perform a
+  genuine nonblocking HYBRID TLS handshake through R10's production readiness
+  API, consume encrypted invalid-SPNEGO CredSSP through the sole R1 TLS owner,
+  verify the real failed-reply plaintext-byte count and denial of R2/MCS
+  admission, then reject post-revocation polling/application callbacks.
+- `4704121ed83d753cc0b75c2793d4210e56bb6d9c` corrects the existing
+  Linux-only `transport.tcp-owned-tls-application-tcp-rst-terminal` CTest:
+  Linux may report abortive peer reset as native POLLERR before OpenSSL
+  consumes ECONNRESET. The test now recognizes production R1 poller
+  cancellation as terminal and verifies denial through the actual public
+  read API rather than inventing an SSL result. Pending read/write, stale
+  buffered plaintext, clean close_notify/EOF tests remain in place.
+
+**Next graph boundary:** R10 `serve` still terminally revokes at admitted
+MCS Connect Initial. R10's genuine R2-authorized MCS Connect Response,
+AttachUser and ChannelJoin service writers have not yet been composed. That
+is the next live runtime dependency for R1 to audit; the TCP listener and
+accepted-socket handoff are no longer blockers. Full positive CredSSP→MCS
+with an actual Microsoft client remains **BLOCKED** on an owner-authorized
+physical Linux X11 `seat0`, Kerberos/PAM/NSS/logind environment.
+
+**Validation:** exact-head hosted build/CTest/sanitizer outcome for these
+commits is **NOT VERIFIED**; the available GitHub combined-status query
+returned no entries for `25991580`. No local build/CTest was run in this
+connector-only checkout environment. Do not record PASS or client versions.
+
 ## R9 R10 native-poll sanitizer coverage (2026-10-17)
 
 R10 has landed a bounded production `LinuxRuntimeConnection` socket-readiness

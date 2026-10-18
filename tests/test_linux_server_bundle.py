@@ -45,6 +45,16 @@ def main():
         example = home / ".config/rdp-server-test/server.conf.example"
         assert unit.stat().st_mode & 0o777 == 0o600
         assert example.stat().st_mode & 0o777 == 0o600
+        unit_contents = unit.read_text()
+        assert "After=graphical-session.target" in unit_contents
+        assert "PartOf=graphical-session.target" in unit_contents
+        assert "WantedBy=graphical-session.target" in unit_contents
+        assert "ConditionPathExists=%h/.config/rdp-server-test/authorized" in unit_contents
+        assert "Restart=no" in unit_contents
+        assert "ExecStartPre=%h/.local/share/rdp-server-test/bin/rdp-server --check-linux-security " in unit_contents
+        assert "ExecStart=%h/.local/share/rdp-server-test/bin/rdp-server serve --config " in unit_contents
+        assert not (home / ".config/rdp-server-test/authorized").exists()
+        assert not (home / ".config/rdp-server-test/server.conf").exists()
         assert not (unit.parent / "graphical-session.target.wants").exists()
         assert not marker.exists()
         unit.write_text("tampered")

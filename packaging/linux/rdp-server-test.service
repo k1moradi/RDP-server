@@ -12,7 +12,7 @@ Type=simple
 UMask=0077
 WorkingDirectory=%h
 ExecStartPre=%h/.local/share/rdp-server-test/bin/rdp-server --check-linux-security %h/.config/rdp-server-test/server.conf
-# Future R10 CLI; currently rejects startup. Never enable before human gate.
+# Loopback serve exists but cannot offer an authorized desktop. Never enable before human gate.
 ExecStart=%h/.local/share/rdp-server-test/bin/rdp-server serve --config %h/.config/rdp-server-test/server.conf
 Restart=no
 NoNewPrivileges=true

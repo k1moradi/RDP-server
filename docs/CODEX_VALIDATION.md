@@ -1,3 +1,31 @@
+## R1 pending-write TCP reset coverage (2026-10-17)
+
+**Shared-main commit:** `024b879abbc9944c2d2ee7f3e79b76c5a4b91ad2`.
+The existing Linux-only
+`transport.tcp-owned-tls-application-tcp-rst-terminal` case now covers both
+pending application-read and pending application-write ownership. The write
+path completes TLS first, bounds the native server send/client receive queues,
+stops consuming client plaintext until production `SSL_write_ex` reaches a
+real WANT state, then applies the peer abortive close. R1 may observe the reset
+through its native poll error path or through the exact pending SSL write retry;
+both must retire the single SSL/BIO/socket owner with zero newly accepted
+plaintext for the pending operation. Late read/write, TLS, MCS and readiness
+callbacks remain denied. Existing clean close_notify/EOF behavior is unchanged.
+
+Dependency reconciliation: R3 DATA publication is implemented at
+`27f68c32` and its compile correction is landed at `f170af93`, so the
+original R3→R1/R10 DATA dependency is no longer an R1 blocker. R10's runnable
+`serve` listener is still absent from current `src/server/runtime/main.cpp`,
+whose file header explicitly states that no listener/session controller is
+constructed. Therefore listener-specific inbound X.224/TLS/CredSSP review is
+still blocked on R10 publication, while R1 offline transport assurance can
+continue independently. Genuine positive CredSSP→MCS remains blocked on an
+owner-authorized physical Linux X11 seat0/Kerberos/PAM host.
+
+Validation: exact-head compile/CTest is **NOT RUN** locally because this
+environment cannot resolve github.com for cloning. GitHub combined-status
+lookup for `024b879a` currently reports no status entries; do not claim PASS.
+
 ## R1 real nonblocking TCP RST terminal assurance (2026-10-17)
 
 **Main commits:** `db3da707` (native owner regression), `4f971f15`

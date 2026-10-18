@@ -3275,8 +3275,10 @@ void testRdpServerFinalizationEncodeRejections()
 {
     assert(clientUserId >= 1001U && clientUserId <= 65536U);
     assert(ioChannelId != 0U);
-    assert(sharePdu.size() < 128U);
-    const std::size_t totalBytes = 14U + sharePdu.size();
+    assert(sharePdu.size() <= 16383U);
+    const bool longLength = sharePdu.size() >= 128U;
+    const std::size_t headerBytes = longLength ? 15U : 14U;
+    const std::size_t totalBytes = headerBytes + sharePdu.size();
     assert(totalBytes <= UINT16_MAX);
 
     std::vector<std::uint8_t> packet(totalBytes);
@@ -3294,8 +3296,19 @@ void testRdpServerFinalizationEncodeRejections()
     packet[10] = static_cast<std::uint8_t>(ioChannelId >> 8U);
     packet[11] = static_cast<std::uint8_t>(ioChannelId);
     packet[12] = 0x70U;
-    packet[13] = static_cast<std::uint8_t>(sharePdu.size());
-    std::copy(sharePdu.begin(), sharePdu.end(), packet.begin() + 14U);
+    if (longLength)
+    {
+        packet[13] = static_cast<std::uint8_t>(
+            0x80U | (sharePdu.size() >> 8U));
+        packet[14] = static_cast<std::uint8_t>(sharePdu.size());
+    }
+    else
+    {
+        packet[13] = static_cast<std::uint8_t>(sharePdu.size());
+    }
+    std::copy(
+        sharePdu.begin(), sharePdu.end(),
+        packet.begin() + static_cast<std::ptrdiff_t>(headerBytes));
     return packet;
 }
 
@@ -3764,7 +3777,9 @@ makeClientDynamicVirtualChannelTpkt(
     std::span<const std::uint8_t> dvcPdu,
     std::uint32_t channelFlags = 0x00000003U)
 {
-    assert(!dvcPdu.empty() && dvcPdu.size() < 128U);
+    assert(!dvcPdu.empty() &&
+           dvcPdu.size() <=
+               kRdpStaticVirtualChannelDefaultChunkBytes);
     std::vector<std::uint8_t> staticPdu(8U + dvcPdu.size());
     const auto writeLe32 = [&staticPdu](
         std::size_t offset, std::uint32_t value)
@@ -3863,6 +3878,500 @@ void completeGraphicsDynamicVirtualChannelCreate(
                    createResponse)) ==
            RdpGraphicsDvcClientIntake::CreateAccepted);
     assert(dvc.created());
+}
+
+
+void completeGraphicsDynamicVirtualChannelReady(
+    RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
+    RdpDynamicVirtualChannelAllocation allocation,
+    std::uint32_t clientUserId,
+    std::uint16_t drdynvcChannelId)
+{
+    completeGraphicsDynamicVirtualChannelCreate(
+        dvc, allocation, clientUserId, drdynvcChannelId);
+
+    constexpr std::array<std::uint8_t, 22> advertise{
+        0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
+        0x01U, 0x00U,
+        0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x00U, 0x00U};
+    std::vector<std::uint8_t> data{
+        0x30U, static_cast<std::uint8_t>(allocation.channelId)};
+    data.insert(data.end(), advertise.begin(), advertise.end());
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   clientUserId, drdynvcChannelId, data)) ==
+           RdpGraphicsDvcClientIntake::GraphicsCapabilitiesAccepted);
+
+    const auto write = dvc.pendingServerWrite();
+    assert(write &&
+           write.kind ==
+               RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               write.bytes.size()) ==
+           RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(dvc.graphicsClearCodecEnabled());
+    assert(!dvc.graphicsAvc420Enabled());
+}
+
+void completeTestPresentationCommand(
+    rdp_server::rdp::GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation)
+{
+    std::array<std::byte, 64> bytes{};
+    rdp_server::rdp::GfxPresentationReceipt receipt{};
+    assert(lifecycle.prepareCommand(
+        generation, bytes, receipt));
+    assert(receipt.bytes != 0U);
+    assert(lifecycle.completeCommand(
+        receipt, receipt.bytes));
+}
+
+void prepareTestClearCodecFrame(
+    rdp_server::rdp::GfxPresentationLifecycle &lifecycle,
+    std::uint64_t generation,
+    std::uint32_t frameId,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &frame)
+{
+    constexpr PixelSize geometry{64U, 64U};
+    assert(lifecycle.open(generation));
+    constexpr std::array<std::byte, 22> advertisement{
+        std::byte{0x12}, {}, {}, {},
+        std::byte{0x16}, {}, {}, {},
+        std::byte{0x01}, {},
+        std::byte{0x04}, {}, std::byte{0x08}, {},
+        std::byte{0x04}, {}, {}, {},
+        {}, {}, {}, {}};
+    assert(lifecycle.acceptCapabilities(
+        generation, advertisement));
+    completeTestPresentationCommand(lifecycle, generation);
+    assert(lifecycle.configureSurface(
+        generation, 7U, geometry));
+    completeTestPresentationCommand(lifecycle, generation);
+    completeTestPresentationCommand(lifecycle, generation);
+    assert(lifecycle.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Mapped);
+
+    std::vector<std::byte> pixels(
+        static_cast<std::size_t>(geometry.widthPixels) *
+        geometry.heightPixels * 4U);
+    for (std::size_t index = 0U;
+         index < pixels.size(); ++index)
+    {
+        pixels[index] = static_cast<std::byte>(
+            (index * 17U + 3U) & 0xffU);
+    }
+
+    const FramebufferView framebuffer{
+        std::span<const std::byte>{pixels},
+        geometry.widthPixels,
+        geometry.heightPixels,
+        static_cast<std::size_t>(
+            geometry.widthPixels) * 4U};
+    const rdp_server::rdp::GfxClearCodecFrameRequest request{
+        7U, frameId, framebuffer};
+    assert(rdp_server::rdp::
+        prepareGfxClearCodecSegmentedFrame(
+            lifecycle, generation, request, frame));
+    assert(frame.wireBytes().size() >
+           kMaximumRdpDynamicVirtualChannelDataPayloadBytes);
+}
+
+void testGraphicsFrameZeroPublication()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+    constexpr RdpDynamicVirtualChannelAllocation allocation{1U, 81U};
+    constexpr std::uint64_t graphicsGeneration = 9101U;
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, clientUserId, drdynvcChannelId);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, graphicsGeneration, 101U, frame);
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(!frame.valid());
+    assert(dvc.pendingServerWrite());
+    assert(dvc.cancelUnwrittenFramePublication(
+        allocation.generation));
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.frameRecordMap().empty());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(presentation.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Mapped);
+}
+
+void testGraphicsFrameMultiFragmentDelivery()
+{
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+    constexpr RdpDynamicVirtualChannelAllocation allocation{2U, 82U};
+    constexpr std::uint64_t graphicsGeneration = 9102U;
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, clientUserId, drdynvcChannelId);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, graphicsGeneration, 102U, frame);
+    const std::vector<std::byte> expected(
+        frame.wireBytes().begin(), frame.wireBytes().end());
+
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    const auto mapping = dvc.frameRecordMap();
+    const std::size_t recordCount = mapping.size();
+    assert(recordCount > 1U);
+    assert(mapping.front().dataFirst);
+    assert(mapping.front().frameOffset == 0U);
+
+    std::size_t expectedOffset = 0U;
+    for (std::size_t recordIndex = 0U;
+         recordIndex < recordCount; ++recordIndex)
+    {
+        const auto record = mapping[recordIndex];
+        assert(record.frameOffset == expectedOffset);
+        assert(record.frameBytes != 0U);
+        assert(record.frameBytes <=
+               kMaximumRdpDynamicVirtualChannelDataPayloadBytes);
+        assert(record.dataFirst == (recordIndex == 0U));
+        const std::size_t payloadOffset =
+            record.tpktHeaderBytes +
+            record.x224HeaderBytes +
+            record.mcsHeaderBytes +
+            record.staticChannelHeaderBytes +
+            record.dvcHeaderBytes;
+        assert(payloadOffset + record.frameBytes ==
+               record.outerPlaintextBytes);
+
+        const auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind ==
+                   RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        assert(write.bytes.size() ==
+               record.outerPlaintextBytes);
+        assert(write.bytes[payloadOffset -
+                           record.dvcHeaderBytes] ==
+               static_cast<std::uint8_t>(
+                   recordIndex == 0U ? 0x24U : 0x30U));
+
+        for (std::size_t index = 0U;
+             index < record.frameBytes; ++index)
+        {
+            assert(write.bytes[payloadOffset + index] ==
+                   std::to_integer<std::uint8_t>(
+                       expected[record.frameOffset + index]));
+        }
+
+        const auto outcome = dvc.onServerBytesWritten(
+            write.channelGeneration,
+            write.replySequence,
+            write.writeSliceSequence,
+            write.bytes.size());
+        if (recordIndex + 1U == recordCount)
+            assert(outcome ==
+                   RdpGraphicsDvcWriteOutcome::Delivered);
+        else
+            assert(outcome ==
+                   RdpGraphicsDvcWriteOutcome::Pending);
+
+        expectedOffset += record.frameBytes;
+    }
+
+    assert(expectedOffset == expected.size());
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
+    assert(presentation.outstandingFrames() == 1U);
+}
+
+void testGraphicsFrameHeaderPartialAbort()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{3U, 83U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, 9103U, 103U, frame);
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    const auto record = dvc.frameRecordMap().front();
+    const std::size_t headerBytes =
+        record.outerPlaintextBytes - record.frameBytes;
+    const auto write = dvc.pendingServerWrite();
+    assert(headerBytes > 0U &&
+           headerBytes < write.bytes.size());
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               headerBytes) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    assert(dvc.abortFramePublication(
+        allocation.generation));
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    assert(presentation.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Inactive);
+}
+
+void testGraphicsFramePayloadPartialAbort()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{4U, 84U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, 9104U, 104U, frame);
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    const auto record = dvc.frameRecordMap().front();
+    const std::size_t headerBytes =
+        record.outerPlaintextBytes - record.frameBytes;
+    const auto write = dvc.pendingServerWrite();
+    assert(record.frameBytes > 1U);
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence,
+               headerBytes + 1U) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    assert(dvc.abortFramePublication(
+        allocation.generation));
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    assert(presentation.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Inactive);
+}
+
+void testGraphicsFrameStaleReceiptAbort()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{5U, 85U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, 9105U, 105U, frame);
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    const auto write = dvc.pendingServerWrite();
+    assert(dvc.onServerBytesWritten(
+               write.channelGeneration,
+               write.replySequence,
+               write.writeSliceSequence + 1U,
+               1U) ==
+           RdpGraphicsDvcWriteOutcome::Rejected);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    assert(presentation.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Inactive);
+}
+
+void testGraphicsFrameShareLossAbort()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{6U, 86U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxPresentationLifecycle presentation;
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(
+        presentation, 9106U, 106U, frame);
+    assert(dvc.beginFramePublication(
+        presentation, std::move(frame),
+        RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    dvc.close();
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(presentation.stage() ==
+           rdp_server::rdp::GfxPresentationStage::Inactive);
+}
+
+void testGraphicsDataFirstMalformed()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{7U, 87U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    const std::array<std::uint8_t, 5> malformed{
+        0x2cU, 0x07U, 0x41U, 0x06U, 0xaaU};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   1007U, 1005U, malformed)) ==
+           RdpGraphicsDvcClientIntake::Rejected);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+}
+
+void testGraphicsDataWrongChannel()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{8U, 88U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    const std::array<std::uint8_t, 5> wrongChannel{
+        0x24U, 0x09U, 0x41U, 0x06U, 0xaaU};
+    assert(dvc.onClientTpkt(
+               allocation.generation,
+               makeClientDynamicVirtualChannelTpkt(
+                   1007U, 1005U, wrongChannel)) ==
+           RdpGraphicsDvcClientIntake::Rejected);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+}
+
+void testGraphicsDataFragmentOrdering()
+{
+    const auto makeFirst =
+        [](std::uint8_t channelId, std::size_t payloadBytes)
+    {
+        std::vector<std::uint8_t> pdu(
+            4U + payloadBytes, 0x11U);
+        pdu[0] = 0x24U;
+        pdu[1] = channelId;
+        pdu[2] = 0x41U;
+        pdu[3] = 0x06U; // 1,601 total application bytes.
+        return pdu;
+    };
+    const auto makeData =
+        [](std::uint8_t channelId,
+           std::size_t payloadBytes,
+           std::uint8_t value)
+    {
+        std::vector<std::uint8_t> pdu(
+            2U + payloadBytes, value);
+        pdu[0] = 0x30U;
+        pdu[1] = channelId;
+        return pdu;
+    };
+
+    {
+        constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 89U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelReady(
+            dvc, allocation, 1007U, 1005U);
+
+        const auto first = makeFirst(9U, 100U);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, first)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.pendingClientGraphicsData().empty());
+
+        const auto middle = makeData(9U, 1000U, 0x22U);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, middle)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.pendingClientGraphicsData().empty());
+
+        const auto last = makeData(9U, 501U, 0x33U);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, last)) ==
+               RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+        const auto complete = dvc.pendingClientGraphicsData();
+        assert(complete.size() == 1601U);
+        assert(complete[0] == 0x11U);
+        assert(complete[99U] == 0x11U);
+        assert(complete[100U] == 0x22U);
+        assert(complete[1099U] == 0x22U);
+        assert(complete[1100U] == 0x33U);
+        assert(complete.back() == 0x33U);
+        assert(dvc.consumeClientGraphicsData(
+            allocation.generation));
+        assert(dvc.pendingClientGraphicsData().empty());
+    }
+
+    {
+        // A dropped tail remains incomplete and is never surfaced.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{10U, 90U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelReady(
+            dvc, allocation, 1007U, 1005U);
+        const auto first = makeFirst(10U, 100U);
+        const auto middle = makeData(10U, 1000U, 0x44U);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, first)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, middle)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.pendingClientGraphicsData().empty());
+        dvc.close();
+        assert(dvc.pendingClientGraphicsData().empty());
+    }
+
+    {
+        // Replaying a continuation that would exceed the advertised total is
+        // detected as a duplicate/ordering failure and retires the channel.
+        constexpr RdpDynamicVirtualChannelAllocation allocation{11U, 91U};
+        RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+        completeGraphicsDynamicVirtualChannelReady(
+            dvc, allocation, 1007U, 1005U);
+        const auto first = makeFirst(11U, 100U);
+        const auto repeated = makeData(11U, 800U, 0x55U);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, first)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, repeated)) ==
+               RdpGraphicsDvcClientIntake::
+                   GraphicsDataFragmentAccepted);
+        assert(dvc.onClientTpkt(
+                   allocation.generation,
+                   makeClientDynamicVirtualChannelTpkt(
+                       1007U, 1005U, repeated)) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(dvc.phase() == RdpGraphicsDvcPhase::Failed);
+    }
 }
 
 void testGraphicsDynamicVirtualChannelCapabilitiesSelection()
@@ -10391,6 +10900,15 @@ constexpr std::array<McsTestCase, 140> kMcsTestCases{{
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},
+    {"dvc-graphics-frame-zero-publication", &testGraphicsFrameZeroPublication},
+    {"dvc-graphics-frame-multifragment-delivery", &testGraphicsFrameMultiFragmentDelivery},
+    {"dvc-graphics-frame-header-partial-abort", &testGraphicsFrameHeaderPartialAbort},
+    {"dvc-graphics-frame-payload-partial-abort", &testGraphicsFramePayloadPartialAbort},
+    {"dvc-graphics-frame-stale-receipt", &testGraphicsFrameStaleReceiptAbort},
+    {"dvc-graphics-frame-share-loss-abort", &testGraphicsFrameShareLossAbort},
+    {"dvc-graphics-data-malformed-first", &testGraphicsDataFirstMalformed},
+    {"dvc-graphics-data-wrong-channel", &testGraphicsDataWrongChannel},
+    {"dvc-graphics-data-fragment-ordering", &testGraphicsDataFragmentOrdering},
     {"share-active-exchange-correlation", &testRdpActiveExchangeCorrelation},
     {"share-active-exchange-denials", &testRdpActiveExchangeDenials},
     {"share-finalization-exchange-correlation", &testRdpFinalizationExchangeCorrelation},

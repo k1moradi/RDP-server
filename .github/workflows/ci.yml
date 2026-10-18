@@ -880,12 +880,12 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$personal_mode_selection" --output-on-failure
 
-          # Graphics DVC control owns receipt, channel-id and generation state.
-          # Keep all six current R3 CREATE/CAPS behaviors explicit under ASan/UBSan.
-          graphics_dvc_selection='^transport\.dvc-graphics-(create-success|caps-(selection|unsupported-denial)|create-response-denials|generation-cancellation|pre-share-denial)$'
+          # R3 owns the complete Graphics DVC state: CREATE/CAPS, bounded
+          # DATA_FIRST/DATA reassembly, frame-to-outer mapping and receipts.
+          graphics_dvc_selection='^transport\.dvc-graphics-'
           graphics_dvc_tests="$(ctest --test-dir build --build-config Debug -N -R "$graphics_dvc_selection")"
           printf '%s\n' "$graphics_dvc_tests"
-          readonly graphics_dvc_expected_test_count=6
+          readonly graphics_dvc_expected_test_count=15
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$graphics_dvc_tests")"
           if [[ "$selected_test_count" -ne "$graphics_dvc_expected_test_count" ]]; then
             printf 'R9 R3 Graphics DVC registry mismatch: expected %s tests, found %s\n' \
@@ -898,6 +898,15 @@ jobs:
           grep -Fq 'transport.dvc-graphics-create-response-denials' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-generation-cancellation' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-pre-share-denial' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-zero-publication' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-multifragment-delivery' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-header-partial-abort' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-payload-partial-abort' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-stale-receipt' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-share-loss-abort' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-data-malformed-first' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-data-wrong-channel' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-data-fragment-ordering' <<< "$graphics_dvc_tests"
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$graphics_dvc_selection" --output-on-failure
 

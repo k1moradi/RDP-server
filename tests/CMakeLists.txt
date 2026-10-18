@@ -202,6 +202,15 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial
+                dvc-graphics-frame-zero-publication
+                dvc-graphics-frame-multifragment-delivery
+                dvc-graphics-frame-header-partial-abort
+                dvc-graphics-frame-payload-partial-abort
+                dvc-graphics-frame-stale-receipt
+                dvc-graphics-frame-share-loss-abort
+                dvc-graphics-data-malformed-first
+                dvc-graphics-data-wrong-channel
+                dvc-graphics-data-fragment-ordering
                 share-active-exchange-correlation
                 share-active-exchange-denials
                 share-finalization-exchange-correlation

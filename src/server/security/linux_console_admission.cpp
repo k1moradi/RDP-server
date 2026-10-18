@@ -1588,6 +1588,65 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
     return intake;
 }
 
+
+std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsFramePublication(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+    rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return std::nullopt;
+
+    const auto provenance =
+        connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return std::nullopt;
+    }
+
+    const auto pending =
+        session.beginVerifiedR2GraphicsFramePublication(
+            *provenance, presentationLifecycle,
+            std::move(frame), codec);
+    if (!pending)
+        revokeR3Session(acceptor, session);
+    return pending;
+}
+
+bool LinuxConsoleAdmissionBroker::
+cancelR3PersonalDesktopUnwrittenGraphicsFrame(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return false;
+
+    const auto provenance =
+        connection.securityNegotiationProvenance();
+    if (!provenance ||
+        !session.cancelVerifiedR2UnwrittenGraphicsFrame(
+            *provenance))
+    {
+        revokeR3Session(acceptor, session);
+        return false;
+    }
+    return true;
+}
+
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopApplicationTraffic(
     const LinuxConsoleAdmissionLease &lease,
     GssapiSpnegoAcceptor &acceptor,

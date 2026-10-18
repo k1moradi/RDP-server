@@ -499,6 +499,21 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
+    // Transfer one prepared R4 frame into the current R3 Graphics DVC. This
+    // method owns no protocol IDs or receipt accounting; R2 reauthorizes the
+    // move and R3 maps every frame byte to the R1 plaintext records driven by
+    // advancePersonalDesktopGraphicsDynamicVirtualChannel().
+    [[nodiscard]] bool startPersonalDesktopGraphicsFramePublication(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+        rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept;
+
+    // Legal only while R3 proves that R1 accepted zero outer plaintext bytes.
+    // Positive or uncertain progress is never translated into cancellation.
+    [[nodiscard]] bool cancelUnwrittenPersonalDesktopGraphicsFrame(
+        const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
+
     [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 

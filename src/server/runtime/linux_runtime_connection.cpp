@@ -1555,6 +1555,79 @@ startPersonalDesktopGraphicsDynamicVirtualChannel(
     return true;
 }
 
+
+bool LinuxRuntimeConnection::
+startPersonalDesktopGraphicsFramePublication(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+    rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept
+{
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+    using Kind =
+        rdp_server::server::transport::RdpGraphicsDvcWriteKind;
+
+    if (personalGraphicsDvcIoAction_ != Action::Ready ||
+        personalGraphicsDvcTlsWritePending_ ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return false;
+    }
+
+    const auto pending =
+        broker_->authorizeR3PersonalDesktopGraphicsFramePublication(
+            *lease_, acceptor_, connection_, session_,
+            deploymentPolicy, presentationLifecycle,
+            std::move(frame), codec);
+    if (!pending ||
+        pending->kind != Kind::GraphicsFrameData)
+    {
+        revoke();
+        return false;
+    }
+
+    personalGraphicsDvcTlsWritePending_ = false;
+    personalGraphicsDvcIoAction_ = Action::Write;
+    return true;
+}
+
+bool LinuxRuntimeConnection::
+cancelUnwrittenPersonalDesktopGraphicsFrame(
+    const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
+{
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+
+    if (personalGraphicsDvcIoAction_ != Action::Write ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return false;
+    }
+
+    if (!broker_->cancelR3PersonalDesktopUnwrittenGraphicsFrame(
+            *lease_, acceptor_, connection_, session_,
+            deploymentPolicy))
+    {
+        revoke();
+        return false;
+    }
+
+    personalGraphicsDvcTlsWritePending_ = false;
+    personalGraphicsDvcIoAction_ = Action::Ready;
+    return true;
+}
+
 LinuxPersonalDesktopGraphicsDvcStepResult
 LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
     const RuntimeDeploymentPolicy &deploymentPolicy,
@@ -1667,6 +1740,9 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
                 return {0U, io.bytes, Step::Progress};
             case Kind::GraphicsCapabilitiesConfirm:
                 personalGraphicsDvcFrameReader_.close();
+                personalGraphicsDvcIoAction_ = Action::Ready;
+                return {0U, io.bytes, Step::Ready};
+            case Kind::GraphicsFrameData:
                 personalGraphicsDvcIoAction_ = Action::Ready;
                 return {0U, io.bytes, Step::Ready};
             case Kind::None:
@@ -1809,6 +1885,12 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
         case Intake::GraphicsCapabilitiesAccepted:
             personalGraphicsDvcIoAction_ = Action::Write;
             break;
+        case Intake::GraphicsDataFragmentAccepted:
+            personalGraphicsDvcIoAction_ = Action::Read;
+            break;
+        case Intake::GraphicsDataAccepted:
+            revoke();
+            return {io.bytes, 0U, Step::Invalid};
         case Intake::CreateRejected:
         case Intake::Rejected:
         case Intake::Closed:

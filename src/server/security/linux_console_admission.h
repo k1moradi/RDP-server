@@ -655,6 +655,32 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Begin/cancel R4 application DATA only after the same fresh protected
+    // transition. The move-only frame is transferred into R3 only on success.
+    [[nodiscard]] std::optional<
+        rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    authorizeR3PersonalDesktopGraphicsFramePublication(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+        rdp_server::server::transport::RdpGraphicsFrameCodec codec) noexcept;
+
+    [[nodiscard]] bool
+    cancelR3PersonalDesktopUnwrittenGraphicsFrame(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+
     // Query immediately before post-Share application routing. A true result
     // is ephemeral: the next protected operation must reauthorize again.
     [[nodiscard]] bool authorizeR3PersonalDesktopApplicationTraffic(

@@ -1,3 +1,25 @@
+## R3 Graphics DATA publication and receipt mapping gate (2026-10-17)
+
+The production-backed `transport.dvc-graphics-*` sanitizer inventory is
+**15** cases after the DATA publication increment. The nine DATA additions
+exercise conclusive-zero cancellation, full multi-record publication,
+header-only and payload-positive terminal aborts, stale receipt retirement,
+Share-loss abort, malformed DATA_FIRST, wrong DVC channel and exact
+DATA_FIRST/DATA reassembly including dropped/duplicated-fragment behavior.
+They invoke the real R3 lifecycle and R4 move-only frame receipt but never mint
+or fabricate a genuine R2 admission lease.
+
+Every server record must keep one immutable ordered mapping from the complete
+R4 `wireBytes()` span to outer plaintext. TPKT, X.224, MCS, static-VC and DVC
+header byte counts are separate from R4 payload coverage. Only complete mapped
+coverage may complete R4; a conclusively unwritten frame may cancel; stale,
+positive-partial terminal, uncertain or mapping-error paths abort. ClearCodec
+requires confirmed Graphics capabilities, and AVC420 additionally requires its
+explicit negotiated capability flag. The server-advertised static virtual
+channel chunk size is authoritative only when the optional field is present at
+both endpoints; otherwise the wire limit stays 1600. The client's numeric
+VCChunkSize never expands the server-to-client limit.
+
 ## R10 outbound-interest regression coverage (2026-10-17)
 
 The Linux runtime-security graph registers three production-backed offline
@@ -59,7 +81,7 @@ scan. R9 then downloads all three artifacts and rechecks the outer SHA-256 and
 embedded exact SHA. These are **disabled preview** receipts only.
 
 Sanitizer/test-registry inventories stay unchanged and failure-closed:
-R10 runtime-security **25**, R3 Graphics DVC **6**, R4 portable **42**,
+R10 runtime-security **28**, R3 Graphics DVC **15**, R4 portable **42**,
 ClearCodec **4**, R5 **38**, R6 **59**, R7 authority-loss input **2**, and R8
 clipboard **81**. M1 owner-native same-SHA receipts and the M2 three-client
 human matrix remain separate from hosted artifact CI.
@@ -73,7 +95,7 @@ socket plus PersonalDesktop policy is non-authorizing, wrong product mode is
 terminal, and replay after revocation remains closed.
 
 Positive DRDYNVC capabilities, Graphics CREATE, RDPGFX CAPS_ADVERTISE and
-CAPS_CONFIRM mechanics stay in R3's six production-backed Graphics tests.
+CAPS_CONFIRM mechanics and DATA publication stay in R3's 15 production-backed Graphics tests.
 R2's separate Graphics late-receipt denial proves a positive plaintext count
 cannot cross lost authority. Positive aggregate R1→R2→R3 control I/O is
 owner-host only after genuine admission and Share activation. Current control
@@ -3680,23 +3702,19 @@ environment variables or logs. Ordinary CI must report this positive path
 **NOT RUN**, never fixture-mint a lease.
 
 
-## R3 Graphics DVC control sanitizer gate (2026-10-17)
+## R3 Graphics DVC control/DATA sanitizer gate (2026-10-17)
 
-The production-backed `transport.dvc-graphics-*` CREATE/CAPS behaviors are an
-exact ASan/UBSan registry gate: **6** tests. The original four cover successful
-CREATE control mechanics, malformed/wrong-ID/duplicate CREATE response denials,
-generation/cancellation retirement and pre-Share denial. The two additional
-registrations,
-`transport.dvc-graphics-caps-selection` and
-`transport.dvc-graphics-caps-unsupported-denial`, must be selected by name and
-exercise the production CAPS_ADVERTISE/CAPS_CONFIRM path under sanitizers.
-Require the grouped selector fragment `caps-(selection|unsupported-denial)`
-in the workflow structure guard so a new registration cannot be present while
-silently omitted from the isolated sanitizer gate. Offline CREATE/CAPS success
-is protocol-mechanics evidence only. It must never be treated as R2 admission,
-Share authority,
-visible desktop authorization or a live Graphics endpoint; live use remains
-behind freshly reauthorized R2/R10 wrappers and the exact R1 owner.
+The production-backed `transport.dvc-graphics-*` behaviors are one exact
+ASan/UBSan registry gate: **15** tests. Six retain CREATE/CAPS selection,
+malformed/wrong-ID/duplicate response, generation/cancellation and pre-Share
+coverage. Nine additional behaviors cover frame publication and DATA
+reassembly. CI selects the complete `^transport\\.dvc-graphics-` namespace,
+checks the exact cardinality and requires every named sentinel, so a new R3
+registration cannot silently fall outside the isolated sanitizer gate.
+Offline success is protocol-mechanics and R4 receipt evidence only; it is never
+R2 admission, Share authority, visible-desktop authorization or a live Graphics
+endpoint. Positive aggregate use remains behind freshly reauthorized R2/R10
+wrappers and the exact R1 plaintext owner.
 
 
 ## R4 ClearCodec sanitizer gate (2026-10-17)

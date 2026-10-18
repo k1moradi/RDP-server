@@ -94,6 +94,98 @@ void writeLe32At(
     return position == capabilities.size();
 }
 
+struct VirtualChannelCapabilityInfo
+{
+    bool valid{true};
+    bool chunkFieldPresent{};
+    std::size_t serverToClientChunkBytes{
+        kRdpStaticVirtualChannelDefaultChunkBytes};
+};
+
+[[nodiscard]] VirtualChannelCapabilityInfo virtualChannelCapabilityInfo(
+    std::span<const std::uint8_t> capabilities,
+    std::uint16_t count) noexcept
+{
+    constexpr std::uint16_t kVirtualChannelCapabilityType = 0x0014U;
+    VirtualChannelCapabilityInfo result{};
+    bool seen = false;
+    std::size_t position = 0U;
+    for (std::size_t index = 0U; index < count; ++index)
+    {
+        if (position > capabilities.size() ||
+            capabilities.size() - position < 4U)
+            return {false, false, kRdpStaticVirtualChannelDefaultChunkBytes};
+        const std::size_t length =
+            readLe16At(capabilities, position + 2U);
+        if (length < 4U ||
+            length > capabilities.size() - position)
+            return {false, false, kRdpStaticVirtualChannelDefaultChunkBytes};
+
+        if (readLe16At(capabilities, position) ==
+            kVirtualChannelCapabilityType)
+        {
+            if (seen || (length != 8U && length != 12U))
+                return {false, false, kRdpStaticVirtualChannelDefaultChunkBytes};
+            seen = true;
+            if (length == 12U)
+            {
+                const std::size_t chunkBytes =
+                    readLe32At(capabilities, position + 8U);
+                if (chunkBytes <
+                        kRdpStaticVirtualChannelDefaultChunkBytes ||
+                    chunkBytes >
+                        kRdpStaticVirtualChannelMaximumChunkBytes)
+                    return {false, false, kRdpStaticVirtualChannelDefaultChunkBytes};
+                result.chunkFieldPresent = true;
+                result.serverToClientChunkBytes = chunkBytes;
+            }
+        }
+        position += length;
+    }
+    if (position != capabilities.size())
+        return {false, false, kRdpStaticVirtualChannelDefaultChunkBytes};
+    return result;
+}
+
+[[nodiscard]] std::size_t dynamicChannelIdBytes(
+    std::uint32_t channelId) noexcept
+{
+    return channelId > 0xffffU ? 4U :
+           (channelId > 0xffU ? 2U : 1U);
+}
+
+[[nodiscard]] std::uint8_t dynamicChannelIdCode(
+    std::size_t channelIdBytes) noexcept
+{
+    return channelIdBytes == 4U ? 2U :
+           (channelIdBytes == 2U ? 1U : 0U);
+}
+
+[[nodiscard]] std::size_t dynamicLengthBytes(
+    std::size_t length) noexcept
+{
+    return length > 0xffffU ? 4U :
+           (length > 0xffU ? 2U : 1U);
+}
+
+[[nodiscard]] std::uint8_t dynamicLengthCode(
+    std::size_t lengthBytes) noexcept
+{
+    return lengthBytes == 4U ? 2U :
+           (lengthBytes == 2U ? 1U : 0U);
+}
+
+void writeDynamicLittleEndian(
+    std::span<std::uint8_t> output,
+    std::size_t offset,
+    std::uint32_t value,
+    std::size_t bytes) noexcept
+{
+    for (std::size_t index = 0U; index < bytes; ++index)
+        output[offset + index] = static_cast<std::uint8_t>(
+            value >> (index * 8U));
+}
+
 // std::less provides a strict total ordering across pointers (unlike
 // relational operators on unrelated arrays). Empty views do not
 // overlap and are checked without pointer arithmetic on nullptr.
@@ -2000,6 +2092,70 @@ McsSessionLifecycle::acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
     return intake;
 }
 
+
+std::optional<RdpGraphicsDvcWriteView>
+McsSessionLifecycle::beginVerifiedR2GraphicsFramePublication(
+    const SecurityNegotiationProvenance &provenance,
+    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+    RdpGraphicsFrameCodec codec) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        !graphicsDynamicVirtualChannel_.
+            graphicsCapabilitiesConfirmed())
+    {
+        close();
+        return std::nullopt;
+    }
+
+    const std::size_t staticChannelChunkBytes =
+        shareActivation_.
+            serverToClientVirtualChannelChunkBytes();
+    if (staticChannelChunkBytes == 0U ||
+        !graphicsDynamicVirtualChannel_.beginFramePublication(
+            presentationLifecycle, std::move(frame), codec,
+            staticChannelChunkBytes))
+        return std::nullopt;
+
+    const auto pending =
+        graphicsDynamicVirtualChannel_.pendingServerWrite();
+    return pending &&
+                   pending.kind ==
+                       RdpGraphicsDvcWriteKind::GraphicsFrameData
+               ? std::optional<RdpGraphicsDvcWriteView>{pending}
+               : std::nullopt;
+}
+
+bool McsSessionLifecycle::cancelVerifiedR2UnwrittenGraphicsFrame(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        graphicsDynamicVirtualChannel_.channelGeneration() == 0U)
+    {
+        close();
+        return false;
+    }
+    return graphicsDynamicVirtualChannel_.
+        cancelUnwrittenFramePublication(
+            graphicsDynamicVirtualChannel_.channelGeneration());
+}
+
+bool McsSessionLifecycle::abortVerifiedR2GraphicsFrame(
+    const SecurityNegotiationProvenance &provenance) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        graphicsDynamicVirtualChannel_.channelGeneration() == 0U)
+    {
+        close();
+        return false;
+    }
+    const bool aborted =
+        graphicsDynamicVirtualChannel_.abortFramePublication(
+            graphicsDynamicVirtualChannel_.channelGeneration());
+    close();
+    return aborted;
+}
+
 McsSessionIntake McsSessionLifecycle::onDomainPdu(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
@@ -2084,6 +2240,8 @@ advanceWriteSliceSequence() noexcept
 
 void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
 {
+    abortActiveFramePublication();
+    clearClientDvcReassembly();
     pending_.fill(0U);
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
@@ -2097,6 +2255,8 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
 
 void RdpGraphicsDynamicVirtualChannelLifecycle::close() noexcept
 {
+    abortActiveFramePublication();
+    clearClientDvcReassembly();
     pending_.fill(0U);
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
@@ -2266,6 +2426,490 @@ queueGraphicsCapabilitiesConfirm(
     return true;
 }
 
+
+void RdpGraphicsDynamicVirtualChannelLifecycle::
+clearFramePublication() noexcept
+{
+    frame_.reset();
+    framePresentationLifecycle_ = nullptr;
+    frameRecordMap_.clear();
+    frameRecordIndex_ = 0U;
+    framePayloadAcceptedBytes_ = 0U;
+    frameOuterAcceptedBytes_ = 0U;
+}
+
+void RdpGraphicsDynamicVirtualChannelLifecycle::
+abortActiveFramePublication() noexcept
+{
+    if (frame_ && frame_->valid() &&
+        framePresentationLifecycle_ != nullptr)
+    {
+        (void)rdp_server::rdp::
+            abortGfxAvc420SegmentedFrameDelivery(
+                *framePresentationLifecycle_, *frame_);
+    }
+    clearFramePublication();
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+buildFrameRecordMap(
+    std::span<const std::byte> frameBytes,
+    std::size_t staticChannelChunkBytes) noexcept
+{
+    if (frameBytes.empty() ||
+        frameBytes.size() >
+            std::numeric_limits<std::uint32_t>::max() ||
+        staticChannelChunkBytes <
+            kRdpStaticVirtualChannelDefaultChunkBytes ||
+        staticChannelChunkBytes >
+            kRdpStaticVirtualChannelMaximumChunkBytes ||
+        allocation_.channelId == 0U)
+        return false;
+
+    const std::size_t channelIdBytes =
+        dynamicChannelIdBytes(allocation_.channelId);
+    const bool fragmented =
+        frameBytes.size() >
+        kMaximumRdpDynamicVirtualChannelDataPayloadBytes;
+    const std::size_t firstLengthBytes =
+        fragmented ? dynamicLengthBytes(frameBytes.size()) : 0U;
+
+    try
+    {
+        std::vector<RdpGraphicsDvcOuterRecordMapEntry> records;
+        const std::size_t recordCount =
+            frameBytes.size() /
+                kMaximumRdpDynamicVirtualChannelDataPayloadBytes +
+            (frameBytes.size() %
+                     kMaximumRdpDynamicVirtualChannelDataPayloadBytes != 0U
+                 ? 1U
+                 : 0U);
+        records.reserve(recordCount);
+
+        std::size_t frameOffset = 0U;
+        while (frameOffset < frameBytes.size())
+        {
+            const bool dataFirst =
+                fragmented && frameOffset == 0U;
+            const std::size_t dvcHeaderBytes =
+                1U + channelIdBytes +
+                (dataFirst ? firstLengthBytes : 0U);
+            const std::size_t frameChunkBytes = (std::min)(
+                kMaximumRdpDynamicVirtualChannelDataPayloadBytes,
+                frameBytes.size() - frameOffset);
+            const std::size_t dvcBytes =
+                dvcHeaderBytes + frameChunkBytes;
+            if (dvcBytes > staticChannelChunkBytes ||
+                dvcBytes >
+                    kRdpStaticVirtualChannelDefaultChunkBytes)
+                return false;
+
+            constexpr std::size_t kStaticChannelHeaderBytes = 8U;
+            const std::size_t mcsUserDataBytes =
+                kStaticChannelHeaderBytes + dvcBytes;
+            const std::size_t mcsHeaderBytes =
+                mcsUserDataBytes >= 128U ? 8U : 7U;
+            constexpr std::size_t kTpktHeaderBytes = 4U;
+            constexpr std::size_t kX224HeaderBytes = 3U;
+            const std::size_t outerPlaintextBytes =
+                kTpktHeaderBytes + kX224HeaderBytes +
+                mcsHeaderBytes + kStaticChannelHeaderBytes +
+                dvcHeaderBytes + frameChunkBytes;
+            if (outerPlaintextBytes >
+                kMaximumRdpDynamicVirtualChannelPacketBytes)
+                return false;
+
+            records.push_back({
+                frameOffset,
+                frameChunkBytes,
+                kTpktHeaderBytes,
+                kX224HeaderBytes,
+                mcsHeaderBytes,
+                kStaticChannelHeaderBytes,
+                dvcHeaderBytes,
+                outerPlaintextBytes,
+                dataFirst});
+            frameOffset += frameChunkBytes;
+        }
+
+        if (records.empty() ||
+            records.front().frameOffset != 0U ||
+            records.back().frameOffset +
+                    records.back().frameBytes !=
+                frameBytes.size())
+            return false;
+        for (std::size_t index = 1U;
+             index < records.size(); ++index)
+        {
+            if (records[index - 1U].frameOffset +
+                    records[index - 1U].frameBytes !=
+                records[index].frameOffset)
+                return false;
+        }
+
+        frameRecordMap_ = std::move(records);
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+queueFrameRecord() noexcept
+{
+    if (!frame_ || !frame_->valid() ||
+        frameRecordIndex_ >= frameRecordMap_.size() ||
+        staticChannelId_ == 0U ||
+        pendingLength_ != 0U)
+        return false;
+
+    const auto frameBytes = frame_->wireBytes();
+    const auto &record = frameRecordMap_[frameRecordIndex_];
+    if (record.frameOffset > frameBytes.size() ||
+        record.frameBytes >
+            frameBytes.size() - record.frameOffset)
+        return false;
+
+    constexpr std::size_t kMaximumMcsOuterHeaderBytes = 15U;
+    constexpr std::size_t kStaticChannelHeaderBytes = 8U;
+    auto staging = std::span<std::uint8_t>{pending_}.subspan(
+        kMaximumMcsOuterHeaderBytes);
+    const std::size_t dvcBytes =
+        record.dvcHeaderBytes + record.frameBytes;
+    const std::size_t staticBytes =
+        kStaticChannelHeaderBytes + dvcBytes;
+    if (staging.size() < staticBytes)
+        return false;
+
+    writeLe32At(staging, 0U,
+                static_cast<std::uint32_t>(dvcBytes));
+    writeLe32At(staging, 4U, 0x00000003U);
+
+    const std::size_t channelIdBytes =
+        dynamicChannelIdBytes(allocation_.channelId);
+    std::size_t offset = kStaticChannelHeaderBytes;
+    if (record.dataFirst)
+    {
+        const std::size_t lengthBytes =
+            dynamicLengthBytes(frameBytes.size());
+        staging[offset++] = static_cast<std::uint8_t>(
+            0x20U |
+            (dynamicLengthCode(lengthBytes) << 2U) |
+            dynamicChannelIdCode(channelIdBytes));
+        writeDynamicLittleEndian(
+            staging, offset, allocation_.channelId,
+            channelIdBytes);
+        offset += channelIdBytes;
+        writeDynamicLittleEndian(
+            staging, offset,
+            static_cast<std::uint32_t>(frameBytes.size()),
+            lengthBytes);
+        offset += lengthBytes;
+    }
+    else
+    {
+        staging[offset++] = static_cast<std::uint8_t>(
+            0x30U | dynamicChannelIdCode(channelIdBytes));
+        writeDynamicLittleEndian(
+            staging, offset, allocation_.channelId,
+            channelIdBytes);
+        offset += channelIdBytes;
+    }
+
+    if (offset !=
+        kStaticChannelHeaderBytes + record.dvcHeaderBytes)
+        return false;
+
+    for (std::size_t index = 0U;
+         index < record.frameBytes; ++index)
+    {
+        staging[offset + index] = std::to_integer<std::uint8_t>(
+            frameBytes[record.frameOffset + index]);
+    }
+
+    const auto packetBytes = encodeMcsSendDataIndication(
+        1002U, staticChannelId_, 1U, 3U,
+        staging.first(staticBytes), pending_);
+    if (!packetBytes ||
+        *packetBytes != record.outerPlaintextBytes)
+        return false;
+
+    pendingLength_ = *packetBytes;
+    bytesWritten_ = 0U;
+    pendingKind_ = RdpGraphicsDvcWriteKind::GraphicsFrameData;
+    return true;
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+beginFramePublication(
+    rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+    rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+    RdpGraphicsFrameCodec codec,
+    std::size_t staticChannelChunkBytes) noexcept
+{
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        pendingLength_ != 0U || frame_ || !frame.valid() ||
+        !graphicsClearCodecEnabled() ||
+        (codec == RdpGraphicsFrameCodec::Avc420 &&
+         !graphicsAvc420Enabled()) ||
+        staticChannelChunkBytes <
+            kRdpStaticVirtualChannelDefaultChunkBytes ||
+        staticChannelChunkBytes >
+            kRdpStaticVirtualChannelMaximumChunkBytes)
+        return false;
+
+    if (!buildFrameRecordMap(
+            frame.wireBytes(), staticChannelChunkBytes))
+        return false;
+    if (!advanceReplySequence() ||
+        !advanceWriteSliceSequence())
+    {
+        frameRecordMap_.clear();
+        fail();
+        return false;
+    }
+
+    framePresentationLifecycle_ = &presentationLifecycle;
+    try
+    {
+        frame_.emplace(std::move(frame));
+    }
+    catch (...)
+    {
+        framePresentationLifecycle_ = nullptr;
+        frameRecordMap_.clear();
+        fail();
+        return false;
+    }
+
+    if (!queueFrameRecord())
+    {
+        if (!rdp_server::rdp::
+                cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+                    presentationLifecycle, *frame_))
+        {
+            (void)rdp_server::rdp::
+                abortGfxAvc420SegmentedFrameDelivery(
+                    presentationLifecycle, *frame_);
+        }
+        clearFramePublication();
+        fail();
+        return false;
+    }
+    return true;
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+cancelUnwrittenFramePublication(
+    std::uint64_t channelGeneration) noexcept
+{
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        channelGeneration == 0U ||
+        channelGeneration != allocation_.generation ||
+        !frame_ || !frame_->valid() ||
+        framePresentationLifecycle_ == nullptr ||
+        frameOuterAcceptedBytes_ != 0U)
+        return false;
+
+    if (!rdp_server::rdp::
+            cancelUnwrittenGfxAvc420SegmentedFrameDelivery(
+                *framePresentationLifecycle_, *frame_))
+    {
+        fail();
+        return false;
+    }
+
+    pending_.fill(0U);
+    pendingLength_ = 0U;
+    bytesWritten_ = 0U;
+    pendingKind_ = RdpGraphicsDvcWriteKind::None;
+    clearFramePublication();
+    return true;
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+abortFramePublication(
+    std::uint64_t channelGeneration) noexcept
+{
+    if (channelGeneration == 0U ||
+        channelGeneration != allocation_.generation ||
+        !frame_ || !frame_->valid())
+    {
+        fail();
+        return false;
+    }
+    fail();
+    return true;
+}
+
+void RdpGraphicsDynamicVirtualChannelLifecycle::
+clearClientDvcReassembly() noexcept
+{
+    std::vector<std::uint8_t> empty;
+    clientDvcMessage_.swap(empty);
+    clientDvcExpectedBytes_ = 0U;
+    clientDvcFragmented_ = false;
+    clientGraphicsDataReady_ = false;
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+consumeClientGraphicsData(
+    std::uint64_t channelGeneration) noexcept
+{
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        channelGeneration == 0U ||
+        channelGeneration != allocation_.generation ||
+        !clientGraphicsDataReady_)
+        return false;
+    clearClientDvcReassembly();
+    return true;
+}
+
+bool RdpGraphicsDynamicVirtualChannelLifecycle::
+acceptClientDvcData(
+    std::span<const std::uint8_t> dvcPdu,
+    std::span<const std::uint8_t> &completeMessage) noexcept
+{
+    completeMessage = {};
+    if (dvcPdu.empty() ||
+        dvcPdu.size() >
+            kRdpStaticVirtualChannelDefaultChunkBytes ||
+        clientGraphicsDataReady_)
+        return false;
+
+    const std::uint8_t command =
+        static_cast<std::uint8_t>(dvcPdu[0] & 0xf0U);
+    const std::uint8_t channelIdCode =
+        static_cast<std::uint8_t>(dvcPdu[0] & 0x03U);
+    if (channelIdCode == 3U ||
+        (command != 0x20U && command != 0x30U))
+        return false;
+
+    const std::size_t channelIdBytes =
+        channelIdCode == 0U ? 1U :
+        (channelIdCode == 1U ? 2U : 4U);
+    if (dvcPdu.size() <= 1U + channelIdBytes)
+        return false;
+
+    std::uint32_t channelId = 0U;
+    for (std::size_t index = 0U;
+         index < channelIdBytes; ++index)
+    {
+        channelId |= static_cast<std::uint32_t>(
+            dvcPdu[1U + index]) << (index * 8U);
+    }
+    if (channelId != allocation_.channelId)
+        return false;
+
+    if (command == 0x20U)
+    {
+        if (clientDvcFragmented_)
+            return false;
+        const std::uint8_t lengthCode =
+            static_cast<std::uint8_t>(
+                (dvcPdu[0] >> 2U) & 0x03U);
+        if (lengthCode == 3U)
+            return false;
+        const std::size_t lengthBytes =
+            lengthCode == 0U ? 1U :
+            (lengthCode == 1U ? 2U : 4U);
+        const std::size_t headerBytes =
+            1U + channelIdBytes + lengthBytes;
+        if (dvcPdu.size() <= headerBytes)
+            return false;
+
+        std::uint32_t expectedBytes = 0U;
+        for (std::size_t index = 0U;
+             index < lengthBytes; ++index)
+        {
+            expectedBytes |= static_cast<std::uint32_t>(
+                dvcPdu[1U + channelIdBytes + index])
+                << (index * 8U);
+        }
+
+        const auto fragment = dvcPdu.subspan(headerBytes);
+        if (expectedBytes <=
+                kMaximumRdpDynamicVirtualChannelDataPayloadBytes ||
+            expectedBytes >
+                kMaximumRdpGraphicsDvcClientMessageBytes ||
+            fragment.empty() ||
+            fragment.size() >
+                kMaximumRdpDynamicVirtualChannelDataPayloadBytes ||
+            fragment.size() >= expectedBytes)
+            return false;
+
+        try
+        {
+            clientDvcMessage_.assign(
+                fragment.begin(), fragment.end());
+        }
+        catch (...)
+        {
+            return false;
+        }
+        clientDvcExpectedBytes_ = expectedBytes;
+        clientDvcFragmented_ = true;
+        return true;
+    }
+
+    if ((dvcPdu[0] & 0x0cU) != 0U)
+        return false;
+    const auto fragment =
+        dvcPdu.subspan(1U + channelIdBytes);
+    if (fragment.empty() ||
+        fragment.size() >
+            kMaximumRdpDynamicVirtualChannelDataPayloadBytes)
+        return false;
+
+    if (!clientDvcFragmented_)
+    {
+        try
+        {
+            clientDvcMessage_.assign(
+                fragment.begin(), fragment.end());
+        }
+        catch (...)
+        {
+            return false;
+        }
+        clientGraphicsDataReady_ = true;
+        completeMessage = clientDvcMessage_;
+        return true;
+    }
+
+    if (clientDvcMessage_.size() >
+            clientDvcExpectedBytes_ ||
+        fragment.size() >
+            clientDvcExpectedBytes_ -
+                clientDvcMessage_.size())
+        return false;
+    try
+    {
+        clientDvcMessage_.insert(
+            clientDvcMessage_.end(),
+            fragment.begin(), fragment.end());
+    }
+    catch (...)
+    {
+        return false;
+    }
+
+    if (clientDvcMessage_.size() <
+        clientDvcExpectedBytes_)
+        return true;
+    if (clientDvcMessage_.size() !=
+        clientDvcExpectedBytes_)
+        return false;
+
+    clientDvcFragmented_ = false;
+    clientDvcExpectedBytes_ = 0U;
+    clientGraphicsDataReady_ = true;
+    completeMessage = clientDvcMessage_;
+    return true;
+}
+
 bool RdpGraphicsDynamicVirtualChannelLifecycle::begin(
     std::uint32_t clientUserId,
     std::uint16_t staticChannelId,
@@ -2335,6 +2979,109 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
     if (acceptedBytes == 0U)
         return RdpGraphicsDvcWriteOutcome::Pending;
 
+    if (pendingKind_ ==
+        RdpGraphicsDvcWriteKind::GraphicsFrameData)
+    {
+        if (!frame_ || !frame_->valid() ||
+            framePresentationLifecycle_ == nullptr ||
+            frameRecordIndex_ >= frameRecordMap_.size() ||
+            pendingLength_ !=
+                frameRecordMap_[frameRecordIndex_].
+                    outerPlaintextBytes)
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+
+        const auto &record =
+            frameRecordMap_[frameRecordIndex_];
+        const std::size_t previousOuterBytes =
+            bytesWritten_;
+        const std::size_t acceptedEnd =
+            previousOuterBytes + acceptedBytes;
+        const std::size_t payloadStart =
+            record.outerPlaintextBytes -
+            record.frameBytes;
+        const std::size_t mappedStart =
+            (std::max)(previousOuterBytes, payloadStart);
+        const std::size_t mappedEnd =
+            (std::min)(acceptedEnd,
+                       record.outerPlaintextBytes);
+        const std::size_t newlyAcceptedPayload =
+            mappedEnd > mappedStart
+                ? mappedEnd - mappedStart
+                : 0U;
+
+        if (framePayloadAcceptedBytes_ >
+                std::numeric_limits<std::size_t>::max() -
+                    newlyAcceptedPayload ||
+            frameOuterAcceptedBytes_ >
+                std::numeric_limits<std::size_t>::max() -
+                    acceptedBytes)
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+
+        framePayloadAcceptedBytes_ +=
+            newlyAcceptedPayload;
+        frameOuterAcceptedBytes_ += acceptedBytes;
+        bytesWritten_ = acceptedEnd;
+
+        if (bytesWritten_ != pendingLength_)
+        {
+            if (!advanceWriteSliceSequence())
+            {
+                fail();
+                return RdpGraphicsDvcWriteOutcome::Rejected;
+            }
+            return RdpGraphicsDvcWriteOutcome::Pending;
+        }
+
+        const std::size_t expectedMappedBytes =
+            record.frameOffset + record.frameBytes;
+        if (framePayloadAcceptedBytes_ !=
+            expectedMappedBytes)
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+
+        pending_.fill(0U);
+        pendingLength_ = 0U;
+        bytesWritten_ = 0U;
+        pendingKind_ = RdpGraphicsDvcWriteKind::None;
+
+        if (frameRecordIndex_ + 1U <
+            frameRecordMap_.size())
+        {
+            ++frameRecordIndex_;
+            if (!advanceReplySequence() ||
+                !advanceWriteSliceSequence() ||
+                !queueFrameRecord())
+            {
+                fail();
+                return RdpGraphicsDvcWriteOutcome::Rejected;
+            }
+            return RdpGraphicsDvcWriteOutcome::Pending;
+        }
+
+        const std::size_t deliveredWireBytes =
+            frame_->wireBytes().size();
+        if (framePayloadAcceptedBytes_ !=
+                deliveredWireBytes ||
+            !rdp_server::rdp::
+                completeGfxAvc420SegmentedFrameDelivery(
+                    *framePresentationLifecycle_, *frame_,
+                    deliveredWireBytes))
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+        clearFramePublication();
+        return RdpGraphicsDvcWriteOutcome::Delivered;
+    }
+
     bytesWritten_ += acceptedBytes;
     if (bytesWritten_ != pendingLength_)
     {
@@ -2363,6 +3110,9 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
     case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
         phase_ = RdpGraphicsDvcPhase::Ready;
         break;
+    case RdpGraphicsDvcWriteKind::GraphicsFrameData:
+        fail();
+        return RdpGraphicsDvcWriteOutcome::Rejected;
     case RdpGraphicsDvcWriteKind::None:
         fail();
         return RdpGraphicsDvcWriteOutcome::Rejected;
@@ -2382,7 +3132,8 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         channelGeneration != allocation_.generation ||
         (phase_ != RdpGraphicsDvcPhase::AwaitCapabilitiesResponse &&
          phase_ != RdpGraphicsDvcPhase::AwaitCreateResponse &&
-         phase_ != RdpGraphicsDvcPhase::Created))
+         phase_ != RdpGraphicsDvcPhase::Created &&
+         phase_ != RdpGraphicsDvcPhase::Ready))
     {
         fail();
         return RdpGraphicsDvcClientIntake::Rejected;
@@ -2492,51 +3243,22 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         return RdpGraphicsDvcClientIntake::CreateAccepted;
     }
 
-    // Capability negotiation is deliberately the first application payload
-    // after CREATE. This increment accepts exactly one complete DYNVC_DATA;
-    // DATA_FIRST/DATA reassembly belongs to the next R3 increment.
-    if (dvcPdu.empty() ||
-        (dvcPdu[0] & 0xf0U) != 0x30U ||
-        (dvcPdu[0] & 0x0cU) != 0U)
+    std::span<const std::uint8_t> graphicsPdu;
+    if (!acceptClientDvcData(dvcPdu, graphicsPdu))
     {
         fail();
         return RdpGraphicsDvcClientIntake::Rejected;
     }
+    if (graphicsPdu.empty())
+        return RdpGraphicsDvcClientIntake::
+            GraphicsDataFragmentAccepted;
 
-    const std::uint8_t cbId =
-        static_cast<std::uint8_t>(dvcPdu[0] & 0x03U);
-    if (cbId == 3U)
-    {
-        fail();
-        return RdpGraphicsDvcClientIntake::Rejected;
-    }
-    const std::size_t channelIdBytes =
-        cbId == 0U ? 1U : (cbId == 1U ? 2U : 4U);
-    if (dvcPdu.size() <= 1U + channelIdBytes)
-    {
-        fail();
-        return RdpGraphicsDvcClientIntake::Rejected;
-    }
+    if (phase_ == RdpGraphicsDvcPhase::Ready)
+        return RdpGraphicsDvcClientIntake::GraphicsDataAccepted;
 
-    std::uint32_t channelId = 0U;
-    for (std::size_t index = 0U; index < channelIdBytes; ++index)
-        channelId |= static_cast<std::uint32_t>(
-            dvcPdu[1U + index]) << (index * 8U);
-    if (channelId != allocation_.channelId)
-    {
-        fail();
-        return RdpGraphicsDvcClientIntake::Rejected;
-    }
-
-    const auto graphicsPdu =
-        dvcPdu.subspan(1U + channelIdBytes);
-    if (graphicsPdu.size() >
-        kMaximumRdpDynamicVirtualChannelDataPayloadBytes)
-    {
-        fail();
-        return RdpGraphicsDvcClientIntake::Rejected;
-    }
-
+    // Capability negotiation is the first application payload after CREATE,
+    // but it may itself arrive as DATA_FIRST followed by one or more DATA
+    // blocks. Only the exact complete reassembled message reaches R4.
     const auto negotiation =
         rdp_server::rdp::negotiateGfxCapabilities(
             std::as_bytes(graphicsPdu));
@@ -2555,6 +3277,7 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onClientTpkt(
         negotiation.selectedFlags;
     selectedGraphicsAvc420Enabled_ =
         negotiation.avc420Enabled;
+    clearClientDvcReassembly();
     if (!queueGraphicsCapabilitiesConfirm(
             std::span<const std::byte>{negotiation.confirmation}
                 .first(negotiation.confirmationBytes)))
@@ -3476,6 +4199,11 @@ void RdpShareActivationLifecycle::fail() noexcept
     pendingLength_ = 0U;
     bytesWritten_ = 0U;
     pendingKind_ = RdpShareServerWriteKind::None;
+    serverVirtualChannelChunkBytes_ =
+        kRdpStaticVirtualChannelDefaultChunkBytes;
+    negotiatedVirtualChannelChunkBytes_ =
+        kRdpStaticVirtualChannelDefaultChunkBytes;
+    serverVirtualChannelChunkFieldPresent_ = false;
     phase_ = RdpShareActivationPhase::Failed;
 }
 
@@ -3497,6 +4225,11 @@ void RdpShareActivationLifecycle::close() noexcept
     clientRequestControlSeen_ = false;
     serverGrantedControlDelivered_ = false;
     clientFontListSeen_ = false;
+    serverVirtualChannelChunkBytes_ =
+        kRdpStaticVirtualChannelDefaultChunkBytes;
+    negotiatedVirtualChannelChunkBytes_ =
+        kRdpStaticVirtualChannelDefaultChunkBytes;
+    serverVirtualChannelChunkFieldPresent_ = false;
     phase_ = RdpShareActivationPhase::Closed;
 }
 
@@ -3573,6 +4306,15 @@ bool RdpShareActivationLifecycle::begin(
         fail();
         return false;
     }
+    const auto virtualChannel =
+        virtualChannelCapabilityInfo(
+            capabilitySets, capabilityCount);
+    if (!virtualChannel.valid)
+    {
+        fail();
+        return false;
+    }
+
     const auto demandBytes = encodeRdpDemandActivePdu(
         shareId, sessionId, sourceDescriptor, capabilityCount,
         capabilitySets, demandSharePdu_);
@@ -3585,6 +4327,12 @@ bool RdpShareActivationLifecycle::begin(
     ioChannelId_ = ioChannelId;
     shareId_ = shareId;
     demandShareLength_ = *demandBytes;
+    serverVirtualChannelChunkBytes_ =
+        virtualChannel.serverToClientChunkBytes;
+    serverVirtualChannelChunkFieldPresent_ =
+        virtualChannel.chunkFieldPresent;
+    negotiatedVirtualChannelChunkBytes_ =
+        kRdpStaticVirtualChannelDefaultChunkBytes;
     clientStage_ = ClientStage::ConfirmActive;
     if (!queueSharePdu(
             RdpShareServerWriteKind::DemandActive,
@@ -3734,6 +4482,27 @@ RdpShareActivationLifecycle::onClientTpkt(
             fail();
             return RdpShareActivationClientIntake::Rejected;
         }
+        const auto clientActive = parseRdpActivePdu(sharePdu);
+        if (!clientActive)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        const auto clientVirtualChannel =
+            virtualChannelCapabilityInfo(
+                clientActive.value.capabilitySets,
+                clientActive.value.capabilityCount);
+        if (!clientVirtualChannel.valid)
+        {
+            fail();
+            return RdpShareActivationClientIntake::Rejected;
+        }
+        negotiatedVirtualChannelChunkBytes_ =
+            serverVirtualChannelChunkFieldPresent_ &&
+                    clientVirtualChannel.chunkFieldPresent
+                ? serverVirtualChannelChunkBytes_
+                : kRdpStaticVirtualChannelDefaultChunkBytes;
+
         clientStage_ = ClientStage::Synchronize;
         phase_ = RdpShareActivationPhase::Finalizing;
         if (!queueSynchronize())

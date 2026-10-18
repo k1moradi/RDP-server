@@ -1,3 +1,43 @@
+## R3 Graphics DATA publication candidate (2026-10-17)
+
+**Reconciled shared-main parent:** `27b5a1cea443e8ef107e4501b73a6a4395853932`.
+That parent has the R2 policy-bound Graphics broker, the R10 control scheduler
+and the R1 plaintext I/O owner required by the dependency graph. No later agent
+had added R3 application DATA publication; the former R2/R10 composition
+blocker is therefore resolved and the remaining offline boundary belongs to R3.
+
+This increment extends the existing sole
+`RdpGraphicsDynamicVirtualChannelLifecycle` rather than introducing a second
+scheduler. It adds bounded DYNVC DATA_FIRST/DATA generation and client
+reassembly, retains one move-only `GfxAvc420SegmentedFrame`, and maps every
+`wireBytes()` interval exactly once to complete TPKT/X.224/MCS/static-VC/DVC
+plaintext records. Header bytes are accounted independently. R1 accepted-byte
+progress reaches that owner only through the existing R2 write-receipt wrapper;
+full mapped coverage completes R4, conclusively zero publication can cancel,
+and stale/mapping/terminal partial paths abort.
+
+The public R10 composition surface added by this increment is
+`startPersonalDesktopGraphicsFramePublication(...)`,
+`advancePersonalDesktopGraphicsDynamicVirtualChannel(...)` and
+`cancelUnwrittenPersonalDesktopGraphicsFrame(...)`. ClearCodec requires a
+confirmed Graphics capability set; AVC420 additionally requires the explicit
+negotiated AVC420 flag. DVC CREATE by itself never selects a codec or desktop.
+
+Dedicated ordinary/ASan-selected R3 Graphics CTests expand **6 → 15** with
+zero/full/partial/stale/share-loss publication and malformed/wrong-channel/
+fragment-reassembly coverage. The tests exercise production R3/R4 code and
+never mint a genuine R2 lease.
+
+**Validation before publication:** GitHub source/head reconciliation against
+the exact parent above is **PASS**; affected production files were unchanged by
+concurrent commits. Canonical
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+is **NOT RUN** in this connector environment. No alternate persistent build
+root, live listener, credentialed session or desktop was used. Publication-SHA
+hosted CI is **PENDING**. Next offline gate is exact hosted build/CTest and the
+15-case R3 sanitizer selector; next live gate remains owner-authorized genuine
+R2 Linux admission plus a Microsoft client.
+
 ## R9 exact first-failure correction after SERVER-TEST publication (2026-10-17)
 
 The first exact-SHA R9 publication run for `4a42e7e32dcaa1db8999b3210ed426cbaf17fe6a`

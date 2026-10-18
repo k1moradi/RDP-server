@@ -4,6 +4,7 @@
 #include "gcc_conference_create.h"
 #include "mcs_connect_response.h"
 #include "rdp_licensing.h"
+#include "rdp/gfx_avc420_segmented_frame.h"
 
 #include <array>
 #include <cstddef>
@@ -11,6 +12,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace rdp_server::server::security
 {
@@ -765,6 +767,13 @@ public:
     {
         return phase_ == RdpShareActivationPhase::Activated;
     }
+    [[nodiscard]] std::size_t
+    serverToClientVirtualChannelChunkBytes() const noexcept
+    {
+        return activated()
+                   ? negotiatedVirtualChannelChunkBytes_
+                   : 0U;
+    }
     [[nodiscard]] bool begin(
         std::uint32_t clientUserId,
         std::uint16_t ioChannelId,
@@ -826,6 +835,11 @@ private:
     bool clientRequestControlSeen_{};
     bool serverGrantedControlDelivered_{};
     bool clientFontListSeen_{};
+    std::size_t serverVirtualChannelChunkBytes_{
+        kRdpStaticVirtualChannelDefaultChunkBytes};
+    std::size_t negotiatedVirtualChannelChunkBytes_{
+        kRdpStaticVirtualChannelDefaultChunkBytes};
+    bool serverVirtualChannelChunkFieldPresent_{};
 };
 
 // One allocation domain for all dynamic virtual channels on this static
@@ -865,11 +879,21 @@ inline constexpr std::string_view kRdpGraphicsDynamicVirtualChannelName =
     "Microsoft::Windows::RDS::Graphics";
 inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelControlPacketBytes =
     96U;
-// MS-RDPEDYC DATA carries at most one unfragmented 1,590-byte application
-// message. Larger Graphics messages require DATA_FIRST/DATA and are not
-// accepted by the capability-only increment below.
+// MS-RDPBCGR CHANNEL_CHUNK_LENGTH and the optional server-advertised
+// VCChunkSize bound the static virtual-channel payload. An extended server
+// value is negotiated only when both endpoints include the optional field;
+// the client's numeric value is not a server-to-client size authority.
+// MS-RDPEDYC further bounds each uncompressed DVC DATA/DATA_FIRST block to
+// 1,600 bytes including its DVC header, so a 1,590-byte application slice
+// always fits the default static-channel chunk.
+inline constexpr std::size_t kRdpStaticVirtualChannelDefaultChunkBytes = 1600U;
+inline constexpr std::size_t kRdpStaticVirtualChannelMaximumChunkBytes = 16256U;
 inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelDataPayloadBytes =
     1590U;
+inline constexpr std::size_t kMaximumRdpGraphicsDvcClientMessageBytes =
+    1024U * 1024U;
+inline constexpr std::size_t kMaximumRdpDynamicVirtualChannelPacketBytes =
+    1632U;
 
 enum class RdpGraphicsDvcPhase : std::uint8_t
 {
@@ -891,6 +915,7 @@ enum class RdpGraphicsDvcWriteKind : std::uint8_t
     CapabilitiesRequest,
     CreateRequest,
     GraphicsCapabilitiesConfirm,
+    GraphicsFrameData,
 };
 
 struct RdpGraphicsDvcWriteView
@@ -924,9 +949,31 @@ enum class RdpGraphicsDvcClientIntake : std::uint8_t
     CreateAccepted,
     CreateRejected,
     GraphicsCapabilitiesAccepted,
+    GraphicsDataFragmentAccepted,
+    GraphicsDataAccepted,
     Rejected,
     Closed,
 };
+
+enum class RdpGraphicsFrameCodec : std::uint8_t
+{
+    ClearCodec,
+    Avc420,
+};
+
+struct RdpGraphicsDvcOuterRecordMapEntry
+{
+    std::size_t frameOffset{};
+    std::size_t frameBytes{};
+    std::size_t tpktHeaderBytes{};
+    std::size_t x224HeaderBytes{};
+    std::size_t mcsHeaderBytes{};
+    std::size_t staticChannelHeaderBytes{};
+    std::size_t dvcHeaderBytes{};
+    std::size_t outerPlaintextBytes{};
+    bool dataFirst{};
+};
+
 
 // Allocation-free MS-RDPEDYC v1 server-manager lifecycle for exactly the
 // RDPGFX listener. This class proves protocol mechanics only: a joined
@@ -956,6 +1003,31 @@ public:
     [[nodiscard]] RdpGraphicsDvcClientIntake onClientTpkt(
         std::uint64_t channelGeneration,
         std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    [[nodiscard]] bool beginFramePublication(
+        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+        RdpGraphicsFrameCodec codec,
+        std::size_t staticChannelChunkBytes) noexcept;
+    [[nodiscard]] std::span<const RdpGraphicsDvcOuterRecordMapEntry>
+    frameRecordMap() const noexcept
+    {
+        return frameRecordMap_;
+    }
+    [[nodiscard]] std::span<const std::uint8_t>
+    pendingClientGraphicsData() const noexcept
+    {
+        return clientGraphicsDataReady_
+                   ? std::span<const std::uint8_t>{clientDvcMessage_}
+                   : std::span<const std::uint8_t>{};
+    }
+    [[nodiscard]] bool consumeClientGraphicsData(
+        std::uint64_t channelGeneration) noexcept;
+    [[nodiscard]] bool cancelUnwrittenFramePublication(
+        std::uint64_t channelGeneration) noexcept;
+    [[nodiscard]] bool abortFramePublication(
+        std::uint64_t channelGeneration) noexcept;
+
     void revokeUnlessChannelGenerationMatches(
         std::uint64_t channelGeneration) noexcept;
     void close() noexcept;
@@ -1025,10 +1097,20 @@ private:
         std::span<const std::uint8_t> dvcPdu) noexcept;
     [[nodiscard]] bool advanceReplySequence() noexcept;
     [[nodiscard]] bool advanceWriteSliceSequence() noexcept;
+    [[nodiscard]] bool buildFrameRecordMap(
+        std::span<const std::byte> frameBytes,
+        std::size_t staticChannelChunkBytes) noexcept;
+    [[nodiscard]] bool queueFrameRecord() noexcept;
+    [[nodiscard]] bool acceptClientDvcData(
+        std::span<const std::uint8_t> dvcPdu,
+        std::span<const std::uint8_t> &completeMessage) noexcept;
+    void clearClientDvcReassembly() noexcept;
+    void clearFramePublication() noexcept;
+    void abortActiveFramePublication() noexcept;
     void fail() noexcept;
 
     std::array<std::uint8_t,
-               kMaximumRdpDynamicVirtualChannelControlPacketBytes>
+               kMaximumRdpDynamicVirtualChannelPacketBytes>
         pending_{};
     std::size_t pendingLength_{};
     std::size_t bytesWritten_{};
@@ -1041,6 +1123,16 @@ private:
     std::uint32_t selectedGraphicsCapabilityVersion_{};
     std::uint32_t selectedGraphicsCapabilityFlags_{};
     bool selectedGraphicsAvc420Enabled_{};
+    rdp_server::rdp::GfxPresentationLifecycle *framePresentationLifecycle_{};
+    std::optional<rdp_server::rdp::GfxAvc420SegmentedFrame> frame_{};
+    std::vector<RdpGraphicsDvcOuterRecordMapEntry> frameRecordMap_{};
+    std::size_t frameRecordIndex_{};
+    std::size_t framePayloadAcceptedBytes_{};
+    std::size_t frameOuterAcceptedBytes_{};
+    std::vector<std::uint8_t> clientDvcMessage_{};
+    std::size_t clientDvcExpectedBytes_{};
+    bool clientDvcFragmented_{};
+    bool clientGraphicsDataReady_{};
     RdpGraphicsDvcPhase phase_{RdpGraphicsDvcPhase::NotStarted};
     RdpGraphicsDvcWriteKind pendingKind_{RdpGraphicsDvcWriteKind::None};
 };
@@ -1421,6 +1513,16 @@ private:
     acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
         const SecurityNegotiationProvenance &provenance,
         std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<RdpGraphicsDvcWriteView>
+    beginVerifiedR2GraphicsFramePublication(
+        const SecurityNegotiationProvenance &provenance,
+        rdp_server::rdp::GfxPresentationLifecycle &presentationLifecycle,
+        rdp_server::rdp::GfxAvc420SegmentedFrame &&frame,
+        RdpGraphicsFrameCodec codec) noexcept;
+    [[nodiscard]] bool cancelVerifiedR2UnwrittenGraphicsFrame(
+        const SecurityNegotiationProvenance &provenance) noexcept;
+    [[nodiscard]] bool abortVerifiedR2GraphicsFrame(
+        const SecurityNegotiationProvenance &provenance) noexcept;
 
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};

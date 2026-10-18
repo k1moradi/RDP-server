@@ -1,3 +1,38 @@
+## R9 R10 Join/Info/licensing and R3 CLIPRDR sanitizer reconciliation (2026-10-18)
+
+Latest completed full-green hosted source before the current red descendants is
+`af0cee994736bd016689b34f2cdc98ce1b49ebe3`: primary Actions
+`39110154218` and structure Actions `39110154259` **PASS**. Its Linux,
+Windows and macOS startup-disabled SERVER-TEST artifacts all carry that exact
+SHA, valid outer/inner SHA-256 coverage, real ELF64/PE32+/Mach-O executables,
+resolved dependency reports, loopback-only sample configuration, no embedded
+credentials, no autostart and expected unconfigured/packaged-sample serve
+refusal. Windows bundles its listed non-system `libcrypto-3-x64.dll`; the SDK
+publisher remains separate. This is package/CI evidence, not desktop acceptance.
+
+Exact source `d85f4030b12e0393a96b1727c14e2b1744c767c3` demonstrated two R9
+coverage defects. Sanitizer job `117627313239` observed 90 tests under the
+generic clipboard label while the R8-only sentinel expected 82, and its focused
+build had not built `test_r3_clipboard_static_channel`. R3 corrected the test
+ownership label at `0a160795d828c373b897543784e8d17581987213`; R9 therefore
+preserves R8 at **82** and adds a separate exact **9-case**
+`transport.cliprdr-*` sanitizer gate with the R3 executable built explicitly.
+The same `d85f4030` Ubuntu full CTest passed all 9/9 R3 CLIPRDR cases.
+
+R10's subsequent ordinary production cases also need direct sanitizer coverage:
+`runtime.linux-connection-post-admission-channel-join-denials`,
+`runtime.linux-connection-post-admission-client-info-denials`,
+`runtime.linux-connection-client-info-bounded-tpkt-framing`, and
+`runtime.linux-connection-personal-licensing-sequence-denials`. This
+correction raises the exact direct selector from **34 to 38** and adds all four
+names to the structure guard. The first full-CTest behavior failure observed at
+`d85f4030` was instead R8's
+`clipboard.windows-clipboard-publication-midcallback-retirement` assertion
+(`owner.sourceEpoch() > originalSourceEpoch`) on Ubuntu/macOS; R9 does not
+change that R8-owned behavior. Exact publication-SHA hosted validation for this
+R9 correction is **NOT RUN / pending** at authorship. M1 owner-native same-SHA
+Debug and M2 real-client evidence remain **NOT VERIFIED**.
+
 ## R10 serialized PersonalDesktop licensing composition (2026-10-18)
 
 **Parent `0a160795d828c373b897543784e8d17581987213`; publication-SHA hosted CI pending; owner-local and

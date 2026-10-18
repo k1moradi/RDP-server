@@ -118,6 +118,8 @@ using rdp_server::server::runtime::RuntimeLicensingContext;
 using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
 using rdp_server::server::runtime::RuntimeDeploymentPolicy;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
+using rdp_server::server::transport::RdpSlowPathInputEvent;
+using rdp_server::server::transport::RdpSlowPathInputEventSink;
 using rdp_server::server::security::ConsolePolicyMatch;
 using rdp_server::server::security::ConsoleEvidenceRequest;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
@@ -2713,6 +2715,58 @@ void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+bool recordUnexpectedSlowPathInput(
+    void *context, const RdpSlowPathInputEvent &) noexcept
+{
+    if (context == nullptr)
+        return false;
+    auto *callbacks = static_cast<std::size_t *>(context);
+    ++*callbacks;
+    return true;
+}
+
+void testConnectionPersonalDesktopSlowPathInputGatewayDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-personal-desktop-slow-input.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(true, 3389U));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{
+        configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+
+    std::size_t callbacks = 0;
+    const RdpSlowPathInputEventSink sink{
+        &callbacks, &recordUnexpectedSlowPathInput};
+    const std::array<std::uint8_t, 4U> callerPacket{
+        0x03U, 0x00U, 0x00U, 0x04U};
+
+    // Packet bytes plus a valid callback cannot substitute for the private
+    // R2 lease. Denial happens before R3 can decode or invoke the sink.
+    assert(!connection.dispatchPersonalDesktopSlowPathInputPdu(
+        personalPolicy, callerPacket, sink));
+    assert(callbacks == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+
+    // Late/replayed application input cannot revive the retired owner.
+    assert(!connection.dispatchPersonalDesktopSlowPathInputPdu(
+        personalPolicy, callerPacket, sink));
+    assert(callbacks == 0U);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopClipboardGatewayDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3253,6 +3307,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-valid-client-r1-write-denials")
     {
         testConnectionPersonalDesktopValidClientR1WriteDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-desktop-slow-path-input-gateway-denials")
+    {
+        testConnectionPersonalDesktopSlowPathInputGatewayDenials(
             fixtureDirectory);
         return 0;
     }

@@ -964,6 +964,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-native-desktop-selection-denials
             linux-connection-personal-licensing-sequence-denials
             linux-connection-personal-desktop-r3-authority-denials
+            linux-connection-personal-desktop-slow-path-input-gateway-denials
             linux-connection-personal-desktop-clipboard-gateway-denials
             linux-connection-personal-desktop-policy-receipt-denials
             linux-connection-personal-desktop-graphics-dvc-authority-denials

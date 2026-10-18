@@ -1,3 +1,26 @@
+## R2 protected post-Share slow-path input gateway (2026-10-18)
+
+Dependency review found R10's genuine Share/Graphics control and R2-selected
+X11 owner/native-watch composition landed. R2 now exposes the already-existing
+`LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu()`
+through `LinuxRuntimeConnection`, so R10 never receives the private broker or
+move-only admission lease. The gateway accepts only one already-framed TPKT;
+R1 remains the sole TLS application-I/O owner. R2/R3 revalidates the exact
+lease, GSS/TLS provenance, policy/native evidence, session generations and
+input permission immediately before every decoded event callback.
+
+Dedicated offline CTest:
+`runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials`.
+It supplies caller packet bytes plus a synchronous sink but no genuine R2
+lease, and requires terminal revocation with zero sink invocations, including
+replay after revocation. No XTEST call, positive Kerberos/PAM/logind admission,
+real desktop, listener or Microsoft-client session is created.
+
+Authoring parent: `e738f78293d6cfb22f1871c48e3ebc37fadfb904`. R2's earlier lifecycle namespace correction is
+covered by fully green descendant `40e2cab05450aacde767ae638be0ef54e4b666c0`.
+Local owner build/full CTest is **NOT RUN** in this connector environment;
+exact publication-SHA hosted CI is **PENDING**.
+
 ## R8 R2-protected Linux runtime clipboard gateway seam (2026-10-18)
 
 Authoring parent `5103e8524943309d7f6fa382dbf26c21e3cca9df`. R10 has now landed genuine Share activation,

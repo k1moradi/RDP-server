@@ -2993,6 +2993,28 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
     return {0U, 0U, Step::Invalid};
 }
 
+bool LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt,
+    rdp_server::server::transport::RdpSlowPathInputEventSink sink) noexcept
+{
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        completeTpkt.empty() || !sink ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked() ||
+        !broker_->dispatchR3PersonalDesktopSlowPathInputPdu(
+            &*lease_, acceptor_, connection_, session_,
+            deploymentPolicy, completeTpkt, sink))
+    {
+        revoke();
+        return false;
+    }
+    return true;
+}
+
 bool LinuxRuntimeConnection::authorizePersonalDesktopApplicationTraffic(
     const RuntimeDeploymentPolicy &deploymentPolicy) noexcept
 {

@@ -695,6 +695,17 @@ public:
     [[nodiscard]] bool authorizePersonalDesktopApplicationTraffic(
         const RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
 
+    // R2/R3 post-Share input gateway. R10 supplies one complete TPKT obtained
+    // through the sole R1 TLS reader and a synchronous destination. Neither
+    // bytes nor callback grant authority: the broker revalidates the concrete
+    // lease, GSS/TLS provenance, native evidence, R3 generations and input
+    // permission immediately before EACH decoded event callback.
+    [[nodiscard]] bool dispatchPersonalDesktopSlowPathInputPdu(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt,
+        rdp_server::server::transport::RdpSlowPathInputEventSink sink)
+        noexcept;
+
     // R8-facing post-Share gateway only. These methods perform no TLS I/O,
     // native clipboard publication or scheduling. R10 must call them only from
     // the serialized connection loop; every operation re-enters R2 before R3.

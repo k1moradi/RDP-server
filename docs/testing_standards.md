@@ -1,3 +1,13 @@
+## R2 runtime slow-path input gateway coverage (2026-10-18)
+
+The runtime-facing slow-path input gateway must not expose the private R2 broker
+or admission lease. Offline tests may provide bounded caller packet bytes and a
+synchronous sink, but without genuine admission the aggregate must revoke
+before event decode/callback dispatch and the sink count must remain zero.
+Replay after revocation remains terminal. Positive native-input coverage
+requires owner-authorized genuine CredSSP/PAM/NSS/logind admission; ordinary CI
+must not manufacture that capability or invoke XTEST on a logged-in desktop.
+
 ## R8 Linux runtime clipboard gateway denial boundary (2026-10-18)
 
 The post-Share runtime may expose R8 only through the existing R2 broker's five

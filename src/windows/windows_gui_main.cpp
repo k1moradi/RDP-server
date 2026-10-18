@@ -3,6 +3,7 @@
 // authenticated host admission; this binary never creates such authority.
 #include "desktop_window.h"
 #include "host_control.h"
+#include "server/runtime/runtime_host_control.h"
 
 #include <QApplication>
 #include <QByteArray>
@@ -12,15 +13,13 @@
 namespace
 {
 [[nodiscard]] int verifyOfflineGui(rdp::gui::DesktopWindow &window,
-                                    rdp::gui::UnavailableHostControl &control,
+                                    rdp::gui::HostControl &control,
                                     const bool exerciseStartDenial)
 {
     const auto status = control.status();
-    if (status.controlAvailable || status.credentialProviderReady ||
+    if (status.controlAvailable || status.credentialsConfigured ||
         status.desktopAuthorized || status.sharing || window.canStart())
-    {
         return 2;
-    }
 
     auto *startButton = window.findChild<QPushButton *>("startSharing");
     auto *stopButton = window.findChild<QPushButton *>("stopSharing");
@@ -28,23 +27,17 @@ namespace
     if (!startButton || !stopButton || !passwordField ||
         startButton->isEnabled() || stopButton->isEnabled() ||
         passwordField->isEnabled() || window.blockedReason().isEmpty())
-    {
         return 3;
-    }
 
     if (exerciseStartDenial)
     {
-        // Disabled button clicks have no effect, and direct host control
-        // refuses Start independently of the GUI's view of readiness.
         const rdp::gui::HostRequest request{};
         const bool accepted = control.start(request);
         startButton->click();
         window.refresh();
         if (accepted || control.status().sharing || window.canStart() ||
             startButton->isEnabled() || stopButton->isEnabled())
-        {
             return 4;
-        }
     }
     return 0;
 }
@@ -56,21 +49,15 @@ int main(int argc, char *argv[])
         argc == 2 && std::string_view{argv[1]} == "--offline-self-test";
     const bool offlineStartDenialTest =
         argc == 2 && std::string_view{argv[1]} == "--offline-start-denial-test";
-
     if (offlineSelfTest || offlineStartDenialTest)
-    {
-        // CI starts no native window and opens no listener or permission UI.
-        // Loading Qt verifies the genuine plugin/runtime dependency path.
         qputenv("QT_QPA_PLATFORM", QByteArray("offscreen"));
-    }
 
     QApplication application(argc, argv);
-    rdp::gui::UnavailableHostControl control;
+    rdp_server::server::runtime::UnavailableRuntimeHostControl runtime;
+    rdp::gui::HostControl control(runtime);
     rdp::gui::DesktopWindow window(control);
     if (offlineSelfTest || offlineStartDenialTest)
-    {
         return verifyOfflineGui(window, control, offlineStartDenialTest);
-    }
 
     window.show();
     return application.exec();

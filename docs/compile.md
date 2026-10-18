@@ -1062,3 +1062,14 @@ Launch does not bind a listener, request system privileges, capture pixels,
 start input injection, install/enable systemd or create credentials. Newly
 created user files obey umask 0077; no config is written by the launcher.
 Live access requires the current owner to log into a physical X11 seat0.
+
+## R7 Qt-to-R10 control adapter (2026-10-18)
+
+The common Qt target now compiles `src/gui/host_control.cpp` and includes
+the private source root only so it can consume
+`server/runtime/runtime_host_control.h`. The adapter owns no listener,
+lease, policy generation or native desktop. The production GUI constructs
+R10's deny-only `UnavailableRuntimeHostControl`; extraction or double-click
+therefore still cannot start networking. Windows R6's shared launcher uses
+the same adapter. A future live backend may replace the unavailable R10
+object without changing the UI authority boundary.

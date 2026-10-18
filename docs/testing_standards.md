@@ -3905,3 +3905,15 @@ The optional Qt GUI CTests now cover no implicit R10-approved interface selectio
 ## Shell launcher policy scans distinguish executable content from comments (2026-10-18)
 
 When an offline packaging test prohibits runtime mechanisms such as FUSE, AppImage mounting or systemd activation, inspect executable shell lines rather than matching explanatory comments. Strip comment-only lines first, then apply the same fail-closed token checks to active launcher content. This prevents safety prose such as “no FUSE” from creating a false failure without weakening the prohibition. Keep archive contents, executable modes, dependency closure, tamper and startup-denial assertions independent of this source scan.
+
+## R7 direct R10 host-control adapter coverage (2026-10-18)
+
+The Qt shell uses R10's `RuntimeHostControl` as the sole command/status
+authority. `rdp::gui::HostControl` is a concrete view/translation adapter,
+not a second interface owner: it derives eligible LAN addresses from
+`enumerateLocalInterfaces()`, calls R10 `configure()` then
+`startSharing()`, and refreshes R10 status before any active-state UI.
+`gui.offscreen-r10-control-adapter-denials` instantiates the production
+`UnavailableRuntimeHostControl` and verifies no interface, Start, listener
+or sharing state appears. The layout fake implements `RuntimeHostControl`
+itself and command success alone must not produce an active state.

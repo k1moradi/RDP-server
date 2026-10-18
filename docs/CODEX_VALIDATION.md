@@ -5963,3 +5963,18 @@ input/frame acceptance: NOT RUN / BLOCKED. No R2 credentials were minted.
 ## R7 R10-interface recheck and fail-closed desktop UX (2026-10-18)
 
 R1 LAN listener and R5 GUI launcher have landed. R10 now defines `runtime_host_control.h` typed commands/status, but its sole implementation is `UnavailableRuntimeHostControl` and the required serialized owner-thread marshaling/real native R2 admission are absent. R7 Qt GUI hardens pending-host close-to-revoke, host-projected LAN interface selection, stale choice removal, disabled endpoint copy and explicit desktop denial; an added offscreen CTest covers refused closure while stop remains pending. R9 Qt runtime ZIP closure and macOS .app package remain unresolved. Local Qt development tools/owner checkout unavailable in this environment: configure/build/CTest **NOT RUN**, CI after this commit **PENDING**, live hosting **BLOCKED**. No real positive security authority is inferred.
+
+## R7 consumes R10 typed host-control contract (2026-10-18)
+
+Dependency recheck found R10's `RuntimeHostControl` contract landed and
+R5's Linux Qt/XCB relocatable ZIP path authored. R7 therefore removes its
+parallel abstract GUI control owner and adds a concrete Qt projection over
+R10. Eligible interfaces come only from R10 enumeration; Start calls R10
+configure/start but command success is not displayed as sharing until the
+subsequent authoritative R10 stage says Share/Desktop/Client active.
+Stop/close delegates stop+revoke back to R10. The production object remains
+`UnavailableRuntimeHostControl`, so live Start, genuine R2 host admission,
+macOS AppKit ownership and cross-platform R9 package acceptance remain
+BLOCKED. Added `gui.offscreen-r10-control-adapter-denials`.
+Connector environment has no local Qt build: configure/build/CTest NOT RUN;
+publication-SHA hosted CI PENDING.

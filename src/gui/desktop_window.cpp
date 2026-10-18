@@ -112,7 +112,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     connect(start_, &QPushButton::clicked, this, [this] {
         const auto snapshot = host_.status();
         if (snapshot.sharing || snapshot.startPending || !blockedReason(snapshot).isEmpty()) return;
-        const HostRequest request{snapshot.desktop, interfaces_->currentData().toString(),
+        const HostRequest request{interfaces_->currentData().toString(),
             static_cast<std::uint16_t>(port_->value())};
         (void)host_.start(request); // Never use return value as active-sharing proof.
         refresh();
@@ -141,12 +141,11 @@ QString DesktopWindow::blockedReason() const {
 }
 QString DesktopWindow::blockedReason(const HostStatus& state) const {
     if (!state.controlAvailable) return "R10 host control unavailable";
-    if (!state.credentialProviderReady) return "Compatible R2 OS-backed credential provider unavailable";
+    if (!state.credentialsConfigured) return "OS-backed credentials are not configured";
     if (!state.desktopAuthorized || state.desktop.isEmpty()
         || desktops_->currentData().toString() != state.desktop)
         return "Logged-in desktop not R2-authorized";
     if (!state.tlsReady) return "TLS identity unavailable";
-    if (!state.firewallReady) return "Firewall prerequisite unavailable";
     if (!state.captureInputReady) return "Screen/input permissions unavailable";
     const QString selectedInterface = interfaces_->currentData().toString();
     if (selectedInterface.isEmpty() || !state.approvedLanInterfaces.contains(selectedInterface))

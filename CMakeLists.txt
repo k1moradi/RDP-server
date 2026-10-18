@@ -959,8 +959,10 @@ if(WIN32)
     if(TARGET Qt6::Widgets)
         add_executable(rdp-server-windows-gui WIN32
             src/windows/windows_gui_main.cpp
-            src/gui/desktop_window.cpp)
+            src/gui/desktop_window.cpp
+            src/gui/host_control.cpp)
         target_include_directories(rdp-server-windows-gui PRIVATE
+            "${PROJECT_SOURCE_DIR}/src"
             "${PROJECT_SOURCE_DIR}/src/gui")
         target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
         target_link_libraries(rdp-server-windows-gui PRIVATE Qt6::Widgets)
@@ -997,8 +999,11 @@ endif()
 option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" OFF)
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
-    add_library(rdp-server-desktop-ui STATIC src/gui/desktop_window.cpp)
+    add_library(rdp-server-desktop-ui STATIC
+        src/gui/desktop_window.cpp
+        src/gui/host_control.cpp)
     target_include_directories(rdp-server-desktop-ui PUBLIC
+        "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}/src/gui")
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)

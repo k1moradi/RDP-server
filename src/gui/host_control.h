@@ -1,22 +1,28 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+
+#include "server/runtime/runtime_host_control.h"
+
 #include <QString>
 #include <QStringList>
 #include <cstdint>
-namespace rdp::gui {
-// R10 alone owns network, TLS, native permission, and admission lifetimes.
-// Snapshots are descriptive; no UI flag is an authorization token.
-struct HostStatus {
-    bool controlAvailable = false;
-    bool credentialProviderReady = false;
-    bool desktopAuthorized = false;
-    bool tlsReady = false;
-    bool firewallReady = false;
-    bool captureInputReady = false;
-    bool sharing = false;
-    bool startPending = false; // R10 owns the pending-start lifetime.
+
+namespace rdp::gui
+{
+
+// Qt-facing projection only. R10 remains the sole command/status authority;
+// these fields never mint an R2 lease, native permission or listener.
+struct HostStatus
+{
+    bool controlAvailable{};
+    bool credentialsConfigured{};
+    bool desktopAuthorized{};
+    bool tlsReady{};
+    bool captureInputReady{};
+    bool sharing{};
+    bool startPending{};
     QString desktop;
-    QStringList approvedLanInterfaces; // R10-supplied LAN candidates only.
+    QStringList approvedLanInterfaces;
     QString lanAddress;
     QString failure;
     QStringList clients;
@@ -24,27 +30,27 @@ struct HostStatus {
     QStringList disconnected;
     QStringList revoked;
 };
-struct HostRequest {
-    QString desktop;
+
+struct HostRequest
+{
     QString interfaceAddress;
-    std::uint16_t port = 3389;
+    std::uint16_t port{3389U};
 };
-class HostControl {
+
+// Thin UI adapter around R10's single typed RuntimeHostControl contract.
+// It owns no runtime state and command success is never sharing proof.
+class HostControl final
+{
 public:
-    virtual ~HostControl() = default;
-    [[nodiscard]] virtual HostStatus status() const = 0;
-    [[nodiscard]] virtual bool start(const HostRequest&) = 0;
-    virtual void stopAndRevoke() = 0;
+    explicit HostControl(
+        rdp_server::server::runtime::RuntimeHostControl& runtime) noexcept;
+
+    [[nodiscard]] HostStatus status() const;
+    [[nodiscard]] bool start(const HostRequest& request);
+    void stopAndRevoke();
+
+private:
+    rdp_server::server::runtime::RuntimeHostControl& runtime_;
 };
-// Production launch has no R10 control API yet: deny, never simulate success.
-class UnavailableHostControl final : public HostControl {
-public:
-    [[nodiscard]] HostStatus status() const override {
-        HostStatus value;
-        value.failure = QStringLiteral("R10 host-control API and R2 native admission are unavailable");
-        return value;
-    }
-    [[nodiscard]] bool start(const HostRequest&) override { return false; }
-    void stopAndRevoke() override {}
-};
-}
+
+} // namespace rdp::gui

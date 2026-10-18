@@ -23,7 +23,7 @@ This file is the **only active roadmap and cross-agent communication board**. It
 
 **Current evidence:** source/CTest authored; local Debug build/CTest **NOT RUN** (no approved local checkout); exact publication-SHA hosted CI **PENDING**, live Windows/macOS clients **NOT RUN**. **Next gate:** R2/R10 integrate a truly authenticated OS provider and host-owner consent into start/stop + R3, then record three independent client results. Keep independent GUI password mode Start Sharing **BLOCKED** until fully reviewed interoperable verification and genuine OS authorization are demonstrated.
 
-## Milestone gates
+**R6 Windows GUI (2026-10-18):** Qt6 Windows shell and offline self-test integration authored; functional portable ZIP DLL closure remains R9 ACTIVE; R2 authenticated Windows lease and R10 session ownership BLOCKED. No native serving, account configuration, listener or Start enabled. See [Windows GUI boundary](WINDOWS_GUI.md). Hosted and owner Windows validation NOT RUN.\n\n## Milestone gates
 
 | Gate | Status | Acceptance condition / blocking dependency |
 | --- | --- | --- |

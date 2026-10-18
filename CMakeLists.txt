@@ -952,6 +952,37 @@ if(APPLE)
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# Windows-only R6 portable GUI shell; Qt is optional so protocol builds work
+# without a GUI SDK. No host control or network runtime is linked here.
+if(WIN32)
+    find_package(Qt6 QUIET COMPONENTS Widgets)
+    if(TARGET Qt6::Widgets)
+        add_executable(rdp-server-windows-gui WIN32
+            src/windows/windows_gui_main.cpp)
+        target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
+        target_link_libraries(rdp-server-windows-gui PRIVATE Qt6::Widgets)
+        set_target_properties(rdp-server-windows-gui PROPERTIES
+            OUTPUT_NAME "RDP-server")
+        if(MSVC)
+            target_compile_options(rdp-server-windows-gui PRIVATE /W4)
+        else()
+            target_compile_options(rdp-server-windows-gui PRIVATE
+                -Wall -Wextra -Wpedantic -Werror)
+        endif()
+        # R9 owns complete Qt/CRT/OpenSSL DLL closure and signed ZIP assembly.
+        # Export one predictable GUI target, without changing SERVER-TEST.
+        if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
+            add_test(NAME windows.gui-offline-no-side-effects
+                COMMAND $<TARGET_FILE:rdp-server-windows-gui>
+                    --offline-self-test)
+            set_tests_properties(windows.gui-offline-no-side-effects
+                PROPERTIES LABELS "windows;gui;offline" TIMEOUT 10)
+        endif()
+    else()
+        message(STATUS "Windows Qt6 Widgets unavailable: GUI shell not built")
+    endif()
+endif()
+
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
     add_subdirectory(tests)
 endif()

@@ -1,4 +1,6 @@
-## R2 standalone credential-choice denial boundary (2026-10-18)
+## R6 Windows GUI shell integration (2026-10-18)
+
+Base main 8472a3622baca98f70f20659156e17b83de62553; optional Qt6 Widgets executable and `windows.gui-offline-no-side-effects` CTest authored. Offline CTest, Windows compiler, DLL closure, GUI smoke, and ZIP path/integrity tests: **NOT RUN** (no Windows build environment available). Native Windows hosting: **BLOCKED** on R2 SSPI/CredSSP lease and R10 interactive owner; no security authority inferred. Next gate: R9 Windows CI compile, stage closed runtime DLL ZIP, exercise offline package/GUI cases.\n\n## R2 standalone credential-choice denial boundary (2026-10-18)
 
 Added a pure production C++23 GUI-choice policy (deny-only) with ordinary offline
 `security.lan-credential-mode-denials` CTest. This is **not** a CredSSP

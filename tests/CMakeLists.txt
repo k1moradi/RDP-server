@@ -970,6 +970,19 @@ if(TARGET rdp-server-linux-pam-password-verifier)
 endif()
 
 if(TARGET rdp-server-linux-runtime-security)
+    # R2 final-credential security contract: check only GSS-verified account
+    # reservation after R2 mapping and before PAM. No real OS admission.
+    add_test(NAME security.linux-verified-account-pam-attempt-fence-source
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_R2_FINAL_CREDENTIAL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/security/gssapi_credssp_credentials.cpp"
+            "-DRDP_R2_GSS_ACCEPTOR_HEADER=${PROJECT_SOURCE_DIR}/src/server/security/gssapi_spnego_acceptor.h"
+            "-DRDP_R2_GSS_ACCEPTOR_SOURCE=${PROJECT_SOURCE_DIR}/src/server/security/gssapi_spnego_acceptor.cpp"
+            "-DRDP_R2_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            "-DRDP_R2_LINUX_SERVER_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_verified_account_attempt_fence.cmake")
+    set_tests_properties(
+        security.linux-verified-account-pam-attempt-fence-source
+        PROPERTIES LABELS "security;credentials;linux-provider;offline")
     add_executable(test_runtime_io_interest
         test_runtime_io_interest.cpp)
     target_compile_features(test_runtime_io_interest PRIVATE cxx_std_23)

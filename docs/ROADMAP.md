@@ -25,6 +25,24 @@ source-guard failures from wrapped native `::poll`/watcher calls.
 Exact publication-SHA primary+structure workflows **PENDING**;
 real Microsoft-client and native credential acceptance **NOT RUN**.
 
+## R2 GSS-to-PAM account budget regression coverage (2026-10-18)
+
+The earlier R2 `1aa476e5` wired real service-owned per-account
+attempt reservations into the final GSS/PAM credential path.
+The new ordinary offline CTest
+`security.linux-verified-account-pam-attempt-fence-source` now guards
+the production-source ordering: R2 GSS principal/local-account policy
+match, fixed-memory reservation keyed only by verified GSS identity,
+then PAM password verification. It additionally checks the existing
+single service-owned peer/global budget reaches the acceptor only
+after provisioning and is cleared on rejection. The test does not
+invent positive GSS, TLS, OS lease, native desktop or client traffic;
+it is distinct from executable-based binding/expiry cases and R9's
+fixed sanitizer inventory. Local full Debug CTest **NOT RUN** because
+the approved checkout is unavailable here; exact publication-SHA
+hosted CI **PENDING**. This does not remove real-client/host-consent
+or independent GUI-password blockers.
+
 ## R10 persistent-loop test-registry recovery (2026-10-18)
 
 The first post-Share native-owner hosted Linux run compiled the production

@@ -21,6 +21,23 @@ check false negatives; exact-head **primary full CI PENDING**, and
 three-platform same-SHA owner-local / Microsoft clients **NOT RUN**.
 No PORTABLE-GUI or SERVER-TEST promotion from this evidence.
 
+## R2 provider-verified principal/PAM boundary source regression (2026-10-18)
+
+Registered independent Linux-only offline CTest
+`security.linux-verified-account-pam-attempt-fence-source` against
+production GSS credential visitor, acceptor, connection and serialized
+Linux listener sources. It rejects source regressions that charge
+client-provided account text, move the account reservation after PAM,
+lose the one-shot GSS limiter binding, omit final authInfo handoff,
+or allow the service-wide budget to disappear between peer gate and
+native broker. The existing executable CTests separately exercise
+real keytab acceptor configuration and bounded fixed-capacity expiry.
+No fake positive provider or OS lease. Local owner Debug/full CTest:
+**NOT RUN** (approved checkout unavailable), hosted exact-SHA:
+**PENDING**; physical X11, GUI LAN sharing and three Microsoft clients:
+**NOT RUN**. This is an assurance increment only, not new credential
+interoperability.
+
 ## R8 R1 TLS clipboard outbound write and receipt boundary (2026-10-18)
 
 With R10's persistent post-Share scheduler now in production source, the

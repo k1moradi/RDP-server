@@ -10,6 +10,21 @@ A no-R2-lease denial is not a positive native CLIPRDR acceptance claim.
 Actual extracted macOS framework `codesign --verify --deep --strict`
 and an owner-authorized Aqua GUI launch remain separate obligations.
 
+## R2 service-wide GSS verified-principal budget source assurance (2026-10-18)
+
+Preserve the production final-credential sequence: the GSS provider
+has established the exact TLS-bound principal, the decrypted delegated
+local account matches R2 identity policy, then exactly that principal
+is charged to the fixed service budget before PAM sees the password.
+Never move the reservation after the verifier or key it by claimed
+local-account text. One serialized Linux service owns peer/global and
+per-principal windows; GSS binding is one-shot after explicit
+provisioning and cleared on rejection. The distinct offline source
+CTest `security.linux-verified-account-pam-attempt-fence-source`
+guards these private authority handoffs without needing Kerberos or
+synthetic native admission, alongside executable-backed rate-window
+and actual keytab acceptor denial tests.
+
 ## R8 serialized CLIPRDR TLS writes preserve R1/R2/R3 receipts (2026-10-18)
 
 A live post-Share R8 clipboard writer must reborrow the current R3

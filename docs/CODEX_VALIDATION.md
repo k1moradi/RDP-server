@@ -1,3 +1,15 @@
+## R10 selected LAN interface preflight (2026-10-18)
+
+Consolidated the GUI duplicated interface/address selection into the R10
+`assessRuntimeSelectedLanEndpoint` pure check; it does not mutate settings,
+open sockets, authorize native desktops or call R2. A dedicated real
+production-header `test_runtime_host_control` case tests exact stable-ID
+match and failure for missing/duplicate/renamed/ineligible/loopback/wildcard
+interface and zero port; also verifies the deny-only concrete fallback
+still refuses Start after preference validation. Parent `b497e76ab3898aec7cbe3aff8bc6ab1e69fb49b2`.
+Owner local Debug/full CTest **NOT RUN**; GitHub CI **PENDING**; no
+real LAN, credential, native clipboard or GUI acceptance claim.
+
 ## R9 exact-head Stop/native-input and Qt status source assurance (2026-10-18)
 
 Upstream agents added the R10 cooperative serialized Stop source CTest

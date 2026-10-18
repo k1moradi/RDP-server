@@ -3,6 +3,7 @@
 
 #include "server/security/standalone_credential_policy.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -102,6 +103,44 @@ struct RuntimeHostOptions
     bool lanRequested{};
     bool afterLoginLaunchRequested{};
 };
+
+// This is a pure R10-selected bind-preflight, never listener authorization.
+// A real controller must re-enumerate the selected native interface/address
+// immediately before the R1 bind and revalidate the actual bound endpoint.
+// Never accept a GUI display label, wildcard or duplicate stable identity
+// as proof that a LAN socket belongs to the intended host interface.
+[[nodiscard]] inline RuntimeHostResult assessRuntimeSelectedLanEndpoint(
+    const RuntimeHostOptions& selection,
+    const std::vector<RuntimeHostInterface>& interfaces) noexcept
+{
+    if (!selection.lanRequested || selection.port == 0U ||
+        selection.interfaceId.empty() || selection.localAddress.empty() ||
+        selection.localAddress == "0.0.0.0" ||
+        selection.localAddress == "::" ||
+        selection.localAddress == "[::]")
+    {
+        return {RuntimeHostError::InvalidConfiguration, false};
+    }
+
+    bool matched = false;
+    for (const RuntimeHostInterface& candidate : interfaces)
+    {
+        if (candidate.stableId != selection.interfaceId)
+            continue;
+        if (candidate.loopback || !candidate.lanEligible ||
+            std::find(candidate.localAddresses.begin(),
+                      candidate.localAddresses.end(),
+                      selection.localAddress) == candidate.localAddresses.end() ||
+            matched)
+        {
+            return {RuntimeHostError::InterfaceUnavailable, false};
+        }
+        matched = true;
+    }
+    return matched
+        ? RuntimeHostResult{RuntimeHostError::None, false}
+        : RuntimeHostResult{RuntimeHostError::InterfaceUnavailable, false};
+}
 
 struct RuntimeHostClient
 {

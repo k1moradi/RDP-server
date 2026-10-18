@@ -1,3 +1,19 @@
+## R10 authoritative GUI LAN selection preflight (2026-10-18)
+
+The R10 runtime contract now owns `assessRuntimeSelectedLanEndpoint`,
+which requires a unique currently enumerated stable interface identity and
+exact address plus a nonzero port, explicit LAN mode, nonloopback eligibility
+and no wildcard address. R7's thin Qt adapter calls this common check
+instead of maintaining its own copy; no GUI label or preference grants
+permission to bind. A genuine controller must **re-enumerate and recheck**
+R1's native bound endpoint and R2 consent on Start/accept; the GUI still
+instantiates deny-only `UnavailableRuntimeHostControl`, so no LAN listener
+or positive user authority is fabricated. New executable CTest
+`runtime.host-control-selected-lan-interface-denials` covers exact match,
+renamed/missing/duplicate/loopback/wildcard/disabled and zero-port cases.
+Parent `b497e76ab3898aec7cbe3aff8bc6ab1e69fb49b2`; local owner build/CTest **NOT RUN**, hosted exact-head
+CI **PENDING**, real approved LAN/Microsoft-client **NOT RUN**.
+
 ## R9 native Stop, terminal input, Qt PlainText focused gates (2026-10-18)
 
 Current prior fully verified main pair `79efe8f21d7028190a678d0f584535f2ef67922b`:

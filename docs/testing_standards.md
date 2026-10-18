@@ -1,3 +1,14 @@
+## R10 shared GUI/runtime LAN selector boundary (2026-10-18)
+
+`runtime.host-control-selected-lan-interface-denials` is a new ordinary
+cross-platform executable-backed CTest using the R10 production host-control
+header. An exact interface ID/address preference may pass pure selection
+preflight but must not allow `UnavailableRuntimeHostControl` to start or
+report a bound endpoint. Duplicate stable identities, ineligible or loopback
+interfaces, wildcard addresses and zero port fail closed. R7 UI consumes
+the same R10 check, but R1 bind, R2 native authorization and consent must
+be tested separately with real approved host evidence.
+
 ## R9 exact-count source tests in native-facing CI (2026-10-18)
 
 When an upstream R10/R5/R7 change adds a source-only CMake guard to

@@ -66,5 +66,62 @@ int main(int argumentCount, char** argumentValues)
         assert(!host.startSharing().succeeded());
         return 0;
     }
+    if (testCase == "host-control-selected-lan-interface-denials")
+    {
+        const std::vector<RuntimeHostInterface> interfaces{{
+            "eth-stable", "Ethernet", {"192.168.2.21", "fe80::1234"},
+            false, true}};
+        const RuntimeHostOptions permitted{
+            "eth-stable", "192.168.2.21", 3389U, true, false};
+        assert(assessRuntimeSelectedLanEndpoint(
+                   permitted, interfaces).succeeded());
+        // A matching preference never grants the absent R2 lease or a bind.
+        assert(!host.configure(permitted).succeeded());
+        assert(!host.startSharing().succeeded());
+        auto invalid = permitted;
+        invalid.interfaceId = "Ethernet";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid = permitted;
+        invalid.localAddress = "192.168.2.22";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid = permitted;
+        invalid.localAddress = "0.0.0.0";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid.localAddress = "::";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid.localAddress = "[::]";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid = permitted;
+        invalid.port = 0;
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        invalid = permitted;
+        invalid.lanRequested = false;
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    invalid, interfaces).succeeded());
+        auto duplicates = interfaces;
+        duplicates.push_back(interfaces.front());
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    permitted, duplicates).succeeded());
+        duplicates = interfaces;
+        duplicates.front().loopback = true;
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    permitted, duplicates).succeeded());
+        duplicates = interfaces;
+        duplicates.front().lanEligible = false;
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    permitted, duplicates).succeeded());
+        duplicates = interfaces;
+        duplicates.front().stableId = "renamed";
+        assert(!assessRuntimeSelectedLanEndpoint(
+                    permitted, duplicates).succeeded());
+        assert(host.status().boundEndpoint.empty());
+        return 0;
+    }
     return 2;
 }

@@ -130,26 +130,14 @@ bool HostControl::start(const HostRequest& request)
         request.interfaceId.isEmpty() || request.interfaceAddress.isEmpty())
         return false;
 
-    const std::string selectedInterfaceId = request.interfaceId.toStdString();
-    const std::string selectedAddress = request.interfaceAddress.toStdString();
-    bool foundExactInterface = false;
-    for (const RuntimeHostInterface& candidate : runtime_.enumerateLocalInterfaces())
-    {
-        if (!candidate.lanEligible || candidate.loopback ||
-            candidate.stableId != selectedInterfaceId ||
-            std::ranges::find(candidate.localAddresses, selectedAddress) ==
-                candidate.localAddresses.end())
-            continue;
-        if (foundExactInterface)
-            return false; // Duplicate stable identities must fail closed.
-        foundExactInterface = true;
-    }
-    if (!foundExactInterface)
-        return false;
-
     const RuntimeHostOptions options{
-        selectedInterfaceId, selectedAddress, request.port, true, false};
-    if (!runtime_.configure(options).succeeded())
+        request.interfaceId.toStdString(),
+        request.interfaceAddress.toStdString(), request.port, true, false};
+    // This pure preflight reduces duplicate UI/runtime selector policy; the
+    // live R10 owner must still re-enumerate and prove its actual R1 bind.
+    if (!assessRuntimeSelectedLanEndpoint(
+             options, runtime_.enumerateLocalInterfaces()).succeeded() ||
+        !runtime_.configure(options).succeeded())
         return false;
     return runtime_.startSharing().succeeded();
 }

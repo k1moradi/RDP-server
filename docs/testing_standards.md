@@ -4137,3 +4137,7 @@ Qt, AppKit, TCC or networking.
 ## R5 protected decoded-input mappings belong in the focused sanitizer inventory (2026-10-18)
 
 When R5 adds a production-backed decoded RDP input translation or R2-protected native dispatch CTest, R9 must build its concrete test target under ASan/UBSan and include the exact test name in the anchored X11 selector/count. Ordinary full CTest alone is insufficient for pointer/lock conversion and no-post retirement boundaries immediately beside XTEST. The selector count, explicit sentinel and CI structure-validator tokens must advance atomically.
+
+## Workflow authoring must treat literal shell `$'` as data (2026-10-18)
+
+When generating or patching workflow text programmatically, do not use JavaScript replacement-string semantics for replacement content containing shell dollar constructs. In particular, a literal regex ending in `$'` can be interpreted as JavaScript's suffix-substitution token and corrupt the remainder of the YAML. Use function-based replacement or an equivalent literal-safe operation, then validate the complete reconstructed workflow before publication.

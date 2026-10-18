@@ -1,3 +1,9 @@
+## R9 workflow reconstruction after selector replacement-string corruption (2026-10-18)
+
+Publication `d83b46bbf323dd9915a27973e75df1d4dd503683` did **not** dispatch the primary workflow. The intended R5 selector replacement ends with the literal shell characters `$'`; the authoring JavaScript used ordinary replacement-string semantics, so `$'` expanded to the unmatched suffix of the source string and spliced the remainder of `ci.yml` into the selector line. GitHub rejected the workflow before any jobs ran. No production source changed in that commit.
+
+This correction reconstructs `.github/workflows/ci.yml` from valid parent `fb02757297a20d6e6a14ffb7b7e68c1361a3809f` and applies the same R9 changes using function-based replacements: build `test_x11_rdp_slow_path_input`, include `x11.input-r2-authorized-slow-path-native-mapping-denials`, and require **39** focused R5 X11 sanitizer tests. The already-published structure-validator tokens remain aligned. Exact corrective-SHA CI: **PENDING**.
+
 ## R9 sanitizer enrollment for R5 R2-protected slow-path native mapping (2026-10-18)
 
 R5 `746bf766f68f38cd8d71fb67b24b6d7e604044c5` adds production `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt` plus behavior CTest `x11.input-r2-authorized-slow-path-native-mapping-denials`. Descendant `746bf766` passes the existing R9 sanitizer lane, but that lane still builds only `test_x11_authorized_input_route` and selects the prior anchored 38-case X11 inventory, so the new decoded-event/native-mapping boundary is visible only to ordinary full CTest. R10 `fb02757297a20d6e6a14ffb7b7e68c1361a3809f` now links the landed R5 library into the production server but deliberately does not dispatch it until a safe post-Share TPKT router exists.

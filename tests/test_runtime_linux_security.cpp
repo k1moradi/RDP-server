@@ -2725,6 +2725,60 @@ bool recordUnexpectedSlowPathInput(
     return true;
 }
 
+bool recordUnexpectedPostShareRoute(
+    void *context,
+    rdp_server::server::transport::RdpPostShareTpktRouteKind,
+    std::span<const std::uint8_t>) noexcept
+{
+    if (context == nullptr)
+        return false;
+    ++*static_cast<std::size_t *>(context);
+    return true;
+}
+
+void testConnectionPersonalDesktopPostShareSingleReaderDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = rdp_server::server::runtime::
+        LinuxPostShareApplicationReadStatus;
+    const auto keytab =
+        fixtureDirectory / "runtime-post-share-reader.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    RuntimeDeploymentPolicy policy;
+    assert(policy.configurePersonalDesktop(true, 3389U));
+
+    std::size_t callbacks = 0U;
+    const rdp_server::server::runtime::LinuxPostShareTpktSink sink{
+        &callbacks, &recordUnexpectedPostShareRoute};
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    const auto read = connection.advancePersonalDesktopPostShareApplicationRead(
+        policy, true, true, sink);
+    assert(read.status == Step::AdmissionDenied);
+    assert(read.plaintextBytesRead == 0U);
+    assert(callbacks == 0U);
+    assert(!connection.ready());
+    assert(::close(clientDescriptor) == 0);
+
+    int secondClientDescriptor = -1;
+    auto secondAccepted = acceptLoopbackConnection(secondClientDescriptor);
+    LinuxRuntimeConnection secondConnection{
+        configuration, std::move(secondAccepted)};
+    const std::array<std::uint8_t, 4U> packet{
+        0x03U, 0x00U, 0x00U, 0x04U};
+    assert(!secondConnection.dispatchPersonalDesktopPostShareGraphicsTpkt(
+        policy, packet));
+    assert(!secondConnection.ready());
+    assert(::close(secondClientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopPostShareClassifierAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3340,6 +3394,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-valid-client-r1-write-denials")
     {
         testConnectionPersonalDesktopValidClientR1WriteDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-personal-post-share-single-reader-denials")
+    {
+        testConnectionPersonalDesktopPostShareSingleReaderDenials(
             fixtureDirectory);
         return 0;
     }

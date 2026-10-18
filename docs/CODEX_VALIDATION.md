@@ -87,6 +87,18 @@ Linux/X11, Windows CLANG64/Clang 23 and macOS 27 local Debug CTest:
 **NOT RUN**. No Start/Stop, authenticated persistent post-Share desktop,
 native release acceptance or human Microsoft-client success is claimed.
 
+## R10 single-reader post-Share application route (2026-10-18)
+
+Added one post-Share R1 TLS read transition using the already-existing
+Graphics DVC `LinuxRuntimeMcsTpktFrameReader` storage, one borrowed route
+callback and one R2-authorized post-Ready Graphics ACK bridge. R1 WANT
+read/write direction is preserved before any new read. The production-linked
+`runtime.linux-connection-personal-post-share-single-reader-denials` CTest
+rejects preadmission packet reads and Graphics ACK with no R2 lease.
+Source base `a80a3bc7858a934eda43e3997ce463dc8907bce7`; local build/CTest **NOT RUN** (GitHub DNS unavailable
+and approved checkout absent), hosted publication-SHA CI **PENDING**.
+No persistent runtime or physical seat0 success is claimed.
+
 ## R10 protected post-Share route consumption (2026-10-18)
 
 R3 delivered the immutable, R2-revalidated authenticated TPKT route classifier

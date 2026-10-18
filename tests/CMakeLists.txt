@@ -1021,6 +1021,16 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-connection-personal-post-share-classifier-authority-denials
         PROPERTIES LABELS "runtime;security;r10-post-share;offline")
 
+    # One R1 TLS reader plus the already-existing Graphics DVC framing owner;
+    # a missing R2 lease prevents both packet dispatch and Graphics ACKs.
+    add_test(NAME runtime.linux-connection-personal-post-share-single-reader-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-personal-post-share-single-reader-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-personal-post-share-single-reader-denials
+        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+
     # R10 must compose the real post-STATUS_VALID_CLIENT Share owner without
     # fabricating a positive OS lease in ordinary CI. The production R3 profile
     # must derive admitted Client Core geometry and R10 may supply only feature

@@ -429,6 +429,33 @@ selectLinuxRuntimeConnectionIoInterest(
 
 } // namespace detail
 
+// One synchronous post-Share route is dispatched before its borrowed TPKT
+// storage is reset. No callback may persist packet data or outlive the owner.
+struct LinuxPostShareTpktSink final
+{
+    void *context{};
+    bool (*consume)(void *,
+                    rdp_server::server::transport::RdpPostShareTpktRouteKind,
+                    std::span<const std::uint8_t>) noexcept{};
+
+    [[nodiscard]] explicit operator bool() const noexcept
+    {
+        return context != nullptr && consume != nullptr;
+    }
+};
+
+enum class LinuxPostShareApplicationReadStatus : std::uint8_t
+{
+    Progress, NeedRead, NeedWrite, Routed, AdmissionDenied, Invalid, Closed,
+};
+
+struct LinuxPostShareApplicationReadResult final
+{
+    std::size_t plaintextBytesRead{};
+    LinuxPostShareApplicationReadStatus status{
+        LinuxPostShareApplicationReadStatus::Closed};
+};
+
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
 // It does NOT bind/listen and it does not invent protocol/authentication state:
 // R1 remains the sole socket/BIO/SSL owner, R2 remains the sole native
@@ -713,6 +740,23 @@ public:
     // connection, and this method does not read another TLS byte.
     [[nodiscard]] rdp_server::server::transport::RdpPostShareTpktRoute
     classifyPersonalDesktopPostShareTpkt(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Reuse the already-owned Graphics DVC TPKT frame storage, and R1's sole
+    // TLS application reader, after Graphics presentation becomes Ready.
+    // Read at most one bounded TLS slice; classify each complete TPKT once
+    // and deliver a borrowed route synchronously. The caller must dispatch
+    // solely by that route; wrong/unsupported destinations are terminal.
+    [[nodiscard]] LinuxPostShareApplicationReadResult
+    advancePersonalDesktopPostShareApplicationRead(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        bool readable, bool writable, LinuxPostShareTpktSink sink) noexcept;
+
+    // Accept only the authenticated Graphics DVC DATA/FRAME_ACK path, under
+    // fresh R2 authorization and R3's sole presentation ACK window. No
+    // separate graphics socket reader, ACK cache or R4 state is created.
+    [[nodiscard]] bool dispatchPersonalDesktopPostShareGraphicsTpkt(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 

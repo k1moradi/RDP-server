@@ -445,6 +445,23 @@ R5/R8 listener, advance the Share, create a channel, or read TLS bytes.
 The external R10 single-reader integration and genuine X11 host remain
 BLOCKED. New exact-SHA hosted CTests/sanitizers: PENDING.
 
+**R10 serialized post-Share reader increment (2026-10-18):** On
+`a80a3bc7858a934eda43e3997ce463dc8907bce7`, the runtime now reuses `personalGraphicsDvcFrameReader_`
+after R3 Graphics MAP_SURFACE_TO_OUTPUT completion instead of permanently
+closing it. `advancePersonalDesktopPostShareApplicationRead` reads only
+through R1's sole TLS application reader, caps each read at the existing
+TPKT `bytesNeeded()`, invokes the R2/R3 immutable classifier once, and
+synchronously hands the one borrowed packet/route to a caller sink. The
+Graphics DATA path uses R2/R3's existing reassembly and R4 FRAME_ACK
+window; no second ACK owner was created. Outbound TLS WANT retains its
+original direction and blocks new application reads. New production-backed
+offline test `runtime.linux-connection-personal-post-share-single-reader-denials`
+asserts absent R2 admission yields no callback, TLS read or ACK. Local
+build/CTest **NOT RUN** (no cloneable approved checkout; GitHub DNS blocked),
+hosted exact-SHA CI **PENDING**. Remaining R10 gate: call this step from a
+persistent native/sock scheduler, provide R5 input and R8 clipboard sinks,
+then first frame and live LAN HostControl. No positive client evidence.
+
 **R10 R2/R3 classifier consumption (2026-10-18):** R10 now exposes
 `LinuxRuntimeConnection::classifyPersonalDesktopPostShareTpkt` as the
 connection-local, fail-closed synchronous wrapper around the immutable R3

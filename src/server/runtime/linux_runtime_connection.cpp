@@ -2821,7 +2821,13 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
                 personalGraphicsDvcIoAction_ = Action::Write;
                 return {0U, io.bytes, Step::Progress};
             case Kind::GraphicsMapSurfaceToOutput:
-                personalGraphicsDvcFrameReader_.close();
+                // Retain the same bounded frame reader for serialized
+                // post-Share application packets and client FRAME_ACK intake.
+                if (!personalGraphicsDvcFrameReader_.reset())
+                {
+                    revoke();
+                    return {0U, io.bytes, Step::Invalid};
+                }
                 personalGraphicsDvcIoAction_ = Action::Ready;
                 return {0U, io.bytes, Step::Ready};
             case Kind::GraphicsFrameData:
@@ -3038,6 +3044,161 @@ LinuxRuntimeConnection::classifyPersonalDesktopPostShareTpkt(
         return {};
     }
     return route;
+}
+
+LinuxPostShareApplicationReadResult
+LinuxRuntimeConnection::advancePersonalDesktopPostShareApplicationRead(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    bool readable, bool writable, LinuxPostShareTpktSink sink) noexcept
+{
+    using Step = LinuxPostShareApplicationReadStatus;
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+    using Interest = rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome = rdp_server::server::transport::TlsApplicationIoOutcome;
+    using FrameStatus = LinuxRuntimeMcsTpktFrameStatus;
+
+    if (personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !sink || !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+    if (personalGraphicsDvcIoAction_ == Action::Write)
+    {
+        // R1's pending TLS write and R3 receipt must finish first. WANT_READ
+        // is part of that same write, not permission to read another TPKT.
+        return {0U, ioInterest() == Interest::Read
+                         ? Step::NeedRead : Step::NeedWrite};
+    }
+    if (personalGraphicsDvcIoAction_ != Action::Ready ||
+        !broker_->authorizeR3ProtectedTransition(
+            *lease_, acceptor_, connection_, session_,
+            rdp_server::server::security::kConsoleViewPermission))
+    {
+        personalGraphicsDvcFrameReader_.close();
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const Interest required = connection_.ioInterest();
+    if (required == Interest::Closed)
+    {
+        revoke();
+        return {0U, Step::Closed};
+    }
+    const bool bufferedRead =
+        required == Interest::Read && connection_.tlsApplicationReadReady();
+    if (required == Interest::Read && !readable && !bufferedRead)
+        return {0U, Step::NeedRead};
+    if (required == Interest::Write && !writable)
+        return {0U, Step::NeedWrite};
+    if (required != Interest::Read && required != Interest::Write)
+    {
+        revoke();
+        return {0U, Step::Invalid};
+    }
+
+    constexpr std::size_t kReadChunkBytes = 512U;
+    std::array<std::uint8_t, kReadChunkBytes> plaintext{};
+    const std::size_t needed = personalGraphicsDvcFrameReader_.bytesNeeded();
+    if (needed == 0U ||
+        needed > rdp_server::server::transport::kMaximumInitialMcsTpktBytes)
+    {
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    const std::size_t requested = (std::min)(plaintext.size(), needed);
+    const auto io = connection_.readTlsApplicationData(
+        std::span<std::uint8_t>{plaintext}.first(requested));
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        if (io.bytes == 0U || io.bytes > requested)
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+        const auto framed = personalGraphicsDvcFrameReader_.consume(
+            std::span<const std::uint8_t>{plaintext}.first(io.bytes));
+        std::fill(plaintext.begin(), plaintext.begin() + io.bytes, 0U);
+        if (framed.bytesConsumed != io.bytes ||
+            framed.status == FrameStatus::Invalid ||
+            framed.status == FrameStatus::Closed)
+        {
+            revoke();
+            return {io.bytes, Step::Invalid};
+        }
+        if (framed.status == FrameStatus::NeedMore)
+            return {io.bytes, Step::Progress};
+
+        const auto completeTpkt = personalGraphicsDvcFrameReader_.completeTpkt();
+        const auto route = classifyPersonalDesktopPostShareTpkt(
+            deploymentPolicy, completeTpkt);
+        if (!ready() ||
+            route.kind == rdp_server::server::transport::
+                              RdpPostShareTpktRouteKind::UnsupportedOrMalformed ||
+            !sink.consume(sink.context, route.kind, route.completeTpkt) ||
+            !ready() || !personalGraphicsDvcFrameReader_.reset())
+        {
+            revoke();
+            return {io.bytes, Step::AdmissionDenied};
+        }
+        return {io.bytes, Step::Routed};
+    }
+    case IoOutcome::NeedRead: return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite: return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    revoke();
+    return {0U, Step::Invalid};
+}
+
+bool LinuxRuntimeConnection::dispatchPersonalDesktopPostShareGraphicsTpkt(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Intake = rdp_server::server::transport::RdpGraphicsDvcClientIntake;
+    using Ack = rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake;
+
+    if (personalGraphicsDvcIoAction_ != PersonalDesktopGraphicsDvcIoAction::Ready ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        completeTpkt.empty() || !ready() || !broker_ || !lease_ ||
+        lease_->isRevoked())
+    {
+        revoke();
+        return false;
+    }
+    const auto intake =
+        broker_->authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            completeTpkt);
+    if (intake == Intake::GraphicsDataFragmentAccepted)
+        return ready();
+    if (intake != Intake::GraphicsDataAccepted)
+    {
+        revoke();
+        return false;
+    }
+    const auto ack = broker_->consumeR3PersonalDesktopGraphicsFrameAcknowledge(
+        *lease_, acceptor_, connection_, session_, deploymentPolicy);
+    if (ack == Ack::Rejected || !ready())
+    {
+        revoke();
+        return false;
+    }
+    return true;
 }
 
 bool LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu(

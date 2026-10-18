@@ -199,6 +199,18 @@ LinuxRuntimeConnection::ioInterest() const noexcept
     if (!runtimeReady)
         return Interest::Closed;
 
+    if (session_.phase() ==
+        rdp_server::server::transport::McsSessionPhase::AwaitConnectResponse)
+    {
+        // A new R3 outbound reply needs POLLOUT. While SSL_write_ex has a
+        // pending operation, R1 alone selects the opposite WANT direction.
+        if (!mcsConnectResponseTlsWritePending_)
+            return Interest::Write;
+        const auto required = connection_.ioInterest();
+        return required == Interest::Read || required == Interest::Write
+                   ? required : Interest::Closed;
+    }
+
     const bool tlsApplicationWriteOutstanding =
         personalLicenseRequestTlsWritePending_ ||
         personalValidClientTlsWritePending_ ||
@@ -727,6 +739,105 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
     case IoOutcome::FatalTlsFailure:
     case IoOutcome::Invalid:
         mcsConnectInitialFrameReader_.close();
+        revoke();
+        return {0U, Step::Invalid};
+    }
+    revoke();
+    return {0U, Step::Invalid};
+}
+
+LinuxPostAdmissionMcsResponseStepResult
+LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite(
+    bool readable, bool writable) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using IoOutcome =
+        rdp_server::server::transport::TlsApplicationIoOutcome;
+    using Phase = rdp_server::server::transport::McsSessionPhase;
+    using Outcome =
+        rdp_server::server::transport::McsConnectResponseWriteOutcome;
+    using Step = LinuxPostAdmissionMcsResponseStepStatus;
+
+    if (!ready())
+        return {0U, Step::Closed};
+
+    if (!broker_ || !lease_ || lease_->isRevoked() ||
+        credSspReplyPending() ||
+        session_.phase() != Phase::AwaitConnectResponse)
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    if (mcsConnectResponseTlsWritePending_)
+    {
+        const Interest required = connection_.ioInterest();
+        if (required == Interest::Read && !readable)
+            return {0U, Step::NeedRead};
+        if (required == Interest::Write && !writable)
+            return {0U, Step::NeedWrite};
+        if (required != Interest::Read && required != Interest::Write)
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+    }
+    else if (!writable)
+    {
+        return {0U, Step::NeedWrite};
+    }
+
+    const auto pending = broker_->authorizeR3ConnectResponseWrite(
+        *lease_, acceptor_, connection_, session_);
+    if (!pending || !*pending)
+    {
+        revoke();
+        return {0U, Step::AdmissionDenied};
+    }
+
+    const auto payload = pending->bytes.first((std::min)(
+        pending->bytes.size(),
+        rdp_server::server::transport::kMaximumTlsApplicationIoBytes));
+    const auto io = connection_.writeTlsApplicationData(payload);
+    switch (io.outcome)
+    {
+    case IoOutcome::Progress:
+    {
+        mcsConnectResponseTlsWritePending_ = false;
+        if (io.bytes == 0U || io.bytes > payload.size())
+        {
+            revoke();
+            return {0U, Step::Invalid};
+        }
+
+        // R1 progress alone is not an R3 delivery receipt. The concrete R2
+        // lease, GSS/TLS owner and native generation are checked again.
+        const auto outcome = broker_->completeR3ConnectResponseWrite(
+            lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
+            acceptor_, connection_, session_,
+            pending->replySequence, pending->writeSliceSequence, io.bytes);
+        if (outcome == Outcome::Pending)
+            return {io.bytes, Step::Progress};
+        if (outcome == Outcome::Delivered)
+            return {io.bytes, Step::Delivered};
+        revoke();
+        return {io.bytes, Step::AdmissionDenied};
+    }
+    case IoOutcome::NeedRead:
+        mcsConnectResponseTlsWritePending_ = true;
+        return {0U, Step::NeedRead};
+    case IoOutcome::NeedWrite:
+        mcsConnectResponseTlsWritePending_ = true;
+        return {0U, Step::NeedWrite};
+    case IoOutcome::TlsClosed:
+    case IoOutcome::TransportClosed:
+        mcsConnectResponseTlsWritePending_ = false;
+        revoke();
+        return {0U, Step::Closed};
+    case IoOutcome::FatalTlsFailure:
+    case IoOutcome::Invalid:
+        mcsConnectResponseTlsWritePending_ = false;
         revoke();
         return {0U, Step::Invalid};
     }
@@ -2300,6 +2411,7 @@ void LinuxRuntimeConnection::revoke() noexcept
     // Retire untrusted post-admission framing before any authority or transport
     // owner disappears. The complete span is never retained across R2/R3 use.
     mcsConnectInitialFrameReader_.close();
+    mcsConnectResponseTlsWritePending_ = false;
     personalClientLicensingFrameReader_.close();
     personalShareActivationFrameReader_.close();
     personalGraphicsDvcFrameReader_.close();

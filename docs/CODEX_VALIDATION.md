@@ -1,3 +1,27 @@
+## R10 exact-R2-authorized MCS Connect Response publication (2026-10-17)
+
+**Source parent `f18ea734`; hosted validation pending.** Full C++23 and
+structure CI passed for preceding R10 source `10baf2c1` and shared
+descendant `4c47b268`. After genuine `CredentialsVerified`, private
+R2 native `issueAdmission()`, and valid R2-authorized MCS Connect Initial,
+the Linux `serve` path now consumes R2-protected R3 Connect Response
+writer and accepted-byte receipt APIs. The sole R1 TLS owner writes at most
+`kMaximumTlsApplicationIoBytes` per step. A pending R1 WANT direction
+overrides the initial R3 outbound readiness. R3 retains the authoritative
+immutable reply, suffix and sequence IDs; each positive R1 plaintext receipt
+is freshly checked by R2 against the exact lease, GSS/TLS owner and native
+session generation before R3 advances. A denied or stale phase cannot write.
+
+Centrally registered production CTest
+`runtime.linux-connection-post-admission-mcs-response-denials` constructs a
+real accepted loopback socket with configured synthetic **non-authorizing**
+GSS material, requires denial without a positive R2 lease, and checks
+no plaintext progress, terminal state and late-call replay refusal. Genuine
+Linux Kerberos/PAM/logind physical-X11 admission and positive response
+delivery remain **NOT RUN**. The service intentionally revokes after a
+complete Connect Response until R10 composes the separate Erect/Attach/Join
+stages. Native logind watcher registration/retirement is still pending.
+
 ## R3 slow-path input compile-order correction (2026-10-17)
 
 Corrective descendant of `8b1a9d9f`: the slow-path input value types now

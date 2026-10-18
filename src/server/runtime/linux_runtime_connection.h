@@ -131,6 +131,26 @@ struct LinuxPostAdmissionMcsStepResult
         LinuxPostAdmissionMcsStepStatus::Closed};
 };
 
+// R2-only admitted Connect Response writer; exact accepted plaintext receipts
+// are reauthorized before the R3 state machine can advance.
+enum class LinuxPostAdmissionMcsResponseStepStatus : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Delivered,
+    AdmissionDenied,
+    Invalid,
+    Closed,
+};
+
+struct LinuxPostAdmissionMcsResponseStepResult
+{
+    std::size_t plaintextBytesWritten{};
+    LinuxPostAdmissionMcsResponseStepStatus status{
+        LinuxPostAdmissionMcsResponseStepStatus::Closed};
+};
+
 enum class LinuxPersonalDesktopLicenseWriteStepStatus : std::uint8_t
 {
     Progress,
@@ -420,6 +440,12 @@ public:
     advancePostAdmissionMcsConnectInitial(
         bool readable, bool writable) noexcept;
 
+    // One bounded R1 TLS write of the R3-owned Connect Response suffix.
+    // R2 reauthorizes both borrowed bytes and exact accepted-byte receipt.
+    [[nodiscard]] LinuxPostAdmissionMcsResponseStepResult
+    advancePostAdmissionMcsConnectResponseWrite(
+        bool readable, bool writable) noexcept;
+
     // R10-facing personal-desktop security boundary. The immutable policy is
     // the only product-mode input; R2 keeps the lease and generation pair
     // private and freshly reauthorizes every operation below. R1 remains the
@@ -658,6 +684,7 @@ private:
         lease_{};
     rdp_server::server::transport::McsSessionLifecycle session_{};
     LinuxRuntimeMcsTpktFrameReader mcsConnectInitialFrameReader_{};
+    bool mcsConnectResponseTlsWritePending_{};
     LinuxRuntimeMcsTpktFrameReader personalClientLicensingFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalShareActivationFrameReader_{};
     LinuxRuntimeMcsTpktFrameReader personalGraphicsDvcFrameReader_{};

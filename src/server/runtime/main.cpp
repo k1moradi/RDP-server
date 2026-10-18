@@ -782,6 +782,8 @@ struct LinuxServeAcceptContext final {
         rdp_server::server::runtime::LinuxPreAdmissionStepStatus;
     using McsStep =
         rdp_server::server::runtime::LinuxPostAdmissionMcsStepStatus;
+    using ResponseStep =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsResponseStepStatus;
 
     auto* context = static_cast<LinuxServeAcceptContext*>(rawContext);
     if (context == nullptr || context->policy == nullptr ||
@@ -871,7 +873,8 @@ struct LinuxServeAcceptContext final {
 
     readable = false;
     writable = false;
-    while (connection.ready()) {
+    bool acceptedConnectInitial = false;
+    while (connection.ready() && !acceptedConnectInitial) {
         const auto step =
             connection.advancePostAdmissionMcsConnectInitial(
                 readable, writable);
@@ -900,14 +903,59 @@ struct LinuxServeAcceptContext final {
             return true;
         }
         case McsStep::AdmittedConnectInitial:
-            // The next production increment owns MCS Connect Response,
-            // AttachUser and ChannelJoin serialization. Until then, retire
-            // this genuine lease before returning to the listener.
-            connection.revoke();
-            return true;
+            acceptedConnectInitial = true;
+            break;
         case McsStep::AdmissionDenied:
         case McsStep::Invalid:
         case McsStep::Closed:
+            return true;
+        }
+    }
+    if (!acceptedConnectInitial || !connection.hasAdmissionLease()) {
+        return true;
+    }
+
+    // The R3 response writer owns all plaintext and reply/slice identities.
+    // R1 alone performs SSL writes; R2 reauthorizes every accepted-byte
+    // receipt before R3 commits progress.
+    readable = false;
+    writable = false;
+    while (connection.ready()) {
+        const auto step =
+            connection.advancePostAdmissionMcsConnectResponseWrite(
+                readable, writable);
+        readable = false;
+        writable = false;
+
+        switch (step.status) {
+        case ResponseStep::Progress:
+            continue;
+        case ResponseStep::NeedRead:
+        case ResponseStep::NeedWrite: {
+            const auto ready =
+                connection.pollSocketReadinessOnce(deadline);
+            switch (ready.status) {
+            case PollStatus::Ready:
+                readable = ready.readable;
+                writable = ready.writable;
+                continue;
+            case PollStatus::NoEvent:
+                continue;
+            case PollStatus::Expired:
+            case PollStatus::Closed:
+            case PollStatus::Failure:
+                return true;
+            }
+            return true;
+        }
+        case ResponseStep::Delivered:
+            // Erect Domain/AttachUser/ChannelJoin remain the next R10 gate.
+            // Retire the genuine lease without opening a desktop.
+            connection.revoke();
+            return true;
+        case ResponseStep::AdmissionDenied:
+        case ResponseStep::Invalid:
+        case ResponseStep::Closed:
             return true;
         }
     }
@@ -1170,7 +1218,7 @@ void printUsage() noexcept {
 #else
                "--check-linux-security additionally acquires the explicit Linux GSS acceptor credential and validates one native identity-policy rule.\n"
 #endif
-               "serve opens only a verified loopback listener, serializes X.224/TLS/CredSSP through the sole R1 owner, and requires genuine R2 native admission before first MCS intake; desktop/input publication is not yet enabled.\n", stdout);
+               "serve opens only a verified loopback listener, serializes X.224/TLS/CredSSP through the sole R1 owner, and requires genuine R2 native admission before MCS Connect Initial/Response; desktop/input publication is not yet enabled.\n", stdout);
 #else
     std::fputs("Usage: rdp-server [--help | --version | --check-config FILE | --check-tls-files FILE | --check-tls-credentials FILE | --check-licensing-credentials FILE]\n"
                "--check-config validates syntax. --check-tls-files checks file metadata.\n"

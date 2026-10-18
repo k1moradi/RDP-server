@@ -949,6 +949,48 @@ void testConnectionCredSspProgressAccounting(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPostAdmissionMcsResponseDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step =
+        rdp_server::server::runtime::LinuxPostAdmissionMcsResponseStepStatus;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-mcs-response-denials.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+    assert(!connection.hasAdmissionLease());
+    assert(connection.mcsPhase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    // A real accepted socket plus configured GSS cannot mint a R3 response.
+    // Only a genuine R2 lease and admitted Connect Initial can do so.
+    const auto denied =
+        connection.advancePostAdmissionMcsConnectResponseWrite(true, true);
+    assert(denied.status == Step::AdmissionDenied);
+    assert(denied.plaintextBytesWritten == 0U);
+    assert(!connection.ready());
+    assert(connection.mcsPhase() == McsSessionPhase::Closed);
+    assert(!connection.hasAdmissionLease());
+
+    // Stale readable/writable events cannot restart the TLS writer.
+    const auto stale =
+        connection.advancePostAdmissionMcsConnectResponseWrite(true, true);
+    assert(stale.status == Step::Closed);
+    assert(stale.plaintextBytesWritten == 0U);
+    connection.revoke();
+    assert(connection.ioInterest() == TcpConnectionIoInterest::Closed);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPostAdmissionMcsFramingDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2624,6 +2666,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-post-admission-mcs-framing-denials")
     {
         testConnectionPostAdmissionMcsFramingDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-post-admission-mcs-response-denials")
+    {
+        testConnectionPostAdmissionMcsResponseDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-revocation-order")

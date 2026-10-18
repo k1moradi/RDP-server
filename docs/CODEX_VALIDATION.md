@@ -1,3 +1,32 @@
+## R10 outbound scheduler interest correction (2026-10-17)
+
+**Reconciled shared-main parent:** `3b579c141114e89dfc06b3b0abf82b9163f1b1b1`.
+That parent resolves the production Linux security/test-coupling blocker with
+R2's explicit build option and non-authorizing startup preflight. R3 Graphics
+application DATA publication remains independently absent.
+
+`LinuxRuntimeConnection::ioInterest()` now reports `Write` for a complete
+PersonalDesktop Server License Request / Valid Client slice, Share server write
+or Graphics DVC control write instead of falling through to R1's generic
+post-handshake `Read` fallback. Positive short-write suffixes remain writable
+because the existing R3 phase/R10 next-I/O action stays pending. If an R1 TLS
+application write has already returned WANT_READ/WANT_WRITE, the exact R1
+interest remains authoritative until that operation completes. No second
+scheduler, TLS writer, packet copy or byte offset is introduced.
+
+Dedicated CTests are
+`runtime.linux-connection-outbound-write-readiness`,
+`runtime.linux-connection-outbound-tls-want-precedence`, and
+`runtime.linux-connection-outbound-cancellation-revocation`.
+The R9 direct Linux runtime-security sanitizer selector expands **25→28**.
+Canonical owner-local `~/rdp-server/build`: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI is pending. No listener,
+credentialed session or desktop is started.
+
+**Remaining dependency:** R3 still owns no Graphics DYNVC DATA_FIRST/DATA
+publication or immutable R4-payload → outer-R1 plaintext receipt map, so R10
+does not publish frame DATA.
+
 ## R2 production build/preflight increment (2026-10-17)
 
 **Reconciled shared-main parent:** `d5a65467c816ac413aaf206e1b82222a1e7acb1f`.

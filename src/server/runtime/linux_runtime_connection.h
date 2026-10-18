@@ -240,6 +240,65 @@ struct LinuxRuntimeNativeChangeRegistration
     }
 };
 
+namespace detail
+{
+// Derived scheduler snapshot only: this owns no protocol bytes, offsets,
+// connection phase, or TLS operation. R3/R10 remain the authoritative owners
+// of those facts. When an SSL_write_ex operation is outstanding, R1's
+// WANT_READ/WANT_WRITE direction is authoritative. Otherwise a complete
+// protocol-owned outbound slice must keep the poller writable even if R1's
+// generic application fallback currently reports Read.
+struct LinuxRuntimeIoInterestSnapshot final
+{
+    rdp_server::server::transport::TcpConnectionIoInterest r1Interest{
+        rdp_server::server::transport::TcpConnectionIoInterest::Closed};
+    rdp_server::server::transport::McsSessionPhase sessionPhase{
+        rdp_server::server::transport::McsSessionPhase::
+            AwaitVerifiedR2Admission};
+    bool runtimeReady{};
+    bool personalDesktopSelected{};
+    bool tlsApplicationWriteOutstanding{};
+    bool shareWritePending{};
+    bool graphicsWritePending{};
+};
+
+[[nodiscard]] constexpr
+rdp_server::server::transport::TcpConnectionIoInterest
+selectLinuxRuntimeConnectionIoInterest(
+    const LinuxRuntimeIoInterestSnapshot &snapshot) noexcept
+{
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using Phase = rdp_server::server::transport::McsSessionPhase;
+
+    if (!snapshot.runtimeReady)
+        return Interest::Closed;
+
+    if (snapshot.tlsApplicationWriteOutstanding)
+    {
+        if (snapshot.r1Interest == Interest::Read ||
+            snapshot.r1Interest == Interest::Write)
+        {
+            return snapshot.r1Interest;
+        }
+        return Interest::Closed;
+    }
+
+    const bool licensingWritePending =
+        snapshot.personalDesktopSelected &&
+        (snapshot.sessionPhase == Phase::AwaitServerLicenseRequest ||
+         snapshot.sessionPhase ==
+             Phase::AwaitPersonalDesktopValidClientWrite);
+    if (licensingWritePending || snapshot.shareWritePending ||
+        snapshot.graphicsWritePending)
+    {
+        return Interest::Write;
+    }
+
+    return snapshot.r1Interest;
+}
+} // namespace detail
+
 // One nonmoving Linux connection aggregate for the eventual R10 event loop.
 // It does NOT bind/listen and it does not invent protocol/authentication state:
 // R1 remains the sole socket/BIO/SSL owner, R2 remains the sole native

@@ -740,6 +740,24 @@ if(TARGET rdp-server-linux-pam-password-verifier)
 endif()
 
 if(TARGET rdp-server-linux-runtime-security)
+    add_executable(test_runtime_io_interest
+        test_runtime_io_interest.cpp)
+    target_compile_features(test_runtime_io_interest PRIVATE cxx_std_23)
+    target_link_libraries(test_runtime_io_interest PRIVATE
+        rdp-server-linux-runtime-security)
+    target_compile_options(test_runtime_io_interest PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    foreach(runtime_io_interest_case IN ITEMS
+            outbound-write-readiness
+            outbound-tls-want-precedence
+            outbound-cancellation-revocation)
+        add_test(NAME "runtime.linux-connection-${runtime_io_interest_case}"
+            COMMAND test_runtime_io_interest "${runtime_io_interest_case}")
+        set_tests_properties(
+            "runtime.linux-connection-${runtime_io_interest_case}"
+            PROPERTIES LABELS "runtime;security;linux-provider;offline")
+    endforeach()
+
     find_path(RDP_SERVER_TEST_KRB5_INCLUDE_DIR NAMES krb5.h REQUIRED)
     find_library(RDP_SERVER_TEST_KRB5_LIBRARY NAMES krb5 REQUIRED)
     find_library(RDP_SERVER_TEST_K5CRYPTO_LIBRARY NAMES k5crypto REQUIRED)

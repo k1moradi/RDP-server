@@ -190,7 +190,29 @@ LinuxRuntimeConnection::ioInterest() const noexcept
     case TsRequestTlsWriteStatus::Complete:
         break;
     }
-    return ready() ? connection_.ioInterest() : Interest::Closed;
+    const bool runtimeReady = ready();
+    if (!runtimeReady)
+        return Interest::Closed;
+
+    const bool tlsApplicationWriteOutstanding =
+        personalLicenseRequestTlsWritePending_ ||
+        personalValidClientTlsWritePending_ ||
+        personalShareTlsWritePending_ ||
+        personalGraphicsDvcTlsWritePending_;
+
+    return detail::selectLinuxRuntimeConnectionIoInterest({
+        .r1Interest = connection_.ioInterest(),
+        .sessionPhase = session_.phase(),
+        .runtimeReady = runtimeReady,
+        .personalDesktopSelected = personalDesktopPolicy_ != nullptr,
+        .tlsApplicationWriteOutstanding =
+            tlsApplicationWriteOutstanding,
+        .shareWritePending =
+            personalShareIoAction_ == PersonalDesktopShareIoAction::Write,
+        .graphicsWritePending =
+            personalGraphicsDvcIoAction_ ==
+            PersonalDesktopGraphicsDvcIoAction::Write,
+    });
 }
 
 LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(

@@ -1,3 +1,15 @@
+## R10 outbound event interest follows protocol slices, except during R1 WANT (2026-10-17)
+
+A complete R3-owned outbound slice must make the runtime poller request
+`Write` even when R1's generic post-handshake fallback is `Read`. Derive
+that fact from the existing authoritative protocol phase and R10 next-I/O
+action; do not copy packet bytes/offsets or add another scheduler state machine.
+
+After R1 `writeTlsApplicationData()` returns WANT_READ or WANT_WRITE, R1's
+pending application operation owns the retry direction until it completes.
+Reauthorize and reborrow the current R3 suffix on retry. Terminal/revoked
+runtime state always wins over stale outbound indicators.
+
 ## R2 production Linux startup-security preflight (2026-10-17)
 
 Production Linux GSS/PAM/logind support must not be selected by a TEST_* option

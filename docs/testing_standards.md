@@ -1,3 +1,15 @@
+## R10 outbound-interest regression coverage (2026-10-17)
+
+The Linux runtime-security graph registers three production-backed offline
+scheduler cases: `runtime.linux-connection-outbound-write-readiness`,
+`runtime.linux-connection-outbound-tls-want-precedence`, and
+`runtime.linux-connection-outbound-cancellation-revocation`. Together they
+cover initial licensing, positive short-write suffix continuation, Valid Client,
+Share and Graphics writes, R1 WANT_READ/WANT_WRITE precedence, invalid retry
+direction, cancellation and terminal revocation without creating an admission
+lease or starting a listener. The R9 direct runtime-security sanitizer inventory
+is **28** cases.
+
 ## R2 production preflight denial coverage (2026-10-17)
 
 `runtime.linux-security-personal-desktop-preflight-denials` executes the

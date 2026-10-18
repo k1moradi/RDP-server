@@ -2,6 +2,7 @@
 #include "desktop_window.h"
 #include <QApplication>
 #include <QClipboard>
+#include <QCloseEvent>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -9,6 +10,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 namespace rdp::gui {
@@ -25,7 +27,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       port_(new QSpinBox(this)), password_(new QLineEdit(this)),
       confirmation_(new QLineEdit(this)), start_(new QPushButton("Start Sharing", this)),
       stop_(new QPushButton("Stop Sharing / Revoke", this)),
-      status_(label({})), activity_(label({})) {
+      copy_(new QPushButton("Copy LAN Address", this)),
+      desktopStatus_(label({})), status_(label({})), activity_(label({})) {
     setWindowTitle("RDP-server - LAN desktop sharing");
     setMinimumSize(600, 440);
     auto* root = new QVBoxLayout(this);
@@ -47,6 +50,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     desktops_->setObjectName("desktopSelection");
     desktops_->addItem("No admitted desktop (R2 authorization pending)");
     desktop->addWidget(desktops_);
+    desktop->addWidget(desktopStatus_);
     desktop->addWidget(label("Desktop selection cannot grant R2 admission. Failed authorization remains blocked."));
     desktop->addStretch();
     auto* credentials = page("Credentials: OS-backed RDP/NLA authentication");
@@ -90,9 +94,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     actions->addWidget(stop_);
     sharing->addLayout(actions);
     sharing->addWidget(status_);
-    auto* copy = new QPushButton("Copy LAN Address", this);
-    copy->setObjectName("copyLanAddress");
-    sharing->addWidget(copy);
+    copy_->setObjectName("copyLanAddress");
+    sharing->addWidget(copy_);
     activity_->setObjectName("clientStatus");
     sharing->addWidget(activity_);
     sharing->addStretch();
@@ -107,23 +110,25 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     connect(back, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() - 1); });
     connect(next, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() + 1); });
     connect(start_, &QPushButton::clicked, this, [this] {
-        if (!canStart()) return;
         const auto snapshot = host_.status();
+        if (snapshot.sharing || snapshot.startPending || !blockedReason(snapshot).isEmpty()) return;
         const HostRequest request{snapshot.desktop, interfaces_->currentData().toString(),
             static_cast<std::uint16_t>(port_->value())};
         (void)host_.start(request); // Never use return value as active-sharing proof.
         refresh();
     });
     connect(stop_, &QPushButton::clicked, this, [this] {
-        if (!host_.status().sharing) return;
+        const auto snapshot = host_.status();
+        if (!snapshot.sharing && !snapshot.startPending) return;
         host_.stopAndRevoke();
         refresh();
     });
-    connect(copy, &QPushButton::clicked, this, [this] {
+    connect(copy_, &QPushButton::clicked, this, [this] {
         const auto state = host_.status();
         if (state.sharing && !state.lanAddress.isEmpty())
             QApplication::clipboard()->setText(state.lanAddress);
     });
+    connect(interfaces_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
     connect(password_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(confirmation_, &QLineEdit::textChanged, this, [this] { refresh(); });
     refresh();
@@ -132,33 +137,84 @@ void DesktopWindow::changePage(int index) {
     if (index >= 0 && index < pages_->count()) pages_->setCurrentIndex(index);
 }
 QString DesktopWindow::blockedReason() const {
-    const auto state = host_.status();
+    return blockedReason(host_.status());
+}
+QString DesktopWindow::blockedReason(const HostStatus& state) const {
     if (!state.controlAvailable) return "R10 host control unavailable";
     if (!state.credentialProviderReady) return "Compatible R2 OS-backed credential provider unavailable";
-    if (!state.desktopAuthorized || state.desktop.isEmpty()) return "Logged-in desktop not R2-authorized";
+    if (!state.desktopAuthorized || state.desktop.isEmpty()
+        || desktops_->currentData().toString() != state.desktop)
+        return "Logged-in desktop not R2-authorized";
     if (!state.tlsReady) return "TLS identity unavailable";
     if (!state.firewallReady) return "Firewall prerequisite unavailable";
     if (!state.captureInputReady) return "Screen/input permissions unavailable";
-    if (interfaces_->currentData().toString().isEmpty()) return "Validated LAN interface not selected";
+    const QString selectedInterface = interfaces_->currentData().toString();
+    if (selectedInterface.isEmpty() || !state.approvedLanInterfaces.contains(selectedInterface))
+        return "R10-approved LAN interface not selected";
     if (password_->isEnabled() &&
         (password_->text().isEmpty() || password_->text() != confirmation_->text()))
         return "Application password confirmation mismatch";
     return {};
 }
 bool DesktopWindow::canStart() const {
-    return !host_.status().sharing && blockedReason().isEmpty();
+    const auto state = host_.status();
+    return !state.sharing && !state.startPending && blockedReason(state).isEmpty();
 }
 void DesktopWindow::refresh() {
     const auto snapshot = host_.status();
-    start_->setEnabled(canStart());
-    stop_->setEnabled(snapshot.sharing);
-    status_->setText(snapshot.sharing && !snapshot.lanAddress.isEmpty()
-        ? "R10 sharing address: " + snapshot.lanAddress
-        : "Not sharing. " + (snapshot.failure.isEmpty() ? blockedReason() : snapshot.failure));
+    const QString previousInterface = interfaces_->currentData().toString();
+    // A refreshed R10/R2 snapshot invalidates removed interface/session choices.
+    {
+        const QSignalBlocker blocked(desktops_);
+        desktops_->clear();
+        desktops_->addItem("No admitted desktop", QString());
+        if (snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()) {
+            desktops_->addItem(snapshot.desktop, snapshot.desktop);
+            desktops_->setCurrentIndex(1);
+        }
+    }
+    {
+        const QSignalBlocker blocked(interfaces_);
+        interfaces_->clear();
+        interfaces_->addItem("Select R10-approved LAN interface", QString());
+        for (const auto& address : snapshot.approvedLanInterfaces) {
+            if (!address.isEmpty() && interfaces_->findData(address) == -1)
+                interfaces_->addItem(address, address);
+        }
+        const int index = interfaces_->findData(previousInterface);
+        if (index > 0) interfaces_->setCurrentIndex(index);
+    }
+    desktopStatus_->setText(snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()
+        ? "R2-authorized desktop reported: " + snapshot.desktop
+        : "Authorization unavailable: " + (snapshot.failure.isEmpty()
+            ? "No authenticated host-owner admission" : snapshot.failure));
+    const QString denial = blockedReason(snapshot);
+    start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());
+    stop_->setEnabled(snapshot.sharing || snapshot.startPending);
+    copy_->setEnabled(snapshot.sharing && !snapshot.lanAddress.isEmpty());
+    status_->setText(snapshot.sharing
+        ? (snapshot.lanAddress.isEmpty() ? "R10 reports sharing; LAN address unavailable."
+            : "R10 sharing address: " + snapshot.lanAddress)
+        : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
+            : "Not sharing. " + (snapshot.failure.isEmpty() ? denial : snapshot.failure)));
     activity_->setText("Connected clients: " + (snapshot.clients.isEmpty() ? "None" : snapshot.clients.join(", "))
         + "\nAuthentication failures: " + (snapshot.authenticationFailures.isEmpty()
             ? "None" : snapshot.authenticationFailures.join(", "))
         + "\nDisconnected: " + (snapshot.disconnected.isEmpty() ? "None" : snapshot.disconnected.join(", "))
         + "\nLocked/revoked: " + (snapshot.revoked.isEmpty() ? "None" : snapshot.revoked.join(", ")));
+}
+void DesktopWindow::closeEvent(QCloseEvent* event) {
+    const auto state = host_.status();
+    if (state.sharing || state.startPending) {
+        // Only R10 may retire the authoritative listener/connection owner.
+        host_.stopAndRevoke();
+        const auto after = host_.status();
+        if (after.sharing || after.startPending) {
+            refresh();
+            event->ignore(); // Do not orphan a pending/active server.
+            return;
+        }
+    }
+    QWidget::closeEvent(event);
 }
 }

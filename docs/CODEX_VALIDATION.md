@@ -5937,3 +5937,7 @@ Dedicated offline CTest `linux.gui-preflight-native-seat-and-launch-denials`
 registered. Canonical owner Debug build/full CTest: NOT RUN in GitHub connector
 environment. Real ZIP extraction/Qt closure/seat0 admission and R10 live X11
 input/frame acceptance: NOT RUN / BLOCKED. No R2 credentials were minted.
+
+## R7 R10-interface recheck and fail-closed desktop UX (2026-10-18)
+
+R1 LAN listener and R5 GUI launcher have landed. R10 now defines `runtime_host_control.h` typed commands/status, but its sole implementation is `UnavailableRuntimeHostControl` and the required serialized owner-thread marshaling/real native R2 admission are absent. R7 Qt GUI hardens pending-host close-to-revoke, host-projected LAN interface selection, stale choice removal, disabled endpoint copy and explicit desktop denial; an added offscreen CTest covers refused closure while stop remains pending. R9 Qt runtime ZIP closure and macOS .app package remain unresolved. Local Qt development tools/owner checkout unavailable in this environment: configure/build/CTest **NOT RUN**, CI after this commit **PENDING**, live hosting **BLOCKED**. No real positive security authority is inferred.

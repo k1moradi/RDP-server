@@ -2541,4 +2541,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-first-run-authorization-revocation PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security" TIMEOUT 30)
+    add_test(NAME gui.offscreen-close-revokes-pending-host
+        COMMAND test_desktop_gui_offline close)
+    set_tests_properties(gui.offscreen-close-revokes-pending-host PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security" TIMEOUT 30)
 endif()

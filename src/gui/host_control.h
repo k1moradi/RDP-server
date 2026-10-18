@@ -14,7 +14,9 @@ struct HostStatus {
     bool firewallReady = false;
     bool captureInputReady = false;
     bool sharing = false;
+    bool startPending = false; // R10 owns the pending-start lifetime.
     QString desktop;
+    QStringList approvedLanInterfaces; // R10-supplied LAN candidates only.
     QString lanAddress;
     QString failure;
     QStringList clients;

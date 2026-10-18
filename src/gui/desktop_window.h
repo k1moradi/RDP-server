@@ -2,6 +2,7 @@
 #pragma once
 #include "host_control.h"
 #include <QWidget>
+class QCloseEvent;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -15,6 +16,8 @@ public:
     void refresh();
     [[nodiscard]] bool canStart() const;
     [[nodiscard]] QString blockedReason() const;
+protected:
+    void closeEvent(QCloseEvent* event) override;
 private:
     HostControl& host_;
     QStackedWidget* pages_;
@@ -25,8 +28,11 @@ private:
     QLineEdit* confirmation_;
     QPushButton* start_;
     QPushButton* stop_;
+    QPushButton* copy_;
+    QLabel* desktopStatus_;
     QLabel* status_;
     QLabel* activity_;
+    [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;
     void changePage(int index);
 };
 }

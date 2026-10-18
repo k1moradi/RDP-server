@@ -3893,3 +3893,7 @@ wire serialization, capability fallback, owned delivery/recovery and
 malformed/layout/alias denials. Ordinary full CTest or AVC420/x264 coverage
 does not substitute for this gate because ClearCodec has distinct residual
 layout and checked length arithmetic.
+
+## R7 pending-host close and selected-LAN projection (2026-10-18)
+
+The optional Qt GUI CTests now cover no implicit R10-approved interface selection, missing desktop admission, disabled future password controls and test-only mismatch/redaction, no automatic Start, absent endpoint copy, fake client status, stop/revoke and pending-host close behavior. The new `gui.offscreen-close-revokes-pending-host` test refuses close until the test adapter acknowledges retirement. R10 owns the real terminal operation, not the fake, and no GUI test is evidence of actual host admission.

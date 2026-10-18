@@ -27,6 +27,7 @@ enum class ConsoleRuleError : std::uint8_t
     InvalidRule,
     Duplicate,
     Full,
+    GenerationExhausted,
 };
 
 enum class ConsolePolicyMatch : std::uint8_t
@@ -68,6 +69,20 @@ public:
     [[nodiscard]] ConsoleRuleError add(
         const ConsoleIdentityRuleInput &rule) noexcept;
 
+    // GUI-facing OS-account access lifecycle. Replacement publishes exactly
+    // one new policy generation; every acceptor/lease bound to an older
+    // generation consequently fails its existing freshness checks. No
+    // password, Kerberos ticket, NTLM-equivalent verifier or OS-login result
+    // is stored here. Rule mutation remains externally serialized.
+    [[nodiscard]] ConsoleRuleError replaceSingle(
+        const ConsoleIdentityRuleInput &rule) noexcept;
+
+    // Remove every configured identity and publish a fresh revocation
+    // generation. False is the terminal generation-exhaustion case: rules
+    // are still erased and generation becomes zero so positive use fails
+    // closed. Revocation itself is never host-user consent or authentication.
+    [[nodiscard]] bool revokeAll() noexcept;
+
     // The caller supplies only a candidate observation; it is not evidence
     // the kernel, GSS provider, logind or X server verified these attributes.
     [[nodiscard]] ConsolePolicyMatch matchCandidate(
@@ -103,6 +118,10 @@ private:
         std::uint32_t uid{};
         std::uint32_t permissions{};
     };
+    [[nodiscard]] bool nextGeneration(
+        std::uint64_t &next) const noexcept;
+    void clearRules() noexcept;
+
     std::array<Rule, kMaximumConsoleIdentityRules> rules_{};
     std::size_t count_{};
     std::atomic<std::uint64_t> generation_{};

@@ -25,6 +25,7 @@ struct LinuxRuntimeSecurityPreflightVerdict final
 {
     bool gssAcceptorCredentialAvailable{};
     bool pamServiceConfigured{};
+    bool identityPolicyConfigured{};
     bool personalDesktopPolicyConfigured{};
     bool nativeSessionEvidenceAvailable{};
     bool authenticatedAdmission{};
@@ -32,15 +33,18 @@ struct LinuxRuntimeSecurityPreflightVerdict final
     [[nodiscard]] bool readyForAuthenticatedAdmissionAttempt() const noexcept
     {
         return gssAcceptorCredentialAvailable && pamServiceConfigured &&
-               personalDesktopPolicyConfigured &&
+               identityPolicyConfigured && personalDesktopPolicyConfigured &&
                nativeSessionEvidenceAvailable && !authenticatedAdmission;
     }
 };
 
 // Linux-only pre-listener security provisioning. The object owns one sealed,
-// anonymous snapshot of the securely opened keytab plus one immutable
-// ConsoleIdentityPolicy. It does not own a connection, TLS, GSS context or R3
-// session. Keep it alive for every GssapiSpnegoAcceptor configured from it so
+// anonymous snapshot of the securely opened keytab plus the R2 identity policy.
+// Service identity, keytab and PAM provider are immutable after provisioning;
+// the authorized OS-account rule may be explicitly replaced/revoked through
+// the generation-fenced lifecycle below. It does not own a connection, TLS,
+// GSS context or R3 session. Keep it alive for every GssapiSpnegoAcceptor
+// configured from it so
 // FILE:/proc/self/fd/<n> continues to identify the exact immutable snapshot
 // accepted during startup.
 //
@@ -92,6 +96,20 @@ public:
         const rdp_server::server::security::ConsoleIdentityRuleInput &rule,
         std::string_view pamServiceName) noexcept;
 #endif
+
+    // Replace the sole GUI-selected existing OS account mapping without
+    // changing the service keytab, PAM provider or any OS password. Success
+    // publishes a fresh policy generation, invalidating old R2 acceptors and
+    // leases through their existing generation checks. No positive admission
+    // or host consent is created by this call.
+    [[nodiscard]] bool replaceAuthorizedIdentity(
+        const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
+        noexcept;
+
+    // Revoke configured access and publish a new generation. Existing
+    // admissions become stale and new acceptors are refused until a valid
+    // identity is explicitly installed again. This call stores no secret.
+    [[nodiscard]] bool revokeAuthorizedIdentity() noexcept;
 
     // Configure one existing per-connection R2 acceptor from the retained
     // sealed keytab snapshot. The configuration object must outlive it.

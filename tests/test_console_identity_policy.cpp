@@ -85,6 +85,56 @@ void testDelegatedAccountBinding()
                "alice@EXAMPLE.TEST", "other", ambiguousGeneration) ==
            ConsolePolicyMatch::Denied);
 }
+
+void testReplacementAndRevocation()
+{
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001U, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    const std::uint64_t aliceGeneration = policy.generation();
+
+    ConsoleIdentityRuleInput replacement{
+        "bob@EXAMPLE.TEST", "bob", "seat0", ":0", 1002U,
+        kConsoleViewPermission | kConsoleInputPermission};
+    assert(policy.replaceSingle(replacement) == ConsoleRuleError::None);
+    const std::uint64_t bobGeneration = policy.generation();
+    assert(bobGeneration != 0 && bobGeneration != aliceGeneration);
+    assert(policy.size() == 1U);
+    assert(policy.matchPrincipalAccountCandidate(
+               "alice@EXAMPLE.TEST", "alice", aliceGeneration) ==
+           ConsolePolicyMatch::Denied);
+    assert(policy.matchPrincipalAccountCandidate(
+               "alice@EXAMPLE.TEST", "alice", bobGeneration) ==
+           ConsolePolicyMatch::Denied);
+    assert(policy.matchPrincipalAccountCandidate(
+               "bob@EXAMPLE.TEST", "bob", bobGeneration) ==
+           ConsolePolicyMatch::CandidateOnly);
+
+    ConsoleIdentityRuleInput invalid = replacement;
+    invalid.unixAccount = "root";
+    assert(policy.replaceSingle(invalid) == ConsoleRuleError::InvalidRule);
+    assert(policy.generation() == bobGeneration);
+    assert(policy.size() == 1U);
+
+    assert(policy.revokeAll());
+    const std::uint64_t revokedGeneration = policy.generation();
+    assert(revokedGeneration != 0 && revokedGeneration != bobGeneration);
+    assert(policy.size() == 0U);
+    assert(policy.matchPrincipalAccountCandidate(
+               "bob@EXAMPLE.TEST", "bob", bobGeneration) ==
+           ConsolePolicyMatch::Denied);
+    assert(policy.matchPrincipalAccountCandidate(
+               "bob@EXAMPLE.TEST", "bob", revokedGeneration) ==
+           ConsolePolicyMatch::Denied);
+
+    assert(policy.replaceSingle(
+               {"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                1001U, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+    assert(policy.size() == 1U);
+    assert(policy.generation() != revokedGeneration);
+}
 }
 
 int main(int argc, char **argv)
@@ -93,6 +143,7 @@ int main(int argc, char **argv)
     {
         testCandidateMatching();
         testDelegatedAccountBinding();
+        testReplacementAndRevocation();
         return 0;
     }
     if (argc != 2 || argv[1] == nullptr)
@@ -106,6 +157,11 @@ int main(int argc, char **argv)
     if (selected == "console-policy-delegated-account-binding")
     {
         testDelegatedAccountBinding();
+        return 0;
+    }
+    if (selected == "console-policy-replacement-revocation")
+    {
+        testReplacementAndRevocation();
         return 0;
     }
     return 2;

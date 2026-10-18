@@ -623,6 +623,66 @@ void testExplicitKeytabContinuity(
     assert(configuration.configured());
 }
 
+void testAccessPolicyReplacementRevocation(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-security-access-policy.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    assert(configuration.policy() != nullptr);
+    const auto *policy = configuration.policy();
+    const std::uint64_t originalGeneration = policy->generation();
+    assert(originalGeneration != 0U && policy->size() == 1U);
+
+    GssapiSpnegoAcceptor originalAcceptor;
+    assert(configuration.configureAcceptor(originalAcceptor));
+    assert(originalAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+
+    ConsoleIdentityRuleInput replacement{
+        "bob@EXAMPLE.TEST", "bob", "seat0", ":0", 1002U,
+        kConsoleViewPermission | kConsoleInputPermission};
+    assert(configuration.replaceAuthorizedIdentity(replacement));
+    const std::uint64_t replacementGeneration = policy->generation();
+    assert(replacementGeneration != 0U &&
+           replacementGeneration != originalGeneration);
+    assert(policy->size() == 1U);
+    assert(policy->matchPrincipalAccountCandidate(
+               "alice@EXAMPLE.TEST", "alice", originalGeneration) ==
+           ConsolePolicyMatch::Denied);
+    assert(policy->matchPrincipalAccountCandidate(
+               "bob@EXAMPLE.TEST", "bob", replacementGeneration) ==
+           ConsolePolicyMatch::CandidateOnly);
+
+    ConsoleIdentityRuleInput invalid = replacement;
+    invalid.unixAccount = "root";
+    assert(!configuration.replaceAuthorizedIdentity(invalid));
+    assert(policy->generation() == replacementGeneration);
+
+    GssapiSpnegoAcceptor replacementAcceptor;
+    assert(configuration.configureAcceptor(replacementAcceptor));
+    assert(replacementAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+
+    assert(configuration.revokeAuthorizedIdentity());
+    const std::uint64_t revokedGeneration = policy->generation();
+    assert(revokedGeneration != 0U &&
+           revokedGeneration != replacementGeneration);
+    assert(policy->size() == 0U);
+    GssapiSpnegoAcceptor revokedAcceptor;
+    assert(!configuration.configureAcceptor(revokedAcceptor));
+    assert(revokedAcceptor.stage() == SpnegoStage::Failed);
+
+    assert(configuration.replaceAuthorizedIdentity(validRule()));
+    assert(policy->size() == 1U);
+    assert(policy->generation() != revokedGeneration);
+    GssapiSpnegoAcceptor restoredAcceptor;
+    assert(configuration.configureAcceptor(restoredAcceptor));
+    assert(restoredAcceptor.stage() == SpnegoStage::AwaitInitialToken);
+}
+
 void testPersonalDesktopPreflightDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -2930,6 +2990,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-personal-desktop-preflight-denials")
     {
         testPersonalDesktopPreflightDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-security-access-policy-replacement-revocation")
+    {
+        testAccessPolicyReplacementRevocation(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-security-keytab-snapshot-mutation-continuity")

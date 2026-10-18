@@ -1,3 +1,20 @@
+## R2 OS-account access-policy replacement/revocation (2026-10-18)
+
+Parent `ee7ed0936598f2044ba5c4f61eb9964c90942131`. R10's typed host-control contract resolved the missing
+GUI/runtime request seam enough for R2 to add the next fail-closed credential
+lifecycle boundary. `ConsoleIdentityPolicy::replaceSingle()` and
+`revokeAll()`, exposed through the Linux runtime-security owner, publish new
+policy generations without storing or changing any password. Revocation erases
+all authorized identities; `configureAcceptor()` refuses new CredSSP/GSS
+acceptors while access is revoked. Existing acceptors and native leases retain
+their prior generation and fail the already-existing R2 freshness checks.
+Dedicated offline CTests:
+`security.console-policy-replacement-revocation` and
+`runtime.linux-security-access-policy-replacement-revocation`.
+Local build/CTest **NOT RUN** in the connector environment; exact publication
+SHA hosted CI **PENDING**. No positive Kerberos/PAM/logind admission, listener,
+Share, X11 capture/input or Microsoft-client session is claimed.
+
 ## R9 repair of R5 Linux GUI launcher policy scan (2026-10-18)
 
 R5 publication `9883b01e595f37c714b3692bc18c667cd79b8d72` and descendant `c9362721849cde847ed0842bd3f34b9217dc8a00` both reach the new Linux GUI packaging gate and fail before GUI compilation at `packaging.linux-gui-zip-offline-closure-and-modes`. Hosted job `117659179155` reports the exact first failure: `assert b"fuse" not in source.read("run-gui.sh").lower()`; the launcher contains only a safety comment saying ordinary ZIP extraction uses “no FUSE”, while its executable shell lines contain no FUSE/AppImage/systemd command. The ordinary Ubuntu suite independently fails the same one test as #704/706; R9's `packaging.portable-gui-archive-integrity-denials` passes as #706/706.

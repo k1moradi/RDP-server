@@ -829,6 +829,10 @@ add_test(NAME security.console-policy-delegated-account-binding
     COMMAND test_console_identity_policy console-policy-delegated-account-binding)
 set_tests_properties(security.console-policy-delegated-account-binding
     PROPERTIES LABELS "protocol;security;offline")
+add_test(NAME security.console-policy-replacement-revocation
+    COMMAND test_console_identity_policy console-policy-replacement-revocation)
+set_tests_properties(security.console-policy-replacement-revocation
+    PROPERTIES LABELS "protocol;security;credentials;offline")
 add_rdp_test(test_base64_codec.cpp security base64-codec)
 add_rdp_test(test_gfx_surface_lifecycle.cpp graphics surface-lifecycle)
 add_rdp_test(test_gfx_avc420_capabilities.cpp graphics avc420-capabilities)
@@ -900,6 +904,7 @@ if(TARGET rdp-server-linux-runtime-security)
     foreach(runtime_linux_security_case IN ITEMS
             linux-security-explicit-keytab-continuity
             linux-security-personal-desktop-preflight-denials
+            linux-security-access-policy-replacement-revocation
             linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials
             linux-connection-credssp-owner-framing

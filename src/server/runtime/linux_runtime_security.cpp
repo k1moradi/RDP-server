@@ -427,6 +427,20 @@ bool LinuxRuntimeSecurityConfiguration::configureInternal(
     return true;
 }
 
+bool LinuxRuntimeSecurityConfiguration::replaceAuthorizedIdentity(
+    const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
+    noexcept
+{
+    return configured_ &&
+           policy_.replaceSingle(rule) ==
+               rdp_server::server::security::ConsoleRuleError::None;
+}
+
+bool LinuxRuntimeSecurityConfiguration::revokeAuthorizedIdentity() noexcept
+{
+    return configured_ && policy_.revokeAll();
+}
+
 LinuxRuntimeSecurityPreflightVerdict
 LinuxRuntimeSecurityConfiguration::preflightPersonalDesktopAdmission(
     const RuntimeDeploymentPolicy &deploymentPolicy,
@@ -437,6 +451,8 @@ LinuxRuntimeSecurityConfiguration::preflightPersonalDesktopAdmission(
     verdict.gssAcceptorCredentialAvailable =
         configured_ && keytabDescriptor_ >= 0 &&
         servicePrincipalLength_ != 0U;
+    verdict.identityPolicyConfigured =
+        configured_ && policy_.size() != 0U && policy_.generation() != 0U;
 #if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
     verdict.pamServiceConfigured =
         configured_ && passwordVerifier_.configured() &&
@@ -450,6 +466,7 @@ LinuxRuntimeSecurityConfiguration::preflightPersonalDesktopAdmission(
 
     if (!verdict.gssAcceptorCredentialAvailable ||
         !verdict.pamServiceConfigured ||
+        !verdict.identityPolicyConfigured ||
         !verdict.personalDesktopPolicyConfigured)
     {
         return verdict;
@@ -472,7 +489,8 @@ bool LinuxRuntimeSecurityConfiguration::configureAcceptor(
     const noexcept
 {
     if (!configured_ || keytabDescriptor_ < 0 ||
-        servicePrincipalLength_ == 0)
+        servicePrincipalLength_ == 0 || policy_.size() == 0U ||
+        policy_.generation() == 0U)
     {
         acceptor.reject();
         return false;

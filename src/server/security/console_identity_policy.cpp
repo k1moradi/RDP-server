@@ -2,6 +2,7 @@
 #include "console_identity_policy.h"
 
 #include <algorithm>
+#include <limits>
 #include <string_view>
 
 namespace rdp_server::server::security
@@ -145,6 +146,26 @@ template <std::size_t N>
 
 } // namespace
 
+bool ConsoleIdentityPolicy::nextGeneration(
+    std::uint64_t &next) const noexcept
+{
+    const std::uint64_t current =
+        generation_.load(std::memory_order_relaxed);
+    if (current == (std::numeric_limits<std::uint64_t>::max)())
+    {
+        next = 0;
+        return false;
+    }
+    next = current + 1U;
+    return next != 0;
+}
+
+void ConsoleIdentityPolicy::clearRules() noexcept
+{
+    rules_.fill(Rule{});
+    count_ = 0;
+}
+
 ConsoleRuleError ConsoleIdentityPolicy::add(
     const ConsoleIdentityRuleInput &rule) noexcept
 {
@@ -168,6 +189,17 @@ ConsoleRuleError ConsoleIdentityPolicy::add(
     {
         return ConsoleRuleError::Full;
     }
+
+    std::uint64_t next = 0;
+    if (!nextGeneration(next))
+    {
+        // Generation zero is terminal fail-closed state. Clearing the rules
+        // prevents an unobservable identity mutation if the epoch exhausts.
+        clearRules();
+        generation_.store(0, std::memory_order_release);
+        return ConsoleRuleError::GenerationExhausted;
+    }
+
     Rule newRule{};
     copyExact(newRule.principal, rule.kerberosPrincipal);
     copyExact(newRule.account, rule.unixAccount);
@@ -176,10 +208,57 @@ ConsoleRuleError ConsoleIdentityPolicy::add(
     newRule.uid = rule.localUid;
     newRule.permissions = rule.permissions;
     rules_[count_++] = newRule;
-    // At most 16 successful additions exist for one policy, so generation
-    // cannot wrap during this object's lifetime.
-    generation_.fetch_add(1, std::memory_order_release);
+    generation_.store(next, std::memory_order_release);
     return ConsoleRuleError::None;
+}
+
+ConsoleRuleError ConsoleIdentityPolicy::replaceSingle(
+    const ConsoleIdentityRuleInput &rule) noexcept
+{
+    if (!validRule(rule))
+    {
+        return ConsoleRuleError::InvalidRule;
+    }
+
+    std::uint64_t next = 0;
+    if (!nextGeneration(next))
+    {
+        clearRules();
+        generation_.store(0, std::memory_order_release);
+        return ConsoleRuleError::GenerationExhausted;
+    }
+
+    Rule newRule{};
+    copyExact(newRule.principal, rule.kerberosPrincipal);
+    copyExact(newRule.account, rule.unixAccount);
+    copyExact(newRule.seat, rule.seat);
+    copyExact(newRule.display, rule.display);
+    newRule.uid = rule.localUid;
+    newRule.permissions = rule.permissions;
+
+    // Publish the epoch only after the replacement bytes are complete.
+    // External serialization prevents concurrent rule readers while this
+    // mutation is in progress; generation is the cross-owner revocation fence.
+    clearRules();
+    rules_[0] = newRule;
+    count_ = 1U;
+    generation_.store(next, std::memory_order_release);
+    return ConsoleRuleError::None;
+}
+
+bool ConsoleIdentityPolicy::revokeAll() noexcept
+{
+    std::uint64_t next = 0;
+    if (!nextGeneration(next))
+    {
+        clearRules();
+        generation_.store(0, std::memory_order_release);
+        return false;
+    }
+
+    clearRules();
+    generation_.store(next, std::memory_order_release);
+    return true;
 }
 
 ConsolePolicyMatch ConsoleIdentityPolicy::matchCandidate(

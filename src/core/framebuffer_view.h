@@ -17,7 +17,7 @@ struct FramebufferView
     [[nodiscard]] bool valid() const noexcept
     {
         if (widthPixels == 0 || heightPixels == 0 || strideBytes == 0 ||
-            heightPixels > std::numeric_limits<std::size_t>::max() /
+            heightPixels > (std::numeric_limits<std::size_t>::max)() /
                                strideBytes)
         {
             return false;

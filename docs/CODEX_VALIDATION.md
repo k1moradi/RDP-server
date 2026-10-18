@@ -1,3 +1,20 @@
+## R9 exact-head portability failures after R3 compile correction (2026-10-17)
+
+Corrective R3 head `f170af936c4cb35a7a94076a5e3dee2f3f4e048a` moved past the original declaration-order
+and switch-scope failures, then exposed two independent compile-only defects
+before SERVER-TEST packaging. Windows/MSVC expanded the platform `max` macro
+inside `std::numeric_limits<std::size_t>::max()` in `FramebufferView`; the
+portable C++ spelling is `(std::numeric_limits<std::size_t>::max)()`.
+macOS/AppleClang correctly rejected the R3 MCS test registry because nine new
+Graphics DATA cases were appended without changing the fixed array extent
+**140 → 149**.
+
+This correction changes only the macro-safe numeric-limits call and the exact
+test-table extent. No framebuffer bounds, R3 wire bytes, receipt mapping,
+sanitizer selector, SERVER-TEST artifact contract or runtime authority changes.
+Publication-SHA CI remains the acceptance gate and live deployment remains
+unclaimed.
+
 ## R3 Graphics DATA first hosted compile correction (2026-10-17)
 
 Source SHA `27f68c322fc13c7712c0393f7ca479ee4599a0c7` published the

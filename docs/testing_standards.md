@@ -1,3 +1,16 @@
+## R2 logind lock-hint denial and native consent distinction (2026-10-18)
+
+The concrete Linux logind candidate reader must reject any locked, unknown,
+or failed `sd_session_get_locked_hint` result both during its initial
+sample and after the second seat0 identity read. Its pure consistency
+predicate must default to deny without an explicitly reported-unlocked
+hint; new `security.linux-seat0-lock-hint-denials` exercises only synthetic
+negative facts against production code, never a fabricated native lease.
+A logind-reported unlocked hint is best-effort and not an authoritative
+physical-desktop lock/consent proof. Current host-owner authorization,
+real GSS/CredSSP identity, PAM/NSS mapping, physical session lifecycle and
+protected-operation revalidation remain separate live acceptance gates.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

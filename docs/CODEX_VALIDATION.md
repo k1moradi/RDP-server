@@ -1,3 +1,17 @@
+## R2 logind lock-hint fail-closed candidate fence (2026-10-18)
+
+The production Linux logind reader now denies locked/unknown lock hints
+on the initial and repeated seat0 sample. Pure non-authorizing
+`consistentLogindSessionFacts` also requires the reported-unlocked field.
+Added one ordinary production-linked Linux security CTest
+`security.linux-seat0-lock-hint-denials` for locked, absent hint,
+inactive/remote and changed-session rejection. This neither makes a
+reported-unlocked hint authoritative nor grants a genuine consented lease.
+Source patch inspection **PASS**; owner-local full Debug CTest **NOT RUN**;
+exact-SHA CI **PENDING** at authoring; real Windows App/mstsc Linux seat0
+acceptance **BLOCKED / NOT RUN**. Next: R10 LAN GUI HostControl, genuine
+local consent/unlock assurance and physical Microsoft-client validation.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

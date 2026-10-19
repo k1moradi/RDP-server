@@ -1013,6 +1013,20 @@ if(TARGET rdp-server-linux-pam-password-verifier)
 endif()
 
 if(TARGET rdp-server-linux-runtime-security)
+    # A logind "locked" or unavailable hint is terminal denial before the
+    # R2 broker considers an X11 seat0 candidate. Pure offline evidence only.
+    add_executable(test_linux_logind_lock_hint
+        test_linux_logind_lock_hint.cpp)
+    target_compile_features(test_linux_logind_lock_hint PRIVATE cxx_std_23)
+    target_link_libraries(test_linux_logind_lock_hint PRIVATE
+        rdp-server-linux-runtime-security)
+    target_compile_options(test_linux_logind_lock_hint PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME security.linux-seat0-lock-hint-denials
+        COMMAND test_linux_logind_lock_hint seat0-lock-hint-denials)
+    set_tests_properties(security.linux-seat0-lock-hint-denials PROPERTIES
+        LABELS "security;linux-provider;offline;seat0-revocation")
+
     # R2 final-credential security contract: check only GSS-verified account
     # reservation after R2 mapping and before PAM. No real OS admission.
     add_test(NAME security.linux-verified-account-pam-attempt-fence-source

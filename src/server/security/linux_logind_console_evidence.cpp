@@ -109,7 +109,8 @@ bool consistentLogindSessionFacts(
            session.sessionOwnerUid == session.seatOwnerUid &&
            secondSeat.ownerUid == session.seatOwnerUid &&
            session.sessionStartRealtimeMicroseconds != 0 &&
-           session.graphicalSeat && session.active && !session.remote;
+           session.graphicalSeat && session.active && !session.remote &&
+           session.unlockedHint;
 }
 
 ConsoleAccountObservation LinuxLogindReadOnlyEvidenceSource::readUnixAccount(
@@ -172,7 +173,12 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
 
     const int active = ::sd_session_is_active(initialSession.get());
     const int remote = ::sd_session_is_remote(initialSession.get());
-    if (active < 0 || remote < 0 ||
+    const int initialLockedHint =
+        ::sd_session_get_locked_hint(initialSession.get());
+    // The logind lock hint is best-effort desktop-supplied evidence. Do not
+    // admit when locked, unavailable or uncertain, and do not mistake a
+    // reported-unlocked hint for explicit local-owner consent.
+    if (active < 0 || remote < 0 || initialLockedHint != 0 ||
         !std::in_range<std::uint32_t>(sessionUid))
     {
         return {};
@@ -207,11 +213,13 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
         sessionId, observedSeat, observedDisplay, observedType, observedClass,
         static_cast<std::uint32_t>(initialSeatUid),
         static_cast<std::uint32_t>(sessionUid),
-        startedAtRealtimeMicroseconds, true, active == 1, remote != 0};
+        startedAtRealtimeMicroseconds, true, active == 1, remote != 0,
+        initialLockedHint == 0};
     if (!consistentLogindSessionFacts(
             facts, {secondSessionId, static_cast<std::uint32_t>(secondSeatUid)}) ||
         ::sd_session_is_active(initialSession.get()) != 1 ||
-        ::sd_session_is_remote(initialSession.get()) != 0)
+        ::sd_session_is_remote(initialSession.get()) != 0 ||
+        ::sd_session_get_locked_hint(initialSession.get()) != 0)
     {
         return {};
     }

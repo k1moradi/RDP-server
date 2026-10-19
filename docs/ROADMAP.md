@@ -1,3 +1,28 @@
+## R2 native seat0 locked-hint admission fence (2026-10-18)
+
+R2 now treats the concrete logind `sd_session_get_locked_hint` as a
+**deny-only extra session check**: a locked (1), failed/unknown (negative),
+or changed-to-locked hint prevents `readActiveConsole` from producing a
+candidate, and consequently prevents new/revalidated R2 lease use.
+The native reader samples the hint before its consistency check and again
+after the second seat owner sample. The shared pure `consistentLogindSessionFacts`
+requires a reported-unlocked hint; the default is false. This is a safety
+fence, not proof the desktop is truly unlocked: logind's hint is
+best-effort, so an independently trustworthy lock/consent owner is still
+required for live acceptance. No GUI password, native socket, permissions,
+GSS identity, TLS binding or positive authorization is created.
+
+Dedicated ordinary Linux production-library CTest
+`security.linux-seat0-lock-hint-denials` exercises reported-locked,
+missing/uninitialized hint, inactive, remote and switched-session denial.
+Source review **PASS**; local owner configure/build/full CTest **NOT RUN**
+(no checked-out owner build/toolchain here). Exact published SHA and hosted
+CI must be reported separately; this is **NOT** positive host proof.
+**Next gate:** R10 concrete GUI LAN HostControl and explicit owner-consent
+lifetime, plus owner-authorized physical seat0 with real CredSSP/PAM/NSS/logind
+and Microsoft-client transcript. Independent application password stays
+unsupported without a separately proven CredSSP mechanism and storage design.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

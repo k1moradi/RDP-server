@@ -1192,7 +1192,7 @@ jobs:
           graphics_dvc_selection='^transport\.dvc-graphics-'
           graphics_dvc_tests="$(ctest --test-dir build --build-config Debug -N -R "$graphics_dvc_selection")"
           printf '%s\n' "$graphics_dvc_tests"
-          readonly graphics_dvc_expected_test_count=20
+          readonly graphics_dvc_expected_test_count=21
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$graphics_dvc_tests")"
           if [[ "$selected_test_count" -ne "$graphics_dvc_expected_test_count" ]]; then
             printf 'R9 R3 Graphics DVC registry mismatch: expected %s tests, found %s\n' \
@@ -1207,6 +1207,7 @@ jobs:
           grep -Fq 'transport.dvc-graphics-frame-ack-handoff-malformed' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-frame-ack-handoff-stale' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-frame-credit-preflight' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-surface-remap' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-create-response-denials' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-generation-cancellation' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-pre-share-denial' <<< "$graphics_dvc_tests"

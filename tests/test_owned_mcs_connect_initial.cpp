@@ -4795,17 +4795,6 @@ void testGraphicsSurfaceRemap()
     assert(dvc.preflightFramePublication(100U) ==
            RdpGraphicsFramePublicationReadiness::Rejected);
 
-    // Stale ACKs can no longer acknowledge a newly published frame ID.
-    assert(dvc.onClientTpkt(
-        205U, makeR3GraphicsFrameAcknowledgeTpkt(
-            9U, 100U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 2U)) ==
-        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
-    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
-           RdpGraphicsFrameAcknowledgeIntake::Rejected);
-    assert(!dvc.presentationMapped());
-    assert(dvc.preflightFramePublication(101U) ==
-           RdpGraphicsFramePublicationReadiness::Rejected);
-
     std::array<std::byte, 64U * 64U * 4U> oldPixels{};
     const FramebufferView wrongGeometry{oldPixels, 64U, 64U, 64U * 4U};
     rdp_server::rdp::GfxAvc420SegmentedFrame rejectedFrame;
@@ -4822,6 +4811,17 @@ void testGraphicsSurfaceRemap()
         std::move(currentFrame), RdpGraphicsFrameCodec::ClearCodec,
         kRdpStaticVirtualChannelDefaultChunkBytes));
     assert(dvc.cancelUnwrittenFramePublication(205U));
+    // Stale ACKs can no longer acknowledge a newly published frame ID.
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 100U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 2U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(!dvc.presentationMapped());
+    assert(dvc.preflightFramePublication(101U) ==
+           RdpGraphicsFramePublicationReadiness::Rejected);
+
     dvc.close();
     assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
            Decision::Rejected);

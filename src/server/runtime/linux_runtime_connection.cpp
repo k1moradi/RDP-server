@@ -2854,6 +2854,11 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
             case Kind::GraphicsCreateSurface:
                 personalGraphicsDvcIoAction_ = Action::Write;
                 return {0U, io.bytes, Step::Progress};
+            case Kind::GraphicsDeleteSurface:
+                // R3 completes DELETE by queuing CREATE (Pending), never by
+                // returning Delivered. This is only an exhaustive deny path;
+                // R10 still owns any future native resize scheduling.
+                break;
             case Kind::GraphicsMapSurfaceToOutput:
                 // Retain the same bounded frame reader for serialized
                 // post-Share application packets and client FRAME_ACK intake.

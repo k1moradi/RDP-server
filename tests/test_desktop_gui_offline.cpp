@@ -2,6 +2,9 @@
 #include "desktop_window.h"
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
+#if defined(__linux__)
+#include "server/runtime/linux_runtime_host_control.h"
+#endif
 
 #include <QApplication>
 #include <QClipboard>
@@ -135,6 +138,56 @@ int main(int argc, char** argv)
         return 0;
     }
 
+#if defined(__linux__)
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "linux-real-host-control")
+    {
+        // Use the production R10 owner with real Qt widgets. No seat, LAN
+        // address, R2 credential or network listener is needed.
+        LinuxRuntimeHostControl runtime;
+        HostControl controller(runtime);
+        DesktopWindow window(controller);
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        auto* stop = window.findChild<QPushButton*>("stopSharing");
+        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
+        auto* copy = window.findChild<QPushButton*>("copyLanAddress");
+        auto* permission = window.findChild<QPushButton*>("requestHostPermission");
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        assert(start && stop && disconnect && copy && permission && endpoint);
+
+        const auto initial = controller.status();
+        assert(initial.controlAvailable);
+        assert(initial.stage == RuntimeHostStage::Stopped);
+        assert(!initial.listenerReady && !initial.desktopAuthorized);
+        assert(!initial.tlsReady && !initial.sharing && !initial.startPending);
+        assert(initial.lanAddress.isEmpty() && initial.activeClients.isEmpty());
+        assert(!window.canStart() && !start->isEnabled());
+        assert(!stop->isEnabled() && !disconnect->isEnabled());
+        assert(!copy->isEnabled() && !permission->isEnabled());
+        assert(endpoint->text().contains("not reported"));
+
+        // Requests do not mint R2 consent or authorize R1's listener.
+        assert(!controller.requestExistingOsAccount());
+        assert(!controller.requestHostPermission());
+        assert(!controller.start({}));
+        window.refresh();
+        assert(!window.canStart() && !start->isEnabled());
+        assert(!controller.status().desktopAuthorized);
+        assert(!controller.status().listenerReady);
+
+        controller.stopAndRevoke();
+        window.refresh();
+        const auto revoked = controller.status();
+        assert(revoked.stage == RuntimeHostStage::Revoked);
+        assert(!revoked.listenerReady && !revoked.desktopAuthorized);
+        assert(revoked.lanAddress.isEmpty() && revoked.activeClients.isEmpty());
+        assert(!window.canStart() && !start->isEnabled());
+        assert(!stop->isEnabled() && !disconnect->isEnabled());
+        assert(!copy->isEnabled());
+        assert(!controller.start({}));
+        return 0;
+    }
+#endif
+
     FakeRuntimeHost runtime;
     HostControl host(runtime);
 
@@ -151,6 +204,45 @@ int main(int argc, char** argv)
             selected->click();
         });
     };
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "terminal-listener")
+    {
+        // Terminal R2 evidence suppresses an old positive listener flag,
+        // but the raw R10 stage must still demand explicit Stop/Revoke.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        DesktopWindow window(host);
+        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        auto* stop = window.findChild<QPushButton*>("stopSharing");
+        auto* copy = window.findChild<QPushButton*>("copyLanAddress");
+        assert(lifecycle && endpoint && start && stop && copy);
+        assert(host.status().listenerReady);
+        assert(lifecycle->text().contains("Listener ready"));
+
+        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
+        window.refresh();
+        const auto stale = host.status();
+        assert(!stale.listenerReady && !stale.startPending);
+        assert(stale.lanAddress.isEmpty());
+        assert(lifecycle->text().contains("Listener readiness unconfirmed"));
+        assert(endpoint->text().contains("not reported"));
+        assert(!window.canStart() && !start->isEnabled());
+        assert(!copy->isEnabled() && stop->isEnabled());
+
+        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
+        window.refresh();
+        assert(!host.status().listenerReady);
+        assert(stop->isEnabled());
+        stop->click();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+        assert(!stop->isEnabled() && !start->isEnabled());
+        return 0;
+    }
 
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lifecycle-stages")
     {

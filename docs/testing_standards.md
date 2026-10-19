@@ -1,3 +1,13 @@
+## R7 real R10 Linux shell and terminal listener offscreen tests (2026-10-19)
+
+Test the shared Qt GUI against the production Linux R10 HostControl as well
+as the existing fake: confirm no listener, admission or desktop authority on
+startup, credential/permission/Start denial, and explicit Stop/Revoke. Do not
+depend on physical seat0 or interface availability. A separate cross-platform
+real-Qt test must suppress `listenerReady` when stale/revoked R2 error
+overrides an old positive `listenerAvailable`, while retaining the raw
+R10 stage for Stop/close consent. Neither test is real-client acceptance.
+
 ## R9 clean Windows release-blocking gate and concurrent integration (2026-10-19)
 
 Reconciled R9 PR #26 `b45582b466de80a5423e4e38feac134266942355` (primary Actions 39232727915 PASS;

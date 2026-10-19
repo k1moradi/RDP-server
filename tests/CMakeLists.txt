@@ -3016,6 +3016,11 @@ set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_executable(test_desktop_gui_offline test_desktop_gui_offline.cpp)
     target_link_libraries(test_desktop_gui_offline PRIVATE rdp-server-desktop-ui)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Verify real R10 denial/retirement through the shared R7 Qt view.
+        target_link_libraries(test_desktop_gui_offline PRIVATE
+            rdp-server-linux-host-control)
+    endif()
     if(MSVC)
         target_compile_options(test_desktop_gui_offline PRIVATE /W4 /UNDEBUG)
     else()
@@ -3067,6 +3072,20 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
+    # Terminal R2 authority loss must suppress stale listener readiness.
+    add_test(NAME gui.offscreen-terminal-listener-readiness-denials
+        COMMAND test_desktop_gui_offline terminal-listener)
+    set_tests_properties(gui.offscreen-terminal-listener-readiness-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Real R10 shell; no fake consent, native desktop or socket.
+        add_test(NAME gui.offscreen-linux-concrete-host-control-denials
+            COMMAND test_desktop_gui_offline linux-real-host-control)
+        set_tests_properties(gui.offscreen-linux-concrete-host-control-denials
+            PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS "gui;linux;offline;security;runtime" TIMEOUT 30)
+    endif()
     # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
     add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials
         COMMAND test_desktop_gui_offline lifecycle-stages)

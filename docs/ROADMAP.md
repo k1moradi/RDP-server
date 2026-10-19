@@ -1,3 +1,22 @@
+## R7 real Linux HostControl Qt denial and stale listener projection (2026-10-19)
+
+Parent main `eddf7064d7d1311616c71268bfa3dbfb86040a9c`: Linux Qt startup now constructs R10's
+`LinuxRuntimeHostControl`, but R2 per-session owner consent and lock/revocation
+authority and R1 TLS fingerprint/trust are absent. R7 now denies a positive
+listener-readiness projection on terminal `HostSessionStale` or `AccessRevoked`
+even if an old R10 snapshot still reports `listenerAvailable`. The raw
+R10 stage continues to require explicit Stop/close until retirement.
+
+New ordinary Qt offscreen tests:
+`gui.offscreen-terminal-listener-readiness-denials` (all GUI platforms) and
+`gui.offscreen-linux-concrete-host-control-denials` (actual production Linux
+controller through Qt). They verify no invented consent, TLS, listener or
+clients, and explicit Stop/Revoke without live desktop or network bind.
+Source structure review PASS; native Qt/full CTest NOT RUN in this GitHub-only
+workspace; exact publication-SHA hosted CI PENDING. Positive R10 LAN Start,
+genuine R2 lock/consent, R1 fingerprint, PR #23 default GUI/headless fix,
+owner-native M1 and real Microsoft-client acceptance remain BLOCKED / NOT RUN.
+
 ## R10 rejected Linux LAN selection retires prior preference (2026-10-19)
 
 At source parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's Linux GUI controller now invalidates

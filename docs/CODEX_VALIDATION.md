@@ -1,3 +1,14 @@
+## R7 Linux HostControl Qt negative path and stale listener readiness (2026-10-19)
+
+Inspected main parent `eddf7064d7d1311616c71268bfa3dbfb86040a9c`. R7 now suppresses an obsolete
+positive listener readiness flag for terminal R2 errors without changing R10
+ownership or the raw shutdown stage. Added dedicated cross-platform real-Qt
+terminal-listener and Linux-only production HostControl offscreen CTests in
+the shared registry. Source structure review PASS; local native Qt/full
+CTest NOT RUN (no owner checkout/Qt); publication-SHA hosted CI PENDING.
+Positive LAN Start, R2 physical-seat consent/lock revocation, R1 fingerprint,
+same-SHA M1 and Microsoft-client acceptance BLOCKED / NOT RUN.
+
 ## R10 rejected Linux LAN selection retires prior preference (2026-10-19)
 
 At source parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's Linux GUI controller now invalidates

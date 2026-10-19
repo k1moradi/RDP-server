@@ -1494,7 +1494,8 @@ if(TARGET rdp-server-windows-desktop)
         windows_dxgi_duplication_owner_cases.cpp
         windows_dxgi_pointer_shape_cases.cpp
         windows_input_controller_cases.cpp
-        windows_cursor_snapshot_cases.cpp)
+        windows_cursor_snapshot_cases.cpp
+        windows_rdp_conflict_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop
         rdp-server-graphics)
@@ -1690,6 +1691,20 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.input-${case_name}" PROPERTIES
             LABELS "windows;desktop-input;security;offline")
     endforeach()
+    # R6 read-only RDP host-conflict preflight. Synthetic classifier cases
+    # plus one production observation; no listener bind or OS mutation.
+    foreach(case_name IN ITEMS
+            rdp-termservice-active-conflict-denial
+            rdp-requested-port-occupied-conflict-denial
+            rdp-observation-unavailable-denial
+            rdp-clear-when-service-stopped-port-free
+            rdp-native-readonly-observation)
+        add_test(NAME "windows.host-preflight-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.host-preflight-${case_name}" PROPERTIES
+            LABELS "windows;host-preflight;security;offline" TIMEOUT 20)
+    endforeach()
+
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.
     foreach(case_name IN ITEMS
@@ -3099,6 +3114,18 @@ add_test(NAME windows.gui-portable-runtime-dependency-staging
         WindowsGuiBundleTests.test_resolved_non_system_runtime_dlls_are_staged)
 set_tests_properties(windows.gui-portable-runtime-dependency-staging
     PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 15)
+
+# R6 native offline state comparison is exercised without a GUI, network,
+# service change or administrative privilege. The packaged GUI smoke uses
+# the same production comparison against read-only Windows snapshots.
+if(WIN32)
+    add_test(NAME windows.gui-offline-system-state-mutation-denials
+        COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+            -File "${PROJECT_SOURCE_DIR}/scripts/smoke_windows_portable_gui.ps1"
+            -SnapshotContractTest)
+    set_tests_properties(windows.gui-offline-system-state-mutation-denials
+        PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 20)
+endif()
 
 # R9 portable recursive PE-import closure is pure Python on every host; native
 # llvm-objdump execution is performed by the Windows CLANG64 CI lane.

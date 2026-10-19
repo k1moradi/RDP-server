@@ -186,13 +186,17 @@ class WindowsGuiBundleTests(unittest.TestCase):
                 encoding="utf-8")
             + (ROOT / "src/windows/windows_gui_main.cpp").read_text(
                 encoding="utf-8")
+            + (ROOT / "src/windows/windows_rdp_conflict_probe.cpp").read_text(
+                encoding="utf-8")
             + (ROOT / "src/gui/host_control.cpp")
               .read_text(encoding="utf-8")
         ).casefold()
         for forbidden in (
                 "new-netfirewallrule", "netsh advfirewall",
                 "shellexecuteex", "runas", "schtasks",
-                "create service"):
+                "create service", "changeserviceconfig", "controlservice(",
+                "startservice", "deleteservice", "regsetvalue",
+                "bind(", "listen("):
             self.assertNotIn(forbidden, sources)
 
 

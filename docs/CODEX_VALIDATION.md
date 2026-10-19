@@ -1,3 +1,18 @@
+## R4 x264 post-remap independent IDR validation (2026-10-19)
+
+Parent `main` `f5c6579a01f02ed9ac965f84f3095d315dcf4c63`.
+Narrow R4 production-source change binds the existing producer's reference
+history to its last successfully prepared mapped surface ID and reopens
+x264 on the first valid picture following R3's same-generation remap.
+One new production-backed `graphics.x264-segmented-surface-remap-idr`
+CTest checks old P-reference, wrong old-surface denial, post-remap
+SPS/PPS/IDR and next P-frame with full publication receipts and actual
+R4 ACKs. The existing sanitizer selector and structure guard count
+increase from 28 to 29. Source reviewed; exact-head hosted CI and
+owner-local full CTest NOT RUN at authoring. Future R10 native RandR
+integration and physical seat0/client acceptance remain BLOCKED; no new
+R3 surface owner or R4 ACK counter.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

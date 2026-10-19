@@ -3009,6 +3009,7 @@ else()
 endif()
 foreach(case_name IN ITEMS
         x264-segmented-delivery-continuity
+        x264-segmented-surface-remap-idr
         x264-segmented-backpressure-preflight
         x264-segmented-metadata-preflight
         x264-segmented-owned-output-reuse-preflight

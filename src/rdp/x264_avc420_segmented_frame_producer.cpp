@@ -45,6 +45,8 @@ void X264Avc420SegmentedFrameProducer::reset() noexcept
     codedGeometry_ = {};
     visibleGeometry_ = {};
     observedAvc420CancellationSerial_ = 0;
+    preparedSurfaceId_ = 0;
+    preparedSurfaceIdAvailable_ = false;
     hasPreparedFrame_ = false;
 }
 
@@ -129,6 +131,16 @@ bool X264Avc420SegmentedFrameProducer::prepare(
     if (!encoder_.canEncodePicture(request.picture))
         return false;
 
+    // R3 alone remaps surfaces. A new surface in the same DVC generation
+    // must not use x264 references from a retired mapped surface, even
+    // when its geometry is unchanged. Denied requests above are inert.
+    if (preparedSurfaceIdAvailable_ &&
+        preparedSurfaceId_ != request.surfaceId && !rebuildEncoder())
+    {
+        lifecycle.disconnect();
+        return false;
+    }
+
     // R3 can retire an unwritten move-only frame without calling this
     // producer. Never encode a P-picture against that untransmitted frame.
     const auto canceledSerial =
@@ -172,6 +184,8 @@ bool X264Avc420SegmentedFrameProducer::prepare(
         return false;
     }
 
+    preparedSurfaceId_ = request.surfaceId;
+    preparedSurfaceIdAvailable_ = true;
     hasPreparedFrame_ = true;
     return true;
 }

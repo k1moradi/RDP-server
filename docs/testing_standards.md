@@ -1,3 +1,17 @@
+## R4 AVC420 reference reset after a surface remap (2026-10-19)
+
+R3 alone chooses and publishes a new surface ID using DELETE/CREATE/MAP.
+When a same-generation AVC420 producer observes a new mapped surface on
+its first otherwise-valid frame, it must reopen x264 reference history and
+publish an independent SPS/PPS/IDR picture (NAL types 7, 8 and 5).
+The next frame can be a P-frame against that new history. Stale surface
+requests, busy output, invalid pixels and capacity denials are checked
+before any encoder state mutation; a rebuild failure retires presentation.
+Use the existing production x264 test binary and sanitizer inventory;
+`graphics.x264-segmented-surface-remap-idr` increases its exact count to
+29, with complete frame receipts and authoritative R4 FRAME_ACK checks.
+No additional surface, transport, frame counter or native session owner.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

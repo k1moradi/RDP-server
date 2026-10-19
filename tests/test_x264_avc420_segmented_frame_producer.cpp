@@ -196,6 +196,83 @@ void encodedDeliveryContinuity()
     assert(!hasNalType(second.wireBytes(), 5));
 }
 
+void sameGenerationSurfaceRemapForcesIdr()
+{
+    constexpr std::uint64_t generation = 6110U;
+    constexpr std::uint16_t originalSurfaceId = 7U;
+    constexpr std::uint16_t replacementSurfaceId = 8U;
+    GfxPresentationLifecycle lifecycle;
+    mapSurface(lifecycle, generation, kVisible, originalSurfaceId);
+    X264Avc420SegmentedFrameProducer producer;
+    assert(producer.open(generation, kCoded, kVisible));
+
+    const auto initialPixels = makeFrame(kCoded, 4U);
+    const auto continuingPixels = makeFrame(kCoded, 12U);
+    const auto replacementPixels = makeFrame(kCoded, 20U);
+
+    GfxAvc420SegmentedFrame initial;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(80U, initialPixels, 0, originalSurfaceId), initial));
+    assert(hasNalType(initial.wireBytes(), 5U));
+    assert(producer.completeDelivery(
+        lifecycle, initial, initial.wireBytes().size()));
+    GfxFrameAckWindowResult result{};
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(80U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    GfxAvc420SegmentedFrame continuing;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(81U, continuingPixels, 1, originalSurfaceId), continuing));
+    assert(hasNalType(continuing.wireBytes(), 1U));
+    assert(!hasNalType(continuing.wireBytes(), 5U));
+    assert(producer.completeDelivery(
+        lifecycle, continuing, continuing.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(81U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    // DELETE, CREATE and MAP receipts do not advance the channel generation.
+    // Only R3 chooses the new surface ID, with geometry unchanged here.
+    resizeSurface(lifecycle, generation, kVisible, replacementSurfaceId);
+    GfxAvc420SegmentedFrame stale;
+    assert(!producer.prepare(
+        lifecycle, generation,
+        request(82U, replacementPixels, 2, originalSurfaceId), stale));
+    assert(!stale.valid() && producer.valid());
+
+    GfxAvc420SegmentedFrame firstRemapped;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(82U, replacementPixels, 2, replacementSurfaceId),
+        firstRemapped));
+    assert(hasNalType(firstRemapped.wireBytes(), 7U));
+    assert(hasNalType(firstRemapped.wireBytes(), 8U));
+    assert(hasNalType(firstRemapped.wireBytes(), 5U));
+    assert(producer.completeDelivery(
+        lifecycle, firstRemapped, firstRemapped.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(82U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+
+    // The next picture can now depend only on the remapped surface's IDR.
+    GfxAvc420SegmentedFrame nextRemapped;
+    assert(producer.prepare(
+        lifecycle, generation,
+        request(83U, continuingPixels, 3, replacementSurfaceId),
+        nextRemapped));
+    assert(hasNalType(nextRemapped.wireBytes(), 1U));
+    assert(!hasNalType(nextRemapped.wireBytes(), 5U));
+    assert(producer.completeDelivery(
+        lifecycle, nextRemapped, nextRemapped.wireBytes().size()));
+    assert(lifecycle.onFrameAcknowledge(
+        generation, acknowledge(83U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+}
+
 void backpressureDoesNotAdvanceEncoder()
 {
     GfxPresentationLifecycle lifecycle;
@@ -1611,6 +1688,11 @@ int main(int argc, char **argv)
     if (behavior == "x264-segmented-delivery-continuity")
     {
         encodedDeliveryContinuity();
+        return 0;
+    }
+    if (behavior == "x264-segmented-surface-remap-idr")
+    {
+        sameGenerationSurfaceRemapForcesIdr();
         return 0;
     }
     if (behavior == "x264-segmented-backpressure-preflight")

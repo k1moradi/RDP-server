@@ -967,8 +967,9 @@ jobs:
           grep -Fq 'graphics.x264-segmented-retirement-reuse' <<< "$selected_tests"
           grep -Fq 'graphics.x264-native-bgra-frame-ingress' <<< "$selected_tests"
           grep -Fq 'graphics.x264-native-bgra-resize-recovery' <<< "$selected_tests"
+          grep -Fq 'graphics.x264-segmented-surface-remap-idr' <<< "$selected_tests"
           grep -Fq 'graphics.avc420-capture-generation-denials' <<< "$selected_tests"
-          readonly r4_x264_expected_test_count=28
+          readonly r4_x264_expected_test_count=29
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$r4_x264_expected_test_count" ]]; then
             printf 'R4 x264/BGRA registry mismatch: expected %s tests, found %s\n' \

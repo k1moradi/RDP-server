@@ -1,3 +1,16 @@
+## R4 AVC420 same-generation remap IDR guard (2026-10-19)
+
+R4 adds an observation-only surface-ID fence in its existing x264
+segmented-frame producer. After R3 maps a new surface, first accepted
+AVC420 picture must start with SPS/PPS/IDR even at unchanged geometry;
+invalid old-surface preparation does not alter the encoder. Dedicated
+production-backed `graphics.x264-segmented-surface-remap-idr` plus the
+existing R9 x264/BGRA sanitizers now expect 29 cases. Parent source SHA
+`f5c6579a01f02ed9ac965f84f3095d315dcf4c63`; owner-local build/full
+CTest NOT RUN and exact new-head CI PENDING. R3's surface remap and R10's
+authenticated RandR scheduling are separate; no AVC420 runtime activation
+or native video acceptance claimed.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

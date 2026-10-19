@@ -86,6 +86,8 @@ public:
     [[nodiscard]] PixelSize codedGeometry() const noexcept;
     [[nodiscard]] PixelSize visibleGeometry() const noexcept;
 
+    // On a new R3-mapped surface in the same generation, reinitialize x264
+    // reference history before accepting any picture, so it starts with IDR.
     // Encode one NV12 picture and transactionally reserve its complete
     // START_FRAME..END_FRAME + RDP8 segmented-data payload. Ordinary
     // backpressure/authorization-state denials are checked before x264 runs.
@@ -148,6 +150,9 @@ private:
     PixelSize codedGeometry_{};
     PixelSize visibleGeometry_{};
     std::uint64_t observedAvc420CancellationSerial_{};
+    // Producer-local reference-history fence; R3 owns surface identities.
+    std::uint16_t preparedSurfaceId_{};
+    bool preparedSurfaceIdAvailable_{};
     bool hasPreparedFrame_{};
 };
 

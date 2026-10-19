@@ -1254,7 +1254,11 @@ private:
     // after a successful map of a replacement surface in this DVC generation.
     std::uint16_t replacementSurfaceId_{};
     std::uint32_t highestPublishedFrameId_{};
+    // Highest published ID on all *previous* mapped surfaces. This is a
+    // publication freshness boundary, not a second R4 ACK-credit counter.
+    std::uint32_t retiredSurfaceFrameIdBoundary_{};
     bool hasPublishedFrame_{};
+    bool hasRetiredSurfaceFrameIdBoundary_{};
     bool remappedSurface_{};
     rdp_server::rdp::GfxPresentationLifecycle presentationLifecycle_{};
     rdp_server::rdp::GfxPresentationReceipt presentationReceipt_{};

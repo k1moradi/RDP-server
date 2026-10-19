@@ -28,6 +28,23 @@ positive protocol proof. No synthetic native owner or client success is
 claimed. Source-only integration; local build/CTest and live seat0 acceptance
 NOT RUN, publication CI PENDING.
 
+## R8 stale positive clipboard TLS receipt isolation (2026-10-18)
+
+R8 now ignores delayed R3-committed Pending/Delivered scalar receipts
+from retired route generations, including after Stop and replacement.
+They cannot retire a newer R8 route, erase its clipboard source epoch,
+or clear its queued FORMAT_LIST response. Invalid zero/future generation,
+reply, slice and byte receipts against a live route remain fail-closed;
+R2/R3 remain the sole authorized accepted-byte owners. Dedicated offline
+`runtime.r8-r3-retired-route-positive-receipt-isolation` proves
+old positive-partial and full R3 receipts cannot disrupt the replacement's
+valid completion. It is outside R9's unchanged 87-case clipboard sanitizer
+selection. Implementation parent `c1ec383576c52629a2f094ed8a696d2280720b8c`; owner-local C++23 build/full
+CTest **NOT RUN** (approved owner checkout unavailable); publication exact-SHA
+hosted CI **PENDING**. Live R10 CLIPRDR dispatch/native X11 composition remains
+**BLOCKED** pending first owner-authorized Linux LAN desktop video/input
+acceptance. Text, images, FileContents and directory trees stay disabled.
+
 ## R7 Qt close-consent gate for future real HostControl (2026-10-18)
 
 An active or pending remote-sharing window close now prompts explicitly

@@ -1,3 +1,17 @@
+## R8 stale positive committed-byte receipt across Stop/reconnect (2026-10-18)
+
+R1 must copy R3 route/reply/slice/offered bytes before its mutating R2/R3
+receipt; R8 observes only those stable, already-committed scalar identities.
+When a positive receipt arrives after R8 retired the old route, ignore it
+without changing the new route's pending response or source epoch. Preserve
+fail-closed validation of malformed current-route receipts and
+zero/future identities. Test old partial Pending and final Delivered receipts
+against a new, bound FORMAT_LIST response and prove independent normal
+delivery using actual R3 `onAcceptedBytes` outcomes.
+`runtime.r8-r3-retired-route-positive-receipt-isolation` is a dedicated
+ordinary offline test, deliberately outside the unchanged fixed 87-case
+clipboard sanitizer selection. Do not enable any native CLIPRDR publication.
+
 ## R7 explicit Qt close consent and runtime retirement (2026-10-18)
 
 An active or pending R10 state must not treat a generic window close as

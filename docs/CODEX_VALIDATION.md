@@ -1,3 +1,18 @@
+## R5 current X11 geometry observation/source generation (2026-10-19)
+
+R5 source-only change against parent `55eb5e10d706b14c61ce8a3825d611bc2269c3d4` adds a value-only,
+R2-session-tagged X11 geometry observation and freshness-gated synchronous
+R4 framebuffer callback on the existing one-XCB-owner thread. Dedicated
+isolated Xvfb test:
+`x11.native-geometry-observation-generation-retirement`.
+The test exercises multiple RandR transitions, stale capture/session
+observations, queued local pointer motion, full-frame callback borrows and
+terminal retirement denial. It does not grant R2 consent, start a listener,
+authenticate a client or exercise the R3 remap protocol. R4 PR #27 is merged;
+R3 PR #24 review and R10 native-to-protocol call remain separate gates.
+Owner-local compile/full CTest **NOT RUN** (native development environment
+unavailable); new-source hosted CI **PENDING**; real seat0/client **NOT RUN**.
+
 ## R7/R6 exact-publication hosted verification (2026-10-19)
 
 Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, Actions

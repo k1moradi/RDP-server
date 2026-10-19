@@ -186,6 +186,28 @@ X11DesktopResources::captureGeneration() const noexcept
     return valid() ? captureGeneration_ : 0;
 }
 
+X11NativeGeometryObservation
+X11DesktopResources::observeNativeGeometry(
+    std::uint64_t nativeSessionGeneration) const noexcept
+{
+    if (!valid() || nativeSessionGeneration == 0)
+    {
+        return {};
+    }
+    return {resourceGeometry_, captureGeneration_, nativeSessionGeneration};
+}
+
+bool
+X11DesktopResources::nativeGeometryIsCurrent(
+    const X11NativeGeometryObservation &observation,
+    std::uint64_t currentNativeSessionGeneration) const noexcept
+{
+    return observation.valid() && currentNativeSessionGeneration != 0 &&
+           observation.nativeSessionGeneration == currentNativeSessionGeneration &&
+           valid() && observation.captureGeneration == captureGeneration_ &&
+           observation.pixelGeometry == resourceGeometry_;
+}
+
 bool
 X11DesktopResources::randrAvailable() const noexcept
 {
@@ -306,6 +328,22 @@ X11DesktopResources::consumeR4Frame(
     return consumed && valid() &&
            captureGeneration_ == expectedGeneration &&
            resourceGeometry_ == geometry;
+}
+
+bool
+X11DesktopResources::consumeR4Frame(
+    const X11NativeGeometryObservation &observation,
+    std::uint64_t currentNativeSessionGeneration,
+    X11R4BgraFrameConsumer consumer) noexcept
+{
+    if (!nativeGeometryIsCurrent(observation, currentNativeSessionGeneration))
+    {
+        return false;
+    }
+
+    // Existing callback owns the only temporary XShm pixel borrow and
+    // synchronously checks capture generation again after consumption.
+    return consumeR4Frame(observation.captureGeneration, consumer);
 }
 
 bool

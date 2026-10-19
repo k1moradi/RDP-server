@@ -1,3 +1,16 @@
+## R5 native geometry observation and synchronous XShm borrow (2026-10-19)
+
+Require an R5 production-backed isolated-Xvfb test to capture value-only
+pixel geometry/capture epoch with a caller-supplied R2-selected native session
+generation. Reject zero generation, stale RandR geometry, replaced XShm
+generation and mismatched session generation before entering the synchronous
+frame callback; never persist the framebuffer span. Exercise repeated
+resize, queued pointer movement, terminal native retirement and fresh
+callback admission without a real seat0/authorization fixture. This is
+native provenance and lifetime evidence only; R10 must independently
+revalidate R2 admission before any protocol publication, and R3/R4 must
+prove Graphics remap/FRAME_ACK receipts before integration is accepted.
+
 ## Windows shared-GUI credential-surface regression (R6/R7, 2026-10-19)
 
 The hidden Windows launcher verifier must track the shared R7 credential

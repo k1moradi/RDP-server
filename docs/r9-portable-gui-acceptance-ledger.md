@@ -1,3 +1,39 @@
+## R9 post-R3-merge main stabilization and dependency refresh (2026-10-19)
+
+Exact main `e24539c78f6c42be9bb1357247c1685d8161b45b` merged R3 PR #24. Its R3 source had exact-head hosted
+validation before merge, and R4's same-generation AVC420 remap reset, R5's
+RandR generation repairs, R7's GUI build/TLS presentation repairs, and R10's
+ACK-credit/polling plus GUI-default split are already on main. The merge does
+not change R9's clean-Windows verifier or release-gate source blobs.
+
+The first main push run after the merge, Actions `39288900663`, immediately
+passed the independent hosted Windows PowerShell parser and workflow structure
+guards. It then failed `documentation-policy` because the merged R3 history
+contained nine source/test commits without a repository Markdown co-change.
+This ledger-only commit is the narrow integration repair; it changes no R3,
+R4, R5, R6, R7, R9, or R10 runtime behavior. The new publication SHA must be
+judged by its own Actions run and must not inherit an overall PASS from the PR
+head or an earlier main SHA.
+
+Dependency refresh: R3 is no longer the resize blocker. Production native
+resize remains blocked on R10 scheduler wiring: current
+`LinuxRuntimeConnection` exposes frame preflight and handles R3
+DELETE/CREATE/MAP write kinds, while the R2 broker exposes
+`beginR3PersonalDesktopGraphicsSurfaceReconfiguration(...)`, but the runtime
+loop still has no production call that observes fresh native geometry and
+starts that reconfiguration. Positive GUI LAN Start remains separately blocked
+because R2's `CurrentOwnerSharingAuthority::requestConsent()` returns
+`TrustedOwnerProofUnavailable` and `authorizes()` remains false.
+
+R9's remaining release blocker is still operational, not source-level: no
+qualifying interactive non-admin runner/receipt exists for
+`r9-clean-windows-gui`. The last pre-R3 exact-main run at
+`9a1916a93c327da164463890f36557ae26b1166c` had all ordinary hosted jobs
+green and the clean-Windows job queued. Do not publish the public Windows
+PORTABLE-GUI or claim clean-machine PASS until the exact candidate ZIP and
+sidecar execute successfully on that clean environment and produce the matching
+receipt.
+
 ## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
 
 Current-main parent `1d5ff7597e5382b178fb0afa668db93849de778c` inherited R9 commit

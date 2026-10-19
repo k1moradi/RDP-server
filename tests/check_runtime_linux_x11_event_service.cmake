@@ -69,6 +69,16 @@ string(FIND "${owner_handoff}"
 string(FIND "${owner_handoff}"
     "nativeOwner.desktop->consumeR4Frame(" frame_borrow)
 string(FIND "${owner_handoff}"
+    "nativeOwner.desktop->observeNativeGeometry(" geometry_observation)
+string(FIND "${owner_handoff}"
+    "nativeOwner.desktop->nativeGeometryIsCurrent(" first_geometry_check)
+string(FIND "${owner_handoff}"
+    "nativeOwner.desktop->nativeGeometryIsCurrent("
+    final_geometry_check REVERSE)
+string(FIND "${owner_handoff}"
+    "connection.beginPersonalDesktopGraphicsSurfaceReconfiguration("
+    surface_reconfiguration)
+string(FIND "${owner_handoff}"
     "nativeOwner.desktop->processEvents(" native_events)
 string(FIND "${owner_handoff}"
     "connection.authorizePersonalDesktopApplicationTraffic(" pre_authorization)
@@ -79,10 +89,15 @@ if(NOT pre_authorization LESS native_events OR
    NOT native_events LESS post_authorization OR
    NOT post_authorization LESS frame_borrow OR
    NOT native_events LESS tls_read OR
-   NOT tls_read LESS frame_borrow)
+   NOT tls_read LESS geometry_observation OR
+   NOT geometry_observation LESS first_geometry_check OR
+   NOT first_geometry_check LESS surface_reconfiguration OR
+   NOT surface_reconfiguration LESS final_geometry_check OR
+   NOT final_geometry_check LESS frame_borrow)
     message(FATAL_ERROR
-        "R5 events, R2 authorization, sole TLS intake and R4 frame borrow are misordered")
+        "R5 events, R2 authorization, typed geometry freshness, R3 remap and R4 frame borrow are misordered")
 endif()
+
 string(REGEX MATCHALL
     "connection[.]authorizePersonalDesktopApplicationTraffic[(]"
     authorizations "${owner_handoff}")
@@ -116,6 +131,24 @@ if(RDP_R5_PERSISTENT_FRAME_GATE)
     string(FIND "${runtime_source}"
         "case Kind::ClipboardStaticChannel:" clipboard)
     string(FIND "${owner_handoff}" "X11R4BgraFrameConsumer{" callback)
+    # Require the live scheduler to use the typed R5 geometry/session overload.
+    # The scalar capture-generation overload remains a lower-level R5 API and
+    # is not sufficient for the RandR -> R3 remap composition.
+    if(frame_borrow EQUAL -1 OR callback EQUAL -1 OR
+       NOT frame_borrow LESS callback)
+        message(FATAL_ERROR "R5 typed frame borrow markers are missing or misordered")
+    endif()
+    math(EXPR typed_borrow_span "${callback} - ${frame_borrow}")
+    string(SUBSTRING "${owner_handoff}" ${frame_borrow}
+        ${typed_borrow_span} typed_frame_borrow)
+    string(FIND "${typed_frame_borrow}"
+        "geometry, currentNativeSessionGeneration" typed_borrow_arguments)
+    string(FIND "${owner_handoff}"
+        "geometry.captureGeneration" typed_capture_generation)
+    if(typed_borrow_arguments EQUAL -1 OR typed_capture_generation EQUAL -1)
+        message(FATAL_ERROR
+            "R5 live resize must borrow through typed geometry/session freshness")
+    endif()
     # R10's native-resize scheduler also sets frameWritePending before capture
     # while it drains DELETE -> CREATE -> MAP. Anchor the publication-pending
     # assertion to the tail beginning at the actual synchronous R4 borrow so

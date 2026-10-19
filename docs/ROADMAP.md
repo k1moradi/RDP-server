@@ -1,3 +1,31 @@
+## R5 typed RandR-to-R3 handoff guard (2026-10-19)
+
+R10's landed native resize scheduler at `f894dd23fdfd3598335fd85f1269fc7ae36ae17c`
+clears the offline `R5 -> R10 -> R3` resize-composition dependency. Source review
+confirms the serialized owner drains X11 events, obtains one
+`X11NativeGeometryObservation`, checks `nativeGeometryIsCurrent()`, invokes the
+R2-authenticated R3 surface-remap gateway, rechecks currentness after Graphics
+preflight, and borrows the framebuffer only through R5's typed
+`consumeR4Frame(observation, currentNativeSessionGeneration, ...)` overload.
+No XShm span escapes that synchronous callback and no R5 generation is treated
+as authorization.
+
+The first `f894dd23...` Ubuntu full Debug run passed the R3 remap, both new R10
+resize tests, every native X11 generation/RandR CTest and the R4 surface-remap
+IDR regression; its only failure was the old R5 source guard confusing R10's
+new remap-writer `frameWritePending = true` with the later frame-publication
+assignment. R9 corrected that source guard on main at
+`c8b6a9eec35261a6a7719717c6939eeed9bfae8e` without production changes.
+This R5 follow-up additionally pins the typed geometry/session observation ->
+R3 remap -> final freshness recheck -> typed framebuffer-borrow order so a
+future scheduler refactor cannot silently fall back to the scalar generation
+path. Exact publication-SHA hosted CI is pending at authoring.
+
+The remaining live-resize blocker is not R5: positive GUI LAN Start and a
+physical seat0 Microsoft-client resize trace still require R2's trusted
+current-owner consent plus authoritative unlock/revocation evidence. Xvfb and
+offline protocol tests do not satisfy that authority or human acceptance gate.
+
 ## R10 native RandR resize scheduler integration (2026-10-19)
 
 **Authoring parent:** `f5d1391a75fa3f32843adcba1a31fa6dff36fae1`. R3 PR #24 is now on main via

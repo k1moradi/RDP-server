@@ -209,6 +209,13 @@ bool GfxPresentationLifecycle::canReserveFrame(
            acknowledgements_.canRecordFrame(generation, frameId);
 }
 
+bool GfxPresentationLifecycle::hasOutstandingFrame(
+    std::uint64_t generation, std::uint32_t frameId) const noexcept
+{
+    return active(generation) &&
+           acknowledgements_.hasOutstandingFrame(generation, frameId);
+}
+
 bool GfxPresentationLifecycle::beginFrameDelivery(
     std::uint64_t generation, std::uint32_t frameId, std::size_t frameBytes,
     GfxFrameDeliveryReceipt &receipt) noexcept

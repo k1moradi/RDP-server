@@ -2,6 +2,7 @@
 #include "windows_rdp_conflict_probe.h"
 
 #include <winsock2.h>
+#include <ws2ipdef.h>
 #include <windows.h>
 #include <iphlpapi.h>
 

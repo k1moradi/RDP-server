@@ -594,8 +594,10 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
         pointerPosition_.has_value() ? &*pointerPosition_ : nullptr,
 #endif
         additionalEventSink);
+    bool observedRandrChange = false;
     const ConnectionStatus status = display_.processEvents(
-        eventSink, eventBudget, workMayRemain, socketReadable);
+        eventSink, eventBudget, workMayRemain, socketReadable,
+        &observedRandrChange);
     if (eventSink.mappingChanged())
     {
         if (workMayRemain != nullptr)
@@ -621,7 +623,9 @@ X11DesktopResources::processEvents(std::size_t eventBudget,
     }
 
     const PixelSize observedGeometry = display_.sourceGeometry();
-    if (observedGeometry != resourceGeometry_)
+    // Even unchanged root width/height may hide replaced CRTCs or outputs.
+    // Commit a fresh XShm/input generation before routing queued events.
+    if (observedRandrChange || observedGeometry != resourceGeometry_)
     {
         if (!rebuildGeometryBoundResources(observedGeometry))
         {

@@ -372,6 +372,255 @@ Microsoft-client CredSSP/Share/first frame/FRAME_ACK/input/resize/reconnect,
 owner-native M1 Debug matrix and R10-nominated candidate freeze remain
 **BLOCKED / NOT RUN**. No hosted offline preflight substitutes for them.
 
+## R5 same-size RandR source generation test (2026-10-19)
+
+Implementation parent `fab2346a66de3b35828c89d701ec491b74db02b0`: R5 observes authentic RandR root
+screen/CRTC/output/resource notifications in the one XCB dispatch and
+forces native XShm/Damage/input rebuild even with unchanged PixelSize.
+New production-backed isolated-Xvfb CTest:
+`x11.same-pixel-randr-capture-retirement`.
+It requires capture generation advance and old scalar/typed-borrow denial
+after a physical-millimeter-only Xvfb resize, with fresh small-frame
+read and terminal retirement. Source reviewed; native local Debug/full
+CTest **NOT RUN** (native XCB headers unavailable here), exact-SHA hosted
+CI **PENDING**, real monitor/seat0/client acceptance **NOT RUN**.
+The R3 PR #24 and R10 geometry writer remain separate upstream gates.
+
+## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
+
+Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows
+artifact publication denial fixture as ordinary cross-platform Debug/Release
+CTest `packaging.windows-portable-gui-clean-release-structure-denials`.
+This offline Python test now also rejects silent TCP/UDP query errors in the
+production packaged GUI smoke. The Windows smoke enumerates sockets with
+`-ErrorAction Stop` and filters by process PID only after a successful
+system query; a permission/CIM enumeration failure cannot become a false
+"no listener" pass. Preserve R6's newly landed read-only Windows
+firewall/TermService/RDP-policy snapshot checks and their CTests.
+
+Source/reconciliation inspection PASS; isolated native Windows runtime and
+exact integration-SHA hosted CI NOT RUN. This adds no network activity,
+services, firewall mutations, privileges, live R2 admission or GUI Start.
+Genuine non-admin clean-Windows runner `r9-clean-windows-gui` and its exact
+ZIP+receipt remain release BLOCKED until independently executed. R10
+GUI-default-ON from PR #23 and intentional Qt-free headless selection remain
+unmerged; same-SHA owner-local Debug CTest and Microsoft-client matrices
+remain independently NOT RUN.
+
+## R10 current native Linux interface identity handoff (2026-10-19)
+
+Source parent `db5f2bedd2a4d7ac7084b5f9c1a590d3834c0616`. R10 now resolves GUI `name#index` into the
+borrowed current native interface name required by R1, checking canonical
+nonzero decimal index, kernel interface identity, name length and embedded
+NUL/aliases without allocation or a socket. Both Configure and Start deny
+stale or forged identities and retire stale selection. R1 alone must still
+reverify the native name/address/index on a future authorized bind.
+Added ordinary offline production-backed CTest
+`runtime.linux-host-control-native-interface-id-verification`; it verifies
+malformed IDs and the optional current Linux loopback name/index without
+promoting loopback to LAN eligibility. Review PASS; native local build/full
+CTest NOT RUN; hosted CI pending exact published SHA. R2 physical owner
+consent/lock/revoke is explicitly unavailable; R1 SSL_CTX fingerprint and
+bound-identity observations do not establish client trust or Start authority.
+PR #23 remains draft; R3 remap PR #24 has no approved exact-head handoff.
+
+## R6 preflight integration on shared main (2026-10-19)
+
+Ported R6 PR #25 exact tested head
+581d6828441b37b677a148466fe7bbcdc426d32e onto main parent
+91b73e837fa0344603c9d63c0c80123953732210, without changing the R9 exact-ZIP release gate or Windows Start
+permissions. PR-head primary Actions 39232722215 PASS and structure
+39232722147 PASS. The combined new main publication SHA Windows CLANG64,
+MSVC, native owner, and clean interactive nonadmin GUI gate: NOT RUN at
+publication. Human failing ZIP parity and exact missing DLL: UNVERIFIED.
+Windows portable ZIP distribution remains BLOCKED pending R9 clean VM
+receipt. Positive native hosting remains BLOCKED pending R2 Windows
+SSPI/SID/WTS authorization and R10 Windows WTS session ownership.
+
+## R7 typed R1 TLS certificate Qt projection (2026-10-19)
+
+Read current R1/R10 RuntimeTlsIdentityStatus at parent `e85aeb77b184ab618077c557da1e45941c7239f7`.
+Added value-only GUI SHA-256 formatter and explicit unbound/matched/mismatch/
+lost-interface/invalid-endpoint trust messaging. Revocation, host-session
+staleness or unavailable controller clears projected TLS identity and readiness.
+Registered `gui.offscreen-tls-fingerprint-rotation-and-denials` in ordinary
+shared CTest to cover rotation, missing digest, endpoint changes, reconnect,
+and denial. Source review PASS; native Qt compile/full CTest NOT RUN
+(connector-only environment); publication-SHA hosted CI PENDING. Positive
+R2 host consent, R10 LAN Start, real peer TLS rotation and physical Microsoft
+Windows App acceptance BLOCKED / NOT RUN.
+
+## R2 current-owner consent fail-closed admission gate (2026-10-19)
+
+Parent inspected: `e2e48f0f8fc022203fc25d83540db83e36f5f93e`. Production R2 now requires a separate
+R2-owned current-owner consent authority both before `LinuxConsoleAdmissionBroker::issue()`
+and in its per-operation revalidation. Without a trusted local consent and
+authoritative unlocked-state provider, the concrete R2 authority's positive
+check remains permanently false. The production Linux GUI HostControl shell
+already exists but cannot Start, bind or admit a network peer on this status.
+Three new behavior-named ordinary CTests cover untrusted GUI intent,
+invalid scope/lifetime and seven revocation causes. Owner-side full Debug
+CTest/native Linux integration and exact-publication-SHA hosted CI **NOT RUN**
+at authoring. Positive physical-seat owner consent and Microsoft-client NLA
+acceptance **BLOCKED**. No listener/credential/session activation performed.
+
+## R1 TLS identity handoff without enabling LAN (2026-10-19)
+
+Source parent `6cb354adb731`: the existing securely loaded SSL_CTX
+now exposes a typed, non-secret configured certificate SHA-256 observation.
+Only the existing R1 OwnedLanListener (validated getsockname endpoint and
+still-live selected OS interface) can produce a bound-certificate-IP-SAN
+match. An unopened listener returns ConfiguredUnbound, never listener-ready;
+mismatch/interface loss fail closed. Client trust is explicitly Unknown:
+fingerprints do not prove Microsoft Windows App trusted the certificate.
+R10 RuntimeHostStatus and thin R7 Qt HostStatus carry the same value-only
+observation; no parallel connection, certificate parser, SSL writer,
+listener activation or credential authority is created. R10 remains
+responsible for refresh/invalidation on certificate replacement, Stop,
+endpoint/interface change and selected per-client SSL comparison.
+Dedicated ordinary offline `runtime.tls-context-read-only-unbound-identity-status`
+is registered with the existing synthetic TLS credential fixtures.
+Source inspection PASS; developer-local build/full CTest NOT RUN (owner
+checkout unavailable); hosted exact publication SHA CI NOT RUN at authoring.
+Positive R2 host owner consent/lock/revoke and R10 LAN GUI Start/Stop remain
+BLOCKED, as do live accepted-peer/WANT/half-close/RST testing and physical
+Windows App owner acceptance.
+
+## R5 capture-generation ABA prevention on native X11 owner replacement (2026-10-19)
+
+R5 prevents reset-to-1 capture epochs across sequential X11 owner objects
+by reserving a unique process-local, nonzero generation on construction and
+each RandR rebuild. An exhausting 64-bit counter fails closed. Ordinary
+isolated-Xvfb production-backed CTest
+`x11.native-capture-owner-replacement-aba-denial` constructs/terminates two
+owners with identical native geometry and a repeated synthetic
+native-session scalar, rejecting stale typed observation, scalar capture
+and R4 callback; it permits the current callback without retaining pixels.
+Exact source parent `793a513fe39d11c5b711367a932bb576b7067760`; local Debug/full CTest **NOT RUN** due
+to unavailable native X11 owner checkout/development headers. Hosted exact
+new SHA **PENDING**; no physical seat0 Microsoft-client trial conducted.
+This is R5 capture lifetime hardening, not R2 admission or R3/R10 resize
+activation.
+
+## R7 Linux HostControl Qt negative path and stale listener readiness (2026-10-19)
+
+Inspected main parent `eddf7064d7d1311616c71268bfa3dbfb86040a9c`. R7 now suppresses an obsolete
+positive listener readiness flag for terminal R2 errors without changing R10
+ownership or the raw shutdown stage. Added dedicated cross-platform real-Qt
+terminal-listener and Linux-only production HostControl offscreen CTests in
+the shared registry. Source structure review PASS; local native Qt/full
+CTest NOT RUN (no owner checkout/Qt); publication-SHA hosted CI PENDING.
+Positive LAN Start, R2 physical-seat consent/lock revocation, R1 fingerprint,
+same-SHA M1 and Microsoft-client acceptance BLOCKED / NOT RUN.
+
+## R10 rejected Linux LAN selection retires prior preference (2026-10-19)
+
+At source parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's Linux GUI controller now invalidates
+its previously configured interface/address/port when a new Configure
+request is rejected or the selected native interface goes stale at Start.
+An invalid GUI request can no longer leave a formerly accepted endpoint
+armed for a later Start attempt. Existing listener ownership is unchanged;
+this remains entirely offline and Start still fails on missing R2 consent.
+Added `runtime.linux-host-control-rejected-selection-retires-previous`
+to ordinary Linux CTest. It exercises the real host interface if one is
+eligible, otherwise reports SKIP (77), never a fabricated PASS.
+Source review PASS; local Debug/full CTest NOT RUN; hosted exact publication
+SHA CI PENDING. No TLS identity, host consent, listener or client is created.
+
+## R9 checksum receipt parser correction (2026-10-19)
+
+On main `c56dc95ceaf2e77fd5e7971166d02d33dfc33836`, source inspection exposed a clean-Windows consumer
+PowerShell error path: negative `-cnotmatch` validation does not reliably
+populate capture groups under StrictMode. Replace it with an explicit
+`[regex]::Match` result and checked `Groups` before comparing every
+internal SHA256SUMS entry. Add a source mutation-denial regression.
+Source consistency PASS; native Windows PowerShell execution and exact-SHA
+hosted consumer receipt **NOT RUN / BLOCKED** on provisioned clean VM.
+No DLL fallback, PATH relaxation, native listener or installation added.
+
+## R9 clean Windows release-blocking gate and concurrent integration (2026-10-19)
+
+Reconciled R9 PR #26 `b45582b466de80a5423e4e38feac134266942355` (primary Actions 39232727915 PASS;
+independent structure 39232727808 PASS) against main `59357e2fe6eaa4937b337b5d1e73ed82634daab9`,
+preserving concurrent R4 ACK duplication repair, R5 RandR work, R6
+Windows offline contracts, and R10 fail-closed HostControl changes.
+The R6/R9 clean-Windows workflow introduced on main contained a truncated
+PowerShell checksum expression and duplicated job graph and uploaded the
+public Windows ZIP before clean verification; this integration replaces
+the broken workflow with the known-valid PR #26 full workflow plus a
+strict release-blocking consumer job.
+
+CLANG64 now publishes only an internal `r9-windows-unverified-<SHA>` ZIP
+after recursive PE closure and its existing extracted qwindows smoke.
+A separate interactive non-administrator, genuinely unprovisioned Windows
+VM with runner label `r9-clean-windows-gui` downloads the exact unchanged
+ZIP. The consumer rejects missing hashes/license notices/manifest,
+malformed archive or platform identity, non-app-local Qt/DLL loading,
+missing first window, close/relaunch/hidden-test failure, TCP/UDP socket
+activity, Unicode/spaces regressions, firewall/service/TermService/RDP
+policy modifications, elevated/system session and development PATHs.
+It produces an exact-source acceptance receipt before releasing the
+public Windows x86_64 PORTABLE-GUI artifact; no missing-DLL dialog can
+be classified as PASS.
+
+**Release BLOCKED:** clean interactive non-admin Windows VM and its
+exact-SHA PASS receipt are NOT YET VERIFIED. If no runner is registered
+the public ZIP intentionally remains unpublished; hosted MSYS2 and
+provisioned Windows-latest cannot replace it. Linux x86_64 and macOS
+arm64 GUI artifacts remain separate from SDK and disabled SERVER-TEST.
+PR #23 GUI default ON / Qt-free headless remain unmerged. Real R2 owner
+consent, R10 LAN GUI Start, R3 live resize, R8 clipboard and real
+Linux seat0 to Windows App/mstsc acceptance remain independent blockers.
+Linux, CLANG64 and macOS27 full owner-native exact-SHA Debug CTest
+remain NOT RUN for the integration SHA.
+
+## R9 verified hosted GUI distribution and current merged-owner inventory (2026-10-18)
+
+Exact shared R9 SHA `aee09e5035721ff14f635e670a982392e87c53b7`, primary Actions
+`39201911316`, has successful hosted Clang ASan/UBSan focused inventory
+(R2 IPv4-mapped IPv6, R4 surface/resize and R8 scalar receipt), R7 Qt
+client-stage, R6 Windows CLANG64 and Windows/MSVC, R5 Linux GUI, R7 macOS
+arm64 portable GUI, all protocol OS jobs, and SERVER-TEST acceptance.
+R3 Graphics DVC **20/20**, R8 clipboard **87/87**, and native linkage
+guards remain independent; counts are not reduced.
+
+The three separately downloadable same-SHA Actions artifacts and their
+**GitHub Actions container** SHA-256 digests (not ZIP-internal hashes) are:
+
+- Windows x86_64 `rdp-server-portable-gui-windows-x86_64` artifact
+  `12163794986`: `08ad07de2b8075b7817754e702f5cd5d5c89c2a2c68c9cbcb84ba8c08228353a`
+- Linux x86_64 `rdp-server-gui-linux` artifact
+  `12163719180`: `8b2b5042385eebe87b4e1cf33d3b22743f030fb6305f4ee73fe7bc3b093968b1`
+- macOS arm64 `rdp-server-portable-gui-macos-arm64` artifact
+  `12164610862`: `ad07eab4938a1e0313b0fb809213edb925f9018429beb58979691cfb39710f9a`
+
+Native hosted archive/Qt/PE/ELF/Mach-O closure and extracted offline smoke
+checks passed in that run. The packaged ZIP and its `.zip.sha256` file
+still require independent consumer validation against their manifest and
+license/notices; Actions-container digests must not be represented as
+the inner ZIP hash. macOS ad-hoc `codesign --verify --deep --strict`
+is **not** Developer ID distribution or notarization.
+
+Merged R7 `gui.offscreen-r10-lifecycle-and-terminal-close-denials` is also pinned exact-one in the real macOS Qt lane. Merged R2 `security.linux-seat0-session-identity-denials` and
+`runtime.host-control-authentication-outcome-denials` now receive exact-one
+ASan/UBSan CI selections with both real fixtures compiled; merged R7
+`gui.offscreen-close-requires-explicit-owner-stop` receives exact-one
+real macOS Qt offscreen CI selection; merged R8
+`runtime.r8-r3-retired-route-positive-receipt-isolation` is added to the
+existing focused R8 ASan/UBSan selection, remaining outside R8's fixed 87
+clipboard component tests. R2's fixed 40-case direct-runtime, R3's 20-case
+DVC, R8's 87-case clipboard and linkage guards remain unchanged.
+The first PR-head CI attempt reached PASS for structure, Linux sanitizer, macOS portable GUI, Linux GUI, macOS protocol and R7 lifecycle jobs before this rebase; Windows jobs were still running. This rebase adds the newly merged R7 lifecycle/terminal-close exact-one CTest, so the new head is **NOT YET HOSTED VERIFIED**.
+
+R10's `UnavailableRuntimeHostControl` is still used in production GUI
+`src/gui/main.cpp`; the separate R10 ACK-credit/HostControl PR #23 and R3
+geometry remap PR #24 remain draft/unmerged. The latter intends to grow
+the R3 DVC selection from **20 to 21** only with its new registered test.
+Physical Linux seat0 owner consent/lock proof, genuine LAN Start/Stop,
+Microsoft-client CredSSP/Share/first frame/FRAME_ACK/input/resize/reconnect,
+owner-native M1 Debug matrix and R10-nominated candidate freeze remain
+**BLOCKED / NOT RUN**. No hosted offline preflight substitutes for them.
+
 ## R10 concrete Linux HostControl fail-closed foundation (2026-10-19)
 
 At source parent `3133c34ca215389e6536a963171accb80b6ae706`, the Linux GUI now constructs a concrete

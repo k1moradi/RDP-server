@@ -1,3 +1,28 @@
+## R7 explicit Qt close consent and runtime retirement (2026-10-18)
+
+An active or pending R10 state must not treat a generic window close as
+Stop authorization or consent to hidden hosting. The Qt close dialog has a
+safe Keep Window Open default; dismissal sends no runtime Stop/Revoke.
+Only explicit Stop Sharing and Close requests R10 retirement. Refuse closing
+while R10 status is unavailable or still active/pending. Stopped windows
+close normally without a prompt or runtime command. Keep both
+`gui.offscreen-close-revokes-pending-host` and new
+`gui.offscreen-close-requires-explicit-owner-stop` in ordinary CTest;
+Qt timer-driven modal selections and injected R10 status require no socket,
+real owner credential, capture, native permission, or clipboard activation.
+
+## R2 repeated Linux native session identity check (2026-10-18)
+
+After the second physical seat0 identity read, repeat the observed
+session UID and session-start timestamp through existing public sd-login
+APIs; unknown, failed or differing values must deny the native candidate.
+`security.linux-seat0-session-identity-denials` checks production pure
+candidate consistency for changed UID, missing start, non-user
+lock-screen class, inactive/remote and switched sessions without a
+synthetic positive R2 lease. Public libsystemd sd-login does not have a
+`sd_session_get_locked_hint` API; the logind D-Bus `LockedHint` is
+advisory, and real owner lock/consent proof is still an independent gate.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

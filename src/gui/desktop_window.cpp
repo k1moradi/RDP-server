@@ -11,6 +11,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QSignalBlocker>
@@ -378,12 +379,35 @@ void DesktopWindow::refresh() {
 void DesktopWindow::closeEvent(QCloseEvent* event) {
     const auto state = host_.status();
     if (state.sharing || state.startPending) {
-        // Only R10 may retire the authoritative listener/connection owner.
+        // A window close is not permission to hide unattended sharing or
+        // silently Stop. Only an explicit user choice may request R10 retirement.
+        QMessageBox confirmation(this);
+        confirmation.setWindowTitle("Stop remote desktop sharing?");
+        confirmation.setIcon(QMessageBox::Warning);
+        confirmation.setTextFormat(Qt::PlainText);
+        confirmation.setText(
+            "The sharing window cannot be hidden while a session is active. "
+            "Stop sharing and revoke access before closing, or keep the window open.");
+        auto* stopAndClose = confirmation.addButton(
+            "Stop Sharing and Close", QMessageBox::AcceptRole);
+        stopAndClose->setObjectName("confirmStopSharingAndClose");
+        auto* keepOpen = confirmation.addButton(
+            "Keep Window Open", QMessageBox::RejectRole);
+        keepOpen->setObjectName("keepSharingWindowOpen");
+        confirmation.setDefaultButton(keepOpen);
+        confirmation.exec();
+        if (confirmation.clickedButton() != stopAndClose) {
+            event->ignore();
+            return;
+        }
+
+        // R10 alone retires active ownership. A successful command is not
+        // retirement proof; keep the GUI visible until its status confirms it.
         host_.stopAndRevoke();
         const auto after = host_.status();
-        if (after.sharing || after.startPending) {
+        if (!after.controlAvailable || after.sharing || after.startPending) {
             refresh();
-            event->ignore(); // Do not orphan a pending/active server.
+            event->ignore(); // Never orphan unconfirmed active sharing.
             return;
         }
     }

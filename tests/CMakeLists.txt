@@ -1014,6 +1014,20 @@ if(TARGET rdp-server-linux-pam-password-verifier)
 endif()
 
 if(TARGET rdp-server-linux-runtime-security)
+    # Native logind session identity must remain consistent across repeat reads.
+    # Pure production predicate test: no live desktop or R2 lease.
+    add_executable(test_linux_logind_session_identity
+        test_linux_logind_session_identity.cpp)
+    target_compile_features(test_linux_logind_session_identity PRIVATE cxx_std_23)
+    target_link_libraries(test_linux_logind_session_identity PRIVATE
+        rdp-server-linux-runtime-security)
+    target_compile_options(test_linux_logind_session_identity PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME security.linux-seat0-session-identity-denials
+        COMMAND test_linux_logind_session_identity seat0-session-identity-denials)
+    set_tests_properties(security.linux-seat0-session-identity-denials PROPERTIES
+        LABELS "security;linux-provider;offline;seat0-revocation")
+
     # R2 final-credential security contract: check only GSS-verified account
     # reservation after R2 mapping and before PAM. No real OS admission.
     add_test(NAME security.linux-verified-account-pam-attempt-fence-source
@@ -2979,6 +2993,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-close-revokes-pending-host PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security" TIMEOUT 30)
+    # A live/pending window close must require explicit host-owner Stop.
+    add_test(NAME gui.offscreen-close-requires-explicit-owner-stop
+        COMMAND test_desktop_gui_offline close-consent)
+    set_tests_properties(gui.offscreen-close-requires-explicit-owner-stop
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
     add_test(NAME gui.offscreen-r10-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
     set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES

@@ -1,3 +1,13 @@
+## R2 status CTest assertion-token correctness (2026-10-18)
+
+The newly added offline auth-outcome case now stores its two
+`RuntimeHostResult` values as named stack locals before `assert`,
+avoiding C preprocessor comma splitting in braced temporaries.
+No status behavior, admission permission, GUI runtime or wire byte changes.
+Source review **PASS**; local full CTest **NOT RUN**; exact-SHA
+hosted CI **PENDING** at authoring. Real host consent and client
+NLA/physical seat0 remain **BLOCKED / NOT RUN**.
+
 ## R2/R10 rate-limited and stale-host status handoff (2026-10-18)
 
 Added distinct non-authorizing `AuthenticationRateLimited` and

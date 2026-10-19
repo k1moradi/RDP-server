@@ -64,10 +64,12 @@ int main(int argumentCount, char** argumentValues)
                "Sharing access revoked");
         assert(runtimeHostErrorMessage(RuntimeHostError::CredentialProviderUnavailable) ==
                "OS credential provider unavailable");
-        assert(!RuntimeHostResult{RuntimeHostError::AuthenticationRateLimited, true}
-                    .succeeded());
-        assert(!RuntimeHostResult{RuntimeHostError::HostSessionStale, false}
-                    .succeeded());
+        const RuntimeHostResult rateLimited{
+            RuntimeHostError::AuthenticationRateLimited, true};
+        const RuntimeHostResult staleSession{
+            RuntimeHostError::HostSessionStale, false};
+        assert(!rateLimited.succeeded());
+        assert(!staleSession.succeeded());
         assert(!host.status().credentialsConfigured);
         assert(!host.requestCredentialSetup(LanCredentialChoice::ExistingOsAccount)
                     .succeeded());

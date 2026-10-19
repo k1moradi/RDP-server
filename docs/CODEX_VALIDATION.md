@@ -1,3 +1,19 @@
+## R5 capture-generation ABA prevention on native X11 owner replacement (2026-10-19)
+
+R5 prevents reset-to-1 capture epochs across sequential X11 owner objects
+by reserving a unique process-local, nonzero generation on construction and
+each RandR rebuild. An exhausting 64-bit counter fails closed. Ordinary
+isolated-Xvfb production-backed CTest
+`x11.native-capture-owner-replacement-aba-denial` constructs/terminates two
+owners with identical native geometry and a repeated synthetic
+native-session scalar, rejecting stale typed observation, scalar capture
+and R4 callback; it permits the current callback without retaining pixels.
+Exact source parent `793a513fe39d11c5b711367a932bb576b7067760`; local Debug/full CTest **NOT RUN** due
+to unavailable native X11 owner checkout/development headers. Hosted exact
+new SHA **PENDING**; no physical seat0 Microsoft-client trial conducted.
+This is R5 capture lifetime hardening, not R2 admission or R3/R10 resize
+activation.
+
 ## R7 Linux HostControl Qt negative path and stale listener readiness (2026-10-19)
 
 Inspected main parent `eddf7064d7d1311616c71268bfa3dbfb86040a9c`. R7 now suppresses an obsolete

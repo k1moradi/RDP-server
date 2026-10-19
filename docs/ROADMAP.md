@@ -1,3 +1,29 @@
+## R5 cross-owner X11 capture-generation ABA fence (2026-10-19)
+
+The R5 native geometry snapshot source check found a cross-owner ABA risk:
+the existing X11 aggregate started each new capture epoch at 1. A previous
+`{pixelGeometry, captureGeneration, nativeSessionGeneration}` observation
+could match a replacement X11 owner if the same root dimensions and logind
+native-session generation were reused; the legacy scalar capture borrow
+had the same weakness. Capture epochs are now allocated monotonically from
+one process-local atomic counter on owner creation and RandR rebuild, never
+on a frame hot path. Exhaustion fails closed instead of wrapping or aliasing.
+This scalar remains provenance only and never grants R2 native permission.
+New isolated Xvfb CTest
+`x11.native-capture-owner-replacement-aba-denial` demonstrates two sequential
+native owners sharing the same pixel size/session generation, rejecting the
+retired snapshot, scalar capture and framebuffer consumer before permitting a
+current synchronous borrow. No new Graphics owner, native input route or
+runtime server loop is introduced.
+
+Implementation parent `793a513fe39d11c5b711367a932bb576b7067760`; source/test registration reviewed;
+owner-local native Debug/full CTest **NOT RUN** (owner's X11 checkout/toolchain
+unavailable in this environment); exact-publication hosted CI **PENDING**.
+R4 PR #27 is merged and prior R5 `30b30195` hosted primary/structure CI
+**PASS**. R3 PR #24 remap remains draft, R10 native RandR-to-R3 call is still
+absent, R2 positive owner consent and physical seat0 Windows App acceptance
+remain **BLOCKED / NOT RUN**. This fix does not claim complete live resize.
+
 ## R7 real Linux HostControl Qt denial and stale listener projection (2026-10-19)
 
 Parent main `eddf7064d7d1311616c71268bfa3dbfb86040a9c`: Linux Qt startup now constructs R10's

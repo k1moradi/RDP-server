@@ -2459,6 +2459,17 @@ if(TARGET rdp-server-linux-x11-desktop)
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-pixel-parity)
+        # A new R5 X11 owner must never reuse a retired capture epoch, even
+        # with identical screen size and native-session generation.
+        add_test(NAME x11.native-capture-owner-replacement-aba-denial
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                native-capture-owner-replacement-aba-denial)
+        set_tests_properties(
+            x11.native-capture-owner-replacement-aba-denial
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
+                       TIMEOUT 20)
         # R5 snapshot/borrow generation fence; no R2 lease, listener or seat0.
         add_test(NAME x11.native-geometry-observation-generation-retirement
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s

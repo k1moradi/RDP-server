@@ -1,3 +1,15 @@
+## R5 replacement-X11-owner capture epoch anti-ABA (2026-10-19)
+
+After terminal native owner retirement, constructing a replacement X11 owner
+in the same process must allocate a distinct nonzero capture generation,
+even if the root pixel geometry and R2-selected native session generation
+are unchanged. Keep allocation off the hot frame path and fail closed on
+uint64 exhaustion. An isolated Xvfb production-backed CTest must reject
+the retired typed native observation, legacy scalar frame borrow and R4
+consumer without entering the callback, while admitting the replacement
+owner's current synchronous borrow. This does not authorize any R2 lease,
+bind a listener or exercise authenticated Graphics remap.
+
 ## R7 real R10 Linux shell and terminal listener offscreen tests (2026-10-19)
 
 Test the shared Qt GUI against the production Linux R10 HostControl as well

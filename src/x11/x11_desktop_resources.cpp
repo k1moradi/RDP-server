@@ -2,11 +2,34 @@
 
 #include "x11_desktop_resources.h"
 
+#include <atomic>
 #include <limits>
 #include <variant>
 
 namespace
 {
+
+// Capture epochs must not restart at 1 for a replacement X11 owner. An old
+// borrow from a retired owner could otherwise match a new owner with the
+// same geometry and the same underlying logind session generation.
+// Allocation occurs only on construction/RandR, never on the capture hot path.
+// Relaxed ordering suffices: the serialized XCB owner publishes its resources.
+[[nodiscard]] std::uint64_t allocateNativeCaptureGeneration() noexcept
+{
+    static std::atomic<std::uint64_t> nextGeneration{1U};
+    std::uint64_t candidate = nextGeneration.load(std::memory_order_relaxed);
+    while (candidate != 0U)
+    {
+        if (nextGeneration.compare_exchange_weak(
+                candidate, candidate + 1U, std::memory_order_relaxed,
+                std::memory_order_relaxed))
+        {
+            return candidate;
+        }
+    }
+    // Exhaustion is terminal; never wrap into a live or retired generation.
+    return 0U;
+}
 
 class X11DesktopResourceEventSink final : public X11EventSink
 {
@@ -132,8 +155,16 @@ X11DesktopResources::X11DesktopResources(
         return;
     }
 
+    // A generation is unique across consecutive native owners in this process,
+    // not merely among RandR rebuilds inside one owner.
+    captureGeneration_ = allocateNativeCaptureGeneration();
+    if (captureGeneration_ == 0U)
+    {
+        fail("X11 native capture generation exhausted");
+        cancelNativeResources();
+        return;
+    }
     resourceGeometry_ = geometry;
-    captureGeneration_ = 1;
     failureReason_ = nullptr;
 }
 
@@ -706,14 +737,20 @@ X11DesktopResources::rebuildGeometryBoundResources(
         return false;
     }
 
-    if (captureGeneration_ == 0 ||
-        captureGeneration_ == std::numeric_limits<std::uint64_t>::max())
+    if (captureGeneration_ == 0U)
     {
         fail("X11 desktop capture generation cannot advance");
         cancelNativeResources();
         return false;
     }
-    const std::uint64_t nextCaptureGeneration = captureGeneration_ + 1U;
+    const std::uint64_t nextCaptureGeneration =
+        allocateNativeCaptureGeneration();
+    if (nextCaptureGeneration == 0U)
+    {
+        fail("X11 native capture generation exhausted");
+        cancelNativeResources();
+        return false;
+    }
 
     // Commit-or-revoke transaction: no public call can observe the interval
     // between old-generation cancellation and complete new construction.

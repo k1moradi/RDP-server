@@ -343,10 +343,7 @@ LinuxConsoleAdmissionBroker::issue(
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
-    // A native account/session match cannot substitute for the current
-    // physical desktop owner's affirmative, unlocked sharing authority.
-    // Before a reviewed local provider exists this is a terminal denial,
-    // even if real GSS/TLS, PAM, NSS and logind checks would all succeed.
+    // A matching session identity is not explicit unlocked owner consent.
     if (state_ != LinuxConsoleAdmissionState::Ready ||
         ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(request.requestedPermissions))
@@ -487,9 +484,7 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
 {
     const std::string_view leasePrincipal{
         lease.kerberosPrincipal_.data(), lease.kerberosPrincipalLength_};
-    // Recheck R2 host consent at each protected operation, including after
-    // a native lock/switch event or a Stop/revocation. This must never rely
-    // on an R10 GUI status Boolean or a prior admission-lease decision.
+    // Every protected R2 operation revalidates affirmative native authority.
     if (ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(lease.permissions_) ||
         !ownsActiveLease(lease) ||
@@ -1745,6 +1740,41 @@ LinuxConsoleAdmissionBroker::preflightR3PersonalDesktopGraphicsFramePublication(
     if (readiness == Readiness::Rejected)
         revokeR3Session(acceptor, session);
     return readiness;
+}
+
+rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+LinuxConsoleAdmissionBroker::beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
+    const LinuxConsoleAdmissionLease &lease,
+    GssapiSpnegoAcceptor &acceptor,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    ::PixelSize desktopGeometry) noexcept
+{
+    using Decision =
+        rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration;
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return Decision::Rejected;
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!provenance)
+    {
+        revokeR3Session(acceptor, session);
+        return Decision::Rejected;
+    }
+
+    const Decision result =
+        session.beginVerifiedR2GraphicsSurfaceReconfiguration(
+            *provenance, desktopGeometry);
+    if (!authorizeR3PersonalDesktopTransition(
+            lease, acceptor, connection, session, deploymentPolicy))
+        return Decision::Rejected;
+
+    if (result == Decision::Rejected)
+        revokeR3Session(acceptor, session);
+    return result;
 }
 
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>

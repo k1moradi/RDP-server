@@ -955,6 +955,7 @@ enum class RdpGraphicsDvcPhase : std::uint8_t
     GraphicsCapabilitiesConfirmPending,
     GraphicsCreateSurfacePending,
     GraphicsMapSurfacePending,
+    GraphicsDeleteSurfacePending,
     Ready,
     Failed,
     Closed,
@@ -968,6 +969,7 @@ enum class RdpGraphicsDvcWriteKind : std::uint8_t
     GraphicsCapabilitiesConfirm,
     GraphicsCreateSurface,
     GraphicsMapSurfaceToOutput,
+    GraphicsDeleteSurface,
     GraphicsFrameData,
 };
 
@@ -1028,6 +1030,16 @@ enum class RdpGraphicsFramePublicationReadiness : std::uint8_t
     Rejected,
 };
 
+// Immutable decision for a fresh, R2-authorized native geometry observation.
+// Deferred is nonterminal and never reserves credit or creates wire bytes.
+enum class RdpGraphicsSurfaceReconfiguration : std::uint8_t
+{
+    Unchanged,
+    Deferred,
+    Started,
+    Rejected,
+};
+
 enum class RdpGraphicsFrameCodec : std::uint8_t
 {
     ClearCodec,
@@ -1083,6 +1095,12 @@ public:
     // graphics generation or surface ID.
     [[nodiscard]] RdpGraphicsFramePublicationReadiness
     preflightFramePublication(std::uint32_t frameId) const noexcept;
+    // R3 alone selects the replacement surface ID and emits DELETE, CREATE,
+    // MAP in exact full-write receipt order. Native geometry comes from R5
+    // through the current R2-authorized owner; no client geometry or bytes.
+    [[nodiscard]] RdpGraphicsSurfaceReconfiguration
+    beginSurfaceReconfiguration(
+        std::uint64_t channelGeneration, ::PixelSize desktopGeometry) noexcept;
     [[nodiscard]] bool prepareClearCodecFrame(
         std::uint32_t frameId,
         ::FramebufferView framebuffer,
@@ -1130,6 +1148,7 @@ public:
                    RdpGraphicsDvcPhase::GraphicsCapabilitiesConfirmPending ||
                phase_ == RdpGraphicsDvcPhase::GraphicsCreateSurfacePending ||
                phase_ == RdpGraphicsDvcPhase::GraphicsMapSurfacePending ||
+               phase_ == RdpGraphicsDvcPhase::GraphicsDeleteSurfacePending ||
                phase_ == RdpGraphicsDvcPhase::Ready;
     }
     [[nodiscard]] std::uint32_t dynamicChannelId() const noexcept
@@ -1230,6 +1249,13 @@ private:
     bool selectedGraphicsAvc420Enabled_{};
     bool graphicsCapabilitiesConfirmed_{};
     ::PixelSize presentationGeometry_{};
+    // R3-owned surface identity and published frame-ID high-water fence.
+    // ACKs carry frame IDs but no surface identity; never reuse old frame IDs
+    // after a successful map of a replacement surface in this DVC generation.
+    std::uint16_t replacementSurfaceId_{};
+    std::uint32_t highestPublishedFrameId_{};
+    bool hasPublishedFrame_{};
+    bool remappedSurface_{};
     rdp_server::rdp::GfxPresentationLifecycle presentationLifecycle_{};
     rdp_server::rdp::GfxPresentationReceipt presentationReceipt_{};
     std::optional<rdp_server::rdp::GfxAvc420SegmentedFrame> frame_{};
@@ -1810,6 +1836,13 @@ private:
     preflightVerifiedR2GraphicsFramePublication(
         const SecurityNegotiationProvenance &provenance,
         std::uint32_t frameId) const noexcept;
+
+    // R2-revalidated native RandR observation only; no caller-owned surface
+    // identity, generation, Graphics bytes or secondary transport writer.
+    [[nodiscard]] RdpGraphicsSurfaceReconfiguration
+    beginVerifiedR2GraphicsSurfaceReconfiguration(
+        const SecurityNegotiationProvenance &provenance,
+        ::PixelSize desktopGeometry) noexcept;
 
     // R3 mints the mandatory ClearCodec fallback against its own current
     // Graphics DVC generation and mapped surface. Callers supply only the

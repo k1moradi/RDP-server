@@ -184,15 +184,21 @@ REQUIRED_JOBS = {
     "server-test-preview-status",
     "r6-windows-clang23",
     "r9-security-protocol-sanitizers",
+    "r9-windows-powershell-parser",
+    "r9-clean-windows-portable-gui",
     "r7-macos-native-lifecycle",
     "r7-macos-session-sanitizers",
     "r7-macos-portable-gui",
+    "r5-linux-gui-zip",
     "documentation-policy",
     "publish-protocol-prerelease",
 }
 
 REQUIRED_TOKENS = (
     "r7-macos-portable-gui",
+    "r9-windows-powershell-parser",
+    "System.Management.Automation.Language.Parser]::ParseFile",
+    "scripts\\clean_windows_portable_gui.ps1",
     "macdeployqt",
     "r2-linux-production-runtime-security",
     "-DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON",
@@ -488,8 +494,8 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         for target in REQUIRED_BUILD_TARGETS:
             require(target in text, f"missing sanitizer build target: {target}")
         require(
-            text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 8,
-            "Qt-free protocol/security/sanitizer configurations must opt out explicitly",
+            text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 11,
+            "all 11 Qt-free protocol/security/native configurations must opt out explicitly",
         )
         require(
             text.count("RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON") >= 2,

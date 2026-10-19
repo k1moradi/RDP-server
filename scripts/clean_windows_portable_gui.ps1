@@ -37,6 +37,7 @@ foreach ($directory in @('C:\msys64', 'C:\Qt', 'C:\Program Files\LLVM')) {
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::OpenRead($archivePath)
 $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$exactNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 try {
     if ($zip.Entries.Count -eq 0 -or $zip.Entries.Count -gt 4096) {
         throw 'Invalid archive entry count'
@@ -45,10 +46,16 @@ try {
     foreach ($entry in $zip.Entries) {
         $name = $entry.FullName
         $parts = $name.Split('/')
+        $unsafeWindowsComponent = @(
+            $parts | Where-Object {
+                $_.EndsWith(' ') -or $_.EndsWith('.')
+            }).Count -ne 0
         if (!$name -or $name.StartsWith('/') -or $name.Contains('\') -or
-            $name.Contains(':') -or $parts.Contains('') -or
-            $parts.Contains('.') -or $parts.Contains('..') -or
-            $name.EndsWith('/') -or !$names.Add($name)) {
+            $name.Contains(':') -or ($name.IndexOf([char]0) -ge 0) -or
+            $parts.Contains('') -or $parts.Contains('.') -or
+            $parts.Contains('..') -or $name.EndsWith('/') -or
+            $unsafeWindowsComponent -or !$names.Add($name) -or
+            !$exactNames.Add($name)) {
             throw 'Unsafe or duplicate ZIP entry'
         }
         $total += $entry.Length
@@ -95,28 +102,61 @@ foreach ($required in @('LICENSE','NOTICE','THIRD_PARTY.md',
 }
 # The source-verified ZIP must still independently match its internal
 # manifest and license/notice/checksum payload on this separate machine.
-$hashes = @{}
-foreach ($line in (Get-Content -LiteralPath (Join-Path $root 'metadata\SHA256SUMS.txt'))) {
-    $checksumMatch = [regex]::Match($line, '^([0-9a-f]{64})  ([^\\:]+)$')
+$hashes = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
+$checksumNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$checksumPath = Join-Path $root 'metadata\SHA256SUMS.txt'
+foreach ($line in (Get-Content -LiteralPath $checksumPath)) {
+    $checksumMatch = [regex]::Match(
+        $line, '^([0-9a-f]{64})  ([^\x00\\:\r\n]+)$')
     if (!$checksumMatch.Success) { throw 'Malformed ZIP checksum line' }
     $checksumName = $checksumMatch.Groups[2].Value
-    if ($hashes.ContainsKey($checksumName)) { throw 'Duplicate internal checksum entry' }
-    $hashes[$checksumName] = $checksumMatch.Groups[1].Value
+    $checksumParts = $checksumName.Split('/')
+    $unsafeChecksumComponent = @(
+        $checksumParts | Where-Object {
+            $_.EndsWith(' ') -or $_.EndsWith('.')
+        }).Count -ne 0
+    if (!$checksumName -or $checksumName.StartsWith('/') -or
+        $checksumName.EndsWith('/') -or $checksumName.Contains('\') -or
+        $checksumName.Contains(':') -or
+        ($checksumName.IndexOf([char]0) -ge 0) -or
+        $checksumParts.Contains('') -or
+        $checksumParts.Contains('.') -or
+        $checksumParts.Contains('..') -or $unsafeChecksumComponent) {
+        throw 'Unsafe ZIP checksum path'
+    }
+    if (!$exactNames.Contains($checksumName)) {
+        throw 'Checksum refers to missing or differently-cased archive path'
+    }
+    if ($checksumName -ceq 'metadata/SHA256SUMS.txt') {
+        throw 'Checksum list must not hash itself'
+    }
+    if (!$checksumNames.Add($checksumName)) {
+        throw 'Duplicate internal checksum entry'
+    }
+    $hashes.Add($checksumName, $checksumMatch.Groups[1].Value)
 }
-if ($hashes.Count -ne $names.Count - 1 -or
+if ($hashes.Count -ne $exactNames.Count - 1 -or
     !$hashes.ContainsKey('metadata/PORTABLE-GUI-MANIFEST.json')) {
     throw 'Incomplete ZIP checksum inventory'
 }
+foreach ($archiveEntryName in $exactNames) {
+    if ($archiveEntryName -cne 'metadata/SHA256SUMS.txt' -and
+        !$hashes.ContainsKey($archiveEntryName)) {
+        throw 'Incomplete ZIP checksum inventory'
+    }
+}
 foreach ($name in $hashes.Keys) {
-    if (!$names.Contains($name)) { throw 'Checksum refers to missing archive path' }
     $path = Join-Path $root ($name.Replace('/', '\'))
     if (!(Test-Path -LiteralPath $path -PathType Leaf) -or
-        (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $hashes[$name]) {
+        (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne
+            $hashes[$name]) {
         throw 'ZIP payload hash mismatch'
     }
 }
 $manifestFiles = @($manifest.files.PSObject.Properties)
-if ($manifestFiles.Count -ne $hashes.Count - 1) { throw 'Manifest file count mismatch' }
+if ($manifestFiles.Count -ne $hashes.Count - 1) {
+    throw 'Manifest file count mismatch'
+}
 foreach ($file in $manifestFiles) {
     if (!$hashes.ContainsKey($file.Name) -or
         $hashes[$file.Name] -cne [string]$file.Value) {

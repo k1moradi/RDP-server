@@ -1,3 +1,40 @@
+## R9 exact checksum/parser gate and clean-runner receipt contract (2026-10-19)
+
+Authoring parent: `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e`. On exact baseline
+`2fcfebee9e94b064ebf54617cd224982060471a0` / Actions `39244189634`, macOS
+arm64 PORTABLE-GUI `rdp-server-portable-gui-macos-arm64` (`12183271544`) was
+downloadable. Windows had only internal exact-SHA candidate
+`r9-windows-unverified-2fcfebee9e94b064ebf54617cd224982060471a0`
+(`12182782501`) because clean Windows was queued; no public Windows GUI was
+released. Linux GUI was absent because its build failed. `protocol-package-*`
+are SDKs and `server-test-package-*` are startup-disabled SERVER-TEST bundles.
+
+GUI entrypoints: Windows `RDP-server-GUI.exe` + `plugins/platforms/qwindows.dll`;
+macOS `rdp-server-desktop.app/Contents/MacOS/rdp-server-desktop` + Cocoa plugin;
+Linux `bin/rdp-server-desktop` via `run-gui.sh` / `RDP Server.desktop` +
+`plugins/platforms/libqxcb.so`.
+
+### Provisioning `r9-clean-windows-gui`
+Use a disposable Windows x86_64 snapshot with a standard non-Administrators
+user in a real Explorer desktop. Launch the Actions runner interactively in
+that same session, never as a service/Session 0, with labels
+`self-hosted,Windows,X64,r9-clean-windows-gui`. Do not provision MSYS2, Qt,
+LLVM/Clang, CMake, OpenSSL, vcpkg, SDK development paths, or repair tooling.
+Do not mutate firewall, TermService, RDP policy, service modes, or ports.
+
+Consume only `r9-windows-unverified-<exact SHA>` from the same producer run;
+keep the inner ZIP and `.zip.sha256` unchanged. Preserve non-admin Explorer,
+OS-only child PATH, Unicode/space extraction, first window, hidden tests,
+close/relaunch, process TCP/UDP checks, and firewall/service/RDP-state equality.
+
+### Manual receipt fallback
+Transfer unchanged exact producer ZIP/sidecar and exact-SHA `scripts/`, require
+the hosted parser job green, then run:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\clean_windows_portable_gui.ps1 -Archive <exact-zip> -ExactGitSha <40-hex-sha> -Receipt <receipt.json>`
+Accept only exit zero with matching exact SHA/archive/outer SHA-256 and
+`non_admin_interactive: true`. No operational receipt exists at authoring:
+**clean Windows remains BLOCKED / NOT RUN**.
+
 ## R6 clean-gate regression follow-up (2026-10-19)
 
 The PowerShell consumer repair in `67ea710697dfbcdc9dafb1badb047c50b61ece07`

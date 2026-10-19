@@ -1,3 +1,17 @@
+## R9 clean-Windows checksum/parser release rule (2026-10-19)
+
+A queued self-hosted job is never the sole syntax validator for release code.
+Primary CI parses the real `scripts/clean_windows_portable_gui.ps1` on
+`windows-latest` with Windows PowerShell `Language.Parser.ParseFile` and no
+self-hosted dependency.
+
+`metadata/SHA256SUMS.txt` accepts only anchored `<64 lowercase hex><two spaces>`
+plus a safe relative archive name. Reject absolute/backslash/colon/NUL names,
+empty/dot/dot-dot components, trailing-space/dot Windows components,
+case-colliding duplicates, differently-cased archive names, self-hashing and
+incomplete inventory. Assign the parsed digest before comparison; retain outer
+ZIP sidecar verification. All eleven intended Qt-free root configures are OFF.
+
 ## R1 TLS identity lifecycle and stale endpoint-generation regression (2026-10-19)
 
 Register ordinary offline

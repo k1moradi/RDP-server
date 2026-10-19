@@ -1,3 +1,21 @@
+## R9 hosted parser gate and exact checksum inventory hardening (2026-10-19)
+
+Authoring parent `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e` preserves concurrent R1/R2/R5/R7/R10/R6 work.
+Exact baseline `2fcfebee9e94b064ebf54617cd224982060471a0`, Actions `39244189634`,
+was **not an overall PASS**: Ubuntu protocol, R9 X11 sanitizers, Linux GUI ZIP
+and SERVER-TEST aggregation failed, while clean Windows remained queued.
+
+R9 requires anchored lowercase SHA-256 records, exact archive spelling,
+Windows-safe relative names, case-insensitive uniqueness, complete non-self
+inventory and explicit parsed-digest assignment before file/manifest compare.
+A dedicated `windows-latest` Windows PowerShell parser job validates the real
+clean script independently of the self-hosted runner. All eleven intended
+Qt-free root configures are explicit OFF under R10 GUI-default-ON.
+
+**Clean Windows remains BLOCKED / NOT RUN.** Exact publication-SHA hosted CI,
+owner-native full Debug Linux X11 / Windows CLANG64-Clang23 / macOS 27, and
+real Microsoft-client acceptance remain separate open gates.
+
 ## R1 current-main TLS identity lifecycle and endpoint-generation handoff (2026-10-19)
 
 Starting shared-main parent `63e1706659cb8c461180f3210b1e0f1409c7ee75`, including current R2

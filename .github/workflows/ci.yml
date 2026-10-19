@@ -450,7 +450,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
           grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
           grep -E '^CMAKE_C_COMPILER:[^=]+=.*clang(\.exe)?$' build/CMakeCache.txt
           grep -E '^CMAKE_CXX_COMPILER:[^=]+=.*clang\+\+(\.exe)?$' build/CMakeCache.txt
@@ -540,7 +540,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
           grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
       - name: Run Release R6 native preflight
         if: ${{ always() && steps.r9_clang_release_configure.outcome == 'success' }}
@@ -1843,9 +1843,28 @@ jobs:
 
   # Only trusted main may execute on the owner's clean standard-user VM.
   # A missing interactive clean Windows VM is a hard release block.
+  # R9 ordinary hosted syntax gate; it must never wait on the clean VM.
+  r9-windows-powershell-parser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse real clean-Windows acceptance script
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $parseErrors = $null
+          $scriptPath = Join-Path $PWD 'scripts\clean_windows_portable_gui.ps1'
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $scriptPath, [ref]$tokens, [ref]$parseErrors)
+          if (@($parseErrors).Count -ne 0) {
+              $details = @($parseErrors | ForEach-Object { $_.Message }) -join [Environment]::NewLine
+              throw ('clean_windows_portable_gui.ps1 parser regression:' + [Environment]::NewLine + $details)
+          }
+
   r9-clean-windows-portable-gui:
     if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [ci-workflow-structure, r6-windows-clang23]
+    needs: [ci-workflow-structure, r6-windows-clang23, r9-windows-powershell-parser]
     runs-on: [self-hosted, Windows, X64, r9-clean-windows-gui]
     steps:
       - name: Require clean-Windows producer and policy checks
@@ -1853,8 +1872,11 @@ jobs:
         env:
           STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
           PRODUCER_RESULT: ${{ needs.r6-windows-clang23.result }}
+          PARSER_RESULT: ${{ needs.r9-windows-powershell-parser.result }}
         run: |
-          if ($env:STRUCTURE_RESULT -ne 'success' -or $env:PRODUCER_RESULT -ne 'success') {
+          if ($env:STRUCTURE_RESULT -ne 'success' -or
+              $env:PRODUCER_RESULT -ne 'success' -or
+              $env:PARSER_RESULT -ne 'success') {
             throw 'Windows GUI release prerequisites failed'
           }
       - uses: actions/checkout@v4

@@ -11,29 +11,56 @@ ROOT = Path(__file__).resolve().parents[1]
 SHA_EXPR = "$" + "{{ github.sha }}"
 
 
+def workflow_job(workflow: str, name: str) -> str:
+    import re
+    identifier = f"  {name}:\n"
+    if workflow.count(identifier) != 1:
+        raise AssertionError(f"Workflow job missing or duplicated: {name}")
+    suffix = workflow.split(identifier, 1)[1]
+    next_job = re.search(r"^  [A-Za-z0-9_-]+:\s*$", suffix, re.MULTILINE)
+    return suffix[:next_job.start()] if next_job else suffix
+
+
 def require_release_gate(workflow: str, verifier: str) -> None:
     for unique_guard in (
-        "$hashes = @{}",
+        "$hashes = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)",
+        "$checksumNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)",
         "[regex]::Match",
         "Groups[2].Value",
+        "$hashes.Add($checksumName, $checksumMatch.Groups[1].Value)",
         "Write-Host 'R9 clean Windows portable GUI acceptance PASS'",
     ):
         if verifier.count(unique_guard) != 1:
-            raise AssertionError(
-                f"Clean consumer guard missing or duplicated: {unique_guard}")
-    if not verifier.rstrip().endswith(
-            "Write-Host 'R9 clean Windows portable GUI acceptance PASS'"):
+            raise AssertionError(f"Clean consumer guard missing or duplicated: {unique_guard}")
+    if not verifier.rstrip().endswith("Write-Host 'R9 clean Windows portable GUI acceptance PASS'"):
         raise AssertionError("Clean consumer tail is truncated or duplicated")
-    identifier = "  r9-clean-windows-portable-gui:\n"
-    if workflow.count(identifier) != 1:
-        raise AssertionError("R9 clean consumer job missing or duplicated")
-    import re
-    suffix = workflow.split(identifier, 1)[1]
-    next_job = re.search(r"^  [A-Za-z0-9_-]+:\s*$", suffix, re.MULTILINE)
-    job = suffix[:next_job.start()] if next_job else suffix
     for required in (
-        "needs: [ci-workflow-structure, r6-windows-clang23]",
+        r"'^([0-9a-f]{64})  ([^\x00\\:\r\n]+)$'",
+        "$exactNames.Contains($checksumName)",
+        "$hashes.Count -ne $exactNames.Count - 1",
+        "$archiveEntryName -cne 'metadata/SHA256SUMS.txt'",
+        "Unsafe ZIP checksum path",
+    ):
+        if required not in verifier:
+            raise AssertionError(f"Checksum inventory guard absent: {required}")
+
+    parser_job = workflow_job(workflow, "r9-windows-powershell-parser")
+    for required in (
+        "runs-on: windows-latest",
+        "shell: powershell",
+        "System.Management.Automation.Language.Parser]::ParseFile",
+        r"scripts\clean_windows_portable_gui.ps1",
+    ):
+        if required not in parser_job:
+            raise AssertionError(f"Hosted parser gate absent: {required}")
+    if "self-hosted" in parser_job or "needs:" in parser_job:
+        raise AssertionError("Hosted parser gate must run independently")
+
+    job = workflow_job(workflow, "r9-clean-windows-portable-gui")
+    for required in (
+        "needs: [ci-workflow-structure, r6-windows-clang23, r9-windows-powershell-parser]",
         "runs-on: [self-hosted, Windows, X64, r9-clean-windows-gui]",
+        "PARSER_RESULT: ${{ needs.r9-windows-powershell-parser.result }}",
         "actions/download-artifact@v4",
         "name: r9-windows-unverified-" + SHA_EXPR,
         "scripts/clean_windows_portable_gui.ps1",
@@ -50,15 +77,12 @@ def require_release_gate(workflow: str, verifier: str) -> None:
     if workflow.count("name: r9-windows-unverified-" + SHA_EXPR) != 2:
         raise AssertionError("The producer/consumer must use one exact archive")
     for required in (
-        "IsInRole", "Get-Process explorer", "SessionId",
-        "Get-FileHash", "PORTABLE-GUI-MANIFEST.json", "SHA256SUMS.txt",
-        "[regex]::Match", "Groups[2].Value",
-        "LICENSE", "NOTICE", "THIRD_PARTY.md", "qwindows.dll",
-        "Expand-Archive", "Get-NetFirewallRule", "Get-NetFirewallProfile",
-        "TermService", "fDenyTSConnections", "PortNumber",
-        "Get-NetTCPConnection", "Get-NetUDPEndpoint",
-        "smoke_windows_portable_gui.ps1", "offline-unsupported-password-test",
-        "QT_PLUGIN_PATH", "System32", "Start-Process",
+        "IsInRole", "Get-Process explorer", "SessionId", "Get-FileHash",
+        "PORTABLE-GUI-MANIFEST.json", "SHA256SUMS.txt", "LICENSE", "NOTICE",
+        "THIRD_PARTY.md", "qwindows.dll", "Expand-Archive", "Get-NetFirewallRule",
+        "Get-NetFirewallProfile", "TermService", "fDenyTSConnections", "PortNumber",
+        "Get-NetTCPConnection", "Get-NetUDPEndpoint", "smoke_windows_portable_gui.ps1",
+        "offline-unsupported-password-test", "QT_PLUGIN_PATH", "System32", "Start-Process",
     ):
         if required not in verifier:
             raise AssertionError(f"Consumer security guard absent: {required}")
@@ -137,6 +161,28 @@ class CleanWindowsReleaseGateTests(unittest.TestCase):
         changed = self.workflow.replace("  r9-clean-windows-portable-gui:\n", "  disabled-r9-job:\n", 1)
         with self.assertRaises(AssertionError):
             require_release_gate(changed, self.verifier)
+
+    def test_missing_hosted_parser_job_denied(self) -> None:
+        changed = self.workflow.replace(
+            "  r9-windows-powershell-parser:\n", "  disabled-r9-parser:\n", 1)
+        with self.assertRaises(AssertionError):
+            require_release_gate(changed, self.verifier)
+
+    def test_unanchored_checksum_line_denied(self) -> None:
+        anchored = r"'^([0-9a-f]{64})  ([^\x00\\:\r\n]+)$'"
+        changed = self.verifier.replace(
+            anchored, r"'([0-9a-f]{64})  ([^\x00\\:\r\n]+)'", 1)
+        self.assertNotEqual(changed, self.verifier)
+        with self.assertRaises(AssertionError):
+            require_release_gate(self.workflow, changed)
+
+    def test_missing_checksum_assignment_denied(self) -> None:
+        changed = self.verifier.replace(
+            "$hashes.Add($checksumName, $checksumMatch.Groups[1].Value)",
+            "$null = $checksumMatch.Groups[1].Value", 1)
+        self.assertNotEqual(changed, self.verifier)
+        with self.assertRaises(AssertionError):
+            require_release_gate(self.workflow, changed)
 
     def test_provisioned_runner_denied(self) -> None:
         changed = self.workflow.replace(

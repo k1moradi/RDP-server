@@ -1,3 +1,17 @@
+## R9 exact checksum inventory / hosted PowerShell parser gate (2026-10-19)
+
+Authoring parent: `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e`. Baseline `39244189634` at
+`2fcfebee9e94b064ebf54617cd224982060471a0` is **FAIL/QUEUED, not PASS**:
+Ubuntu protocol failed two R5 generation cases; R9 X11 sanitizer failed one;
+Linux GUI compilation and SERVER-TEST aggregation failed; clean Windows queued.
+
+R9 adds exact/case-safe checksum inventory validation, a dedicated hosted
+Windows PowerShell parser job over the real clean script, mutation guards for
+anchoring/assignment/parser independence, and explicit OFF for the last two R6
+headless configures. Source invariants are **PASS**; exact publication-SHA
+Actions are **PENDING** at authoring. Clean Windows, owner-native Debug matrix,
+and live Microsoft-client acceptance are **NOT RUN / BLOCKED**.
+
 ## R1 TLS identity lifecycle / R10 endpoint-generation handoff (2026-10-19)
 
 **Inspected shared-main parent:** `63e1706659cb8c461180f3210b1e0f1409c7ee75`.

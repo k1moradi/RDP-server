@@ -329,6 +329,95 @@ void stableScalarReceiptAfterR3Mutation()
     assert(!bridge.active());
 }
 
+
+void retiredRoutePositiveReceiptIsolation()
+{
+    // R3 commits exact accepted bytes while R8 still holds the old request.
+    // Delayed scalar observations can arrive after Stop and reconnect.
+    constexpr RdpClipboardStaticChannelView original{1008U, 70U};
+    RdpClipboardStaticChannelRoute oldRoute;
+    assert(oldRoute.start(1005U, original.channelId,
+                          original.generation, 1600U));
+
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    assert(visitor.visit(visitor.context, original));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    deliverPendingApplicationPdu(bridge, oldRoute);
+
+    assert(visitor.visit(visitor.context, original));
+    assert(bridge.beginFormatDataRequest(
+        rdp_server::clipboard::kFormatUnicodeText));
+    assert(oldRoute.queue(bridge.pendingApplicationPdu()));
+
+    const auto first = oldRoute.pending();
+    assert(first && bridge.bindQueuedWrite(first));
+    const auto oldGeneration = first.routeGeneration;
+    const auto oldReplySequence = first.replySequence;
+    const auto oldPartialSlice = first.writeSliceSequence;
+    const auto oldPartialOffered = first.wireBytes.size();
+    assert(oldPartialOffered > 1U);
+    const auto partialOutcome = oldRoute.onAcceptedBytes(
+        oldGeneration, oldReplySequence, oldPartialSlice, 1U);
+    assert(partialOutcome == RdpClipboardWriteOutcome::Pending);
+
+    const auto last = oldRoute.pending();
+    assert(last && bridge.bindQueuedWrite(last));
+    const auto oldFinalSlice = last.writeSliceSequence;
+    const auto oldFinalOffered = last.wireBytes.size();
+    const auto finalOutcome = oldRoute.onAcceptedBytes(
+        oldGeneration, oldReplySequence, oldFinalSlice, oldFinalOffered);
+    assert(finalOutcome == RdpClipboardWriteOutcome::Delivered);
+    assert(oldRoute.idle());
+
+    bridge.retireR3ChannelState();
+    oldRoute.close();
+    const auto retiredSourceEpoch = bridge.transfer().sourceEpoch();
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldGeneration, oldReplySequence, oldPartialSlice,
+        oldPartialOffered, 1U, partialOutcome));
+    assert(bridge.transfer().sourceEpoch() == retiredSourceEpoch);
+
+    // A replacement has its own outstanding FORMAT_LIST acknowledgment.
+    constexpr RdpClipboardStaticChannelView replacement{1008U, 71U};
+    assert(visitor.visit(visitor.context, replacement));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    RdpClipboardStaticChannelRoute currentRoute;
+    assert(currentRoute.start(1005U, replacement.channelId,
+                              replacement.generation, 1600U));
+    assert(currentRoute.queue(bridge.pendingApplicationPdu()));
+    const auto current = currentRoute.pending();
+    assert(current && bridge.bindQueuedWrite(current));
+    const auto currentGeneration = current.routeGeneration;
+    const auto currentReplySequence = current.replySequence;
+    const auto currentSlice = current.writeSliceSequence;
+    const auto currentOffered = current.wireBytes.size();
+    const auto currentSourceEpoch = bridge.transfer().sourceEpoch();
+    const auto currentPduBytes = bridge.pendingApplicationPdu().size();
+    assert(currentSourceEpoch > retiredSourceEpoch && currentPduBytes != 0U);
+
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldGeneration, oldReplySequence, oldPartialSlice,
+        oldPartialOffered, 1U, partialOutcome));
+    assert(!bridge.recordAcceptedWriteReceipt(
+        oldGeneration, oldReplySequence, oldFinalSlice,
+        oldFinalOffered, oldFinalOffered, finalOutcome));
+    assert(bridge.active());
+    assert(bridge.routeGeneration() == replacement.generation);
+    assert(bridge.transfer().sourceEpoch() == currentSourceEpoch);
+    assert(bridge.pendingApplicationPdu().size() == currentPduBytes);
+
+    const auto currentOutcome = currentRoute.onAcceptedBytes(
+        currentGeneration, currentReplySequence,
+        currentSlice, currentOffered);
+    assert(currentOutcome == RdpClipboardWriteOutcome::Delivered);
+    assert(bridge.recordAcceptedWriteReceipt(
+        currentGeneration, currentReplySequence, currentSlice,
+        currentOffered, currentOffered, currentOutcome));
+    assert(currentRoute.idle() && bridge.pendingApplicationPdu().empty());
+}
+
 struct FileSink final
 {
     bool called{};
@@ -438,6 +527,8 @@ int main(int argc, char **argv)
         partialPositiveReceiptRetirement();
     else if (behavior == "stable-scalar-receipt-after-r3-mutation")
         stableScalarReceiptAfterR3Mutation();
+    else if (behavior == "retired-route-positive-receipt-isolation")
+        retiredRoutePositiveReceiptIsolation();
     else if (behavior == "filecontents-request-receipt")
         fileContentsRequestReceipt();
     else

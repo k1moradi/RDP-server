@@ -803,6 +803,14 @@ add_test(NAME runtime.r8-r3-stable-scalar-write-receipt
 set_tests_properties(runtime.r8-r3-stable-scalar-write-receipt
     PROPERTIES LABELS "runtime;security;r8-receipt;offline")
 
+# A delayed old R3 positive receipt may not revoke a reconnected R8 route.
+# This ordinary CTest is outside the fixed 87 clipboard sanitizer selection.
+add_test(NAME runtime.r8-r3-retired-route-positive-receipt-isolation
+    COMMAND test_r8_r3_clipboard_bridge
+        retired-route-positive-receipt-isolation)
+set_tests_properties(runtime.r8-r3-retired-route-positive-receipt-isolation
+    PROPERTIES LABELS "runtime;security;r8-receipt;offline")
+
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.
 target_link_libraries(test_owned_mcs_connect_initial PRIVATE

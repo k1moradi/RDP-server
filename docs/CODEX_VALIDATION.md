@@ -16,6 +16,24 @@ no duplicate encoder path or ACK-credit counter has been introduced.
 native geometry transition is intentionally **not wired** here; real
 owner-authorized seat0/Microsoft-client tests remain **NOT RUN**.
 
+## R8 late positive scalar receipts after route retirement (2026-10-18)
+
+Implementation parent `c1ec383576c52629a2f094ed8a696d2280720b8c`. Production
+`R3ClipboardTransferBridge::recordAcceptedWriteReceipt` previously treated
+a delayed old-route positive Pending/Delivered receipt as a current-route
+failure, retiring a freshly admitted replacement through
+`failCurrentRoute()`. The corrected path discards already-retired
+generations without changing the replacement route/source epoch. Same-route
+malformed receipts still fail closed. Dedicated offline CTest
+`runtime.r8-r3-retired-route-positive-receipt-isolation` uses real R3
+partial/final accepted-byte outcomes, Stop retirement, reconnect with
+bound FORMAT_LIST response and successful current delivery. No separate
+R1 writer, R2/R3 byte owner, GUI admission, X11 native clipboard or
+directory-tree capability was added. Owner-local build/full CTest:
+**NOT RUN** (checkout unavailable); new exact-SHA hosted CI: **PENDING**.
+R9's fixed 87-case clipboard sanitizer selection remains unchanged.
+R10 live integration and authorized Linux client acceptance **BLOCKED**.
+
 ## R7 explicit active-sharing GUI close-consent source receipt (2026-10-18)
 
 Parent `2ec8ac3b8b6ca83f3748ef161b5dd8bdc608b4c5`. `DesktopWindow::closeEvent` now requires

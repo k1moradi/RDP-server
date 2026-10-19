@@ -351,6 +351,15 @@ bool R3ClipboardTransferBridge::recordAcceptedWriteReceipt(
 {
     using transport::RdpClipboardWriteOutcome;
 
+    // A previously committed R3 positive receipt may arrive after Stop or
+    // reconnect. It must not retire the replacement route or its source epoch.
+    // A zero/future generation against a live route remains fail-closed.
+    if (routeGeneration_ == 0U ||
+        (routeGeneration != 0U && routeGeneration < routeGeneration_))
+    {
+        return false;
+    }
+
     if (outcome == RdpClipboardWriteOutcome::Rejected)
     {
         if (routeGeneration == routeGeneration_)

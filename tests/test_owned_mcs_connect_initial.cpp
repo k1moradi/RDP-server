@@ -4801,9 +4801,10 @@ void testGraphicsSurfaceRemap()
             9U, 100U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 2U)) ==
         RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
     assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
-           RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+           RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(!dvc.presentationMapped());
     assert(dvc.preflightFramePublication(101U) ==
-           RdpGraphicsFramePublicationReadiness::Ready);
+           RdpGraphicsFramePublicationReadiness::Rejected);
 
     std::array<std::byte, 64U * 64U * 4U> oldPixels{};
     const FramebufferView wrongGeometry{oldPixels, 64U, 64U, 64U * 4U};
@@ -4824,6 +4825,27 @@ void testGraphicsSurfaceRemap()
     dvc.close();
     assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
            Decision::Rejected);
+
+    // R4 ACK suspension clears authoritative pending membership. With no
+    // pending delivery/partial TLS or client DATA, resize must not await
+    // an ACK that the client is no longer obligated to send.
+    RdpGraphicsDynamicVirtualChannelLifecycle suspended;
+    completeGraphicsDynamicVirtualChannelReady(
+        suspended, RdpDynamicVirtualChannelAllocation{12U, 208U},
+        1007U, 1005U);
+    assert(suspended.onClientTpkt(
+        208U, makeR3GraphicsFrameAcknowledgeTpkt(
+            12U, 0U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(suspended.consumePendingClientFrameAcknowledge(208U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Suspended);
+    assert(suspended.outstandingGraphicsFrames() == 0U);
+    assert(suspended.beginSurfaceReconfiguration(208U, resized) ==
+           Decision::Started);
+    auto suspendedWrite = suspended.pendingServerWrite();
+    assert(suspendedWrite &&
+           suspendedWrite.kind == Kind::GraphicsDeleteSurface);
+    suspended.close();
 
     // An accepted frame byte cannot be erased by a zero-write cancel.
     RdpGraphicsDynamicVirtualChannelLifecycle partial;

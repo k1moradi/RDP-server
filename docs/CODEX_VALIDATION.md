@@ -1,3 +1,16 @@
+## R3 stale-ACK terminality and suspended-window remap correction (2026-10-19)
+
+R3 PR #24 source-only correction against parent `3ff4d8b035ca4af4587b1ebbed5bb445742e2d3f`: an ACK whose frame
+ID is at or below the retired-surface high-water mark now terminates the
+Graphics DVC rather than returning nonterminal Unmatched. In a suspended R4
+ACK window with zero outstanding membership, an otherwise idle remap may
+start without waiting for an impossible future receipt. R4 remains the sole
+ACK membership and credit authority; PR #27's duplicate-at-64 preflight
+change must be integrated without overwriting that classifier. Updated
+production-backed surface-remap CTest cases cover terminal stale ACK and
+suspended-window progress. Owner-local CTest NOT RUN; hosted exact-head CI
+PENDING; R4 acceptance PENDING; live native RandR/R10 hook BLOCKED.
+
 ## R3 authenticated surface-remap contract (draft PR #24, 2026-10-18)
 
 Source branch `r3/authenticated-graphics-surface-remap` owns the authenticated

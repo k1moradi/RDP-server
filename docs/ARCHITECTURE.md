@@ -18,15 +18,19 @@ The Graphics DVC generation does not change during a same-channel remap.
 The new surface becomes frame-publishable only after complete MAP receipt.
 
 `Deferred` is **nonterminal**: outstanding R4 ACKs (including ordinary
-64-credit saturation), ACK suspension, pending client Graphics DATA,
+64-credit saturation), ACK suspension with outstanding R4 membership, pending client Graphics DATA,
 pending frame publication or any queued/positive-partial TLS write must be
 retired on the existing owner before retry. R3 will not cancel accepted
 bytes, steal R4's ACK counter, or replay bytes on a replaced DVC generation.
 A zero-accepted-byte frame can be canceled via the existing authenticated
 receipt gateway. The next surface ID is never reused; exhaustion requires
 reconnect. R3 remembers the highest previously published frame ID, rejects
-frame-ID reuse after remap and drops well-formed stale old-surface ACKs
-before they can suspend the new R4 ACK window.
+frame-ID reuse after remap and terminally rejects provably retired-surface ACKs without dispatching
+them to the new R4 ACK window. A suspended ACK window with zero outstanding
+frames does not block remap: its cleared membership has no promised future
+ACK, and the existing R4 presentation reset occurs only when DELETE begins.
+Outstanding frames remain deferred until actual R4 receipts or connection
+termination; no synthetic ACK or second timeout/credit owner is introduced.
 
 PR #24 adds the **offline contract and bounded regression only**. R10's
 RandR observation scheduler/writer integration, owner-authorized physical

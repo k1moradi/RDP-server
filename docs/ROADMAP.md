@@ -1,3 +1,12 @@
+## R3 PR #24 remap review blockers (2026-10-19)
+
+R3 fixes retired-surface stale ACK handling to terminal rejection and permits
+zero-outstanding suspended-R4-window remap without artificial ACK receipts.
+The existing R2 broker API remains the sole geometry admission point; R10
+must feed freshly R5-observed dimensions and retain the existing R1 TLS owner.
+Source edit PASS; local CTest NOT RUN; exact-publication CI PENDING; R4 review
+PENDING; native resize activation BLOCKED by R10/R5 wiring and owner acceptance.
+
 ## R7/R6 exact-SHA Windows GUI verifier evidence (2026-10-19)
 
 Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, GitHub Actions

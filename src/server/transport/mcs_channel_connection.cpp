@@ -3280,8 +3280,7 @@ RdpGraphicsDynamicVirtualChannelLifecycle::beginSurfaceReconfiguration(
 
     // Keep all outstanding ACKs and suspension state authoritative in R4.
     // Full 64-frame ACK capacity is ordinary nonterminal backpressure.
-    if (presentationLifecycle_.outstandingFrames() != 0U ||
-        !presentationLifecycle_.expectingFrameAcknowledgements())
+    if (presentationLifecycle_.outstandingFrames() != 0U)
         return Decision::Deferred;
 
     const auto previousSurfaceId = presentationLifecycle_.surfaceId();
@@ -3461,8 +3460,12 @@ consumePendingClientFrameAcknowledge(
                 acknowledgement) &&
             acknowledgement.frameId <= retiredSurfaceFrameIdBoundary_)
         {
-            clearClientDvcReassembly();
-            return Intake::Unmatched;
+            // This ACK unambiguously targets a retired surface. Since the
+            // wire ACK has no surface identity, accepting it as nonterminal
+            // could disguise a replay after remap. Close this DVC rather
+            // than touching the live R4 window or inventing ACK credit.
+            fail();
+            return Intake::Rejected;
         }
     }
 

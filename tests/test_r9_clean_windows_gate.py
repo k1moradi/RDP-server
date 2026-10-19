@@ -49,11 +49,42 @@ def require_release_gate(workflow: str, verifier: str) -> None:
             raise AssertionError(f"Consumer security guard absent: {required}")
 
 
+def require_fail_closed_socket_observation(smoke: str) -> None:
+    # Runtime enumeration must propagate read/permission failures, not report
+    # an empty set when Get-NetTCPConnection/Get-NetUDPEndpoint fails.
+    marker = "function Assert-NoProcessSockets([int]$ProcessId) {"
+    if smoke.count(marker) != 1:
+        raise AssertionError("socket-observation owner absent/duplicated")
+    block = smoke.split(marker, 1)[1].split(
+        "function Invoke-FirstScreenSmoke", 1)[0]
+    for required in (
+        "Get-NetTCPConnection -ErrorAction Stop",
+        "Get-NetUDPEndpoint -ErrorAction Stop",
+        "Where-Object { $_.OwningProcess -eq $ProcessId }",
+        "throw \"GUI opened a TCP/UDP socket",
+    ):
+        if required not in block:
+            raise AssertionError(f"Fail-closed socket query missing: {required}")
+    if "-ErrorAction SilentlyContinue" in block:
+        raise AssertionError("Windows socket-query errors were suppressed")
+
+
 class CleanWindowsReleaseGateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         cls.verifier = (ROOT / "scripts/clean_windows_portable_gui.ps1").read_text(encoding="utf-8")
+        cls.socket_smoke = (ROOT / "scripts/smoke_windows_portable_gui.ps1").read_text(encoding="utf-8")
+
+    def test_socket_enumeration_fails_closed(self) -> None:
+        require_fail_closed_socket_observation(self.socket_smoke)
+
+    def test_silent_socket_error_mutation_denied(self) -> None:
+        mutated = self.socket_smoke.replace(
+            "Get-NetTCPConnection -ErrorAction Stop",
+            "Get-NetTCPConnection -ErrorAction SilentlyContinue")
+        with self.assertRaises(AssertionError):
+            require_fail_closed_socket_observation(mutated)
 
     def test_real_gate(self) -> None:
         require_release_gate(self.workflow, self.verifier)

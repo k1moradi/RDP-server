@@ -108,8 +108,10 @@ function Invoke-OfflineMode([string]$Argument) {
 }
 
 function Assert-NoProcessSockets([int]$ProcessId) {
-    $tcp = @(Get-NetTCPConnection -OwningProcess $ProcessId -ErrorAction SilentlyContinue)
-    $udp = @(Get-NetUDPEndpoint -OwningProcess $ProcessId -ErrorAction SilentlyContinue)
+    # Enumerate first and then filter. A failed Windows networking query must
+    # not be mistaken for an empty per-process socket list in portable smoke.
+    $tcp = @(Get-NetTCPConnection -ErrorAction Stop | Where-Object { $_.OwningProcess -eq $ProcessId })
+    $udp = @(Get-NetUDPEndpoint -ErrorAction Stop | Where-Object { $_.OwningProcess -eq $ProcessId })
     if ($tcp.Count -ne 0 -or $udp.Count -ne 0) {
         throw "GUI opened a TCP/UDP socket during offline first-screen smoke"
     }

@@ -1,3 +1,24 @@
+## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
+
+Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows
+artifact publication denial fixture as ordinary cross-platform Debug/Release
+CTest `packaging.windows-portable-gui-clean-release-structure-denials`.
+This offline Python test now also rejects silent TCP/UDP query errors in the
+production packaged GUI smoke. The Windows smoke enumerates sockets with
+`-ErrorAction Stop` and filters by process PID only after a successful
+system query; a permission/CIM enumeration failure cannot become a false
+"no listener" pass. Preserve R6's newly landed read-only Windows
+firewall/TermService/RDP-policy snapshot checks and their CTests.
+
+Source/reconciliation inspection PASS; isolated native Windows runtime and
+exact integration-SHA hosted CI NOT RUN. This adds no network activity,
+services, firewall mutations, privileges, live R2 admission or GUI Start.
+Genuine non-admin clean-Windows runner `r9-clean-windows-gui` and its exact
+ZIP+receipt remain release BLOCKED until independently executed. R10
+GUI-default-ON from PR #23 and intentional Qt-free headless selection remain
+unmerged; same-SHA owner-local Debug CTest and Microsoft-client matrices
+remain independently NOT RUN.
+
 ## R6 Windows native host-conflict and offline mutation denials (2026-10-19)
 
 Read-only WindowsRdpConflictProbe queries TermService via

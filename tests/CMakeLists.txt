@@ -241,6 +241,15 @@ add_test(NAME project.ci-workflow-structure-denials
 set_tests_properties(project.ci-workflow-structure-denials PROPERTIES
     LABELS "policy;ci")
 
+# R9 Windows PORTABLE-GUI release barrier and socket query denial fixtures are
+# platform-independent source checks: no Qt, desktop, sockets or services run.
+# Keep these in ordinary full Debug CTest, not only the hosted CI structure job.
+add_test(NAME packaging.windows-portable-gui-clean-release-structure-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_r9_clean_windows_gate.py")
+set_tests_properties(packaging.windows-portable-gui-clean-release-structure-denials
+    PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
+
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
     add_executable("${test_target}" "${source_file}")

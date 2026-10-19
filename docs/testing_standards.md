@@ -1,3 +1,21 @@
+## R2 explicit owner consent and deny-only revocation tests (2026-10-19)
+
+Ordinary CTest must register exact behavior names
+`security.owner-consent-gui-intent-never-authorizes`,
+`security.owner-consent-invalid-scope-and-lifetime-denials` and
+`security.owner-consent-stop-lock-session-credential-revocations`.
+They use the real noninstalled R2 production authority header, but do
+not fabricate an affirmative physical owner, synthetic native lease, lock
+proof, listener or credential. Validate view-inclusive scope and bounded
+requested duration without converting well-formed GUI intent into positive
+authority. Verify invalid scope, missing view, unknown permission bits,
+zero/oversized duration and epoch invalidation for each Stop/lock-unknown/
+logout/switch/session replacement/credential change/native-auth-loss event.
+The real Linux admission broker must reject missing or non-authorizing
+R2 host authority at issuance and revalidation. A positive test is
+**BLOCKED** until a reviewed native trust provider exists and is actually
+verified; never substitute a fake `LockedHint` or GUI bool.
+
 ## R5 replacement-X11-owner capture epoch anti-ABA (2026-10-19)
 
 After terminal native owner retirement, constructing a replacement X11 owner

@@ -1,3 +1,39 @@
+## R2 current-owner consent authority must precede native admission (2026-10-19)
+
+At inspected parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's concrete Linux
+`LinuxRuntimeHostControl` shell has landed on main and remains Start-deny-only.
+R2 adds a noninstalled, noncopyable `CurrentOwnerSharingAuthority` boundary
+whose valid view/input/clipboard requests (maximum requested lifetime 24h)
+are still *intent*, never proof. It contains no positive grant constructor,
+GUI Boolean, synthetic native lease or client-controlled approval path.
+The production `LinuxConsoleAdmissionBroker` legacy constructor defaults to
+null owner authority; both real `issue()` and per-operation
+`revalidationChecksPass()` now independently require its positive check.
+The current provider always denies, including with genuine GSS/TLS,
+PAM/NSS/logind, so no unsupported Linux positive desktop lease can escape.
+Existing 1-second connection lease expiry remains separate from the future
+owner-controlled sharing lifetime.
+
+Three ordinary cross-platform CTests exercise valid-but-untrusted GUI
+intent, invalid scope/lifetime and monotonic Stop/lock-unknown/logout/
+user-switch/session-replacement/credential-change/native-auth-loss
+revocation epochs. These are **deny-only tests**, not a synthetic positive
+consent, native desktop or real client receipt. Positive admission remains
+**BLOCKED** until a genuinely trusted physical owner-confirmation mechanism
+AND authoritative unlocked-state evidence can be verified under the threat
+model; logind `LockedHint`, X11 hints, remote responses and credentials alone
+are insufficient. R10 must not start a listener or accept a peer on this
+negative outcome, and must revoke R2 before retiring its socket/desktop.
+R7 is a prompt/status consumer only. Windows future SID/WTS owner and
+macOS UID/audit/security-session owner require their own trusted confirmation,
+lock-state and lifetime providers; neither platform gains an admission grant.
+
+Authoring evidence: header/test source inspection **PASS**; owner-local
+full Debug build/CTest, new production-library/native Linux compile,
+exact-publication-SHA hosted CI, trusted-owner approval, Microsoft-client
+NLA and LAN desktop acceptance **NOT RUN**. Next: trusted owner/lock provider,
+R10/R7 serialized request wiring, R1 TLS identity/trust then real-client gate.
+
 ## R1 TLS identity handoff without enabling LAN (2026-10-19)
 
 Source parent `6cb354adb731`: the existing securely loaded SSL_CTX

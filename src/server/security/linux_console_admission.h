@@ -2,6 +2,7 @@
 #pragma once
 
 #include "console_os_evidence.h"
+#include "current_owner_sharing_authority.h"
 #include "gssapi_spnego_acceptor.h"
 #include "linux_logind_console_evidence.h"
 #include "linux_logind_session_change_watch.h"
@@ -186,8 +187,13 @@ private:
 class LinuxConsoleAdmissionBroker final
 {
 public:
+    // The R2 host-side owner consent authority must outlive this broker.
+    // The legacy one-argument construction remains deny-only: no native
+    // consent/lock provider means no authenticated desktop lease.
     explicit LinuxConsoleAdmissionBroker(
-        const ConsoleIdentityPolicy &policy) noexcept : policy_(policy) {}
+        const ConsoleIdentityPolicy &policy,
+        const CurrentOwnerSharingAuthority *ownerSharingAuthority = nullptr) noexcept
+        : policy_(policy), ownerSharingAuthority_(ownerSharingAuthority) {}
     ~LinuxConsoleAdmissionBroker();
 
     LinuxConsoleAdmissionBroker(const LinuxConsoleAdmissionBroker &) = delete;
@@ -905,6 +911,8 @@ private:
         const LinuxConsoleAdmissionLease &lease) const noexcept;
 
     const ConsoleIdentityPolicy &policy_;
+    // Borrowed from R2, never constructible by Qt or a network peer.
+    const CurrentOwnerSharingAuthority *ownerSharingAuthority_{};
     LinuxLogindReadOnlyEvidenceSource evidence_{};
     std::unique_ptr<LinuxLogindSessionChangeSource> changes_{};
     std::shared_ptr<LinuxConsoleAdmissionControl> control_{};

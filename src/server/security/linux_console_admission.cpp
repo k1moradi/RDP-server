@@ -343,7 +343,13 @@ LinuxConsoleAdmissionBroker::issue(
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
-    if (state_ != LinuxConsoleAdmissionState::Ready)
+    // A native account/session match cannot substitute for the current
+    // physical desktop owner's affirmative, unlocked sharing authority.
+    // Before a reviewed local provider exists this is a terminal denial,
+    // even if real GSS/TLS, PAM, NSS and logind checks would all succeed.
+    if (state_ != LinuxConsoleAdmissionState::Ready ||
+        ownerSharingAuthority_ == nullptr ||
+        !ownerSharingAuthority_->authorizes(request.requestedPermissions))
     {
         deny(acceptor);
         return std::nullopt;
@@ -481,7 +487,12 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
 {
     const std::string_view leasePrincipal{
         lease.kerberosPrincipal_.data(), lease.kerberosPrincipalLength_};
-    if (!ownsActiveLease(lease) ||
+    // Recheck R2 host consent at each protected operation, including after
+    // a native lock/switch event or a Stop/revocation. This must never rely
+    // on an R10 GUI status Boolean or a prior admission-lease decision.
+    if (ownerSharingAuthority_ == nullptr ||
+        !ownerSharingAuthority_->authorizes(lease.permissions_) ||
+        !ownsActiveLease(lease) ||
         control_->policyGeneration != policy_.generation() ||
         acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
             leasePrincipal ||

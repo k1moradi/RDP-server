@@ -1,3 +1,17 @@
+## R2 current-owner consent fail-closed admission gate (2026-10-19)
+
+Parent inspected: `e2e48f0f8fc022203fc25d83540db83e36f5f93e`. Production R2 now requires a separate
+R2-owned current-owner consent authority both before `LinuxConsoleAdmissionBroker::issue()`
+and in its per-operation revalidation. Without a trusted local consent and
+authoritative unlocked-state provider, the concrete R2 authority's positive
+check remains permanently false. The production Linux GUI HostControl shell
+already exists but cannot Start, bind or admit a network peer on this status.
+Three new behavior-named ordinary CTests cover untrusted GUI intent,
+invalid scope/lifetime and seven revocation causes. Owner-side full Debug
+CTest/native Linux integration and exact-publication-SHA hosted CI **NOT RUN**
+at authoring. Positive physical-seat owner consent and Microsoft-client NLA
+acceptance **BLOCKED**. No listener/credential/session activation performed.
+
 ## R1 TLS identity handoff without enabling LAN (2026-10-19)
 
 Source parent `6cb354adb731`: the existing securely loaded SSL_CTX

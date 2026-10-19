@@ -110,6 +110,31 @@ foreach(host_control_case IN ITEMS
         LABELS "runtime;security;host-control;offline")
 endforeach()
 
+# R2 host consent is an independent deny-only authority boundary until a
+# trusted physical-seat owner/lock provider exists. Synthetic cases must
+# never issue an admission lease or open a listener.
+add_executable(test_current_owner_sharing_authority
+    test_current_owner_sharing_authority.cpp)
+target_include_directories(test_current_owner_sharing_authority PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+target_compile_features(test_current_owner_sharing_authority PRIVATE cxx_std_23)
+if(MSVC)
+    target_compile_options(test_current_owner_sharing_authority PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_current_owner_sharing_authority PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(owner_consent_case IN ITEMS
+        owner-consent-gui-intent-never-authorizes
+        owner-consent-invalid-scope-and-lifetime-denials
+        owner-consent-stop-lock-session-credential-revocations)
+    add_test(NAME "security.${owner_consent_case}"
+        COMMAND test_current_owner_sharing_authority "${owner_consent_case}")
+    set_tests_properties("security.${owner_consent_case}" PROPERTIES
+        LABELS "security;r2-owner-consent;offline" TIMEOUT 15)
+endforeach()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test

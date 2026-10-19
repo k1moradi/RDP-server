@@ -1132,6 +1132,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
+    PATTERN "current_owner_sharing_authority.h" EXCLUDE
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE

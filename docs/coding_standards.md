@@ -1,3 +1,19 @@
+## R2 current-owner consent does not follow identity automatically (2026-10-19)
+
+R2 owns one sharing authority distinct from R1 CredSSP/GSS identity, NSS,
+PAM, logind physical-seat evidence and R10 GUI status. The cross-platform
+`CurrentOwnerSharingAuthority` accepts only untrusted, bounded intent;
+until real human confirmation and trustworthy unlocked-state evidence exist,
+every positive check denies. The production Linux admission broker must
+enforce this before lease issuance and again at every protected operation.
+Its default no-authority constructor must remain fail-closed. Never add a
+test-only grant constructor, expose capabilities to Qt/network peers or
+interpret a synthetic session fingerprint, bool, cached setting or advisory
+lock hint as owner authorization. R2-owned authority must outlive its
+borrowers; revocation epochs are atomic, while request/UI scheduling is
+serialized by R10. Positive future implementations must bind actual UID,
+seat0/session generation, exact permission scope and owner-selected deadline.
+
 ## R1 live-context certificate identity publication (2026-10-19)
 
 Derive TLS status only from the loaded SSL_CTX leaf; use the one R1

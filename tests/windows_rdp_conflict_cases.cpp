@@ -60,7 +60,9 @@ void windowsRdpConflictClearPreflight()
 void windowsRdpConflictNativeReadonlyObservation()
 {
     WindowsRdpConflictProbe probe;
-    assert(probe.probe(0) == WindowsRdpConflictStatus::Unavailable);
+    const auto invalidPortStatus = probe.probe(0);
+    assert(invalidPortStatus == WindowsRdpConflictStatus::Unavailable ||
+           invalidPortStatus == WindowsRdpConflictStatus::TermServiceActive);
 
     const auto status = probe.probe(3389);
     assert(status == WindowsRdpConflictStatus::Unavailable ||

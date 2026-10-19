@@ -619,7 +619,7 @@ jobs:
             --archive "$archive" \
             --git-sha "$GITHUB_SHA" \
             --outer-sha256 "$outer_sha"
-          extracted="build/Extracted PORTABLE GUI"
+          printf -v extracted 'build/Extracted PORTABLE GUI \u03A9'
           rm -rf "$extracted"
           mkdir -p "$extracted"
           python -m zipfile -e "$archive" "$extracted"
@@ -630,7 +630,7 @@ jobs:
         if: ${{ always() && steps.r9_windows_gui_package.outcome == 'success' }}
         shell: pwsh
         run: |
-          ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD "build\Extracted PORTABLE GUI")
+          ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD ("build\Extracted PORTABLE GUI " + [char]0x03A9))
       # Publish only after the extracted offline Windows smoke has passed.
       # Keep PORTABLE-GUI separate from SDK and startup-disabled SERVER-TEST.
       - name: Upload verified Windows x86_64 PORTABLE-GUI archive

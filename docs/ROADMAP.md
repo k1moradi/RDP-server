@@ -1,3 +1,50 @@
+## R6 Windows portable GUI Unicode and no-OS-mutation gate (2026-10-18)
+
+The independently downloadable Windows PORTABLE-GUI archive is hosted-green at
+exact baseline `aee09e5035721ff14f635e670a982392e87c53b7`,
+[primary CI 39201911316](https://github.com/k1moradi/RDP-server/actions/runs/39201911316).
+R9 has completed publication; R6 does not duplicate its packaging or PE closure.
+
+R6 found a narrower native **negative-path evidence gap**: extracted GUI smoke
+previously checked only process-owned sockets and Windows firewall profile
+states. It did not compare individual firewall rules, TermService configuration,
+or the OS RDP port/policy, and its actual hosted launch used spaces but no
+Unicode in the extraction directory. The R6 change preserves the existing
+fail-closed GUI and adds read-only before/after native snapshots of those
+OS settings; inability to read any required snapshot now fails the smoke.
+`windows.gui-offline-system-state-mutation-denials` tests each comparison
+field with synthetic differences without querying or modifying the OS. The
+same extracted smoke now runs from a Unicode-and-space path in hosted CLANG64.
+No service/firewall change, port binding, Start, SSPI lease, DXGI acquisition,
+or SendInput permission is introduced. After R7 removed unsupported application-password
+input, the R6 offline launcher requires that no `password` widget exists and that the
+disabled explanatory application-password action remains inert. New branch native CTest and CI:
+**NOT RUN / PENDING** until exact branch SHA is validated; do not treat prior
+main CI as proof of these changes.
+
+R6 also now provides a non-authorizing Windows host-conflict preflight:
+read-only Service Control Manager status for `TermService` plus IPv4/IPv6
+owner-PID TCP listener tables for the requested port. It reports
+`TermServiceActive`, `RequestedPortInUse`, `Unavailable`, or `Clear`;
+query failure is fail-closed. Five behavior-named native CTests cover both
+conflicts, unavailable evidence, clear state and a real read-only hosted
+observation. The existing packaging source guard rejects service, registry,
+firewall and socket mutator APIs in this path. R10 must consume this preflight
+immediately before a future authorized bind; R6 does not bind or reserve a port.
+
+**Native hosting remains BLOCKED:** R2 still has only observational Windows
+SID/WTS/LUID/logon evidence, not authenticated and revocable SSPI/CredSSP
+admission. R10 does not own Windows WTS notifications, an exclusive interactive
+session, or authoritative native Start/Stop. Read-only RDP conflict snapshots
+are no substitute for an R10 integrated listener-port conflict preflight;
+TermService must never be reconfigured implicitly. First Linux-host LAN
+Microsoft-client video/input acceptance is also NOT RUN.
+
+
+
+
+
+
 ## R7/R6 exact-SHA Windows GUI verifier evidence (2026-10-19)
 
 Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, GitHub Actions

@@ -8,16 +8,97 @@ selector case and covers outstanding ACK/client DATA deferral, exact partial
 TLS receipts, DELETE/CREATE/MAP ordering, stale ACK and frame-ID fencing,
 wrong geometry, terminal partial publication and reconnect generation denial.
 
-Exact R3 source head `2446a48f7c207c1c2e9d5f3dab320cc89c2380fd`
-passed Ubuntu/macOS/Windows protocol, R2 Linux security, R5/R7 jobs and the R9
-sanitizer inventory; `transport.dvc-graphics-surface-remap` passed inside the
-complete 21/21 Graphics selector. Its aggregate run was red only in the same
-three R7 Windows GUI offline tests that failed on its then-current main base.
-Shared main `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4` now contains the
-R7 Windows smoke repair. This reconciled descendant requires exact-head CI.
+Exact R3 source head `243afc67bc71b7c372ae3067e637caa99711b1c9`
+passed both hosted workflows: structure 39216062463 and full protocol/delivery
+39216062468. Ubuntu/macOS/Windows protocol, R2 Linux security, R5/R7 jobs,
+R6 Windows CLANG64, and the R9 sanitizer inventory all passed; the complete
+R3 Graphics selector remained 21/21 including
+`transport.dvc-graphics-surface-remap`. This documentation-only merge
+descendant requires only its own exact-head receipt.
 
 The R10 native RandR geometry transition remains outside this R3 change;
 physical seat0 and real Microsoft-client resize acceptance remain NOT RUN.
+
+## R7/R6 Windows non-collecting password verifier correction (2026-10-19)
+
+At exact parent `972f0200b176fe21b28559d693e69fa8d833fea2`, the known hosted failure remains isolated to
+R6 Windows CLANG64 GUI offline/package smoke. Run 39211043620 reports exit 3
+from the hidden GUI verifier because it still requires the R7-removed
+`password` object. Its Ubuntu/macOS/Windows protocol, R2 complete and
+missing-systemd production-security, R7 macOS portable/native/session, R9
+sanitizer, documentation and workflow-structure jobs pass.
+
+The Windows verifier now requires both old password-entry QObject names to be
+absent and `setApplicationPasswordUnsupported` to exist disabled. New
+ordinary `windows.gui-independent-password-input-unavailable` runs a
+dedicated hidden command mode. This restores the cross-owner test contract;
+it does not restore a secret input, create a listener, request credentials or
+grant native desktop authority. Source review PASS; publication-SHA hosted CI
+PENDING; owner-local full CTest NOT RUN.
+
+## R2 exact-publication hosted evidence for dependency reconciliation (2026-10-19)
+
+Exact SHA `84d9ac65936e83eb8644ee2461bda2764eac9c68`, GitHub Actions
+`39211043620`: `protocol (ubuntu-latest)`, `protocol (macos-latest)`,
+`protocol (windows-latest)`, `r2-linux-production-runtime-security (complete)`,
+`r2-linux-production-runtime-security (missing-systemd)`,
+`r9-security-protocol-sanitizers`, R7 macOS native/session/portable-GUI,
+R5 Linux GUI ZIP, documentation policy and workflow structure all **PASS**.
+The aggregate workflow is **FAIL**, solely because
+`r6-windows-clang23` fails its full Debug/Release CTest and extracted Windows
+GUI smoke steps. No failed R2 Linux-security, sanitizer, Ubuntu protocol or
+shared documentation job is present on this exact SHA. This does not convert
+hosted CI into physical-owner or Microsoft-client acceptance.
+
+R2's dependency conclusion is unchanged: the persistent R10 post-Share
+X11/input/frame owner and R7 status consumers are landed; the remaining product
+gate is concrete R10 GUI LAN `RuntimeHostControl`, independently trustworthy
+per-session owner consent/lock authority, then explicitly authorized physical
+X11 seat0 TERMSRV/Kerberos/PAM/NSS/logind + Microsoft-client evidence.
+Owner-local full CTest and live acceptance remain **NOT RUN**.
+
+## R2 dependency-graph reconciliation after landed R10/R7 consumption (2026-10-18)
+
+Source inspection at parent `f08c653b58ac` confirms the older R2 roadmap
+dependency prose was stale. Production `main.cpp` already owns the persistent
+serialized post-Share R1/R2/R3/R5 loop, keeps the exact R2-selected X11/logind
+owner, routes classified slow-path input through the protected R5 bridge, and
+publishes R2-gated ClearCodec frames. R7 `17bbd4dd` consumes R2's typed
+terminal-session status, and R7 `f08c653b` removes unsupported independent-
+password collection fields rather than implying a usable CredSSP password mode.
+
+This reconciliation changes documentation only: no production source, wire byte,
+permission, listener, CTest registration or synthetic admission. GitHub descendant
+CI at inspection shows Ubuntu, macOS, R2 complete/missing-systemd, R7 GUI/native
+and R9 sanitizer jobs **PASS** on `17bbd4dd`; Windows protocol/CLANG64 were still
+running. Owner-local `~/rdp-server/build` full CTest **NOT RUN** here.
+The remaining product gate is concrete R10 GUI LAN `RuntimeHostControl`, genuine
+per-session host-owner consent/lock authority, then explicitly authorized physical
+X11 seat0 Microsoft-client authentication/video/input evidence. Independent
+application-password CredSSP remains **BLOCKED**.
+
+## R7/R6 exact-publication hosted verification (2026-10-19)
+
+Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, Actions
+`39214767641`: `r6-windows-clang23` passes the full Release CTest,
+Windows GUI packaging/PE closure, extracted GUI no-listener smoke, and Windows
+native sanitizer fixture. R7 macOS portable/native/session jobs, all three
+protocol OS jobs, both R2 Linux production-security variants, R9 sanitizers,
+Linux GUI ZIP, documentation policy and workflow structure also pass.
+
+The aggregate run is **FAIL** only because Debug CTest 16,
+`windows.package-user-lifecycle-offline-contract`, times out in
+`test_windows_server_bundle.py` while invoking the native PowerShell
+server-test Install action; subprocess timeout is 30 seconds. Debug reports
+663/664 tests passing. This failed test does not execute the R7 desktop GUI,
+and the same SHA's Release full CTest plus extracted Windows GUI smoke pass.
+No source change is justified in R7 for that unrelated server-test timing
+failure.
+
+This closes the hosted-evidence gap for the non-collecting password UI and
+the corrected Windows shared-GUI verifier. Real GUI Start remains blocked by
+the absent concrete R10 `RuntimeHostControl` and missing R2/R1 authority/
+trust evidence.
 
 ## R7/R6 Windows non-collecting password verifier correction (2026-10-19)
 

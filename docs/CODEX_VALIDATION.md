@@ -1,3 +1,13 @@
+## R6/R9 clean Windows GUI source-only evidence (2026-10-19)
+
+Unprovisioned exact-ZIP Windows job and native PATH sanitizer CTest added
+on parent 30b3019532f174c8508b0023bb56913de78c8b8c. Historical PR #25 and PR #26 CI GUI smoke PASSED but
+ran in an MSYS2-provisioned environment. New exact-commit clean runner:
+PENDING. Human failing ZIP: NOT PROVIDED. Exact missing DLL: UNVERIFIED.
+No installed service, registry/firewall change, native Windows host Start,
+or R2/R10 authority was introduced.
+
+
 ## R3 R4 merged membership and bounded remap drain (2026-10-19)
 
 Main R4 PR #27 is merged; R3 uses its authoritative hasOutstandingFrame()

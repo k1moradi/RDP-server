@@ -1,3 +1,14 @@
+## Windows GUI clean-loader acceptance (2026-10-19)
+
+Never accept a portable Windows GUI based solely on an MSYS2-hosted ZIP
+smoke with inherited development PATH, or on PE import scanning alone.
+The independent Windows run must download the exact uploaded archive,
+verify hashes and source SHA, extract under Unicode-and-spaces paths,
+then observe a real GUI window and ordinary close with only OS system DLL
+search directories. Retain socket/system-state/Start-denial tests and a
+native synthetic PATH-sanitization CTest. Compare the human and CI ZIPs
+before naming exact missing DLLs or asserting release success.
+
 ## R5 native geometry observation and synchronous XShm borrow (2026-10-19)
 
 Require an R5 production-backed isolated-Xvfb test to capture value-only

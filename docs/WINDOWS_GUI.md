@@ -105,3 +105,9 @@ Unicode-and-spaces extraction. Source gate introduced; PASS is not yet
 claimed. Human missing-DLL failure remains release blocking until the human
 ZIP is compared and exact missing DLLs are identified. R2/R10 hosting gates
 remain unchanged.
+
+The R6/R9 workflow parses the adjacent SHA-256 receipt with an explicit
+[regex] match object before comparing the filename and digest. This avoids
+PowerShell automatic match-variable lifetime assumptions and keeps malformed
+receipts fail-closed. The exact clean-runner acceptance check remains pending
+on this publication SHA; prior hosted smoke does not qualify as clean PASS.

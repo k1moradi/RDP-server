@@ -1,3 +1,16 @@
+## Windows shared-GUI credential-surface regression (R6/R7, 2026-10-19)
+
+The hidden Windows launcher verifier must track the shared R7 credential
+surface instead of preserving obsolete secret-widget assumptions. With
+independent-password NLA unsupported, require no `password` or
+`confirmation` QObject, require the disabled
+`setApplicationPasswordUnsupported` action, and keep Start/Stop denied
+under `UnavailableRuntimeHostControl`. Register
+`windows.gui-independent-password-input-unavailable` in ordinary Windows
+CTest and retain the existing self-test/start-denial/package-qwindows cases.
+These checks initialize the packaged Qt platform only; they do not show a
+window, bind a socket, request credentials or native desktop permissions.
+
 ## R7 independent application-password UI is non-collecting (2026-10-18)
 
 Before R2 proves interoperable independent-password NLA, the Qt GUI must not

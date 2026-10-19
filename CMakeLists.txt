@@ -1034,6 +1034,9 @@ if(WIN32)
             add_test(NAME windows.gui-start-denied-without-r2-r10
                 COMMAND $<TARGET_FILE:rdp-server-windows-gui>
                     --offline-start-denial-test)
+            add_test(NAME windows.gui-independent-password-input-unavailable
+                COMMAND $<TARGET_FILE:rdp-server-windows-gui>
+                    --offline-unsupported-password-test)
             # The portable ZIP guarantees qwindows.dll. Prove the launcher
             # overrides a hostile/inherited QPA selection for its hidden
             # command-mode checks instead of depending on qoffscreen.dll.
@@ -1047,6 +1050,7 @@ if(WIN32)
             set_tests_properties(
                 windows.gui-offline-no-side-effects
                 windows.gui-start-denied-without-r2-r10
+                windows.gui-independent-password-input-unavailable
                 PROPERTIES LABELS "windows;gui;offline" TIMEOUT 15)
         endif()
     else()

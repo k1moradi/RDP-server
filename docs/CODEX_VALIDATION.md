@@ -1,3 +1,26 @@
+## R7/R6 exact-publication hosted verification (2026-10-19)
+
+Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, Actions
+`39214767641`: `r6-windows-clang23` passes the full Release CTest,
+Windows GUI packaging/PE closure, extracted GUI no-listener smoke, and Windows
+native sanitizer fixture. R7 macOS portable/native/session jobs, all three
+protocol OS jobs, both R2 Linux production-security variants, R9 sanitizers,
+Linux GUI ZIP, documentation policy and workflow structure also pass.
+
+The aggregate run is **FAIL** only because Debug CTest 16,
+`windows.package-user-lifecycle-offline-contract`, times out in
+`test_windows_server_bundle.py` while invoking the native PowerShell
+server-test Install action; subprocess timeout is 30 seconds. Debug reports
+663/664 tests passing. This failed test does not execute the R7 desktop GUI,
+and the same SHA's Release full CTest plus extracted Windows GUI smoke pass.
+No source change is justified in R7 for that unrelated server-test timing
+failure.
+
+This closes the hosted-evidence gap for the non-collecting password UI and
+the corrected Windows shared-GUI verifier. Real GUI Start remains blocked by
+the absent concrete R10 `RuntimeHostControl` and missing R2/R1 authority/
+trust evidence.
+
 ## R7/R6 Windows non-collecting password verifier correction (2026-10-19)
 
 At exact parent `972f0200b176fe21b28559d693e69fa8d833fea2`, the known hosted failure remains isolated to

@@ -28,6 +28,29 @@ positive protocol proof. No synthetic native owner or client success is
 claimed. Source-only integration; local build/CTest and live seat0 acceptance
 NOT RUN, publication CI PENDING.
 
+## R7/R6 exact-SHA Windows GUI verifier evidence (2026-10-19)
+
+Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, GitHub Actions
+`39214767641`: the corrected R6/R7 Windows shared-GUI contract is exercised
+successfully in the full **Release CTest**, native Windows GUI package/PE
+closure and extracted qwindows offline smoke. The R7 macOS portable GUI,
+native lifecycle and session-sanitizer jobs also pass, as do Ubuntu/macOS/
+Windows protocol, R2 production-security, R9 sanitizers, Linux GUI packaging,
+documentation and workflow structure.
+
+The aggregate workflow remains **FAIL** because the full **Debug** CTest has
+one unrelated timeout in `windows.package-user-lifecycle-offline-contract`:
+its native PowerShell server-test Install subprocess exceeds the fixture's
+30-second timeout. All other 663/664 Debug CTests pass. This is not an R7 GUI
+assertion, credential-surface failure, listener regression or package-smoke
+failure; the same workflow's Release full CTest and extracted GUI smoke pass.
+
+Therefore the R7 password-input removal and Windows verifier correction are
+now hosted-validated on their exact publication SHA. The product blockers are
+unchanged: concrete R10 GUI LAN `RuntimeHostControl`, genuine R2 per-session
+owner consent/lock authority, R1/R10 certificate fingerprint/trust/rotation,
+and platform-owner acceptance.
+
 ## R7/R6 Windows offline verifier follows non-collecting password UI (2026-10-19)
 
 Exact hosted SHA `84d9ac65936e83eb8644ee2461bda2764eac9c68` isolated the

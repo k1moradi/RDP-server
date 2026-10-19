@@ -1,3 +1,42 @@
+## R3 authenticated surface-remap contract (draft PR #24, 2026-10-18)
+
+Source branch `r3/authenticated-graphics-surface-remap`, based on the
+R3 79aca802 frame-credit implementation and later main. Added one bounded
+production-backed CTest `transport.dvc-graphics-surface-remap` to the fixed
+R3 Graphics selector (20 -> 21). It checks no-op/invalid/old-generation
+geometry, outstanding ACK and pending client DATA deferral, zero-write
+frame cancel, positive-partial exact TLS suffix, DELETE -> CREATE -> MAP
+full receipts, wrong-size ClearCodec rejection, stale FRAME_ACK (including
+obsolete suspension) and old frame-ID fencing, terminal partial frame
+abort, and fresh generation rejection on reconnect. Existing R4
+`graphics.clearcodec-denials` retains codec-only replacement coverage;
+no duplicate encoder path or ACK-credit counter has been introduced.
+
+**Source-only, not live** until exact branch-head CI passes. The R10
+native geometry transition is intentionally **not wired** here; real
+owner-authorized seat0/Microsoft-client tests remain **NOT RUN**.
+
+## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
+
+R9 now explicitly builds `test_authentication_attempt_limiter` in the
+Clang sanitizer job and independently pins the following registered CTests:
+`security.ipv4-mapped-ipv6-peer-quota-identity`,
+`graphics.surface-resize-revocation`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`runtime.r8-r3-stable-scalar-write-receipt`. Each must match exactly one
+CTest and execute with ASan/UBSan. R7's real Qt/macOS arm64 packaging job
+separately pins and executes exactly one
+`gui.offscreen-r10-client-stage-and-retirement-status-denials`.
+The preexisting 20-case R3 Graphics DVC, 87-case R8 clipboard component,
+and independent native linkage guards remain unchanged.
+
+No hosted run, native owner receipt, or real Microsoft-client acceptance is
+claimed for this addition until corresponding exact-SHA evidence exists.
+`src/gui/main.cpp` still constructs `UnavailableRuntimeHostControl`;
+R10 concrete GUI LAN Start/Stop and R2-backed owner admission have not landed.
+The R10 candidate freeze nomination and same-SHA M1 native Debug receipts
+remain OPEN.
+
 ## R8 scalar-safe connection-to-bridge CLIPRDR receipt (2026-10-18)
 
 The R1 connection-owned `advancePersonalDesktopClipboardTlsWrite` copies

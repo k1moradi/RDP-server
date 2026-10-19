@@ -2595,6 +2595,22 @@ McsSessionLifecycle::preflightVerifiedR2GraphicsFramePublication(
     return graphicsDynamicVirtualChannel_.preflightFramePublication(frameId);
 }
 
+RdpGraphicsSurfaceReconfiguration
+McsSessionLifecycle::beginVerifiedR2GraphicsSurfaceReconfiguration(
+    const SecurityNegotiationProvenance &provenance,
+    ::PixelSize desktopGeometry) noexcept
+{
+    if (!verifiedR2ApplicationTrafficReady(provenance) ||
+        !graphicsDynamicVirtualChannel_.graphicsCapabilitiesConfirmed() ||
+        graphicsDynamicVirtualChannel_.channelGeneration() == 0U)
+    {
+        close();
+        return RdpGraphicsSurfaceReconfiguration::Rejected;
+    }
+    return graphicsDynamicVirtualChannel_.beginSurfaceReconfiguration(
+        graphicsDynamicVirtualChannel_.channelGeneration(), desktopGeometry);
+}
+
 std::optional<RdpGraphicsDvcWriteView>
 McsSessionLifecycle::beginVerifiedR2GraphicsClearCodecFramePublication(
     const SecurityNegotiationProvenance &provenance,
@@ -2754,6 +2770,10 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
     selectedGraphicsAvc420Enabled_ = false;
     graphicsCapabilitiesConfirmed_ = false;
     presentationGeometry_ = {};
+    replacementSurfaceId_ = 0U;
+    highestPublishedFrameId_ = 0U;
+    hasPublishedFrame_ = false;
+    remappedSurface_ = false;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Failed;
@@ -2778,6 +2798,10 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::close() noexcept
     selectedGraphicsAvc420Enabled_ = false;
     graphicsCapabilitiesConfirmed_ = false;
     presentationGeometry_ = {};
+    replacementSurfaceId_ = 0U;
+    highestPublishedFrameId_ = 0U;
+    hasPublishedFrame_ = false;
+    remappedSurface_ = false;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Closed;
@@ -2900,7 +2924,8 @@ queueGraphicsApplicationPdu(
     constexpr std::size_t kMaximumGraphicsCommandBytes = 24U;
     if ((kind != RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm &&
          kind != RdpGraphicsDvcWriteKind::GraphicsCreateSurface &&
-         kind != RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput) ||
+         kind != RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput &&
+         kind != RdpGraphicsDvcWriteKind::GraphicsDeleteSurface) ||
         graphicsPdu.empty() ||
         graphicsPdu.size() > kMaximumGraphicsCommandBytes)
         return false;
@@ -2951,6 +2976,9 @@ queuePresentationCommand(
     {
     case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
         phase_ = RdpGraphicsDvcPhase::GraphicsCapabilitiesConfirmPending;
+        break;
+    case RdpGraphicsDvcWriteKind::GraphicsDeleteSurface:
+        phase_ = RdpGraphicsDvcPhase::GraphicsDeleteSurfacePending;
         break;
     case RdpGraphicsDvcWriteKind::GraphicsCreateSurface:
         phase_ = RdpGraphicsDvcPhase::GraphicsCreateSurfacePending;
@@ -3195,6 +3223,11 @@ RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
         return Readiness::Rejected;
     }
 
+    // FRAME_ACK has no surface ID; block reuse of old frame IDs after remap.
+    if (remappedSurface_ && hasPublishedFrame_ &&
+        frameId <= highestPublishedFrameId_)
+        return Readiness::Rejected;
+
     if (presentationLifecycle_.canReserveFrame(
             allocation_.generation, frameId))
         return Readiness::Ready;
@@ -3209,13 +3242,76 @@ RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
     return Readiness::Rejected;
 }
 
+RdpGraphicsSurfaceReconfiguration
+RdpGraphicsDynamicVirtualChannelLifecycle::beginSurfaceReconfiguration(
+    std::uint64_t channelGeneration, ::PixelSize desktopGeometry) noexcept
+{
+    using Decision = RdpGraphicsSurfaceReconfiguration;
+    if (phase_ == RdpGraphicsDvcPhase::Closed ||
+        phase_ == RdpGraphicsDvcPhase::Failed ||
+        channelGeneration == 0U ||
+        channelGeneration != allocation_.generation ||
+        !graphicsCapabilitiesConfirmed_ ||
+        desktopGeometry.widthPixels == 0U ||
+        desktopGeometry.heightPixels == 0U ||
+        desktopGeometry.widthPixels >
+            std::numeric_limits<std::uint16_t>::max() ||
+        desktopGeometry.heightPixels >
+            std::numeric_limits<std::uint16_t>::max())
+        return Decision::Rejected;
+
+    // No additional owner of R1 TLS writes or R4 ACK credit is introduced.
+    // R10 first retires pending writes (or cancels an all-zero-byte frame).
+    if (phase_ != RdpGraphicsDvcPhase::Ready ||
+        !presentationMapped() || pendingLength_ != 0U ||
+        bytesWritten_ != 0U ||
+        pendingKind_ != RdpGraphicsDvcWriteKind::None ||
+        frame_ || !frameRecordMap_.empty() ||
+        clientGraphicsDataReady_ || clientDvcFragmented_ ||
+        !clientDvcMessage_.empty())
+        return Decision::Deferred;
+
+    if (desktopGeometry == presentationGeometry_)
+        return Decision::Unchanged;
+
+    // Keep all outstanding ACKs and suspension state authoritative in R4.
+    // Full 64-frame ACK capacity is ordinary nonterminal backpressure.
+    if (presentationLifecycle_.outstandingFrames() != 0U ||
+        !presentationLifecycle_.expectingFrameAcknowledgements())
+        return Decision::Deferred;
+
+    const auto previousSurfaceId = presentationLifecycle_.surfaceId();
+    if (previousSurfaceId ==
+        std::numeric_limits<std::uint16_t>::max())
+        return Decision::Rejected; // Reconnect instead of recycling an ID.
+
+    if (!presentationLifecycle_.requestSurfaceDelete(channelGeneration))
+    {
+        fail();
+        return Decision::Rejected;
+    }
+    replacementSurfaceId_ =
+        static_cast<std::uint16_t>(previousSurfaceId + 1U);
+    presentationGeometry_ = desktopGeometry;
+    if (!queuePresentationCommand(
+            rdp_server::rdp::GfxPresentationCommand::Delete,
+            RdpGraphicsDvcWriteKind::GraphicsDeleteSurface))
+    {
+        fail();
+        return Decision::Rejected;
+    }
+    return Decision::Started;
+}
+
 bool RdpGraphicsDynamicVirtualChannelLifecycle::
 prepareClearCodecFrame(
     std::uint32_t frameId,
     ::FramebufferView framebuffer,
     rdp_server::rdp::GfxAvc420SegmentedFrame &output) noexcept
 {
-    if (!presentationMapped() || output.valid())
+    if (!presentationMapped() || output.valid() ||
+        (remappedSurface_ && hasPublishedFrame_ &&
+         frameId <= highestPublishedFrameId_))
         return false;
 
     const rdp_server::rdp::GfxClearCodecFrameRequest request{
@@ -3233,6 +3329,8 @@ beginFramePublication(
     if (phase_ != RdpGraphicsDvcPhase::Ready ||
         !presentationMapped() ||
         pendingLength_ != 0U || frame_ || !frame.valid() ||
+        (remappedSurface_ && hasPublishedFrame_ &&
+         frame.frameId() <= highestPublishedFrameId_) ||
         frame.generation() != allocation_.generation ||
         !graphicsClearCodecEnabled() ||
         (codec == RdpGraphicsFrameCodec::Avc420 &&
@@ -3697,6 +3795,7 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
 
         const std::size_t deliveredWireBytes =
             frame_->wireBytes().size();
+        const std::uint32_t deliveredFrameId = frame_->frameId();
         if (framePayloadAcceptedBytes_ !=
                 deliveredWireBytes ||
             !rdp_server::rdp::
@@ -3707,6 +3806,10 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
             fail();
             return RdpGraphicsDvcWriteOutcome::Rejected;
         }
+        if (!hasPublishedFrame_ ||
+            deliveredFrameId > highestPublishedFrameId_)
+            highestPublishedFrameId_ = deliveredFrameId;
+        hasPublishedFrame_ = true;
         clearFramePublication();
         return RdpGraphicsDvcWriteOutcome::Delivered;
     }
@@ -3755,6 +3858,28 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
             return RdpGraphicsDvcWriteOutcome::Rejected;
         }
         return RdpGraphicsDvcWriteOutcome::Pending;
+    case RdpGraphicsDvcWriteKind::GraphicsDeleteSurface:
+        if (!presentationLifecycle_.completeCommand(
+                presentationReceipt_, presentationReceipt_.bytes) ||
+            presentationLifecycle_.stage() !=
+                rdp_server::rdp::GfxPresentationStage::SurfaceUnconfigured ||
+            replacementSurfaceId_ == 0U)
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+        presentationReceipt_ = {};
+        if (!presentationLifecycle_.configureSurface(
+                allocation_.generation, replacementSurfaceId_,
+                presentationGeometry_) ||
+            !queuePresentationCommand(
+                rdp_server::rdp::GfxPresentationCommand::Create,
+                RdpGraphicsDvcWriteKind::GraphicsCreateSurface))
+        {
+            fail();
+            return RdpGraphicsDvcWriteOutcome::Rejected;
+        }
+        return RdpGraphicsDvcWriteOutcome::Pending;
     case RdpGraphicsDvcWriteKind::GraphicsCreateSurface:
         if (!presentationLifecycle_.completeCommand(
                 presentationReceipt_, presentationReceipt_.bytes))
@@ -3781,6 +3906,11 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
             return RdpGraphicsDvcWriteOutcome::Rejected;
         }
         presentationReceipt_ = {};
+        if (replacementSurfaceId_ != 0U)
+        {
+            remappedSurface_ = true;
+            replacementSurfaceId_ = 0U;
+        }
         phase_ = RdpGraphicsDvcPhase::Ready;
         break;
     case RdpGraphicsDvcWriteKind::GraphicsFrameData:

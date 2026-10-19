@@ -8,7 +8,12 @@ correctly removed the nonexistent public `sd_session_get_locked_hint` API
 and retained repeated native UID/session-generation checks.
 
 For Ubuntu 24.04 GNOME/Xorg physical seat0, external platform-contract review
-found no portable native primitive that proves the full positive chain.
+found no portable native primitive that proves the full positive chain. The
+precise blocker is the absence of a secure-attention/physical-origin approval
+channel: XTEST permits X clients to synthesize keyboard, button and pointer
+input, so an approval UI in the same Xorg session is not evidence that a
+physical owner acted. GNOME `org.gnome.ScreenSaver` can improve lock-state
+observation but cannot repair that consent-origin gap.
 logind's D-Bus `LockedHint` is desktop-set via `SetLockedHint`; XDG
 RemoteDesktop gives interactive consent/device scope but does not promise
 exact logind-session binding or lock-triggered revocation; polkit

@@ -6,12 +6,18 @@ investigated is **Ubuntu Desktop 24.04 LTS / GNOME 46 / Ubuntu on Xorg /
 physical local non-root seat0 user session**, with native UID, session ID,
 session-start generation and X11 display read from logind.
 
-**Positive-owner decision: BLOCKED for the no-install portable ZIP.** No
-native application primitive on this X11 target provides all required facts in
-one verifiable trust chain: affirmative physical-owner approval, exact
-OS/session/seat binding, authoritative unlocked state, exact
-view/input/clipboard scope plus deadline, and mandatory revocation on
-lock/logout/user switch/session replacement/native authority loss. logind is
+**Positive-owner decision: BLOCKED for the no-install portable ZIP.** The
+precise missing capability is a secure-attention / physical-origin approval
+channel that an untrusted X11 client cannot synthesize. Xorg XTEST deliberately
+allows clients to inject key, button and pointer events, so a portal/polkit/GTK
+approval dialog in the same X11 session cannot by itself prove a physical-owner
+action. GNOME `org.gnome.ScreenSaver` can add lock-state observation but does
+not supply that secure-attention guarantee. Consequently no portable native
+composition on this target provides all required facts in one verifiable trust
+chain: affirmative physical-owner approval, exact OS/session/seat binding,
+authoritative unlocked state, exact view/input/clipboard scope plus deadline,
+and mandatory revocation on lock/logout/user switch/session replacement/native
+authority loss. logind is
 retained for session identity/lifecycle but its `LockedHint` is
 desktop-supplied; XDG RemoteDesktop provides a native consent/device-scope
 interaction but does not contractually bind that grant to the exact logind

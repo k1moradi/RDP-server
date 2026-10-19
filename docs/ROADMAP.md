@@ -28,6 +28,49 @@ positive protocol proof. No synthetic native owner or client success is
 claimed. Source-only integration; local build/CTest and live seat0 acceptance
 NOT RUN, publication CI PENDING.
 
+## R7 Qt close-consent gate for future real HostControl (2026-10-18)
+
+An active or pending remote-sharing window close now prompts explicitly
+for **Stop Sharing and Close**, with **Keep Window Open** as the safe default.
+Dismissing the dialog never hides the GUI or issues Stop/Revoke. Even after
+explicit user consent, the GUI stays visible unless a fresh R10 snapshot
+confirms available control and retired sharing. Existing R10 ownership,
+startup-disabled GUI and independent app-password denial are preserved.
+The existing close-retirement CTest now selects Stop explicitly, and new
+`gui.offscreen-close-requires-explicit-owner-stop` exercises cancellation,
+unconfirmed retirement, successful revocation, and stopped-window exit.
+Parent: `2ec8ac3b8b6ca83f3748ef161b5dd8bdc608b4c5`. Native Qt build/ordinary CTest and publication-SHA
+CI: **NOT RUN** in this connector environment. Live R10 GUI LAN HostControl,
+R2 authenticated OS owner, R1/R10 fingerprint/trust/rotation status, macOS
+AppKit owner, release notarization and real client acceptance remain
+**BLOCKED / NOT RUN**. The GUI still uses UnavailableRuntimeHostControl.
+
+## R2 repeated-read native seat0 identity fence (2026-10-18)
+
+R2 corrected an earlier attempted lock-hint gate that referenced a
+nonexistent public `sd_session_get_locked_hint` libsystemd API. The
+unsupported calls and hint field have been removed before claiming any
+native build success. `LockedHint` is a logind D-Bus advisory property;
+its absence from the public sd-login C API means explicit desktop lock
+and user consent assurance remain separate **BLOCKED** live gates.
+
+The production `LinuxLogindReadOnlyEvidenceSource` instead now uses
+existing documented `sd_session_get_uid` and
+`sd_session_get_start_time` to recheck the exact same native UID and
+session-start identity **after** the second seat0 observation. Missing,
+failed or replaced evidence denies the native candidate without
+creating an admission token. One new ordinary production-linked CTest
+`security.linux-seat0-session-identity-denials` checks wrong UID,
+zero session-start identity, lock-screen class, inactive, remote and
+switched-seat candidates. Source review **PASS**; owner-local build/full
+CTest **NOT RUN**; exact-SHA hosted CI **PENDING** at publication.
+
+Next: R10 concrete LAN GUI HostControl, independently trustworthy per-
+session owner consent/lock handling, and owner-authorized physical X11
+seat0 Microsoft-client CredSSP/PAM/NSS/logind evidence. Do not add
+unbounded D-Bus calls on the protected frame hot path or enable the
+separate unsupported application-password path.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

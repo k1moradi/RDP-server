@@ -208,7 +208,18 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
         static_cast<std::uint32_t>(initialSeatUid),
         static_cast<std::uint32_t>(sessionUid),
         startedAtRealtimeMicroseconds, true, active == 1, remote != 0};
-    if (!consistentLogindSessionFacts(
+    // The active seat could change during account/session sampling. Repeat
+    // the *same session's* UID and creation identity after the second seat
+    // observation. Any missing or replaced native fact denies the candidate;
+    // this does not itself authenticate the remote user or grant consent.
+    uid_t repeatedSessionUid{};
+    std::uint64_t repeatedSessionStartMicroseconds{};
+    if (::sd_session_get_uid(initialSession.get(), &repeatedSessionUid) < 0 ||
+        repeatedSessionUid != sessionUid ||
+        ::sd_session_get_start_time(
+            initialSession.get(), &repeatedSessionStartMicroseconds) < 0 ||
+        repeatedSessionStartMicroseconds != startedAtRealtimeMicroseconds ||
+        !consistentLogindSessionFacts(
             facts, {secondSessionId, static_cast<std::uint32_t>(secondSeatUid)}) ||
         ::sd_session_is_active(initialSession.get()) != 1 ||
         ::sd_session_is_remote(initialSession.get()) != 0)

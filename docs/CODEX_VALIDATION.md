@@ -1,3 +1,32 @@
+## R7 explicit active-sharing GUI close-consent source receipt (2026-10-18)
+
+Parent `2ec8ac3b8b6ca83f3748ef161b5dd8bdc608b4c5`. `DesktopWindow::closeEvent` now requires
+explicit Stop Sharing and Close with a safe Keep Window Open default. It
+dispatches only to R10's existing HostControl adapter and refuses closing
+if the follow-up status is unavailable or active/pending. Existing
+`gui.offscreen-close-revokes-pending-host` now selects the explicit
+Stop action; new `gui.offscreen-close-requires-explicit-owner-stop`
+covers cancel, refused retirement, success and stopped-window exit.
+No listener, native permission, credential, clipboard or runtime owner
+was activated. Source structure inspection: **PASS**. Native Qt compile,
+full CTest, hosted CI at publication SHA and physical client acceptance:
+**NOT RUN**. Real R10 LAN HostControl and R2 owner admission: **BLOCKED**.
+
+## R2 repeat-read Linux seat0 UID/session generation (2026-10-18)
+
+An initial R2 attempt used a nonexistent libsystemd C lock-hint API;
+this correction eliminates the unsupported symbol before native build
+acceptance and preserves the original concrete adapter. Recheck the
+native UID/session start after the second seat0 sample using supported
+sd-login functions and fail closed on mismatch/error. Dedicated ordinary
+production-linked offline CTest
+`security.linux-seat0-session-identity-denials` covers mismatched
+owner, zero generation, lock-screen class, inactive/remote and changed
+seat facts without manufacturing admission. Source review **PASS**;
+owner-local full build/CTest **NOT RUN**, exact-SHA hosted CI
+**PENDING**, real Microsoft-client physical seat0 **NOT RUN**. A
+reported unlocked desktop or local-user consent is not yet proven.
+
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 
 R9 now explicitly builds `test_authentication_attempt_limiter` in the

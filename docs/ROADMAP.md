@@ -1,3 +1,46 @@
+## R4 integrated RandR remap offline acceptance (2026-10-19)
+
+**Validated descendant:** `f3ffe85cbecbdbce55bd915d74b74a79155a50e2`.
+This descendant contains R3's authenticated DELETE/CREATE/MAP remap,
+R10's serialized native-resize scheduler, R5's typed
+`X11NativeGeometryObservation` freshness handoff, and the unchanged R4
+surface-ID x264 reset. The three R4 implementation/regression blobs remain
+byte-identical to accepted R4 implementation
+`571f77a7c862c95a0e60ef58882e26f2bced8186`.
+
+Exact-SHA hosted evidence is green for every ordinary R4-relevant lane.
+Ubuntu protocol Debug and Release each PASS **797/797**, including
+`transport.dvc-graphics-surface-remap`,
+`runtime.linux-connection-resize-deadline-bounded-poll`,
+`runtime.linux-connection-graphics-surface-remap-denials`,
+`runtime.linux-r5-persistent-x11-input-frame-borrow-order`, and
+`graphics.x264-segmented-surface-remap-idr`. The production-linked
+ASan/UBSan lane PASSes **42/42** portable R4 graphics, **29/29** x264/BGRA,
+**4/4** AVC420 capability, **4/4** ClearCodec, **21/21** R3 Graphics DVC,
+**40/40** direct Linux runtime-security, and **42/42** native X11 selections.
+macOS protocol, Windows protocol, R6 Windows CLANG64, R5 Linux GUI, both R2
+production-security variants, R7 lifecycle/session/portable-GUI lanes,
+workflow structure and documentation policy all complete SUCCESS on this SHA.
+
+The integrated ordering is now pinned as:
+fresh R5 geometry observation -> native/session freshness check -> protected
+R3 remap decision -> exact DELETE/CREATE/MAP receipt drain -> fresh equality
+confirmation -> R4 frame-credit preflight -> second geometry freshness check ->
+typed synchronous R5 framebuffer borrow -> mandatory ClearCodec publication.
+`Deferred` and `Started` consume no frame ID or invented ACK credit. R4
+remains the sole authoritative ACK-membership owner, R3 retains retired-surface
+frame-ID fencing, and AVC420 remains intentionally disabled after remap despite
+the validated R4 SPS/PPS/IDR reset invariant.
+
+The GitHub primary workflow remains administratively open only because the
+separate R9 clean-Windows interactive consumer job is queued; that operational
+portable-GUI gate is not R4 offline acceptance evidence. The remaining R4 live
+acceptance blocker is R2 positive owner authority: production still returns
+`TrustedOwnerProofUnavailable`, `authorizes()` is false, and Linux
+`startSharing()` returns `HostConsentRequired`. Therefore physical seat0
+Windows App/mstsc visible-frame/FRAME_ACK/resize acceptance remains
+**BLOCKED / NOT RUN**, and no post-remap AVC420 runtime enablement is authorized.
+
 ## R5 typed RandR-to-R3 handoff guard (2026-10-19)
 
 R10's landed native resize scheduler at `f894dd23fdfd3598335fd85f1269fc7ae36ae17c`

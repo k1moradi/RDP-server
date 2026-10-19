@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <tuple>
 namespace rdp::gui {
 namespace {
 QLabel* label(const QString& message) {
@@ -93,17 +94,28 @@ QString tlsIdentityStatusText(const HostStatus& status)
         break;
     }
 
-    // The 32-byte digest is non-secret R1 evidence. Format it in a bounded
-    // stack buffer; neither Qt nor the GUI computes a certificate fingerprint.
+    // The 32-byte digest is non-secret R1 evidence. Derive the fixed bound
+    // from R1's typed observation, not from this runtime object expression.
+    // Qt copies the fully populated stack buffer before it leaves this scope;
+    // neither Qt nor the GUI computes or retains a certificate fingerprint.
     if (identity.fingerprintAvailable) {
+        using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
+        constexpr std::size_t certificateSha256Size =
+            std::tuple_size_v<RuntimeTlsCertificateFingerprint>;
+        static_assert(certificateSha256Size == 32U,
+                      "R1 TLS certificate fingerprint must remain SHA-256");
+        constexpr std::size_t fingerprintCharacterCount =
+            certificateSha256Size * 3U - 1U;
+        static_assert(fingerprintCharacterCount == 95U);
+
         constexpr char hexDigits[] = "0123456789ABCDEF";
-        std::array<char, 3U * identity.certificateSha256.size() - 1U> fingerprint{};
-        for (std::size_t index = 0; index < identity.certificateSha256.size(); ++index) {
+        std::array<char, fingerprintCharacterCount> fingerprint{};
+        for (std::size_t index = 0; index < certificateSha256Size; ++index) {
             const auto byte = identity.certificateSha256[index];
             const std::size_t offset = index * 3U;
             fingerprint[offset] = hexDigits[byte >> 4U];
             fingerprint[offset + 1U] = hexDigits[byte & 0x0fU];
-            if (index + 1U < identity.certificateSha256.size())
+            if (index + 1U < certificateSha256Size)
                 fingerprint[offset + 2U] = ':';
         }
         explanation += QStringLiteral("\nConfigured certificate SHA-256: ") +

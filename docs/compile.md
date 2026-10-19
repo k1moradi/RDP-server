@@ -1,3 +1,14 @@
+## Qt TLS fingerprint fixed-extent portability (2026-10-19)
+
+For R7 presentation of R1's SHA-256 certificate observation, do not form a
+`std::array` non-type template argument through a runtime status object such
+as `identity.certificateSha256.size()`. GCC may reject that object-qualified
+expression even though the member's type has fixed extent. Derive the extent
+from the fixed R1 type (`RuntimeTlsCertificateFingerprint`) with a compile-
+time type trait, assert the SHA-256 32-byte contract, and keep the rendered
+uppercase colon-separated buffer fixed at 95 characters. The GUI formats the
+already-supplied R1 bytes only; it must not hash certificates itself.
+
 ## Windows hidden GUI smoke follows the shared R7 credential surface (2026-10-19)
 
 The R6 Windows launcher reuses R7 `DesktopWindow`; its hidden qwindows-backed

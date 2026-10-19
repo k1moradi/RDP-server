@@ -225,10 +225,14 @@ int main(int argc, char** argv)
         auto* stop = window.findChild<QPushButton*>("stopSharing");
         assert(tls && endpoint && start && stop);
         assert(tls->textFormat() == Qt::PlainText);
-        const QString originalFingerprint =
-            QStringLiteral("00:01:02:03:04:05:06:07");
+        const QString originalFingerprint = QStringLiteral(
+            "00:01:02:03:04:05:06:07:08:09:0A:0B:0C:0D:0E:0F:"
+            "10:11:12:13:14:15:16:17:18:19:1A:1B:1C:1D:1E:1F");
+        assert(originalFingerprint.size() == 95);
         assert(tls->text().contains("configured, but no bound LAN listener"));
-        assert(tls->text().contains(originalFingerprint));
+        assert(tls->text().contains(
+            QStringLiteral("Configured certificate SHA-256: ") +
+            originalFingerprint));
         assert(tls->text().contains("trust: unknown"));
         assert(!host.status().listenerReady && !window.canStart());
 

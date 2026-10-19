@@ -1,3 +1,25 @@
+## R7 fixed-extent TLS fingerprint compiler regression repair (2026-10-19)
+
+**Failing parent:** `c286052a546491d824ac2e499debff81d2d488de`.
+Hosted primary Actions `39244189634`, job `r5-linux-gui-zip`, reached the
+real Qt build and failed in `src/gui/desktop_window.cpp` because GCC did not
+accept runtime-qualified `identity.certificateSha256.size()` as a
+`std::array` extent. The first diagnostic was “the value of ‘identity’ is not
+usable in a constant expression”; later buffer and QString diagnostics were
+cascades.
+
+**Repair:** derive the extent from
+`RuntimeTlsCertificateFingerprint` via `std::tuple_size_v`, assert exactly
+32 digest bytes and 95 rendered characters, and retain the bounded stack
+buffer plus `QString::fromLatin1(data, size)` copy. The dedicated Qt fixture
+now checks the full uppercase colon-separated 32-byte sequence. No R1
+fingerprint calculation, certificate parsing, client-trust inference, R2
+authority, listener or positive R10 state was added.
+
+**Authoring verification:** source/test inspection **PASS**. Exact publication
+SHA hosted Linux/macOS/Windows Qt build and
+`gui.offscreen-tls-fingerprint-rotation-and-denials` execution **PENDING**.
+
 ## R5 CI structure guard follow-up (2026-10-19)
 
 Correcting commit `3ebb80eec39d4ca663d4156b48c9d98a713f2300` intentionally expanded R9's native-X11

@@ -1,3 +1,13 @@
+## R7 exact TLS fingerprint presentation regression (2026-10-19)
+
+`gui.offscreen-tls-fingerprint-rotation-and-denials` is the dedicated real-Qt
+offscreen regression for the R1/R10 TLS identity projection. In addition to
+rotation, missing-digest, endpoint-change and stale/revoked/unavailable
+controller denials, it must compare the complete 32-byte R1 observation as a
+95-character uppercase colon-separated SHA-256 string. Prefix-only assertions
+are insufficient for the fixed-extent rendering contract. This test never
+creates a certificate, listener, R2 lease or client-trust result.
+
 ## R5 RandR notification-burst generation assertions (2026-10-19)
 
 A native X11 generation regression must not require an exact `+1` epoch step

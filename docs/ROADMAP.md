@@ -1,3 +1,25 @@
+## R7 fixed-extent R1 TLS fingerprint Qt compile repair (2026-10-19)
+
+Parent `c286052a546491d824ac2e499debff81d2d488de` exposed a P0 portability regression in hosted
+`r5-linux-gui-zip` Actions run `39244189634`: GCC rejected
+`identity.certificateSha256.size()` as the non-type template argument for
+the Qt fingerprint stack buffer, then emitted cascading subscript/data/size
+errors. R7 now derives the digest extent from R1's
+`RuntimeTlsCertificateFingerprint` type with `std::tuple_size_v`, pins the
+contract to 32 bytes at compile time, and pins the colon-separated output
+buffer to 95 characters. The GUI still copies only the exact R1-observed
+bytes into uppercase colon-separated hexadecimal; it does not calculate,
+synthesize, cache or promote a fingerprint to trust or authorization.
+
+The existing ordinary
+`gui.offscreen-tls-fingerprint-rotation-and-denials` regression now asserts
+the complete 32-byte `00..1F` rendering rather than only its prefix, while
+retaining certificate-rotation, missing-digest, endpoint-change and terminal
+R2/R10 denial coverage. Source/test contract review **PASS**. Publication-SHA
+Linux/macOS/Windows Qt build and dedicated CTest evidence **PENDING**; positive
+R2 owner consent, R10 LAN Start, client trust and live Microsoft-client
+acceptance remain **BLOCKED / NOT RUN**.
+
 ## R5 CI structure inventory correction (2026-10-19)
 
 The first exact-SHA structure run for R5 correction `3ebb80eec39d4ca663d4156b48c9d98a713f2300`

@@ -2772,7 +2772,9 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
     presentationGeometry_ = {};
     replacementSurfaceId_ = 0U;
     highestPublishedFrameId_ = 0U;
+    retiredSurfaceFrameIdBoundary_ = 0U;
     hasPublishedFrame_ = false;
+    hasRetiredSurfaceFrameIdBoundary_ = false;
     remappedSurface_ = false;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
@@ -2800,7 +2802,9 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::close() noexcept
     presentationGeometry_ = {};
     replacementSurfaceId_ = 0U;
     highestPublishedFrameId_ = 0U;
+    retiredSurfaceFrameIdBoundary_ = 0U;
     hasPublishedFrame_ = false;
+    hasRetiredSurfaceFrameIdBoundary_ = false;
     remappedSurface_ = false;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
@@ -3447,6 +3451,21 @@ consumePendingClientFrameAcknowledge(
         return Intake::Rejected;
     }
 
+    // A late ACK has no surface ID on the wire. A prior-surface ACK must
+    // not suspend or update R4's fresh ACK window even when well formed.
+    if (hasRetiredSurfaceFrameIdBoundary_)
+    {
+        rdp_server::rdp::GfxFrameAcknowledgement acknowledgement{};
+        if (rdp_server::rdp::parseGfxFrameAcknowledge(
+                std::as_bytes(pendingClientGraphicsData()),
+                acknowledgement) &&
+            acknowledgement.frameId <= retiredSurfaceFrameIdBoundary_)
+        {
+            clearClientDvcReassembly();
+            return Intake::Unmatched;
+        }
+    }
+
     // No second R4 window or ACK counter: the existing mapped presentation
     // validates the exact RDPGFX FRAME_ACKNOWLEDGE and records decode progress.
     AckResult result = AckResult::InvalidPdu;
@@ -3908,6 +3927,10 @@ RdpGraphicsDynamicVirtualChannelLifecycle::onServerBytesWritten(
         presentationReceipt_ = {};
         if (replacementSurfaceId_ != 0U)
         {
+            // Delayed ACKs from a retired surface must not change the new
+            // mapping's queue depth or ACK-suspension state.
+            retiredSurfaceFrameIdBoundary_ = highestPublishedFrameId_;
+            hasRetiredSurfaceFrameIdBoundary_ = hasPublishedFrame_;
             remappedSurface_ = true;
             replacementSurfaceId_ = 0U;
         }

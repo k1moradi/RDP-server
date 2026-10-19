@@ -1,3 +1,17 @@
+## R10 rejected Linux LAN selection retires prior preference (2026-10-19)
+
+At source parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's Linux GUI controller now invalidates
+its previously configured interface/address/port when a new Configure
+request is rejected or the selected native interface goes stale at Start.
+An invalid GUI request can no longer leave a formerly accepted endpoint
+armed for a later Start attempt. Existing listener ownership is unchanged;
+this remains entirely offline and Start still fails on missing R2 consent.
+Added `runtime.linux-host-control-rejected-selection-retires-previous`
+to ordinary Linux CTest. It exercises the real host interface if one is
+eligible, otherwise reports SKIP (77), never a fabricated PASS.
+Source review PASS; local Debug/full CTest NOT RUN; hosted exact publication
+SHA CI PENDING. No TLS identity, host consent, listener or client is created.
+
 ## R9 checksum receipt parser correction (2026-10-19)
 
 On main `c56dc95ceaf2e77fd5e7971166d02d33dfc33836`, source inspection exposed a clean-Windows consumer

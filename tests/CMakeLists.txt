@@ -79,11 +79,13 @@ if(TARGET rdp-server-linux-host-control)
     foreach(host_control_case IN ITEMS
             linux-host-control-no-consent-start-denials
             linux-host-control-revalidated-interface-denials
+            linux-host-control-rejected-selection-retires-previous
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")
         set_tests_properties("runtime.${host_control_case}" PROPERTIES
-            LABELS "runtime;security;r10-host-control;offline")
+            LABELS "runtime;security;r10-host-control;offline"
+            SKIP_RETURN_CODE 77)
     endforeach()
 endif()
 

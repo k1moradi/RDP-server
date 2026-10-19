@@ -1,3 +1,14 @@
+## R9 checksum receipt parser correction (2026-10-19)
+
+On main `c56dc95ceaf2e77fd5e7971166d02d33dfc33836`, source inspection exposed a clean-Windows consumer
+PowerShell error path: negative `-cnotmatch` validation does not reliably
+populate capture groups under StrictMode. Replace it with an explicit
+`[regex]::Match` result and checked `Groups` before comparing every
+internal SHA256SUMS entry. Add a source mutation-denial regression.
+Source consistency PASS; native Windows PowerShell execution and exact-SHA
+hosted consumer receipt **NOT RUN / BLOCKED** on provisioned clean VM.
+No DLL fallback, PATH relaxation, native listener or installation added.
+
 ## R9 clean Windows release-blocking gate and concurrent integration (2026-10-19)
 
 Reconciled R9 PR #26 `b45582b466de80a5423e4e38feac134266942355` (primary Actions 39232727915 PASS;

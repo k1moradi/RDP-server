@@ -37,6 +37,7 @@ def require_release_gate(workflow: str, verifier: str) -> None:
     for required in (
         "IsInRole", "Get-Process explorer", "SessionId",
         "Get-FileHash", "PORTABLE-GUI-MANIFEST.json", "SHA256SUMS.txt",
+        "[regex]::Match", "Groups[2].Value",
         "LICENSE", "NOTICE", "THIRD_PARTY.md", "qwindows.dll",
         "Expand-Archive", "Get-NetFirewallRule", "Get-NetFirewallProfile",
         "TermService", "fDenyTSConnections", "PortNumber",
@@ -71,6 +72,11 @@ class CleanWindowsReleaseGateTests(unittest.TestCase):
 
     def test_removed_firewall_snapshot_denied(self) -> None:
         changed = self.verifier.replace("Get-NetFirewallRule", "no-firewall-audit")
+        with self.assertRaises(AssertionError):
+            require_release_gate(self.workflow, changed)
+
+    def test_checksum_match_capture_denied(self) -> None:
+        changed = self.verifier.replace("[regex]::Match", "NoValidatedRegex")
         with self.assertRaises(AssertionError):
             require_release_gate(self.workflow, changed)
 

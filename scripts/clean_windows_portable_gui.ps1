@@ -97,9 +97,116 @@ foreach ($required in @('LICENSE','NOTICE','THIRD_PARTY.md',
 # manifest and license/notice/checksum payload on this separate machine.
 $hashes = @{}
 foreach ($line in (Get-Content -LiteralPath (Join-Path $root 'metadata\SHA256SUMS.txt'))) {
-    if ($line -cnotmatch '^([0-9a-f]{64})  ([^\\:]+)$') { throw 'Malformed ZIP checksum line' }
-    if ($hashes.ContainsKey($Matches[2])) { throw 'Duplicate internal checksum entry' }
-    $hashes[$Matches[2]] = $Matches[1]
+    $checksumMatch = [regex]::Match($line, '^([0-9a-f]{64})  ([^\\:]+)
+}
+if ($hashes.Count -ne $names.Count - 1 -or
+    !$hashes.ContainsKey('metadata/PORTABLE-GUI-MANIFEST.json')) {
+    throw 'Incomplete ZIP checksum inventory'
+}
+foreach ($name in $hashes.Keys) {
+    if (!$names.Contains($name)) { throw 'Checksum refers to missing archive path' }
+    $path = Join-Path $root ($name.Replace('/', '\'))
+    if (!(Test-Path -LiteralPath $path -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $hashes[$name]) {
+        throw 'ZIP payload hash mismatch'
+    }
+}
+$manifestFiles = @($manifest.files.PSObject.Properties)
+if ($manifestFiles.Count -ne $hashes.Count - 1) { throw 'Manifest file count mismatch' }
+foreach ($file in $manifestFiles) {
+    if (!$hashes.ContainsKey($file.Name) -or
+        $hashes[$file.Name] -cne [string]$file.Value) {
+        throw 'Manifest hashes disagree with internal checksum list'
+    }
+}
+$minimums = Get-Content -LiteralPath (Join-Path $root 'metadata\PLATFORM-MINIMUMS.json') -Raw | ConvertFrom-Json
+if ($minimums.privilege -cne 'standard-user' -or
+    $minimums.installation -cne 'none-required') {
+    throw 'GUI requires administrator or installation'
+}
+
+# Native, read-only snapshots reject installation/service/TermService/firewall
+# mutations. Never modify service, registry, firewall or Windows RDP settings.
+function Get-WindowsSafetyState {
+    $rules = Get-NetFirewallRule -ErrorAction Stop | Sort-Object Name |
+        Select-Object Name, Enabled, Direction, Action, Profile | ConvertTo-Json -Compress -Depth 4
+    $profiles = Get-NetFirewallProfile -ErrorAction Stop | Sort-Object Name |
+        Select-Object Name, Enabled, DefaultInboundAction, DefaultOutboundAction |
+        ConvertTo-Json -Compress -Depth 4
+    $services = Get-CimInstance Win32_Service -ErrorAction Stop | Sort-Object Name |
+        Select-Object Name, State, StartMode, PathName | ConvertTo-Json -Compress -Depth 4
+    $term = Get-CimInstance Win32_Service -Filter "Name='TermService'" -ErrorAction Stop
+    $policy = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -ErrorAction Stop
+    $port = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -ErrorAction Stop
+    return (@($rules, $profiles, $services, $term.State, $term.StartMode,
+              $policy.fDenyTSConnections, $port.PortNumber) | Out-String)
+}
+$before = Get-WindowsSafetyState
+# A failed socket inventory is not evidence of an unused/listener-free port.
+$null = @(Get-NetTCPConnection -ErrorAction Stop)
+$null = @(Get-NetUDPEndpoint -ErrorAction Stop)
+
+$originalPath = $env:PATH
+$namesToRestore = @('QT_PLUGIN_PATH','QT_QPA_PLATFORM_PLUGIN_PATH','QT_QPA_PLATFORM',
+                    'QML2_IMPORT_PATH','QML_IMPORT_PATH','MSYSTEM','MSYS2_PATH_TYPE',
+                    'CMAKE_PREFIX_PATH','OPENSSL_ROOT_DIR','LD_LIBRARY_PATH','PYTHONPATH')
+$oldEnvironment = @{}
+foreach ($name in $namesToRestore) {
+    $oldEnvironment[$name] = [Environment]::GetEnvironmentVariable($name,'Process')
+}
+$windows = [Environment]::GetFolderPath('Windows')
+if (!$windows) { throw 'Windows root unavailable' }
+$env:PATH = "$windows\System32;$windows;$windows\System32\Wbem"
+foreach ($name in $namesToRestore) {
+    [Environment]::SetEnvironmentVariable($name,$null,'Process')
+}
+$env:QT_QPA_PLATFORM = 'windows'
+try {
+    # This real GUI smoke runs hidden tests, first window, ordinary close,
+    # relaunch and second close, plus per-process TCP/UDP socket assertions.
+    & (Join-Path $workspace 'scripts\smoke_windows_portable_gui.ps1') -Root $root
+    if (!$?) { throw 'Clean Windows GUI launch/close/relaunch failed' }
+    $process = Start-Process -FilePath (Join-Path $root 'RDP-server-GUI.exe') -ArgumentList '--offline-unsupported-password-test' -WorkingDirectory $root -PassThru
+    try {
+        if (!$process.WaitForExit(15000) -or $process.ExitCode -ne 0) {
+            throw 'Packaged independent-password denial test failed'
+        }
+    }
+    finally {
+        if (!$process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+finally {
+    $env:PATH = $originalPath
+    foreach ($name in $namesToRestore) {
+        [Environment]::SetEnvironmentVariable($name,$oldEnvironment[$name],'Process')
+    }
+}
+if ((Get-WindowsSafetyState) -cne $before) {
+    throw 'GUI changed firewall/TermService/RDP policy/service registration'
+}
+New-Item -ItemType Directory -Path (Split-Path -Parent $Receipt) -Force | Out-Null
+[ordered]@{
+    status = 'PASS'
+    gate = 'clean-windows-portable-gui'
+    exact_git_sha = $ExactGitSha
+    archive = $archiveName
+    archive_sha256 = $outerDigest
+    windows_version = [Environment]::OSVersion.VersionString
+    non_admin_interactive = $true
+    checks = @('outer-and-inner-sha256','notices-and-manifest','windows-plugin-load',
+               'first-window-close-relaunch','hidden-self-tests','unicode-spaces',
+               'no-tcp-udp','firewall-unchanged','termservice-unchanged',
+               'no-install-or-elevation','system-only-child-path')
+} | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $Receipt -Encoding UTF8
+Write-Host 'R9 clean Windows portable GUI acceptance PASS'
+)
+    if (!$checksumMatch.Success) { throw 'Malformed ZIP checksum line' }
+    $checksumName = $checksumMatch.Groups[2].Value
+    if ($hashes.ContainsKey($checksumName)) { throw 'Duplicate internal checksum entry' }
+    $hashes[$checksumName] = $checksumMatch.Groups[1].Value
 }
 if ($hashes.Count -ne $names.Count - 1 -or
     !$hashes.ContainsKey('metadata/PORTABLE-GUI-MANIFEST.json')) {

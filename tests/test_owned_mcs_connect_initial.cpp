@@ -4798,10 +4798,12 @@ void testGraphicsSurfaceRemap()
     // Stale ACKs can no longer acknowledge a newly published frame ID.
     assert(dvc.onClientTpkt(
         205U, makeR3GraphicsFrameAcknowledgeTpkt(
-            9U, 100U, 4096U, 2U)) ==
+            9U, 100U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 2U)) ==
         RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
     assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
            RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+    assert(dvc.preflightFramePublication(101U) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
 
     std::array<std::byte, 64U * 64U * 4U> oldPixels{};
     const FramebufferView wrongGeometry{oldPixels, 64U, 64U, 64U * 4U};

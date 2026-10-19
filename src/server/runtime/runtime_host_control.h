@@ -42,7 +42,11 @@ enum class RuntimeHostError : std::uint8_t
     HostConsentRequired, InterfaceUnavailable, ListenerPolicyDenied,
     PortUnavailable, TlsIdentityUnavailable, NativeAuthorizationDenied,
     AuthenticationRejected, ShareActivationUnavailable, GraphicsUnavailable,
-    ClientNotFound, AccessRevoked, InternalFailure
+    ClientNotFound, AccessRevoked, InternalFailure,
+    // GUI-facing terminal session freshness and rate-limit observations.
+    // Appended to retain existing numeric enum values; neither authorizes a
+    // listener, verified identity, owner consent, native lease or R3 state.
+    HostSessionStale, AuthenticationRateLimited
 };
 
 // Map only bounded error codes to fixed redacted messages, never raw peer,
@@ -71,6 +75,10 @@ enum class RuntimeHostError : std::uint8_t
     case RuntimeHostError::ClientNotFound: return "Active client not found";
     case RuntimeHostError::AccessRevoked: return "Sharing access revoked";
     case RuntimeHostError::InternalFailure: return "Host operation failed";
+    case RuntimeHostError::HostSessionStale:
+        return "Host desktop session changed; fresh authorization required";
+    case RuntimeHostError::AuthenticationRateLimited:
+        return "Authentication temporarily rate-limited";
     }
     return "Host operation failed";
 }

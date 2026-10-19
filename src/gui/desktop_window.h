@@ -5,7 +5,6 @@
 class QCloseEvent;
 class QComboBox;
 class QLabel;
-class QLineEdit;
 class QPushButton;
 class QSpinBox;
 class QStackedWidget;
@@ -25,8 +24,6 @@ private:
     QComboBox* interfaces_;
     QComboBox* clientSelection_;
     QSpinBox* port_;
-    QLineEdit* password_;
-    QLineEdit* confirmation_;
     QPushButton* configureOsAccount_;
     QPushButton* requestHostPermission_;
     QPushButton* start_;
@@ -41,6 +38,7 @@ private:
     QLabel* endpointStatus_;
     QLabel* errorStatus_;
     QLabel* tlsIdentityStatus_;
+    QLabel* hostLifecycleStatus_;
     QLabel* status_;
     QLabel* activity_;
     [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;

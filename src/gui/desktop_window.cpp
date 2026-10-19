@@ -10,7 +10,6 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
@@ -48,13 +47,67 @@ QString clipboardStatusText(
     }
     return "Clipboard unavailable: invalid session state.";
 }
+
+// R10 stages are presentation evidence, never a new GUI state machine.
+QString hostLifecycleText(const HostStatus& state)
+{
+    using rdp_server::server::runtime::RuntimeHostStage;
+    if (!state.controlAvailable)
+        return QStringLiteral("Host control unavailable; listener and clients unconfirmed.");
+
+    switch (state.stage) {
+    case RuntimeHostStage::Stopped:
+        return QStringLiteral("Stopped; no active listener confirmed.");
+    case RuntimeHostStage::PackageInstalled:
+        return QStringLiteral("Installed; sharing not started.");
+    case RuntimeHostStage::CredentialsConfigured:
+        return QStringLiteral("OS credentials configured; listener not ready.");
+    case RuntimeHostStage::ListenerAvailable:
+        return state.listenerReady
+            ? QStringLiteral("Listener ready; waiting for desktop connection.")
+            : QStringLiteral("Listener readiness unconfirmed.");
+    case RuntimeHostStage::ClientAuthenticating:
+        return QStringLiteral("Peer authenticating; desktop not yet visible.");
+    case RuntimeHostStage::ShareActivated:
+        return QStringLiteral("Share activated; desktop not yet visible.");
+    case RuntimeHostStage::DesktopVisible:
+        return QStringLiteral("Desktop visible; client not yet confirmed.");
+    case RuntimeHostStage::ClientConnected:
+        return state.clients.isEmpty()
+            ? QStringLiteral("Client-connected stage; no visible client confirmed.")
+            : QStringLiteral("Client connected; desktop visible.");
+    case RuntimeHostStage::Revoked:
+        return QStringLiteral("Sharing revoked/stopped.");
+    }
+    return QStringLiteral("Unrecognized R10 hosting stage.");
+}
+
+// R2 may suppress visible Share on stale authorization before the R10 owner
+// retires the raw stage. Never treat that diagnostic as Stop or close proof.
+[[nodiscard]] bool mayStillBeHosting(const HostStatus& state) noexcept
+{
+    using rdp_server::server::runtime::RuntimeHostStage;
+    switch (state.stage) {
+    case RuntimeHostStage::ListenerAvailable:
+    case RuntimeHostStage::ClientAuthenticating:
+    case RuntimeHostStage::ShareActivated:
+    case RuntimeHostStage::DesktopVisible:
+    case RuntimeHostStage::ClientConnected:
+        return true;
+    case RuntimeHostStage::Stopped:
+    case RuntimeHostStage::PackageInstalled:
+    case RuntimeHostStage::CredentialsConfigured:
+    case RuntimeHostStage::Revoked:
+        return state.sharing || state.startPending;
+    }
+    return true; // Unknown future stages must fail closed.
+}
 }
 DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
       desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
       clientSelection_(new QComboBox(this)),
-      port_(new QSpinBox(this)), password_(new QLineEdit(this)),
-      confirmation_(new QLineEdit(this)),
+      port_(new QSpinBox(this)),
       configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
       requestHostPermission_(new QPushButton("Request Host Permission", this)),
       start_(new QPushButton("Start Sharing", this)),
@@ -65,7 +118,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       permissionStatus_(label({})), clipboardStatus_(label({})),
       selectedInterfaceStatus_(label({})), endpointStatus_(label({})),
       errorStatus_(label({})), tlsIdentityStatus_(label({})),
-      status_(label({})), activity_(label({})) {
+      hostLifecycleStatus_(label({})), status_(label({})), activity_(label({})) {
     setWindowTitle("RDP-server - LAN desktop sharing");
     setMinimumSize(600, 440);
     auto* root = new QVBoxLayout(this);
@@ -92,20 +145,17 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     desktop->addStretch();
     auto* credentials = page("Credentials: OS-backed RDP/NLA authentication");
     credentials->addWidget(label("OS-backed credentials require an R2 compatible provider. "
-        "Application access password is a future feature and is NOT an RDP/NLA password."));
+        "Independent application passwords are unsupported until R2 proves interoperable NLA. "
+        "This GUI does not collect or store an application password."));
     configureOsAccount_->setObjectName("configureOsAccount");
     credentials->addWidget(configureOsAccount_);
     credentials->addWidget(credentialStatus_);
-    password_->setObjectName("password");
-    confirmation_->setObjectName("confirmation");
-    password_->setPlaceholderText("Future application access password (disabled)");
-    confirmation_->setPlaceholderText("Confirm future application password (disabled)");
-    password_->setEchoMode(QLineEdit::Password);
-    confirmation_->setEchoMode(QLineEdit::Password);
-    password_->setEnabled(false);
-    confirmation_->setEnabled(false);
-    credentials->addWidget(password_);
-    credentials->addWidget(confirmation_);
+    auto* unsupportedApplicationPassword =
+        new QPushButton("Set Application Password — Unsupported", this);
+    unsupportedApplicationPassword->setObjectName(
+        "setApplicationPasswordUnsupported");
+    unsupportedApplicationPassword->setEnabled(false);
+    credentials->addWidget(unsupportedApplicationPassword);
     credentials->addStretch();
     auto* network = page("LAN interface and listening port");
     interfaces_->setObjectName("lanInterface");
@@ -161,6 +211,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharing->addLayout(actions);
     clipboardStatus_->setObjectName("clipboardStatus");
     sharing->addWidget(clipboardStatus_);
+    hostLifecycleStatus_->setObjectName("hostLifecycleStatus");
+    sharing->addWidget(hostLifecycleStatus_);
     sharing->addWidget(status_);
     endpointStatus_->setObjectName("boundLanEndpoint");
     sharing->addWidget(endpointStatus_);
@@ -207,7 +259,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     });
     connect(stop_, &QPushButton::clicked, this, [this] {
         const auto snapshot = host_.status();
-        if (!snapshot.sharing && !snapshot.startPending) return;
+        if (!mayStillBeHosting(snapshot)) return;
         host_.stopAndRevoke();
         refresh();
     });
@@ -236,8 +288,6 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     });
     connect(interfaces_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
     connect(clientSelection_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
-    connect(password_, &QLineEdit::textChanged, this, [this] { refresh(); });
-    connect(confirmation_, &QLineEdit::textChanged, this, [this] { refresh(); });
     refresh();
 }
 void DesktopWindow::changePage(int index) {
@@ -264,9 +314,6 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const {
                        candidate.address == selectedInterface;
             }))
         return "R10-approved LAN interface not selected";
-    if (password_->isEnabled() &&
-        (password_->text().isEmpty() || password_->text() != confirmation_->text()))
-        return "Application password confirmation mismatch";
     return {};
 }
 bool DesktopWindow::canStart() const {
@@ -355,19 +402,24 @@ void DesktopWindow::refresh() {
         !snapshot.sharing && !snapshot.startPending);
     const QString denial = blockedReason(snapshot);
     clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
+    hostLifecycleStatus_->setText(hostLifecycleText(snapshot));
     start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());
-    stop_->setEnabled(snapshot.sharing || snapshot.startPending);
+    stop_->setEnabled(mayStillBeHosting(snapshot));
     clientSelection_->setEnabled(snapshot.controlAvailable &&
         (snapshot.sharing || snapshot.startPending) &&
         !snapshot.activeClients.isEmpty());
     disconnect_->setEnabled(clientSelection_->isEnabled() &&
         clientSelection_->currentIndex() > 0);
     copy_->setEnabled(snapshot.sharing && !snapshot.lanAddress.isEmpty());
-    status_->setText(snapshot.sharing
-        ? (snapshot.lanAddress.isEmpty() ? "R10 reports sharing; LAN address unavailable."
-            : "R10 sharing address: " + snapshot.lanAddress)
-        : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
-            : "Not sharing. " + (snapshot.failure.isEmpty() ? denial : snapshot.failure)));
+    status_->setText(!snapshot.controlAvailable
+        ? "R10 control unavailable; hosting retirement unconfirmed."
+        : (snapshot.sharing
+            ? (snapshot.lanAddress.isEmpty()
+                ? "R10 reports sharing; LAN address unavailable."
+                : "R10 sharing address: " + snapshot.lanAddress)
+            : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
+                : "Not sharing. " +
+                    (snapshot.failure.isEmpty() ? denial : snapshot.failure))));
     activity_->setText("Connected clients: " + (snapshot.clients.isEmpty() ? "None" : snapshot.clients.join(", "))
         + "\nAuthenticating / desktop pending: " +
             (snapshot.pendingClients.isEmpty() ? "None" : snapshot.pendingClients.join(", "))
@@ -378,7 +430,7 @@ void DesktopWindow::refresh() {
 }
 void DesktopWindow::closeEvent(QCloseEvent* event) {
     const auto state = host_.status();
-    if (state.sharing || state.startPending) {
+    if (mayStillBeHosting(state)) {
         // A window close is not permission to hide unattended sharing or
         // silently Stop. Only an explicit user choice may request R10 retirement.
         QMessageBox confirmation(this);
@@ -405,7 +457,7 @@ void DesktopWindow::closeEvent(QCloseEvent* event) {
         // retirement proof; keep the GUI visible until its status confirms it.
         host_.stopAndRevoke();
         const auto after = host_.status();
-        if (!after.controlAvailable || after.sharing || after.startPending) {
+        if (!after.controlAvailable || mayStillBeHosting(after)) {
             refresh();
             event->ignore(); // Never orphan unconfirmed active sharing.
             return;

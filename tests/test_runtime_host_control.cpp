@@ -43,6 +43,40 @@ int main(int argumentCount, char** argumentValues)
                static_cast<RuntimeHostError>(255U)) == "Host operation failed");
         return 0;
     }
+    if (testCase == "host-control-authentication-outcome-denials")
+    {
+        // R2/R10 must not collapse independent reasons or return identity,
+        // credential, token, keytab or path diagnostics in status text.
+        assert(runtimeHostErrorMessage(RuntimeHostError::CredentialNotConfigured) ==
+               "Credentials not configured");
+        assert(runtimeHostErrorMessage(
+                   RuntimeHostError::UnsupportedIndependentPasswordNla) ==
+               "Independent application password is unsupported by RDP NLA");
+        assert(runtimeHostErrorMessage(RuntimeHostError::HostConsentRequired) ==
+               "Host-owner permission required");
+        assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRejected) ==
+               "Client authentication rejected");
+        assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRateLimited) ==
+               "Authentication temporarily rate-limited");
+        assert(runtimeHostErrorMessage(RuntimeHostError::HostSessionStale) ==
+               "Host desktop session changed; fresh authorization required");
+        assert(runtimeHostErrorMessage(RuntimeHostError::AccessRevoked) ==
+               "Sharing access revoked");
+        assert(runtimeHostErrorMessage(RuntimeHostError::CredentialProviderUnavailable) ==
+               "OS credential provider unavailable");
+        const RuntimeHostResult rateLimited{
+            RuntimeHostError::AuthenticationRateLimited, true};
+        const RuntimeHostResult staleSession{
+            RuntimeHostError::HostSessionStale, false};
+        assert(!rateLimited.succeeded());
+        assert(!staleSession.succeeded());
+        assert(!host.status().credentialsConfigured);
+        assert(!host.requestCredentialSetup(LanCredentialChoice::ExistingOsAccount)
+                    .succeeded());
+        assert(!host.startSharing().succeeded());
+        assert(!host.status().listenerAvailable);
+        return 0;
+    }
     if (testCase == "host-control-clipboard-state-denials")
     {
         assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);

@@ -1,3 +1,41 @@
+## R7 independent application-password UI is non-collecting (2026-10-18)
+
+Before R2 proves interoperable independent-password NLA, the Qt GUI must not
+create password/confirmation entry widgets at all. A disabled, clearly
+unsupported action may explain future scope but cannot accept text, mutate
+credential status, configure R10 or affect Start readiness. Keep ordinary
+`gui.offscreen-independent-password-workflow-unavailable` checking the
+disabled action, absence of the historical `password` and `confirmation`
+QObject inputs, zero credential/configure/Start calls, and normal Start
+eligibility from supported OS-account status alone.
+
+## R7 R10 raw-stage shutdown and exact GUI phase projection (2026-10-18)
+
+A terminal R2 HostSessionStale result may suppress the GUI's projected
+`sharing` and `startPending` flags before R10 retires the raw host
+stage. Active raw stages must still require explicit Stop/close consent
+and fresh retired R10 status. No GUI-owned state cache or second listener
+is permitted. Use a plain-text typed R10 lifecycle label; only a true R10
+listenerAvailable bit permits "Listener ready", and a genuinely visible
+per-client Share permits "Client connected". The ordinary dedicated
+`gui.offscreen-r10-lifecycle-and-terminal-close-denials` must cover
+nine R10 stages, denied listener/visible-client evidence, terminal
+R2 stale status, Stop/Revoke and unavailable host control without network,
+real authorization or native permissions.
+
+## R2 GUI-facing authentication outcome separation (2026-10-18)
+
+Preserve the existing numeric `RuntimeHostError` values; append only
+`AuthenticationRateLimited` and `HostSessionStale`. GUI text is fixed,
+bounded and redacted, without per-account identity or credential paths.
+`runtime.host-control-authentication-outcome-denials` exercises the
+actual shared R10 status API and deny-only implementation on all hosts.
+The existing R7 client-stage offscreen case must reject stale-session
+snapshots even when obsolete `hostOwnerAuthorized` and client fields
+remain set, and render rate limiting as a failure rather than connected
+admission. Neither fixture authorizes R2/R3 nor changes real throttling;
+live R10 alone reports actual peer/account budget outcomes.
+
 ## R8 stale positive committed-byte receipt across Stop/reconnect (2026-10-18)
 
 R1 must copy R3 route/reply/slice/offered bytes before its mutating R2/R3

@@ -81,6 +81,7 @@ HostStatus HostControl::status() const
     view.desktopAuthorized =
         runtimeStatus.hostOwnerAuthorized && !terminalHostSession;
     view.tlsReady = runtimeStatus.tlsIdentityReady;
+    view.tlsIdentity = runtimeStatus.tlsIdentity;
     view.captureInputReady =
         runtimeStatus.nativeDesktopReady && !terminalHostSession;
     view.sharing =

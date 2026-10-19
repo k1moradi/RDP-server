@@ -1,3 +1,13 @@
+## R1 live-context certificate identity publication (2026-10-19)
+
+Derive TLS status only from the loaded SSL_CTX leaf; use the one R1
+getsockname-verified OwnedLanListener for effective address/IP-SAN matching,
+not R7-selected text. An unopened listener is not ready. A fingerprint is
+server identity metadata, not peer trust or R2 admission. Re-observe after
+rotation/Stop/interface change; R10 alone owns status and listener lifetimes,
+and must verify the actually selected certificate for each accepted SSL.
+Never add another TLS transport or GUI-owned socket.
+
 ## R7 unsupported credentials must have no secret input surface (2026-10-18)
 
 Do not construct even disabled secret text fields for an independent

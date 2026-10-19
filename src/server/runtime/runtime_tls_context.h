@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "runtime_tls_identity_status.h"
+
 #include <array>
 #include <cstdint>
 #include <memory>
@@ -8,10 +10,13 @@
 
 #include <openssl/ssl.h>
 
+namespace rdp_server::server::transport
+{
+class OwnedLanListener;
+}
+
 namespace rdp_server::server::runtime
 {
-
-using RuntimeTlsCertificateFingerprint = std::array<std::uint8_t, 32>;
 
 enum class RuntimeTlsEndpointIdentityStatus : std::uint8_t
 {
@@ -62,6 +67,17 @@ public:
     // A fingerprint is descriptive/pinning metadata, never R2 admission.
     [[nodiscard]] bool certificateSha256Fingerprint(
         RuntimeTlsCertificateFingerprint &output) const noexcept;
+
+    // Derived from the actual loaded SSL_CTX certificate; no pathname or
+    // user-entered GUI identity participates. No socket or admission action.
+    [[nodiscard]] RuntimeTlsIdentityStatus identityStatus() const noexcept;
+
+    // Only R1's checked, live getsockname listener can establish a bound
+    // address for certificate SAN validation. R10 must re-observe on
+    // replacement/rotation, Stop, interface loss and every new connection.
+    [[nodiscard]] RuntimeTlsIdentityStatus boundIdentityStatus(
+        const rdp_server::server::transport::OwnedLanListener &listener)
+        const noexcept;
 
 private:
     using OwnedContext = std::unique_ptr<SSL_CTX, decltype(&::SSL_CTX_free)>;

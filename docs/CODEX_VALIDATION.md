@@ -1,3 +1,25 @@
+## R1 TLS identity handoff without enabling LAN (2026-10-19)
+
+Source parent `6cb354adb731`: the existing securely loaded SSL_CTX
+now exposes a typed, non-secret configured certificate SHA-256 observation.
+Only the existing R1 OwnedLanListener (validated getsockname endpoint and
+still-live selected OS interface) can produce a bound-certificate-IP-SAN
+match. An unopened listener returns ConfiguredUnbound, never listener-ready;
+mismatch/interface loss fail closed. Client trust is explicitly Unknown:
+fingerprints do not prove Microsoft Windows App trusted the certificate.
+R10 RuntimeHostStatus and thin R7 Qt HostStatus carry the same value-only
+observation; no parallel connection, certificate parser, SSL writer,
+listener activation or credential authority is created. R10 remains
+responsible for refresh/invalidation on certificate replacement, Stop,
+endpoint/interface change and selected per-client SSL comparison.
+Dedicated ordinary offline `runtime.tls-context-read-only-unbound-identity-status`
+is registered with the existing synthetic TLS credential fixtures.
+Source inspection PASS; developer-local build/full CTest NOT RUN (owner
+checkout unavailable); hosted exact publication SHA CI NOT RUN at authoring.
+Positive R2 host owner consent/lock/revoke and R10 LAN GUI Start/Stop remain
+BLOCKED, as do live accepted-peer/WANT/half-close/RST testing and physical
+Windows App owner acceptance.
+
 ## R5 capture-generation ABA prevention on native X11 owner replacement (2026-10-19)
 
 R5 prevents reset-to-1 capture epochs across sequential X11 owner objects

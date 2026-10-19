@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/runtime_tls_context.h"
+#include "server/transport/lan_listener.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
 #include <array>
@@ -222,6 +223,56 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+[[nodiscard]] bool validateReadOnlyUnboundIdentityStatus(
+    const char *certificatePath, const char *privateKeyPath) noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsIdentityState;
+    using rdp_server::server::runtime::RuntimeTlsClientTrust;
+    using rdp_server::server::transport::OwnedLanListener;
+
+    const OwnedLanListener unopenedListener;
+    RuntimeServerTlsContext context;
+    const auto absent = context.identityStatus();
+    if (absent.state != RuntimeTlsIdentityState::Unavailable ||
+        absent.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        absent.fingerprintAvailable || absent.boundIdentityMatches() ||
+        context.boundIdentityStatus(unopenedListener).fingerprintAvailable)
+        return fail("unconfigured TLS context published identity");
+
+    context = RuntimeServerTlsContext::fromCredentialFiles(
+        certificatePath, privateKeyPath);
+    if (!context)
+        return fail("cannot create configured TLS context");
+    rdp_server::server::runtime::RuntimeTlsCertificateFingerprint actual{};
+    if (!context.certificateSha256Fingerprint(actual))
+        return fail("configured certificate fingerprint unavailable");
+    const auto configured = context.identityStatus();
+    const auto unbound = context.boundIdentityStatus(unopenedListener);
+    if (configured.state != RuntimeTlsIdentityState::ConfiguredUnbound ||
+        !configured.fingerprintAvailable ||
+        configured.certificateSha256 != actual ||
+        configured.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        configured.boundIdentityMatches() ||
+        unbound.state != RuntimeTlsIdentityState::ConfiguredUnbound ||
+        unbound.certificateSha256 != actual ||
+        unbound.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        unbound.boundIdentityMatches())
+        return fail("unbound TLS status invented listener/client trust");
+
+    // Re-observation after context replacement must not reuse old identity.
+    context = RuntimeServerTlsContext{};
+    const auto retired = context.boundIdentityStatus(unopenedListener);
+    if (retired.state != RuntimeTlsIdentityState::Unavailable ||
+        retired.fingerprintAvailable || retired.boundIdentityMatches() ||
+        retired.clientTrust != RuntimeTlsClientTrust::Unknown)
+        return fail("retired TLS context published stale identity");
+    for (std::uint8_t byte : retired.certificateSha256)
+        if (byte != 0U)
+            return fail("retired identity retained an old fingerprint");
+    return true;
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -237,6 +288,10 @@ int main(int argumentCount, char **argumentValues)
     }
     if (testCase == "validates-lan-endpoint-certificate-identity") {
         return validateLanEndpointIdentity(
+            argumentValues[2], argumentValues[3]) ? 0 : 1;
+    }
+    if (testCase == "tls-context-read-only-unbound-identity-status") {
+        return validateReadOnlyUnboundIdentityStatus(
             argumentValues[2], argumentValues[3]) ? 0 : 1;
     }
     if (testCase == "tls-context-survives-credential-path-replacement") {

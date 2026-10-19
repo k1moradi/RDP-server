@@ -38,6 +38,8 @@ struct HostStatus
     bool credentialsConfigured{};
     bool desktopAuthorized{};
     bool tlsReady{};
+    // Exact read-only R10 observation, with Unknown client trust.
+    rdp_server::server::runtime::RuntimeTlsIdentityStatus tlsIdentity{};
     bool captureInputReady{};
     bool sharing{};
     bool startPending{};

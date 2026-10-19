@@ -2,6 +2,7 @@
 #pragma once
 
 #include "server/security/standalone_credential_policy.h"
+#include "server/runtime/runtime_tls_identity_status.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -166,6 +167,9 @@ struct RuntimeHostStatus
     bool packageInstalled{};
     bool credentialsConfigured{};
     bool tlsIdentityReady{};
+    // Single R1-derived non-authorizing identity observation; never
+    // synthesized by Qt. Unavailable while the R10 controller is deny-only.
+    RuntimeTlsIdentityStatus tlsIdentity{};
     bool hostOwnerAuthorized{};
     bool listenerAvailable{};
     bool nativeDesktopReady{};

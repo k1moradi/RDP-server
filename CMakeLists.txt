@@ -678,7 +678,8 @@ target_include_directories(rdp-server-runtime-tls PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
 target_link_libraries(rdp-server-runtime-tls
     PUBLIC OpenSSL::Crypto OpenSSL::SSL
-    PRIVATE rdp-server-runtime-credential-files)
+    PRIVATE rdp-server-runtime-credential-files
+            rdp-server-protocol)
 if(WIN32)
     target_link_libraries(rdp-server-runtime-tls PRIVATE Advapi32)
 endif()

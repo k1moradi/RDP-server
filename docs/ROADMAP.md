@@ -1,3 +1,41 @@
+## R6/R9 clean-Windows verifier corruption repair and exact artifact audit (2026-10-19)
+
+Authoring parent `660068b5719e1d997b782b90a5fc928cc9e2133f`. The clean-Windows consumer on current main still
+contained the malformed `e2e48f0f` splice: its SHA256SUMS regex was truncated and
+the post-checksum body was duplicated, so the queued self-hosted consumer could
+not provide valid PowerShell execution evidence. Restore the last known-good
+consumer body and keep the intended explicit `[regex]::Match` capture object.
+The existing full-CTest gate
+`packaging.windows-portable-gui-clean-release-structure-denials` now rejects
+a truncated/duplicated checksum parser, and on Windows additionally parses the
+actual consumer with `System.Management.Automation.Language.Parser`.
+
+Independent exact-artifact inspection remains separate from the clean-machine
+gate. Main source `2fcfebee9e94b064ebf54617cd224982060471a0`, Actions
+`39244189634`, R6 producer job `118032566420` **PASS**, emitted internal
+artifact `12182782501`. Its GitHub Actions container SHA-256 is
+`caea4cb15be32f2fac5f3bea7eed0913cd397ceb8841135c91df526465a4ed8e`;
+the contained exact ZIP SHA-256 is
+`61484dc968ba3d478dd66b74c1c22f482e210d1ff9e4a7a3a0e81377303240bb`.
+Offline inspection finds 40 bundled DLLs, 41 PE images, all x86_64, 531 parsed
+imports with GNU objdump and zero unbundled non-system imports under the R9
+system-DLL policy. The 40 DLL names and hashes match the previously inspected
+PR #25, PR #26 and `aee09e50` candidates. The owner-provided failed human ZIP
+is still unavailable, so byte parity and its exact loader dialog/DLL remain
+**UNVERIFIED**. The earlier proven packaging defect was `windeployqt` omitting
+`libc++.dll` plus ICU, PCRE2, zlib/zstd, freetype/harfbuzz, PNG/JPEG,
+Brotli and GLib dependencies; `ab63d1bb` already stages that recursive
+non-system closure app-local.
+
+No clean interactive non-admin Windows receipt is claimed by this source
+repair. The public Windows portable release remains **BLOCKED** until the
+self-hosted `r9-clean-windows-gui` job executes the exact newly produced ZIP
+with Windows-system-only child PATH and publishes its matching receipt. R6's
+read-only firewall/TermService/RDP-policy/requested-port observations are
+unchanged. Positive Windows RDP serving remains independently **BLOCKED** on
+R2 SSPI/CredSSP authenticated revocable SID/WTS authority and a concrete R10
+Windows WTS/session owner.
+
 ## R7 fixed-extent R1 TLS fingerprint Qt compile repair (2026-10-19)
 
 Parent `c286052a546491d824ac2e499debff81d2d488de` exposed a P0 portability regression in hosted

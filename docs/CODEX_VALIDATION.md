@@ -1,3 +1,16 @@
+## R7 CI selector authoring correction (2026-10-19)
+
+Initial publication `e3e5b1a2b87022f75f726fdd93ca138dc813b35a` failed the independent CI structure guard
+before any Qt execution because the authoring script used a JavaScript
+replacement string containing the literal regex suffix `$'`; JavaScript
+expanded that replacement token and duplicated the unmatched workflow suffix.
+The correction rebuilds `.github/workflows/ci.yml` from exact parent
+`1b28ad3e51b761bb2f79a7066b579d6b12610ba2` and inserts the Windows,
+macOS and Linux TLS selector blocks through callback replacements, preserving
+literal `$'` anchors. The corrected workflow line count grows only by the
+intended 31 lines (2366 -> 2397). Structure and platform CI are **PENDING** on
+the corrective publication SHA.
+
 ## R7 three-platform Qt TLS gate and positive workflow handoff (2026-10-19)
 
 **Parent:** `1b28ad3e51b761bb2f79a7066b579d6b12610ba2`. R10's default-on GUI / explicit-headless build policy

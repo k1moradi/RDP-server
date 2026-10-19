@@ -450,7 +450,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
           grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
           grep -E '^CMAKE_C_COMPILER:[^=]+=.*clang(\.exe)?$' build/CMakeCache.txt
           grep -E '^CMAKE_CXX_COMPILER:[^=]+=.*clang\+\+(\.exe)?$' build/CMakeCache.txt
@@ -540,7 +540,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DRDP_SERVER_BUILD_DESKTOP_GUI=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
           grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
       - name: Run Release R6 native preflight
         if: ${{ always() && steps.r9_clang_release_configure.outcome == 'success' }}

@@ -1,3 +1,52 @@
+## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
+
+Current-main parent `1d5ff7597e5382b178fb0afa668db93849de778c` inherited R9 commit
+`9e4222cfe909ad3aabee6d0bb0a99142f0354877`, which changed both
+`r6-windows-clang23` Debug and Release producer configures to
+`RDP_SERVER_BUILD_DESKTOP_GUI=OFF` while the very next commands required the
+cache value to be `ON`. Actions `39274959607`, R6 job `118136799203`,
+therefore failed in **Configure Debug with CLANG64**: CMake was invoked with
+GUI OFF and the exact `RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON` assertion exited
+1. Those two producer configures are Qt-capable and must remain ON; only the R6
+sanitizer reconfigure is intentionally GUI OFF. The workflow and both release
+gate/structure regressions now enforce exactly that ownership.
+
+The last fully produced R6 Windows GUI candidate remains exact source
+`1b28ad3e51b761bb2f79a7066b579d6b12610ba2`, Actions
+`39273084795`, R6 job `118130308229` **PASS**. Debug and Release CLANG64
+full CTest each passed **691/691**; R6 native preflight passed **59/59** in each
+configuration; R10 private-fixture security preflight passed **3/3** and
+**5/5** groups in each configuration; unsupported-password GUI CTest passed
+**1/1**; native packaging/PE closure passed **41 images / 571 imports**;
+extracted GUI first-screen/no-socket/rerun/native system-state smoke **PASS**;
+R6 sanitizer selection passed **59/59**. The ordinary Windows MSVC lane at the
+same SHA passed Debug and Release **673/673**, including
+`packaging.windows-portable-gui-clean-release-structure-denials` on native
+Windows.
+
+Internal artifact `12197052099`,
+`r9-windows-unverified-1b28ad3e51b761bb2f79a7066b579d6b12610ba2`,
+has Actions-container SHA-256
+`f0f1b706ee388a078be3ba8b4c3b32e87cce6acc359e6513e337c0292e03fe59`.
+Its exact inner user ZIP is
+`rdp-server-portable-gui-0.1.0-windows-x86_64-1b28ad3e51b7.zip`, SHA-256
+`d1e0ea0981fdc0b51674fbb66fa5eee3ffa39f18912a751c243aa28cf89fe532`;
+the sidecar matches. Independent extraction verifies 40 bundled DLLs, 41
+x86-64 PE images, 531 GNU-objdump imports and zero unbundled non-system imports;
+all manifest/internal SHA-256 records match. The 40 DLL names and hashes are
+identical to the prior `2fcfebee...` candidate. No owner-provided failed human
+ZIP is available for byte comparison, so that specific dialog/DLL remains
+unverified.
+
+The clean non-admin Windows consumer for the `1b28...` run is still **QUEUED
+/ NOT RUN** on `r9-clean-windows-gui`; only the internal unverified artifact
+exists and no public `rdp-server-portable-gui-windows-x86_64` artifact has
+been published. Windows portable release therefore remains **BLOCKED**. R6
+read-only firewall/TermService/RDP-policy/requested-port checks are unchanged.
+Positive Windows RDP serving remains independently **BLOCKED** on R2
+SSPI/CredSSP authenticated revocable SID/WTS authority and a concrete R10
+Windows WTS/session owner.
+
 ## R7 exact-SHA three-platform Qt fingerprint acceptance (2026-10-19)
 
 **Validated source SHA:** `7e3250b6436db8a730476b5d0368d02a8d93bb73`.

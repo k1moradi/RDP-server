@@ -44,6 +44,12 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         if required not in verifier:
             raise AssertionError(f"Checksum inventory guard absent: {required}")
 
+    producer_job = workflow_job(workflow, "r6-windows-clang23")
+    if producer_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=ON") != 2:
+        raise AssertionError("R6 Windows GUI producer must configure GUI ON twice")
+    if producer_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") != 1:
+        raise AssertionError("Only the R6 sanitizer reconfigure may disable the GUI")
+
     parser_job = workflow_job(workflow, "r9-windows-powershell-parser")
     for required in (
         "runs-on: windows-latest",
@@ -183,6 +189,18 @@ class CleanWindowsReleaseGateTests(unittest.TestCase):
         self.assertNotEqual(changed, self.verifier)
         with self.assertRaises(AssertionError):
             require_release_gate(self.workflow, changed)
+
+    def test_disabled_r6_gui_producer_denied(self) -> None:
+        producer = workflow_job(self.workflow, "r6-windows-clang23")
+        changed_producer = producer.replace(
+            "-DRDP_SERVER_BUILD_DESKTOP_GUI=ON",
+            "-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF",
+            1,
+        )
+        self.assertNotEqual(changed_producer, producer)
+        changed = self.workflow.replace(producer, changed_producer, 1)
+        with self.assertRaises(AssertionError):
+            require_release_gate(changed, self.verifier)
 
     def test_provisioned_runner_denied(self) -> None:
         changed = self.workflow.replace(

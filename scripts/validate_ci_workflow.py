@@ -494,8 +494,29 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         for target in REQUIRED_BUILD_TARGETS:
             require(target in text, f"missing sanitizer build target: {target}")
         require(
-            text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 11,
-            "all 11 Qt-free protocol/security/native configurations must opt out explicitly",
+            text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 9,
+            "all 9 Qt-free protocol/security/native configurations must opt out explicitly",
+        )
+        r6_start = next(
+            line for job, line in found_jobs if job == "r6-windows-clang23"
+        ) - 1
+        r6_position = next(
+            index for index, (job, _) in enumerate(found_jobs)
+            if job == "r6-windows-clang23"
+        )
+        r6_end = (
+            found_jobs[r6_position + 1][1] - 1
+            if r6_position + 1 < len(found_jobs)
+            else len(lines)
+        )
+        r6_job = "\n".join(lines[r6_start:r6_end])
+        require(
+            r6_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=ON") == 2,
+            "R6 Windows GUI producer Debug/Release configurations must keep GUI ON",
+        )
+        require(
+            r6_job.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") == 1,
+            "only the R6 sanitizer reconfigure may disable the desktop GUI",
         )
         require(
             text.count("RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON") >= 2,

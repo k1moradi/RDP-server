@@ -10,7 +10,6 @@
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
@@ -108,8 +107,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
       desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
       clientSelection_(new QComboBox(this)),
-      port_(new QSpinBox(this)), password_(new QLineEdit(this)),
-      confirmation_(new QLineEdit(this)),
+      port_(new QSpinBox(this)),
       configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
       requestHostPermission_(new QPushButton("Request Host Permission", this)),
       start_(new QPushButton("Start Sharing", this)),
@@ -147,20 +145,17 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     desktop->addStretch();
     auto* credentials = page("Credentials: OS-backed RDP/NLA authentication");
     credentials->addWidget(label("OS-backed credentials require an R2 compatible provider. "
-        "Application access password is a future feature and is NOT an RDP/NLA password."));
+        "Independent application passwords are unsupported until R2 proves interoperable NLA. "
+        "This GUI does not collect or store an application password."));
     configureOsAccount_->setObjectName("configureOsAccount");
     credentials->addWidget(configureOsAccount_);
     credentials->addWidget(credentialStatus_);
-    password_->setObjectName("password");
-    confirmation_->setObjectName("confirmation");
-    password_->setPlaceholderText("Future application access password (disabled)");
-    confirmation_->setPlaceholderText("Confirm future application password (disabled)");
-    password_->setEchoMode(QLineEdit::Password);
-    confirmation_->setEchoMode(QLineEdit::Password);
-    password_->setEnabled(false);
-    confirmation_->setEnabled(false);
-    credentials->addWidget(password_);
-    credentials->addWidget(confirmation_);
+    auto* unsupportedApplicationPassword =
+        new QPushButton("Set Application Password — Unsupported", this);
+    unsupportedApplicationPassword->setObjectName(
+        "setApplicationPasswordUnsupported");
+    unsupportedApplicationPassword->setEnabled(false);
+    credentials->addWidget(unsupportedApplicationPassword);
     credentials->addStretch();
     auto* network = page("LAN interface and listening port");
     interfaces_->setObjectName("lanInterface");
@@ -293,8 +288,6 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     });
     connect(interfaces_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
     connect(clientSelection_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
-    connect(password_, &QLineEdit::textChanged, this, [this] { refresh(); });
-    connect(confirmation_, &QLineEdit::textChanged, this, [this] { refresh(); });
     refresh();
 }
 void DesktopWindow::changePage(int index) {
@@ -321,9 +314,6 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const {
                        candidate.address == selectedInterface;
             }))
         return "R10-approved LAN interface not selected";
-    if (password_->isEnabled() &&
-        (password_->text().isEmpty() || password_->text() != confirmation_->text()))
-        return "Application password confirmation mismatch";
     return {};
 }
 bool DesktopWindow::canStart() const {

@@ -7,7 +7,6 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QLabel>
-#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTimer>
@@ -196,6 +195,35 @@ int main(int argc, char** argv)
         window.refresh();
         assert(lifecycle->text().contains("Host control unavailable"));
         assert(!window.canStart() && runtime.startCalls == 0);
+        return 0;
+    }
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "unsupported-password")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.interfaces = {RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
+        DesktopWindow window(host);
+        auto* unsupported =
+            window.findChild<QPushButton*>("setApplicationPasswordUnsupported");
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        assert(unsupported && interfaces && start);
+        assert(!unsupported->isEnabled());
+        assert(unsupported->text().contains("Unsupported"));
+        assert(window.findChild<QObject*>("password") == nullptr);
+        assert(window.findChild<QObject*>("confirmation") == nullptr);
+
+        interfaces->setCurrentIndex(1);
+        window.refresh();
+        assert(window.canStart() && start->isEnabled());
+        unsupported->click();
+        assert(runtime.credentialSetupCalls == 0 &&
+               runtime.configureCalls == 0 && runtime.startCalls == 0);
         return 0;
     }
 
@@ -549,14 +577,17 @@ int main(int argc, char** argv)
         auto* back = window.findChild<QPushButton*>("backPage");
         auto* start = window.findChild<QPushButton*>("startSharing");
         auto* stop = window.findChild<QPushButton*>("stopSharing");
-        auto* secret = window.findChild<QLineEdit*>("password");
-        auto* confirm = window.findChild<QLineEdit*>("confirmation");
+        auto* unsupportedPassword =
+            window.findChild<QPushButton*>("setApplicationPasswordUnsupported");
         auto* interfaceSelection = window.findChild<QComboBox*>("lanInterface");
         auto* clients = window.findChild<QLabel*>("clientStatus");
         auto* clipboard = window.findChild<QLabel*>("clipboardStatus");
         auto* copy = window.findChild<QPushButton*>("copyLanAddress");
-        assert(next && back && start && stop && secret && confirm &&
+        assert(next && back && start && stop && unsupportedPassword &&
                interfaceSelection && clients && clipboard && copy);
+        assert(!unsupportedPassword->isEnabled());
+        assert(window.findChild<QObject*>("password") == nullptr);
+        assert(window.findChild<QObject*>("confirmation") == nullptr);
         assert(clipboard->text().contains("unavailable"));
         assert(!copy->isEnabled());
 
@@ -570,11 +601,6 @@ int main(int argc, char** argv)
         for (int page = 0; page < 5; ++page)
             next->click();
         assert(!start->isEnabled() && !stop->isEnabled());
-        assert(!secret->isEnabled() && !confirm->isEnabled());
-
-        secret->setText("test-only-secret");
-        confirm->setText("does-not-match");
-        assert(!window.blockedReason().contains("test-only-secret"));
 
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.credentialsConfigured = true;
@@ -588,15 +614,6 @@ int main(int argc, char** argv)
 
         interfaceSelection->setCurrentIndex(1);
         window.refresh();
-        secret->setEnabled(true);
-        confirm->setEnabled(true);
-        assert(!window.canStart() &&
-               window.blockedReason().contains("confirmation mismatch"));
-        assert(!window.blockedReason().contains("test-only-secret"));
-        confirm->setText("test-only-secret");
-        assert(window.canStart());
-        secret->setEnabled(false);
-        confirm->setEnabled(false);
         assert(window.canStart() && start->isEnabled());
 
         runtime.startSucceeds = true;

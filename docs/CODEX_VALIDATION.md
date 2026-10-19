@@ -12,19 +12,20 @@ was activated. Source structure inspection: **PASS**. Native Qt compile,
 full CTest, hosted CI at publication SHA and physical client acceptance:
 **NOT RUN**. Real R10 LAN HostControl and R2 owner admission: **BLOCKED**.
 
-## R2 logind lock-hint fail-closed candidate fence (2026-10-18)
+## R2 repeat-read Linux seat0 UID/session generation (2026-10-18)
 
-The production Linux logind reader now denies locked/unknown lock hints
-on the initial and repeated seat0 sample. Pure non-authorizing
-`consistentLogindSessionFacts` also requires the reported-unlocked field.
-Added one ordinary production-linked Linux security CTest
-`security.linux-seat0-lock-hint-denials` for locked, absent hint,
-inactive/remote and changed-session rejection. This neither makes a
-reported-unlocked hint authoritative nor grants a genuine consented lease.
-Source patch inspection **PASS**; owner-local full Debug CTest **NOT RUN**;
-exact-SHA CI **PENDING** at authoring; real Windows App/mstsc Linux seat0
-acceptance **BLOCKED / NOT RUN**. Next: R10 LAN GUI HostControl, genuine
-local consent/unlock assurance and physical Microsoft-client validation.
+An initial R2 attempt used a nonexistent libsystemd C lock-hint API;
+this correction eliminates the unsupported symbol before native build
+acceptance and preserves the original concrete adapter. Recheck the
+native UID/session start after the second seat0 sample using supported
+sd-login functions and fail closed on mismatch/error. Dedicated ordinary
+production-linked offline CTest
+`security.linux-seat0-session-identity-denials` covers mismatched
+owner, zero generation, lock-screen class, inactive/remote and changed
+seat facts without manufacturing admission. Source review **PASS**;
+owner-local full build/CTest **NOT RUN**, exact-SHA hosted CI
+**PENDING**, real Microsoft-client physical seat0 **NOT RUN**. A
+reported unlocked desktop or local-user consent is not yet proven.
 
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 

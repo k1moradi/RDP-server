@@ -11,18 +11,17 @@ close normally without a prompt or runtime command. Keep both
 Qt timer-driven modal selections and injected R10 status require no socket,
 real owner credential, capture, native permission, or clipboard activation.
 
-## R2 logind lock-hint denial and native consent distinction (2026-10-18)
+## R2 repeated Linux native session identity check (2026-10-18)
 
-The concrete Linux logind candidate reader must reject any locked, unknown,
-or failed `sd_session_get_locked_hint` result both during its initial
-sample and after the second seat0 identity read. Its pure consistency
-predicate must default to deny without an explicitly reported-unlocked
-hint; new `security.linux-seat0-lock-hint-denials` exercises only synthetic
-negative facts against production code, never a fabricated native lease.
-A logind-reported unlocked hint is best-effort and not an authoritative
-physical-desktop lock/consent proof. Current host-owner authorization,
-real GSS/CredSSP identity, PAM/NSS mapping, physical session lifecycle and
-protected-operation revalidation remain separate live acceptance gates.
+After the second physical seat0 identity read, repeat the observed
+session UID and session-start timestamp through existing public sd-login
+APIs; unknown, failed or differing values must deny the native candidate.
+`security.linux-seat0-session-identity-denials` checks production pure
+candidate consistency for changed UID, missing start, non-user
+lock-screen class, inactive/remote and switched sessions without a
+synthetic positive R2 lease. Public libsystemd sd-login does not have a
+`sd_session_get_locked_hint` API; the logind D-Bus `LockedHint` is
+advisory, and real owner lock/consent proof is still an independent gate.
 
 ## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
 

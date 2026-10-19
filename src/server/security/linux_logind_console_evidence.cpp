@@ -109,8 +109,7 @@ bool consistentLogindSessionFacts(
            session.sessionOwnerUid == session.seatOwnerUid &&
            secondSeat.ownerUid == session.seatOwnerUid &&
            session.sessionStartRealtimeMicroseconds != 0 &&
-           session.graphicalSeat && session.active && !session.remote &&
-           session.unlockedHint;
+           session.graphicalSeat && session.active && !session.remote;
 }
 
 ConsoleAccountObservation LinuxLogindReadOnlyEvidenceSource::readUnixAccount(
@@ -173,12 +172,7 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
 
     const int active = ::sd_session_is_active(initialSession.get());
     const int remote = ::sd_session_is_remote(initialSession.get());
-    const int initialLockedHint =
-        ::sd_session_get_locked_hint(initialSession.get());
-    // The logind lock hint is best-effort desktop-supplied evidence. Do not
-    // admit when locked, unavailable or uncertain, and do not mistake a
-    // reported-unlocked hint for explicit local-owner consent.
-    if (active < 0 || remote < 0 || initialLockedHint != 0 ||
+    if (active < 0 || remote < 0 ||
         !std::in_range<std::uint32_t>(sessionUid))
     {
         return {};
@@ -213,13 +207,22 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
         sessionId, observedSeat, observedDisplay, observedType, observedClass,
         static_cast<std::uint32_t>(initialSeatUid),
         static_cast<std::uint32_t>(sessionUid),
-        startedAtRealtimeMicroseconds, true, active == 1, remote != 0,
-        initialLockedHint == 0};
-    if (!consistentLogindSessionFacts(
+        startedAtRealtimeMicroseconds, true, active == 1, remote != 0};
+    // The active seat could change during account/session sampling. Repeat
+    // the *same session's* UID and creation identity after the second seat
+    // observation. Any missing or replaced native fact denies the candidate;
+    // this does not itself authenticate the remote user or grant consent.
+    uid_t repeatedSessionUid{};
+    std::uint64_t repeatedSessionStartMicroseconds{};
+    if (::sd_session_get_uid(initialSession.get(), &repeatedSessionUid) < 0 ||
+        repeatedSessionUid != sessionUid ||
+        ::sd_session_get_start_time(
+            initialSession.get(), &repeatedSessionStartMicroseconds) < 0 ||
+        repeatedSessionStartMicroseconds != startedAtRealtimeMicroseconds ||
+        !consistentLogindSessionFacts(
             facts, {secondSessionId, static_cast<std::uint32_t>(secondSeatUid)}) ||
         ::sd_session_is_active(initialSession.get()) != 1 ||
-        ::sd_session_is_remote(initialSession.get()) != 0 ||
-        ::sd_session_get_locked_hint(initialSession.get()) != 0)
+        ::sd_session_is_remote(initialSession.get()) != 0)
     {
         return {};
     }

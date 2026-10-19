@@ -28,10 +28,6 @@ struct LogindSessionFacts
     bool graphicalSeat{};
     bool active{};
     bool remote{};
-    // sd_session_get_locked_hint reported 0 (unlocked). Unknown, unsupported
-    // and locked hints are deny-only; a false hint is NOT host-owner consent
-    // and must not be treated as a definitive desktop lock attestation.
-    bool unlockedHint{};
 };
 
 // The second seat sample detects a switch DURING the read, but cannot

@@ -1,3 +1,44 @@
+## R10 native RandR resize scheduler integration (2026-10-19)
+
+**Authoring parent:** `f5d1391a75fa3f32843adcba1a31fa6dff36fae1`. R3 PR #24 is now on main via
+`e24539c78f6c42be9bb1357247c1685d8161b45b`. Its exact head
+`c66a561ce5b3c3acdce364b35040891c7b600c8b` passed structure Actions
+`39286679881` and full primary Actions `39286679887`, including Linux/macOS/
+Windows protocol, R9 sanitizers, both R2 production-security variants, R5 Linux
+GUI, R7 macOS, and R6 Windows CLANG64. R4's same-generation AVC420 surface
+reference reset is already on main; first live post-remap publication remains
+ClearCodec.
+
+R10 now consumes one fresh R5 `X11NativeGeometryObservation` before every
+eligible capture, rechecks it against the current R2 native-session generation,
+and calls R2's authenticated R3 surface-reconfiguration gateway before borrowing
+pixels. `Unchanged` permits the existing frame-credit preflight; `Deferred`
+skips capture/frame-ID advancement and retries no faster than 100 ms while the
+single R1 reader continues FRAME_ACK/client DATA intake; `Started` drains
+R3's DELETE -> CREATE -> MAP through the existing exact-receipt TLS writer;
+`Rejected` retires the native owner and connection.
+
+The first unresolved changed geometry starts one monotonic six-second deadline.
+Later RandR generations do not extend it, and a completed older MAP does not
+clear it; only a subsequent fresh R3 `Unchanged` decision proves the currently
+observed native geometry is mapped. The poll sleep is capped by the remaining
+resize lifetime even during TLS WANT_READ/WANT_WRITE. Capture uses R5's typed
+geometry/session freshness overload, so stale capture generations are never
+borrowed after remap.
+
+New ordinary offline CTests:
+`runtime.linux-connection-resize-deadline-bounded-poll` and
+`runtime.linux-connection-graphics-surface-remap-denials`. The positive
+DELETE/CREATE/MAP wire/ACK behavior remains R3's production-backed
+`transport.dvc-graphics-surface-remap`.
+
+Local owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in
+this GitHub-connector environment. Exact publication-SHA hosted CI: **PENDING**.
+Positive GUI LAN Start remains independently **BLOCKED** because R2 still has no
+trusted physical-owner consent + authoritative unlock provider on the supported
+portable X11 target. Physical Windows App/mstsc resize acceptance is **NOT RUN**
+and still requires explicit owner approval.
+
 ## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
 
 Current-main parent `1d5ff7597e5382b178fb0afa668db93849de778c` inherited R9 commit

@@ -78,6 +78,7 @@ constexpr std::chrono::seconds kLinuxSerializedConnectionDeadline{30};
 // fabricated. R2 native-session revocation and R1 EOF remain authoritative.
 constexpr std::chrono::milliseconds kLinuxPostSharePollQuantum{25};
 constexpr std::chrono::milliseconds kLinuxPostShareCaptureInterval{100};
+constexpr std::chrono::seconds kLinuxPostShareResizeMaximumLifetime{6};
 
 // The signal handler is scalar-only: no R1 TLS, R2 lease, R3 Share, R5 X11
 // or allocation operation is permitted except on the serialized owner.
@@ -1567,6 +1568,7 @@ struct LinuxFramePublicationContext final {
     std::uint32_t nextFrameId = 1U;
     bool frameWritePending = false;
     bool nativeWorkMayRemain = true;
+    std::optional<Clock::time_point> resizeDeadline{};
     auto nextCapture = Clock::now();
     while (connection.ready() && nativeOwner.desktop->valid()) {
         // Stop before another native operation; terminal cleanup never posts XTEST.
@@ -1576,6 +1578,11 @@ struct LinuxFramePublicationContext final {
         if (!connection.authorizePersonalDesktopApplicationTraffic(
                 *context->policy)) {
             break;
+        }
+        if (resizeDeadline && Clock::now() >= *resizeDeadline) {
+            nativeOwner.desktop->retireAfterAuthorizationLoss();
+            connection.revoke();
+            return true;
         }
         const int socketDescriptor = connection.nativeSocketPollDescriptor();
         const auto socketInterest = connection.ioInterest();
@@ -1620,10 +1627,19 @@ struct LinuxFramePublicationContext final {
             ? std::chrono::duration_cast<std::chrono::milliseconds>(
                   nextCapture - now)
             : std::chrono::milliseconds{0};
+        std::optional<std::chrono::milliseconds> untilResizeDeadline{};
+        if (resizeDeadline) {
+            untilResizeDeadline =
+                *resizeDeadline > now
+                    ? std::chrono::duration_cast<std::chrono::milliseconds>(
+                          *resizeDeadline - now)
+                    : std::chrono::milliseconds{0};
+        }
         const auto wait =
             rdp_server::server::runtime::detail::selectLinuxPostSharePollWait(
                 kLinuxPostSharePollQuantum, untilCapture, frameWritePending,
-                bufferedApplicationData, nativeWorkMayRemain);
+                bufferedApplicationData, nativeWorkMayRemain,
+                untilResizeDeadline);
         const int timeoutMilliseconds = static_cast<int>(wait.count());
         errno = 0;
         const int polled = ::poll(
@@ -1723,11 +1739,66 @@ struct LinuxFramePublicationContext final {
             break;
         }
 
-        // Publish a borrowed, current R5 XShm surface directly through the
-        // R3-owned ClearCodec presentation. R10 supplies no DVC/surface ID.
-        // The existing R1 writer handles exact positive partial receipts;
-        // uncertain completion tears down rather than cancelling publication.
-        if (!frameWritePending && Clock::now() >= nextCapture) {
+        // Geometry is reconciled before every eligible capture. The R5
+        // observation is inert provenance only: R2 was freshly reauthorized
+        // above, and R5 must still match the exact session/capture generation.
+        // R3 owns DELETE/CREATE/MAP and R4 owns ACK membership; R10 owns only
+        // the 100 ms retry cadence and the original six-second elapsed bound.
+        const auto postIoNow = Clock::now();
+        if (resizeDeadline && postIoNow >= *resizeDeadline) {
+            nativeOwner.desktop->retireAfterAuthorizationLoss();
+            connection.revoke();
+            return true;
+        }
+        if (!frameWritePending && postIoNow >= nextCapture) {
+            const std::uint64_t currentNativeSessionGeneration =
+                nativeChange->sessionGeneration;
+            const X11NativeGeometryObservation geometry =
+                nativeOwner.desktop->observeNativeGeometry(
+                    currentNativeSessionGeneration);
+            if (!geometry.valid() ||
+                !nativeOwner.desktop->nativeGeometryIsCurrent(
+                    geometry, currentNativeSessionGeneration)) {
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
+            }
+
+            using Reconfiguration = rdp_server::server::transport::
+                RdpGraphicsSurfaceReconfiguration;
+            const auto reconfiguration =
+                connection.beginPersonalDesktopGraphicsSurfaceReconfiguration(
+                    *context->policy, geometry.pixelGeometry);
+            switch (reconfiguration) {
+            case Reconfiguration::Unchanged:
+                // Only a fresh R3 equality decision ends the unresolved resize
+                // lifetime. Completing an older MAP alone must not extend a
+                // deadline when a newer RandR generation is already current.
+                resizeDeadline.reset();
+                break;
+            case Reconfiguration::Deferred:
+                if (!resizeDeadline) {
+                    resizeDeadline =
+                        postIoNow + kLinuxPostShareResizeMaximumLifetime;
+                }
+                nextCapture =
+                    postIoNow + kLinuxPostShareCaptureInterval;
+                continue; // Keep servicing R1 FRAME_ACK/client DATA.
+            case Reconfiguration::Started:
+                if (!resizeDeadline) {
+                    resizeDeadline =
+                        postIoNow + kLinuxPostShareResizeMaximumLifetime;
+                }
+                frameWritePending = true;
+                nextCapture =
+                    postIoNow + kLinuxPostShareCaptureInterval;
+                continue; // Existing writer drains DELETE -> CREATE -> MAP.
+            case Reconfiguration::Rejected:
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
+            }
+
             if (nextFrameId == 0U) {
                 break; // Never wrap a live Graphics frame ID.
             }
@@ -1739,19 +1810,22 @@ struct LinuxFramePublicationContext final {
                 connection.preflightPersonalDesktopGraphicsFramePublication(
                     *context->policy, nextFrameId);
             if (readiness == Readiness::DeferredForFrameAcknowledge) {
-                nextCapture = Clock::now() + kLinuxPostShareCaptureInterval;
+                nextCapture =
+                    Clock::now() + kLinuxPostShareCaptureInterval;
                 continue; // Keep reading FRAME_ACK through the sole R1 owner.
             }
-            if (readiness != Readiness::Ready) {
+            if (readiness != Readiness::Ready ||
+                !nativeOwner.desktop->nativeGeometryIsCurrent(
+                    geometry, currentNativeSessionGeneration)) {
                 nativeOwner.desktop->retireAfterAuthorizationLoss();
                 connection.revoke();
                 return true;
             }
             LinuxFramePublicationContext frameContext{
                 &connection, context->policy, nextFrameId,
-                nativeOwner.desktop->captureGeneration()};
+                geometry.captureGeneration};
             if (!nativeOwner.desktop->consumeR4Frame(
-                    frameContext.expectedGeneration,
+                    geometry, currentNativeSessionGeneration,
                     X11R4BgraFrameConsumer{
                         &frameContext, &publishLinuxCapturedFrame})) {
                 break;

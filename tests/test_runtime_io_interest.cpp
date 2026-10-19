@@ -53,6 +53,33 @@ void testStalledGraphicsTlsWriteBoundedPolling() noexcept
     assert(::close(quietPipe[0]) == 0);
 }
 
+void testResizeDeadlineBoundsPolling() noexcept
+{
+    using namespace std::chrono_literals;
+    using rdp_server::server::runtime::detail::selectLinuxPostSharePollWait;
+
+    constexpr auto pollQuantum = 25ms;
+    const std::optional<std::chrono::milliseconds> sevenMilliseconds{7ms};
+    const std::optional<std::chrono::milliseconds> expired{0ms};
+
+    // A remap deadline is authoritative even while R1 owns a stalled
+    // WANT_READ/WANT_WRITE retry; R10 may not sleep beyond retirement.
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 100ms, true, false, false,
+               sevenMilliseconds) == 7ms);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 100ms, true, false, false,
+               expired) == 0ms);
+
+    // Native work and buffered R1 plaintext retain immediate precedence.
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 100ms, true, false, true,
+               sevenMilliseconds) == 0ms);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 100ms, false, true, false,
+               sevenMilliseconds) == 0ms);
+}
+
 void testOutboundWriteReadiness() noexcept
 {
     LinuxRuntimeIoInterestSnapshot snapshot{};
@@ -228,6 +255,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "stalled-graphics-tls-write-bounded-poll")
     {
         testStalledGraphicsTlsWriteBoundedPolling();
+        return 0;
+    }
+    if (testCase == "resize-deadline-bounded-poll")
+    {
+        testResizeDeadlineBoundsPolling();
         return 0;
     }
     if (testCase == "clipboard-outbound-want-precedence")

@@ -2700,6 +2700,49 @@ LinuxRuntimeConnection::preflightPersonalDesktopGraphicsFramePublication(
     return readiness;
 }
 
+rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+LinuxRuntimeConnection::beginPersonalDesktopGraphicsSurfaceReconfiguration(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    ::PixelSize desktopGeometry) noexcept
+{
+    using Action = PersonalDesktopGraphicsDvcIoAction;
+    using Decision =
+        rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration;
+
+    if (desktopGeometry.widthPixels == 0U ||
+        desktopGeometry.heightPixels == 0U ||
+        personalGraphicsDvcIoAction_ != Action::Ready ||
+        personalGraphicsDvcTlsWritePending_ ||
+        personalClipboardWriteInProgress_ ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
+            1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return Decision::Rejected;
+    }
+
+    const Decision decision =
+        broker_->beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            desktopGeometry);
+    if (decision == Decision::Started)
+    {
+        // R3 has queued DELETE on its existing writer. CREATE and MAP are
+        // chained only by exact accepted-byte receipts through advance...
+        personalGraphicsDvcTlsWritePending_ = false;
+        personalGraphicsDvcIoAction_ = Action::Write;
+    }
+    else if (decision == Decision::Rejected)
+    {
+        revoke();
+    }
+    return decision;
+}
+
 bool LinuxRuntimeConnection::
 startPersonalDesktopClearCodecFramePublication(
     const RuntimeDeploymentPolicy &deploymentPolicy,

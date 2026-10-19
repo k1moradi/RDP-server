@@ -2695,6 +2695,34 @@ void testConnectionPersonalDesktopGraphicsFrameCreditPreflightDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionPersonalDesktopGraphicsSurfaceReconfigurationDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Decision =
+        rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration;
+    const auto keytab =
+        fixtureDirectory / "runtime-graphics-surface-remap.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.beginPersonalDesktopGraphicsSurfaceReconfiguration(
+               personalPolicy, ::PixelSize{1280U, 720U}) ==
+           Decision::Rejected);
+    assert(!connection.ready());
+    assert(connection.beginPersonalDesktopGraphicsSurfaceReconfiguration(
+               personalPolicy, ::PixelSize{1280U, 720U}) ==
+           Decision::Rejected);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3505,6 +3533,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-graphics-credit-preflight-denials")
     {
         testConnectionPersonalDesktopGraphicsFrameCreditPreflightDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-graphics-surface-remap-denials")
+    {
+        testConnectionPersonalDesktopGraphicsSurfaceReconfigurationDenials(
             fixtureDirectory);
         return 0;
     }

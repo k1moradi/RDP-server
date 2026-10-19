@@ -421,24 +421,34 @@ selectLinuxRuntimeConnectionIoInterest(
 
 // One bounded serialized poll interval. Pending Graphics writes follow
 // the R1 WANT_READ/WANT_WRITE socket direction, not an expired capture
-// deadline. Buffered TLS data and queued native events remain immediately
-// serviceable; no timer, ACK counter or socket owner is introduced.
+// deadline. An active native-resize deadline also bounds the sleep so R10
+// cannot overshoot its original elapsed-time retirement limit. Buffered TLS
+// data and queued native events remain immediately serviceable; no ACK counter
+// or second socket/protocol owner is introduced.
 [[nodiscard]] constexpr std::chrono::milliseconds
 selectLinuxPostSharePollWait(
     std::chrono::milliseconds pollQuantum,
     std::chrono::milliseconds remainingUntilCapture,
     bool frameWritePending,
     bool bufferedApplicationData,
-    bool nativeWorkMayRemain) noexcept
+    bool nativeWorkMayRemain,
+    std::optional<std::chrono::milliseconds> remainingUntilResizeDeadline =
+        std::nullopt) noexcept
 {
     using namespace std::chrono_literals;
     if (bufferedApplicationData || nativeWorkMayRemain)
         return 0ms;
     const auto boundedQuantum = (std::max)(pollQuantum, 0ms);
-    return frameWritePending
-               ? boundedQuantum
-               : (std::min)(boundedQuantum,
-                            (std::max)(remainingUntilCapture, 0ms));
+    const auto captureWait =
+        frameWritePending
+            ? boundedQuantum
+            : (std::min)(boundedQuantum,
+                         (std::max)(remainingUntilCapture, 0ms));
+    if (!remainingUntilResizeDeadline)
+        return captureWait;
+    return (std::min)(
+        captureWait,
+        (std::max)(*remainingUntilResizeDeadline, 0ms));
 }
 
 // The R1 SSL owner may already hold decrypted application data when its
@@ -790,6 +800,15 @@ public:
     preflightPersonalDesktopGraphicsFramePublication(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         std::uint32_t frameId) noexcept;
+
+    // Begin R3's authenticated DELETE/CREATE/MAP remap from one fresh R5
+    // geometry observation. Started transfers the existing Graphics writer
+    // back to Write; Deferred and Unchanged consume no frame ID or TLS byte.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+    beginPersonalDesktopGraphicsSurfaceReconfiguration(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        ::PixelSize desktopGeometry) noexcept;
 
     // Prepare and start one mandatory ClearCodec fallback publication. R10
     // supplies only a frame ID and a synchronous borrowed framebuffer. R3 owns

@@ -1119,7 +1119,8 @@ if(TARGET rdp-server-linux-runtime-security)
             outbound-cancellation-revocation
             buffered-tls-read-dispatch
             clipboard-outbound-want-precedence
-            stalled-graphics-tls-write-bounded-poll)
+            stalled-graphics-tls-write-bounded-poll
+            resize-deadline-bounded-poll)
         add_test(NAME "runtime.linux-connection-${runtime_io_interest_case}"
             COMMAND test_runtime_io_interest "${runtime_io_interest_case}")
         set_tests_properties(
@@ -1216,6 +1217,16 @@ if(TARGET rdp-server-linux-runtime-security)
     set_tests_properties(
         runtime.linux-connection-graphics-credit-preflight-denials
         PROPERTIES LABELS "runtime;security;r10-graphics;offline")
+
+    # R10 may request R3 remap only through a live R2 lease. This proves the
+    # runtime wrapper cannot fabricate resize authority from geometry alone.
+    add_test(NAME runtime.linux-connection-graphics-surface-remap-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-graphics-surface-remap-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-graphics-surface-remap-denials
+        PROPERTIES LABELS "runtime;security;r10-resize;offline")
 
     # R8 outbound clipboard must borrow the current R3 write and complete
     # its accepted-byte receipt through the sole R1 TLS owner. An absent

@@ -1,3 +1,50 @@
+## R9 verified hosted GUI distribution and current merged-owner inventory (2026-10-18)
+
+Exact shared R9 SHA `aee09e5035721ff14f635e670a982392e87c53b7`, primary Actions
+`39201911316`, has successful hosted Clang ASan/UBSan focused inventory
+(R2 IPv4-mapped IPv6, R4 surface/resize and R8 scalar receipt), R7 Qt
+client-stage, R6 Windows CLANG64 and Windows/MSVC, R5 Linux GUI, R7 macOS
+arm64 portable GUI, all protocol OS jobs, and SERVER-TEST acceptance.
+R3 Graphics DVC **20/20**, R8 clipboard **87/87**, and native linkage
+guards remain independent; counts are not reduced.
+
+The three separately downloadable same-SHA Actions artifacts and their
+**GitHub Actions container** SHA-256 digests (not ZIP-internal hashes) are:
+
+- Windows x86_64 `rdp-server-portable-gui-windows-x86_64` artifact
+  `12163794986`: `08ad07de2b8075b7817754e702f5cd5d5c89c2a2c68c9cbcb84ba8c08228353a`
+- Linux x86_64 `rdp-server-gui-linux` artifact
+  `12163719180`: `8b2b5042385eebe87b4e1cf33d3b22743f030fb6305f4ee73fe7bc3b093968b1`
+- macOS arm64 `rdp-server-portable-gui-macos-arm64` artifact
+  `12164610862`: `ad07eab4938a1e0313b0fb809213edb925f9018429beb58979691cfb39710f9a`
+
+Native hosted archive/Qt/PE/ELF/Mach-O closure and extracted offline smoke
+checks passed in that run. The packaged ZIP and its `.zip.sha256` file
+still require independent consumer validation against their manifest and
+license/notices; Actions-container digests must not be represented as
+the inner ZIP hash. macOS ad-hoc `codesign --verify --deep --strict`
+is **not** Developer ID distribution or notarization.
+
+Merged R7 `gui.offscreen-r10-lifecycle-and-terminal-close-denials` is also pinned exact-one in the real macOS Qt lane. Merged R2 `security.linux-seat0-session-identity-denials` and
+`runtime.host-control-authentication-outcome-denials` now receive exact-one
+ASan/UBSan CI selections with both real fixtures compiled; merged R7
+`gui.offscreen-close-requires-explicit-owner-stop` receives exact-one
+real macOS Qt offscreen CI selection; merged R8
+`runtime.r8-r3-retired-route-positive-receipt-isolation` is added to the
+existing focused R8 ASan/UBSan selection, remaining outside R8's fixed 87
+clipboard component tests. R2's fixed 40-case direct-runtime, R3's 20-case
+DVC, R8's 87-case clipboard and linkage guards remain unchanged.
+The first PR-head CI attempt reached PASS for structure, Linux sanitizer, macOS portable GUI, Linux GUI, macOS protocol and R7 lifecycle jobs before this rebase; Windows jobs were still running. This rebase adds the newly merged R7 lifecycle/terminal-close exact-one CTest, so the new head is **NOT YET HOSTED VERIFIED**.
+
+R10's `UnavailableRuntimeHostControl` is still used in production GUI
+`src/gui/main.cpp`; the separate R10 ACK-credit/HostControl PR #23 and R3
+geometry remap PR #24 remain draft/unmerged. The latter intends to grow
+the R3 DVC selection from **20 to 21** only with its new registered test.
+Physical Linux seat0 owner consent/lock proof, genuine LAN Start/Stop,
+Microsoft-client CredSSP/Share/first frame/FRAME_ACK/input/resize/reconnect,
+owner-native M1 Debug matrix and R10-nominated candidate freeze remain
+**BLOCKED / NOT RUN**. No hosted offline preflight substitutes for them.
+
 ## R7/R6 exact-SHA Windows GUI verifier evidence (2026-10-19)
 
 Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, GitHub Actions

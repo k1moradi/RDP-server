@@ -1,3 +1,20 @@
+## R7/R6 Windows non-collecting password verifier correction (2026-10-19)
+
+At exact parent `972f0200b176fe21b28559d693e69fa8d833fea2`, the known hosted failure remains isolated to
+R6 Windows CLANG64 GUI offline/package smoke. Run 39211043620 reports exit 3
+from the hidden GUI verifier because it still requires the R7-removed
+`password` object. Its Ubuntu/macOS/Windows protocol, R2 complete and
+missing-systemd production-security, R7 macOS portable/native/session, R9
+sanitizer, documentation and workflow-structure jobs pass.
+
+The Windows verifier now requires both old password-entry QObject names to be
+absent and `setApplicationPasswordUnsupported` to exist disabled. New
+ordinary `windows.gui-independent-password-input-unavailable` runs a
+dedicated hidden command mode. This restores the cross-owner test contract;
+it does not restore a secret input, create a listener, request credentials or
+grant native desktop authority. Source review PASS; publication-SHA hosted CI
+PENDING; owner-local full CTest NOT RUN.
+
 ## R2 exact-publication hosted evidence for dependency reconciliation (2026-10-19)
 
 Exact SHA `84d9ac65936e83eb8644ee2461bda2764eac9c68`, GitHub Actions

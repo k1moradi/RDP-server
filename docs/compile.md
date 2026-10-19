@@ -1,3 +1,14 @@
+## Windows hidden GUI smoke follows the shared R7 credential surface (2026-10-19)
+
+The R6 Windows launcher reuses R7 `DesktopWindow`; its hidden qwindows-backed
+offline modes therefore validate the current shared UI, not a retired password
+widget. The verifier requires the unsupported application-password action to
+exist disabled and both old password-entry QObject names to be absent. A
+dedicated `--offline-unsupported-password-test` command is ordinary CTest.
+These modes return before the event loop and do not display a window, open a
+listener, prompt for credentials or confer R2/R10 authorization. Extracted
+portable smoke continues to exercise the same packaged qwindows closure.
+
 ## R7 extracted macOS framework identity and signing gate (2026-10-18)
 
 The macOS arm64 PORTABLE-GUI packager runs `macdeployqt` with Cocoa

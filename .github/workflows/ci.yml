@@ -754,6 +754,7 @@ jobs:
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
+            test_linux_logind_session_identity test_runtime_host_control \
             test_runtime_linux_security test_runtime_io_interest \
             test_runtime_licensing_authority \
             test_runtime_licensing_authority_public_header \
@@ -860,7 +861,8 @@ jobs:
             security.ipv4-mapped-ipv6-peer-quota-identity \
             graphics.surface-resize-revocation \
             graphics.x264-native-bgra-resize-recovery \
-            runtime.r8-r3-stable-scalar-write-receipt; do
+            runtime.r8-r3-stable-scalar-write-receipt \
+            runtime.r8-r3-retired-route-positive-receipt-isolation; do
             exact_test_selection="^${required_test_name//./[.]}$"
             selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$exact_test_selection")"
             printf '%s\n' "$selected_tests"
@@ -873,6 +875,34 @@ jobs:
             fi
             ctest --test-dir build --build-config Debug --timeout 60 \
               -R "$exact_test_selection" --output-on-failure
+          done
+
+      # Merged R2 logind-identity and authentication-outcome regressions are
+      # separately selected, deny-only and production-linked. They do not
+      # grant consent, native OS admission, GUI Start or live socket access.
+      - name: Pin merged R2 session and auth-outcome sanitizer CTests
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          for required_test_name in \
+            security.linux-seat0-session-identity-denials \
+            runtime.host-control-authentication-outcome-denials; do
+            selector="^${required_test_name//./[.]}$"
+            selected_tests="$(ctest --test-dir build -C Debug -N -R "$selector")"
+            printf '%s\n' "$selected_tests"
+            grep -Fq ": $required_test_name" <<< "$selected_tests"
+            selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+            if [[ "$selected_count" -ne 1 ]]; then
+              printf 'R9 R2 native/GUI status registry mismatch: %s expected 1, found %s\n' \
+                "$required_test_name" "$selected_count" >&2
+              exit 1
+            fi
+            ctest --test-dir build -C Debug --timeout 60 \
+              -R "$selector" --output-on-failure
           done
 
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
@@ -1837,6 +1867,25 @@ jobs:
           fi
           ctest --test-dir build -C Release --timeout 30 \
             -R "$client_stage_selection" --output-on-failure
+
+      # Merged R7 GUI consent is a new exact-one offline Qt requirement;
+      # Start/Stop authority still belongs only to a future concrete R10.
+      - name: Pin R7 explicit GUI Stop-before-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-close-requires-explicit-owner-stop$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-close-requires-explicit-owner-stop' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 GUI close consent registry mismatch: expected 1, found %s\n' \
+              "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
 
       # Pair R10's production stable-interface/address predicate with R7's
       # Qt chooser on the same AppleClang/Qt Release packaging runner.

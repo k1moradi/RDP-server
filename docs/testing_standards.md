@@ -1,3 +1,21 @@
+## R6 Windows native host-conflict and offline mutation denials (2026-10-19)
+
+Read-only WindowsRdpConflictProbe queries TermService via
+SC_MANAGER_CONNECT/SERVICE_QUERY_STATUS and IPv4/IPv6 TCP listener tables
+via GetExtendedTcpTable. Unavailable evidence is a fail-closed result.
+Five native CTests cover TermService-active, requested-port conflict,
+unavailable observation, clear classification, and actual read-only OS
+observation. The existing portable GUI source guard rejects service,
+registry, firewall and socket mutators in this path. The released GUI
+smoke compares firewall rules and profiles, TermService configuration,
+Windows OS RDP port and policy before and after two real window launches.
+Unreadable state fails closed. One separate synthetic native Windows CTest
+injects a change into each field and requires denial without querying OS
+state, GUI launch, credentials or privilege. These tests do not authorize
+Start and do not replace R9's independent clean-Windows ZIP acceptance.
+Provenance: PR #25 source SHA 581d6828441b37b677a148466fe7bbcdc426d32e
+hosted CI PASS; merged-main exact SHA CI NOT RUN at publication.
+
 ## R7 typed R1 TLS identity Qt display regressions (2026-10-19)
 
 Use the existing R10 RuntimeTlsIdentityStatus with real offscreen Qt widgets;

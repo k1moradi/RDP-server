@@ -1,3 +1,16 @@
+## R6 preflight integration on shared main (2026-10-19)
+
+Ported R6 PR #25 exact tested head
+581d6828441b37b677a148466fe7bbcdc426d32e onto main parent
+91b73e837fa0344603c9d63c0c80123953732210, without changing the R9 exact-ZIP release gate or Windows Start
+permissions. PR-head primary Actions 39232722215 PASS and structure
+39232722147 PASS. The combined new main publication SHA Windows CLANG64,
+MSVC, native owner, and clean interactive nonadmin GUI gate: NOT RUN at
+publication. Human failing ZIP parity and exact missing DLL: UNVERIFIED.
+Windows portable ZIP distribution remains BLOCKED pending R9 clean VM
+receipt. Positive native hosting remains BLOCKED pending R2 Windows
+SSPI/SID/WTS authorization and R10 Windows WTS session ownership.
+
 ## R7 typed R1 TLS certificate Qt projection (2026-10-19)
 
 Read current R1/R10 RuntimeTlsIdentityStatus at parent `e85aeb77b184ab618077c557da1e45941c7239f7`.

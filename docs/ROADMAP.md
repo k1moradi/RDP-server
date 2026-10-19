@@ -1,3 +1,25 @@
+## R6 Windows native read-only host conflict observation (2026-10-19)
+
+R6's five Windows preflight CTests, read-only Service Control Manager
+TermService + IP Helper IPv4/IPv6 listener observation, and stronger actual
+extracted-GUI no-mutation comparison of firewall rules, service, RDP port
+and OS policy are ported to current shared main from PR #25 exact head
+581d6828441b37b677a148466fe7bbcdc426d32e. That PR head passed
+independent structure Actions 39232722147 and primary Actions 39232722215,
+including Windows CLANG64/MSVC. The new shared SHA has not yet passed CI or
+owner-native testing; retain these as distinct evidence. This preflight
+never binds sockets or modifies Windows OS settings. Any future R10 host
+must re-observe immediately before its own authorized listener bind.
+
+R9's clean-Windows release barrier on main (c56dc95) holds the public
+Windows portable GUI ZIP until an ordinary interactive nonadmin VM with
+runner label r9-clean-windows-gui verifies the identical candidate archive
+under OS-only DLL paths. No clean-machine PASS receipt was available at
+publication; the human failed ZIP and exact missing DLL are unavailable.
+Portable Windows release is BLOCKED independently of R2/R10. Native Windows
+hosting remains disabled until authenticated revocable R2 SSPI/CredSSP
+SID/WTS/LUID consent and an R10 serialized Windows WTS/session host owner.
+
 ## R7 read-only R1 TLS identity display and rotation regression (2026-10-19)
 
 Parent `e85aeb77b184ab618077c557da1e45941c7239f7`: R1's new typed RuntimeTlsIdentityStatus is already

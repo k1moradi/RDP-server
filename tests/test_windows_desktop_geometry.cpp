@@ -64,6 +64,11 @@ void windowsInputSendInputRevocationDenials();
 void windowsInputAuthorityRetirementNoNativePost();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
+void windowsRdpConflictTermServiceActiveDenial();
+void windowsRdpConflictRequestedPortOccupiedDenial();
+void windowsRdpConflictObservationUnavailableDenial();
+void windowsRdpConflictClearPreflight();
+void windowsRdpConflictNativeReadonlyObservation();
 void windowsCaptureCycleLifecycleDenials();
 
 using namespace rdp_server::windows;
@@ -1026,6 +1031,26 @@ int main(int argc, char **argv)
     else if (behavior == "cursor-snapshot-rejections")
     {
         windowsCursorSnapshotRejections();
+    }
+    else if (behavior == "rdp-termservice-active-conflict-denial")
+    {
+        windowsRdpConflictTermServiceActiveDenial();
+    }
+    else if (behavior == "rdp-requested-port-occupied-conflict-denial")
+    {
+        windowsRdpConflictRequestedPortOccupiedDenial();
+    }
+    else if (behavior == "rdp-observation-unavailable-denial")
+    {
+        windowsRdpConflictObservationUnavailableDenial();
+    }
+    else if (behavior == "rdp-clear-when-service-stopped-port-free")
+    {
+        windowsRdpConflictClearPreflight();
+    }
+    else if (behavior == "rdp-native-readonly-observation")
+    {
+        windowsRdpConflictNativeReadonlyObservation();
     }
     else if (behavior == "win32-gdi-rectangle-name-resolution")
     {

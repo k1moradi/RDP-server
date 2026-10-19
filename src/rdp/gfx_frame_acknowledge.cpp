@@ -57,6 +57,20 @@ void GfxFrameAckWindow::reset(std::uint64_t channelGeneration) noexcept
     clientTotalFramesDecodedAvailable_ = false;
 }
 
+bool GfxFrameAckWindow::hasOutstandingFrame(
+    std::uint64_t generation, std::uint32_t frameId) const noexcept
+{
+    if (generation == 0 || generation != channelGeneration_ ||
+        !expectingAcknowledgements_)
+    {
+        return false;
+    }
+    for (std::size_t i = 0; i < pendingCount_; ++i)
+        if (pendingFrames_[i] == frameId)
+            return true;
+    return false;
+}
+
 bool GfxFrameAckWindow::canRecordFrame(
     std::uint64_t generation, std::uint32_t frameId) const noexcept
 {
@@ -64,12 +78,9 @@ bool GfxFrameAckWindow::canRecordFrame(
         return false;
     if (!expectingAcknowledgements_)
         return true; // Suspension clears the pending set.
-    if (pendingCount_ == pendingFrames_.size())
+    if (hasOutstandingFrame(generation, frameId))
         return false;
-    for (std::size_t i = 0; i < pendingCount_; ++i)
-        if (pendingFrames_[i] == frameId)
-            return false;
-    return true;
+    return pendingCount_ != pendingFrames_.size();
 }
 
 bool GfxFrameAckWindow::noteFrameSent(

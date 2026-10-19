@@ -71,6 +71,11 @@ public:
     // already-encoded frame to R3. Reject duplicate and full IDs early.
     [[nodiscard]] bool canRecordFrame(
         std::uint64_t channelGeneration, std::uint32_t frameId) const noexcept;
+    // Non-mutating membership query on the same authoritative ACK-ID set.
+    // R3 may use this only to distinguish an invalid duplicate from ordinary
+    // capacity backpressure; it grants no publication credit.
+    [[nodiscard]] bool hasOutstandingFrame(
+        std::uint64_t channelGeneration, std::uint32_t frameId) const noexcept;
     [[nodiscard]] bool noteFrameSent(std::uint64_t channelGeneration,
                                      std::uint32_t frameId) noexcept;
 

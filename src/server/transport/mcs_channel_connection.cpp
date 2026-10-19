@@ -3195,6 +3195,12 @@ RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
         return Readiness::Rejected;
     }
 
+    // A duplicate is an invalid frame identity even when the authoritative
+    // ACK window is also at capacity. Never disguise it as normal backpressure.
+    if (presentationLifecycle_.hasOutstandingFrame(
+            allocation_.generation, frameId))
+        return Readiness::Rejected;
+
     if (presentationLifecycle_.canReserveFrame(
             allocation_.generation, frameId))
         return Readiness::Ready;

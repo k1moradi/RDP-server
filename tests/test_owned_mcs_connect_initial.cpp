@@ -4653,6 +4653,15 @@ void testGraphicsFrameCreditPreflight()
     assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
     assert(dvc.presentationMapped());
 
+    // Capacity backpressure must not mask an invalid duplicate frame ID.
+    // Keep all 64 authoritative R4 ACK entries occupied for this check.
+    assert(dvc.preflightFramePublication(firstFrameId + 1U) ==
+           Readiness::Rejected);
+    assert(dvc.outstandingGraphicsFrames() ==
+           rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.frameRecordMap().empty());
+
     assert(dvc.onClientTpkt(
         allocation.generation,
         makeR3GraphicsFrameAcknowledgeTpkt(

@@ -1,3 +1,14 @@
+## R5 same-size RandR topology invalidation (2026-10-19)
+
+Do not treat an unchanged root PixelSize as proof that a RandR monitor,
+CRTC or output generation is unchanged. Production R5 event dispatch must
+invalidate and replace the complete native XShm/Damage/input resource
+generation before subsequent queued XCB events; ignore client SendEvent
+imitations. Register isolated-Xvfb `x11.same-pixel-randr-capture-retirement`
+to change physical RandR screen millimeters with unchanged root pixels,
+reject stale native capture and admit the fresh capture. No seat0,
+credentials, listener or live protocol peer is authorized by this test.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

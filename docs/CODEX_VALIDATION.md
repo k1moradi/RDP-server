@@ -1,3 +1,17 @@
+## R5 same-size RandR source generation test (2026-10-19)
+
+Implementation parent `fab2346a66de3b35828c89d701ec491b74db02b0`: R5 observes authentic RandR root
+screen/CRTC/output/resource notifications in the one XCB dispatch and
+forces native XShm/Damage/input rebuild even with unchanged PixelSize.
+New production-backed isolated-Xvfb CTest:
+`x11.same-pixel-randr-capture-retirement`.
+It requires capture generation advance and old scalar/typed-borrow denial
+after a physical-millimeter-only Xvfb resize, with fresh small-frame
+read and terminal retirement. Source reviewed; native local Debug/full
+CTest **NOT RUN** (native XCB headers unavailable here), exact-SHA hosted
+CI **PENDING**, real monitor/seat0/client acceptance **NOT RUN**.
+The R3 PR #24 and R10 geometry writer remain separate upstream gates.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

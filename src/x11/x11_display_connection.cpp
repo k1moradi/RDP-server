@@ -49,26 +49,39 @@ struct RandrObservation
     xcb_window_t rootWindow;
     PixelSize *geometry;
     bool *stopAfterCurrentEvent;
+    bool *randrChanged;
 };
 
 void
 observe_randr(const xcb_generic_event_t &event, void *context) noexcept
 {
     const auto &state = *static_cast<RandrObservation *>(context);
+    // Do not trust a client-generated SendEvent as native RandR provenance.
     if (!state.owner->valid() || state.firstEvent == 0 ||
-        (event.response_type & 0x7f) !=
-            static_cast<std::uint8_t>(
-                state.firstEvent + XCB_RANDR_SCREEN_CHANGE_NOTIFY))
+        (event.response_type & 0x80U) != 0U)
     {
         return;
     }
-    const auto &resize =
-        reinterpret_cast<const xcb_randr_screen_change_notify_event_t &>(
-            event);
-    if (resize.root == state.rootWindow &&
-        resize.width != 0 && resize.height != 0)
+    const std::uint8_t eventType = event.response_type & 0x7fU;
+    if (eventType == static_cast<std::uint8_t>(
+                         state.firstEvent + XCB_RANDR_SCREEN_CHANGE_NOTIFY))
     {
-        *state.geometry = {resize.width, resize.height};
+        const auto &resize =
+            reinterpret_cast<const xcb_randr_screen_change_notify_event_t &>(
+                event);
+        if (resize.root == state.rootWindow &&
+            resize.width != 0 && resize.height != 0)
+        {
+            *state.geometry = {resize.width, resize.height};
+            *state.randrChanged = true;
+            *state.stopAfterCurrentEvent = true;
+        }
+    }
+    else if (eventType == static_cast<std::uint8_t>(
+                              state.firstEvent + XCB_RANDR_NOTIFY))
+    {
+        // The subscription includes only root CRTC/output/resource events.
+        *state.randrChanged = true;
         *state.stopAfterCurrentEvent = true;
     }
 }
@@ -143,7 +156,11 @@ X11DisplayConnection::X11DisplayConnection(std::string_view displayName) noexcep
     if (randrExtension != nullptr && randrExtension->present)
     {
         const xcb_void_cookie_t selectCookie = xcb_randr_select_input_checked(
-            connection_, rootWindow_, XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE);
+            connection_, rootWindow_,
+            XCB_RANDR_NOTIFY_MASK_SCREEN_CHANGE |
+                XCB_RANDR_NOTIFY_MASK_CRTC_CHANGE |
+                XCB_RANDR_NOTIFY_MASK_OUTPUT_CHANGE |
+                XCB_RANDR_NOTIFY_MASK_RESOURCE_CHANGE);
         xcb_generic_error_t *selectError =
             xcb_request_check(connection_, selectCookie);
         if (selectError == nullptr)
@@ -263,11 +280,16 @@ ConnectionStatus
 X11DisplayConnection::processEvents(X11EventSink &eventSink,
                                     std::size_t eventBudget,
                                     bool *workMayRemain,
-                                    bool socketReadable) noexcept
+                                    bool socketReadable,
+                                    bool *randrChanged) noexcept
 {
     if (workMayRemain != nullptr)
     {
         *workMayRemain = false;
+    }
+    if (randrChanged != nullptr)
+    {
+        *randrChanged = false;
     }
     if (!valid())
     {
@@ -276,8 +298,10 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
     }
 
     XcbPollContext poll{this, socketReadable};
+    bool observedRandrChange = false;
     RandrObservation randr{this, randrFirstEvent_, rootWindow_,
-                           &sourceGeometry_, &poll.stopAfterCurrentEvent};
+                           &sourceGeometry_, &poll.stopAfterCurrentEvent,
+                           &observedRandrChange};
     const auto result = processX11EventBatch(
         eventSink, poll_xcb_event, &poll, eventBudget,
         observe_randr, &randr);
@@ -289,6 +313,10 @@ X11DisplayConnection::processEvents(X11EventSink &eventSink,
     if (workMayRemain != nullptr)
     {
         *workMayRemain = result.workMayRemain || poll.stopAfterCurrentEvent;
+    }
+    if (randrChanged != nullptr)
+    {
+        *randrChanged = observedRandrChange;
     }
     return ConnectionStatus::Ok;
 }

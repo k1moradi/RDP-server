@@ -49,9 +49,12 @@ public:
      * disconnect()/destruction. This lets an aggregate owner cancel every
      * child that borrows the connection before the sole XCB owner is freed.
      */
+    // RandR may replace monitors without changing root pixel dimensions.
+    // A same-call notification flag does not introduce another event owner.
     [[nodiscard]] ConnectionStatus processEvents(
         X11EventSink &eventSink, std::size_t eventBudget = 128,
-        bool *workMayRemain = nullptr, bool socketReadable = false) noexcept;
+        bool *workMayRemain = nullptr, bool socketReadable = false,
+        bool *randrChanged = nullptr) noexcept;
 
 private:
     void markFailedForOwnerTeardown() noexcept;

@@ -1096,6 +1096,69 @@ syntheticXvfbNativeGeometryObservationRetirement()
     resources.disconnect();
 }
 
+// The RandR physical screen geometry may change without any change to
+// root pixel dimensions. The native XShm generation must still be retired.
+void
+syntheticXvfbSamePixelRandrCaptureGeneration()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 515U;
+    X11DesktopResources desktop(syntheticDisplay(), kCaptureArenaPixels);
+    requireValidResources(desktop, "same-pixel RandR capture retirement");
+    assert(desktop.randrAvailable());
+
+    const X11NativeGeometryObservation oldObservation =
+        desktop.observeNativeGeometry(nativeSessionGeneration);
+    assert(oldObservation.valid());
+    assert((oldObservation.pixelGeometry == PixelSize{1280, 720}));
+
+    int screenNumber = -1;
+    XcbConnection helper = connectHelper(syntheticDisplay(), screenNumber);
+    const xcb_screen_t *screen = screenFor(*helper, screenNumber);
+    const std::uint32_t changedWidthMillimeters =
+        static_cast<std::uint32_t>(screen->width_in_millimeters) + 1U;
+    const xcb_void_cookie_t cookie = xcb_randr_set_screen_size_checked(
+        helper.get(), screen->root, 1280U, 720U,
+        changedWidthMillimeters, screen->height_in_millimeters);
+    xcb_generic_error_t *error = xcb_request_check(helper.get(), cookie);
+    assert(error == nullptr);
+    std::free(error);
+    assert(xcb_flush(helper.get()) > 0);
+
+    xcb_connection_t *connection = desktop.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+    bool rebuilt = false;
+    for (std::size_t attempt = 0; attempt < 16U; ++attempt)
+    {
+        bool workMayRemain = false;
+        assert(desktop.processEvents(
+                   64U, &workMayRemain, true) == ConnectionStatus::Ok);
+        if (desktop.captureGeneration() != oldObservation.captureGeneration)
+        {
+            rebuilt = true;
+            break;
+        }
+        if (!workMayRemain)
+        {
+            break;
+        }
+    }
+    assert(rebuilt);
+    const X11NativeGeometryObservation current =
+        desktop.observeNativeGeometry(nativeSessionGeneration);
+    assert(current.valid());
+    assert(current.pixelGeometry == oldObservation.pixelGeometry);
+    assert(current.captureGeneration > oldObservation.captureGeneration);
+    assert(!desktop.nativeGeometryIsCurrent(
+        oldObservation, nativeSessionGeneration));
+    assert(!desktop.capture(
+        oldObservation.captureGeneration, {0, 0, 8, 8}).valid());
+    assert(desktop.capture(
+        current.captureGeneration, {0, 0, 8, 8}).valid());
+    desktop.retireAfterAuthorizationLoss();
+    assert(!desktop.observeNativeGeometry(nativeSessionGeneration).valid());
+}
+
 void
 syntheticXvfbRandrCaptureGeneration()
 {
@@ -2028,6 +2091,11 @@ main(int argc, char **argv)
     if (behavior == "native-geometry-observation-retirement")
     {
         syntheticXvfbNativeGeometryObservationRetirement();
+        return 0;
+    }
+    if (behavior == "same-pixel-randr-capture-retirement")
+    {
+        syntheticXvfbSamePixelRandrCaptureGeneration();
         return 0;
     }
     if (behavior == "randr-capture-generation")

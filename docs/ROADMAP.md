@@ -1,3 +1,26 @@
+## R5 same-root-pixel RandR resource retirement (2026-10-19)
+
+R5 found that native RandR screen notifications with unchanged pixel bounds
+and CRTC/output/resource topology changes could leave the existing XShm
+capture generation valid. On the sole XCB owner, X11 now subscribes to root
+screen, CRTC, output and resource changes, stops the bounded event batch
+at each genuine server notification, and rebuilds XShm/Damage/input before
+later events even if root width and height match. Synthetic SendEvent RandR
+messages are ignored. The existing monotonic R5 capture generation remains
+the sole native epoch: no new R3 graphics owner, R10 loop, R2 permission
+or XTEST injection gateway.
+
+New ordinary isolated-Xvfb CTest
+`x11.same-pixel-randr-capture-retirement` changes Xvfb physical millimeters
+at fixed 1280x720 root pixels, verifies generation advancement and stale
+borrow denial, then checks current small-frame capture and terminal
+retirement. Parent `fab2346a66de3b35828c89d701ec491b74db02b0`; native owner-local build/full CTest
+**NOT RUN** (XCB RandR/XShm development headers unavailable here);
+exact publication-SHA hosted CI **PENDING**. Physical multi-monitor
+hotplug and Microsoft Windows App owner acceptance **NOT RUN**.
+R4 #27 is merged; R3 PR #24 is still draft/unmerged and R10's native
+RandR-to-R3 remap call is still absent. No full resize claim.
+
 ## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
 
 Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows

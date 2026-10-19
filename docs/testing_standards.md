@@ -1,3 +1,7 @@
+## R10 frame-credit/polling and GUI-headless CI contract (2026-10-19)
+
+R10 consumes R2's R3 frame-publication preflight before borrowing X11 pixels. Only DeferredForFrameAcknowledge is ordinary backpressure: it consumes no capture, frame ID or R4 credit. Rejected is terminal; Ready still requires fresh frame-start authorization. R4 remains the only ACK-window owner. A pending Graphics TLS write must not turn an expired capture deadline into a zero-timeout spin; the quiet-pipe CTest requires bounded positive waits while native work/buffered data remain promptly serviceable. CI separately proves GUI default ON for Qt-capable application configuration and explicit OFF for protocol/security/sanitizer jobs. Requested GUI plus missing Qt must fail, never silently downgrade.
+
 ## R4 same-generation AVC420 surface-remap IDR (2026-10-19)
 
 Register exactly one production-backed
@@ -70,8 +74,7 @@ exact integration-SHA hosted CI NOT RUN. This adds no network activity,
 services, firewall mutations, privileges, live R2 admission or GUI Start.
 Genuine non-admin clean-Windows runner `r9-clean-windows-gui` and its exact
 ZIP+receipt remain release BLOCKED until independently executed. R10
-GUI-default-ON from PR #23 and intentional Qt-free headless selection remain
-unmerged; same-SHA owner-local Debug CTest and Microsoft-client matrices
+GUI-default-ON and intentional Qt-free headless selection are integrated by R10 above; same-SHA owner-local Debug CTest and Microsoft-client matrices
 remain independently NOT RUN.
 
 ## R6 Windows native host-conflict and offline mutation denials (2026-10-19)
@@ -174,7 +177,7 @@ exact-SHA PASS receipt are NOT YET VERIFIED. If no runner is registered
 the public ZIP intentionally remains unpublished; hosted MSYS2 and
 provisioned Windows-latest cannot replace it. Linux x86_64 and macOS
 arm64 GUI artifacts remain separate from SDK and disabled SERVER-TEST.
-PR #23 GUI default ON / Qt-free headless remain unmerged. Real R2 owner
+PR #23 GUI/default-headless source is superseded by the R10 direct-main integration above. Real R2 owner
 consent, R10 LAN GUI Start, R3 live resize, R8 clipboard and real
 Linux seat0 to Windows App/mstsc acceptance remain independent blockers.
 Linux, CLANG64 and macOS27 full owner-native exact-SHA Debug CTest

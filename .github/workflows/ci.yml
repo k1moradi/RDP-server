@@ -63,6 +63,7 @@ jobs:
               -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF \
               -DRDP_SERVER_TEST_LINUX_PAM=OFF \
               -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
+              -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
               -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON 2>&1
           )"
           configure_status=$?
@@ -84,9 +85,11 @@ jobs:
             -DRDP_SERVER_TEST_LINUX_GSSAPI=OFF \
             -DRDP_SERVER_TEST_LINUX_PAM=OFF \
             -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON
           grep -Fx 'BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
           grep -Fx 'RDP_SERVER_BUILD_TESTING:BOOL=OFF' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=OFF' build/CMakeCache.txt
           grep -Fx 'RDP_SERVER_TEST_LINUX_GSSAPI:BOOL=OFF' build/CMakeCache.txt
           grep -Fx 'RDP_SERVER_TEST_LINUX_PAM:BOOL=OFF' build/CMakeCache.txt
           grep -Fx 'RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY:BOOL=ON' build/CMakeCache.txt
@@ -174,8 +177,10 @@ jobs:
             linux_pam_tests=ON
           fi
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DRDP_SERVER_TEST_LINUX_GSSAPI="$linux_gssapi_tests" \
             -DRDP_SERVER_TEST_LINUX_PAM="$linux_pam_tests"
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=OFF' build/CMakeCache.txt
       # R6 native-adapter validation must remain observable even when an
       # unrelated test target later fails the full repository compile.
       # This builds only the existing production-backed Windows fixture, then
@@ -231,7 +236,12 @@ jobs:
       # Reconfigure the SAME build root for the release artifact. Never
       # create a parallel local or CI top-level build directory.
       - name: Reconfigure Release in same build root
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=OFF' build/CMakeCache.txt
       - name: Compile Release
         run: cmake --build build --config Release --parallel 2
       - name: Preflight and run focused R7 macOS lifecycle tests (Release)
@@ -441,6 +451,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Debug             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
           grep -E '^CMAKE_C_COMPILER:[^=]+=.*clang(\.exe)?$' build/CMakeCache.txt
           grep -E '^CMAKE_CXX_COMPILER:[^=]+=.*clang\+\+(\.exe)?$' build/CMakeCache.txt
       - name: Run Debug R6 native preflight
@@ -518,6 +529,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -G Ninja             -DCMAKE_BUILD_TYPE=Release             -DBUILD_TESTING=ON             -DCMAKE_C_COMPILER=clang             -DCMAKE_CXX_COMPILER=clang++
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
       - name: Run Release R6 native preflight
         if: ${{ always() && steps.r9_clang_release_configure.outcome == 'success' }}
         shell: msys2 {0}
@@ -670,6 +682,7 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DCMAKE_C_COMPILER=clang \
             -DCMAKE_CXX_COMPILER=clang++ \
             "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
@@ -741,6 +754,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DRDP_SERVER_TEST_LINUX_GSSAPI=ON \
             -DRDP_SERVER_TEST_LINUX_PAM=ON \
             -DRDP_SERVER_TEST_REAL_KERBEROS=OFF \
@@ -1724,6 +1738,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
       - name: Compile focused R7 native lifecycle targets (Debug)
         run: |
@@ -1770,6 +1785,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
       - name: Compile focused R7 native lifecycle targets (Release)
         run: |
@@ -2132,6 +2148,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
             -DCMAKE_C_COMPILER=gcc \
             -DCMAKE_CXX_COMPILER=g++ \
             "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \

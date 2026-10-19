@@ -198,6 +198,8 @@ REQUIRED_TOKENS = (
     "-DRDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY=ON",
     "-DBUILD_TESTING=OFF",
     "-DRDP_SERVER_BUILD_TESTING=OFF",
+    "-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF",
+    "RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON",
     "readelf -d build/rdp-server",
     "transport.tcp-owned-tls-terminal-readiness",
     "transport.tcp-owned-buffered-tls-credssp-mcs-readiness",
@@ -482,6 +484,14 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
             require(token in text, f"missing required workflow token: {token}")
         for target in REQUIRED_BUILD_TARGETS:
             require(target in text, f"missing sanitizer build target: {target}")
+        require(
+            text.count("-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF") >= 8,
+            "Qt-free protocol/security/sanitizer configurations must opt out explicitly",
+        )
+        require(
+            text.count("RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON") >= 2,
+            "ordinary Qt-capable application configurations must prove GUI default ON",
+        )
         require(
             text.count("ctest --test-dir build --build-config Debug -N") >= 10,
             "missing critical ctest -N sanitizer preflights",

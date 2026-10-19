@@ -38,12 +38,15 @@ No automated legacy-source import workflow is part of this repository.
 
 The library has **no xrdp source download, patched chansrv, VNC/RFB daemon or
 packaged xrdp services**. A C++23 compiler, CMake 3.22+ and OpenSSL development
-libraries are required.
+libraries are required. Ordinary application builds also require Qt 6.4+
+Widgets because the desktop GUI is enabled by default; a deliberate
+protocol-only/headless build must set `RDP_SERVER_BUILD_DESKTOP_GUI=OFF`.
 
 ```bash
 git clone https://github.com/k1moradi/RDP-server.git "$HOME/rdp-server" # skip if already cloned
 cmake -S "$HOME/rdp-server" -B "$HOME/rdp-server/build" \
-  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+  -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+  -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF
 cmake --build "$HOME/rdp-server/build" --config Debug --parallel 2
 ctest --test-dir "$HOME/rdp-server/build" -C Debug --output-on-failure
 ```

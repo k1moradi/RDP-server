@@ -1117,7 +1117,8 @@ if(TARGET rdp-server-linux-runtime-security)
             outbound-tls-want-precedence
             outbound-cancellation-revocation
             buffered-tls-read-dispatch
-            clipboard-outbound-want-precedence)
+            clipboard-outbound-want-precedence
+            stalled-graphics-tls-write-bounded-poll)
         add_test(NAME "runtime.linux-connection-${runtime_io_interest_case}"
             COMMAND test_runtime_io_interest "${runtime_io_interest_case}")
         set_tests_properties(
@@ -1206,6 +1207,14 @@ if(TARGET rdp-server-linux-runtime-security)
     set_tests_properties(
         runtime.linux-connection-personal-post-share-single-reader-denials
         PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+
+    add_test(NAME runtime.linux-connection-graphics-credit-preflight-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-graphics-credit-preflight-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-graphics-credit-preflight-denials
+        PROPERTIES LABELS "runtime;security;r10-graphics;offline")
 
     # R8 outbound clipboard must borrow the current R3 write and complete
     # its accepted-byte receipt through the sole R1 TLS owner. An absent

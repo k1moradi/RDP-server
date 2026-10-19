@@ -1,3 +1,9 @@
+## R10 PR #23 integration: ACK pacing, frame credit and GUI-default split (2026-10-19)
+
+Source parent `571f77a7c862c95a0e60ef58882e26f2bced8186`. The useful PR #23 changes are replayed onto current shared main after merged R4 duplicate-frame-ID fix #27. Before any X11 framebuffer borrow, the production post-Share scheduler now consumes R2-gated R3 frame-publication readiness: Ready proceeds to separately reauthorized frame start; DeferredForFrameAcknowledge reschedules without capture, frame-ID increment or disconnect; Rejected retires native state and the connection. R4 remains the sole ACK-window owner. Pending Graphics TLS WANT_READ/WANT_WRITE now receives a bounded positive poll quantum even after capture expiry while native/logind/socket readiness, Stop and authorization remain preemptive.
+
+`RDP_SERVER_BUILD_DESKTOP_GUI` defaults ON and requested GUI builds still require Qt. Intentionally Qt-free protocol, production-security and sanitizer CI explicitly pass OFF; the Qt-provisioned CLANG64 application lane asserts that the unspecified option resolves ON. Dedicated CTests are `runtime.linux-connection-stalled-graphics-tls-write-bounded-poll` and `runtime.linux-connection-graphics-credit-preflight-denials`. Source reconciliation PASS; local build/full CTest NOT RUN in this connector environment; exact integrated-SHA hosted CI PENDING. Positive GUI LAN Start remains BLOCKED on a genuine R2 trusted-owner consent/unlocked-state provider. R3 PR #24/native resize remains separate.
+
 ## R6/R9 clean-Windows verifier corruption repair and exact artifact audit (2026-10-19)
 
 Authoring parent `660068b5719e1d997b782b90a5fc928cc9e2133f`. The clean-Windows consumer on current main still
@@ -139,8 +145,7 @@ exact integration-SHA hosted CI NOT RUN. This adds no network activity,
 services, firewall mutations, privileges, live R2 admission or GUI Start.
 Genuine non-admin clean-Windows runner `r9-clean-windows-gui` and its exact
 ZIP+receipt remain release BLOCKED until independently executed. R10
-GUI-default-ON from PR #23 and intentional Qt-free headless selection remain
-unmerged; same-SHA owner-local Debug CTest and Microsoft-client matrices
+GUI-default-ON and intentional Qt-free headless selection are integrated by R10 above; same-SHA owner-local Debug CTest and Microsoft-client matrices
 remain independently NOT RUN.
 
 ## R10 current native Linux interface identity handoff (2026-10-19)
@@ -363,7 +368,7 @@ exact-SHA PASS receipt are NOT YET VERIFIED. If no runner is registered
 the public ZIP intentionally remains unpublished; hosted MSYS2 and
 provisioned Windows-latest cannot replace it. Linux x86_64 and macOS
 arm64 GUI artifacts remain separate from SDK and disabled SERVER-TEST.
-PR #23 GUI default ON / Qt-free headless remain unmerged. Real R2 owner
+PR #23 GUI/default-headless source is superseded by the R10 direct-main integration above. Real R2 owner
 consent, R10 LAN GUI Start, R3 live resize, R8 clipboard and real
 Linux seat0 to Windows App/mstsc acceptance remain independent blockers.
 Linux, CLANG64 and macOS27 full owner-native exact-SHA Debug CTest

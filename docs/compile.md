@@ -1,3 +1,14 @@
+## R10 desktop GUI default and deliberate headless configuration (2026-10-19)
+
+`RDP_SERVER_BUILD_DESKTOP_GUI` defaults ON for ordinary application builds, so Qt 6.4+ Widgets is required and missing Qt must fail visibly. Deliberate protocol-only, production-security and sanitizer builds opt out explicitly in the same canonical build root:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+  -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF
+```
+
+The option changes build selection only; ON grants no listener/R2 authority and OFF is not an automatic fallback.
+
 ## Qt TLS fingerprint fixed-extent portability (2026-10-19)
 
 For R7 presentation of R1's SHA-256 certificate observation, do not form a

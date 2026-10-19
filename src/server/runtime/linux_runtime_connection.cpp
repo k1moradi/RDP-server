@@ -2669,6 +2669,37 @@ startPersonalDesktopGraphicsDynamicVirtualChannel(
 }
 
 
+rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
+LinuxRuntimeConnection::preflightPersonalDesktopGraphicsFramePublication(
+    const RuntimeDeploymentPolicy &deploymentPolicy,
+    std::uint32_t frameId) noexcept
+{
+    using Readiness =
+        rdp_server::server::transport::RdpGraphicsFramePublicationReadiness;
+    if (frameId == 0U ||
+        personalGraphicsDvcIoAction_ != PersonalDesktopGraphicsDvcIoAction::Ready ||
+        personalGraphicsDvcTlsWritePending_ ||
+        personalClipboardWriteInProgress_ ||
+        personalDesktopPolicy_ != &deploymentPolicy ||
+        !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
+        !deploymentPolicy.requiresNativeSessionRevocation() ||
+        deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() != 1U ||
+        !ready() || !broker_ || !lease_ || lease_->isRevoked())
+    {
+        revoke();
+        return Readiness::Rejected;
+    }
+
+    // This R2-protected observation does not reserve R4 credit or authorize
+    // subsequent capture. Frame start performs another fresh R2 transition.
+    const auto readiness =
+        broker_->preflightR3PersonalDesktopGraphicsFramePublication(
+            *lease_, acceptor_, connection_, session_, deploymentPolicy, frameId);
+    if (readiness == Readiness::Rejected)
+        revoke();
+    return readiness;
+}
+
 bool LinuxRuntimeConnection::
 startPersonalDesktopClearCodecFramePublication(
     const RuntimeDeploymentPolicy &deploymentPolicy,

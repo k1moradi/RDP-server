@@ -1,3 +1,22 @@
+## R6 clean-gate regression follow-up (2026-10-19)
+
+The PowerShell consumer repair in `67ea710697dfbcdc9dafb1badb047c50b61ece07`
+was correct, but that commit's generated Python regression source was malformed.
+Follow-up `e9c4abb43efb59ff24c9eceda594da3c6503452a` restores
+`tests/test_r9_clean_windows_gate.py` from the pre-change source and reapplies
+only narrow fail-closed checks: the checksum inventory owner, explicit
+`[regex]::Match`, `Groups[2].Value` access and terminal clean-PASS marker
+must each occur exactly once; duplicate tails are denied. On Windows, the same
+ordinary full-CTest file additionally parses
+`scripts/clean_windows_portable_gui.ps1` through
+`System.Management.Automation.Language.Parser`.
+
+Source inspection of the follow-up is **PASS**. Exact publication-SHA CTest/CI
+is **PENDING** at authoring; clean interactive non-admin exact-ZIP execution is
+still **NOT RUN / BLOCKED** pending `r9-clean-windows-gui`. The package,
+OS-only child PATH, firewall/TermService/RDP-policy/requested-port read-only
+contracts and the R2/R10 native-host blockers are unchanged.
+
 ## R10 PR #23 reconciliation evidence (2026-10-19)
 
 Inspected parent `571f77a7c862c95a0e60ef58882e26f2bced8186`. PR #23 head `7f024ce45774c2babe841ca98c5347e845d4b609` was stale relative to current main and was not merged directly. R4 duplicate-ID-at-capacity fix #27 is merged at `55eb5e10d706b14c61ce8a3825d611bc2269c3d4`. PR-head primary Actions 39232733187 failed at CMake configure in protocol, production-security and sanitizer/native-lifecycle jobs because GUI default ON required Qt6 where those jobs intentionally install none; GUI-specific lanes passed. Structure run 39232733208 passed. The direct-main reconciliation keeps GUI default ON, explicitly configures headless jobs OFF, lands pre-capture R2/R3 credit readiness and bounded pending Graphics TLS polling, and adds two ordinary CTests. Source review PASS. Local compile/full CTest NOT RUN in this connector environment; exact integrated-SHA hosted CI PENDING and must pass before completion is claimed. No positive R2 owner grant or live client test was performed.

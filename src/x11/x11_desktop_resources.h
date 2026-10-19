@@ -28,6 +28,26 @@ struct X11R4BgraFrameConsumer final
                     std::uint64_t captureGeneration) noexcept{};
 };
 
+// Snapshot of the current R5 native geometry, never an authorization token.
+// R10 obtains nativeSessionGeneration only from the already-validated R2
+// lease/selection on its serialized owner thread. This contains no XCB/XShm
+// handle or borrowed pixels, and may be retained only as inert provenance:
+// every use must compare it to the CURRENT native owner and R2 session.
+// An event drain must finish before observation and before publication.
+struct X11NativeGeometryObservation final
+{
+    PixelSize pixelGeometry{};
+    std::uint64_t captureGeneration{};
+    std::uint64_t nativeSessionGeneration{};
+
+    [[nodiscard]] constexpr bool valid() const noexcept
+    {
+        return pixelGeometry.widthPixels != 0 &&
+               pixelGeometry.heightPixels != 0 &&
+               captureGeneration != 0 && nativeSessionGeneration != 0;
+    }
+};
+
 struct X11CursorImageView final
 {
     std::span<const std::byte> pixels{};
@@ -90,6 +110,16 @@ public:
     [[nodiscard]] xcb_window_t rootWindow() const noexcept;
     [[nodiscard]] PixelSize sourceGeometry() const noexcept;
     [[nodiscard]] std::uint64_t captureGeneration() const noexcept;
+    // Geometry-only R5 observation bound to the caller's CURRENT R2 native
+    // session generation. A zero session generation or retired owner returns
+    // an invalid observation. This neither checks nor grants R2 permission.
+    [[nodiscard]] X11NativeGeometryObservation observeNativeGeometry(
+        std::uint64_t nativeSessionGeneration) const noexcept;
+    // Compare only after fresh R2 lease/session validation and X11 event
+    // service. Old observations cannot authorize new frame borrows.
+    [[nodiscard]] bool nativeGeometryIsCurrent(
+        const X11NativeGeometryObservation &observation,
+        std::uint64_t currentNativeSessionGeneration) const noexcept;
     [[nodiscard]] bool randrAvailable() const noexcept;
     [[nodiscard]] bool damagePending() const noexcept;
     [[nodiscard]] std::uint64_t damageNotificationCount() const noexcept;
@@ -110,6 +140,13 @@ public:
     // convert pixels and must not reenter this X11 owner.
     [[nodiscard]] bool consumeR4Frame(
         std::uint64_t expectedGeneration,
+        X11R4BgraFrameConsumer consumer) noexcept;
+    // Typed geometry/session freshness fence before the EXISTING synchronous
+    // R4 callback. No returned framebuffer view or additional surface owner.
+    // R2 permission must be checked separately immediately before this call.
+    [[nodiscard]] bool consumeR4Frame(
+        const X11NativeGeometryObservation &observation,
+        std::uint64_t currentNativeSessionGeneration,
         X11R4BgraFrameConsumer consumer) noexcept;
     [[nodiscard]] bool cursorPending() const noexcept;
     [[nodiscard]] bool refreshCursor() noexcept;

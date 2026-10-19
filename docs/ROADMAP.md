@@ -1,3 +1,43 @@
+## R3 surface remap continued after R4 PR #27 merge (2026-10-19)
+
+R4's authoritative ACK membership fix is merged. R3 PR #24 integrates
+it and covers terminal retired ACK, current ACK, suspension recovery,
+first post-map ClearCodec, and 64-attempt terminal old-frame drain
+without faking ACKs or duplicating R4 counters. Source prepared against
+main `30b3019532f174c8508b0023bb56913de78c8b8c`; local CTest NOT RUN; exact-head CI PENDING; R4
+review PENDING. R10 owns the fresh R5 capture generation scheduling and
+wall-clock deadline; R2 consent and physical seat0 client acceptance
+remain BLOCKED.
+
+## R5 native geometry observation and bounded framebuffer handoff (2026-10-19)
+
+R4 duplicate-at-64 correction PR #27 is merged into main as
+`55eb5e10d706b14c61ce8a3825d611bc2269c3d4`. R3 PR #24 has new
+source fixes for retired-surface terminal ACK and zero-outstanding suspended
+remap but remains **draft / review and exact-head CI pending**. R10's RandR
+to R3 remap call and R2-backed LAN GUI Start/Stop/physical seat0 approval
+remain **BLOCKED**, so no native-to-protocol resize acceptance is claimed.
+
+R5 adds `X11NativeGeometryObservation` (value-only native pixel size, current
+capture generation and caller-supplied R2-selected native session generation),
+with `observeNativeGeometry`, `nativeGeometryIsCurrent`, and an overloaded
+synchronous `consumeR4Frame` that rejects stale geometry/session epochs before
+borrow. The scalar session generation is **never** authorization; R10 must
+obtain it from a freshly validated R2 lease, drain current X11 events,
+compare again immediately before publication, and use existing R2/R1/R3
+gateways. Old XShm spans may not escape a consumer callback. No R3 Graphics
+owner, runtime loop, OS session selector or XTEST permission was added.
+New isolated Xvfb CTest `x11.native-geometry-observation-generation-retirement`
+covers repeated RandR replacement, queued pointer movement, stale generation,
+wrong session, synchronous full-frame consumption and terminal no-borrow
+retirement. Existing Xvfb R5 tests cover failure/no-XTEST behavior separately.
+
+Implementation parent `55eb5e10d706b14c61ce8a3825d611bc2269c3d4`; owner-local full Debug CTest:
+**NOT RUN** (no connected checkout and native XCB development dependencies
+in this execution environment); exact publication-SHA hosted CI **PENDING**;
+authorized physical seat0 and real Microsoft Windows App **NOT RUN**.
+
+
 ## R3 PR #24 remap review blockers (2026-10-19)
 
 R3 fixes retired-surface stale ACK handling to terminal rejection and permits

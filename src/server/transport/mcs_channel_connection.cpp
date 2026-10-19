@@ -2776,6 +2776,7 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::fail() noexcept
     hasPublishedFrame_ = false;
     hasRetiredSurfaceFrameIdBoundary_ = false;
     remappedSurface_ = false;
+    surfaceReconfigurationAckDrainDeferrals_ = 0U;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Failed;
@@ -2806,6 +2807,7 @@ void RdpGraphicsDynamicVirtualChannelLifecycle::close() noexcept
     hasPublishedFrame_ = false;
     hasRetiredSurfaceFrameIdBoundary_ = false;
     remappedSurface_ = false;
+    surfaceReconfigurationAckDrainDeferrals_ = 0U;
     presentationReceipt_ = {};
     pendingKind_ = RdpGraphicsDvcWriteKind::None;
     phase_ = RdpGraphicsDvcPhase::Closed;
@@ -3232,6 +3234,11 @@ RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
         frameId <= highestPublishedFrameId_)
         return Readiness::Rejected;
 
+    // R4 alone owns the authoritative pending-ID set at any capacity.
+    if (presentationLifecycle_.hasOutstandingFrame(
+            allocation_.generation, frameId))
+        return Readiness::Rejected;
+
     if (presentationLifecycle_.canReserveFrame(
             allocation_.generation, frameId))
         return Readiness::Ready;
@@ -3276,12 +3283,26 @@ RdpGraphicsDynamicVirtualChannelLifecycle::beginSurfaceReconfiguration(
         return Decision::Deferred;
 
     if (desktopGeometry == presentationGeometry_)
+    {
+        // Native geometry reverted; no remap drain obligation remains.
+        surfaceReconfigurationAckDrainDeferrals_ = 0U;
         return Decision::Unchanged;
+    }
 
-    // Keep all outstanding ACKs and suspension state authoritative in R4.
-    // Full 64-frame ACK capacity is ordinary nonterminal backpressure.
+    // An actual geometry remap, unlike ordinary frame publication, receives
+    // a bounded R3 attempt budget while R4 still owns real ACK membership.
     if (presentationLifecycle_.outstandingFrames() != 0U)
+    {
+        if (++surfaceReconfigurationAckDrainDeferrals_ >=
+            kMaximumSurfaceReconfigurationAckDrainDeferrals)
+        {
+            // Fail closed for reconnect; never invent ACKs or reuse surfaces.
+            fail();
+            return Decision::Rejected;
+        }
         return Decision::Deferred;
+    }
+    surfaceReconfigurationAckDrainDeferrals_ = 0U;
 
     const auto previousSurfaceId = presentationLifecycle_.surfaceId();
     if (previousSurfaceId ==

@@ -29,8 +29,12 @@ frame-ID reuse after remap and terminally rejects provably retired-surface ACKs 
 them to the new R4 ACK window. A suspended ACK window with zero outstanding
 frames does not block remap: its cleared membership has no promised future
 ACK, and the existing R4 presentation reset occurs only when DELETE begins.
-Outstanding frames remain deferred until actual R4 receipts or connection
-termination; no synthetic ACK or second timeout/credit owner is introduced.
+An active geometry-only remap may defer for 63 otherwise-idle calls while
+R4 has genuine outstanding old frames; the 64th attempt terminates that
+old DVC for reconnect. It never fabricates ACKs or duplicates credit.
+R10 owns the retry cadence and must enforce a wall-clock deadline. Ordinary
+R4 frame-credit saturation stays nonterminal. The merged R4 PR #27
+pending-ID membership query rejects duplicate-at-64 before capacity deferral.
 
 PR #24 adds the **offline contract and bounded regression only**. R10's
 RandR observation scheduler/writer integration, owner-authorized physical

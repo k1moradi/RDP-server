@@ -1260,6 +1260,10 @@ private:
     bool hasPublishedFrame_{};
     bool hasRetiredSurfaceFrameIdBoundary_{};
     bool remappedSurface_{};
+    // R3-only resize drain retry count, not R4's pending frame/credit state.
+    static constexpr std::uint16_t
+        kMaximumSurfaceReconfigurationAckDrainDeferrals = 64U;
+    std::uint16_t surfaceReconfigurationAckDrainDeferrals_{};
     rdp_server::rdp::GfxPresentationLifecycle presentationLifecycle_{};
     rdp_server::rdp::GfxPresentationReceipt presentationReceipt_{};
     std::optional<rdp_server::rdp::GfxAvc420SegmentedFrame> frame_{};

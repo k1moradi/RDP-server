@@ -108,6 +108,10 @@ public:
     // The R4 event-thread owner must serialize this check with publication.
     [[nodiscard]] bool canReserveFrame(
         std::uint64_t generation, std::uint32_t frameId) const noexcept;
+    // Read-only duplicate-ID observation from the one authoritative R4 ACK
+    // window. This does not reserve credit or expose the pending-ID storage.
+    [[nodiscard]] bool hasOutstandingFrame(
+        std::uint64_t generation, std::uint32_t frameId) const noexcept;
     // Reserve exactly one outbound complete frame at a time; no ACK yet.
     [[nodiscard]] bool beginFrameDelivery(
         std::uint64_t generation, std::uint32_t frameId,

@@ -2439,6 +2439,16 @@ if(TARGET rdp-server-linux-x11-desktop)
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-pixel-parity)
+        # R5 snapshot/borrow generation fence; no R2 lease, listener or seat0.
+        add_test(NAME x11.native-geometry-observation-generation-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                native-geometry-observation-retirement)
+        set_tests_properties(
+            x11.native-geometry-observation-generation-retirement
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation"
+                       TIMEOUT 30)
         add_test(NAME x11.desktop-resource-randr-capture-generation
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"

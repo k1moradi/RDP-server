@@ -1,3 +1,31 @@
+## R3 R4 merged membership and bounded remap drain (2026-10-19)
+
+Main R4 PR #27 is merged; R3 uses its authoritative hasOutstandingFrame()
+membership for duplicate-at-64. The production-backed R3 case now covers
+full first post-remap ClearCodec and genuine current ACK, normal/SUSPEND
+stale ACK terminal rejection, zero-outstanding suspension recovery, 63
+deferred outstanding-frame drain attempts, terminal 64th attempt and fresh
+separate generation. R10 must provide bounded retry/wall-clock orchestration;
+no second ACK/SSL/X11 owner exists. Source authored on main `30b3019532f174c8508b0023bb56913de78c8b8c`.
+Owner-local CTest NOT RUN; exact-head hosted CI PENDING; R4 acceptance
+PENDING; native R10/R5/seat0 client acceptance BLOCKED / NOT RUN.
+
+## R5 current X11 geometry observation/source generation (2026-10-19)
+
+R5 source-only change against parent `55eb5e10d706b14c61ce8a3825d611bc2269c3d4` adds a value-only,
+R2-session-tagged X11 geometry observation and freshness-gated synchronous
+R4 framebuffer callback on the existing one-XCB-owner thread. Dedicated
+isolated Xvfb test:
+`x11.native-geometry-observation-generation-retirement`.
+The test exercises multiple RandR transitions, stale capture/session
+observations, queued local pointer motion, full-frame callback borrows and
+terminal retirement denial. It does not grant R2 consent, start a listener,
+authenticate a client or exercise the R3 remap protocol. R4 PR #27 is merged;
+R3 PR #24 review and R10 native-to-protocol call remain separate gates.
+Owner-local compile/full CTest **NOT RUN** (native development environment
+unavailable); new-source hosted CI **PENDING**; real seat0/client **NOT RUN**.
+
+
 ## R3 stale-ACK terminality and suspended-window remap correction (2026-10-19)
 
 R3 PR #24 source-only correction against parent `3ff4d8b035ca4af4587b1ebbed5bb445742e2d3f`: an ACK whose frame

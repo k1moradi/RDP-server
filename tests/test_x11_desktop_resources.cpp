@@ -936,6 +936,112 @@ syntheticXvfbCapturePixelParity()
     resources.disconnect();
 }
 
+// Production-X11, isolated Xvfb: exercise R2-provided session provenance,
+// repeated RandR replacement, queued pointer motion and synchronous borrow
+// without ever inventing an OS lease or retaining a framebuffer span.
+struct NativeGeometryFrameProbe final
+{
+    PixelSize expectedGeometry{};
+    std::uint64_t expectedCaptureGeneration{};
+    std::size_t calls{};
+
+    static bool consume(void *context, const FramebufferView &framebuffer,
+                        std::uint64_t captureGeneration) noexcept
+    {
+        auto &probe = *static_cast<NativeGeometryFrameProbe *>(context);
+        ++probe.calls;
+        return framebuffer.valid() &&
+               captureGeneration == probe.expectedCaptureGeneration &&
+               framebuffer.widthPixels == probe.expectedGeometry.widthPixels &&
+               framebuffer.heightPixels == probe.expectedGeometry.heightPixels &&
+               framebuffer.strideBytes ==
+                   static_cast<std::size_t>(framebuffer.widthPixels) * 4U;
+    }
+
+    [[nodiscard]] X11R4BgraFrameConsumer callback() noexcept
+    {
+        return {this, &consume};
+    }
+};
+
+void
+syntheticXvfbNativeGeometryObservationRetirement()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 341U;
+    constexpr std::uint64_t replacementNativeSessionGeneration = 342U;
+    // Full-frame XShm consumption for the largest synthetic geometry.
+    constexpr std::uint64_t maximumCapturePixels = 1280U * 720U;
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, maximumCapturePixels);
+    requireValidResources(resources, "native geometry observation");
+    assert(resources.randrAvailable());
+    assert(!resources.observeNativeGeometry(0U).valid());
+
+    auto previous = resources.observeNativeGeometry(nativeSessionGeneration);
+    assert(previous.valid());
+    assert((previous.pixelGeometry == PixelSize{1280, 720}));
+    assert(previous.captureGeneration == resources.captureGeneration());
+    assert(resources.nativeGeometryIsCurrent(
+        previous, nativeSessionGeneration));
+    assert(!resources.nativeGeometryIsCurrent(
+        previous, replacementNativeSessionGeneration));
+
+    int screenNumber = -1;
+    XcbConnection helper = connectHelper(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*helper, screenNumber);
+    constexpr std::array<PixelSize, 4U> resizedGeometries{{
+        {1152, 648}, {1024, 600}, {800, 600}, {960, 540}}};
+
+    NativeGeometryFrameProbe probe{};
+    for (const PixelSize geometry : resizedGeometries)
+    {
+        // Native local pointer activity queued behind a geometry transition
+        // must not turn an old resource epoch into a valid new one.
+        disableRandrCrtcsAndResize(*helper, screen->root, geometry);
+        warpSyntheticPointer(*helper, screen->root, {40, 50});
+        requireSyntheticRandrRebuild(
+            resources, *helper, screen->root, geometry);
+
+        const auto current =
+            resources.observeNativeGeometry(nativeSessionGeneration);
+        assert(current.valid());
+        assert(current.pixelGeometry == geometry);
+        assert(current.captureGeneration == previous.captureGeneration + 1U);
+        assert(!resources.nativeGeometryIsCurrent(
+            previous, nativeSessionGeneration));
+        assert(!resources.capture(
+            previous.captureGeneration, {0, 0, 8, 8}).valid());
+
+        const std::size_t priorCalls = probe.calls;
+        assert(!resources.consumeR4Frame(
+            previous, nativeSessionGeneration, probe.callback()));
+        assert(!resources.consumeR4Frame(
+            current, replacementNativeSessionGeneration, probe.callback()));
+        assert(probe.calls == priorCalls);
+
+        probe.expectedGeometry = geometry;
+        probe.expectedCaptureGeneration = current.captureGeneration;
+        assert(resources.nativeGeometryIsCurrent(
+            current, nativeSessionGeneration));
+        assert(resources.consumeR4Frame(
+            current, nativeSessionGeneration, probe.callback()));
+        assert(probe.calls == priorCalls + 1U);
+        previous = current;
+    }
+
+    // An R2 revoked/logged-out session must terminally discard native input
+    // state, not issue cleanup XTEST requests or allow another pixel borrow.
+    resources.retireAfterAuthorizationLoss();
+    assert(!resources.observeNativeGeometry(nativeSessionGeneration).valid());
+    assert(!resources.nativeGeometryIsCurrent(
+        previous, nativeSessionGeneration));
+    assert(!resources.consumeR4Frame(
+        previous, nativeSessionGeneration, probe.callback()));
+    assert(!resources.valid());
+    assert(resources.nativeConnection() == nullptr);
+    resources.disconnect();
+}
+
 void
 syntheticXvfbRandrCaptureGeneration()
 {
@@ -1858,6 +1964,11 @@ main(int argc, char **argv)
     if (behavior == "capture-pixel-parity")
     {
         syntheticXvfbCapturePixelParity();
+        return 0;
+    }
+    if (behavior == "native-geometry-observation-retirement")
+    {
+        syntheticXvfbNativeGeometryObservationRetirement();
         return 0;
     }
     if (behavior == "randr-capture-generation")

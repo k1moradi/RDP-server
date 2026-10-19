@@ -1,3 +1,12 @@
+## R5 CI structure guard follow-up (2026-10-19)
+
+Correcting commit `3ebb80eec39d4ca663d4156b48c9d98a713f2300` intentionally expanded R9's native-X11
+sanitizer inventory from 39 to 42, but independent structure Actions
+`39272105951` failed because `scripts/validate_ci_workflow.py` still pinned
+the old count. This follow-up updates the validator to require count 42 and
+all three newly selected generation regressions. The guard remains strict;
+nothing is skipped or weakened. Exact descendant workflow evidence is pending.
+
 ## R5 RandR generation CI regression correction (2026-10-19)
 
 Actions `39244189634` at `2fcfebee9e94b064ebf54617cd224982060471a0` failed only the ordinary Ubuntu

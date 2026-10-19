@@ -1,3 +1,14 @@
+## R5 CI structure inventory correction (2026-10-19)
+
+The first exact-SHA structure run for R5 correction `3ebb80eec39d4ca663d4156b48c9d98a713f2300`
+(Actions `39272105951`) correctly rejected the changed 42-case sanitizer
+inventory because `scripts/validate_ci_workflow.py` still required the old
+literal `r5_expected_test_count=39`. Preserve that independent guard: update
+its required count to 42 and require the native-geometry, same-pixel and
+RandR-burst generation test names explicitly. No production X11 behavior or
+acceptance gate changes in this follow-up; exact descendant hosted validation
+is pending.
+
 ## R5 RandR burst-generation CI correction (2026-10-19)
 
 Failing exact source `2fcfebee9e94b064ebf54617cd224982060471a0`, Actions `39244189634`, exposed two

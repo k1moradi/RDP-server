@@ -738,6 +738,7 @@ jobs:
           cmake --build build --config Debug --parallel 2 --target \
             test_owned_remote_transfer test_clipboard_protocol \
             test_r3_clipboard_static_channel test_r8_r3_clipboard_bridge \
+            test_authentication_attempt_limiter \
             test_windows_clipboard_adapter test_macos_clipboard_adapter \
             test_windows_clipboard_file_destination \
             test_macos_clipboard_file_destination \
@@ -845,6 +846,35 @@ jobs:
           done
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$r3_clipboard_selection" --output-on-failure
+      # Focused R9 regressions remain distinct from the fixed R3 20-case
+      # Graphics and R8 87-case clipboard sanitizer inventories.
+      - name: Pin R2 R4 and R8 focused exact-HEAD sanitizer inventory
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        shell: bash
+        run: |
+          set -euo pipefail
+          for required_test_name in \
+            security.ipv4-mapped-ipv6-peer-quota-identity \
+            graphics.surface-resize-revocation \
+            graphics.x264-native-bgra-resize-recovery \
+            runtime.r8-r3-stable-scalar-write-receipt; do
+            exact_test_selection="^${required_test_name//./[.]}$"
+            selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$exact_test_selection")"
+            printf '%s\n' "$selected_tests"
+            grep -Fq ": $required_test_name" <<< "$selected_tests"
+            selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+            if [[ "$selected_test_count" -ne 1 ]]; then
+              printf 'R9 exact-HEAD CTest registry mismatch: %s expected 1, found %s\n' \
+                "$required_test_name" "$selected_test_count" >&2
+              exit 1
+            fi
+            ctest --test-dir build --build-config Debug --timeout 60 \
+              -R "$exact_test_selection" --output-on-failure
+          done
+
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
@@ -1790,6 +1820,24 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
           ctest --test-dir build -C Release --timeout 30 \
             -R '^gui[.]offscreen-' --output-on-failure
+      # Independently count the R7 Qt client-stage regression on packaged arm64.
+      - name: Pin R7 client-stage Qt CTest at exact packaging HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_stage_selection='^gui[.]offscreen-r10-client-stage-and-retirement-status-denials$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$client_stage_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-r10-client-stage-and-retirement-status-denials' <<< "$selected_tests"
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne 1 ]]; then
+            printf 'R9 R7 client-stage CTest registry mismatch: expected 1, found %s\n' \
+              "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$client_stage_selection" --output-on-failure
+
       # Pair R10's production stable-interface/address predicate with R7's
       # Qt chooser on the same AppleClang/Qt Release packaging runner.
       # Fixtures are offline and cannot authorize R1/R2 or open sockets.

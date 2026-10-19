@@ -1,3 +1,26 @@
+## R10 concrete Linux HostControl fail-closed foundation (2026-10-19)
+
+At source parent `3133c34ca215389e6536a963171accb80b6ae706`, the Linux GUI now constructs a concrete
+serialized `LinuxRuntimeHostControl`, not the inert unavailable facade.
+It enumerates real UP/RUNNING private LAN interface/address candidates,
+tracks exact name/index identity, rechecks selection on Start, and holds
+one unopened R1 `OwnedLanListener` RAII slot. Requesting existing-account
+credentials or host permission never creates an R2 consent lease. Positive
+Start stays denied; there are zero client sessions, native observers, input,
+frames, listeners, firewall changes, UPnP or service activation. Stop is
+idempotent and Revoke terminates configuration for the controller lifetime.
+
+Ordinary offline Linux CTests:
+`runtime.linux-host-control-no-consent-start-denials`,
+`runtime.linux-host-control-revalidated-interface-denials`, and
+`runtime.linux-host-control-stop-revoke-retirement`.
+Source review PASS; developer-local build/full CTest NOT RUN; exact publication
+SHA hosted CI PENDING. No physical seat0/client evidence. R2 independent
+host-owner consent/lock/revocation, R1 certificate trust/identity, and
+R10 positive session ownership remain BLOCKED. R4 ACK duplicate fix is
+merged, R5 native geometry change landed, PR #23 ACK/default GUI is draft
+with Qt6-missing protocol CI, PR #24 corrected remap awaits approval/CI.
+
 ## R6/R9 clean Windows GUI source-only evidence (2026-10-19)
 
 Unprovisioned exact-ZIP Windows job and native PATH sanitizer CTest added

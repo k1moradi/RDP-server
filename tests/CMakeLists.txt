@@ -68,6 +68,25 @@ if(TARGET rdp-server-linux-serve-listener)
         PROPERTIES LABELS "runtime;security;r10-listener;offline")
 endif()
 
+# Three offline native R10 HostControl lifetime/denial regressions.
+if(TARGET rdp-server-linux-host-control)
+    add_executable(test_linux_runtime_host_control
+        test_linux_runtime_host_control.cpp)
+    target_link_libraries(test_linux_runtime_host_control PRIVATE
+        rdp-server-linux-host-control)
+    target_compile_options(test_linux_runtime_host_control PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    foreach(host_control_case IN ITEMS
+            linux-host-control-no-consent-start-denials
+            linux-host-control-revalidated-interface-denials
+            linux-host-control-stop-revoke-retirement)
+        add_test(NAME "runtime.${host_control_case}"
+            COMMAND test_linux_runtime_host_control "${host_control_case}")
+        set_tests_properties("runtime.${host_control_case}" PROPERTIES
+            LABELS "runtime;security;r10-host-control;offline")
+    endforeach()
+endif()
+
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)

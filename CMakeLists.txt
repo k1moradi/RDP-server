@@ -743,6 +743,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 Linux GUI HostControl: real inventory, fail-closed Start.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_library(rdp-server-linux-host-control STATIC
+        src/server/runtime/linux_runtime_host_control.cpp)
+    target_compile_features(rdp-server-linux-host-control PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-host-control PUBLIC
+        "${PROJECT_SOURCE_DIR}/src")
+    target_link_libraries(rdp-server-linux-host-control PUBLIC
+        rdp-server-protocol)
+    target_compile_options(rdp-server-linux-host-control PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 if(RDP_SERVER_BUILD_LINUX_GSSAPI)
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
         message(FATAL_ERROR "Linux GSSAPI runtime security requires Linux")
@@ -1078,6 +1091,10 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
     add_executable(rdp-server-desktop src/gui/main.cpp)
     target_link_libraries(rdp-server-desktop PRIVATE rdp-server-desktop-ui)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_link_libraries(rdp-server-desktop PRIVATE
+            rdp-server-linux-host-control)
+    endif()
     if(APPLE)
         set_target_properties(rdp-server-desktop PROPERTIES MACOSX_BUNDLE TRUE)
     endif()

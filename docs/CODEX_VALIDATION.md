@@ -1,3 +1,23 @@
+## R2 dependency-graph reconciliation after landed R10/R7 consumption (2026-10-18)
+
+Source inspection at parent `f08c653b58ac` confirms the older R2 roadmap
+dependency prose was stale. Production `main.cpp` already owns the persistent
+serialized post-Share R1/R2/R3/R5 loop, keeps the exact R2-selected X11/logind
+owner, routes classified slow-path input through the protected R5 bridge, and
+publishes R2-gated ClearCodec frames. R7 `17bbd4dd` consumes R2's typed
+terminal-session status, and R7 `f08c653b` removes unsupported independent-
+password collection fields rather than implying a usable CredSSP password mode.
+
+This reconciliation changes documentation only: no production source, wire byte,
+permission, listener, CTest registration or synthetic admission. GitHub descendant
+CI at inspection shows Ubuntu, macOS, R2 complete/missing-systemd, R7 GUI/native
+and R9 sanitizer jobs **PASS** on `17bbd4dd`; Windows protocol/CLANG64 were still
+running. Owner-local `~/rdp-server/build` full CTest **NOT RUN** here.
+The remaining product gate is concrete R10 GUI LAN `RuntimeHostControl`, genuine
+per-session host-owner consent/lock authority, then explicitly authorized physical
+X11 seat0 Microsoft-client authentication/video/input evidence. Independent
+application-password CredSSP remains **BLOCKED**.
+
 ## R7 unsupported independent-password input removal (2026-10-18)
 
 Source parent `17bbd4dd86481cfd67d9c08128a80a780e8a91b7`. The Qt credentials page removes its disabled

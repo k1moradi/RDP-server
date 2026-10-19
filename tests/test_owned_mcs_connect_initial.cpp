@@ -4728,6 +4728,17 @@ void testGraphicsSurfaceRemap()
     assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
            RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
 
+    // A delayed duplicate ACK for the still-mapped original surface is
+    // nonterminal Unmatched until that surface has actually been retired.
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 100U, 4096U, 2U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+    assert(dvc.presentationMapped());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
     // A prepared frame with zero accepted outer bytes can be cancelled.
     rdp_server::rdp::GfxAvc420SegmentedFrame unwritten;
     prepareTestClearCodecFrame(dvc, 101U, unwritten);

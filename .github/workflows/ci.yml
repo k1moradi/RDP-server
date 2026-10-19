@@ -28,6 +28,7 @@ jobs:
             --workflow .github/workflows/ci.yml \
             --fixture-root tests/fixtures/ci_workflow_structure \
             --self-test
+          python3 tests/test_r9_clean_windows_gate.py
 
   r2-linux-production-runtime-security:
     needs: ci-workflow-structure
@@ -401,49 +402,6 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  # R6/R9: validate the exact uploaded ZIP on an unprovisioned Windows runner,
-  # never allowing an MSYS2/Qt compiler PATH to satisfy missing app-local DLLs.
-  r9-windows-portable-gui-clean-launch:
-    needs: [ci-workflow-structure, r6-windows-clang23]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@v4
-        with:
-          name: rdp-server-portable-gui-windows-x86_64
-          path: build/clean-windows-portable-artifact
-      - name: Verify exact ZIP and open and close visible GUI in clean process
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          $artifactDir = Join-Path $PWD "build/clean-windows-portable-artifact"
-          $archives = @(Get-ChildItem -LiteralPath $artifactDir -File -Filter "rdp-server-portable-gui-*.zip")
-          if ($archives.Count -ne 1) { throw "Expected exactly one uploaded GUI ZIP" }
-          $archive = $archives[0]
-          $receipt = $archive.FullName + ".sha256"
-          if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) { throw "GUI ZIP hash receipt missing" }
-          $line = (Get-Content -LiteralPath $receipt -Raw).Trim()
-          $receiptMatch = [regex]::Match($line, '^([0-9a-f]{64})  (.+)$')
-          if (-not $receiptMatch.Success -or
-              $receiptMatch.Groups[2].Value -cne $archive.Name) {
-            throw "GUI ZIP hash receipt invalid"
-          }
-          $expectedSha = $receiptMatch.Groups[1].Value
-          $actualSha = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actualSha -cne $expectedSha) { throw "Downloaded GUI ZIP checksum mismatch" }
-          & python scripts/verify_portable_gui.py --archive $archive.FullName --git-sha $env:GITHUB_SHA --outer-sha256 $actualSha
-          if ($LASTEXITCODE -ne 0) { throw "Downloaded GUI manifest invalid" }
-          foreach ($unicodeLetter in @([char]0x03A9, [char]0x30AB)) {
-            $root = Join-Path $PWD ("build/Clean GUI " + $unicodeLetter + " With Spaces")
-            if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
-            Expand-Archive -LiteralPath $archive.FullName -DestinationPath $root
-            & ./scripts/smoke_windows_portable_gui_clean.ps1 -Root $root
-            if (-not $?) { throw "Isolated visible GUI launch failed" }
-          }
-
   # R6/R10 M1 compiler parity: exercise the ordinary Windows-native adapter
   # graph with the owner's required MSYS2 CLANG64 family. This is hosted
   # compiler/SDK evidence only; it does not replace the owner's persistent
@@ -629,6 +587,23 @@ jobs:
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
+      # R7/R6 non-collecting credential UI must remain registered on Windows.
+      - name: R9 pin Windows unsupported-password GUI CTest
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          selector='^windows[.]gui-independent-password-input-unavailable$'
+          selected_tests="$(ctest --test-dir build --build-config Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': windows.gui-independent-password-input-unavailable' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 Windows unsupported-password registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
       - name: R9 package native Windows GUI and verify PE closure
         id: r9_windows_gui_package
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
@@ -676,11 +651,11 @@ jobs:
           ./scripts/smoke_windows_portable_gui.ps1 -Root (Join-Path $PWD "build\Extracted PORTABLE GUI")
       # Publish only after the extracted offline Windows smoke has passed.
       # Keep PORTABLE-GUI separate from SDK and startup-disabled SERVER-TEST.
-      - name: Upload verified Windows x86_64 PORTABLE-GUI archive
+      - name: Stage Windows PORTABLE-GUI candidate (internal only)
         if: ${{ always() && steps.r9_windows_gui_package.outcome == 'success' && steps.r9_windows_gui_smoke.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
-          name: rdp-server-portable-gui-windows-x86_64
+          name: r9-windows-unverified-${{ github.sha }}
           path: |
             build/rdp-server-portable-gui-*-windows-x86_64-*.zip
             build/rdp-server-portable-gui-*-windows-x86_64-*.zip.sha256
@@ -797,6 +772,7 @@ jobs:
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
+            test_linux_logind_session_identity test_runtime_host_control \
             test_runtime_linux_security test_runtime_io_interest \
             test_runtime_licensing_authority \
             test_runtime_licensing_authority_public_header \
@@ -903,7 +879,8 @@ jobs:
             security.ipv4-mapped-ipv6-peer-quota-identity \
             graphics.surface-resize-revocation \
             graphics.x264-native-bgra-resize-recovery \
-            runtime.r8-r3-stable-scalar-write-receipt; do
+            runtime.r8-r3-stable-scalar-write-receipt \
+            runtime.r8-r3-retired-route-positive-receipt-isolation; do
             exact_test_selection="^${required_test_name//./[.]}$"
             selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$exact_test_selection")"
             printf '%s\n' "$selected_tests"
@@ -916,6 +893,34 @@ jobs:
             fi
             ctest --test-dir build --build-config Debug --timeout 60 \
               -R "$exact_test_selection" --output-on-failure
+          done
+
+      # Merged R2 logind-identity and authentication-outcome regressions are
+      # separately selected, deny-only and production-linked. They do not
+      # grant consent, native OS admission, GUI Start or live socket access.
+      - name: Pin merged R2 session and auth-outcome sanitizer CTests
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          for required_test_name in \
+            security.linux-seat0-session-identity-denials \
+            runtime.host-control-authentication-outcome-denials; do
+            selector="^${required_test_name//./[.]}$"
+            selected_tests="$(ctest --test-dir build -C Debug -N -R "$selector")"
+            printf '%s\n' "$selected_tests"
+            grep -Fq ": $required_test_name" <<< "$selected_tests"
+            selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+            if [[ "$selected_count" -ne 1 ]]; then
+              printf 'R9 R2 native/GUI status registry mismatch: %s expected 1, found %s\n' \
+                "$required_test_name" "$selected_count" >&2
+              exit 1
+            fi
+            ctest --test-dir build -C Debug --timeout 60 \
+              -R "$selector" --output-on-failure
           done
 
       - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
@@ -1805,6 +1810,53 @@ jobs:
             -R "$r7_focus" --output-on-failure
 
 
+  # Only trusted main may execute on the owner's clean standard-user VM.
+  # A missing interactive clean Windows VM is a hard release block.
+  r9-clean-windows-portable-gui:
+    if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [ci-workflow-structure, r6-windows-clang23]
+    runs-on: [self-hosted, Windows, X64, r9-clean-windows-gui]
+    steps:
+      - name: Require clean-Windows producer and policy checks
+        shell: powershell
+        env:
+          STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
+          PRODUCER_RESULT: ${{ needs.r6-windows-clang23.result }}
+        run: |
+          if ($env:STRUCTURE_RESULT -ne 'success' -or $env:PRODUCER_RESULT -ne 'success') {
+            throw 'Windows GUI release prerequisites failed'
+          }
+      - uses: actions/checkout@v4
+      - name: Download exact staged Windows PORTABLE-GUI candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: r9-windows-unverified-${{ github.sha }}
+          path: build/clean-windows-input
+      - name: Validate unmodified ZIP and launch in ordinary Windows desktop
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem -LiteralPath 'build/clean-windows-input' -File -Filter '*.zip')
+          if ($archives.Count -ne 1) { throw 'Expected one exact Windows ZIP' }
+          & ./scripts/clean_windows_portable_gui.ps1 -Archive $archives[0].FullName -ExactGitSha '${{ github.sha }}' -Receipt 'build/clean-windows-receipt.json'
+          if (!$?) { throw 'Clean Windows GUI launch gate failed' }
+      - name: Upload clean-Windows exact-SHA acceptance receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-clean-windows-receipt-${{ github.sha }}
+          path: build/clean-windows-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload verified public Windows x86_64 PORTABLE-GUI ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-windows-x86_64
+          path: |
+            build/clean-windows-input/rdp-server-portable-gui-*-windows-x86_64-*.zip
+            build/clean-windows-input/rdp-server-portable-gui-*-windows-x86_64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
   # R7/R9 native arm64 PORTABLE-GUI closure. Packages the real Qt .app but
   # never grants R2 admission, starts a listener, or requests TCC.
   r7-macos-portable-gui:
@@ -1881,6 +1933,59 @@ jobs:
           fi
           ctest --test-dir build -C Release --timeout 30 \
             -R "$client_stage_selection" --output-on-failure
+
+      # Merged R7 GUI consent is a new exact-one offline Qt requirement;
+      # Start/Stop authority still belongs only to a future concrete R10.
+      - name: Pin R7 explicit GUI Stop-before-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-close-requires-explicit-owner-stop$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-close-requires-explicit-owner-stop' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 GUI close consent registry mismatch: expected 1, found %s\n' \
+              "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # R7 typed lifecycle/terminal-session projection must remain exact-one.
+      - name: Pin R7 lifecycle and terminal-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-r10-lifecycle-and-terminal-close-denials$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-r10-lifecycle-and-terminal-close-denials' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 R7 lifecycle registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # R7 unsupported independent-password mode must expose no secret inputs.
+      - name: Pin R7 non-collecting unsupported-password Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-independent-password-workflow-unavailable$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-independent-password-workflow-unavailable' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 unsupported-password registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
 
       # Pair R10's production stable-interface/address predicate with R7's
       # Qt chooser on the same AppleClang/Qt Release packaging runner.

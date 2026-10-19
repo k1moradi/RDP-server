@@ -157,6 +157,12 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
         return deny(RuntimeHostError::AccessRevoked);
     if (listener_.valid())
         return deny(RuntimeHostError::InvalidConfiguration);
+
+    // A rejected new selection must not retain a previously approved
+    // interface/address preference for a later independent Start request.
+    // Never invalidate an already-owned live listener during reconfiguration.
+    selection_ = {};
+    selectionConfigured_ = false;
     if (options.afterLoginLaunchRequested)
         return deny(RuntimeHostError::ListenerPolicyDenied);
     const auto preflight = assessRuntimeSelectedLanEndpoint(
@@ -202,7 +208,13 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     const auto current = assessRuntimeSelectedLanEndpoint(
         selection_, enumerateLocalInterfaces());
     if (!current.succeeded())
+    {
+        // The native interface/address changed since Configure. Discard the
+        // stale preference rather than letting a subsequent Start reuse it.
+        selection_ = {};
+        selectionConfigured_ = false;
         return deny(current.error);
+    }
     // R1 verified bind, R2 lease, TLS identity, Share/native session are
     // intentionally absent. No socket, firewall or service modifications.
     return deny(RuntimeHostError::HostConsentRequired);

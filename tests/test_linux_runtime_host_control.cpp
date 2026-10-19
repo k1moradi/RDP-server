@@ -56,6 +56,40 @@ int main(int argc, char** argv)
         }
         return 0;
     }
+    if (testCase == "linux-host-control-rejected-selection-retires-previous")
+    {
+        // No synthetic interfaces or socket/credential setup. The host must
+        // supply one currently eligible private LAN adapter for this case.
+        const auto interfaces = control.enumerateLocalInterfaces();
+        if (interfaces.empty() || interfaces.front().localAddresses.empty())
+            return 77; // CTest SKIP_RETURN_CODE: no suitable native adapter.
+
+        const RuntimeHostOptions selected{
+            interfaces.front().stableId,
+            interfaces.front().localAddresses.front(), 3389U, true, false};
+        assert(control.configure(selected).succeeded());
+        assert(control.startSharing().error ==
+               RuntimeHostError::HostConsentRequired);
+
+        RuntimeHostOptions removed = selected;
+        removed.interfaceId += "#stale";
+        assert(control.configure(removed).error ==
+               RuntimeHostError::InterfaceUnavailable);
+        assert(control.startSharing().error ==
+               RuntimeHostError::InvalidConfiguration);
+        assert(!control.status().listenerAvailable);
+        assert(control.status().boundEndpoint.empty());
+
+        assert(control.configure(selected).succeeded());
+        RuntimeHostOptions forbidden = selected;
+        forbidden.afterLoginLaunchRequested = true;
+        assert(control.configure(forbidden).error ==
+               RuntimeHostError::ListenerPolicyDenied);
+        assert(control.startSharing().error ==
+               RuntimeHostError::InvalidConfiguration);
+        assert(!control.status().hostOwnerAuthorized);
+        return 0;
+    }
     if (testCase == "linux-host-control-stop-revoke-retirement")
     {
         assert(control.stopSharing().succeeded());

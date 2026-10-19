@@ -23,10 +23,16 @@ namespace
 
     auto *startButton = window.findChild<QPushButton *>("startSharing");
     auto *stopButton = window.findChild<QPushButton *>("stopSharing");
+    auto *unsupportedPassword =
+        window.findChild<QPushButton *>("setApplicationPasswordUnsupported");
     auto *passwordField = window.findChild<QWidget *>("password");
-    if (!startButton || !stopButton || !passwordField ||
+    auto *confirmationField = window.findChild<QWidget *>("confirmation");
+    if (!startButton || !stopButton || !unsupportedPassword ||
+        passwordField || confirmationField ||
         startButton->isEnabled() || stopButton->isEnabled() ||
-        passwordField->isEnabled() || window.blockedReason().isEmpty())
+        unsupportedPassword->isEnabled() ||
+        !unsupportedPassword->text().contains("Unsupported") ||
+        window.blockedReason().isEmpty())
         return 3;
 
     if (exerciseStartDenial)
@@ -49,7 +55,11 @@ int main(int argc, char *argv[])
         argc == 2 && std::string_view{argv[1]} == "--offline-self-test";
     const bool offlineStartDenialTest =
         argc == 2 && std::string_view{argv[1]} == "--offline-start-denial-test";
-    if (offlineSelfTest || offlineStartDenialTest)
+    const bool offlineUnsupportedPasswordTest =
+        argc == 2 &&
+        std::string_view{argv[1]} == "--offline-unsupported-password-test";
+    if (offlineSelfTest || offlineStartDenialTest ||
+        offlineUnsupportedPasswordTest)
         // The portable Windows contract guarantees qwindows.dll, not Qt's
         // developer-only offscreen platform plugin. Keep command-mode
         // verification hidden by never showing the window, but initialize
@@ -60,7 +70,8 @@ int main(int argc, char *argv[])
     rdp_server::server::runtime::UnavailableRuntimeHostControl runtime;
     rdp::gui::HostControl control(runtime);
     rdp::gui::DesktopWindow window(control);
-    if (offlineSelfTest || offlineStartDenialTest)
+    if (offlineSelfTest || offlineStartDenialTest ||
+        offlineUnsupportedPasswordTest)
         return verifyOfflineGui(window, control, offlineStartDenialTest);
 
     window.show();

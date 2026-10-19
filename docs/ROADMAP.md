@@ -1,3 +1,25 @@
+## R7/R6 Windows offline verifier follows non-collecting password UI (2026-10-19)
+
+Exact hosted SHA `84d9ac65936e83eb8644ee2461bda2764eac9c68` isolated the
+aggregate CI failure to R6 Windows CLANG64 GUI offline/package smoke: the
+hidden verifier still required the R7-removed `password` QWidget and returned
+exit 3. The shared R7 UI itself passed macOS portable/native/session coverage,
+while Ubuntu/macOS/Windows protocol, R2 production-security and R9 sanitizers
+also passed.
+
+The Windows launcher now verifies the current non-collecting contract: both
+historical `password` and `confirmation` objects must be absent, the
+visible `Set Application Password — Unsupported` action must exist disabled,
+and Start/Stop remain denied under the unavailable runtime. New dedicated
+`windows.gui-independent-password-input-unavailable` invokes a hidden
+qwindows-backed command mode. Existing self-test, Start-denial and packaged
+qwindows smoke keep their no-listener/no-admission behavior.
+
+Parent: `972f0200b176fe21b28559d693e69fa8d833fea2`. Source review PASS. Publication-SHA Windows/full hosted
+CI PENDING; owner-local full CTest NOT RUN. Real R10 GUI HostControl, R2
+positive owner consent/lock authority and R1/R10 certificate
+fingerprint/trust/rotation remain BLOCKED.
+
 ## R7 unsupported independent password has no input surface (2026-10-18)
 
 The shared Qt credentials page no longer constructs disabled password or

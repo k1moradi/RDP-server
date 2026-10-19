@@ -1,3 +1,40 @@
+## R4 -> R10 first-frame-after-remap readiness contract (2026-10-19)
+
+R3 remains the sole owner of Graphics DVC generation, surface identity and the
+DELETE/CREATE/MAP accepted-byte receipt chain; R4 remains the sole owner of
+frame reservation/ACK membership and codec reference history; R10 owns only
+serialized scheduling. R10 may consider the replacement presentation frame-
+schedulable only after R3 has completed the full MAP receipt and its existing
+frame preflight reports `Ready`. `DeferredForFrameAcknowledge` is
+nonterminal backpressure: wait for actual client FRAME_ACK/SUSPEND intake
+through R3 into R4 and retry without inventing credit. `Rejected` is
+terminal for that attempted publication/reconfiguration and must not reuse a
+retired surface or frame ID.
+
+For today's integrated contract, the first post-remap desktop frame is
+**ClearCodec**. R3 PR #24 deliberately rejects AVC420 publication once a
+surface has been remapped even when AVC420 was negotiated; that rejection must
+leave the move-only prepared frame and transport queue untouched so R10 can
+publish the same eligible framebuffer through ClearCodec. R4's x264 producer
+now has the subordinate codec invariant needed for a future explicit R3/R10
+AVC420 rebind: on the first otherwise-valid request that observes a different
+R3-owned mapped surface ID in the same DVC generation, it resets x264 history
+and emits an independent SPS/PPS/IDR; the following accepted picture may be a
+P-frame. This offline invariant is not runtime authorization to relax R3's
+current fail-closed AVC420 gate.
+
+Lifetime/error rules are exact. A conclusively zero-accepted-byte frame may be
+canceled through the existing receipt and must reset codec history without
+changing ACK membership. Any positive or uncertain TLS/frame progress cannot
+use that cancellation path; abort is terminal for the presentation and drops
+codec history before reconnect. Reconnect/new Graphics generation and native
+capture-generation replacement require a fresh producer binding and therefore
+an IDR before any future AVC420 continuation. Retired-surface frame IDs/ACKs
+remain R3's no-reuse/fail-closed fence because wire FRAME_ACK has no surface
+ID; they never mutate R4's fresh outstanding set. R10 must not busy-loop the
+bounded R3 remap drain and must interleave R1 TLS, client DATA/ACK intake and
+native events while waiting.
+
 ## R2 current-owner sharing consent / R10-R7 handoff (2026-10-19)
 
 The single owner for sharing authority is R2

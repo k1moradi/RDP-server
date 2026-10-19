@@ -639,6 +639,15 @@ independent refresh/IDR. Never continue a P-frame chain through an unsent or
 ambiguously delivered reference. A terminal/partial transport abort likewise
 invalidates codec history for that presentation generation.
 
+A same-Graphics-generation R3 surface replacement is also a codec-reference
+boundary. R3 remains the sole surface-ID owner; the stateful R4 encoder may
+only observe the current mapped ID after all deterministic denials. When that
+otherwise-valid ID differs from the last successfully prepared surface, rebuild
+reference history before encode so the first accepted picture is independently
+decodable (SPS/PPS/IDR for AVC420). Do not use this observation to mint a
+surface, bypass R3's post-remap AVC420 gate, or create another ACK membership
+owner.
+
 A conclusively zero-byte withdrawal is a narrower transition than abort. Only
 the exact pending delivery receipt may be canceled, and only after the
 transport owner has independently proved cumulative accepted bytes are zero

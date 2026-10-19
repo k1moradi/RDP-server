@@ -1,3 +1,24 @@
+## R4 same-generation AVC420 surface-remap IDR (2026-10-19)
+
+Register exactly one production-backed
+`graphics.x264-segmented-surface-remap-idr` case in the existing x264
+segmented producer binary. Establish a delivered/ACKed old-surface reference
+chain ending in a P-frame, complete R3-style DELETE/CREATE/MAP to a different
+surface ID without changing the Graphics generation, reject the old surface
+without altering R4 membership, then require SPS/PPS/IDR on the first accepted
+new-surface picture and a P-frame on the next picture. Full delivery and real
+`GfxPresentationLifecycle::onFrameAcknowledge` calls must retire the exact
+frames; do not fabricate credit or a second ACK set.
+
+Retired-surface frame-ID monotonicity remains an R3 integration rule because
+FRAME_ACK carries no surface ID. Keep it in R3's remap CTest rather than adding
+an R4 high-water owner. Reuse the existing R4 regressions for malformed
+geometry/NV12 preflight, duplicate pending IDs, exact zero-byte cancellation,
+positive/partial terminal abort, capture-generation replacement and reconnect.
+The fully provisioned R9 x264/BGRA sanitizer selector is **29** cases after this
+addition; a lower green count is missing coverage. This remains offline codec
+evidence and must not enable AVC420 runtime publication after remap.
+
 ## R7 exact TLS fingerprint presentation regression (2026-10-19)
 
 `gui.offscreen-tls-fingerprint-rotation-and-denials` is the dedicated real-Qt

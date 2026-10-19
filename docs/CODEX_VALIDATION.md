@@ -1,3 +1,40 @@
+## R4 AVC420 remap reference reset and R3 exact-head review (2026-10-19)
+
+Parent current main `67ea710697dfbcdc9dafb1badb047c50b61ece07`. R4 reconciles legacy PR #28's narrow
+production change directly onto main: the existing x264 segmented producer
+observes the last successfully prepared R3-owned mapped surface ID and reopens
+x264 reference history before the first otherwise-valid picture for a different
+surface in the same Graphics DVC generation. Deterministic lifecycle,
+surface/frame-ID, metadata, geometry and NV12 denials stay before that reset.
+Dedicated production-backed CTest
+`graphics.x264-segmented-surface-remap-idr` proves old-surface IDR then
+P-frame, complete delivery plus real R4 FRAME_ACK retirement, R3-style
+same-generation surface replacement, inert stale-surface denial, fresh
+SPS/PPS/IDR and a subsequent P-frame. R9's focused x264/BGRA selector grows
+atomically from 28 to **29** cases.
+
+R3 PR #24 exact head `98b895000647edbbfd8daf6b779f6d82de567c15`
+was reviewed without moving R3 ownership. Its remap path waits for the
+authoritative R4 outstanding set, bounds that wait to 64 attempts before
+terminal reconnect, never invents an ACK, rejects retired frame IDs/ACKs after
+replacement, preserves zero-byte cancellation versus positive-partial abort,
+and keeps AVC420 fail-closed after remap while allowing mandatory ClearCodec.
+Structure Actions `39244457740` PASS. Primary Actions `39244457918`
+completed FAILURE in R5 X11 generation assertions and the R7 Linux GUI
+fingerprint build; its R4 x264/BGRA sanitizer step PASSed. Main descendants
+`3ebb80eec39d4ca663d4156b48c9d98a713f2300` /
+`c286052a546491d824ac2e499debff81d2d488de` corrected the R5 burst-generation
+expectations and CI inventory, and `660068b5719e1d997b782b90a5fc928cc9e2133f`
+corrected the R7 fixed fingerprint extent. Those descendants do not convert
+PR #24's failed exact-head run into a PASS; R3 exact-head hosted acceptance
+remains separate.
+
+Source/ownership review PASS. Owner-local canonical build/full CTest is
+**NOT RUN** in this GitHub-connector workspace. Exact publication-SHA hosted
+CI is **PENDING** after direct-main publication. Live AVC420 after remap,
+physical Linux seat0, GUI LAN Start and Microsoft-client visible resize remain
+**BLOCKED / NOT RUN**; the offline IDR result does not authorize AVC420.
+
 ## R6/R9 clean-Windows consumer verifier repair evidence (2026-10-19)
 
 Authoring parent `660068b5719e1d997b782b90a5fc928cc9e2133f`. The clean-Windows consumer on current main still

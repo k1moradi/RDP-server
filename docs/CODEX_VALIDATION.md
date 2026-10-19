@@ -1,3 +1,59 @@
+## R4 AVC420 remap exact-descendant acceptance (2026-10-19)
+
+R4 implementation SHA `571f77a7c862c95a0e60ef58882e26f2bced8186`
+(parent `67ea710697dfbcdc9dafb1badb047c50b61ece07`) is the direct-main
+reconciliation of legacy PR #28. Its exact authoring-SHA independent structure
+run `39272702743` PASSed. Primary run `39272703054` did not reach compile:
+the inherited R6/R9 fixture
+`tests/test_r9_clean_windows_gate.py` had an unterminated Python string, so
+that exact SHA is **not** falsely labeled green.
+
+The first direct descendant that repaired that external gate without changing
+R4 production or regression blobs is
+`e9c4abb43efb59ff24c9eceda594da3c6503452a` (R4 remains in direct
+ancestry through R10 `03fd2ad24227f0c2ce7098dce0b4ebc251b3e7db`).
+Primary Actions `39272932286` provide the R4 acceptance evidence:
+the production-linked Clang ASan/UBSan job `118129807160` PASSed, including
+**42/42** portable R4 graphics, **29/29** x264/BGRA, **4/4** AVC420 capability
+and **4/4** ClearCodec CTests. The pinned new
+`graphics.x264-segmented-surface-remap-idr` is registered as test #765 and
+PASSed under ASan/UBSan. Ubuntu protocol Debug and Release each PASSed
+**793/793**; macOS protocol completed SUCCESS; Windows protocol completed
+SUCCESS for Debug and Release configure/build/CTest plus package/consumer
+smoke. The separate Windows CLANG64 lane also completed its full Debug CTest
+before continuing its R6-owned Release work.
+
+The remap regression proves the required chain: old-surface IDR then P-frame,
+full delivery and real R4 ACK retirement, same-DVC-generation R3-style surface
+replacement, inert stale-surface denial, fresh SPS/PPS/IDR, then a subsequent
+P-frame. Existing production-backed R4 tests prove malformed geometry/NV12 and
+duplicate ACK-pending IDs are pre-encode/inert; exact zero-byte cancellation
+does not add ACK membership and forces one recovery IDR; positive/uncertain
+partial delivery uses terminal abort and drops codec history; reconnect and
+capture-generation replacement reopen the producer and require an IDR.
+`GfxPresentationLifecycle::completeFrameDelivery()` is the only path that
+calls the authoritative R4 `noteFrameSent()`, and only after exact full-byte
+receipt.
+
+R3 PR #24 was reviewed at exact head
+`98b895000647edbbfd8daf6b779f6d82de567c15`. Its remap drain observes
+R4's outstanding set without mutating it, bounds retry at 64, keeps retired
+frame-ID/ACK fencing in R3, preserves zero-byte cancellation versus positive
+partial terminal abort, and deliberately rejects AVC420 after remap while
+allowing mandatory ClearCodec. Its exact-head structure run
+`39244457740` PASSed and its R4 x264/BGRA sanitizer step PASSed; primary run
+`39244457918` failed in then-current R5 X11 generation assertions and R7 Qt
+fingerprint compilation, both corrected later on main. That does not convert
+PR #24's exact-head primary run into a PASS.
+
+R10 contract remains fail-closed: after full R3 MAP receipt, only
+`Ready` may schedule a frame; `DeferredForFrameAcknowledge` is nonterminal
+backpressure serviced by real client ACK/SUSPEND intake through R3 into R4;
+`Rejected` is terminal for that publication attempt. The first currently
+integrated post-remap frame is **ClearCodec**. Offline AVC420 IDR evidence does
+not authorize post-remap AVC420 enablement. Live Microsoft-client codec/resize,
+physical owner-authorized seat0 and GUI LAN Start remain **BLOCKED / NOT RUN**.
+
 ## R2 trusted-owner and standalone-NLA feasibility evidence (2026-10-19)
 
 Reviewed current production R2/R10/authentication code plus the canonical

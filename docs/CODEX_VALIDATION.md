@@ -3,7 +3,7 @@
 Main R4 PR #27 is merged; R3 uses its authoritative hasOutstandingFrame()
 membership for duplicate-at-64. The production-backed R3 case now covers
 full first post-remap ClearCodec and genuine current ACK, normal/SUSPEND
-stale ACK terminal rejection, zero-outstanding suspension recovery, 63
+stale ACK terminal rejection, genuine outstanding-to-suspended recovery, 63
 deferred outstanding-frame drain attempts, terminal 64th attempt and fresh
 separate generation. R10 must provide bounded retry/wall-clock orchestration;
 no second ACK/SSL/X11 owner exists. Source authored on main `30b3019532f174c8508b0023bb56913de78c8b8c`.

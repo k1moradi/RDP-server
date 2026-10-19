@@ -4862,6 +4862,29 @@ void testGraphicsSurfaceRemap()
     completeGraphicsDynamicVirtualChannelReady(
         suspended, RdpDynamicVirtualChannelAllocation{12U, 208U},
         1007U, 1005U);
+    // A genuine complete frame is outstanding before R4 suspension.
+    rdp_server::rdp::GfxAvc420SegmentedFrame suspendedFrame;
+    prepareTestClearCodecFrame(suspended, 20U, suspendedFrame);
+    assert(suspended.beginFramePublication(
+        std::move(suspendedFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    auto suspendedOutcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             suspendedOutcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto frameWrite = suspended.pendingServerWrite();
+        assert(frameWrite);
+        suspendedOutcome = suspended.onServerBytesWritten(
+            frameWrite.channelGeneration, frameWrite.replySequence,
+            frameWrite.writeSliceSequence, frameWrite.bytes.size());
+    }
+    assert(suspendedOutcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(suspended.outstandingGraphicsFrames() == 1U);
+    assert(suspended.beginSurfaceReconfiguration(208U, resized) ==
+           Decision::Deferred);
+    // Only R4 may clear outstanding membership on the real suspension.
     assert(suspended.onClientTpkt(
         208U, makeR3GraphicsFrameAcknowledgeTpkt(
             12U, 0U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 1U)) ==

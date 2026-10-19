@@ -27,3 +27,25 @@ The R3 DVC sanitizer selector must remain exactly **20** registered cases includ
 | M1 macOS 27 owner-native Debug | OPEN | Same candidate SHA, owner hardware/toolchain, full CTest |
 
 No candidate freeze before R10 nominates a single SHA. Hosted successes cannot advance any NOT RUN row.
+
+## R9 focused exact-HEAD inventory — added source gates, CI NOT YET VERIFIED
+
+R9 now explicitly builds `test_authentication_attempt_limiter` in the
+Clang sanitizer job and independently pins the following registered CTests:
+`security.ipv4-mapped-ipv6-peer-quota-identity`,
+`graphics.surface-resize-revocation`,
+`graphics.x264-native-bgra-resize-recovery`, and
+`runtime.r8-r3-stable-scalar-write-receipt`. Each must match exactly one
+CTest and execute with ASan/UBSan. R7's real Qt/macOS arm64 packaging job
+separately pins and executes exactly one
+`gui.offscreen-r10-client-stage-and-retirement-status-denials`.
+The preexisting 20-case R3 Graphics DVC, 87-case R8 clipboard component,
+and independent native linkage guards remain unchanged.
+
+No hosted run, native owner receipt, or real Microsoft-client acceptance is
+claimed for this addition until corresponding exact-SHA evidence exists.
+`src/gui/main.cpp` still constructs `UnavailableRuntimeHostControl`;
+R10 concrete GUI LAN Start/Stop and R2-backed owner admission have not landed.
+The R10 candidate freeze nomination and same-SHA M1 native Debug receipts
+remain OPEN.
+

@@ -1,3 +1,27 @@
+## R7 positive workflow presentation and three-OS TLS Qt gate (2026-10-19)
+
+Parent `1b28ad3e51b761bb2f79a7066b579d6b12610ba2` already contains R10's default-on Qt shell plus explicit
+Qt-free/headless CI configuration. R7 now consumes that build policy without
+duplicating it. The wizard labels the existing R2/R10 request as **Local Owner
+Permission**, identifies the only currently permitted credential mode as an
+existing OS-account policy, and reports **Ready to share** only when the
+existing fail-closed R10/R2/R1/native gates and selected LAN endpoint all pass.
+It still creates no application-password input and never treats a button click
+or GUI state as authorization.
+
+New ordinary `gui.offscreen-positive-owner-workflow-presentation` covers
+those presentation transitions. Hosted Linux, macOS and Windows Qt lanes now
+pin exact-one execution of
+`gui.offscreen-tls-fingerprint-rotation-and-denials`; Linux builds the shared
+Qt fixture before packaging, macOS keeps its broad offscreen suite, and
+Windows CLANG64 runs the exact shared-Qt regression after its full Debug build.
+The PORTABLE-GUI archives continue to exclude the CLI `rdp-server` and expose
+only their platform GUI launch surface.
+
+Authoring/source review **PASS**. Publication-SHA three-platform Qt/CTest and
+full CI evidence **PENDING**. Positive R2 owner-consent issuance, live R10 LAN
+Start/client status and native macOS hosting remain **BLOCKED / NOT RUN**.
+
 ## R6 clean-gate regression follow-up (2026-10-19)
 
 The PowerShell consumer repair in `67ea710697dfbcdc9dafb1badb047c50b61ece07`

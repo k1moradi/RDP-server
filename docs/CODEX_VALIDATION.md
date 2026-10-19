@@ -1,3 +1,22 @@
+## R7 three-platform Qt TLS gate and positive workflow handoff (2026-10-19)
+
+**Parent:** `1b28ad3e51b761bb2f79a7066b579d6b12610ba2`. R10's default-on GUI / explicit-headless build policy
+is already present and unchanged. Windows CLANG64, macOS PORTABLE-GUI and
+Linux GUI ZIP lanes now each select exactly one
+`gui.offscreen-tls-fingerprint-rotation-and-denials` test and execute it on
+their native Qt toolchain. Linux additionally builds
+`test_desktop_gui_offline` before package inspection.
+
+R7 presentation now says **Request Local Owner Permission**, distinguishes
+existing OS-account credentials from unsupported independent application
+passwords, and shows **Ready to share** only after the thin adapter's existing
+gates pass. Dedicated
+`gui.offscreen-positive-owner-workflow-presentation` uses only a fake typed
+R10 snapshot and proves the GUI does not mint authority or add a secret input.
+
+**Authoring verification:** source/workflow inspection **PASS**. Exact
+publication-SHA hosted evidence **PENDING**.
+
 ## R6 clean-gate regression follow-up (2026-10-19)
 
 The PowerShell consumer repair in `67ea710697dfbcdc9dafb1badb047c50b61ece07`

@@ -690,6 +690,56 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "positive-workflow")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        DesktopWindow window(host);
+        auto* configureAccount =
+            window.findChild<QPushButton*>("configureOsAccount");
+        auto* requestPermission =
+            window.findChild<QPushButton*>("requestHostPermission");
+        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
+        auto* readiness = window.findChild<QLabel*>("sharingReadinessStatus");
+        auto* credentials = window.findChild<QLabel*>("credentialStatus");
+        auto* permission = window.findChild<QLabel*>("permissionStatus");
+        auto* stop = window.findChild<QPushButton*>("stopSharing");
+        assert(configureAccount && requestPermission && interfaces && readiness &&
+               credentials && permission && stop);
+        assert(requestPermission->text() ==
+               QStringLiteral("Request Local Owner Permission"));
+        assert(credentials->text().contains("Permitted credentials unavailable"));
+        assert(permission->text().contains(
+            "Local owner permission is not established"));
+        assert(readiness->text().contains("Not ready to share"));
+        assert(window.findChild<QObject*>("password") == nullptr);
+
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.interfaces = {RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
+        window.refresh();
+        interfaces->setCurrentIndex(1);
+        window.refresh();
+        assert(credentials->text().contains(
+            "Permitted credentials: existing OS-account"));
+        assert(permission->text().contains("Local owner permission is current"));
+        assert(readiness->text().contains("Ready to share"));
+        assert(!stop->isEnabled());
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{9U, "192.168.0.44", false, true, true}};
+        window.refresh();
+        assert(readiness->text().contains("R10 sharing address"));
+        assert(stop->isEnabled());
+        assert(stop->text().contains("Revoke"));
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "access")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

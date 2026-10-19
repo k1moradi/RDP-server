@@ -191,7 +191,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       clientSelection_(new QComboBox(this)),
       port_(new QSpinBox(this)),
       configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
-      requestHostPermission_(new QPushButton("Request Host Permission", this)),
+      requestHostPermission_(new QPushButton("Request Local Owner Permission", this)),
       start_(new QPushButton("Start Sharing", this)),
       stop_(new QPushButton("Stop Sharing / Revoke", this)),
       disconnect_(new QPushButton("Disconnect Selected Client", this)),
@@ -231,6 +231,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         "This GUI does not collect or store an application password."));
     configureOsAccount_->setObjectName("configureOsAccount");
     credentials->addWidget(configureOsAccount_);
+    credentialStatus_->setObjectName("credentialStatus");
     credentials->addWidget(credentialStatus_);
     auto* unsupportedApplicationPassword =
         new QPushButton("Set Application Password — Unsupported", this);
@@ -282,6 +283,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
 #endif
     requestHostPermission_->setObjectName("requestHostPermission");
     permissions->addWidget(requestHostPermission_);
+    permissionStatus_->setObjectName("permissionStatus");
     permissions->addWidget(permissionStatus_);
     permissions->addStretch();
     auto* sharing = page("Sharing and connection status");
@@ -295,6 +297,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharing->addWidget(clipboardStatus_);
     hostLifecycleStatus_->setObjectName("hostLifecycleStatus");
     sharing->addWidget(hostLifecycleStatus_);
+    status_->setObjectName("sharingReadinessStatus");
     sharing->addWidget(status_);
     endpointStatus_->setObjectName("boundLanEndpoint");
     sharing->addWidget(endpointStatus_);
@@ -470,11 +473,13 @@ void DesktopWindow::refresh() {
         : "Authorization unavailable: " + (snapshot.failure.isEmpty()
             ? "No authenticated host-owner admission" : snapshot.failure));
     credentialStatus_->setText(snapshot.credentialsConfigured
-        ? "Existing OS-account access policy configured. The RDP client must still authenticate with that OS account."
-        : "OS-account access is not configured. Application passwords are unsupported for NLA.");
+        ? "Permitted credentials: existing OS-account access policy. "
+          "The RDP client must still authenticate with that OS account."
+        : "Permitted credentials unavailable: configure existing OS-account access. "
+          "Independent application passwords remain unsupported for NLA.");
     permissionStatus_->setText(snapshot.desktopAuthorized
-        ? "Host-owner desktop permission is current."
-        : "Host-owner permission is not established; Start remains blocked.");
+        ? "Local owner permission is current for the reported desktop."
+        : "Local owner permission is not established; Start remains blocked.");
     configureOsAccount_->setEnabled(
         snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);
     requestHostPermission_->setEnabled(
@@ -498,8 +503,10 @@ void DesktopWindow::refresh() {
                 ? "R10 reports sharing; LAN address unavailable."
                 : "R10 sharing address: " + snapshot.lanAddress)
             : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
-                : "Not sharing. " +
-                    (snapshot.failure.isEmpty() ? denial : snapshot.failure))));
+                : (snapshot.failure.isEmpty() && denial.isEmpty()
+                    ? "Ready to share. Confirm the selected LAN interface and click Start Sharing."
+                    : "Not ready to share. " +
+                        (snapshot.failure.isEmpty() ? denial : snapshot.failure)))));
     activity_->setText("Connected clients: " + (snapshot.clients.isEmpty() ? "None" : snapshot.clients.join(", "))
         + "\nAuthenticating / desktop pending: " +
             (snapshot.pendingClients.isEmpty() ? "None" : snapshot.pendingClients.join(", "))

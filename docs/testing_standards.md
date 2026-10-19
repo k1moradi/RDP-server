@@ -1,3 +1,14 @@
+## Cross-platform R7 TLS presentation CI pin (2026-10-19)
+
+The Linux GUI ZIP, macOS PORTABLE-GUI and Windows CLANG64 jobs must each
+enumerate exactly one
+`gui.offscreen-tls-fingerprint-rotation-and-denials` and execute it with the
+native Qt build of the shared `desktop_window.cpp`. A platform merely
+compiling the source is not enough evidence for this regression. The positive
+workflow presentation is independently covered by
+`gui.offscreen-positive-owner-workflow-presentation`; neither test authorizes
+R2/R10 or opens a listener.
+
 ## R10 frame-credit/polling and GUI-headless CI contract (2026-10-19)
 
 R10 consumes R2's R3 frame-publication preflight before borrowing X11 pixels. Only DeferredForFrameAcknowledge is ordinary backpressure: it consumes no capture, frame ID or R4 credit. Rejected is terminal; Ready still requires fresh frame-start authorization. R4 remains the only ACK-window owner. A pending Graphics TLS write must not turn an expired capture deadline into a zero-timeout spin; the quiet-pipe CTest requires bounded positive waits while native work/buffered data remain promptly serviceable. CI separately proves GUI default ON for Qt-capable application configuration and explicit OFF for protocol/security/sanitizer jobs. Requested GUI plus missing Qt must fail, never silently downgrade.

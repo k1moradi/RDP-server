@@ -3141,6 +3141,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r2-os-account-request-status-gate PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;credentials" TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-positive-owner-workflow-presentation
+        COMMAND test_desktop_gui_offline positive-workflow)
+    set_tests_properties(gui.offscreen-positive-owner-workflow-presentation PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;presentation;runtime;consent" TIMEOUT 30)
     # The actual LAN endpoint and opaque clients must come from R10 status.
     # All interactions remain offscreen without socket/native side effects.
     add_test(NAME gui.offscreen-r10-interface-endpoint-client-disconnect-denials

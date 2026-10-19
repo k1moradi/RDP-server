@@ -1,3 +1,20 @@
+## R10 current native Linux interface identity handoff (2026-10-19)
+
+Source parent `db5f2bedd2a4d7ac7084b5f9c1a590d3834c0616`. R10 now resolves GUI `name#index` into the
+borrowed current native interface name required by R1, checking canonical
+nonzero decimal index, kernel interface identity, name length and embedded
+NUL/aliases without allocation or a socket. Both Configure and Start deny
+stale or forged identities and retire stale selection. R1 alone must still
+reverify the native name/address/index on a future authorized bind.
+Added ordinary offline production-backed CTest
+`runtime.linux-host-control-native-interface-id-verification`; it verifies
+malformed IDs and the optional current Linux loopback name/index without
+promoting loopback to LAN eligibility. Review PASS; native local build/full
+CTest NOT RUN; hosted CI pending exact published SHA. R2 physical owner
+consent/lock/revoke is explicitly unavailable; R1 SSL_CTX fingerprint and
+bound-identity observations do not establish client trust or Start authority.
+PR #23 remains draft; R3 remap PR #24 has no approved exact-head handoff.
+
 ## R6 preflight integration on shared main (2026-10-19)
 
 Ported R6 PR #25 exact tested head

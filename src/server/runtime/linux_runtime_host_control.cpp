@@ -2,6 +2,7 @@
 #include "linux_runtime_host_control.h"
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -67,6 +68,38 @@ namespace
     return buffer.data();
 }
 } // namespace
+
+std::optional<LinuxNativeLanInterfaceIdentity>
+resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept
+{
+    // R10's GUI stable ID is not R1's native interface name. Validate its
+    // exact present kernel index before taking the name; R1 will recheck at
+    // the eventual authorized bind. No allocation or network side effects.
+    const auto separator = stableId.rfind('#');
+    if (separator == std::string_view::npos || separator == 0U ||
+        separator >= IFNAMSIZ || separator + 1U == stableId.size() ||
+        stableId.substr(0, separator).find('#') != std::string_view::npos ||
+        stableId.find('\0') != std::string_view::npos ||
+        stableId.find('/') != std::string_view::npos)
+        return std::nullopt;
+
+    const std::string_view digits = stableId.substr(separator + 1U);
+    if (digits.front() == '0')
+        return std::nullopt;
+    unsigned int index{};
+    const auto [end, error] = std::from_chars(
+        digits.data(), digits.data() + digits.size(), index);
+    if (error != std::errc{} || end != digits.data() + digits.size() ||
+        index == 0U)
+        return std::nullopt;
+
+    std::array<char, IFNAMSIZ> nativeName{};
+    std::memcpy(nativeName.data(), stableId.data(), separator);
+    if (::if_nametoindex(nativeName.data()) != index)
+        return std::nullopt;
+    return LinuxNativeLanInterfaceIdentity{
+        stableId.substr(0, separator), index};
+}
 
 LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
     : ownerThread_(std::this_thread::get_id()) {}
@@ -169,6 +202,8 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
         options, enumerateLocalInterfaces());
     if (!preflight.succeeded())
         return deny(preflight.error);
+    if (!resolveCurrentLinuxNativeLanInterface(options.interfaceId))
+        return deny(RuntimeHostError::InterfaceUnavailable);
     selection_ = options;
     selectionConfigured_ = true;
     lastError_ = RuntimeHostError::HostConsentRequired;
@@ -207,13 +242,15 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::InvalidConfiguration);
     const auto current = assessRuntimeSelectedLanEndpoint(
         selection_, enumerateLocalInterfaces());
-    if (!current.succeeded())
+    if (!current.succeeded() ||
+        !resolveCurrentLinuxNativeLanInterface(selection_.interfaceId))
     {
         // The native interface/address changed since Configure. Discard the
         // stale preference rather than letting a subsequent Start reuse it.
         selection_ = {};
         selectionConfigured_ = false;
-        return deny(current.error);
+        return deny(current.succeeded()
+            ? RuntimeHostError::InterfaceUnavailable : current.error);
     }
     // R1 verified bind, R2 lease, TLS identity, Share/native session are
     // intentionally absent. No socket, firewall or service modifications.

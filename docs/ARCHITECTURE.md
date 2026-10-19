@@ -1,3 +1,95 @@
+## R2 Linux/X11 owner-consent decision and future lease contract (2026-10-19)
+
+For the portable Linux target, R2 supports only **Ubuntu Desktop 24.04 LTS,
+GNOME 46, Ubuntu on Xorg, one physical local non-root `seat0` logind
+`user` session** whose exact session ID, UID, start generation and nonempty
+X11 display are read from native state.
+
+Positive current-owner authority is **BLOCKED** for the extract-ZIP/no-install
+X11 product. No native application interface on this target simultaneously
+proves: affirmative current-owner approval, exact OS/session/seat identity,
+authoritative unlocked state, exact view/input/clipboard scope plus deadline,
+and mandatory revocation on lock/logout/switch/session replacement/native
+authority loss. logind supplies strong session identity/lifecycle facts, but
+its D-Bus `LockedHint` is set by desktop software through `SetLockedHint`
+and is not an independent unlock attestation. XDG RemoteDesktop supplies a
+native user interaction, granted device scope and caller-lifetime Session, but
+its published contract does not bind the grant to R2's exact logind session or
+promise lock-triggered closure. polkit can authenticate a local session user,
+but application-specific actions are installed system policy and polkit does
+not attest desktop unlock. A Qt/X11 Boolean is never authority.
+
+Therefore the existing `CurrentOwnerSharingAuthority` must stay fail-closed
+on this target; do not add a synthetic positive provider or another deny-only
+lease abstraction. A future Wayland/compositor-mediated portal design or an
+installed polkit/trusted-lock integration requires a separate native
+acceptance decision.
+
+Once a qualifying provider exists, R10 receives exactly one opaque move-only,
+noncopyable `OwnerSharingLease` that only R2 can construct. The lease binds
+the exact native owner identity, requested/granted permission mask,
+`steady_clock` deadline, R2 revocation generation and native-provider
+generation. R10 owns the lease beside a longer-lived authority and never
+exposes it via Qt/status.
+
+Consent is asynchronous: `requestHostPermissionSetup()` begins one R2
+request and may report Pending, but a human/native prompt must never block the
+Qt/R10 owner thread. R2 snapshots native identity before interaction, marshals
+completion back to the serialized owner, repeats the full native binding plus
+authoritative unlock check, and only then may issue a lease.
+
+R10 freshly reauthorizes immediately before Start/listener bind, after any
+potentially blocking native/bind step, before client admission, and at every
+existing protected R3 View, R5 Input and R8 Clipboard transition. Hot-path
+authorization is bounded/noexcept over cached generation/scope/deadline;
+native D-Bus/provider events update or revoke cached authority instead of
+adding blocking calls to frame/input paths.
+
+Stop, lock or unknown lock, logout, user switch, session replacement,
+credential-policy replacement, expiry, provider/session closure or native
+access loss invalidates R2 first; R10 then retires R3/native
+input/capture/clipboard/client owners and closes R1 transport/listener. Unlock
+never revives a lease. Generic immediate external Linux password-change
+notification is not available to this portable process; requiring it needs an
+installed authenticated credential-provider integration.
+
+### Standalone application-password CredSSP candidate
+
+CredSSP completes SPNEGO before encrypted final `TSPasswordCreds`.
+Production `GssapiSpnegoAcceptor` currently accepts only Kerberos V5 with an
+explicit `TERMSRV/...@REALM` keytab; PAM verifies the final delegated local
+password only after that mechanism succeeds. A saved password hash alone
+therefore cannot satisfy current NLA.
+
+The standards-compatible offline candidate is **NTLMv2 in SPNEGO/CredSSP**.
+MS-NLMP permits local validation from stored NT one-way-function material,
+and the ISC-licensed `gssapi/gss-ntlmssp` mechanism supports a local
+user/NT-hash credential source. MIT GSS supports process-specific mechanism
+configuration. A future implementation must bundle and pin the reviewed
+mechanism/config, accept only the intended NTLM mechanism in this credential
+mode, preserve CredSSP integrity/confidentiality/replay/sequence and TLS
+public-key/channel binding, and map the authenticated NTLM identity through
+R2 policy before native admission.
+
+The NT hash is password-equivalent authentication material: use an
+application-private owner-readable file or stronger OS secret facility,
+never log/export it, cleanse transient plaintext, rotate atomically and bump
+credential/authority generations on replacement. Plaintext password files are
+not production-acceptable.
+
+Independent application password remains disabled until isolated-LAN
+interoperability with unmodified Windows 11 `mstsc.exe` and Windows App on
+macOS proves positive/negative NTLMv2 CredSSP with NLA still mandatory. The
+existing first-release fallback is narrower: reachable Kerberos realm/KDC +
+explicit TERMSRV keytab/principal mapping to the allowed local UNIX account +
+final PAM verification. A stock local Linux password with no Kerberos realm
+does not satisfy the present SPNEGO gate.
+
+External contracts used for this decision: systemd login1/sd-login,
+XDG Desktop Portal RemoteDesktop/Session, polkit, Microsoft MS-CSSP/MS-NLMP,
+MIT Kerberos GSS mechanism configuration, and
+https://github.com/gssapi/gss-ntlmssp.
+
 ## R4 -> R10 first-frame-after-remap readiness contract (2026-10-19)
 
 R3 remains the sole owner of Graphics DVC generation, surface identity and the

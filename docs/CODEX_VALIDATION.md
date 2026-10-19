@@ -1,3 +1,50 @@
+## R2 trusted-owner and standalone-NLA feasibility evidence (2026-10-19)
+
+Reviewed current production R2/R10/authentication code plus the canonical
+project documentation. R10 Linux HostControl already exists. R2
+`e85aeb77b184ab618077c557da1e45941c7239f7` correctly makes GUI consent
+intent non-authorizing; `c1ec383576c52629a2f094ed8a696d2280720b8c`
+correctly removed the nonexistent public `sd_session_get_locked_hint` API
+and retained repeated native UID/session-generation checks.
+
+For Ubuntu 24.04 GNOME/Xorg physical seat0, external platform-contract review
+found no portable native primitive that proves the full positive chain.
+logind's D-Bus `LockedHint` is desktop-set via `SetLockedHint`; XDG
+RemoteDesktop gives interactive consent/device scope but does not promise
+exact logind-session binding or lock-triggered revocation; polkit
+authentication does not attest desktop unlock and app-specific actions require
+installed policy. Positive R2 authorization therefore remains **BLOCKED** for
+the no-install X11 ZIP instead of manufacturing a Qt Boolean or synthetic
+grant. The future noncopyable lease/lifetime/R10 reauthorization contract is
+recorded in `docs/ARCHITECTURE.md`.
+
+Credential review confirms current CredSSP SPNEGO is Kerberos-only before
+final PAM-backed `TSPasswordCreds`. A stored application password hash alone
+does not work. Microsoft NTLMv2 local validation plus the maintained
+ISC-licensed `gssapi/gss-ntlmssp` local NT-hash credential path is a
+standards-compatible domainless candidate, but it is not integrated or proven
+with Microsoft clients. Independent application password remains disabled.
+The existing OS-account fallback requires a Kerberos realm/KDC, explicit
+TERMSRV keytab/principal mapping and final PAM verification; a stock local
+Linux password alone is not the offline fallback.
+
+Exact existing fail-closed production evidence:
+- source `c1ec383576c52629a2f094ed8a696d2280720b8c`
+- primary Actions `39207508411`: **PASS**
+- structure Actions `39207508301`: **PASS**
+- the primary run includes **PASS** for
+  `r2-linux-production-runtime-security (complete)`,
+  `r2-linux-production-runtime-security (missing-systemd)`,
+  `r9-security-protocol-sanitizers`, and Ubuntu/macOS/Windows protocol jobs.
+
+No physical seat0 owner-consent, lock/logout/switch, listener, real credential
+or Microsoft-client positive acceptance test was authorized or executed:
+**NOT RUN**. No production code/test-only grant was added because the
+platform result does not justify another deny-only abstraction. This
+documentation increment records the positive-authority decision, implementable
+R10 ownership/lifetime contract, test requirements and standalone credential
+candidate. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R7 CI selector authoring correction (2026-10-19)
 
 Initial publication `e3e5b1a2b87022f75f726fdd93ca138dc813b35a` failed the independent CI structure guard

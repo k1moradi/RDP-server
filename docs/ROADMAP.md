@@ -1,3 +1,86 @@
+## R2 Linux/X11 trusted-owner blocker and offline NLA feasibility (2026-10-19)
+
+R10's concrete Linux `LinuxRuntimeHostControl` is already on `main`; R2 is
+not waiting for an R10 interface. The specifically supported X11 environment
+investigated is **Ubuntu Desktop 24.04 LTS / GNOME 46 / Ubuntu on Xorg /
+physical local non-root seat0 user session**, with native UID, session ID,
+session-start generation and X11 display read from logind.
+
+**Positive-owner decision: BLOCKED for the no-install portable ZIP.** No
+native application primitive on this X11 target provides all required facts in
+one verifiable trust chain: affirmative physical-owner approval, exact
+OS/session/seat binding, authoritative unlocked state, exact
+view/input/clipboard scope plus deadline, and mandatory revocation on
+lock/logout/user switch/session replacement/native authority loss. logind is
+retained for session identity/lifecycle but its `LockedHint` is
+desktop-supplied; XDG RemoteDesktop provides a native consent/device-scope
+interaction but does not contractually bind that grant to the exact logind
+session or require lock-triggered closure; polkit user authentication neither
+attests desktop unlock nor preserves ZIP-only deployment for an
+application-specific installed action. Qt/X11 intent is not trusted evidence.
+
+Keep `CurrentOwnerSharingAuthority::requestConsent()` at
+`TrustedOwnerProofUnavailable`, keep `authorizes()` false and keep Start
+denied. Do not add a synthetic positive lease/test or a new deny-only
+abstraction. Lock/unknown remains revocation; unlock never revives authority.
+A future Wayland/compositor-mediated portal design or installed native policy
+mode needs separate acceptance.
+
+**R10 handoff once a qualifying provider exists:** R2 alone creates one opaque
+move-only/noncopyable `OwnerSharingLease` bound to exact native owner
+identity, granted permission mask, monotonic deadline, R2 generation and
+native-provider generation. Consent must be asynchronous so native human
+interaction never blocks the Qt/R10 owner thread. R2 re-reads the complete
+native binding after positive interaction before lease issuance. R10 owns the
+lease and freshly reauthorizes before Start/listener bind, after potentially
+blocking bind/native work, before client admission, and at every existing R3
+View/R5 Input/R8 Clipboard protected transition. Hot-path authorization is
+cached/bounded; native event watchers revoke off the hot path. Stop,
+lock/unknown, logout, switch, session replacement, credential-policy change,
+expiry or provider loss invalidates R2 first, retires R3/native/client state,
+then closes R1.
+
+**Independent application password:** current production remains unsupported.
+CredSSP establishes SPNEGO before encrypted final `TSPasswordCreds`; the
+current GSS acceptor is Kerberos-only, so PAM or an application password hash
+cannot by themselves authenticate unmodified Microsoft clients. A reviewed
+domainless **NTLMv2-over-SPNEGO** provider is protocol-feasible in principle:
+MS-NLMP supports local NT one-way-function validation and the ISC-licensed
+`gssapi/gss-ntlmssp` mechanism supports local NT-hash credentials. The NT
+hash is password-equivalent secret material. This candidate still requires
+production integration, pinned bundled mechanism/config, secure secret
+storage/rotation, CredSSP TLS/public-key binding proof and real offline client
+interoperability.
+
+Until then keep **Set Application Password — Unsupported** disabled, never
+change the OS password and never downgrade NLA. The exact current OS-account
+fallback is a configured/reachable Kerberos realm/KDC, explicit
+`TERMSRV/<host>@REALM` acceptor keytab and principal-to-local-account R2
+mapping, followed by final PAM password/account verification. A stock local
+Linux username/password without Kerberos does not meet the current SPNEGO gate
+and therefore does not satisfy the isolated-ZIP product requirement.
+
+**Production-backed evidence:** exact SHA
+`c1ec383576c52629a2f094ed8a696d2280720b8c` has primary Actions
+`39207508411` **PASS** and structure Actions `39207508301` **PASS**,
+including `r2-linux-production-runtime-security (complete)`,
+`r2-linux-production-runtime-security (missing-systemd)`,
+`r9-security-protocol-sanitizers` and Ubuntu/macOS/Windows protocol jobs.
+This is negative/session-consistency evidence, not positive physical consent.
+
+Required future state-machine tests: exact native-binding match/mismatch around
+consent completion; move-only scope/deadline; Stop, lock/unknown, logout,
+switch, replacement, credential generation, expiry and provider-loss
+revocation; no unlock revival; fresh Start/protected-operation checks; and
+R2-before-R3/native-before-R1 teardown. Standalone-password acceptance requires
+isolated-LAN `mstsc.exe` and macOS Windows App tests for correct/wrong
+credentials, rotation, restart, Unicode, replay/timestamp, TLS identity
+rotation, NTLMv1 denial, no DC/KDC/cloud dependency and no NLA downgrade.
+
+No live desktop, credential, listener, service, lock/switch or Microsoft-client
+test was authorized or run by this review: **NOT RUN**. Source/document review:
+**PASS**. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R7 positive workflow presentation and three-OS TLS Qt gate (2026-10-19)
 
 Parent `1b28ad3e51b761bb2f79a7066b579d6b12610ba2` already contains R10's default-on Qt shell plus explicit

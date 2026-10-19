@@ -188,8 +188,7 @@ class LinuxConsoleAdmissionBroker final
 {
 public:
     // The R2 host-side owner consent authority must outlive this broker.
-    // The legacy one-argument construction remains deny-only: no native
-    // consent/lock provider means no authenticated desktop lease.
+    // Legacy one-argument construction is deny-only without a native provider.
     explicit LinuxConsoleAdmissionBroker(
         const ConsoleIdentityPolicy &policy,
         const CurrentOwnerSharingAuthority *ownerSharingAuthority = nullptr) noexcept
@@ -709,6 +708,22 @@ public:
             &deploymentPolicy,
         std::uint32_t frameId) noexcept;
 
+    // R10 provides only the fresh R5-observed X11 RandR geometry. R2
+    // validates the same native lease and R1/R3 Share provenance before and
+    // after R3's immutable surface-change decision. No protocol bytes or
+    // caller-owned surface identity cross this boundary.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+    beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        ::PixelSize desktopGeometry) noexcept;
+
     // Begin mandatory ClearCodec DATA only after the same fresh protected
     // transition. R3 owns the presentation generation/surface and prepares the
     // R4 frame synchronously from borrowed pixels before queuing any wire byte.
@@ -911,7 +926,7 @@ private:
         const LinuxConsoleAdmissionLease &lease) const noexcept;
 
     const ConsoleIdentityPolicy &policy_;
-    // Borrowed from R2, never constructible by Qt or a network peer.
+    // Borrowed from R2; neither Qt nor a peer can mint sharing authority.
     const CurrentOwnerSharingAuthority *ownerSharingAuthority_{};
     LinuxLogindReadOnlyEvidenceSource evidence_{};
     std::unique_ptr<LinuxLogindSessionChangeSource> changes_{};

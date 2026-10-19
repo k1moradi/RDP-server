@@ -40,13 +40,17 @@ void closeSocket(NativeSocket socket) noexcept { ::close(socket); }
 #endif
 
 std::atomic<std::uint64_t> nextListenerGeneration{1U};
+// Header inclusion may expose the Windows max macro before this .cpp can set
+// NOMINMAX. Parenthesize the function name so this constant stays macro-proof.
+constexpr std::uint64_t maximumListenerGeneration =
+    (std::numeric_limits<std::uint64_t>::max)();
 
 [[nodiscard]] std::uint64_t allocateListenerGeneration() noexcept
 {
     std::uint64_t candidate =
         nextListenerGeneration.load(std::memory_order_relaxed);
     while (candidate != 0U &&
-           candidate != std::numeric_limits<std::uint64_t>::max())
+           candidate != maximumListenerGeneration)
     {
         const std::uint64_t replacement = candidate + 1U;
         if (nextListenerGeneration.compare_exchange_weak(

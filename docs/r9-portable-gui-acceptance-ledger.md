@@ -1,3 +1,20 @@
+## R9 `9e4222cf` CI receipt — Windows compile failure (2026-10-19)
+
+Exact SHA `9e4222cfe909ad3aabee6d0bb0a99142f0354877`, Actions
+`39274959607`: hosted PowerShell parser **PASS**; primary workflow structure
+**PASS**; Linux GUI build/package **PASS** with artifact `rdp-server-gui-linux`
+ID `12197007323`; `protocol (windows-latest)` **FAIL** at MSVC compilation
+because `std::numeric_limits<std::uint64_t>::max()` collided with the Windows
+`max` macro. Therefore this SHA is not a release PASS.
+
+The downloaded Linux artifact contains inner ZIP
+`rdp-server-gui-0.1.0-linux-X64-9e4222cfe909.zip`, SHA-256
+`0f9bedb20e1c52a1023e9f01bae740b2d2ce33494f5161524b6cb9d2c9e018c7`,
+with `bin/rdp-server-desktop`, `run-gui.sh`, `RDP Server.desktop`, and
+`plugins/platforms/libqxcb.so`; the CLI `rdp-server` is absent. Clean Windows
+remains **BLOCKED / NOT RUN** and no public Windows PORTABLE-GUI receipt is
+claimed.
+
 ## R9 exact checksum/parser gate and clean-runner receipt contract (2026-10-19)
 
 Authoring parent: `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e`. On exact baseline

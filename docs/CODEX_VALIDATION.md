@@ -1,3 +1,22 @@
+## R9 exact-SHA Windows compile follow-up (2026-10-19)
+
+Exact candidate `9e4222cfe909ad3aabee6d0bb0a99142f0354877`, primary Actions
+`39274959607`, is **FAIL / IN PROGRESS, not PASS**. The independent
+`r9-windows-powershell-parser`, workflow structure, documentation policy, both
+R2 production-security variants, R7 macOS session sanitizers, and
+`r5-linux-gui-zip` passed. The Linux GUI artifact was uploaded as
+`rdp-server-gui-linux` (`12197007323`). `protocol (windows-latest)` failed
+compilation in `src/server/transport/lan_listener.cpp` because the concurrent
+R1 generation code used `std::numeric_limits<uint64_t>::max()` after a Windows
+`max` macro had already been exposed through headers.
+
+The follow-up caches the maximum generation with the macro-proof
+`(std::numeric_limits<std::uint64_t>::max)()` form and compares against that
+constant. This is a Windows portability correction only; R1 listener-generation
+semantics and R9 packaging/security gates are unchanged. All still-running
+lanes from `9e4222cf...` remain evidence for that SHA only; the next exact SHA
+must be evaluated independently.
+
 ## R9 exact checksum inventory / hosted PowerShell parser gate (2026-10-19)
 
 Authoring parent: `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e`. Baseline `39244189634` at

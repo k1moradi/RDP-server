@@ -1,3 +1,35 @@
+## R7 exact-SHA three-platform Qt fingerprint acceptance (2026-10-19)
+
+**Validated source SHA:** `7e3250b6436db8a730476b5d0368d02a8d93bb73`.
+Independent workflow-structure run `39273771660` **PASS**. Primary Actions
+run `39273777510` produced the following native Qt evidence:
+
+- Linux `r5-linux-gui-zip` job `118132708418`: real
+  `rdp-server-desktop` and `test_desktop_gui_offline` build **PASS**;
+  exact-one `gui.offscreen-tls-fingerprint-rotation-and-denials`
+  **1/1 PASS**; GUI ZIP packaging/extraction continued successfully.
+- macOS `r7-macos-portable-gui` job `118132708372`: real Qt app build
+  **PASS**; broad GUI offscreen suite **14/14 PASS**, including
+  `gui.offscreen-positive-owner-workflow-presentation`; exact-one TLS
+  fingerprint regression **1/1 PASS**; app closure and extracted normal-launch
+  smoke **PASS**.
+- Windows CLANG64 `r6-windows-clang23` job `118132708413`: full Debug Qt
+  graph build **PASS**; exact-one TLS fingerprint regression **1/1 PASS**;
+  full **692/692 Debug** and **692/692 Release** CTests **PASS**, including the
+  new positive-workflow and TLS presentation cases; portable GUI package/PE
+  closure, extracted offline smoke and native sanitizer fixture **PASS**.
+
+All ordinary hosted jobs in primary run `39273777510` completed **SUCCESS**,
+including Ubuntu/macOS/Windows protocol, R9 sanitizer, R2 runtime-security,
+R7 macOS lifecycle/sanitizer, Linux GUI ZIP, Windows CLANG64, documentation
+policy and SERVER-TEST status. The separate
+`r9-clean-windows-portable-gui` job `118138959458` remains **QUEUED** on
+the dedicated self-hosted clean standard-user Windows runner. Therefore R7's
+compiler/Qt/hosted-CI deliverable is **PASS**, while R9 public PORTABLE-GUI
+clean-runner acceptance remains independently **BLOCKED / NOT YET RUN**.
+No positive R2 host-consent issuance, live LAN Start/client acceptance or
+native macOS hosting was exercised.
+
 ## R9 exact-SHA Windows compile follow-up (2026-10-19)
 
 Exact candidate `9e4222cfe909ad3aabee6d0bb0a99142f0354877`, primary Actions

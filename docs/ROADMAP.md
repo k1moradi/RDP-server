@@ -1,3 +1,23 @@
+## R7 exact-SHA Qt fingerprint/compiler acceptance (2026-10-19)
+
+R7 acceptance is now hosted-green at
+`7e3250b6436db8a730476b5d0368d02a8d93bb73`: workflow structure
+`39273771660` **PASS**; primary `39273777510` Linux GUI ZIP, macOS
+PORTABLE-GUI and Windows CLANG64 Qt lanes all **PASS** the exact-one
+`gui.offscreen-tls-fingerprint-rotation-and-denials`. Linux packaging is
+restored, macOS passes the 14-case GUI suite and normal extracted launch, and
+Windows passes 692/692 Debug plus 692/692 Release CTests together with package
+closure/offline smoke. The new
+`gui.offscreen-positive-owner-workflow-presentation` passes on the shared Qt
+source without adding authority or secret collection.
+
+All ordinary hosted jobs on that SHA are green. R9's distinct
+`r9-clean-windows-portable-gui` self-hosted clean-runner gate remains queued,
+so public Windows PORTABLE-GUI clean-machine acceptance is still
+**BLOCKED / NOT YET RUN**. Positive R2 owner-consent issuance, live R10 LAN
+Start/connected-client acceptance and native macOS hosting remain separate
+blockers.
+
 ## R9 hosted parser gate and exact checksum inventory hardening (2026-10-19)
 
 Authoring parent `1bc7dc8e779b8b003b6cde07e0efeb6a01560a1e` preserves concurrent R1/R2/R5/R7/R10/R6 work.

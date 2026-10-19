@@ -758,6 +758,15 @@ public:
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
 
+    // Ephemeral, non-mutating R3/R4 ACK-credit observation via R2. No frame
+    // is reserved here. Ready still requires fresh authorization on frame start;
+    // DeferredForFrameAcknowledge is ordinary scheduler backpressure.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
+    preflightPersonalDesktopGraphicsFramePublication(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint32_t frameId) noexcept;
+
     // Prepare and start one mandatory ClearCodec fallback publication. R10
     // supplies only a frame ID and a synchronous borrowed framebuffer. R3 owns
     // the current Graphics DVC generation, surface identity and R4 receipts.

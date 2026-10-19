@@ -1,3 +1,19 @@
+## R10 ACK-credit defer scheduler integration (2026-10-18)
+
+R10 now samples R3's non-mutating `RdpGraphicsFramePublicationReadiness`
+through its existing `LinuxRuntimeConnection` and R2 broker before X11
+capture. `Ready` proceeds to a separately authorized frame-start;
+`DeferredForFrameAcknowledge` advances neither the Graphics frame ID nor
+an R4 receipt/credit and reschedules a bounded capture opportunity while
+R10 continues reading the sole R1 TLS stream for FRAME_ACK. `Rejected` is
+terminal. R4 remains the sole ACK-window owner. The new ordinary CTest
+`runtime.linux-connection-graphics-credit-preflight-denials` proves the
+runtime wrapper rejects missing-R2-lease calls and terminal replay; R3's
+existing production-backed 64-credit defer/FRAME_ACK/Ready CTest remains the
+positive protocol proof. No synthetic native owner or client success is
+claimed. Source-only integration; local build/CTest and live seat0 acceptance
+NOT RUN, publication CI PENDING.
+
 ## R8 stable scalar outbound TLS receipt after R3 mutation (2026-10-18)
 
 The authenticated persistent R10 loop, R1 clipboard write/WANT readiness

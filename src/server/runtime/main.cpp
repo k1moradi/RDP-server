@@ -1727,6 +1727,22 @@ struct LinuxFramePublicationContext final {
             if (nextFrameId == 0U) {
                 break; // Never wrap a live Graphics frame ID.
             }
+            using Readiness = rdp_server::server::transport::
+                RdpGraphicsFramePublicationReadiness;
+            // R3/R4 owns outstanding ACK credit. Defer before XShm capture;
+            // no frame ID, write reservation or native authority is consumed.
+            const auto readiness =
+                connection.preflightPersonalDesktopGraphicsFramePublication(
+                    *context->policy, nextFrameId);
+            if (readiness == Readiness::DeferredForFrameAcknowledge) {
+                nextCapture = Clock::now() + kLinuxPostShareCaptureInterval;
+                continue; // Keep reading FRAME_ACK through the sole R1 owner.
+            }
+            if (readiness != Readiness::Ready) {
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
+            }
             LinuxFramePublicationContext frameContext{
                 &connection, context->policy, nextFrameId,
                 nativeOwner.desktop->captureGeneration()};

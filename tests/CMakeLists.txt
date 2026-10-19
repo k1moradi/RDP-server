@@ -1128,6 +1128,17 @@ if(TARGET rdp-server-linux-runtime-security)
         runtime.linux-connection-personal-post-share-single-reader-denials
         PROPERTIES LABELS "runtime;security;r10-post-share;offline")
 
+    # R10 must only consume the R2-protected, non-mutating R3 Graphics credit
+    # preflight; without a real native lease the runtime rejects terminally.
+    # R3 separately covers its production 64-slot defer/ACK/Ready recovery.
+    add_test(NAME runtime.linux-connection-graphics-credit-preflight-denials
+        COMMAND test_runtime_linux_security
+            "linux-connection-graphics-credit-preflight-denials"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.linux-connection-graphics-credit-preflight-denials
+        PROPERTIES LABELS "runtime;security;r10-graphics;offline")
+
     # R8 outbound clipboard must borrow the current R3 write and complete
     # its accepted-byte receipt through the sole R1 TLS owner. An absent
     # R2 lease forbids either writable or delayed plaintext publication.

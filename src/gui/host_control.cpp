@@ -12,6 +12,17 @@ namespace rdp::gui
 namespace
 {
 using rdp_server::server::runtime::RuntimeHostStage;
+using rdp_server::server::runtime::RuntimeHostError;
+
+// A terminal R2/native ownership loss overrides a stale GUI snapshot.
+// Transient per-peer authentication failures/limits do not revoke other
+// already-authorized clients and must remain diagnostic-only.
+[[nodiscard]] constexpr bool hasTerminalHostSessionError(
+    RuntimeHostError error) noexcept
+{
+    return error == RuntimeHostError::HostSessionStale ||
+           error == RuntimeHostError::AccessRevoked;
+}
 
 [[nodiscard]] QString toQString(std::string_view value)
 {
@@ -59,13 +70,20 @@ HostStatus HostControl::status() const
     view.controlAvailable =
         runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.credentialsConfigured = runtimeStatus.credentialsConfigured;
-    view.desktopAuthorized = runtimeStatus.hostOwnerAuthorized;
+    const bool terminalHostSession =
+        hasTerminalHostSessionError(runtimeStatus.lastError) ||
+        runtimeStatus.stage == RuntimeHostStage::Revoked;
+    view.desktopAuthorized =
+        runtimeStatus.hostOwnerAuthorized && !terminalHostSession;
     view.tlsReady = runtimeStatus.tlsIdentityReady;
-    view.captureInputReady = runtimeStatus.nativeDesktopReady;
-    view.sharing = isSharingStage(runtimeStatus.stage);
-    view.startPending = isPendingStage(runtimeStatus.stage);
+    view.captureInputReady =
+        runtimeStatus.nativeDesktopReady && !terminalHostSession;
+    view.sharing =
+        isSharingStage(runtimeStatus.stage) && !terminalHostSession;
+    view.startPending =
+        isPendingStage(runtimeStatus.stage) && !terminalHostSession;
     view.clipboardState = runtimeStatus.clipboardState;
-    if (runtimeStatus.hostOwnerAuthorized)
+    if (view.desktopAuthorized)
         view.desktop = QStringLiteral("Authorized logged-in desktop");
 
     // R10 owns the exact native interface/endpoint selection policy.
@@ -93,7 +111,7 @@ HostStatus HostControl::status() const
     // R2 authentication attempt is not a visible, admitted R3 desktop.
     const bool sharingStage = isSharingStage(runtimeStatus.stage);
     const bool activeStage = sharingStage || isPendingStage(runtimeStatus.stage);
-    if (view.controlAvailable && activeStage)
+    if (view.controlAvailable && activeStage && !terminalHostSession)
     {
         view.lanAddress = toQString(runtimeStatus.boundEndpoint);
         for (const RuntimeHostClient& client : runtimeStatus.activeClients)
@@ -122,7 +140,8 @@ HostStatus HostControl::status() const
         }
     }
 
-    if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected)
+    if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
+        runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited)
         view.authenticationFailures.push_back(
             toQString(runtimeHostErrorMessage(runtimeStatus.lastError)));
     if (runtimeStatus.stage == RuntimeHostStage::Revoked ||
@@ -153,6 +172,8 @@ bool HostControl::start(const HostRequest& request)
     // The concrete R10 owner must still reauthorize every native operation.
     const RuntimeHostStatus snapshot = runtime_.status();
     if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
+        hasTerminalHostSessionError(snapshot.lastError) ||
+        snapshot.stage == RuntimeHostStage::Revoked ||
         !snapshot.credentialsConfigured || !snapshot.hostOwnerAuthorized ||
         !snapshot.tlsIdentityReady || !snapshot.nativeDesktopReady ||
         isSharingStage(snapshot.stage) || isPendingStage(snapshot.stage) ||
@@ -179,6 +200,8 @@ bool HostControl::disconnectClient(const std::uint64_t opaqueClientId)
 
     const RuntimeHostStatus snapshot = runtime_.status();
     if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
+        hasTerminalHostSessionError(snapshot.lastError) ||
+        snapshot.stage == RuntimeHostStage::Revoked ||
         (!isSharingStage(snapshot.stage) && !isPendingStage(snapshot.stage)) ||
         !std::ranges::any_of(snapshot.activeClients,
             [opaqueClientId](const RuntimeHostClient& client) {

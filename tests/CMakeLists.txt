@@ -81,7 +81,8 @@ foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
         host-control-clipboard-state-denials
         host-control-credential-setup-denials
-        host-control-selected-lan-interface-denials)
+        host-control-selected-lan-interface-denials
+        host-control-authentication-outcome-denials)
     add_test(NAME "runtime.${host_control_case}"
         COMMAND test_runtime_host_control "${host_control_case}")
     set_tests_properties("runtime.${host_control_case}" PROPERTIES

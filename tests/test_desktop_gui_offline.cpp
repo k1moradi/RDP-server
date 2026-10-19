@@ -218,6 +218,34 @@ int main(int argc, char** argv)
         assert(host.status().activeClients.isEmpty());
         assert(host.status().lanAddress.isEmpty());
         assert(!disconnect->isEnabled());
+        // A rate-limit result is a redacted authentication failure, not a
+        // success and not a forced revocation of unrelated live clients.
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRateLimited;
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        window.refresh();
+        const auto limited = host.status();
+        assert(limited.authenticationFailures.size() == 1);
+        assert(limited.authenticationFailures.front() ==
+               QStringLiteral("Authentication temporarily rate-limited"));
+        assert(limited.failure ==
+               QStringLiteral("Authentication temporarily rate-limited"));
+
+        // Even an internally inconsistent late snapshot cannot present a
+        // stale owner as authorized or keep its old endpoint and clients.
+        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        window.refresh();
+        const auto stale = host.status();
+        assert(!stale.desktopAuthorized && !stale.captureInputReady);
+        assert(!stale.sharing && !stale.startPending);
+        assert(stale.clients.isEmpty() && stale.pendingClients.isEmpty());
+        assert(stale.activeClients.isEmpty() && stale.lanAddress.isEmpty());
+        assert(stale.failure.contains("fresh authorization required"));
+        assert(!host.start({"some-interface", "192.168.0.10", 3389U}));
+        assert(!host.disconnectClient(12U));
         assert(runtime.configureCalls == 0 && runtime.startCalls == 0 &&
                runtime.disconnectCalls == 0);
         return 0;

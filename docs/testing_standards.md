@@ -1,3 +1,16 @@
+## R2 GUI-facing authentication outcome separation (2026-10-18)
+
+Preserve the existing numeric `RuntimeHostError` values; append only
+`AuthenticationRateLimited` and `HostSessionStale`. GUI text is fixed,
+bounded and redacted, without per-account identity or credential paths.
+`runtime.host-control-authentication-outcome-denials` exercises the
+actual shared R10 status API and deny-only implementation on all hosts.
+The existing R7 client-stage offscreen case must reject stale-session
+snapshots even when obsolete `hostOwnerAuthorized` and client fields
+remain set, and render rate limiting as a failure rather than connected
+admission. Neither fixture authorizes R2/R3 nor changes real throttling;
+live R10 alone reports actual peer/account budget outcomes.
+
 ## R8 stale positive committed-byte receipt across Stop/reconnect (2026-10-18)
 
 R1 must copy R3 route/reply/slice/offered bytes before its mutating R2/R3

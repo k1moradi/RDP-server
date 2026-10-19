@@ -1,3 +1,19 @@
+## R2/R10 rate-limited and stale-host status handoff (2026-10-18)
+
+Added distinct non-authorizing `AuthenticationRateLimited` and
+`HostSessionStale` status codes and fixed redacted messages without
+renumbering prior outcomes. The existing Qt adapter shows rate limits
+as authentication failures and suppresses stale-session authority and
+retired peers even when injected stale snapshots carry positive flags.
+One new dedicated ordinary CTest,
+`runtime.host-control-authentication-outcome-denials`, and extended
+existing `gui.offscreen-r10-client-stage-and-retirement-status-denials`
+cover this without OS credentials, native listeners or synthetic R2
+leases. Source inspection **PASS**; local full Debug CTest **NOT RUN**;
+publication-SHA hosted CI **PENDING** at authoring. Actual R10 positive
+LAN HostControl, explicit owner consent/lock-state evidence and live
+Microsoft client authentication **NOT RUN**.
+
 ## R8 late positive scalar receipts after route retirement (2026-10-18)
 
 Implementation parent `c1ec383576c52629a2f094ed8a696d2280720b8c`. Production

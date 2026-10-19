@@ -1,3 +1,31 @@
+## R2/R10 explicit rate-limit and stale-session status contract (2026-10-18)
+
+R2's OS-account GUI admission contract now exposes the two missing fixed,
+redacted `RuntimeHostError` outcomes `AuthenticationRateLimited` and
+`HostSessionStale`, appended without renumbering preexisting status codes.
+They are non-authorizing diagnostics. R7 projects rate limiting as a
+failed authentication, not a verified login; a terminal stale/revoked
+host-session error suppresses stale GUI desktop authorization, clients,
+endpoints, input readiness, Start and client-disconnect actions even if an
+outdated runtime snapshot still contains positive flags. Neither a peer
+rate limit nor another client's auth failure independently revokes
+unrelated existing authorized connections. R10 remains the sole live
+source of these outcomes and must publish them only after concrete
+R2/R1/native events, not GUI preferences.
+
+Dedicated ordinary cross-platform production-header CTest
+`runtime.host-control-authentication-outcome-denials` pins distinct
+fixed non-secret messages and the deny-only fallback, while the existing
+`gui.offscreen-r10-client-stage-and-retirement-status-denials` adds
+status projection and stale-host action denials without using a real
+listener, credentials, seat0, GSS context or admission lease.
+Source review **PASS**; owner-local configure/build/full CTest
+**NOT RUN** in this GitHub-only workspace; publication-SHA hosted
+CI **PENDING** at authoring. Physical-owner consent, reliable real
+lock-state evidence, actual LAN HostControl and three-client Microsoft
+CredSSP proof remain **BLOCKED / NOT RUN**. Standalone GUI password
+remains unsupported without a compatible, reviewed mechanism.
+
 ## R8 stale positive clipboard TLS receipt isolation (2026-10-18)
 
 R8 now ignores delayed R3-committed Pending/Delivered scalar receipts

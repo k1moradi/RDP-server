@@ -67,6 +67,9 @@ HostStatus HostControl::status() const
 
     const RuntimeHostStatus runtimeStatus = runtime_.status();
     HostStatus view;
+    view.stage = runtimeStatus.stage;
+    view.listenerReady = runtimeStatus.listenerAvailable &&
+                         runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.controlAvailable =
         runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.credentialsConfigured = runtimeStatus.credentialsConfigured;

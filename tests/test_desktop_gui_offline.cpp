@@ -153,6 +153,52 @@ int main(int argc, char** argv)
         });
     };
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lifecycle-stages")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        DesktopWindow window(host);
+        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
+        auto* stop = window.findChild<QPushButton*>("stopSharing");
+        assert(lifecycle && stop && lifecycle->textFormat() == Qt::PlainText);
+
+        const auto checkStage = [&](RuntimeHostStage stage, const char* label) {
+            runtime.snapshot.stage = stage;
+            window.refresh();
+            assert(lifecycle->text().contains(QString::fromLatin1(label)));
+        };
+        checkStage(RuntimeHostStage::Stopped, "Stopped");
+        checkStage(RuntimeHostStage::PackageInstalled, "Installed");
+        checkStage(RuntimeHostStage::CredentialsConfigured, "OS credentials");
+        checkStage(RuntimeHostStage::ListenerAvailable, "readiness unconfirmed");
+        runtime.snapshot.listenerAvailable = true;
+        checkStage(RuntimeHostStage::ListenerAvailable, "Listener ready");
+        checkStage(RuntimeHostStage::ClientAuthenticating, "Peer authenticating");
+        checkStage(RuntimeHostStage::ShareActivated, "Share activated");
+        checkStage(RuntimeHostStage::DesktopVisible, "Desktop visible");
+        checkStage(RuntimeHostStage::ClientConnected, "no visible client confirmed");
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{17U, "192.168.9.17", false, true, true}};
+        checkStage(RuntimeHostStage::ClientConnected, "Client connected");
+        checkStage(RuntimeHostStage::Revoked, "revoked/stopped");
+
+        // R2 terminal error can hide projected Share before R10 retirement.
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
+        window.refresh();
+        assert(!host.status().sharing && !host.status().startPending);
+        assert(stop->isEnabled());
+        stop->click();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
+        window.refresh();
+        assert(lifecycle->text().contains("Host control unavailable"));
+        assert(!window.canStart() && runtime.startCalls == 0);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "client-stage")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

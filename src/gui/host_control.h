@@ -30,6 +30,10 @@ struct ActiveClientChoice
 // these fields never mint an R2 lease, native permission or listener.
 struct HostStatus
 {
+    // A single R10 status observation, never a second Qt session owner.
+    rdp_server::server::runtime::RuntimeHostStage stage{
+        rdp_server::server::runtime::RuntimeHostStage::Stopped};
+    bool listenerReady{};
     bool controlAvailable{};
     bool credentialsConfigured{};
     bool desktopAuthorized{};

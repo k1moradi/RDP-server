@@ -1,3 +1,14 @@
+## R7 raw R10 stage cannot bypass Qt close consent (2026-10-18)
+
+Project R10 RuntimeHostStage and listenerAvailable in the existing thin
+Qt snapshot adapter. These values are descriptive, not new ownership
+or authorization. Stage text must remain Qt PlainText and distinguish
+authenticating, Share activated, desktop visible and real connected peers.
+When R2 terminal host-session errors suppress current projected sharing,
+the raw R10 stage still demands explicit Stop/close consent and confirmed
+retirement. Never add a second R10 controller, listener or TLS fingerprint
+generator.
+
 ## R7 Qt close authorization is explicit (2026-10-18)
 
 Never interpret QWidget closeEvent as implicit authorization to Stop/Revoke

@@ -1,3 +1,17 @@
+## R7 R10 raw-stage shutdown and exact GUI phase projection (2026-10-18)
+
+A terminal R2 HostSessionStale result may suppress the GUI's projected
+`sharing` and `startPending` flags before R10 retires the raw host
+stage. Active raw stages must still require explicit Stop/close consent
+and fresh retired R10 status. No GUI-owned state cache or second listener
+is permitted. Use a plain-text typed R10 lifecycle label; only a true R10
+listenerAvailable bit permits "Listener ready", and a genuinely visible
+per-client Share permits "Client connected". The ordinary dedicated
+`gui.offscreen-r10-lifecycle-and-terminal-close-denials` must cover
+nine R10 stages, denied listener/visible-client evidence, terminal
+R2 stale status, Stop/Revoke and unavailable host control without network,
+real authorization or native permissions.
+
 ## R2 GUI-facing authentication outcome separation (2026-10-18)
 
 Preserve the existing numeric `RuntimeHostError` values; append only

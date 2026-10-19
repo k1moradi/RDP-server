@@ -1,3 +1,19 @@
+## R7 typed lifecycle and R2 terminal-session close guard (2026-10-18)
+
+Source parent `6f37cbc7ea70c98b4b213ce6b8c195c5859eed7e`. The existing Qt-only HostStatus now exposes
+one raw R10 stage and listener-ready observation. A plain-text lifecycle
+label distinguishes all R10 states without equating authentication,
+Share and desktop visibility. The Stop/close guard now uses the raw
+R10 stage to prevent a terminal R2 HostSessionStale diagnostic from
+bypassing explicit shutdown consent or R10 retirement verification.
+New ordinary `gui.offscreen-r10-lifecycle-and-terminal-close-denials`
+exercises nine stages, listener/client evidence, terminal Stop/Revoke
+and unavailable runtime status using the existing fake R10 owner.
+Source change-pattern review PASS; native Qt/full CTest NOT RUN and
+publication-SHA hosted CI PENDING. Concrete R10 GUI LAN owner,
+R2 positive OS admission, R1/R10 TLS identity disclosure, macOS AppKit
+owner, release notarization and real Microsoft-client acceptance BLOCKED.
+
 ## R2 status CTest assertion-token correctness (2026-10-18)
 
 The newly added offline auth-outcome case now stores its two

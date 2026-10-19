@@ -3036,6 +3036,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
+    # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
+    add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials
+        COMMAND test_desktop_gui_offline lifecycle-stages)
+    set_tests_properties(gui.offscreen-r10-lifecycle-and-terminal-close-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
     # R10 client authentication cannot be presented as a connected desktop.
     # Stale endpoint/peer fields are cleared by the Qt projection on Stop.
     add_test(NAME gui.offscreen-r10-client-stage-and-retirement-status-denials

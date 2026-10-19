@@ -1,3 +1,24 @@
+## R2 exact-publication hosted evidence for dependency reconciliation (2026-10-19)
+
+Exact SHA `84d9ac65936e83eb8644ee2461bda2764eac9c68`, GitHub Actions
+`39211043620`: `protocol (ubuntu-latest)`, `protocol (macos-latest)`,
+`protocol (windows-latest)`, `r2-linux-production-runtime-security (complete)`,
+`r2-linux-production-runtime-security (missing-systemd)`,
+`r9-security-protocol-sanitizers`, R7 macOS native/session/portable-GUI,
+R5 Linux GUI ZIP, documentation policy and workflow structure all **PASS**.
+The aggregate workflow is **FAIL**, solely because
+`r6-windows-clang23` fails its full Debug/Release CTest and extracted Windows
+GUI smoke steps. No failed R2 Linux-security, sanitizer, Ubuntu protocol or
+shared documentation job is present on this exact SHA. This does not convert
+hosted CI into physical-owner or Microsoft-client acceptance.
+
+R2's dependency conclusion is unchanged: the persistent R10 post-Share
+X11/input/frame owner and R7 status consumers are landed; the remaining product
+gate is concrete R10 GUI LAN `RuntimeHostControl`, independently trustworthy
+per-session owner consent/lock authority, then explicitly authorized physical
+X11 seat0 TERMSRV/Kerberos/PAM/NSS/logind + Microsoft-client evidence.
+Owner-local full CTest and live acceptance remain **NOT RUN**.
+
 ## R2 dependency-graph reconciliation after landed R10/R7 consumption (2026-10-18)
 
 Source inspection at parent `f08c653b58ac` confirms the older R2 roadmap

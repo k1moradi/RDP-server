@@ -28,6 +28,59 @@ positive protocol proof. No synthetic native owner or client success is
 claimed. Source-only integration; local build/CTest and live seat0 acceptance
 NOT RUN, publication CI PENDING.
 
+## R7 typed lifecycle display and terminal-session close safety (2026-10-18)
+
+Qt HostStatus now retains a single R10 RuntimeHostStage and listenerAvailable
+observation, not a competing controller. A plain-text label distinguishes
+stopped, installed, configured credentials, confirmed listener, peer
+authenticating, Share activated, desktop visible, genuinely connected
+visible client, and revoked. No listener readiness or connected desktop
+is inferred from Share or a peer attempting authentication.
+
+R2 terminal host-session errors can intentionally suppress GUI projected
+sharing before the raw R10 stage retires. The Stop/close guard now conserves
+that raw stage so an active listener or session cannot silently close or
+be hidden as a consequence of a stale-authority diagnostic. Close still
+requires explicit user Stop consent and a fresh retired R10 snapshot.
+New ordinary offscreen
+`gui.offscreen-r10-lifecycle-and-terminal-close-denials` covers all nine
+stages, missing listener/client evidence, R2 stale host-session Stop,
+and control unavailable. Original close-consent CTests remain registered.
+
+Parent `6f37cbc7ea70c98b4b213ce6b8c195c5859eed7e`. Source structure PASS. Native Qt build/full CTest
+NOT RUN (owner checkout unavailable). Exact-publication-SHA CI PENDING.
+R10 live LAN HostControl, R2 genuine owner consent, R1/R10 authoritative
+TLS fingerprint/trust/rotation and macOS AppKit owner remain BLOCKED.
+macOS Developer ID/notarization and real Microsoft-client acceptance NOT RUN.
+
+## R2/R10 explicit rate-limit and stale-session status contract (2026-10-18)
+
+R2's OS-account GUI admission contract now exposes the two missing fixed,
+redacted `RuntimeHostError` outcomes `AuthenticationRateLimited` and
+`HostSessionStale`, appended without renumbering preexisting status codes.
+They are non-authorizing diagnostics. R7 projects rate limiting as a
+failed authentication, not a verified login; a terminal stale/revoked
+host-session error suppresses stale GUI desktop authorization, clients,
+endpoints, input readiness, Start and client-disconnect actions even if an
+outdated runtime snapshot still contains positive flags. Neither a peer
+rate limit nor another client's auth failure independently revokes
+unrelated existing authorized connections. R10 remains the sole live
+source of these outcomes and must publish them only after concrete
+R2/R1/native events, not GUI preferences.
+
+Dedicated ordinary cross-platform production-header CTest
+`runtime.host-control-authentication-outcome-denials` pins distinct
+fixed non-secret messages and the deny-only fallback, while the existing
+`gui.offscreen-r10-client-stage-and-retirement-status-denials` adds
+status projection and stale-host action denials without using a real
+listener, credentials, seat0, GSS context or admission lease.
+Source review **PASS**; owner-local configure/build/full CTest
+**NOT RUN** in this GitHub-only workspace; publication-SHA hosted
+CI **PENDING** at authoring. Physical-owner consent, reliable real
+lock-state evidence, actual LAN HostControl and three-client Microsoft
+CredSSP proof remain **BLOCKED / NOT RUN**. Standalone GUI password
+remains unsupported without a compatible, reviewed mechanism.
+
 ## R8 stale positive clipboard TLS receipt isolation (2026-10-18)
 
 R8 now ignores delayed R3-committed Pending/Delivered scalar receipts

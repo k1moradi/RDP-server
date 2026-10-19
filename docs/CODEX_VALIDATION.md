@@ -1,3 +1,45 @@
+## R7 typed lifecycle and R2 terminal-session close guard (2026-10-18)
+
+Source parent `6f37cbc7ea70c98b4b213ce6b8c195c5859eed7e`. The existing Qt-only HostStatus now exposes
+one raw R10 stage and listener-ready observation. A plain-text lifecycle
+label distinguishes all R10 states without equating authentication,
+Share and desktop visibility. The Stop/close guard now uses the raw
+R10 stage to prevent a terminal R2 HostSessionStale diagnostic from
+bypassing explicit shutdown consent or R10 retirement verification.
+New ordinary `gui.offscreen-r10-lifecycle-and-terminal-close-denials`
+exercises nine stages, listener/client evidence, terminal Stop/Revoke
+and unavailable runtime status using the existing fake R10 owner.
+Source change-pattern review PASS; native Qt/full CTest NOT RUN and
+publication-SHA hosted CI PENDING. Concrete R10 GUI LAN owner,
+R2 positive OS admission, R1/R10 TLS identity disclosure, macOS AppKit
+owner, release notarization and real Microsoft-client acceptance BLOCKED.
+
+## R2 status CTest assertion-token correctness (2026-10-18)
+
+The newly added offline auth-outcome case now stores its two
+`RuntimeHostResult` values as named stack locals before `assert`,
+avoiding C preprocessor comma splitting in braced temporaries.
+No status behavior, admission permission, GUI runtime or wire byte changes.
+Source review **PASS**; local full CTest **NOT RUN**; exact-SHA
+hosted CI **PENDING** at authoring. Real host consent and client
+NLA/physical seat0 remain **BLOCKED / NOT RUN**.
+
+## R2/R10 rate-limited and stale-host status handoff (2026-10-18)
+
+Added distinct non-authorizing `AuthenticationRateLimited` and
+`HostSessionStale` status codes and fixed redacted messages without
+renumbering prior outcomes. The existing Qt adapter shows rate limits
+as authentication failures and suppresses stale-session authority and
+retired peers even when injected stale snapshots carry positive flags.
+One new dedicated ordinary CTest,
+`runtime.host-control-authentication-outcome-denials`, and extended
+existing `gui.offscreen-r10-client-stage-and-retirement-status-denials`
+cover this without OS credentials, native listeners or synthetic R2
+leases. Source inspection **PASS**; local full Debug CTest **NOT RUN**;
+publication-SHA hosted CI **PENDING** at authoring. Actual R10 positive
+LAN HostControl, explicit owner consent/lock-state evidence and live
+Microsoft client authentication **NOT RUN**.
+
 ## R8 late positive scalar receipts after route retirement (2026-10-18)
 
 Implementation parent `c1ec383576c52629a2f094ed8a696d2280720b8c`. Production

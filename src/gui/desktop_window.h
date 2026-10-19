@@ -41,6 +41,7 @@ private:
     QLabel* endpointStatus_;
     QLabel* errorStatus_;
     QLabel* tlsIdentityStatus_;
+    QLabel* hostLifecycleStatus_;
     QLabel* status_;
     QLabel* activity_;
     [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;

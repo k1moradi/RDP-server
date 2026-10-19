@@ -240,6 +240,8 @@ int main(int argc, char** argv)
         runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.tlsIdentityReady = true;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.listenerGeneration = 11U;
+        runtime.snapshot.tlsIdentity.endpointGeneration = 11U;
         runtime.snapshot.tlsIdentity.state =
             RuntimeTlsIdentityState::BoundAndMatched;
         window.refresh();
@@ -308,13 +310,19 @@ int main(int argc, char** argv)
         assert(tls->text().contains("TLS identity unavailable"));
         assert(!stop->isEnabled() && !start->isEnabled());
 
-        // A freshly reported reconnect must use its *new* endpoint and
-        // fingerprint, not stale data from the previous controller.
+        // A freshly reported reconnect must use its *new* endpoint generation,
+        // endpoint and fingerprint, not stale data from the previous listener.
         runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint = "192.168.0.12:3390";
+        runtime.snapshot.listenerGeneration = 12U;
         runtime.snapshot.tlsIdentity.certificateSha256.fill(0x5aU);
+        window.refresh();
+        assert(tls->text().contains("TLS identity unavailable"));
+        assert(!tls->text().contains("A5:A5"));
+
+        runtime.snapshot.tlsIdentity.endpointGeneration = 12U;
         window.refresh();
         assert(tls->text().contains("192.168.0.12:3390"));
         assert(tls->text().contains("5A:5A:5A:5A"));

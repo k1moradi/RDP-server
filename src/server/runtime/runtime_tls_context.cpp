@@ -347,6 +347,13 @@ RuntimeTlsIdentityStatus RuntimeServerTlsContext::boundIdentityStatus(
     RuntimeTlsIdentityStatus snapshot = identityStatus();
     if (!snapshot.fingerprintAvailable || !listener.valid())
         return snapshot;
+
+    snapshot.endpointGeneration = listener.generation();
+    if (snapshot.endpointGeneration == 0U)
+    {
+        snapshot.state = RuntimeTlsIdentityState::InvalidEndpoint;
+        return snapshot;
+    }
     if (!listener.interfaceStillMatches())
     {
         snapshot.state = RuntimeTlsIdentityState::InterfaceUnavailable;

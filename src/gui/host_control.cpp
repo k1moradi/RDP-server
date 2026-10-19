@@ -84,7 +84,9 @@ HostStatus HostControl::status() const
     // observations. A configured certificate is not permission to listen.
     const bool tlsObservationCurrent =
         !terminalHostSession &&
-        runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
+        runtimeStatus.lastError != RuntimeHostError::ControlUnavailable &&
+        runtimeStatus.tlsIdentity.endpointGenerationIsCurrent(
+            runtimeStatus.listenerGeneration);
     view.tlsReady = tlsObservationCurrent && runtimeStatus.tlsIdentityReady;
     if (tlsObservationCurrent)
         view.tlsIdentity = runtimeStatus.tlsIdentity;

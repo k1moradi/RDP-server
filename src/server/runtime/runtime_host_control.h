@@ -172,6 +172,9 @@ struct RuntimeHostStatus
     RuntimeTlsIdentityStatus tlsIdentity{};
     bool hostOwnerAuthorized{};
     bool listenerAvailable{};
+    // Exact process-local generation of the currently owned R1 listener.
+    // Zero means no current listener; never an admission capability.
+    std::uint64_t listenerGeneration{};
     bool nativeDesktopReady{};
     RuntimeClipboardState clipboardState{RuntimeClipboardState::Unavailable};
     std::string boundEndpoint;

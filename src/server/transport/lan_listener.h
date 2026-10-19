@@ -65,6 +65,12 @@ public:
     {
         return valid() ? interfaceIndex_ : 0U;
     }
+    // Process-local epoch for one successfully validated bind. This is
+    // descriptive lifetime metadata, never R2 admission or peer authority.
+    [[nodiscard]] std::uint64_t generation() const noexcept
+    {
+        return valid() ? generation_ : 0U;
+    }
     // Detect address removal/interface down/reassignment. Caller must retire
     // listener and all associated connections on false; no automatic rebind.
     [[nodiscard]] bool interfaceStillMatches() const noexcept;
@@ -75,6 +81,7 @@ private:
     TcpPeerEndpoint endpoint_{};
     char interfaceName_[128]{};
     std::uint32_t interfaceIndex_{};
+    std::uint64_t generation_{};
 };
 struct LanListenerResult {
     LanListenerError error{LanListenerError::ListenerNotReady};

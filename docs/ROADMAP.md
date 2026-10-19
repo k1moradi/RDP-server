@@ -1,3 +1,36 @@
+## R1 current-main TLS identity lifecycle and endpoint-generation handoff (2026-10-19)
+
+Starting shared-main parent `63e1706659cb8c461180f3210b1e0f1409c7ee75`, including current R2
+X11-owner/secure-attention decisions, R7 fixed-fingerprint/TLS-workflow
+repairs, R5 RandR generation repair, R10 ACK pacing/headless-CI reconciliation,
+and R4 AVC420 remap evidence. R1 carries no duplicate correction for those
+owners.
+
+R1 adds a monotonic nonzero process-local generation to each successfully
+validated `OwnedLanListener` bind and carries it in bound-derived
+`RuntimeTlsIdentityStatus`. R10 reports only its currently revalidated listener
+generation; R7 rejects stale bound/mismatch/interface observations from a
+retired generation. Stop/revoke, listener replacement, and stale interface
+observation fail closed without making the generation an authority token.
+Fingerprints remain loaded-`SSL_CTX` observations and client trust remains
+`Unknown`.
+
+New ordinary offline CTest
+`runtime.tls-identity-offline-lifecycle-denials` covers configured-but-unbound
+status, wrong numeric SAN/IP identity, malformed failed handshake, rotation to
+a distinct valid certificate/IP SAN, stale endpoint generation, and
+zero-generation denial. The existing Qt TLS-rotation regression gains retired
+listener-generation coverage; the existing LAN-listener fixture asserts
+generation lifetime only inside its pre-existing optional native bind path.
+Windows replacement credentials use the existing private-fixture ACL helper.
+
+Owner-local canonical `~/rdp-server/build/` full CTest is **NOT RUN** because
+that checkout is unavailable in this connector environment. Exact
+publication-SHA hosted CI is **PENDING** at authoring. Positive R2 consent, GUI
+LAN Start, exact accepted-SSL certificate continuity, live WANT/half-close/RST,
+partial Graphics writes, interface-removal/descriptor-reuse races, and
+Microsoft-client acceptance remain **BLOCKED / NOT RUN**.
+
 ## R2 Linux/X11 trusted-owner blocker and offline NLA feasibility (2026-10-19)
 
 R10's concrete Linux `LinuxRuntimeHostControl` is already on `main`; R2 is

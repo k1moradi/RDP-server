@@ -1,3 +1,25 @@
+## R1 TLS identity lifecycle and stale endpoint-generation regression (2026-10-19)
+
+Register ordinary offline
+`runtime.tls-identity-offline-lifecycle-denials` against the production
+`RuntimeServerTlsContext` and synthetic secure credential fixture. It must
+prove that a configured certificate stays `ConfiguredUnbound`, client trust
+stays `Unknown`, numeric IP identity does not fall back to CN, malformed TLS
+handshake cannot promote identity, certificate rotation replaces the SHA-256
+observation, the rotated fixture matches only its actual IP SAN, and a
+bound-derived observation is rejected when the current endpoint generation
+differs or is zero. The test uses memory BIOs only: it must not bind/listen,
+fabricate R2 consent or assert client trust.
+
+The R7 offscreen TLS test must also reject a positive bound observation from a
+retired listener generation before accepting the replacement generation.
+The existing native LAN-listener CTest may assert generation lifetime during
+its pre-existing optional real-interface bind, but this increment adds no new
+live listener/client sequence. Real accepted-client certificate continuity,
+WANT/close_notify/RST/half-close, Stop/accept races, interface removal and
+descriptor reuse remain owner-authorized live tests only after R2 unblocks
+R10 Start.
+
 ## Cross-platform R7 TLS presentation CI pin (2026-10-19)
 
 The Linux GUI ZIP, macOS PORTABLE-GUI and Windows CLANG64 jobs must each

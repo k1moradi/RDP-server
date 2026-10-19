@@ -1,3 +1,44 @@
+## R1/R10 TLS endpoint generation and authoritative status handoff (2026-10-19)
+
+R1's configured certificate observation comes only from the securely loaded
+`SSL_CTX`; its SHA-256 is non-secret identity metadata and client trust stays
+`Unknown`. `identityStatus()` is therefore `ConfiguredUnbound` with endpoint
+generation zero. Only `boundIdentityStatus(const OwnedLanListener&)` may attach
+a nonzero endpoint generation and report `BoundAndMatched`; it revalidates the
+native interface and matches the getsockname-derived numeric address against
+the loaded leaf IP SAN. No CN fallback, GUI-selected text, or cached status can
+make this positive.
+
+Each successfully validated `OwnedLanListener` bind receives one process-local
+monotonic nonzero generation after bind/listen/getsockname/interface
+revalidation. Move transfers it, close clears it, and exhaustion fails closed.
+This generation is anti-stale lifetime metadata only, never R2 consent,
+authentication, client trust, or an admission capability. R10 publishes the
+generation only for its currently revalidated R1 listener; R7 suppresses
+bound-derived TLS observations whose endpoint generation differs.
+
+**Narrow R10 handoff after genuine R2 authority exists:** on the serialized
+owner thread, re-resolve the selected native interface identity/address, create
+one candidate with `openLanListener`, immediately obtain
+`tlsContext.boundIdentityStatus(candidate)`, and require
+`boundIdentityMatchesGeneration(candidate.generation())` before moving that
+candidate into R10's sole listener owner or publishing listener-ready status.
+Failed bind, SAN mismatch, interface replacement, Stop, or revocation retires
+the listener and clears bound-derived TLS status before replacement. Certificate
+rotation similarly clears published status before replacing the context; an old
+`SSL_CTX` must outlive every R1 `SSL` made from it, or those connections must
+be retired first.
+
+Accepted-socket ownership does not change: R10 borrows the current
+`OwnedLanListener` only for R1's bounded accept, moves each accepted socket once
+into the existing R1/R10 connection aggregate, and R1 remains the sole
+SSL/BIO/TLS application-I/O owner. After Start is legitimately unblocked, R1
+must compare the certificate selected on the exact accepted `SSL` with the
+published configured/bound identity before claiming continuity. Live
+accept/Stop races, WANT_READ/WANT_WRITE, close_notify/RST, half-close, partial
+Graphics writes, interface removal, and descriptor reuse remain BLOCKED on
+positive R2 owner consent.
+
 ## R2 Linux/X11 owner-consent decision and future lease contract (2026-10-19)
 
 For the portable Linux target, R2 supports only **Ubuntu Desktop 24.04 LTS,

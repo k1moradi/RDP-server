@@ -223,6 +223,111 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+
+[[nodiscard]] bool validateOfflineTlsIdentityLifecycle(
+    const char *certificatePath, const char *privateKeyPath,
+    const char *replacementCertificatePath,
+    const char *replacementPrivateKeyPath) noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsClientTrust;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+    using rdp_server::server::runtime::RuntimeTlsIdentityState;
+
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            certificatePath, privateKeyPath);
+    if (!context)
+        return fail("cannot create lifecycle TLS context");
+
+    const auto configured = context.identityStatus();
+    if (configured.state != RuntimeTlsIdentityState::ConfiguredUnbound ||
+        configured.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        !configured.fingerprintAvailable ||
+        configured.endpointGeneration != 0U ||
+        configured.boundIdentityMatches())
+        return fail("configured TLS context invented bound/client authority");
+
+    // The first fixture has no IP SAN, so a numeric LAN identity must fail
+    // closed instead of falling back to its Common Name.
+    if (context.validateEndpointIdentity("192.168.50.10") !=
+        RuntimeTlsEndpointIdentityStatus::Mismatch)
+        return fail("certificate without IP SAN matched a numeric endpoint");
+
+    RuntimeServerTlsContext::ServerTls failedTls = context.createServerTls();
+    if (!failedTls)
+        return fail("cannot create server TLS for failed-handshake lifecycle");
+
+    constexpr std::string_view malformedClientHello{
+        "GET / HTTP/1.0\r\n\r\n"};
+    BIO *input = ::BIO_new_mem_buf(
+        malformedClientHello.data(),
+        static_cast<int>(malformedClientHello.size()));
+    BIO *output = ::BIO_new(::BIO_s_mem());
+    if (input == nullptr || output == nullptr)
+    {
+        ::BIO_free(input);
+        ::BIO_free(output);
+        return fail("cannot create failed-handshake memory BIOs");
+    }
+    ::SSL_set_bio(failedTls.get(), input, output);
+    const int handshakeResult = ::SSL_do_handshake(failedTls.get());
+    const int handshakeError =
+        handshakeResult == 1 ? SSL_ERROR_NONE
+                             : ::SSL_get_error(failedTls.get(), handshakeResult);
+    if (handshakeResult == 1 ||
+        ::SSL_is_init_finished(failedTls.get()) == 1 ||
+        handshakeError == SSL_ERROR_WANT_READ ||
+        handshakeError == SSL_ERROR_WANT_WRITE)
+        return fail("malformed client bytes did not terminate TLS handshake");
+
+    const auto afterFailedHandshake = context.identityStatus();
+    if (afterFailedHandshake.state != RuntimeTlsIdentityState::ConfiguredUnbound ||
+        afterFailedHandshake.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        !afterFailedHandshake.fingerprintAvailable ||
+        afterFailedHandshake.certificateSha256 != configured.certificateSha256 ||
+        afterFailedHandshake.endpointGeneration != 0U ||
+        afterFailedHandshake.boundIdentityMatches())
+        return fail("failed TLS handshake promoted or changed identity status");
+
+    RuntimeServerTlsContext rotatedContext =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            replacementCertificatePath, replacementPrivateKeyPath);
+    if (!rotatedContext)
+        return fail("cannot create rotated TLS context");
+    const auto rotated = rotatedContext.identityStatus();
+    if (rotated.state != RuntimeTlsIdentityState::ConfiguredUnbound ||
+        rotated.clientTrust != RuntimeTlsClientTrust::Unknown ||
+        !rotated.fingerprintAvailable || rotated.endpointGeneration != 0U ||
+        rotated.boundIdentityMatches() ||
+        rotated.certificateSha256 == configured.certificateSha256)
+        return fail("certificate rotation retained stale identity evidence");
+
+    if (rotatedContext.validateEndpointIdentity("192.168.50.10") !=
+            RuntimeTlsEndpointIdentityStatus::Match ||
+        rotatedContext.validateEndpointIdentity("192.168.50.11") !=
+            RuntimeTlsEndpointIdentityStatus::Mismatch)
+        return fail("rotated certificate IP SAN identity mismatch");
+
+    // Endpoint generations are descriptive anti-stale metadata. Simulate an
+    // R10 cached value only to prove that replacement generation cannot reuse
+    // a prior positive observation; this does not construct listener authority.
+    auto boundObservation = rotated;
+    boundObservation.state = RuntimeTlsIdentityState::BoundAndMatched;
+    boundObservation.endpointGeneration = 41U;
+    if (!boundObservation.boundIdentityMatches() ||
+        !boundObservation.boundIdentityMatchesGeneration(41U) ||
+        boundObservation.boundIdentityMatchesGeneration(42U) ||
+        boundObservation.endpointGenerationIsCurrent(42U))
+        return fail("stale endpoint generation was accepted");
+    boundObservation.endpointGeneration = 0U;
+    if (boundObservation.boundIdentityMatches() ||
+        boundObservation.boundIdentityMatchesGeneration(0U))
+        return fail("zero endpoint generation became bound identity");
+
+    return true;
+}
+
 [[nodiscard]] bool validateReadOnlyUnboundIdentityStatus(
     const char *certificatePath, const char *privateKeyPath) noexcept
 {
@@ -293,6 +398,15 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "tls-context-read-only-unbound-identity-status") {
         return validateReadOnlyUnboundIdentityStatus(
             argumentValues[2], argumentValues[3]) ? 0 : 1;
+    }
+    if (testCase == "tls-identity-offline-lifecycle-denials") {
+        if (argumentCount != 6 || argumentValues[4] == nullptr ||
+            argumentValues[5] == nullptr) {
+            return fail("lifecycle replacement fixture arguments missing") ? 0 : 1;
+        }
+        return validateOfflineTlsIdentityLifecycle(
+            argumentValues[2], argumentValues[3],
+            argumentValues[4], argumentValues[5]) ? 0 : 1;
     }
     if (testCase == "tls-context-survives-credential-path-replacement") {
         if (argumentCount != 6 || argumentValues[4] == nullptr ||

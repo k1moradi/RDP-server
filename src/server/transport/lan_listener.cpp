@@ -2,6 +2,7 @@
 #include "lan_listener.h"
 
 #include <algorithm>
+#include <atomic>
 #include <array>
 #include <cstring>
 #include <limits>
@@ -37,6 +38,24 @@ using NativeSocket = int;
 constexpr NativeSocket invalidSocket = -1;
 void closeSocket(NativeSocket socket) noexcept { ::close(socket); }
 #endif
+
+std::atomic<std::uint64_t> nextListenerGeneration{1U};
+
+[[nodiscard]] std::uint64_t allocateListenerGeneration() noexcept
+{
+    std::uint64_t candidate =
+        nextListenerGeneration.load(std::memory_order_relaxed);
+    while (candidate != 0U &&
+           candidate != std::numeric_limits<std::uint64_t>::max())
+    {
+        const std::uint64_t replacement = candidate + 1U;
+        if (nextListenerGeneration.compare_exchange_weak(
+                candidate, replacement, std::memory_order_relaxed,
+                std::memory_order_relaxed))
+            return candidate;
+    }
+    return 0U;
+}
 
 // Restrict LAN opt-in to non-loopback, non-multicast, non-unspecified,
 // non-public addresses. This is exposure policy, not peer trust.
@@ -163,6 +182,7 @@ OwnedLanListener &OwnedLanListener::operator=(OwnedLanListener &&other) noexcept
         endpoint_ = std::exchange(other.endpoint_, TcpPeerEndpoint{});
         std::memcpy(interfaceName_, other.interfaceName_, sizeof(interfaceName_));
         interfaceIndex_ = std::exchange(other.interfaceIndex_, 0);
+        generation_ = std::exchange(other.generation_, 0U);
     }
     return *this;
 }
@@ -174,6 +194,7 @@ void OwnedLanListener::close() noexcept {
     }
     endpoint_ = {};
     interfaceIndex_ = 0;
+    generation_ = 0U;
 }
 bool OwnedLanListener::interfaceStillMatches() const noexcept {
     if (!valid() || interfaceIndex_ == 0) return false;
@@ -306,6 +327,12 @@ LanListenerResult openLanListener(LanListenerRequest request) noexcept {
     if (!result.listener.interfaceStillMatches()) {
         result.listener.close();
         result.error = LanListenerError::InterfaceUnavailable;
+        return result;
+    }
+    result.listener.generation_ = allocateListenerGeneration();
+    if (result.listener.generation_ == 0U) {
+        result.listener.close();
+        result.error = LanListenerError::ListenerNotReady;
         return result;
     }
     result.error = LanListenerError::None;

@@ -176,7 +176,11 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         return snapshot;
     snapshot.stage = stage_;
     snapshot.lastError = lastError_;
-    snapshot.listenerAvailable = listener_.valid();
+    const bool listenerCurrent =
+        listener_.valid() && listener_.interfaceStillMatches();
+    snapshot.listenerAvailable = listenerCurrent;
+    snapshot.listenerGeneration =
+        listenerCurrent ? listener_.generation() : 0U;
     // Credentials, R2 consent, TLS identity and desktop remain unproven.
     return snapshot;
 }

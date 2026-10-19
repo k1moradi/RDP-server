@@ -99,14 +99,31 @@ set(test_arguments
 if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
        "tls-context-survives-credential-path-replacement"
    OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-       "tcp-owned-runtime-tls-identity-continuity")
-    file(WRITE "${replacement_certificate_file}" "REPLACED_CERTIFICATE\n")
-    file(WRITE "${replacement_private_key_file}" "REPLACED_PRIVATE_KEY\n")
+       "tcp-owned-runtime-tls-identity-continuity"
+   OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "tls-identity-offline-lifecycle-denials")
+    if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "tls-identity-offline-lifecycle-denials")
+        file(WRITE "${replacement_certificate_file}"
+            "${lan_identity_certificate}")
+        file(WRITE "${replacement_private_key_file}"
+            "${lan_identity_private_key}")
+    else()
+        file(WRITE "${replacement_certificate_file}" "REPLACED_CERTIFICATE\n")
+        file(WRITE "${replacement_private_key_file}" "REPLACED_PRIVATE_KEY\n")
+    endif()
     if(UNIX)
         file(CHMOD "${replacement_certificate_file}" PERMISSIONS
             OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
         file(CHMOD "${replacement_private_key_file}" PERMISSIONS
             OWNER_READ OWNER_WRITE)
+    elseif(WIN32 AND RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+           "tls-identity-offline-lifecycle-denials")
+        foreach(material IN ITEMS
+                "${replacement_certificate_file}"
+                "${replacement_private_key_file}")
+            rdp_windows_make_private_fixture_acl("${material}")
+        endforeach()
     endif()
     list(APPEND test_arguments
         "${replacement_certificate_file}" "${replacement_private_key_file}")

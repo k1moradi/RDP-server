@@ -1,3 +1,29 @@
+## R1 TLS identity lifecycle / R10 endpoint-generation handoff (2026-10-19)
+
+**Inspected shared-main parent:** `63e1706659cb8c461180f3210b1e0f1409c7ee75`.
+
+Source/contract review: **PASS**. The composition remains one
+`OwnedLanListener`, one securely loaded `RuntimeServerTlsContext`, and one R1
+accepted-socket SSL/BIO/application-I/O owner. This increment adds descriptive
+listener/endpoint generation fencing, R10/R7 stale-observation suppression,
+and offline lifecycle coverage. Client trust remains `Unknown`; no listener,
+credential, desktop, Share, or R2 authority is created.
+
+New ordinary test: `runtime.tls-identity-offline-lifecycle-denials`. Existing
+`gui.offscreen-tls-fingerprint-rotation-and-denials` gains stale-listener
+generation/reconnect coverage, and
+`transport.lan-listener-native-bind-denials` gains generation-lifetime
+assertions without a new listener/client sequence. Windows rotated credentials
+reuse the project private-ACL fixture helper.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** because the
+owner's persistent checkout is unavailable here. Exact publication-SHA hosted
+CI: **PENDING** at authoring. **BLOCKED / NOT RUN:** R2-authorized R10 GUI LAN
+Start; exact accepted-SSL certificate comparison; accept/Stop races; live
+WANT_READ/WANT_WRITE, close_notify, RST, half-close; partial Graphics writes;
+interface removal/descriptor reuse; physical Microsoft Windows App/mstsc
+acceptance. Offline evidence must not be promoted to those claims.
+
 ## R4 AVC420 remap exact-descendant acceptance (2026-10-19)
 
 R4 implementation SHA `571f77a7c862c95a0e60ef58882e26f2bced8186`

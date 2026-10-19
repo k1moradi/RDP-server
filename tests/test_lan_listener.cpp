@@ -31,6 +31,7 @@ int main() {
     auto missing = openLanListener({"rdp-definitely-missing", "192.168.1.5", 3389});
     assert(missing.error == LanListenerError::InterfaceUnavailable);
     assert(!missing.listener.valid());
+    assert(missing.listener.generation() == 0U);
     auto zeroPort = openLanListener({"eth0", "192.168.1.5", 0});
     assert(zeroPort.error == LanListenerError::InvalidSelection);
     assert(lanListenerErrorMessage(LanListenerError::InterfaceUnavailable) ==
@@ -93,9 +94,11 @@ int main() {
             assert(listener.listener.boundEndpoint().port == port);
             assert(listener.listener.interfaceName() == name);
             assert(listener.listener.interfaceIndex() == ::if_nametoindex(name.c_str()));
+            assert(listener.listener.generation() != 0U);
             assert(listener.listener.interfaceStillMatches());
             auto occupied = openLanListener({name, address, port});
             assert(occupied.error == LanListenerError::PortOccupied);
+            assert(occupied.listener.generation() == 0U);
             // The existing production acceptor must accept nothing when
             // there are no queued connections.
             auto empty = acceptNonblockingTcpConnection(listener.listener.nativeSocket());
@@ -130,6 +133,7 @@ int main() {
             accepted.connection.close();
             ::close(client);
             listener.listener.close();
+            assert(listener.listener.generation() == 0U);
             assert(!listener.listener.interfaceStillMatches());
         } else {
             assert(listener.error == LanListenerError::PortOccupied ||
@@ -185,6 +189,7 @@ int main() {
             assert(listener.listener.valid());
             assert(listener.listener.interfaceName() == name);
             assert(listener.listener.interfaceIndex() == selectedScope);
+            assert(listener.listener.generation() != 0U);
             const auto bound = listener.listener.boundEndpoint();
             assert(bound.family == TcpPeerAddressFamily::Ipv6);
             assert(bound.port == port);

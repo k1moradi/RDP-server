@@ -1,3 +1,16 @@
+## R7 unsupported independent-password input removal (2026-10-18)
+
+Source parent `17bbd4dd86481cfd67d9c08128a80a780e8a91b7`. The Qt credentials page removes its disabled
+password and confirmation QLineEdit objects and the dead Start-readiness
+comparison. It replaces them with one disabled **Set Application Password —
+Unsupported** button and explicit non-collection text. Dedicated ordinary
+`gui.offscreen-independent-password-workflow-unavailable` checks the button
+is disabled, both former QObject names are absent, supported OS-account
+status can still make Start eligible, and no credential/configure/Start
+command occurs from the unsupported control. Source transformation PASS.
+Native Qt/full CTest NOT RUN; exact-publication-SHA CI PENDING. R2
+interoperable independent-password NLA remains BLOCKED; no secret was used.
+
 ## R7 typed lifecycle and R2 terminal-session close guard (2026-10-18)
 
 Source parent `6f37cbc7ea70c98b4b213ce6b8c195c5859eed7e`. The existing Qt-only HostStatus now exposes

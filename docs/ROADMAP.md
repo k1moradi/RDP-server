@@ -1,3 +1,20 @@
+## R7 unsupported independent password has no input surface (2026-10-18)
+
+The shared Qt credentials page no longer constructs disabled password or
+confirmation text fields for the unimplemented independent application-
+password mode. Until R2 proves interoperable NLA, it shows only a visibly
+disabled **Set Application Password — Unsupported** action and fixed text
+that the GUI does not collect or store such a password. Existing OS-account
+setup remains the only credential request path. Start readiness has no
+password-field branch. New ordinary offscreen
+`gui.offscreen-independent-password-workflow-unavailable` asserts the
+unsupported action is disabled, the former password/confirmation QObject
+names do not exist, and clicking the disabled control cannot configure or
+start R10. Parent `17bbd4dd86481cfd67d9c08128a80a780e8a91b7`. Source inspection PASS; native Qt/full CTest
+NOT RUN; publication-SHA hosted CI PENDING. Real R10 LAN HostControl,
+R2 positive owner admission and independent-password NLA proof, R1/R10
+fingerprint/trust status and AppKit ownership remain BLOCKED.
+
 ## R7 typed lifecycle display and terminal-session close safety (2026-10-18)
 
 Qt HostStatus now retains a single R10 RuntimeHostStage and listenerAvailable

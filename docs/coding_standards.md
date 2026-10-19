@@ -1,3 +1,12 @@
+## R7 unsupported credentials must have no secret input surface (2026-10-18)
+
+Do not construct even disabled secret text fields for an independent
+application-password mechanism that R2 cannot consume. Until interoperable
+NLA is proven, expose only inert explanatory text and a visibly disabled
+unsupported action. Supported OS-account setup remains a separate R10/R2
+request. Never store, compare, log or gate Start on a password the server
+cannot authenticate.
+
 ## R7 raw R10 stage cannot bypass Qt close consent (2026-10-18)
 
 Project R10 RuntimeHostStage and listenerAvailable in the existing thin

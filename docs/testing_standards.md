@@ -1,3 +1,14 @@
+## R7 independent application-password UI is non-collecting (2026-10-18)
+
+Before R2 proves interoperable independent-password NLA, the Qt GUI must not
+create password/confirmation entry widgets at all. A disabled, clearly
+unsupported action may explain future scope but cannot accept text, mutate
+credential status, configure R10 or affect Start readiness. Keep ordinary
+`gui.offscreen-independent-password-workflow-unavailable` checking the
+disabled action, absence of the historical `password` and `confirmation`
+QObject inputs, zero credential/configure/Start calls, and normal Start
+eligibility from supported OS-account status alone.
+
 ## R7 R10 raw-stage shutdown and exact GUI phase projection (2026-10-18)
 
 A terminal R2 HostSessionStale result may suppress the GUI's projected

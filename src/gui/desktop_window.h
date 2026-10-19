@@ -5,7 +5,6 @@
 class QCloseEvent;
 class QComboBox;
 class QLabel;
-class QLineEdit;
 class QPushButton;
 class QSpinBox;
 class QStackedWidget;
@@ -25,8 +24,6 @@ private:
     QComboBox* interfaces_;
     QComboBox* clientSelection_;
     QSpinBox* port_;
-    QLineEdit* password_;
-    QLineEdit* confirmation_;
     QPushButton* configureOsAccount_;
     QPushButton* requestHostPermission_;
     QPushButton* start_;

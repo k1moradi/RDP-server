@@ -1,3 +1,15 @@
+## R7 typed R1 TLS identity Qt display regressions (2026-10-19)
+
+Use the existing R10 RuntimeTlsIdentityStatus with real offscreen Qt widgets;
+do not create a second certificate parser or store an old fingerprint. Require
+32-byte exact SHA-256 formatting, ConfiguredUnbound versus genuinely confirmed
+BoundAndMatched distinction, fixed Unknown client trust and fresh verification
+after rotation. Check missing digest, mismatched/changed endpoint, unavailable
+interface, stale/revoked host, unavailable control and reconnect. Reject stale
+positive identity even if an old R10 status still has tlsIdentityReady; the raw
+R10 stage must continue to gate explicit Stop/Close. These tests confer no
+native consent or client trust.
+
 ## R2 explicit owner consent and deny-only revocation tests (2026-10-19)
 
 Ordinary CTest must register exact behavior names

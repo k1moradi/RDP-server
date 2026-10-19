@@ -80,8 +80,14 @@ HostStatus HostControl::status() const
     view.credentialsConfigured = runtimeStatus.credentialsConfigured;
     view.desktopAuthorized =
         runtimeStatus.hostOwnerAuthorized && !terminalHostSession;
-    view.tlsReady = runtimeStatus.tlsIdentityReady;
-    view.tlsIdentity = runtimeStatus.tlsIdentity;
+    // Terminal ownership loss and unavailable control invalidate stale TLS
+    // observations. A configured certificate is not permission to listen.
+    const bool tlsObservationCurrent =
+        !terminalHostSession &&
+        runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
+    view.tlsReady = tlsObservationCurrent && runtimeStatus.tlsIdentityReady;
+    if (tlsObservationCurrent)
+        view.tlsIdentity = runtimeStatus.tlsIdentity;
     view.captureInputReady =
         runtimeStatus.nativeDesktopReady && !terminalHostSession;
     view.sharing =

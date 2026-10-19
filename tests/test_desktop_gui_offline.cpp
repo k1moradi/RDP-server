@@ -16,6 +16,7 @@
 #include <algorithm>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -204,6 +205,120 @@ int main(int argc, char** argv)
             selected->click();
         });
     };
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "tls-identity")
+    {
+        // R1 supplies typed values; the fake does not create a certificate,
+        // bind a port, authorize a session or establish Microsoft-client trust.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::ConfiguredUnbound;
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
+        for (std::size_t index = 0;
+             index < runtime.snapshot.tlsIdentity.certificateSha256.size(); ++index)
+            runtime.snapshot.tlsIdentity.certificateSha256[index] =
+                static_cast<std::uint8_t>(index);
+        DesktopWindow window(host);
+        auto* tls = window.findChild<QLabel*>("tlsIdentityStatus");
+        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
+        auto* start = window.findChild<QPushButton*>("startSharing");
+        auto* stop = window.findChild<QPushButton*>("stopSharing");
+        assert(tls && endpoint && start && stop);
+        assert(tls->textFormat() == Qt::PlainText);
+        const QString originalFingerprint =
+            QStringLiteral("00:01:02:03:04:05:06:07");
+        assert(tls->text().contains("configured, but no bound LAN listener"));
+        assert(tls->text().contains(originalFingerprint));
+        assert(tls->text().contains("trust: unknown"));
+        assert(!host.status().listenerReady && !window.canStart());
+
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::BoundAndMatched;
+        window.refresh();
+        assert(tls->text().contains(
+            "matches R10-reported bound LAN endpoint: 192.168.0.10:3389"));
+        assert(tls->text().contains(originalFingerprint));
+        assert(!start->isEnabled() && stop->isEnabled());
+
+        // Certificate rotation replaces the old fingerprint, with no GUI
+        // identity cache. Client trust is never promoted by the new bytes.
+        runtime.snapshot.tlsIdentity.certificateSha256.fill(0xa5U);
+        window.refresh();
+        assert(!tls->text().contains(originalFingerprint));
+        assert(tls->text().contains("A5:A5:A5:A5"));
+        assert(tls->text().contains("after certificate rotation"));
+        assert(tls->text().contains("trust: unknown"));
+
+        // A changed endpoint, mismatch and interface loss are not a
+        // matched-listener certificate for the newly selected address.
+        runtime.snapshot.boundEndpoint = "192.168.0.11:3389";
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::CertificateMismatch;
+        window.refresh();
+        assert(tls->text().contains("does not match"));
+        assert(!tls->text().contains("matches R10-reported"));
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::InterfaceUnavailable;
+        window.refresh();
+        assert(tls->text().contains("interface unavailable"));
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::InvalidEndpoint;
+        window.refresh();
+        assert(tls->text().contains("Invalid LAN endpoint"));
+
+        // An inconsistent bound claim without a current listener/endpoint
+        // or fingerprint cannot be presented as a confirmed identity.
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::BoundAndMatched;
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = false;
+        runtime.snapshot.listenerAvailable = false;
+        runtime.snapshot.boundEndpoint.clear();
+        window.refresh();
+        assert(tls->text().contains("binding unconfirmed"));
+        assert(tls->text().contains("SHA-256: unavailable"));
+        assert(!tls->text().contains("A5:A5"));
+        assert(!host.status().listenerReady);
+
+        // Host-session loss or control disappearance suppresses stale
+        // positive metadata, while raw R10 stage still requires Stop.
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
+        window.refresh();
+        assert(tls->text().contains("TLS identity unavailable"));
+        assert(!tls->text().contains("A5:A5"));
+        assert(!host.status().tlsReady);
+        assert(!start->isEnabled() && stop->isEnabled());
+        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
+        window.refresh();
+        assert(tls->text().contains("TLS identity unavailable"));
+        assert(!host.status().tlsReady);
+
+        runtime.snapshot.stage = RuntimeHostStage::Revoked;
+        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
+        window.refresh();
+        assert(tls->text().contains("TLS identity unavailable"));
+        assert(!stop->isEnabled() && !start->isEnabled());
+
+        // A freshly reported reconnect must use its *new* endpoint and
+        // fingerprint, not stale data from the previous controller.
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.12:3390";
+        runtime.snapshot.tlsIdentity.certificateSha256.fill(0x5aU);
+        window.refresh();
+        assert(tls->text().contains("192.168.0.12:3390"));
+        assert(tls->text().contains("5A:5A:5A:5A"));
+        assert(!tls->text().contains("A5:A5"));
+        assert(tls->text().contains("trust: unknown"));
+        assert(!window.canStart() && !start->isEnabled());
+        return 0;
+    }
 
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "terminal-listener")
     {

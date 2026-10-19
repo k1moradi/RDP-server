@@ -1,3 +1,16 @@
+## R7 typed R1 TLS certificate Qt projection (2026-10-19)
+
+Read current R1/R10 RuntimeTlsIdentityStatus at parent `e85aeb77b184ab618077c557da1e45941c7239f7`.
+Added value-only GUI SHA-256 formatter and explicit unbound/matched/mismatch/
+lost-interface/invalid-endpoint trust messaging. Revocation, host-session
+staleness or unavailable controller clears projected TLS identity and readiness.
+Registered `gui.offscreen-tls-fingerprint-rotation-and-denials` in ordinary
+shared CTest to cover rotation, missing digest, endpoint changes, reconnect,
+and denial. Source review PASS; native Qt compile/full CTest NOT RUN
+(connector-only environment); publication-SHA hosted CI PENDING. Positive
+R2 host consent, R10 LAN Start, real peer TLS rotation and physical Microsoft
+Windows App acceptance BLOCKED / NOT RUN.
+
 ## R2 current-owner consent fail-closed admission gate (2026-10-19)
 
 Parent inspected: `e2e48f0f8fc022203fc25d83540db83e36f5f93e`. Production R2 now requires a separate

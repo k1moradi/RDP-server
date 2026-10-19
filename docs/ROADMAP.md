@@ -1,3 +1,26 @@
+## R7 read-only R1 TLS identity display and rotation regression (2026-10-19)
+
+Parent `e85aeb77b184ab618077c557da1e45941c7239f7`: R1's new typed RuntimeTlsIdentityStatus is already
+projected by R10/R7, but the Qt TLS label still states the fingerprint is not
+supplied. R7 now renders the exact 32-byte R1-observed SHA-256 as uppercase
+colon-separated hex only when present. ConfiguredUnbound is explicitly not a
+listener, BoundAndMatched requires an R10-confirmed listener/endpoint for
+positive bound display, and mismatch/interface-loss/invalid endpoint remain
+negative. Client trust remains Unknown with independent client verification
+and fresh certificate-rotation verification guidance; no local certificate
+parser, trusted-client cache, new socket, credential or authority is added.
+Terminal R2 session loss and ControlUnavailable suppress stale TLS identity
+and tlsReady in the thin Qt adapter, preserving the raw Stop/close guard.
+
+New ordinary `gui.offscreen-tls-fingerprint-rotation-and-denials` tests the
+real Qt status label with the typed R1/R10 contract, missing digest, bound
+endpoint changes, certificate rotation, revoked/stale/unavailable controller
+and reconnect without retaining an old fingerprint. Source-only contract
+review PASS; owner-native Qt/full CTest NOT RUN here; exact-SHA hosted CI
+PENDING. Genuine R2 host consent/lock/revocation, positive R10 LAN Start,
+actual TLS/certificate rotation, owner M1 and Microsoft-client acceptance
+remain BLOCKED / NOT RUN.
+
 ## R2 current-owner consent authority must precede native admission (2026-10-19)
 
 At inspected parent `e2e48f0f8fc022203fc25d83540db83e36f5f93e`, R10's concrete Linux

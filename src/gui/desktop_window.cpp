@@ -19,6 +19,8 @@
 #include <QVBoxLayout>
 #include <QVariant>
 #include <algorithm>
+#include <array>
+#include <cstddef>
 namespace rdp::gui {
 namespace {
 QLabel* label(const QString& message) {
@@ -46,6 +48,74 @@ QString clipboardStatusText(
         return "Clipboard denied by current session policy.";
     }
     return "Clipboard unavailable: invalid session state.";
+}
+
+// Only R1/R10 can supply this value-only certificate observation. Never
+// interpret a fingerprint as client trust, permission or listener ownership.
+QString tlsIdentityStatusText(const HostStatus& status)
+{
+    using rdp_server::server::runtime::RuntimeTlsIdentityState;
+    const auto& identity = status.tlsIdentity;
+    if (!status.controlAvailable || identity.state == RuntimeTlsIdentityState::Unavailable)
+        return QStringLiteral(
+            "TLS identity unavailable. SHA-256 fingerprint not confirmed; "
+            "no client trust is inferred.");
+
+    QString explanation;
+    switch (identity.state) {
+    case RuntimeTlsIdentityState::Unavailable:
+        return QStringLiteral("TLS identity unavailable.");
+    case RuntimeTlsIdentityState::ConfiguredUnbound:
+        explanation = QStringLiteral(
+            "TLS certificate configured, but no bound LAN listener is confirmed.");
+        break;
+    case RuntimeTlsIdentityState::BoundAndMatched:
+        explanation = status.listenerReady && !status.lanAddress.isEmpty() &&
+                      identity.fingerprintAvailable
+            ? QStringLiteral("TLS certificate matches R10-reported bound LAN endpoint: ") +
+                  status.lanAddress
+            : QStringLiteral(
+                "TLS certificate binding unconfirmed: current listener or endpoint "
+                "evidence is missing.");
+        break;
+    case RuntimeTlsIdentityState::CertificateMismatch:
+        explanation = QStringLiteral(
+            "TLS certificate does not match the selected bound LAN endpoint; "
+            "do not connect.");
+        break;
+    case RuntimeTlsIdentityState::InterfaceUnavailable:
+        explanation = QStringLiteral(
+            "Selected LAN interface unavailable; TLS endpoint identity unconfirmed.");
+        break;
+    case RuntimeTlsIdentityState::InvalidEndpoint:
+        explanation = QStringLiteral(
+            "Invalid LAN endpoint; TLS certificate binding unconfirmed.");
+        break;
+    }
+
+    // The 32-byte digest is non-secret R1 evidence. Format it in a bounded
+    // stack buffer; neither Qt nor the GUI computes a certificate fingerprint.
+    if (identity.fingerprintAvailable) {
+        constexpr char hexDigits[] = "0123456789ABCDEF";
+        std::array<char, 3U * identity.certificateSha256.size() - 1U> fingerprint{};
+        for (std::size_t index = 0; index < identity.certificateSha256.size(); ++index) {
+            const auto byte = identity.certificateSha256[index];
+            const std::size_t offset = index * 3U;
+            fingerprint[offset] = hexDigits[byte >> 4U];
+            fingerprint[offset + 1U] = hexDigits[byte & 0x0fU];
+            if (index + 1U < identity.certificateSha256.size())
+                fingerprint[offset + 2U] = ':';
+        }
+        explanation += QStringLiteral("\nConfigured certificate SHA-256: ") +
+            QString::fromLatin1(fingerprint.data(),
+                                static_cast<qsizetype>(fingerprint.size()));
+    } else {
+        explanation += QStringLiteral("\nCertificate SHA-256: unavailable.");
+    }
+    explanation += QStringLiteral(
+        "\nClient trust: unknown; no client trust is inferred. "
+        "Verify independently and recheck the fingerprint after certificate rotation.");
+    return explanation;
 }
 
 // R10 stages are presentation evidence, never a new GUI state machine.
@@ -382,9 +452,7 @@ void DesktopWindow::refresh() {
     errorStatus_->setText(snapshot.failure.isEmpty()
         ? "R10 host error: none reported."
         : "R10 host error: " + snapshot.failure);
-    tlsIdentityStatus_->setText(snapshot.tlsReady
-        ? "TLS identity readiness reported by R10. SHA-256 fingerprint and client trust status are not supplied; no client trust is inferred."
-        : "TLS identity unavailable. SHA-256 fingerprint and client trust status are not supplied by R10/R1.");
+    tlsIdentityStatus_->setText(tlsIdentityStatusText(snapshot));
     desktopStatus_->setText(snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()
         ? "R2-authorized desktop reported: " + snapshot.desktop
         : "Authorization unavailable: " + (snapshot.failure.isEmpty()

@@ -3109,6 +3109,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
+    # R1's typed identity evidence must never be mistaken for client
+    # trust, host consent or an authenticated listener.
+    add_test(NAME gui.offscreen-tls-fingerprint-rotation-and-denials
+        COMMAND test_desktop_gui_offline tls-identity)
+    set_tests_properties(gui.offscreen-tls-fingerprint-rotation-and-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;tls" TIMEOUT 30)
     # Terminal R2 authority loss must suppress stale listener readiness.
     add_test(NAME gui.offscreen-terminal-listener-readiness-denials
         COMMAND test_desktop_gui_offline terminal-listener)

@@ -1,3 +1,34 @@
+## R9 post-R10 resize integration guard repair (2026-10-19)
+
+Exact main `f894dd23fdfd3598335fd85f1269fc7ae36ae17c` lands R10's authenticated native RandR resize
+scheduler, clearing the R3 -> R10 **RESIZE** dependency in the project graph.
+Its first primary Actions run `39290204071` passed the hosted Windows
+PowerShell parser, R9 sanitizer inventory, R6 Windows CLANG64, Windows/macOS
+protocol, R5 Linux GUI ZIP, R7 macOS GUI/lifecycle/session lanes, R2 production
+security variants, workflow structure and documentation policy. Ubuntu protocol
+failed exactly one source-contract CTest,
+`runtime.linux-r5-persistent-x11-input-frame-borrow-order`.
+
+That failure is an integration guard mismatch, not a native resize/runtime
+failure. R10 correctly added an earlier `frameWritePending = true` when a
+surface reconfiguration starts so the existing Graphics writer can drain
+DELETE -> CREATE -> MAP. The R5 source guard previously searched for the first
+such assignment and therefore mistook the remap writer for frame publication.
+This commit scopes the assertion to the source tail beginning at
+`consumeR4Frame(...)`, preserving the intended requirement that successful
+synchronous R4 frame borrowing precede the frame-publication pending state.
+No production code, authority decision, protocol ownership, or release policy
+is changed.
+
+**START remains blocked** independently by R2 trusted-owner authority:
+`CurrentOwnerSharingAuthority::requestConsent()` still reports
+`TrustedOwnerProofUnavailable` and positive authorization remains false.
+**CLEAN remains blocked** operationally because no interactive non-admin
+`r9-clean-windows-gui` receipt exists; the exact Windows candidate must not
+be promoted to a public PORTABLE-GUI until that consumer runs successfully.
+The publication SHA for this guard repair requires its own exact-SHA CI result;
+do not inherit overall PASS from `f894dd23fdfd`.
+
 ## R9 post-R3-merge main stabilization and dependency refresh (2026-10-19)
 
 Exact main `e24539c78f6c42be9bb1357247c1685d8161b45b` merged R3 PR #24. Its R3 source had exact-head hosted

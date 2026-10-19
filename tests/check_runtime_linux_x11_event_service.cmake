@@ -116,13 +116,25 @@ if(RDP_R5_PERSISTENT_FRAME_GATE)
     string(FIND "${runtime_source}"
         "case Kind::ClipboardStaticChannel:" clipboard)
     string(FIND "${owner_handoff}" "X11R4BgraFrameConsumer{" callback)
-    string(FIND "${owner_handoff}" "frameWritePending = true" pending)
+    # R10's native-resize scheduler also sets frameWritePending before capture
+    # while it drains DELETE -> CREATE -> MAP. Anchor the publication-pending
+    # assertion to the tail beginning at the actual synchronous R4 borrow so
+    # that the guard distinguishes remap writes from frame publication.
+    if(frame_borrow EQUAL -1)
+        set(publication_pending -1)
+    else()
+        string(SUBSTRING "${owner_handoff}" ${frame_borrow} -1
+            frame_publication_tail)
+        string(FIND "${frame_publication_tail}"
+            "frameWritePending = true" publication_pending)
+    endif()
     string(FIND "${runtime_source}"
         "startPersonalDesktopClearCodecFramePublication(" frame_sink)
     if(slow_path EQUAL -1 OR input_sink EQUAL -1 OR clipboard EQUAL -1 OR
-       callback EQUAL -1 OR pending EQUAL -1 OR frame_sink EQUAL -1 OR
+       callback EQUAL -1 OR publication_pending EQUAL -1 OR
+       frame_sink EQUAL -1 OR
        NOT slow_path LESS input_sink OR NOT input_sink LESS clipboard OR
-       NOT tls_read LESS frame_borrow OR NOT frame_borrow LESS pending)
+       NOT tls_read LESS frame_borrow)
         message(FATAL_ERROR
             "R5 persistent input must use R2 gateway and frame publication must use synchronous R4 borrow")
     endif()

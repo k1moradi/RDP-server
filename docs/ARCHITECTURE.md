@@ -1,3 +1,38 @@
+## R3 authenticated Graphics surface remap (draft PR #24, 2026-10-18)
+
+R10 observes fresh X11 RandR root geometry through R5's current native
+owner, **not** untrusted client geometry. The immutable R3/R2 call is
+`LinuxConsoleAdmissionBroker::beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
+lease, acceptor, connection, session, deploymentPolicy, ::PixelSize)`,
+returning `Unchanged / Deferred / Started / Rejected`. R2 checks the same
+native lease, TLS provenance, PersonalDesktop policy and activated R3 Share
+before and after the decision. If unavailable, the transition is rejected;
+this API grants no reusable authentication or native mutation authority.
+
+On `Started`, R3 has queued only DELETE_SURFACE. R10 must use the already
+existing R2-authorized Graphics DVC pending-write/complete-write gateway
+and R1's sole TLS writer; R3 advances to CREATE_SURFACE only after a full
+DELETE receipt, then to MAP_SURFACE_TO_OUTPUT only after a full CREATE
+receipt. R3 alone increments the surface identity and owns command bytes.
+The Graphics DVC generation does not change during a same-channel remap.
+The new surface becomes frame-publishable only after complete MAP receipt.
+
+`Deferred` is **nonterminal**: outstanding R4 ACKs (including ordinary
+64-credit saturation), ACK suspension, pending client Graphics DATA,
+pending frame publication or any queued/positive-partial TLS write must be
+retired on the existing owner before retry. R3 will not cancel accepted
+bytes, steal R4's ACK counter, or replay bytes on a replaced DVC generation.
+A zero-accepted-byte frame can be canceled via the existing authenticated
+receipt gateway. The next surface ID is never reused; exhaustion requires
+reconnect. R3 remembers the highest previously published frame ID, rejects
+frame-ID reuse after remap and drops well-formed stale old-surface ACKs
+before they can suspend the new R4 ACK window.
+
+PR #24 adds the **offline contract and bounded regression only**. R10's
+RandR observation scheduler/writer integration, owner-authorized physical
+seat0, real Microsoft-client verification and native GUI Start/Stop remain
+independent gates. A passing CI run is not native acceptance.
+
 ## R3 authenticated non-mutating Graphics frame-credit preflight (2026-10-18)
 
 R4 remains the sole owner of the RDPGFX ACK window and outstanding frame IDs.

@@ -1,3 +1,17 @@
+## R10 bounded pending-Graphics TLS write polling (2026-10-18)
+
+The serialized post-Share owner now uses one production-tested bounded poll
+wait selector. While a Graphics write is pending, the next X11 capture is
+ineligible, so a past capture deadline cannot force a zero-millisecond busy
+poll; R1's actual SSL WANT_READ/WANT_WRITE socket direction, X11 dispatch,
+logind retirement, buffered TLS packet readiness, cooperative Stop and policy
+revocation retain precedence. The dedicated ordinary executable CTest
+`runtime.linux-connection-stalled-graphics-tls-write-bounded-poll` uses a
+real quiet kernel pipe to exercise four positive-duration poll waits and
+covers timer/native-event overrides. This is an offline deterministic pacing
+regression, not a live TLS transmission or Microsoft-client acceptance.
+Local build/CTest NOT RUN; publication CI PENDING.
+
 ## R10 ACK-credit defer scheduler integration (2026-10-18)
 
 R10 now samples R3's non-mutating `RdpGraphicsFramePublicationReadiness`

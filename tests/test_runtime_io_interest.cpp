@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_connection.h"
 
+#include <array>
 #include <cassert>
+#include <chrono>
+#include <poll.h>
 #include <string_view>
+#include <unistd.h>
 
 namespace
 {
@@ -11,6 +15,48 @@ using rdp_server::server::runtime::detail::
     selectLinuxRuntimeConnectionIoInterest;
 using rdp_server::server::transport::McsSessionPhase;
 using rdp_server::server::transport::TcpConnectionIoInterest;
+
+void testStalledGraphicsTlsWriteBoundedPolling() noexcept
+{
+    using namespace std::chrono_literals;
+    using rdp_server::server::runtime::detail::selectLinuxPostSharePollWait;
+
+    constexpr auto pollQuantum = 25ms;
+    constexpr auto expiredCapture = 0ms;
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, expiredCapture, true, false, false) == pollQuantum);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, expiredCapture, false, false, false) == 0ms);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 100ms, false, false, false) == pollQuantum);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, 9ms, false, false, false) == 9ms);
+    // Native events or buffered data still force prompt servicing.
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, expiredCapture, true, false, true) == 0ms);
+    assert(selectLinuxPostSharePollWait(
+               pollQuantum, expiredCapture, false, true, false) == 0ms);
+
+    // Model R1 SSL_write_ex WANT_READ against a real quiet kernel fd.
+    // The old expired-deadline scheduler spun through zero-timeout polls;
+    // four stalled iterations must now block for bounded positive waits.
+    std::array<int, 2> quietPipe{-1, -1};
+    assert(::pipe(quietPipe.data()) == 0);
+    pollfd ready{quietPipe[0], POLLIN, 0};
+    const auto start = std::chrono::steady_clock::now();
+    for (int iteration = 0; iteration < 4; ++iteration)
+    {
+        ready.revents = 0;
+        const auto wait = selectLinuxPostSharePollWait(
+            pollQuantum, expiredCapture, true, false, false);
+        assert(::poll(&ready, static_cast<nfds_t>(1),
+                      static_cast<int>(wait.count())) == 0);
+    }
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    assert(elapsed >= 70ms);
+    assert(::close(quietPipe[1]) == 0);
+    assert(::close(quietPipe[0]) == 0);
+}
 
 void testOutboundWriteReadiness() noexcept
 {
@@ -184,6 +230,11 @@ int main(int argumentCount, char **argumentValues)
         return 2;
 
     const std::string_view testCase{argumentValues[1]};
+    if (testCase == "stalled-graphics-tls-write-bounded-poll")
+    {
+        testStalledGraphicsTlsWriteBoundedPolling();
+        return 0;
+    }
     if (testCase == "clipboard-outbound-want-precedence")
     {
         testClipboardOutboundWantPrecedence();

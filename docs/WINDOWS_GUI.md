@@ -96,3 +96,12 @@ Start/Stop status and revocation, and must reauthorize immediately before each
 DXGI borrow and SendInput call. The existing
 `windows_native_session_evidence.*` reader is observational only and cannot
 mint that authority.
+
+## R6/R9 clean-ZIP release gate (2026-10-19)
+
+Require unprovisioned Windows-runner launch of the EXACT CI ZIP with
+Windows-system-only child PATH, actual GUI window, normal close and repeated
+Unicode-and-spaces extraction. Source gate introduced; PASS is not yet
+claimed. Human missing-DLL failure remains release blocking until the human
+ZIP is compared and exact missing DLLs are identified. R2/R10 hosting gates
+remain unchanged.

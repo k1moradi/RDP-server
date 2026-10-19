@@ -1,3 +1,18 @@
+## R6/R9 clean Windows exact-ZIP gate (2026-10-19)
+
+The human-reported extracted ZIP fails without MSYS2: **RELEASE BLOCKED**.
+The old hosted smoke inherited compiler/Qt PATH. A new unprovisioned Windows
+runner downloads the exact uploaded ZIP, verifies SHA-256 and the production
+manifest, and requires ordinary GUI visible-window launch and normal close
+under a Windows-system-only process PATH from two Unicode-and-spaces folders.
+A dedicated native Windows CTest rejects injected developer DLL paths without
+starting a GUI. Two previous hosted CI ZIPs (PR #25 run 39232722215 artifact
+12178570349; PR #26 run 39232727915 artifact 12177699951) contain the same
+40 DLL names and identical DLL bytes. The human ZIP remains unavailable;
+exact missing DLLs, human/CI parity, clean-runner PASS, and owner-native
+acceptance are **PENDING**. This work does not enable Windows hosting: real
+R2 SID/WTS admission and R10 Windows session/service ownership are BLOCKED.
+
 ## R5 native geometry observation and bounded framebuffer handoff (2026-10-19)
 
 R4 duplicate-at-64 correction PR #27 is merged into main as

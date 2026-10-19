@@ -3084,6 +3084,21 @@ add_test(NAME packaging.portable-gui-archive-integrity-denials
 set_tests_properties(packaging.portable-gui-archive-integrity-denials
     PROPERTIES LABELS "packaging;gui;security;offline" TIMEOUT 30)
 
+# R6 synthetic native PATH sanitizer check; real exact-ZIP Windows smoke is CI.
+if(WIN32)
+    find_program(RDP_SERVER_WINDOWS_POWERSHELL NAMES powershell.exe)
+    if(NOT RDP_SERVER_WINDOWS_POWERSHELL)
+        message(FATAL_ERROR "Windows PowerShell required for GUI path check")
+    endif()
+    add_test(NAME windows.gui-portable-clean-loader-environment-denials
+        COMMAND "${RDP_SERVER_WINDOWS_POWERSHELL}" -NoProfile -NonInteractive
+            -ExecutionPolicy Bypass -File
+            "${PROJECT_SOURCE_DIR}/scripts/smoke_windows_portable_gui_clean.ps1"
+            -EnvironmentSelfTest)
+    set_tests_properties(windows.gui-portable-clean-loader-environment-denials
+        PROPERTIES LABELS "windows;gui;packaging;security;offline" TIMEOUT 20)
+endif()
+
 # R6 Windows PORTABLE-GUI builder contract. Synthetic PE fixtures run on
 # every host; native windeployqt/launch/PE-import closure remains Windows CI.
 add_test(NAME windows.gui-portable-zip-integrity-path-uninstall-denials

@@ -1,3 +1,17 @@
+## R7 explicit active-sharing GUI close-consent source receipt (2026-10-18)
+
+Parent `2ec8ac3b8b6ca83f3748ef161b5dd8bdc608b4c5`. `DesktopWindow::closeEvent` now requires
+explicit Stop Sharing and Close with a safe Keep Window Open default. It
+dispatches only to R10's existing HostControl adapter and refuses closing
+if the follow-up status is unavailable or active/pending. Existing
+`gui.offscreen-close-revokes-pending-host` now selects the explicit
+Stop action; new `gui.offscreen-close-requires-explicit-owner-stop`
+covers cancel, refused retirement, success and stopped-window exit.
+No listener, native permission, credential, clipboard or runtime owner
+was activated. Source structure inspection: **PASS**. Native Qt compile,
+full CTest, hosted CI at publication SHA and physical client acceptance:
+**NOT RUN**. Real R10 LAN HostControl and R2 owner admission: **BLOCKED**.
+
 ## R2 logind lock-hint fail-closed candidate fence (2026-10-18)
 
 The production Linux logind reader now denies locked/unknown lock hints

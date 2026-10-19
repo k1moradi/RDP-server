@@ -1,3 +1,20 @@
+## R7 Qt close-consent gate for future real HostControl (2026-10-18)
+
+An active or pending remote-sharing window close now prompts explicitly
+for **Stop Sharing and Close**, with **Keep Window Open** as the safe default.
+Dismissing the dialog never hides the GUI or issues Stop/Revoke. Even after
+explicit user consent, the GUI stays visible unless a fresh R10 snapshot
+confirms available control and retired sharing. Existing R10 ownership,
+startup-disabled GUI and independent app-password denial are preserved.
+The existing close-retirement CTest now selects Stop explicitly, and new
+`gui.offscreen-close-requires-explicit-owner-stop` exercises cancellation,
+unconfirmed retirement, successful revocation, and stopped-window exit.
+Parent: `2ec8ac3b8b6ca83f3748ef161b5dd8bdc608b4c5`. Native Qt build/ordinary CTest and publication-SHA
+CI: **NOT RUN** in this connector environment. Live R10 GUI LAN HostControl,
+R2 authenticated OS owner, R1/R10 fingerprint/trust/rotation status, macOS
+AppKit owner, release notarization and real client acceptance remain
+**BLOCKED / NOT RUN**. The GUI still uses UnavailableRuntimeHostControl.
+
 ## R2 native seat0 locked-hint admission fence (2026-10-18)
 
 R2 now treats the concrete logind `sd_session_get_locked_hint` as a

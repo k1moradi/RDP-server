@@ -8,7 +8,9 @@
 #include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QPushButton>
+#include <QTimer>
 #include <algorithm>
 
 #include <cassert>
@@ -136,6 +138,20 @@ int main(int argc, char** argv)
 
     FakeRuntimeHost runtime;
     HostControl host(runtime);
+
+    // Drive the real modal close confirmation through Qt's event loop.
+    // No native hosting or permission is started by this test helper.
+    const auto queueCloseChoice = [](DesktopWindow& window,
+                                     const QString& buttonName) {
+        QTimer::singleShot(0, &window, [buttonName] {
+            auto* confirmation =
+                qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
+            assert(confirmation && confirmation->textFormat() == Qt::PlainText);
+            auto* selected = confirmation->findChild<QPushButton*>(buttonName);
+            assert(selected);
+            selected->click();
+        });
+    };
 
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "client-stage")
     {
@@ -395,6 +411,41 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close-consent")
+    {
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        window.refresh();
+
+        // Dismissing the dialog must not cause Stop, Revoke or hiding.
+        queueCloseChoice(window, "keepSharingWindowOpen");
+        assert(!window.close() && window.isVisible());
+        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+
+        // An explicit Stop still cannot close until R10 confirms retirement.
+        runtime.refuseRetirement = true;
+        queueCloseChoice(window, "confirmStopSharingAndClose");
+        assert(!window.close() && window.isVisible());
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+
+        runtime.refuseRetirement = false;
+        queueCloseChoice(window, "confirmStopSharingAndClose");
+        assert(window.close());
+        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
+        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+
+        // An already-stopped GUI closes without another Stop or prompt.
+        DesktopWindow stoppedWindow(host);
+        stoppedWindow.show();
+        application.processEvents();
+        assert(stoppedWindow.close());
+        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close")
     {
         DesktopWindow window(host);
@@ -404,10 +455,12 @@ int main(int argc, char** argv)
         runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
         runtime.refuseRetirement = true;
         window.refresh();
+        queueCloseChoice(window, "confirmStopSharingAndClose");
         assert(!window.close());
         assert(window.isVisible() && runtime.stopCalls == 1 &&
                runtime.revokeCalls == 1);
         runtime.refuseRetirement = false;
+        queueCloseChoice(window, "confirmStopSharingAndClose");
         assert(window.close());
         assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
         assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);

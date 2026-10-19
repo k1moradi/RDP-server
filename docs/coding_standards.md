@@ -1,3 +1,13 @@
+## R7 Qt close authorization is explicit (2026-10-18)
+
+Never interpret QWidget closeEvent as implicit authorization to Stop/Revoke
+R10 hosting or permission to hide an unattended sharing GUI. For an active
+or pending state, display a plain-text modal with a safe Keep Window Open
+default; only an explicit user choice may request Stop through the existing
+thin adapter. Re-read authoritative R10 state and keep the window visible
+if retirement cannot be confirmed. Do not add a second listener or status
+owner.
+
 ## R10 one Linux runtime listener owner across CLI and future GUI (2026-10-18)
 
 Keep verified Linux native `socket`/`bind`/`listen` plus

@@ -1,3 +1,16 @@
+## R7 explicit Qt close consent and runtime retirement (2026-10-18)
+
+An active or pending R10 state must not treat a generic window close as
+Stop authorization or consent to hidden hosting. The Qt close dialog has a
+safe Keep Window Open default; dismissal sends no runtime Stop/Revoke.
+Only explicit Stop Sharing and Close requests R10 retirement. Refuse closing
+while R10 status is unavailable or still active/pending. Stopped windows
+close normally without a prompt or runtime command. Keep both
+`gui.offscreen-close-revokes-pending-host` and new
+`gui.offscreen-close-requires-explicit-owner-stop` in ordinary CTest;
+Qt timer-driven modal selections and injected R10 status require no socket,
+real owner credential, capture, native permission, or clipboard activation.
+
 ## R2 logind lock-hint denial and native consent distinction (2026-10-18)
 
 The concrete Linux logind candidate reader must reject any locked, unknown,

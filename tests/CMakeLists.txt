@@ -2992,6 +2992,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-close-revokes-pending-host PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security" TIMEOUT 30)
+    # A live/pending window close must require explicit host-owner Stop.
+    add_test(NAME gui.offscreen-close-requires-explicit-owner-stop
+        COMMAND test_desktop_gui_offline close-consent)
+    set_tests_properties(gui.offscreen-close-requires-explicit-owner-stop
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
     add_test(NAME gui.offscreen-r10-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
     set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES

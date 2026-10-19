@@ -1,3 +1,26 @@
+## R5 RandR generation CI regression correction (2026-10-19)
+
+Actions `39244189634` at `2fcfebee9e94b064ebf54617cd224982060471a0` failed only the ordinary Ubuntu
+X11 cases `x11.capture-r4-generation-retirement` and
+`x11.native-geometry-observation-generation-retirement` on exact `+1`
+generation assertions; the new same-pixel topology retirement case passed.
+The bounded R9 native-X11 sanitizer selection was 38/39 with the same R4
+generation assertion failing, while the native-geometry and same-pixel cases
+were not yet selected there. Inspection showed no unprovoked production
+retirement loop: Xvfb's CRTC-disable + screen-size sequence emits multiple
+authentic subscribed RandR notifications, and the native-geometry fixture also
+duplicated its resize request.
+
+The correction removes that duplicate fixture request, drains notification
+bursts completely, changes the two non-contractual exact-step checks to
+strictly monotonic freshness while preserving stale-borrow denial and recovery,
+and adds `x11.randr-burst-generation-retirement-recovery` with queued pointer
+activity plus an idle stability check. The R9 R5 selector is fixed at 42 tests
+and explicitly includes native-geometry, same-pixel and burst retirement.
+Hosted exact-publication-SHA validation is **PENDING** at authoring; no owner
+seat0, listener, credentials or live client operation is authorized by these
+Xvfb tests.
+
 ## R5 same-size RandR source generation test (2026-10-19)
 
 Implementation parent `fab2346a66de3b35828c89d701ec491b74db02b0`: R5 observes authentic RandR root

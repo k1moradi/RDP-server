@@ -1,3 +1,16 @@
+## R5 RandR notification-burst generation assertions (2026-10-19)
+
+A native X11 generation regression must not require an exact `+1` epoch step
+after a RandR operation. One logical X server change may legally produce
+multiple subscribed ScreenChange/CRTC/output/resource notifications, and each
+observed topology boundary may retire the old XShm/Damage/input generation.
+Tests must instead prove monotonic freshness, rejection of every stale
+observation/framebuffer generation, successful capture from the settled
+generation, and no further retirement once the synchronized notification
+burst is drained. When queuing pointer traffic behind a resize, issue the
+resize once so the fixture does not manufacture duplicate topology changes.
+Keep same-pixel topology retirement covered independently.
+
 ## R5 same-size RandR topology invalidation (2026-10-19)
 
 Do not treat an unchanged root PixelSize as proof that a RandR monitor,

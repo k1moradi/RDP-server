@@ -2537,8 +2537,14 @@ if(TARGET rdp-server-linux-x11-desktop)
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 same-pixel-randr-capture-retirement)
+        add_test(NAME x11.randr-burst-generation-retirement-recovery
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                randr-burst-generation-retirement-recovery)
         set_tests_properties(
             x11.same-pixel-randr-capture-retirement
+            x11.randr-burst-generation-retirement-recovery
             PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation"
                        TIMEOUT 20)
         add_test(NAME x11.desktop-resource-randr-capture-generation

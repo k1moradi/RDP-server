@@ -1,3 +1,33 @@
+## R5 RandR burst-generation CI correction (2026-10-19)
+
+Failing exact source `2fcfebee9e94b064ebf54617cd224982060471a0`, Actions `39244189634`, exposed two
+obsolete exact-step assertions after R5 began observing the full authentic
+RandR screen/CRTC/output/resource notification set. Xvfb's resize helper can
+emit several legitimate RandR notifications for one logical resize, and the
+native-geometry regression also issued the same resize twice around pointer
+activity. Production retirement is not looping independently: each rebuild is
+still fenced to an observed server RandR event, and an idle post-burst drain
+must leave the generation unchanged.
+
+R5 now issues the native-geometry resize once, drains each synchronized RandR
+burst to quiescence, requires only monotonic fresh generations, rejects the old
+typed/scalar framebuffer borrows, proves fresh capture recovery, and asserts no
+extra generation retirement on an idle service pass. New ordinary Xvfb CTest
+`x11.randr-burst-generation-retirement-recovery` queues two real geometry
+transitions plus pointer activity before service and verifies final geometry,
+stale-generation denial, fresh capture and settled-generation stability.
+Same-pixel topology retirement remains mandatory. R9's native-X11 sanitizer
+selection grows from 39 to 42 and now explicitly includes the affected native
+geometry test plus same-pixel and burst regressions.
+
+Authoring parent is `2fcfebee9e94b064ebf54617cd224982060471a0`. Canonical owner-local
+`~/rdp-server/build/` is **NOT RUN** from this GitHub connector environment;
+exact publication-SHA hosted Ubuntu/full-CTest and R9 sanitizer evidence is
+**PENDING** at authoring. The independent R7 Linux GUI GCC build failure in
+Actions `39244189634` is not an R5 capture regression. Physical X11 seat0,
+R2 positive owner authorization, R10 live hosting and Microsoft-client resize
+acceptance remain **BLOCKED / NOT RUN**.
+
 ## R5 same-root-pixel RandR resource retirement (2026-10-19)
 
 R5 found that native RandR screen notifications with unchanged pixel bounds

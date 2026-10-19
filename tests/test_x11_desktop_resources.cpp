@@ -448,38 +448,50 @@ requireSyntheticDamageGeneration(X11DesktopResources &resources,
 }
 
 void
+requireSyntheticRandrRebuildAfterQueuedChange(
+    X11DesktopResources &resources, PixelSize resizedGeometry) noexcept
+{
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+
+    bool rebuilt = false;
+    bool workMayRemain = true;
+    for (std::size_t attempt = 0; attempt < 32U && workMayRemain; ++attempt)
+    {
+        workMayRemain = false;
+        assert(resources.processEvents(64, &workMayRemain, false) ==
+               ConnectionStatus::Ok);
+        rebuilt =
+            rebuilt || resources.sourceGeometry() == resizedGeometry;
+    }
+    assert(rebuilt);
+    assert(!workMayRemain);
+    assert(resources.valid());
+
+    // One RandR request may legitimately yield ScreenChange plus
+    // CRTC/output/resource notifications. Drain that synchronized burst
+    // completely, then prove the settled owner does not retire again while
+    // idle. Events queued behind each transition are therefore offered only
+    // to a fully committed replacement generation.
+    const std::uint64_t settledGeneration = resources.captureGeneration();
+    assert(settledGeneration != 0U);
+    bool unexpectedWork = false;
+    assert(resources.processEvents(64, &unexpectedWork, false) ==
+           ConnectionStatus::Ok);
+    assert(!unexpectedWork);
+    assert(resources.captureGeneration() == settledGeneration);
+}
+
+void
 requireSyntheticRandrRebuild(X11DesktopResources &resources,
                              xcb_connection_t &helper,
                              xcb_window_t root,
                              PixelSize resizedGeometry) noexcept
 {
     disableRandrCrtcsAndResize(helper, root, resizedGeometry);
-    xcb_connection_t *connection = resources.nativeConnection();
-    assert(connection != nullptr);
-    synchronizeXcbConnection(*connection);
-
-    bool rebuilt = false;
-    for (std::size_t attempt = 0; attempt < 8U; ++attempt)
-    {
-        bool workMayRemain = false;
-        assert(resources.processEvents(64, &workMayRemain, false) ==
-               ConnectionStatus::Ok);
-        if (resources.sourceGeometry() == resizedGeometry)
-        {
-            assert(workMayRemain);
-            rebuilt = true;
-            break;
-        }
-    }
-    assert(rebuilt);
-
-    // Drain only after the RandR event committed the new generation. Any
-    // event queued behind the transition is therefore offered to new
-    // geometry-bound trackers, never the retired generation.
-    bool workMayRemain = false;
-    assert(resources.processEvents(64, &workMayRemain, false) ==
-           ConnectionStatus::Ok);
-    assert(resources.valid());
+    requireSyntheticRandrRebuildAfterQueuedChange(
+        resources, resizedGeometry);
 }
 
 void
@@ -1053,14 +1065,14 @@ syntheticXvfbNativeGeometryObservationRetirement()
         // must not turn an old resource epoch into a valid new one.
         disableRandrCrtcsAndResize(*helper, screen->root, geometry);
         warpSyntheticPointer(*helper, screen->root, {40, 50});
-        requireSyntheticRandrRebuild(
-            resources, *helper, screen->root, geometry);
+        requireSyntheticRandrRebuildAfterQueuedChange(
+            resources, geometry);
 
         const auto current =
             resources.observeNativeGeometry(nativeSessionGeneration);
         assert(current.valid());
         assert(current.pixelGeometry == geometry);
-        assert(current.captureGeneration == previous.captureGeneration + 1U);
+        assert(current.captureGeneration > previous.captureGeneration);
         assert(!resources.nativeGeometryIsCurrent(
             previous, nativeSessionGeneration));
         assert(!resources.capture(
@@ -1128,22 +1140,25 @@ syntheticXvfbSamePixelRandrCaptureGeneration()
     assert(connection != nullptr);
     synchronizeXcbConnection(*connection);
     bool rebuilt = false;
-    for (std::size_t attempt = 0; attempt < 16U; ++attempt)
+    bool workMayRemain = true;
+    for (std::size_t attempt = 0; attempt < 32U && workMayRemain; ++attempt)
     {
-        bool workMayRemain = false;
+        workMayRemain = false;
         assert(desktop.processEvents(
-                   64U, &workMayRemain, true) == ConnectionStatus::Ok);
-        if (desktop.captureGeneration() != oldObservation.captureGeneration)
-        {
-            rebuilt = true;
-            break;
-        }
-        if (!workMayRemain)
-        {
-            break;
-        }
+                   64U, &workMayRemain, false) == ConnectionStatus::Ok);
+        rebuilt = rebuilt ||
+                  desktop.captureGeneration() !=
+                      oldObservation.captureGeneration;
     }
     assert(rebuilt);
+    assert(!workMayRemain);
+    const std::uint64_t settledGeneration = desktop.captureGeneration();
+    bool unexpectedWork = false;
+    assert(desktop.processEvents(
+               64U, &unexpectedWork, false) == ConnectionStatus::Ok);
+    assert(!unexpectedWork);
+    assert(desktop.captureGeneration() == settledGeneration);
+
     const X11NativeGeometryObservation current =
         desktop.observeNativeGeometry(nativeSessionGeneration);
     assert(current.valid());
@@ -1157,6 +1172,73 @@ syntheticXvfbSamePixelRandrCaptureGeneration()
         current.captureGeneration, {0, 0, 8, 8}).valid());
     desktop.retireAfterAuthorizationLoss();
     assert(!desktop.observeNativeGeometry(nativeSessionGeneration).valid());
+}
+
+void
+syntheticXvfbRandrBurstGenerationRetirementRecovery()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 516U;
+    constexpr std::uint64_t maximumCapturePixels = 1280U * 720U;
+    const char *display = syntheticDisplay();
+    X11DesktopResources resources(display, maximumCapturePixels);
+    requireValidResources(resources, "RandR burst generation retirement");
+    assert(resources.randrAvailable());
+
+    const X11NativeGeometryObservation previous =
+        resources.observeNativeGeometry(nativeSessionGeneration);
+    assert(previous.valid());
+    assert((previous.pixelGeometry == PixelSize{1280, 720}));
+
+    int screenNumber = -1;
+    XcbConnection helper = connectHelper(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*helper, screenNumber);
+
+    // Queue two real topology transitions and pointer traffic before the
+    // production owner drains either transition. Each authentic RandR event
+    // may retire an epoch; only monotonic freshness and post-burst stability
+    // are contractual.
+    disableRandrCrtcsAndResize(
+        *helper, screen->root, {1152U, 648U});
+    warpSyntheticPointer(*helper, screen->root, {40, 50});
+    disableRandrCrtcsAndResize(
+        *helper, screen->root, {1024U, 600U});
+    warpSyntheticPointer(*helper, screen->root, {60, 70});
+
+    xcb_connection_t *connection = resources.nativeConnection();
+    assert(connection != nullptr);
+    synchronizeXcbConnection(*connection);
+
+    bool workMayRemain = true;
+    for (std::size_t attempt = 0; attempt < 64U && workMayRemain; ++attempt)
+    {
+        workMayRemain = false;
+        assert(resources.processEvents(
+                   64U, &workMayRemain, false) == ConnectionStatus::Ok);
+    }
+    assert(!workMayRemain);
+    assert(resources.valid());
+    assert((resources.sourceGeometry() == PixelSize{1024, 600}));
+
+    const X11NativeGeometryObservation current =
+        resources.observeNativeGeometry(nativeSessionGeneration);
+    assert(current.valid());
+    assert(current.captureGeneration > previous.captureGeneration);
+    assert(!resources.nativeGeometryIsCurrent(
+        previous, nativeSessionGeneration));
+    assert(!resources.capture(
+        previous.captureGeneration, {0, 0, 8, 8}).valid());
+    assert(resources.capture(
+        current.captureGeneration, {0, 0, 8, 8}).valid());
+
+    const std::uint64_t settledGeneration = current.captureGeneration;
+    bool unexpectedWork = false;
+    assert(resources.processEvents(
+               64U, &unexpectedWork, false) == ConnectionStatus::Ok);
+    assert(!unexpectedWork);
+    assert(resources.captureGeneration() == settledGeneration);
+
+    resources.retireAfterAuthorizationLoss();
+    assert(!resources.observeNativeGeometry(nativeSessionGeneration).valid());
 }
 
 void
@@ -1808,7 +1890,7 @@ syntheticXvfbCaptureR4GenerationRetirement()
         resources, *helper, screen->root, resized);
     const std::uint64_t replacementGeneration =
         resources.captureGeneration();
-    assert(replacementGeneration == firstGeneration + 1U);
+    assert(replacementGeneration > firstGeneration);
 
     GfxAvc420SegmentedFrame staleFrame;
     R4IngressConsumer staleConsumer{
@@ -2096,6 +2178,11 @@ main(int argc, char **argv)
     if (behavior == "same-pixel-randr-capture-retirement")
     {
         syntheticXvfbSamePixelRandrCaptureGeneration();
+        return 0;
+    }
+    if (behavior == "randr-burst-generation-retirement-recovery")
+    {
+        syntheticXvfbRandrBurstGenerationRetirementRecovery();
         return 0;
     }
     if (behavior == "randr-capture-generation")

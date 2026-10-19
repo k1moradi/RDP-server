@@ -426,10 +426,12 @@ jobs:
           $receipt = $archive.FullName + ".sha256"
           if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) { throw "GUI ZIP hash receipt missing" }
           $line = (Get-Content -LiteralPath $receipt -Raw).Trim()
-          if ($line -notmatch '^([0-9a-f]{64})  (.+)$' -or $Matches[2] -cne $archive.Name) {
+          $receiptMatch = [regex]::Match($line, '^([0-9a-f]{64})  (.+)$')
+          if (-not $receiptMatch.Success -or
+              $receiptMatch.Groups[2].Value -cne $archive.Name) {
             throw "GUI ZIP hash receipt invalid"
           }
-          $expectedSha = $Matches[1]
+          $expectedSha = $receiptMatch.Groups[1].Value
           $actualSha = (Get-FileHash -LiteralPath $archive.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($actualSha -cne $expectedSha) { throw "Downloaded GUI ZIP checksum mismatch" }
           & python scripts/verify_portable_gui.py --archive $archive.FullName --git-sha $env:GITHUB_SHA --outer-sha256 $actualSha

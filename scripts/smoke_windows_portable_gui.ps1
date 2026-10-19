@@ -1,19 +1,93 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$Root
+    [string]$Root,
+    [switch]$SnapshotContractTest
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-FirewallState {
+    $state = @(& netsh.exe advfirewall show allprofiles state)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cannot read Windows firewall profile state"
+    }
+    return ($state -join "`n").Trim()
+}
+
+function Get-OfflineSystemState {
+    # Observe only: this smoke must never configure TermService, RDP-Tcp,
+    # firewall rules, services or the Windows RDP listener.
+    $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='TermService'" -ErrorAction Stop
+    if ($null -eq $service) {
+        throw "Cannot read TermService configuration"
+    }
+
+    $rdpPort = Get-ItemPropertyValue -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name PortNumber -ErrorAction Stop
+    $rdpDisabled = Get-ItemPropertyValue -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' -Name fDenyTSConnections -ErrorAction Stop
+
+    $firewallRules = @(& netsh.exe advfirewall firewall show rule name=all)
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cannot read Windows firewall rules"
+    }
+    return [ordered]@{
+        FirewallProfiles = Get-FirewallState
+        FirewallRules = ($firewallRules -join "`n").Trim()
+        TermService = (@($service.State, $service.StartMode, $service.PathName, $service.StartName) -join "`n")
+        RdpPort = [string]$rdpPort
+        RdpPolicy = [string]$rdpDisabled
+    }
+}
+
+function Assert-UnchangedSystemState(
+    [System.Collections.IDictionary]$Before,
+    [System.Collections.IDictionary]$After
+) {
+    foreach ($property in @('FirewallProfiles', 'FirewallRules', 'TermService', 'RdpPort', 'RdpPolicy')) {
+        if ($Before[$property] -cne $After[$property]) {
+            throw "Windows $property changed during offline GUI smoke"
+        }
+    }
+}
+
+if ($SnapshotContractTest) {
+    # Pure synthetic negative paths; this mode never reads native state,
+    # launches the GUI or modifies the user's firewall/service configuration.
+    $baseline = [ordered]@{
+        FirewallProfiles = 'unchanged'
+        FirewallRules = 'unchanged'
+        TermService = 'unchanged'
+        RdpPort = 'unchanged'
+        RdpPolicy = 'unchanged'
+    }
+    Assert-UnchangedSystemState $baseline $baseline
+    foreach ($property in @($baseline.Keys)) {
+        $changed = [ordered]@{}
+        foreach ($key in $baseline.Keys) {
+            $changed[$key] = $baseline[$key]
+        }
+        $changed[$property] = 'changed'
+        $rejected = $false
+        try {
+            Assert-UnchangedSystemState $baseline $changed
+        }
+        catch {
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "System-state mutation escaped offline denial: $property"
+        }
+    }
+    exit 0
+}
+
+if ([string]::IsNullOrWhiteSpace($Root)) {
+    throw "Extracted Windows GUI root is required"
+}
 $Root = (Resolve-Path -LiteralPath $Root).Path
 $Exe = Join-Path $Root "RDP-server-GUI.exe"
 $Plugin = Join-Path $Root "plugins\platforms\qwindows.dll"
 if (-not (Test-Path -LiteralPath $Exe -PathType Leaf) -or -not (Test-Path -LiteralPath $Plugin -PathType Leaf)) {
     throw "Extracted Windows GUI entrypoint/plugin missing"
-}
-
-function Get-FirewallState {
-    return ((& netsh.exe advfirewall show allprofiles state) | Out-String).Trim()
 }
 
 function Invoke-OfflineMode([string]$Argument) {
@@ -34,8 +108,10 @@ function Invoke-OfflineMode([string]$Argument) {
 }
 
 function Assert-NoProcessSockets([int]$ProcessId) {
-    $tcp = @(Get-NetTCPConnection -OwningProcess $ProcessId -ErrorAction SilentlyContinue)
-    $udp = @(Get-NetUDPEndpoint -OwningProcess $ProcessId -ErrorAction SilentlyContinue)
+    # Enumerate first and then filter. A failed Windows networking query must
+    # not be mistaken for an empty per-process socket list in portable smoke.
+    $tcp = @(Get-NetTCPConnection -ErrorAction Stop | Where-Object { $_.OwningProcess -eq $ProcessId })
+    $udp = @(Get-NetUDPEndpoint -ErrorAction Stop | Where-Object { $_.OwningProcess -eq $ProcessId })
     if ($tcp.Count -ne 0 -or $udp.Count -ne 0) {
         throw "GUI opened a TCP/UDP socket during offline first-screen smoke"
     }
@@ -75,15 +151,12 @@ function Invoke-FirstScreenSmoke {
     }
 }
 
-$firewallBefore = Get-FirewallState
+$systemStateBefore = Get-OfflineSystemState
 Invoke-OfflineMode "--offline-self-test"
 Invoke-OfflineMode "--offline-start-denial-test"
 Invoke-FirstScreenSmoke
 Invoke-FirstScreenSmoke
-$firewallAfter = Get-FirewallState
+$systemStateAfter = Get-OfflineSystemState
+Assert-UnchangedSystemState $systemStateBefore $systemStateAfter
 
-if ($firewallBefore -ne $firewallAfter) {
-    throw "Windows firewall profile state changed during offline GUI smoke"
-}
-
-Write-Host "Windows extracted GUI offline first-screen/no-socket/rerun smoke: PASS"
+Write-Host "Windows extracted GUI offline first-screen/no-socket/rerun and native system-state smoke: PASS"

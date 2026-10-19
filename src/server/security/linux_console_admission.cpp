@@ -343,7 +343,10 @@ LinuxConsoleAdmissionBroker::issue(
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
-    if (state_ != LinuxConsoleAdmissionState::Ready)
+    // A matching session identity is not explicit unlocked owner consent.
+    if (state_ != LinuxConsoleAdmissionState::Ready ||
+        ownerSharingAuthority_ == nullptr ||
+        !ownerSharingAuthority_->authorizes(request.requestedPermissions))
     {
         deny(acceptor);
         return std::nullopt;
@@ -481,7 +484,10 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
 {
     const std::string_view leasePrincipal{
         lease.kerberosPrincipal_.data(), lease.kerberosPrincipalLength_};
-    if (!ownsActiveLease(lease) ||
+    // Every protected R2 operation revalidates affirmative native authority.
+    if (ownerSharingAuthority_ == nullptr ||
+        !ownerSharingAuthority_->authorizes(lease.permissions_) ||
+        !ownsActiveLease(lease) ||
         control_->policyGeneration != policy_.generation() ||
         acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
             leasePrincipal ||

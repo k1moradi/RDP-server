@@ -328,13 +328,14 @@ if(WIN32)
         src/windows/windows_d3d11_staging_map.cpp
         src/windows/windows_dxgi_capture_cycle.cpp
         src/windows/windows_capture_session_guard.cpp
+        src/windows/windows_rdp_conflict_probe.cpp
         src/windows/windows_input_controller.cpp
         src/windows/windows_cursor_snapshot.cpp)
     target_compile_features(rdp-server-windows-desktop PUBLIC cxx_std_23)
     target_include_directories(rdp-server-windows-desktop PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
     target_link_libraries(rdp-server-windows-desktop PRIVATE
-        user32 gdi32 d3d11 dxgi wtsapi32)
+        user32 gdi32 d3d11 dxgi wtsapi32 advapi32 iphlpapi)
     if(MSVC)
         target_compile_options(rdp-server-windows-desktop PRIVATE /W4)
     else()
@@ -678,7 +679,8 @@ target_include_directories(rdp-server-runtime-tls PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
 target_link_libraries(rdp-server-runtime-tls
     PUBLIC OpenSSL::Crypto OpenSSL::SSL
-    PRIVATE rdp-server-runtime-credential-files)
+    PRIVATE rdp-server-runtime-credential-files
+            rdp-server-protocol)
 if(WIN32)
     target_link_libraries(rdp-server-runtime-tls PRIVATE Advapi32)
 endif()
@@ -1131,6 +1133,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "linux" EXCLUDE
     PATTERN "x11" EXCLUDE
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
+    PATTERN "current_owner_sharing_authority.h" EXCLUDE
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE

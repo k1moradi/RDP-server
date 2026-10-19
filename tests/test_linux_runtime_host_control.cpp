@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_host_control.h"
 #include <cassert>
+#include <limits>
+#include <net/if.h>
+#include <string>
 #include <string_view>
 using namespace rdp_server::server::runtime;
 using rdp_server::server::security::LanCredentialChoice;
@@ -88,6 +91,39 @@ int main(int argc, char** argv)
         assert(control.startSharing().error ==
                RuntimeHostError::InvalidConfiguration);
         assert(!control.status().hostOwnerAuthorized);
+        return 0;
+    }
+    if (testCase == "linux-host-control-native-interface-id-verification")
+    {
+        for (const std::string_view malformed : {
+                 std::string_view{}, std::string_view{"lo"},
+                 std::string_view{"#1"}, std::string_view{"lo#"},
+                 std::string_view{"lo#0"}, std::string_view{"lo#01"},
+                 std::string_view{"lo#+1"}, std::string_view{"lo#-1"},
+                 std::string_view{"lo#1tail"},
+                 std::string_view{"lo#42949672960"},
+                 std::string_view{"lo#1#1"},
+                 std::string_view{"interface-name-long#1"}})
+            assert(!resolveCurrentLinuxNativeLanInterface(malformed));
+        const std::string embeddedNul("lo#1\0suffix", 11U);
+        assert(!resolveCurrentLinuxNativeLanInterface(embeddedNul));
+        const unsigned int index = ::if_nametoindex("lo");
+        if (index != 0U)
+        {
+            const std::string id = "lo#" + std::to_string(index);
+            const auto identity = resolveCurrentLinuxNativeLanInterface(id);
+            assert(identity.has_value());
+            assert(identity->nativeName == "lo");
+            assert(identity->nativeIndex == index);
+            const unsigned int changed = index ==
+                std::numeric_limits<unsigned int>::max() ? index-1U : index+1U;
+            assert(!resolveCurrentLinuxNativeLanInterface(
+                "lo#" + std::to_string(changed)));
+        }
+        // Valid native identity is not valid LAN authorization.
+        assert(!control.status().listenerAvailable);
+        assert(!control.status().hostOwnerAuthorized);
+        assert(!control.status().tlsIdentityReady);
         return 0;
     }
     if (testCase == "linux-host-control-stop-revoke-retirement")

@@ -68,17 +68,26 @@ HostStatus HostControl::status() const
     const RuntimeHostStatus runtimeStatus = runtime_.status();
     HostStatus view;
     view.stage = runtimeStatus.stage;
-    view.listenerReady = runtimeStatus.listenerAvailable &&
+    const bool terminalHostSession =
+        hasTerminalHostSessionError(runtimeStatus.lastError) ||
+        runtimeStatus.stage == RuntimeHostStage::Revoked;
+    // A stale/revoked R2 host session cannot prove listener readiness.
+    // Preserve the raw R10 stage for explicit Stop/close retirement.
+    view.listenerReady = runtimeStatus.listenerAvailable && !terminalHostSession &&
                          runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.controlAvailable =
         runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.credentialsConfigured = runtimeStatus.credentialsConfigured;
-    const bool terminalHostSession =
-        hasTerminalHostSessionError(runtimeStatus.lastError) ||
-        runtimeStatus.stage == RuntimeHostStage::Revoked;
     view.desktopAuthorized =
         runtimeStatus.hostOwnerAuthorized && !terminalHostSession;
-    view.tlsReady = runtimeStatus.tlsIdentityReady;
+    // Terminal ownership loss and unavailable control invalidate stale TLS
+    // observations. A configured certificate is not permission to listen.
+    const bool tlsObservationCurrent =
+        !terminalHostSession &&
+        runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
+    view.tlsReady = tlsObservationCurrent && runtimeStatus.tlsIdentityReady;
+    if (tlsObservationCurrent)
+        view.tlsIdentity = runtimeStatus.tlsIdentity;
     view.captureInputReady =
         runtimeStatus.nativeDesktopReady && !terminalHostSession;
     view.sharing =

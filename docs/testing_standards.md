@@ -1,3 +1,94 @@
+## R9 full-CTest clean-Windows release and fail-closed socket observation (2026-10-19)
+
+Against source parent `1884a9cb3afa30ba2a34ff289a9459f3ef51307f`, register the existing R9 clean-Windows
+artifact publication denial fixture as ordinary cross-platform Debug/Release
+CTest `packaging.windows-portable-gui-clean-release-structure-denials`.
+This offline Python test now also rejects silent TCP/UDP query errors in the
+production packaged GUI smoke. The Windows smoke enumerates sockets with
+`-ErrorAction Stop` and filters by process PID only after a successful
+system query; a permission/CIM enumeration failure cannot become a false
+"no listener" pass. Preserve R6's newly landed read-only Windows
+firewall/TermService/RDP-policy snapshot checks and their CTests.
+
+Source/reconciliation inspection PASS; isolated native Windows runtime and
+exact integration-SHA hosted CI NOT RUN. This adds no network activity,
+services, firewall mutations, privileges, live R2 admission or GUI Start.
+Genuine non-admin clean-Windows runner `r9-clean-windows-gui` and its exact
+ZIP+receipt remain release BLOCKED until independently executed. R10
+GUI-default-ON from PR #23 and intentional Qt-free headless selection remain
+unmerged; same-SHA owner-local Debug CTest and Microsoft-client matrices
+remain independently NOT RUN.
+
+## R6 Windows native host-conflict and offline mutation denials (2026-10-19)
+
+Read-only WindowsRdpConflictProbe queries TermService via
+SC_MANAGER_CONNECT/SERVICE_QUERY_STATUS and IPv4/IPv6 TCP listener tables
+via GetExtendedTcpTable. Unavailable evidence is a fail-closed result.
+Five native CTests cover TermService-active, requested-port conflict,
+unavailable observation, clear classification, and actual read-only OS
+observation. The existing portable GUI source guard rejects service,
+registry, firewall and socket mutators in this path. The released GUI
+smoke compares firewall rules and profiles, TermService configuration,
+Windows OS RDP port and policy before and after two real window launches.
+Unreadable state fails closed. One separate synthetic native Windows CTest
+injects a change into each field and requires denial without querying OS
+state, GUI launch, credentials or privilege. These tests do not authorize
+Start and do not replace R9's independent clean-Windows ZIP acceptance.
+Provenance: PR #25 source SHA 581d6828441b37b677a148466fe7bbcdc426d32e
+hosted CI PASS; merged-main exact SHA CI NOT RUN at publication.
+
+## R7 typed R1 TLS identity Qt display regressions (2026-10-19)
+
+Use the existing R10 RuntimeTlsIdentityStatus with real offscreen Qt widgets;
+do not create a second certificate parser or store an old fingerprint. Require
+32-byte exact SHA-256 formatting, ConfiguredUnbound versus genuinely confirmed
+BoundAndMatched distinction, fixed Unknown client trust and fresh verification
+after rotation. Check missing digest, mismatched/changed endpoint, unavailable
+interface, stale/revoked host, unavailable control and reconnect. Reject stale
+positive identity even if an old R10 status still has tlsIdentityReady; the raw
+R10 stage must continue to gate explicit Stop/Close. These tests confer no
+native consent or client trust.
+
+## R2 explicit owner consent and deny-only revocation tests (2026-10-19)
+
+Ordinary CTest must register exact behavior names
+`security.owner-consent-gui-intent-never-authorizes`,
+`security.owner-consent-invalid-scope-and-lifetime-denials` and
+`security.owner-consent-stop-lock-session-credential-revocations`.
+They use the real noninstalled R2 production authority header, but do
+not fabricate an affirmative physical owner, synthetic native lease, lock
+proof, listener or credential. Validate view-inclusive scope and bounded
+requested duration without converting well-formed GUI intent into positive
+authority. Verify invalid scope, missing view, unknown permission bits,
+zero/oversized duration and epoch invalidation for each Stop/lock-unknown/
+logout/switch/session replacement/credential change/native-auth-loss event.
+The real Linux admission broker must reject missing or non-authorizing
+R2 host authority at issuance and revalidation. A positive test is
+**BLOCKED** until a reviewed native trust provider exists and is actually
+verified; never substitute a fake `LockedHint` or GUI bool.
+
+## R5 replacement-X11-owner capture epoch anti-ABA (2026-10-19)
+
+After terminal native owner retirement, constructing a replacement X11 owner
+in the same process must allocate a distinct nonzero capture generation,
+even if the root pixel geometry and R2-selected native session generation
+are unchanged. Keep allocation off the hot frame path and fail closed on
+uint64 exhaustion. An isolated Xvfb production-backed CTest must reject
+the retired typed native observation, legacy scalar frame borrow and R4
+consumer without entering the callback, while admitting the replacement
+owner's current synchronous borrow. This does not authorize any R2 lease,
+bind a listener or exercise authenticated Graphics remap.
+
+## R7 real R10 Linux shell and terminal listener offscreen tests (2026-10-19)
+
+Test the shared Qt GUI against the production Linux R10 HostControl as well
+as the existing fake: confirm no listener, admission or desktop authority on
+startup, credential/permission/Start denial, and explicit Stop/Revoke. Do not
+depend on physical seat0 or interface availability. A separate cross-platform
+real-Qt test must suppress `listenerReady` when stale/revoked R2 error
+overrides an old positive `listenerAvailable`, while retaining the raw
+R10 stage for Stop/close consent. Neither test is real-client acceptance.
+
 ## R9 clean Windows release-blocking gate and concurrent integration (2026-10-19)
 
 Reconciled R9 PR #26 `b45582b466de80a5423e4e38feac134266942355` (primary Actions 39232727915 PASS;

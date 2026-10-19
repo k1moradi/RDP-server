@@ -4406,16 +4406,23 @@ void completeGraphicsDynamicVirtualChannelReady(
     RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
     RdpDynamicVirtualChannelAllocation allocation,
     std::uint32_t clientUserId,
-    std::uint16_t drdynvcChannelId)
+    std::uint16_t drdynvcChannelId,
+    bool enableAvc420 = false)
 {
     completeGraphicsDynamicVirtualChannelCreate(
         dvc, allocation, clientUserId, drdynvcChannelId);
 
-    constexpr std::array<std::uint8_t, 22> advertise{
+    std::array<std::uint8_t, 22> advertise{
         0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
         0x01U, 0x00U,
         0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
         0x00U, 0x00U, 0x00U, 0x00U};
+    if (enableAvc420)
+    {
+        advertise[10U] = 0x05U; // VERSION81 (0x00080105)
+        advertise[11U] = 0x01U;
+        advertise[18U] = 0x10U; // AVC420_ENABLED
+    }
     std::vector<std::uint8_t> data{
         0x30U, static_cast<std::uint8_t>(allocation.channelId)};
     data.insert(data.end(), advertise.begin(), advertise.end());
@@ -4429,10 +4436,16 @@ void completeGraphicsDynamicVirtualChannelReady(
     assert(write &&
            write.kind ==
                RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm);
-    constexpr std::array<std::uint8_t, 20> expectedConfirm{
+    std::array<std::uint8_t, 20> expectedConfirm{
         0x13U,0x00U,0x00U,0x00U,0x14U,0x00U,0x00U,0x00U,
         0x04U,0x00U,0x08U,0x00U,0x04U,0x00U,0x00U,0x00U,
         0x00U,0x00U,0x00U,0x00U};
+    if (enableAvc420)
+    {
+        expectedConfirm[8U] = 0x05U;
+        expectedConfirm[9U] = 0x01U;
+        expectedConfirm[16U] = 0x10U;
+    }
     const auto confirm = serverGraphicsDynamicVirtualChannelData(write);
     assert(confirm.size() == expectedConfirm.size());
     assert(std::equal(confirm.begin(), confirm.end(), expectedConfirm.begin()));
@@ -4444,7 +4457,7 @@ void completeGraphicsDynamicVirtualChannelReady(
            RdpGraphicsDvcWriteOutcome::Pending);
     assert(dvc.graphicsCapabilitiesConfirmed());
     assert(dvc.graphicsClearCodecEnabled());
-    assert(!dvc.graphicsAvc420Enabled());
+    assert(dvc.graphicsAvc420Enabled() == enableAvc420);
 
     completeGraphicsPresentationSurfaceInitialization(dvc);
 }
@@ -5006,6 +5019,45 @@ void testGraphicsSurfaceRemap()
     assert(normalStale.consumePendingClientFrameAcknowledge(212U) ==
            RdpGraphicsFrameAcknowledgeIntake::Rejected);
     assert(!normalStale.presentationMapped());
+
+    // Even with negotiated AVC420 the remapped surface must not reuse
+    // R4's old x264 P-reference chain. ClearCodec remains publishable.
+    // R4 must prove explicit producer rebind + first IDR before AVC resumes.
+    RdpGraphicsDynamicVirtualChannelLifecycle avcRemap;
+    completeGraphicsDynamicVirtualChannelReady(
+        avcRemap, RdpDynamicVirtualChannelAllocation{17U, 213U},
+        1007U, 1005U, true);
+    assert(avcRemap.graphicsAvc420Enabled());
+    assert(avcRemap.beginSurfaceReconfiguration(213U, resized) ==
+           Decision::Started);
+    for (std::size_t command = 0U; command < 3U; ++command)
+    {
+        const auto pendingCommand = avcRemap.pendingServerWrite();
+        assert(pendingCommand);
+        const auto completion = avcRemap.onServerBytesWritten(
+            pendingCommand.channelGeneration, pendingCommand.replySequence,
+            pendingCommand.writeSliceSequence, pendingCommand.bytes.size());
+        assert(completion ==
+               (command == 2U ? RdpGraphicsDvcWriteOutcome::Delivered
+                              : RdpGraphicsDvcWriteOutcome::Pending));
+    }
+    assert(avcRemap.presentationMapped());
+    std::array<std::byte, 32U * 16U * 4U> avcFallbackPixels{};
+    const FramebufferView avcFallbackGeometry{
+        avcFallbackPixels, 32U, 16U, 32U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame avcFallbackFrame;
+    assert(avcRemap.prepareClearCodecFrame(
+        1U, avcFallbackGeometry, avcFallbackFrame));
+    assert(!avcRemap.beginFramePublication(
+        std::move(avcFallbackFrame), RdpGraphicsFrameCodec::Avc420,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(avcFallbackFrame.valid());
+    assert(!avcRemap.pendingServerWrite());
+    assert(avcRemap.beginFramePublication(
+        std::move(avcFallbackFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(avcRemap.cancelUnwrittenFramePublication(213U));
+    avcRemap.close();
 
     // An accepted frame byte cannot be erased by a zero-write cancel.
     RdpGraphicsDynamicVirtualChannelLifecycle partial;

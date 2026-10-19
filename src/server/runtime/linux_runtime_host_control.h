@@ -2,10 +2,22 @@
 #pragma once
 #include "server/runtime/runtime_host_control.h"
 #include "server/transport/lan_listener.h"
+#include <optional>
+#include <string_view>
 #include <thread>
 
 namespace rdp_server::server::runtime
 {
+
+// Parse the GUI stable name#index into the CURRENT native name used by R1.
+// Returned string_view borrows stableId; this is not listener authority.
+struct LinuxNativeLanInterfaceIdentity
+{
+    std::string_view nativeName;
+    unsigned int nativeIndex{};
+};
+[[nodiscard]] std::optional<LinuxNativeLanInterfaceIdentity>
+resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept;
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.

@@ -964,6 +964,60 @@ struct NativeGeometryFrameProbe final
     }
 };
 
+// A new R5 owner can share the same X11 root size and R2-native-session
+// generation with the previous one. Reusing capture epoch 1 would accept a
+// stale observation and even the legacy scalar capture() borrow in this case.
+void
+syntheticXvfbNativeCaptureOwnerReplacementABADenial()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 433U;
+    constexpr std::uint64_t maximumCapturePixels = 1280U * 720U;
+    const char *display = syntheticDisplay();
+
+    X11NativeGeometryObservation retiredObservation{};
+    {
+        X11DesktopResources previousOwner(display, maximumCapturePixels);
+        requireValidResources(previousOwner, "first owner for ABA denial");
+        retiredObservation =
+            previousOwner.observeNativeGeometry(nativeSessionGeneration);
+        assert(retiredObservation.valid());
+        assert((retiredObservation.pixelGeometry == PixelSize{1280, 720}));
+        // Loss of R2 admission discards input without native XTEST release.
+        previousOwner.retireAfterAuthorizationLoss();
+        assert(!previousOwner.valid());
+    }
+
+    X11DesktopResources replacementOwner(display, maximumCapturePixels);
+    requireValidResources(replacementOwner, "replacement owner for ABA denial");
+    const auto replacementObservation =
+        replacementOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(replacementObservation.valid());
+    assert(replacementObservation.pixelGeometry ==
+           retiredObservation.pixelGeometry);
+    assert(replacementObservation.nativeSessionGeneration ==
+           retiredObservation.nativeSessionGeneration);
+    assert(replacementObservation.captureGeneration !=
+           retiredObservation.captureGeneration);
+    assert(replacementObservation.captureGeneration >
+           retiredObservation.captureGeneration);
+    assert(!replacementOwner.nativeGeometryIsCurrent(
+        retiredObservation, nativeSessionGeneration));
+    assert(!replacementOwner.capture(
+        retiredObservation.captureGeneration, {0, 0, 8, 8}).valid());
+
+    NativeGeometryFrameProbe frameProbe{
+        replacementObservation.pixelGeometry,
+        replacementObservation.captureGeneration};
+    assert(!replacementOwner.consumeR4Frame(
+        retiredObservation, nativeSessionGeneration, frameProbe.callback()));
+    assert(frameProbe.calls == 0U);
+    assert(replacementOwner.consumeR4Frame(
+        replacementObservation, nativeSessionGeneration,
+        frameProbe.callback()));
+    assert(frameProbe.calls == 1U);
+    replacementOwner.retireAfterAuthorizationLoss();
+}
+
 void
 syntheticXvfbNativeGeometryObservationRetirement()
 {
@@ -1964,6 +2018,11 @@ main(int argc, char **argv)
     if (behavior == "capture-pixel-parity")
     {
         syntheticXvfbCapturePixelParity();
+        return 0;
+    }
+    if (behavior == "native-capture-owner-replacement-aba-denial")
+    {
+        syntheticXvfbNativeCaptureOwnerReplacementABADenial();
         return 0;
     }
     if (behavior == "native-geometry-observation-retirement")

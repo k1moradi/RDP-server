@@ -80,6 +80,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-no-consent-start-denials
             linux-host-control-revalidated-interface-denials
             linux-host-control-rejected-selection-retires-previous
+            linux-host-control-native-interface-id-verification
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")
@@ -108,6 +109,31 @@ foreach(host_control_case IN ITEMS
         COMMAND test_runtime_host_control "${host_control_case}")
     set_tests_properties("runtime.${host_control_case}" PROPERTIES
         LABELS "runtime;security;host-control;offline")
+endforeach()
+
+# R2 host consent is an independent deny-only authority boundary until a
+# trusted physical-seat owner/lock provider exists. Synthetic cases must
+# never issue an admission lease or open a listener.
+add_executable(test_current_owner_sharing_authority
+    test_current_owner_sharing_authority.cpp)
+target_include_directories(test_current_owner_sharing_authority PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+target_compile_features(test_current_owner_sharing_authority PRIVATE cxx_std_23)
+if(MSVC)
+    target_compile_options(test_current_owner_sharing_authority PRIVATE
+        /W4 /UNDEBUG)
+else()
+    target_compile_options(test_current_owner_sharing_authority PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(owner_consent_case IN ITEMS
+        owner-consent-gui-intent-never-authorizes
+        owner-consent-invalid-scope-and-lifetime-denials
+        owner-consent-stop-lock-session-credential-revocations)
+    add_test(NAME "security.${owner_consent_case}"
+        COMMAND test_current_owner_sharing_authority "${owner_consent_case}")
+    set_tests_properties("security.${owner_consent_case}" PROPERTIES
+        LABELS "security;r2-owner-consent;offline" TIMEOUT 15)
 endforeach()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
@@ -214,6 +240,15 @@ add_test(NAME project.ci-workflow-structure-denials
         --self-test)
 set_tests_properties(project.ci-workflow-structure-denials PROPERTIES
     LABELS "policy;ci")
+
+# R9 Windows PORTABLE-GUI release barrier and socket query denial fixtures are
+# platform-independent source checks: no Qt, desktop, sockets or services run.
+# Keep these in ordinary full Debug CTest, not only the hosted CI structure job.
+add_test(NAME packaging.windows-portable-gui-clean-release-structure-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_r9_clean_windows_gate.py")
+set_tests_properties(packaging.windows-portable-gui-clean-release-structure-denials
+    PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
 
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
@@ -1516,7 +1551,8 @@ if(TARGET rdp-server-windows-desktop)
         windows_dxgi_duplication_owner_cases.cpp
         windows_dxgi_pointer_shape_cases.cpp
         windows_input_controller_cases.cpp
-        windows_cursor_snapshot_cases.cpp)
+        windows_cursor_snapshot_cases.cpp
+        windows_rdp_conflict_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop
         rdp-server-graphics)
@@ -1712,6 +1748,20 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.input-${case_name}" PROPERTIES
             LABELS "windows;desktop-input;security;offline")
     endforeach()
+    # R6 read-only RDP host-conflict preflight. Synthetic classifier cases
+    # plus one production observation; no listener bind or OS mutation.
+    foreach(case_name IN ITEMS
+            rdp-termservice-active-conflict-denial
+            rdp-requested-port-occupied-conflict-denial
+            rdp-observation-unavailable-denial
+            rdp-clear-when-service-stopped-port-free
+            rdp-native-readonly-observation)
+        add_test(NAME "windows.host-preflight-${case_name}"
+            COMMAND test_windows_desktop_geometry "${case_name}")
+        set_tests_properties("windows.host-preflight-${case_name}" PROPERTIES
+            LABELS "windows;host-preflight;security;offline" TIMEOUT 20)
+    endforeach()
+
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.
     foreach(case_name IN ITEMS
@@ -1773,6 +1823,7 @@ endif()
 foreach(runtime_tls_context_case IN ITEMS
         validates-live-tls-context-construction
         validates-lan-endpoint-certificate-identity
+        tls-context-read-only-unbound-identity-status
         tls-context-survives-credential-path-replacement
         rejects-live-tls-context-invalid-material
         rejects-live-tls-context-extra-certificate-material)
@@ -2460,6 +2511,17 @@ if(TARGET rdp-server-linux-x11-desktop)
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-pixel-parity)
+        # A new R5 X11 owner must never reuse a retired capture epoch, even
+        # with identical screen size and native-session generation.
+        add_test(NAME x11.native-capture-owner-replacement-aba-denial
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                native-capture-owner-replacement-aba-denial)
+        set_tests_properties(
+            x11.native-capture-owner-replacement-aba-denial
+            PROPERTIES LABELS "x11;linux-adapter;native;synthetic-display;graphics;generation;security"
+                       TIMEOUT 20)
         # R5 snapshot/borrow generation fence; no R2 lease, listener or seat0.
         add_test(NAME x11.native-geometry-observation-generation-retirement
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
@@ -3017,6 +3079,11 @@ set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_executable(test_desktop_gui_offline test_desktop_gui_offline.cpp)
     target_link_libraries(test_desktop_gui_offline PRIVATE rdp-server-desktop-ui)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Verify real R10 denial/retirement through the shared R7 Qt view.
+        target_link_libraries(test_desktop_gui_offline PRIVATE
+            rdp-server-linux-host-control)
+    endif()
     if(MSVC)
         target_compile_options(test_desktop_gui_offline PRIVATE /W4 /UNDEBUG)
     else()
@@ -3068,6 +3135,27 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
+    # R1's typed identity evidence must never be mistaken for client
+    # trust, host consent or an authenticated listener.
+    add_test(NAME gui.offscreen-tls-fingerprint-rotation-and-denials
+        COMMAND test_desktop_gui_offline tls-identity)
+    set_tests_properties(gui.offscreen-tls-fingerprint-rotation-and-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;tls" TIMEOUT 30)
+    # Terminal R2 authority loss must suppress stale listener readiness.
+    add_test(NAME gui.offscreen-terminal-listener-readiness-denials
+        COMMAND test_desktop_gui_offline terminal-listener)
+    set_tests_properties(gui.offscreen-terminal-listener-readiness-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # Real R10 shell; no fake consent, native desktop or socket.
+        add_test(NAME gui.offscreen-linux-concrete-host-control-denials
+            COMMAND test_desktop_gui_offline linux-real-host-control)
+        set_tests_properties(gui.offscreen-linux-concrete-host-control-denials
+            PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS "gui;linux;offline;security;runtime" TIMEOUT 30)
+    endif()
     # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
     add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials
         COMMAND test_desktop_gui_offline lifecycle-stages)
@@ -3146,6 +3234,18 @@ add_test(NAME windows.gui-portable-runtime-dependency-staging
         WindowsGuiBundleTests.test_resolved_non_system_runtime_dlls_are_staged)
 set_tests_properties(windows.gui-portable-runtime-dependency-staging
     PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 15)
+
+# R6 native offline state comparison is exercised without a GUI, network,
+# service change or administrative privilege. The packaged GUI smoke uses
+# the same production comparison against read-only Windows snapshots.
+if(WIN32)
+    add_test(NAME windows.gui-offline-system-state-mutation-denials
+        COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+            -File "${PROJECT_SOURCE_DIR}/scripts/smoke_windows_portable_gui.ps1"
+            -SnapshotContractTest)
+    set_tests_properties(windows.gui-offline-system-state-mutation-denials
+        PROPERTIES LABELS "windows;packaging;gui;security;offline" TIMEOUT 20)
+endif()
 
 # R9 portable recursive PE-import closure is pure Python on every host; native
 # llvm-objdump execution is performed by the Windows CLANG64 CI lane.

@@ -3357,8 +3357,11 @@ beginFramePublication(
          frame.frameId() <= highestPublishedFrameId_) ||
         frame.generation() != allocation_.generation ||
         !graphicsClearCodecEnabled() ||
+        // R4 must bind a new x264 producer to the new surface and prove IDR
+        // before AVC420 can ever resume after this same-DVC remap. Until
+        // that cross-owner reset contract exists, retain ClearCodec only.
         (codec == RdpGraphicsFrameCodec::Avc420 &&
-         !graphicsAvc420Enabled()) ||
+         (!graphicsAvc420Enabled() || remappedSurface_)) ||
         staticChannelChunkBytes <
             kRdpStaticVirtualChannelDefaultChunkBytes ||
         staticChannelChunkBytes >

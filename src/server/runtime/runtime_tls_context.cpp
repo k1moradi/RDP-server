@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "runtime_tls_context.h"
+#include "server/transport/lan_listener.h"
 #include "runtime_credential_file_internal.h"
 
 #include <algorithm>
@@ -19,6 +20,13 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#endif
 
 #if defined(_WIN32)
 #include <aclapi.h>
@@ -320,6 +328,79 @@ bool RuntimeServerTlsContext::certificateSha256Fingerprint(
         return false;
     }
     return true;
+}
+
+RuntimeTlsIdentityStatus RuntimeServerTlsContext::identityStatus() const noexcept
+{
+    RuntimeTlsIdentityStatus snapshot{};
+    if (!certificateSha256Fingerprint(snapshot.certificateSha256))
+        return snapshot;
+    snapshot.fingerprintAvailable = true;
+    snapshot.state = RuntimeTlsIdentityState::ConfiguredUnbound;
+    return snapshot;
+}
+
+RuntimeTlsIdentityStatus RuntimeServerTlsContext::boundIdentityStatus(
+    const rdp_server::server::transport::OwnedLanListener &listener)
+    const noexcept
+{
+    RuntimeTlsIdentityStatus snapshot = identityStatus();
+    if (!snapshot.fingerprintAvailable || !listener.valid())
+        return snapshot;
+    if (!listener.interfaceStillMatches())
+    {
+        snapshot.state = RuntimeTlsIdentityState::InterfaceUnavailable;
+        return snapshot;
+    }
+
+    // This endpoint was constructed only after R1 verified getsockname()
+    // against its selected native interface, numeric address, and port.
+    const auto endpoint = listener.boundEndpoint();
+    if (endpoint.port == 0U || !endpoint.valid())
+    {
+        snapshot.state = RuntimeTlsIdentityState::InvalidEndpoint;
+        return snapshot;
+    }
+
+    int addressFamily = 0;
+    switch (endpoint.family)
+    {
+    case rdp_server::server::transport::TcpPeerAddressFamily::Ipv4:
+        addressFamily = AF_INET;
+        break;
+    case rdp_server::server::transport::TcpPeerAddressFamily::Ipv6:
+        addressFamily = AF_INET6;
+        break;
+    case rdp_server::server::transport::TcpPeerAddressFamily::Unspecified:
+        snapshot.state = RuntimeTlsIdentityState::InvalidEndpoint;
+        return snapshot;
+    }
+
+    std::array<char, INET6_ADDRSTRLEN> boundAddress{};
+    if (::inet_ntop(addressFamily, endpoint.address.data(),
+                    boundAddress.data(), boundAddress.size()) == nullptr)
+    {
+        snapshot.state = RuntimeTlsIdentityState::InvalidEndpoint;
+        return snapshot;
+    }
+    switch (validateEndpointIdentity(boundAddress.data()))
+    {
+    case RuntimeTlsEndpointIdentityStatus::Match:
+        snapshot.state = RuntimeTlsIdentityState::BoundAndMatched;
+        break;
+    case RuntimeTlsEndpointIdentityStatus::Mismatch:
+        snapshot.state = RuntimeTlsIdentityState::CertificateMismatch;
+        break;
+    case RuntimeTlsEndpointIdentityStatus::InvalidEndpoint:
+        snapshot.state = RuntimeTlsIdentityState::InvalidEndpoint;
+        break;
+    case RuntimeTlsEndpointIdentityStatus::CertificateUnavailable:
+        snapshot.state = RuntimeTlsIdentityState::Unavailable;
+        snapshot.fingerprintAvailable = false;
+        snapshot.certificateSha256.fill(0U);
+        break;
+    }
+    return snapshot;
 }
 
 } // namespace rdp_server::server::runtime

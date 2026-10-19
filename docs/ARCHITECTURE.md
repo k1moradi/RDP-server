@@ -1,3 +1,47 @@
+## R2 current-owner sharing consent / R10-R7 handoff (2026-10-19)
+
+The single owner for sharing authority is R2
+(`src/server/security/current_owner_sharing_authority.h`), not
+`RuntimeHostStatus::hostOwnerAuthorized`, Qt, a remote peer, a cached
+permission, or a GSS/PAM/logind identity match. R10 retains serialized server
+lifecycle, endpoint/listener and connection ownership. R7 presents a local
+request and displays R10's fixed redacted result only. Exact existing R10
+entry point: `RuntimeHostControl::requestHostPermissionSetup()`; it must
+marshal a *non-authorizing* `OwnerSharingIntent{requestedPermissions,
+requestedLifetimeMilliseconds}` to R2's `requestConsent()`. An R2 response
+`TrustedOwnerProofUnavailable` means refuse Start, not consent.
+At Start/accept and each protected Share/graphics/input/clipboard operation,
+R10 must ask the same R2 owner `authorizes(requiredPermissions)` and use
+the existing `LinuxConsoleAdmissionBroker::issue()/authorizes()` checks.
+On Stop, lock or unknown lock, logout, switch, session replacement,
+credential change or loss of native authorization, R10 must call R2
+`revoke(reason)` and retire R3/native input/frames before the R1 transport.
+Never pass a capability constructor, a purported local approval Boolean or
+a client consent token through Qt/network APIs.
+
+Production positive issuance is unavailable. A future R2-private native
+provider must bind the actual current UID, physically active seat0 session,
+native session generation, explicit view/input/clipboard scope and an
+owner-chosen, monotonic expiration. It must separately attest authenticated
+identity/session freshness, affirmative consent through a genuinely trusted
+local-owner channel, and authoritative unlocked state, rechecking at
+protected boundaries after potential blocking operations. X11/logind's
+advisory `LockedHint` is insufficient proof of physical presence or unlock.
+An arbitrary GUI event, cached consent or synthetic fingerprint must never
+authorize a lease. The R2 host authority must outlive borrowing connection
+brokers; R2 revocation generation is atomic but does not itself grant rights.
+No human-presence or reliable lock provider is installed.
+
+Independent GUI application passwords remain unsupported by unmodified
+mstsc.exe/Windows App until R2 proves a reviewed offline, domainless
+CredSSP/NLA-compatible authentication provider and local authorization.
+OS-account credential use is a distinct fallback; do not disable NLA or
+change OS passwords. Windows positive future requires binding SSPI
+authenticated SID to native console WTS session/logon LUID, trusted lock
+events and user-consent lifetime. macOS requires authenticated UID bound
+to console UID, audit/security session, trusted session/lock state and
+owner-local consent, independently of TCC capture/input permission.
+
 ## R3 authenticated Graphics surface remap (draft PR #24, 2026-10-18)
 
 R10 observes fresh X11 RandR root geometry through R5's current native

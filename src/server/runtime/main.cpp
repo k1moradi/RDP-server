@@ -1612,15 +1612,19 @@ struct LinuxFramePublicationContext final {
         const auto now = Clock::now();
         const bool bufferedApplicationData = !frameWritePending &&
             connection.bufferedTlsApplicationReadReady();
-        const auto untilCapture = nextCapture > now
+        // An outstanding TLS Graphics write is not eligible for capture:
+        // the expired capture deadline must never turn WANT_READ/WANT_WRITE
+        // into a zero-timeout busy poll. Socket and logind/X11 events still
+        // wake the sole serialized owner immediately.
+        const auto untilCapture = !frameWritePending && nextCapture > now
             ? std::chrono::duration_cast<std::chrono::milliseconds>(
                   nextCapture - now)
             : std::chrono::milliseconds{0};
-        const auto wait = (std::min)(
-            kLinuxPostSharePollQuantum, untilCapture);
-        const int timeoutMilliseconds =
-            bufferedApplicationData || nativeWorkMayRemain ? 0
-            : static_cast<int>(wait.count());
+        const auto wait =
+            rdp_server::server::runtime::detail::selectLinuxPostSharePollWait(
+                kLinuxPostSharePollQuantum, untilCapture, frameWritePending,
+                bufferedApplicationData, nativeWorkMayRemain);
+        const int timeoutMilliseconds = static_cast<int>(wait.count());
         errno = 0;
         const int polled = ::poll(
             nativePoll.data(), static_cast<nfds_t>(nativePoll.size()),
@@ -1726,6 +1730,22 @@ struct LinuxFramePublicationContext final {
         if (!frameWritePending && Clock::now() >= nextCapture) {
             if (nextFrameId == 0U) {
                 break; // Never wrap a live Graphics frame ID.
+            }
+            using Readiness = rdp_server::server::transport::
+                RdpGraphicsFramePublicationReadiness;
+            // R3/R4 owns outstanding ACK credit. Defer before XShm capture;
+            // no frame ID, write reservation or native authority is consumed.
+            const auto readiness =
+                connection.preflightPersonalDesktopGraphicsFramePublication(
+                    *context->policy, nextFrameId);
+            if (readiness == Readiness::DeferredForFrameAcknowledge) {
+                nextCapture = Clock::now() + kLinuxPostShareCaptureInterval;
+                continue; // Keep reading FRAME_ACK through the sole R1 owner.
+            }
+            if (readiness != Readiness::Ready) {
+                nativeOwner.desktop->retireAfterAuthorizationLoss();
+                connection.revoke();
+                return true;
             }
             LinuxFramePublicationContext frameContext{
                 &connection, context->policy, nextFrameId,

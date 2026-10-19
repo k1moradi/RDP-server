@@ -1060,7 +1060,7 @@ endif()
 
 
 # R7: separate, opt-in desktop shell. No protocol/runtime/native authorization link.
-option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" OFF)
+option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" ON)
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
     add_library(rdp-server-desktop-ui STATIC

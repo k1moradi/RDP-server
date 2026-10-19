@@ -2669,6 +2669,35 @@ void testConnectionPersonalDesktopGraphicsDvcR1IoDenials(
     }
 }
 
+void testConnectionPersonalDesktopGraphicsFrameCreditPreflightDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Readiness =
+        rdp_server::server::transport::RdpGraphicsFramePublicationReadiness;
+    const auto keytab =
+        fixtureDirectory / "runtime-graphics-credit-preflight.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    RuntimeDeploymentPolicy personalPolicy;
+    assert(personalPolicy.configurePersonalDesktop(false, 0U));
+
+    // No socket, frame number or product policy can fabricate an admitted
+    // R2 lease or Ready presentation. Rejection is terminal and cannot be
+    // replayed as ordinary ACK-credit backpressure.
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.preflightPersonalDesktopGraphicsFramePublication(
+               personalPolicy, 1U) == Readiness::Rejected);
+    assert(!connection.ready());
+    assert(connection.preflightPersonalDesktopGraphicsFramePublication(
+               personalPolicy, 1U) == Readiness::Rejected);
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionPersonalDesktopGraphicsDvcAuthorityDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3472,6 +3501,13 @@ int main(int argumentCount, char **argumentValues)
         "linux-connection-personal-graphics-dvc-r1-io-denials")
     {
         testConnectionPersonalDesktopGraphicsDvcR1IoDenials(
+            fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-graphics-credit-preflight-denials")
+    {
+        testConnectionPersonalDesktopGraphicsFrameCreditPreflightDenials(
             fixtureDirectory);
         return 0;
     }

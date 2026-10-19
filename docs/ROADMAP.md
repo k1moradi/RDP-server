@@ -1,3 +1,33 @@
+## R10 bounded pending-Graphics TLS write polling (2026-10-18)
+
+The serialized post-Share owner now uses one production-tested bounded poll
+wait selector. While a Graphics write is pending, the next X11 capture is
+ineligible, so a past capture deadline cannot force a zero-millisecond busy
+poll; R1's actual SSL WANT_READ/WANT_WRITE socket direction, X11 dispatch,
+logind retirement, buffered TLS packet readiness, cooperative Stop and policy
+revocation retain precedence. The dedicated ordinary executable CTest
+`runtime.linux-connection-stalled-graphics-tls-write-bounded-poll` uses a
+real quiet kernel pipe to exercise four positive-duration poll waits and
+covers timer/native-event overrides. This is an offline deterministic pacing
+regression, not a live TLS transmission or Microsoft-client acceptance.
+Local build/CTest NOT RUN; publication CI PENDING.
+
+## R10 ACK-credit defer scheduler integration (2026-10-18)
+
+R10 now samples R3's non-mutating `RdpGraphicsFramePublicationReadiness`
+through its existing `LinuxRuntimeConnection` and R2 broker before X11
+capture. `Ready` proceeds to a separately authorized frame-start;
+`DeferredForFrameAcknowledge` advances neither the Graphics frame ID nor
+an R4 receipt/credit and reschedules a bounded capture opportunity while
+R10 continues reading the sole R1 TLS stream for FRAME_ACK. `Rejected` is
+terminal. R4 remains the sole ACK-window owner. The new ordinary CTest
+`runtime.linux-connection-graphics-credit-preflight-denials` proves the
+runtime wrapper rejects missing-R2-lease calls and terminal replay; R3's
+existing production-backed 64-credit defer/FRAME_ACK/Ready CTest remains the
+positive protocol proof. No synthetic native owner or client success is
+claimed. Source-only integration; local build/CTest and live seat0 acceptance
+NOT RUN, publication CI PENDING.
+
 ## R7/R6 exact-SHA Windows GUI verifier evidence (2026-10-19)
 
 Exact SHA `6f01ee9e2d88b76aab29b1d384a163a5500ce6b4`, GitHub Actions

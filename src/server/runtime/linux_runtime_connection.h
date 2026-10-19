@@ -12,6 +12,7 @@
 #include "server/transport/mcs_channel_connection.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -417,6 +418,28 @@ selectLinuxRuntimeConnectionIoInterest(
 
     return snapshot.r1Interest;
 }
+// One bounded serialized poll interval. Pending Graphics writes follow
+// the R1 WANT_READ/WANT_WRITE socket direction, not an expired capture
+// deadline. Buffered TLS data and queued native events remain immediately
+// serviceable; no timer, ACK counter or socket owner is introduced.
+[[nodiscard]] constexpr std::chrono::milliseconds
+selectLinuxPostSharePollWait(
+    std::chrono::milliseconds pollQuantum,
+    std::chrono::milliseconds remainingUntilCapture,
+    bool frameWritePending,
+    bool bufferedApplicationData,
+    bool nativeWorkMayRemain) noexcept
+{
+    using namespace std::chrono_literals;
+    if (bufferedApplicationData || nativeWorkMayRemain)
+        return 0ms;
+    const auto boundedQuantum = (std::max)(pollQuantum, 0ms);
+    return frameWritePending
+               ? boundedQuantum
+               : (std::min)(boundedQuantum,
+                            (std::max)(remainingUntilCapture, 0ms));
+}
+
 // The R1 SSL owner may already hold decrypted application data when its
 // native socket is not readable. Only effective Read interest may dispatch it;
 // an outstanding WANT_WRITE, outbound writer or terminal interest wins.
@@ -757,6 +780,15 @@ public:
     advancePersonalDesktopGraphicsDynamicVirtualChannel(
         const RuntimeDeploymentPolicy &deploymentPolicy,
         bool readable, bool writable) noexcept;
+
+    // Ephemeral, non-mutating R3/R4 ACK-credit observation via R2. No frame
+    // is reserved here. Ready still requires fresh authorization on frame start;
+    // DeferredForFrameAcknowledge is ordinary scheduler backpressure.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
+    preflightPersonalDesktopGraphicsFramePublication(
+        const RuntimeDeploymentPolicy &deploymentPolicy,
+        std::uint32_t frameId) noexcept;
 
     // Prepare and start one mandatory ClearCodec fallback publication. R10
     // supplies only a frame ID and a synchronous borrowed framebuffer. R3 owns

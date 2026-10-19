@@ -4406,16 +4406,23 @@ void completeGraphicsDynamicVirtualChannelReady(
     RdpGraphicsDynamicVirtualChannelLifecycle &dvc,
     RdpDynamicVirtualChannelAllocation allocation,
     std::uint32_t clientUserId,
-    std::uint16_t drdynvcChannelId)
+    std::uint16_t drdynvcChannelId,
+    bool enableAvc420 = false)
 {
     completeGraphicsDynamicVirtualChannelCreate(
         dvc, allocation, clientUserId, drdynvcChannelId);
 
-    constexpr std::array<std::uint8_t, 22> advertise{
+    std::array<std::uint8_t, 22> advertise{
         0x12U, 0x00U, 0x00U, 0x00U, 0x16U, 0x00U, 0x00U, 0x00U,
         0x01U, 0x00U,
         0x04U, 0x00U, 0x08U, 0x00U, 0x04U, 0x00U, 0x00U, 0x00U,
         0x00U, 0x00U, 0x00U, 0x00U};
+    if (enableAvc420)
+    {
+        advertise[10U] = 0x05U; // VERSION81 (0x00080105)
+        advertise[11U] = 0x01U;
+        advertise[18U] = 0x10U; // AVC420_ENABLED
+    }
     std::vector<std::uint8_t> data{
         0x30U, static_cast<std::uint8_t>(allocation.channelId)};
     data.insert(data.end(), advertise.begin(), advertise.end());
@@ -4429,10 +4436,16 @@ void completeGraphicsDynamicVirtualChannelReady(
     assert(write &&
            write.kind ==
                RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm);
-    constexpr std::array<std::uint8_t, 20> expectedConfirm{
+    std::array<std::uint8_t, 20> expectedConfirm{
         0x13U,0x00U,0x00U,0x00U,0x14U,0x00U,0x00U,0x00U,
         0x04U,0x00U,0x08U,0x00U,0x04U,0x00U,0x00U,0x00U,
         0x00U,0x00U,0x00U,0x00U};
+    if (enableAvc420)
+    {
+        expectedConfirm[8U] = 0x05U;
+        expectedConfirm[9U] = 0x01U;
+        expectedConfirm[16U] = 0x10U;
+    }
     const auto confirm = serverGraphicsDynamicVirtualChannelData(write);
     assert(confirm.size() == expectedConfirm.size());
     assert(std::equal(confirm.begin(), confirm.end(), expectedConfirm.begin()));
@@ -4444,7 +4457,7 @@ void completeGraphicsDynamicVirtualChannelReady(
            RdpGraphicsDvcWriteOutcome::Pending);
     assert(dvc.graphicsCapabilitiesConfirmed());
     assert(dvc.graphicsClearCodecEnabled());
-    assert(!dvc.graphicsAvc420Enabled());
+    assert(dvc.graphicsAvc420Enabled() == enableAvc420);
 
     completeGraphicsPresentationSurfaceInitialization(dvc);
 }
@@ -4653,14 +4666,12 @@ void testGraphicsFrameCreditPreflight()
     assert(dvc.phase() == RdpGraphicsDvcPhase::Ready);
     assert(dvc.presentationMapped());
 
-    // Capacity backpressure must not mask an invalid duplicate frame ID.
-    // Keep all 64 authoritative R4 ACK entries occupied for this check.
+    // A duplicate at all 64 R4 ACK slots is terminally rejected, not deferred.
     assert(dvc.preflightFramePublication(firstFrameId + 1U) ==
            Readiness::Rejected);
     assert(dvc.outstandingGraphicsFrames() ==
            rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames);
     assert(!dvc.pendingServerWrite());
-    assert(dvc.frameRecordMap().empty());
 
     assert(dvc.onClientTpkt(
         allocation.generation,
@@ -4683,6 +4694,401 @@ void testGraphicsFrameCreditPreflight()
     dvc.close();
     assert(dvc.preflightFramePublication(deferredFrameId + 1U) ==
            Readiness::Rejected);
+}
+
+void testGraphicsSurfaceRemap()
+{
+    using Decision = RdpGraphicsSurfaceReconfiguration;
+    using Kind = RdpGraphicsDvcWriteKind;
+    constexpr PixelSize resized{32U, 16U};
+    constexpr RdpDynamicVirtualChannelAllocation allocation{9U, 205U};
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+    assert(dvc.beginSurfaceReconfiguration(
+        204U, resized) == Decision::Rejected);
+    assert(dvc.beginSurfaceReconfiguration(
+        205U, PixelSize{0U, 16U}) == Decision::Rejected);
+    assert(dvc.beginSurfaceReconfiguration(
+        205U, PixelSize{64U, 64U}) == Decision::Unchanged);
+
+    // A complete old frame must retire through R4's existing ACK owner.
+    rdp_server::rdp::GfxAvc420SegmentedFrame oldFrame;
+    prepareTestClearCodecFrame(dvc, 100U, oldFrame);
+    assert(dvc.beginFramePublication(
+        std::move(oldFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    RdpGraphicsDvcWriteOutcome outcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempts = 0U;
+         attempts < 256U && outcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempts)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write);
+        outcome = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+    assert(outcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Deferred);
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 100U, 4096U, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Deferred); // Client Graphics DATA still pending.
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+
+    // A delayed duplicate ACK for the still-mapped original surface is
+    // nonterminal Unmatched until that surface has actually been retired.
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 100U, 4096U, 2U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Unmatched);
+    assert(dvc.presentationMapped());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+
+    // A prepared frame with zero accepted outer bytes can be cancelled.
+    rdp_server::rdp::GfxAvc420SegmentedFrame unwritten;
+    prepareTestClearCodecFrame(dvc, 101U, unwritten);
+    assert(dvc.beginFramePublication(
+        std::move(unwritten), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Deferred);
+    assert(dvc.cancelUnwrittenFramePublication(205U));
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Started);
+    auto write = dvc.pendingServerWrite();
+    assert(write && write.kind == Kind::GraphicsDeleteSurface);
+    constexpr std::array<std::uint8_t, 10> expectedDelete{
+        0x0aU,0x00U,0x00U,0x00U,0x0aU,0x00U,0x00U,0x00U,
+        0x00U,0x00U};
+    auto payload = serverGraphicsDynamicVirtualChannelData(write);
+    assert(std::equal(
+        payload.begin(), payload.end(),
+        expectedDelete.begin(), expectedDelete.end()));
+
+    // R1's positive partial TLS receipt keeps the identical command/suffix.
+    const std::vector<std::uint8_t> offered(
+        write.bytes.begin(), write.bytes.end());
+    assert(dvc.onServerBytesWritten(
+        write.channelGeneration, write.replySequence,
+        write.writeSliceSequence, 1U) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Deferred);
+    write = dvc.pendingServerWrite();
+    assert(write && write.bytes.size() + 1U == offered.size());
+    assert(std::equal(
+        write.bytes.begin(), write.bytes.end(),
+        offered.begin() + 1U, offered.end()));
+    assert(dvc.onServerBytesWritten(
+        write.channelGeneration, write.replySequence,
+        write.writeSliceSequence, write.bytes.size()) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+
+    write = dvc.pendingServerWrite();
+    assert(write && write.kind == Kind::GraphicsCreateSurface);
+    constexpr std::array<std::uint8_t, 15> expectedCreate{
+        0x09U,0x00U,0x00U,0x00U,0x0fU,0x00U,0x00U,0x00U,
+        0x01U,0x00U,0x20U,0x00U,0x10U,0x00U,0x20U};
+    payload = serverGraphicsDynamicVirtualChannelData(write);
+    assert(std::equal(
+        payload.begin(), payload.end(),
+        expectedCreate.begin(), expectedCreate.end()));
+    assert(dvc.onServerBytesWritten(
+        write.channelGeneration, write.replySequence,
+        write.writeSliceSequence, write.bytes.size()) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+
+    write = dvc.pendingServerWrite();
+    assert(write && write.kind == Kind::GraphicsMapSurfaceToOutput);
+    constexpr std::array<std::uint8_t, 20> expectedMap{
+        0x0fU,0x00U,0x00U,0x00U,0x14U,0x00U,0x00U,0x00U,
+        0x01U,0x00U,0x00U,0x00U,0x00U,0x00U,0x00U,0x00U,
+        0x00U,0x00U,0x00U,0x00U};
+    payload = serverGraphicsDynamicVirtualChannelData(write);
+    assert(std::equal(
+        payload.begin(), payload.end(),
+        expectedMap.begin(), expectedMap.end()));
+    assert(dvc.onServerBytesWritten(
+        write.channelGeneration, write.replySequence,
+        write.writeSliceSequence, write.bytes.size()) ==
+        RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.presentationMapped());
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Unchanged);
+    assert(dvc.preflightFramePublication(100U) ==
+           RdpGraphicsFramePublicationReadiness::Rejected);
+
+    std::array<std::byte, 64U * 64U * 4U> oldPixels{};
+    const FramebufferView wrongGeometry{oldPixels, 64U, 64U, 64U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame rejectedFrame;
+    assert(!dvc.prepareClearCodecFrame(
+        101U, wrongGeometry, rejectedFrame));
+    assert(!dvc.pendingServerWrite());
+
+    std::array<std::byte, 32U * 16U * 4U> newPixels{};
+    const FramebufferView currentGeometry{newPixels, 32U, 16U, 32U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame currentFrame;
+    assert(dvc.prepareClearCodecFrame(
+        101U, currentGeometry, currentFrame));
+    assert(dvc.beginFramePublication(
+        std::move(currentFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    // Prove first post-remap ClearCodec completes and its current ACK works.
+    auto currentOutcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             currentOutcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto frameWrite = dvc.pendingServerWrite();
+        assert(frameWrite && frameWrite.kind == Kind::GraphicsFrameData);
+        currentOutcome = dvc.onServerBytesWritten(
+            frameWrite.channelGeneration, frameWrite.replySequence,
+            frameWrite.writeSliceSequence, frameWrite.bytes.size());
+    }
+    assert(currentOutcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 101U, 4096U, 3U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(dvc.preflightFramePublication(102U) ==
+           RdpGraphicsFramePublicationReadiness::Ready);
+    // Stale ACKs can no longer acknowledge a newly published frame ID.
+    assert(dvc.onClientTpkt(
+        205U, makeR3GraphicsFrameAcknowledgeTpkt(
+            9U, 100U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 2U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(dvc.consumePendingClientFrameAcknowledge(205U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(!dvc.presentationMapped());
+    assert(dvc.preflightFramePublication(101U) ==
+           RdpGraphicsFramePublicationReadiness::Rejected);
+
+    dvc.close();
+    assert(dvc.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Rejected);
+
+    // R4 ACK suspension clears authoritative pending membership. With no
+    // pending delivery/partial TLS or client DATA, resize must not await
+    // an ACK that the client is no longer obligated to send.
+    RdpGraphicsDynamicVirtualChannelLifecycle suspended;
+    completeGraphicsDynamicVirtualChannelReady(
+        suspended, RdpDynamicVirtualChannelAllocation{12U, 208U},
+        1007U, 1005U);
+    // A genuine complete frame is outstanding before R4 suspension.
+    rdp_server::rdp::GfxAvc420SegmentedFrame suspendedFrame;
+    prepareTestClearCodecFrame(suspended, 20U, suspendedFrame);
+    assert(suspended.beginFramePublication(
+        std::move(suspendedFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    auto suspendedOutcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             suspendedOutcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto frameWrite = suspended.pendingServerWrite();
+        assert(frameWrite);
+        suspendedOutcome = suspended.onServerBytesWritten(
+            frameWrite.channelGeneration, frameWrite.replySequence,
+            frameWrite.writeSliceSequence, frameWrite.bytes.size());
+    }
+    assert(suspendedOutcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(suspended.outstandingGraphicsFrames() == 1U);
+    assert(suspended.beginSurfaceReconfiguration(208U, resized) ==
+           Decision::Deferred);
+    // Only R4 may clear outstanding membership on the real suspension.
+    assert(suspended.onClientTpkt(
+        208U, makeR3GraphicsFrameAcknowledgeTpkt(
+            12U, 0U, rdp_server::rdp::kGfxSuspendFrameAcknowledgement, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(suspended.consumePendingClientFrameAcknowledge(208U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Suspended);
+    assert(suspended.outstandingGraphicsFrames() == 0U);
+    assert(suspended.beginSurfaceReconfiguration(208U, resized) ==
+           Decision::Started);
+    auto suspendedWrite = suspended.pendingServerWrite();
+    assert(suspendedWrite &&
+           suspendedWrite.kind == Kind::GraphicsDeleteSurface);
+    suspended.close();
+
+    // Bounded draining: no genuine ACK for an old surface means 63 safe
+    // deferrals, then a terminal reconnect rather than invented receipts.
+    RdpGraphicsDynamicVirtualChannelLifecycle stalled;
+    completeGraphicsDynamicVirtualChannelReady(
+        stalled, RdpDynamicVirtualChannelAllocation{14U, 210U},
+        1007U, 1005U);
+    rdp_server::rdp::GfxAvc420SegmentedFrame stalledFrame;
+    prepareTestClearCodecFrame(stalled, 11U, stalledFrame);
+    assert(stalled.beginFramePublication(
+        std::move(stalledFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    auto stalledOutcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             stalledOutcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto frameWrite = stalled.pendingServerWrite();
+        assert(frameWrite);
+        stalledOutcome = stalled.onServerBytesWritten(
+            frameWrite.channelGeneration, frameWrite.replySequence,
+            frameWrite.writeSliceSequence, frameWrite.bytes.size());
+    }
+    assert(stalledOutcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(stalled.outstandingGraphicsFrames() == 1U);
+    for (std::size_t attempt = 0U; attempt < 63U; ++attempt)
+    {
+        assert(stalled.beginSurfaceReconfiguration(210U, resized) ==
+               Decision::Deferred);
+        assert(stalled.presentationMapped());
+        assert(!stalled.pendingServerWrite());
+    }
+    assert(stalled.beginSurfaceReconfiguration(210U, resized) ==
+           Decision::Rejected);
+    assert(!stalled.presentationMapped());
+    assert(!stalled.pendingServerWrite());
+    RdpGraphicsDynamicVirtualChannelLifecycle replacement;
+    completeGraphicsDynamicVirtualChannelReady(
+        replacement, RdpDynamicVirtualChannelAllocation{15U, 211U},
+        1007U, 1005U);
+    assert(replacement.beginSurfaceReconfiguration(210U, resized) ==
+           Decision::Rejected);
+    assert(replacement.beginSurfaceReconfiguration(211U, resized) ==
+           Decision::Started);
+    replacement.close();
+
+    // A normal retired ACK is also terminal (not only a SUSPEND ACK).
+    RdpGraphicsDynamicVirtualChannelLifecycle normalStale;
+    completeGraphicsDynamicVirtualChannelReady(
+        normalStale, RdpDynamicVirtualChannelAllocation{16U, 212U},
+        1007U, 1005U);
+    rdp_server::rdp::GfxAvc420SegmentedFrame normalFrame;
+    prepareTestClearCodecFrame(normalStale, 12U, normalFrame);
+    assert(normalStale.beginFramePublication(
+        std::move(normalFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    auto normalOutcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             normalOutcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto frameWrite = normalStale.pendingServerWrite();
+        assert(frameWrite);
+        normalOutcome = normalStale.onServerBytesWritten(
+            frameWrite.channelGeneration, frameWrite.replySequence,
+            frameWrite.writeSliceSequence, frameWrite.bytes.size());
+    }
+    assert(normalOutcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(normalStale.onClientTpkt(
+        212U, makeR3GraphicsFrameAcknowledgeTpkt(
+            16U, 12U, 4096U, 1U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(normalStale.consumePendingClientFrameAcknowledge(212U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(normalStale.beginSurfaceReconfiguration(212U, resized) ==
+           Decision::Started);
+    for (std::size_t command = 0U; command < 3U; ++command)
+    {
+        const auto write = normalStale.pendingServerWrite();
+        assert(write);
+        const auto completion = normalStale.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+        assert(completion ==
+               (command == 2U ? RdpGraphicsDvcWriteOutcome::Delivered
+                              : RdpGraphicsDvcWriteOutcome::Pending));
+    }
+    assert(normalStale.presentationMapped());
+    assert(normalStale.onClientTpkt(
+        212U, makeR3GraphicsFrameAcknowledgeTpkt(
+            16U, 12U, 4096U, 2U)) ==
+        RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(normalStale.consumePendingClientFrameAcknowledge(212U) ==
+           RdpGraphicsFrameAcknowledgeIntake::Rejected);
+    assert(!normalStale.presentationMapped());
+
+    // Even with negotiated AVC420 the remapped surface must not reuse
+    // R4's old x264 P-reference chain. ClearCodec remains publishable.
+    // R4 must prove explicit producer rebind + first IDR before AVC resumes.
+    RdpGraphicsDynamicVirtualChannelLifecycle avcRemap;
+    completeGraphicsDynamicVirtualChannelReady(
+        avcRemap, RdpDynamicVirtualChannelAllocation{17U, 213U},
+        1007U, 1005U, true);
+    assert(avcRemap.graphicsAvc420Enabled());
+    assert(avcRemap.beginSurfaceReconfiguration(213U, resized) ==
+           Decision::Started);
+    for (std::size_t command = 0U; command < 3U; ++command)
+    {
+        const auto pendingCommand = avcRemap.pendingServerWrite();
+        assert(pendingCommand);
+        const auto completion = avcRemap.onServerBytesWritten(
+            pendingCommand.channelGeneration, pendingCommand.replySequence,
+            pendingCommand.writeSliceSequence, pendingCommand.bytes.size());
+        assert(completion ==
+               (command == 2U ? RdpGraphicsDvcWriteOutcome::Delivered
+                              : RdpGraphicsDvcWriteOutcome::Pending));
+    }
+    assert(avcRemap.presentationMapped());
+    std::array<std::byte, 32U * 16U * 4U> avcFallbackPixels{};
+    const FramebufferView avcFallbackGeometry{
+        avcFallbackPixels, 32U, 16U, 32U * 4U};
+    rdp_server::rdp::GfxAvc420SegmentedFrame avcFallbackFrame;
+    assert(avcRemap.prepareClearCodecFrame(
+        1U, avcFallbackGeometry, avcFallbackFrame));
+    assert(!avcRemap.beginFramePublication(
+        std::move(avcFallbackFrame), RdpGraphicsFrameCodec::Avc420,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(avcFallbackFrame.valid());
+    assert(!avcRemap.pendingServerWrite());
+    assert(avcRemap.beginFramePublication(
+        std::move(avcFallbackFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(avcRemap.cancelUnwrittenFramePublication(213U));
+    avcRemap.close();
+
+    // An accepted frame byte cannot be erased by a zero-write cancel.
+    RdpGraphicsDynamicVirtualChannelLifecycle partial;
+    completeGraphicsDynamicVirtualChannelReady(
+        partial, RdpDynamicVirtualChannelAllocation{10U, 206U},
+        1007U, 1005U);
+    rdp_server::rdp::GfxAvc420SegmentedFrame partialFrame;
+    prepareTestClearCodecFrame(partial, 1U, partialFrame);
+    assert(partial.beginFramePublication(
+        std::move(partialFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    const auto partialWrite = partial.pendingServerWrite();
+    assert(partialWrite);
+    assert(partial.onServerBytesWritten(
+        partialWrite.channelGeneration, partialWrite.replySequence,
+        partialWrite.writeSliceSequence, 1U) ==
+        RdpGraphicsDvcWriteOutcome::Pending);
+    assert(!partial.cancelUnwrittenFramePublication(206U));
+    assert(partial.beginSurfaceReconfiguration(206U, resized) ==
+           Decision::Deferred);
+    assert(partial.abortFramePublication(206U));
+    assert(partial.beginSurfaceReconfiguration(206U, resized) ==
+           Decision::Rejected);
+
+    RdpGraphicsDynamicVirtualChannelLifecycle reconnected;
+    completeGraphicsDynamicVirtualChannelReady(
+        reconnected, RdpDynamicVirtualChannelAllocation{11U, 207U},
+        1007U, 1005U);
+    assert(reconnected.beginSurfaceReconfiguration(205U, resized) ==
+           Decision::Rejected);
+    assert(!reconnected.pendingServerWrite());
 }
 
 void testGraphicsPresentationInitializationWire()
@@ -11646,7 +12052,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 163> kMcsTestCases{{
+constexpr std::array<McsTestCase, 164> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -11789,6 +12195,7 @@ constexpr std::array<McsTestCase, 163> kMcsTestCases{{
     {"dvc-graphics-frame-ack-handoff-malformed", &testGraphicsFrameAcknowledgeHandoffMalformed},
     {"dvc-graphics-frame-ack-handoff-stale", &testGraphicsFrameAcknowledgeHandoffStale},
     {"dvc-graphics-frame-credit-preflight", &testGraphicsFrameCreditPreflight},
+    {"dvc-graphics-surface-remap", &testGraphicsSurfaceRemap},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},

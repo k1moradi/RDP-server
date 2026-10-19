@@ -703,6 +703,22 @@ public:
             &deploymentPolicy,
         std::uint32_t frameId) noexcept;
 
+    // R10 provides only the fresh R5-observed X11 RandR geometry. R2
+    // validates the same native lease and R1/R3 Share provenance before and
+    // after R3's immutable surface-change decision. No protocol bytes or
+    // caller-owned surface identity cross this boundary.
+    [[nodiscard]]
+    rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+    beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
+        const LinuxConsoleAdmissionLease &lease,
+        GssapiSpnegoAcceptor &acceptor,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        ::PixelSize desktopGeometry) noexcept;
+
     // Begin mandatory ClearCodec DATA only after the same fresh protected
     // transition. R3 owns the presentation generation/surface and prepares the
     // R4 frame synchronously from borrowed pixels before queuing any wire byte.

@@ -1,3 +1,28 @@
+## R9 accepted-client scheduler source-scope correction (2026-10-20)
+
+Starting reconciled shared-main parent: `8cae86f4c724fd8dd0c321a8050afaf87832d97f`.
+
+R9's five-test reconciliation correctly moved the accepted-client ordering check
+off the whole translation unit, but its new slice began at
+`advanceAcceptedClientOnce()`. The ordered contract intentionally begins
+earlier in `acceptClientOnce(...)`: native accept -> private-LAN policy ->
+authentication-attempt reservation -> sole `LinuxRuntimeConnection`
+construction -> owner authority -> bounded protocol progression. Starting at
+the phase-advance function therefore made the guard unable to find its own
+first six required tokens.
+
+The guard now spans `acceptClientOnce(...)` through the point immediately
+before `serviceOnce()`. Static authoring verification confirms all required
+accept/pre-Share tokens occur once in the intended order inside that slice,
+while the earlier post-Share Graphics helper that caused the original global
+false match remains outside it. Production C++ is unchanged, including R4's
+new authoritative first-frame/FRAME_ACK acceptance projection on this parent.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Corrective exact-publication-SHA hosted CI: **PENDING**.
+FIRST REAL DESKTOP TEST remains gated on one all-green exact-main SHA plus
+explicit owner authorization for visible desktop + mouse + keyboard + Stop.
+
 ## R4 direct first-live lifecycle projection after R10X (2026-10-20)
 
 **Starting shared-main parent:** `e826b8fae92b6a8d3e74d3e5f2de5d4e2129efb4`.

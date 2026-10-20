@@ -1,3 +1,21 @@
+## R9 accepted-client scheduler scope correction receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `8cae86f4c724fd8dd0c321a8050afaf87832d97f`.
+
+Source-only validation of current
+`LinuxRuntimeHostControl` confirms the region from
+`acceptClientOnce(...)` to `serviceOnce()` contains, in order: exact native
+accept, private-LAN candidate policy, authentication-attempt reservation,
+single accepted-connection construction, current-owner authority handoff,
+ClientAuthenticating, R1/R2 admission, MCS/client-info/licensing, Share,
+RDPGFX start/advance, then `GraphicsReady`.
+
+The previous corrective guard began at `advanceAcceptedClientOnce()`, which
+excluded the accept/policy/construction half of the same contract and was
+therefore guaranteed to fail. This commit changes only that source-test scope
+and documentation. Canonical local full CTest: **NOT RUN**. Hosted exact-SHA
+CI: **PENDING**. No listener/client/native desktop was activated.
+
 ## R4 first-live acceptance projection authoring receipt (2026-10-20)
 
 Starting shared-main parent: `e826b8fae92b6a8d3e74d3e5f2de5d4e2129efb4`.

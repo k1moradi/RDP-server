@@ -26,7 +26,7 @@ foreach(required_text IN ITEMS
 endforeach()
 
 string(FIND "${host_source}"
-    "RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept"
+    "RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce("
     scheduler_begin)
 string(FIND "${host_source}"
     "RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept"

@@ -1,3 +1,16 @@
+## HostControl accepted-client source guard covers accept and phase ownership (2026-10-20)
+
+`runtime.linux-host-control-bounded-accepted-client-scheduler` must isolate
+the semantic scheduler from the start of `acceptClientOnce(...)` through
+accepted-client phase progression, ending before `serviceOnce()`. The
+contract begins with socket accept, private-LAN policy, attempt limiting and
+sole connection construction; a slice beginning only at
+`advanceAcceptedClientOnce()` cannot prove those ownership gates.
+
+Do not use whole-file token order for this test because the bounded post-Share
+native scheduler legitimately calls Graphics methods elsewhere in the same
+translation unit.
+
 ## Source-contract tests follow ownership boundaries, not global token order (2026-10-20)
 
 When one source file contains both pre-Share and post-Share schedulers, order

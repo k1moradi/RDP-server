@@ -1,3 +1,37 @@
+## R5 harness continuation after R10 positive listener Start (2026-10-20)
+
+**Authoring parent:** `3fdd827e7222abe0053b356f12a64c0ed3452746`.
+
+Dependency recheck consumed R10's provisioned HostControl listener transaction
+(`4ed44edf`) and shared validated desktop configuration feed
+(`3fdd827e`). With a validated configuration, the Linux desktop can now reuse
+the existing service-lifetime security/TLS owners, accept existing-account
+setup, obtain genuine R2 owner consent, bind one selected private-LAN
+`OwnedLanListener`, verify the certificate against that exact listener
+generation, reauthorize the owner, and publish positive listener state. The
+former R5 prerequisite "R10 positive Start" is therefore resolved.
+
+R5's physical run sheet now advances to the new pre-client checkpoint: record
+the real R10-reported bound endpoint and bound/current TLS identity after Start,
+while keeping capture generation unavailable until genuine R2 client admission.
+No client is permitted yet. The next blocker is R10 accepted-socket servicing
+from that exact GUI-owned listener into the existing serialized
+`LinuxRuntimeConnection` / persistent R2-selected X11 loop. Creating a second
+listener, accept loop, TLS owner, or X11 owner to bypass that boundary is
+forbidden.
+
+No production code or CTest is changed by this receipt; the resolved Start
+behavior is already pinned by
+`runtime.linux-host-control-provisioned-listener-transaction` and
+`runtime.desktop-shared-configuration-feed`. No live listener/client/native
+test was executed in this connector environment. Current exact-head broad CI is
+not green because of independently owned build failures, including the R2
+standalone NTLM `std::span::fill` compile error and an R10 `main.cpp`
+preprocessor imbalance in the complete production-security lane. Physical
+Ubuntu 24.04 / GNOME 46 / Xorg Microsoft-client acceptance remains
+**BLOCKED / NOT RUN** until the accepted-socket service gate lands and the
+resulting same-SHA candidate is suitable for owner-authorized testing.
+
 ## R10 shared desktop configuration-feed authoring receipt (2026-10-20)
 
 Starting shared-main parent: `58080b10f44eb22e0f2e8635a16042c91d91cafe`.

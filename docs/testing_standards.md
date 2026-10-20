@@ -2405,22 +2405,33 @@ injecting anything.
 
 ### Ubuntu 24.04 / GNOME 46 / Xorg physical-seat run sheet
 
-This run sheet is prepared for the first real Linux desktop acceptance, but it
-is **BLOCKED / NOT RUN** until R2 can issue a genuine positive current-owner
-authority and R10 GUI LAN Start is live. Canonical M1 remains the same-SHA
-owner-native build/CTest matrix; preparing this physical run does not advance
-or redefine M1. Do not substitute Xvfb, a configured `DISPLAY`,
-`LockedHint=no`, a test fixture, a debugger write, or a patched success
-Boolean for either live gate.
+This run sheet is prepared for the first real Linux desktop acceptance.
+R2 genuine positive current-owner authority and R10's provisioned GUI listener
+Start have now landed. The run remains **BLOCKED / NOT RUN** at the next R10
+boundary: the GUI-owned `OwnedLanListener` is not yet serviced into the
+existing `LinuxRuntimeConnection` / persistent R2-selected X11 loop. A
+successful Start, `listenerReady`, bound endpoint, or matching TLS identity is
+transport readiness only and is not accepted-client, R2 admission, native-owner,
+frame, or input evidence. Canonical M1 remains the same-SHA owner-native
+build/CTest matrix; preparing this physical run does not advance or redefine
+M1. Do not substitute Xvfb, a configured `DISPLAY`, `LockedHint=no`, a test
+fixture, a debugger write, a patched success Boolean, or a second accept loop
+for the missing live-service gate.
 
 Before allowing the client to connect, record the exact source SHA and client
 build, then use the GUI's **Refresh Linux X11 prerequisites** read-only report
 to record the current process UID, `XDG_SESSION_ID`, logind session UID,
 `Seat`, `Type`, `Active`, `Remote`, `State`, advisory
 `LockedHint`, and `DISPLAY`. Record the GUI-selected R10 LAN interface
-stable ID, address and port separately. `LockedHint=yes` is negative evidence
-and the run must not proceed; `LockedHint=no` is only advisory and never
-satisfies R2 owner consent or authoritative unlock.
+stable ID, address and port separately. After a genuine provisioned Start,
+refresh R10 status and record the reported bound LAN endpoint plus the existing
+TLS identity/fingerprint observation; require the endpoint to match the selected
+interface/address/port and the TLS state to remain bound/current. This is now a
+real pre-client transport checkpoint, not permission to connect. Do not attempt
+a Microsoft-client connection until R10 accepted-socket servicing is wired to
+the existing serialized connection/native loop. `LockedHint=yes` is negative
+evidence and the run must not proceed; `LockedHint=no` is only advisory and
+never satisfies R2 owner consent or authoritative unlock.
 
 There is deliberately no pre-connection R5 capture generation. Creating an
 `X11DesktopResources` owner just to obtain one would cross the native

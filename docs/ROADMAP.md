@@ -1,3 +1,34 @@
+## R7 cross-platform offscreen lifecycle assertion reconciliation (2026-10-20)
+
+Starting exact-main parent: `d0f404a0b6080baa813b8f8ab7419c9d93954ddc`.
+
+Exact-head primary run `39483732931` is green for Ubuntu protocol/full CTest,
+R9 security sanitizers (including the R1 native TCP-reset sentinel), Linux
+production runtime security, Windows protocol, macOS protocol/native lifecycle,
+Linux GUI ZIP, documentation and SERVER-TEST preview. The two failing hosted
+jobs, R7 macOS PORTABLE-GUI and R6 Windows CLANG64, reproduce the same two Qt
+offscreen assertions in both Windows Debug/Release and macOS Release.
+
+Production inspection shows no packaging or runtime regression. R7 commit
+`9620f5b78ac753e485125197a08d80a379f27029` intentionally changed
+ListenerAvailable presentation from historical "Listener ready" to
+"Listening; waiting for desktop connection", and requires authoritative
+`nativeDesktopReady` before a stale per-client `desktopVisible` bit can
+enter the visible-client list. Two older assertions were not reconciled with
+that same commit. The dedicated
+`gui.offscreen-r10-graphics-native-desktop-projection` test already pins the
+fail-closed native-readiness behavior.
+
+This correction changes only those two stale assertions: terminal listener
+readiness now expects "Listening", and the stale desktop-visible peer remains
+"Share activated; desktop pending" until the authoritative native owner is
+ready. No production C++ or packaging behavior changes.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Corrective exact-publication-SHA hosted CI: **PENDING**. FIRST
+REAL DESKTOP remains gated on one all-green exact-main SHA plus explicit owner
+authorization for visible desktop + mouse + keyboard + Stop.
+
 ## R9 accepted-client scheduler source-scope correction (2026-10-20)
 
 Starting reconciled shared-main parent: `8cae86f4c724fd8dd0c321a8050afaf87832d97f`.

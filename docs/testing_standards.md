@@ -1,3 +1,18 @@
+## R7 offscreen assertions track authoritative lifecycle wording (2026-10-20)
+
+Qt behavior tests must distinguish presentation wording from authority. For a
+current ListenerAvailable status with authoritative listener readiness, the
+lifecycle label is "Listening; waiting for desktop connection"; historical
+"Listener ready" wording is not part of the current R7 contract.
+
+A stale `RuntimeHostClient::desktopVisible` bit must not be rendered as a
+visible/connected desktop while `HostStatus::nativeDesktopReady` is false.
+When the peer is Share-activated but the native owner is not ready, keep it in
+the pending list. The dedicated
+`gui.offscreen-r10-graphics-native-desktop-projection` test remains the
+authoritative regression for Share -> Graphics -> native initialization ->
+native-ready visibility.
+
 ## HostControl accepted-client source guard covers accept and phase ownership (2026-10-20)
 
 `runtime.linux-host-control-bounded-accepted-client-scheduler` must isolate

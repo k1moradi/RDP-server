@@ -354,7 +354,7 @@ int main(int argc, char** argv)
         auto* copy = window.findChild<QPushButton*>("copyLanAddress");
         assert(lifecycle && endpoint && start && stop && copy);
         assert(host.status().listenerReady);
-        assert(lifecycle->text().contains("Listener ready"));
+        assert(lifecycle->text().contains("Listening"));
 
         runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
         window.refresh();
@@ -487,8 +487,10 @@ int main(int argc, char** argv)
         assert(activity->text().contains("Authenticating: 192.168.0.101"));
         assert(activity->text().contains(
             "Share activated; desktop pending: 192.168.0.102"));
+        // A stale per-client desktopVisible bit cannot outrank the
+        // authoritative nativeDesktopReady observation.
         assert(activity->text().contains(
-            "Desktop not confirmed: 192.168.0.103"));
+            "Share activated; desktop pending: 192.168.0.103"));
         assert(activity->text().contains("Connected clients: None"));
         assert(selected->count() == 5 && !disconnect->isEnabled());
 

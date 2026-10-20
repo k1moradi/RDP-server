@@ -1,3 +1,27 @@
+## R7 cross-platform GUI assertion correction receipt (2026-10-20)
+
+At exact SHA `d0f404a0b6080baa813b8f8ab7419c9d93954ddc`, macOS PORTABLE-GUI job
+`118838720469` and Windows CLANG64 job `118838720543` failed on the same
+two offscreen tests:
+`gui.offscreen-terminal-listener-readiness-denials` and
+`gui.offscreen-r10-client-stage-and-retirement-status-denials`.
+
+The macOS bundle-integrity tests passed before the GUI behavior step. Windows
+Debug/Release builds, package generation, PE-closure verification, extracted
+GUI smoke and all 59 native Windows lifetime/sanitizer cases passed. The
+failures therefore do not identify an R6/R7 packaging defect.
+
+Source review confirms the test expectations were stale relative to the landed
+R7 contract: ListenerAvailable renders "Listening", and a per-client
+`desktopVisible` flag cannot manufacture visibility while
+`nativeDesktopReady == false`. The corrected assertions preserve those
+fail-closed semantics and leave the dedicated graphics/native projection test
+unchanged.
+
+Canonical local full CTest: **NOT RUN**. Corrective hosted exact-SHA CI:
+**PENDING**. No listener, service, credentials, native desktop or real client
+was activated.
+
 ## R9 accepted-client scheduler scope correction receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `8cae86f4c724fd8dd0c321a8050afaf87832d97f`.

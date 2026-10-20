@@ -1,3 +1,20 @@
+## R2 standalone CredSSP final-authInfo tests (2026-10-20)
+
+The standalone CredSSP in-memory TLS fixture must continue through the server
+public-key-binding reply before sending authInfo. Protect a canonical
+TSCredentials/TSPasswordCreds message with the already-advanced client NTLM
+sequence and require the server to reach only a non-authorizing
+CredentialsVerified state for the configured username/password with empty
+domain.
+
+Dedicated denial coverage must use fresh complete exchanges and reject at
+least: a different username with the correct password, the correct username
+with a different password, a nonempty delegated domain, and tampering of the
+protected authInfo ciphertext/signature. Each denial is terminal for the
+CredSSP owner. These tests remain offline mechanism evidence; no listener,
+native session, CurrentOwnerSharingAuthority lease, GUI password field or real
+Microsoft client may be inferred from them.
+
 ## R2 standalone CredSSP TLS public-key-binding tests (2026-10-20)
 
 The standalone CredSSP binding increment is exercised with an in-memory OpenSSL

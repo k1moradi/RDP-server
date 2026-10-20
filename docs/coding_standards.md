@@ -1,3 +1,26 @@
+## R2 standalone authInfo credentials remain borrowed and non-authorizing (2026-10-20)
+
+Final standalone CredSSP authInfo must be accepted only after verified
+TLS-bound pubKeyAuth and only from the same pinned TLS-derived TSRequest owner.
+Require one NTLM signature followed by bounded ciphertext, unwrap through the
+existing connection security context, and cleanse the entire decrypted buffer
+on every return path.
+
+Reuse the canonical TSCredentials/TSPasswordCreds parser. When the standalone
+application credential needs validated password fields, expose them only as
+synchronous borrowed UTF-16LE spans; do not route its username through the
+Unix-account naming policy and do not copy or cache the delegated password.
+Require an empty domain, bind the username to the configured standalone
+identity using the same ASCII case rule as NTLM, derive only an ephemeral NT
+hash from the delegated password, compare password-equivalent material in
+constant time, then cleanse it.
+
+A successful authInfo comparison is credential-mechanism evidence, not desktop
+authorization. Retire the CredSSP message-security keys after final credential
+verification, but keep R2 current-owner consent/session authority as a separate
+mandatory gate. Never enable IndependentApplicationPassword merely because an
+offline authInfo fixture succeeds.
+
 ## R2 standalone CredSSP must reuse TLS-derived TSRequest provenance (2026-10-20)
 
 Do not create a standalone-password-specific DER parser, TLS reader/writer, or

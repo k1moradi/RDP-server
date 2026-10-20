@@ -206,6 +206,49 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     return wrap(0x30U, fields);
 }
 
+[[nodiscard]] Bytes utf16Le(std::u16string_view text)
+{
+    Bytes bytes;
+    bytes.reserve(text.size() * 2U);
+    for (const char16_t character : text)
+    {
+        const auto code = static_cast<std::uint16_t>(character);
+        bytes.push_back(static_cast<std::uint8_t>(code));
+        bytes.push_back(static_cast<std::uint8_t>(code >> 8U));
+    }
+    return bytes;
+}
+
+[[nodiscard]] Bytes passwordCredentials(
+    std::u16string_view domain,
+    std::u16string_view user,
+    std::u16string_view delegatedPassword)
+{
+    Bytes fields = octetContext(0xa0U, utf16Le(domain));
+    fields = append(
+        fields, octetContext(0xa1U, utf16Le(user)));
+    fields = append(
+        fields, octetContext(0xa2U, utf16Le(delegatedPassword)));
+    const auto passwordCreds = wrap(0x30U, fields);
+
+    const auto type = wrap(
+        0xa0U,
+        wrap(0x02U, std::array<std::uint8_t, 1>{1U}));
+    const auto credentials =
+        octetContext(0xa1U, passwordCreds);
+    return wrap(0x30U, append(type, credentials));
+}
+
+[[nodiscard]] Bytes authInfoRequest(
+    std::span<const std::uint8_t> protectedAuthInfo)
+{
+    return wrap(
+        0x30U,
+        append(
+            version(6U),
+            octetContext(0xa2U, protectedAuthInfo)));
+}
+
 [[nodiscard]] std::array<std::uint8_t, 40> negotiateMessage()
 {
     std::array<std::uint8_t, 40> message{};
@@ -562,12 +605,86 @@ void configureClientMirror(
     return protectedBytes;
 }
 
+[[nodiscard]] Bytes protectAuthInfo(
+    NtlmV2SecurityContext &clientSecurity,
+    std::span<const std::uint8_t> plaintext)
+{
+    Bytes ciphertext(plaintext.size());
+    std::array<std::uint8_t, kNtlmMessageSignatureBytes> signature{};
+    assert(clientSecurity.wrapServerMessage(
+               plaintext, ciphertext, signature) ==
+           NtlmMessageSecurityResult::Processed);
+
+    Bytes protectedBytes;
+    protectedBytes.reserve(signature.size() + ciphertext.size());
+    protectedBytes.insert(
+        protectedBytes.end(), signature.begin(), signature.end());
+    protectedBytes.insert(
+        protectedBytes.end(), ciphertext.begin(), ciphertext.end());
+    return protectedBytes;
+}
+
 [[nodiscard]] std::array<std::uint8_t, 32> nonce()
 {
     std::array<std::uint8_t, 32> value{};
     for (std::size_t index = 0; index < value.size(); ++index)
         value[index] = static_cast<std::uint8_t>(index);
     return value;
+}
+
+void completeBindingForAuthInfo(
+    StandaloneCredSspNtlmAcceptor &acceptor,
+    EphemeralNtlmV2Credential &serverCredential,
+    NtlmV2SecurityContext &clientSecurity,
+    MemoryTlsPair &tls,
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer)
+{
+    prepareInitialNegotiation(
+        acceptor, serverCredential, tls, reader, writer);
+    configureClientMirror(clientSecurity);
+    const auto clientNonce = nonce();
+    const auto protectedBinding =
+        protectClientBinding(
+            tls, clientSecurity, clientNonce);
+    const auto finalRequest = combinedFinalRequest(
+        continuationSpnego(kMicrosoftAuthenticateMessage),
+        protectedBinding, clientNonce);
+
+    tls.sendClient(finalRequest);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::BindingReplyQueued);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::ServerBindingReplyQueued);
+
+    const auto reply = tls.flushServerReply(writer);
+    const auto parsed = parseCredSspTsRequest(reply);
+    assert(parsed && parsed.value.hasPubKeyAuth);
+    const auto protectedServer =
+        parsed.value.encryptedPubKeyAuth;
+    assert(protectedServer.size() ==
+           kNtlmMessageSignatureBytes +
+               kCredSspBindingHashBytes);
+    const auto signature =
+        std::span<const std::uint8_t,
+                  kNtlmMessageSignatureBytes>{
+            protectedServer.data(),
+            kNtlmMessageSignatureBytes};
+    const auto ciphertext =
+        protectedServer.subspan(
+            kNtlmMessageSignatureBytes);
+    CredSspHash serverHash{};
+    assert(clientSecurity.unwrapClientMessage(
+               ciphertext, signature, serverHash) ==
+           NtlmMessageSecurityResult::Processed);
+    CredSspHash expected{};
+    assert(computeCredSspBindingForActiveServerTls(
+        tls.server(),
+        CredSspBindingDirection::ServerToClient,
+        clientNonce, expected));
+    assert(serverHash == expected);
 }
 
 void testTlsBoundCombinedPubKeyAuth()
@@ -668,6 +785,112 @@ void testPubKeyAuthTamperRevokes()
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }
 
+void testAuthInfoExactCredentialMatch()
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer);
+
+    const auto credentials =
+        passwordCredentials({}, u"User", u"Password");
+    const auto protectedAuthInfo =
+        protectAuthInfo(clientSecurity, credentials);
+    const auto request = authInfoRequest(protectedAuthInfo);
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::CredentialsVerified);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::CredentialsVerified);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(serverCredential.configured());
+}
+
+void testAuthInfoCredentialMismatchRevokes()
+{
+    const auto runMismatch = [](
+        std::u16string_view domain,
+        std::u16string_view user,
+        std::u16string_view delegatedPassword)
+    {
+        MemoryTlsPair tls;
+        TsRequestFrameReader reader;
+        TsRequestTlsReplyWriter writer;
+        EphemeralNtlmV2Credential serverCredential;
+        configureServerCredential(serverCredential);
+        StandaloneCredSspNtlmAcceptor acceptor;
+        NtlmV2SecurityContext clientSecurity;
+        completeBindingForAuthInfo(
+            acceptor, serverCredential, clientSecurity,
+            tls, reader, writer);
+
+        const auto credentials =
+            passwordCredentials(
+                domain, user, delegatedPassword);
+        const auto protectedAuthInfo =
+            protectAuthInfo(clientSecurity, credentials);
+        const auto request =
+            authInfoRequest(protectedAuthInfo);
+        tls.sendClient(request);
+        tls.readServerFrame(reader);
+
+        assert(acceptor.processCompleteFrame(
+                   reader, writer, serverCredential) ==
+               StandaloneCredSspFrameStatus::Rejected);
+        assert(acceptor.stage() ==
+               StandaloneCredSspStage::Failed);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    };
+
+    runMismatch({}, u"Other", u"Password");
+    runMismatch({}, u"User", u"Passw0rd");
+    runMismatch(u"Domain", u"User", u"Password");
+}
+
+void testAuthInfoTamperRevokes()
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer);
+
+    const auto credentials =
+        passwordCredentials({}, u"User", u"Password");
+    auto protectedAuthInfo =
+        protectAuthInfo(clientSecurity, credentials);
+    assert(protectedAuthInfo.size() > kNtlmMessageSignatureBytes);
+    protectedAuthInfo[kNtlmMessageSignatureBytes + 3U] ^= 0x01U;
+
+    const auto request =
+        authInfoRequest(protectedAuthInfo);
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::Rejected);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::Failed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+}
+
 void testManualFrameProvenanceDenial()
 {
     EphemeralNtlmV2Credential credential;
@@ -714,6 +937,24 @@ int main(int argc, char **argv)
         "standalone-credssp-pubkeyauth-tamper-revokes")
     {
         testPubKeyAuthTamperRevokes();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-exact-credential-match")
+    {
+        testAuthInfoExactCredentialMatch();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-credential-mismatch-revokes")
+    {
+        testAuthInfoCredentialMismatchRevokes();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-tamper-revokes")
+    {
+        testAuthInfoTamperRevokes();
         return 0;
     }
     if (testCase ==

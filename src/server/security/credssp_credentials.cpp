@@ -342,6 +342,28 @@ CredSspDelegatedAccountInspection inspectCredSspDelegatedAccount(
     return result;
 }
 
+CredSspPasswordFieldVisitStatus visitCredSspValidatedPasswordFields(
+    std::span<const std::uint8_t> plaintext,
+    CredSspValidatedPasswordFieldsVisitor visitor,
+    void *context) noexcept
+{
+    if (visitor == nullptr)
+        return CredSspPasswordFieldVisitStatus::InvalidVisitor;
+
+    CredentialEnvelope envelope;
+    if (!parseCredentialEnvelope(plaintext, envelope))
+        return CredSspPasswordFieldVisitStatus::InvalidCredential;
+    if (envelope.type != 1)
+        return CredSspPasswordFieldVisitStatus::UnsupportedCredentialType;
+
+    PasswordCredentialFields fields;
+    if (!parsePasswordFields(envelope.credentials, fields))
+        return CredSspPasswordFieldVisitStatus::InvalidCredential;
+
+    visitor(fields.domain, fields.user, fields.password, context);
+    return CredSspPasswordFieldVisitStatus::Visited;
+}
+
 CredSspPasswordFieldVisitStatus visitCredSspPasswordCredential(
     std::span<const std::uint8_t> plaintext,
     CredSspPasswordFieldVisitor visitor,

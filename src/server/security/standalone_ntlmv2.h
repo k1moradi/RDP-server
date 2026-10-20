@@ -225,6 +225,16 @@ public:
         const NtlmV2AuthenticateRequest &request,
         NtlmV2SecurityContext &output) const noexcept;
 
+    // Compare the final CredSSP delegated password fields against the exact
+    // memory-only credential without retaining plaintext. Domain must be empty;
+    // the current ASCII username policy uses the same case-insensitive identity
+    // comparison as NTLM authentication, while the password's NT hash is
+    // compared in constant time.
+    [[nodiscard]] bool matchesDelegatedPassword(
+        std::span<const std::uint8_t> domainUtf16Le,
+        std::span<const std::uint8_t> userUtf16Le,
+        std::span<const std::uint8_t> passwordUtf16Le) const noexcept;
+
 private:
     friend struct StandaloneNtlmV2TestAccess;
 

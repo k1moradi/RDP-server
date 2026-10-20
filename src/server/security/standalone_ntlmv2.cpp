@@ -911,6 +911,61 @@ bool EphemeralNtlmV2Credential::deriveResponseKeyNt(
     return hmacMd5(ntHash_, parts, output);
 }
 
+bool EphemeralNtlmV2Credential::matchesDelegatedPassword(
+    std::span<const std::uint8_t> domainUtf16Le,
+    std::span<const std::uint8_t> userUtf16Le,
+    std::span<const std::uint8_t> passwordUtf16Le) const noexcept
+{
+    if (!configured_ || !domainUtf16Le.empty() ||
+        userUtf16Le.size() != usernameLength_ * 2U ||
+        passwordUtf16Le.empty() ||
+        passwordUtf16Le.size() >
+            kMaximumStandalonePasswordCodeUnits * 2U ||
+        (passwordUtf16Le.size() % 2U) != 0U)
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < usernameLength_; ++index)
+    {
+        const std::size_t offset = index * 2U;
+        if (userUtf16Le[offset + 1U] != 0U ||
+            userUtf16Le[offset] == 0U ||
+            userUtf16Le[offset] > 0x7fU)
+        {
+            return false;
+        }
+
+        auto configuredCode =
+            static_cast<std::uint16_t>(username_[index]);
+        auto presentedCode =
+            static_cast<std::uint16_t>(userUtf16Le[offset]);
+        if (configuredCode >= static_cast<std::uint16_t>('a') &&
+            configuredCode <= static_cast<std::uint16_t>('z'))
+        {
+            configuredCode -=
+                static_cast<std::uint16_t>('a' - 'A');
+        }
+        if (presentedCode >= static_cast<std::uint16_t>('a') &&
+            presentedCode <= static_cast<std::uint16_t>('z'))
+        {
+            presentedCode -=
+                static_cast<std::uint16_t>('a' - 'A');
+        }
+        if (configuredCode != presentedCode)
+            return false;
+    }
+
+    ScopedSecret<kNtlmV2KeyBytes> candidateHash;
+    Md4State md4;
+    md4.update(passwordUtf16Le);
+    md4.finish(candidateHash.bytes);
+    return CRYPTO_memcmp(
+               candidateHash.bytes.data(),
+               ntHash_.data(),
+               candidateHash.bytes.size()) == 0;
+}
+
 NtlmV2VerifyResult
 EphemeralNtlmV2Credential::verifyAndDeriveSecurityContext(
     const NtlmV2AuthenticateRequest &request,

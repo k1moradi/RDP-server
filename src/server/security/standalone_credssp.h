@@ -19,6 +19,7 @@ enum class StandaloneCredSspStage : std::uint8_t
     NegoContinue,
     AwaitBinding,
     ServerBindingReplyQueued,
+    CredentialsVerified,
     Failed,
 };
 
@@ -26,6 +27,7 @@ enum class StandaloneCredSspFrameStatus : std::uint8_t
 {
     NegoReplyQueued,
     BindingReplyQueued,
+    CredentialsVerified,
     Rejected,
 };
 
@@ -37,9 +39,11 @@ enum class StandaloneCredSspFrameStatus : std::uint8_t
 // The first frame pins the exact established server SSL object, selected X.509
 // certificate fingerprint and CredSSP version; every later frame must match.
 //
-// This increment ends after a verified v5/v6 TLS public-key binding reply has
-// been queued. It does not consume authInfo, grant R2 admission, create a native
-// desktop owner, or enable the product's independent-password credential mode.
+// This owner also consumes the final protected TSPasswordCreds after the
+// binding reply has been fully written/released. Matching credentials prove
+// only equivalence to the configured memory-only standalone password; they do
+// not grant R2 admission, create a native desktop owner, or enable the
+// product's independent-password credential mode.
 class StandaloneCredSspNtlmAcceptor final
 {
 public:
@@ -93,6 +97,11 @@ private:
         TsRequestTlsReplyWriter &writer,
         const TsRequestResult &request,
         bool combinedFinal) noexcept;
+    [[nodiscard]] StandaloneCredSspFrameStatus processAuthInfo(
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer,
+        const TsRequestResult &request,
+        const EphemeralNtlmV2Credential &credential) noexcept;
     [[nodiscard]] StandaloneCredSspFrameStatus reject(
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer) noexcept;

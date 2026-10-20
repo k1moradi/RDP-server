@@ -1,3 +1,27 @@
+## R2 standalone CredSSP authInfo retirement boundary (2026-10-20)
+
+After TLS-bound pubKeyAuth succeeds, the standalone CredSSP owner accepts only
+the final MS-CSSP authInfo-only TSRequest on the same pinned reader, writer,
+server SSL object, selected-certificate fingerprint and negotiated version.
+NTLM unwrap consumes the next directional sequence/RC4 state and writes into one
+fixed-capacity plaintext buffer guarded for non-elidable cleansing.
+
+The existing TSCredentials/TSPasswordCreds parser remains the sole DER owner.
+A small internal callback exposes validated borrowed UTF-16LE fields without
+turning the application username into a Unix-account policy decision. The
+standalone credential requires an empty delegated domain, compares the ASCII
+username under the same case-insensitive rule used by NTLM authentication, and
+computes an ephemeral NT hash directly over the borrowed UTF-16LE password for
+constant-time comparison with its retained hash. No plaintext password, parsed
+field span, or decrypted authInfo survives the synchronous call.
+
+Successful equivalence immediately retires the NTLM security context and
+CredSSP framing helpers. The outer `CredentialsVerified` state records only
+that the exact TLS-bound CredSSP exchange delegated credentials equivalent to
+the configured memory-only application credential. It is not an R2 lease and
+cannot authorize capture, input, Share, clipboard, listener publication or a
+native session by itself.
+
 ## R2 standalone CredSSP TLS-binding owner (2026-10-20)
 
 The standalone application-password path now composes CredSSP without creating a

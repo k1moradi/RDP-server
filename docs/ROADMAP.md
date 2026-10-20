@@ -1,3 +1,59 @@
+## R2 standalone CredSSP final authInfo equivalence (2026-10-20)
+
+Starting shared-main parent: `dd513ac1cf3789a7f3a9e993e7ae2dc0d551f76d`.
+
+Dependency recheck found another agent had already landed the TLS-proven
+standalone CredSSP public-key binding at `dd513ac1`. The first Linux desktop
+CLIENT path remains independently blocked at R10's same-owner, nonblocking
+accepted-socket servicing from the GUI-owned `OwnedLanListener` into the
+existing `LinuxRuntimeConnection` / persistent R2-selected X11 loop. That R10
+gate does not block the parallel application-password lane.
+
+R2P now consumes the final MS-CSSP `authInfo` message after the server
+public-key-binding reply has been fully written and released. The existing
+TLS-derived `TsRequestFrameReader`, pinned server TLS/certificate provenance,
+and established standalone NTLM connection security remain the only owners.
+The protected field is required to contain one 16-byte NTLM message signature
+followed by bounded ciphertext. It is unsealed with the next client sequence,
+then synchronously parsed through the existing canonical
+`TSCredentials/TSPasswordCreds` parser.
+
+A new internal validated-field visitor exposes only borrowed UTF-16LE
+domain/user/password spans during that synchronous parse; it does not apply the
+existing Unix-account naming policy. `EphemeralNtlmV2Credential` compares the
+delegated identity against its configured ASCII username using the same
+case-insensitive identity rule as NTLM and requires an empty domain. It hashes
+the borrowed UTF-16LE password directly to an ephemeral NT hash and compares it
+in constant time against the already-retained memory-only hash. No delegated
+plaintext or username copy survives the callback. The decrypted authInfo buffer
+is guarded by `SensitiveBytesGuard` and is cleansed on every exit.
+
+On a successful exact match, the CredSSP reader/writer and NTLM mechanism keys
+are retired immediately and the outer owner reaches
+`CredentialsVerified`. That state is deliberately **non-authorizing**: it
+does not issue `CurrentOwnerSharingAuthority`, an R2 admission lease, a native
+desktop owner, or enable the GUI's `IndependentApplicationPassword` choice.
+
+Dedicated ordinary CTests:
+`security.standalone-credssp-authinfo-exact-credential-match`,
+`security.standalone-credssp-authinfo-credential-mismatch-revokes`, and
+`security.standalone-credssp-authinfo-tamper-revokes`. They run entirely over
+the existing in-memory TLS fixture and cover exact credentials, username,
+password and nonempty-domain mismatches, plus protected-message tampering.
+
+Current Microsoft MS-CSSP review: **PASS** for final TSCredentials authInfo
+shape and SPNEGO-protected credential sequencing. Canonical owner
+`~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**.
+
+R2P remains **ACTIVE**. The PASSWORD protocol core is no longer blocked on
+Type1/2/3, SPNEGO, mechListMIC, NTLM SIGN/SEAL, TLS-bound pubKeyAuth, or final
+authInfo equivalence. Its next product boundary is GUI memory-only secret
+ownership/configuration/revocation and composition of this verified CredSSP
+result with R2's existing current-owner authority without enabling any NLA
+downgrade. Real Windows App/mstsc acceptance remains required before the product
+credential choice can be enabled.
+
 ## R2 standalone CredSSP TLS public-key binding (2026-10-20)
 
 Starting shared-main parent: `cada67f186526f4a7f05f60b61528771a05363e1`.

@@ -2,6 +2,7 @@
 #include "standalone_credssp.h"
 
 #include "credssp_tls_certificate.h"
+#include "credssp_credentials_internal.h"
 
 #include <openssl/crypto.h>
 
@@ -18,6 +19,26 @@ namespace
 
 constexpr std::array<std::uint8_t, 9> kCanonicalEmptyAcceptCompleted{
     0xa1,0x07,0x30,0x05,0xa0,0x03,0x0a,0x01,0x00};
+
+struct StandalonePasswordMatchContext final
+{
+    const EphemeralNtlmV2Credential *credential{};
+    bool matched{};
+};
+
+void matchStandalonePasswordFields(
+    std::span<const std::uint8_t> domainUtf16Le,
+    std::span<const std::uint8_t> userUtf16Le,
+    std::span<const std::uint8_t> passwordUtf16Le,
+    void *opaqueContext) noexcept
+{
+    auto *context =
+        static_cast<StandalonePasswordMatchContext *>(opaqueContext);
+    if (context == nullptr || context->credential == nullptr)
+        return;
+    context->matched = context->credential->matchesDelegatedPassword(
+        domainUtf16Le, userUtf16Le, passwordUtf16Le);
+}
 
 [[nodiscard]] bool bindingOnlyRequest(
     const TsRequestResult &request) noexcept
@@ -249,6 +270,74 @@ StandaloneCredSspNtlmAcceptor::processBinding(
 }
 
 StandaloneCredSspFrameStatus
+StandaloneCredSspNtlmAcceptor::processAuthInfo(
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer,
+    const TsRequestResult &request,
+    const EphemeralNtlmV2Credential &credential) noexcept
+{
+    if (!request || !request.value.finalAuthInfoOnly() ||
+        request.value.version != negotiatedVersion_ ||
+        mechanism_.stage() != StandaloneSpnegoStage::MechanismVerified ||
+        !matchesPinnedTls(reader.completedFrameServerTls()) ||
+        writer.status() != TsRequestTlsWriteStatus::Idle)
+    {
+        return reject(reader, writer);
+    }
+
+    const auto protectedAuthInfo = request.value.encryptedAuthInfo;
+    if (protectedAuthInfo.size() <= kNtlmMessageSignatureBytes ||
+        protectedAuthInfo.size() >
+            kNtlmMessageSignatureBytes +
+                kMaximumDecryptedCredentialsBytes)
+    {
+        return reject(reader, writer);
+    }
+
+    const auto signature =
+        std::span<const std::uint8_t, kNtlmMessageSignatureBytes>{
+            protectedAuthInfo.data(), kNtlmMessageSignatureBytes};
+    const auto ciphertext =
+        protectedAuthInfo.subspan(kNtlmMessageSignatureBytes);
+    std::array<std::uint8_t, kMaximumDecryptedCredentialsBytes>
+        plaintextStorage{};
+    auto plaintext =
+        std::span<std::uint8_t>{plaintextStorage}.first(
+            ciphertext.size());
+    SensitiveBytesGuard plaintextGuard{plaintext};
+
+    if (mechanism_.unwrapClientMessage(
+            ciphertext, signature, plaintext) !=
+        NtlmMessageSecurityResult::Processed)
+    {
+        return reject(reader, writer);
+    }
+
+    StandalonePasswordMatchContext match{
+        &credential, false};
+    const auto visitStatus = visitCredSspValidatedPasswordFields(
+        plaintext, &matchStandalonePasswordFields, &match);
+    const bool verified =
+        visitStatus == CredSspPasswordFieldVisitStatus::Visited &&
+        match.matched &&
+        credential.configured() &&
+        matchesPinnedTls(reader.completedFrameServerTls());
+    if (!verified || !reader.releaseFrame())
+        return reject(reader, writer);
+
+    // authInfo is the final CredSSP protected message. Retire the mechanism
+    // keys and framing helpers immediately; the caller may use only the outer
+    // CredentialsVerified state as non-authorizing evidence for later R2
+    // composition. The configured credential itself remains owned by the GUI
+    // service lifetime and is revoked separately on Stop.
+    mechanism_.reset();
+    reader.close();
+    writer.close();
+    stage_ = StandaloneCredSspStage::CredentialsVerified;
+    return StandaloneCredSspFrameStatus::CredentialsVerified;
+}
+
+StandaloneCredSspFrameStatus
 StandaloneCredSspNtlmAcceptor::processNego(
     TsRequestFrameReader &reader,
     TsRequestTlsReplyWriter &writer,
@@ -346,7 +435,8 @@ StandaloneCredSspNtlmAcceptor::processCompleteFrame(
 {
     if (stage_ != StandaloneCredSspStage::AwaitInitialNego &&
         stage_ != StandaloneCredSspStage::NegoContinue &&
-        stage_ != StandaloneCredSspStage::AwaitBinding)
+        stage_ != StandaloneCredSspStage::AwaitBinding &&
+        stage_ != StandaloneCredSspStage::ServerBindingReplyQueued)
     {
         return reject(reader, writer);
     }
@@ -363,6 +453,11 @@ StandaloneCredSspNtlmAcceptor::processCompleteFrame(
     {
         return processBinding(
             reader, writer, request, false);
+    }
+    if (stage_ == StandaloneCredSspStage::ServerBindingReplyQueued)
+    {
+        return processAuthInfo(
+            reader, writer, request, credential);
     }
     return processNego(
         reader, writer, request, credential);

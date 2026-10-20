@@ -1,3 +1,29 @@
+## R2 standalone CredSSP authInfo authoring receipt (2026-10-20)
+
+Starting shared-main parent: `dd513ac1cf3789a7f3a9e993e7ae2dc0d551f76d`. Another agent had already advanced
+R2P through TLS-bound pubKeyAuth, while R10's first-client dependency remained
+accepted-socket servicing. The password lane therefore continued independently.
+
+This increment adds final authInfo processing to the same noncopyable
+`StandaloneCredSspNtlmAcceptor`. It requires the exact TLS/frame/version
+provenance established earlier, unwraps the signature+ciphertext through the
+existing NTLM state, parses only canonical password TSCredentials, compares
+empty-domain username/password equivalence against
+`EphemeralNtlmV2Credential`, and cleanses decrypted plaintext and ephemeral
+hash material. Success retires NTLM/TSRequest mechanism state and exposes only
+`CredentialsVerified`; no R2 admission or GUI credential mode is enabled.
+
+New ordinary CTests:
+`security.standalone-credssp-authinfo-exact-credential-match`,
+`security.standalone-credssp-authinfo-credential-mismatch-revokes`, and
+`security.standalone-credssp-authinfo-tamper-revokes`.
+
+Microsoft MS-CSSP source review: **PASS** for authInfo/TSCredentials sequencing
+and password credential shape. Owner-local canonical configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact publication-SHA hosted
+CI: **PENDING**. No listener, credential prompt, native desktop, firewall,
+service or real client was activated.
+
 ## R2 standalone CredSSP TLS-binding authoring receipt (2026-10-20)
 
 Starting shared-main parent: `cada67f186526f4a7f05f60b61528771a05363e1`. Current dependency inspection found

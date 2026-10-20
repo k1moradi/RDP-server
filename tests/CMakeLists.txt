@@ -132,8 +132,8 @@ add_test(NAME runtime.desktop-shared-configuration-feed
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
     LABELS "runtime;configuration;gui;r10-host-control;offline")
 
-# R2 standalone CredSSP TLS binding bridge. In-memory TLS only: these tests
-# cannot grant native admission, enable a listener or consume final authInfo.
+# R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
+# these tests cannot grant native admission or enable a listener.
 add_executable(test_standalone_credssp test_standalone_credssp.cpp)
 target_link_libraries(test_standalone_credssp PRIVATE
     rdp-server-standalone-ntlmv2)
@@ -146,6 +146,9 @@ endif()
 foreach(standalone_credssp_case IN ITEMS
         standalone-credssp-tls-bound-combined-pubkeyauth
         standalone-credssp-pubkeyauth-tamper-revokes
+        standalone-credssp-authinfo-exact-credential-match
+        standalone-credssp-authinfo-credential-mismatch-revokes
+        standalone-credssp-authinfo-tamper-revokes
         standalone-credssp-manual-frame-provenance-denial)
     add_test(NAME "security.${standalone_credssp_case}"
         COMMAND test_standalone_credssp "${standalone_credssp_case}")

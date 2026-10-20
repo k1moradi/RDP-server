@@ -34,4 +34,20 @@ using CredSspPasswordFieldVisitor = void (*)(
     CredSspPasswordFieldVisitor visitor,
     void *context) noexcept;
 
+// Standalone application-password verification needs the same canonical
+// TSCredentials/TSPasswordCreds parser but must not reinterpret its username
+// through the Unix-account policy. All three spans borrow the caller-owned
+// decrypted buffer and are valid only during the synchronous callback.
+using CredSspValidatedPasswordFieldsVisitor = void (*)(
+    std::span<const std::uint8_t> domainUtf16Le,
+    std::span<const std::uint8_t> userUtf16Le,
+    std::span<const std::uint8_t> passwordUtf16Le,
+    void *context) noexcept;
+
+[[nodiscard]] CredSspPasswordFieldVisitStatus
+visitCredSspValidatedPasswordFields(
+    std::span<const std::uint8_t> plaintextDer,
+    CredSspValidatedPasswordFieldsVisitor visitor,
+    void *context) noexcept;
+
 } // namespace rdp_server::server::security

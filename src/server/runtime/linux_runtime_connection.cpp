@@ -115,31 +115,88 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter,
     const rdp_server::server::security::CurrentOwnerSharingAuthority
         *ownerSharingAuthority) noexcept
+    : LinuxRuntimeConnection(
+          securityConfiguration, std::move(acceptedSocket), attemptLimiter,
+          ownerSharingAuthority, LinuxRuntimeAuthenticationSelection{})
+{
+}
+
+LinuxRuntimeConnection::LinuxRuntimeConnection(
+    LinuxRuntimeSecurityConfiguration &securityConfiguration,
+    rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter,
+    const rdp_server::server::security::CurrentOwnerSharingAuthority
+        *ownerSharingAuthority,
+    const LinuxRuntimeAuthenticationSelection &authenticationSelection) noexcept
     : securityConfiguration_(securityConfiguration),
       connection_(
           std::move(acceptedSocket),
-          rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla)
+          rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla),
+      authenticationMode_(authenticationSelection.mode)
 {
     const auto *const policy = securityConfiguration_.policy();
-    if (!connection_.active() || policy == nullptr ||
-        !securityConfiguration_.configureAcceptor(acceptor_))
+    if (!connection_.active() || policy == nullptr)
     {
         session_.close();
-        acceptor_.reject();
         connection_.cancel();
         return;
     }
 
-    // The real serialized listener always supplies the service-wide peer
-    // and account budget. Offline fixtures may omit it, but no service
-    // invocation can bypass it.
-    if (attemptLimiter != nullptr &&
-        !acceptor_.bindVerifiedAccountAttemptLimiter(*attemptLimiter))
+    using Mode = LinuxRuntimeAuthenticationMode;
+    switch (authenticationMode_)
     {
-        session_.close();
-        acceptor_.reject();
-        connection_.cancel();
-        return;
+    case Mode::ExistingOsAccount:
+        principalProof_ = &acceptor_;
+        if (!securityConfiguration_.configureAcceptor(acceptor_))
+        {
+            session_.close();
+            acceptor_.reject();
+            connection_.cancel();
+            principalProof_ = nullptr;
+            return;
+        }
+
+        // The real serialized listener always supplies the service-wide peer
+        // and account budget. Offline fixtures may omit it, but no service
+        // invocation can bypass it.
+        if (attemptLimiter != nullptr &&
+            !acceptor_.bindVerifiedAccountAttemptLimiter(*attemptLimiter))
+        {
+            session_.close();
+            acceptor_.reject();
+            connection_.cancel();
+            principalProof_ = nullptr;
+            return;
+        }
+        break;
+
+    case Mode::StandalonePassword:
+    {
+        const auto *const credentialOwner =
+            authenticationSelection.standaloneCredentialOwner;
+        const std::uint64_t credentialGeneration =
+            authenticationSelection.standaloneCredentialGeneration;
+        const auto observation =
+            credentialOwner != nullptr
+                ? credentialOwner->observation()
+                : rdp_server::server::security::
+                      StandalonePasswordCredentialObservation{};
+        if (credentialOwner == nullptr || credentialGeneration == 0 ||
+            !observation.configured ||
+            observation.generation != credentialGeneration ||
+            !standaloneCredSspAcceptor_.configureChallenge(
+                authenticationSelection.standaloneChallenge))
+        {
+            session_.close();
+            standaloneCredSspAcceptor_.reset();
+            connection_.cancel();
+            return;
+        }
+        standaloneCredentialOwner_ = credentialOwner;
+        standaloneCredentialGeneration_ = credentialGeneration;
+        principalProof_ = &standalonePrincipalProof_;
+        break;
+    }
     }
 
     // The host-level R2 authority is borrowed for the complete connection
@@ -163,9 +220,7 @@ bool LinuxRuntimeConnection::ready() const noexcept
     {
         return true;
     }
-    return broker_.has_value() &&
-           acceptor_.stage() !=
-               rdp_server::server::security::SpnegoStage::Failed &&
+    return broker_.has_value() && authenticationOwnerHealthy() &&
            session_.phase() !=
                rdp_server::server::transport::McsSessionPhase::Closed;
 }
@@ -243,6 +298,31 @@ bool LinuxRuntimeConnection::credSspReplyPending() const noexcept
         return false;
     }
     return false;
+}
+
+bool LinuxRuntimeConnection::authenticationOwnerHealthy() const noexcept
+{
+    using Mode = LinuxRuntimeAuthenticationMode;
+    if (principalProof_ == nullptr)
+        return false;
+
+    if (authenticationMode_ == Mode::ExistingOsAccount)
+    {
+        return acceptor_.stage() !=
+            rdp_server::server::security::SpnegoStage::Failed;
+    }
+
+    if (standaloneCredentialOwner_ == nullptr ||
+        standaloneCredentialGeneration_ == 0)
+    {
+        return false;
+    }
+    const auto observation = standaloneCredentialOwner_->observation();
+    const auto stage = standaloneCredSspAcceptor_.stage();
+    return observation.configured &&
+           observation.generation == standaloneCredentialGeneration_ &&
+           stage != rdp_server::server::security::StandaloneCredSspStage::Failed &&
+           stage != rdp_server::server::security::StandaloneCredSspStage::Unconfigured;
 }
 
 rdp_server::server::transport::TcpConnectionIoInterest
@@ -670,15 +750,186 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
     return result;
 }
 
+LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept
+{
+    using FrameStatus =
+        rdp_server::server::security::StandaloneCredSspFrameStatus;
+    using ReadStatus =
+        rdp_server::server::security::TsRequestTlsReadStatus;
+    using WriteStatus =
+        rdp_server::server::security::TsRequestTlsWriteStatus;
+    using Step = LinuxCredSspStepStatus;
+
+    auto fail = [&](Step status, std::size_t bytesRead = 0U,
+                    std::size_t bytesWritten = 0U) noexcept {
+        credSspFrameReader_.close();
+        credSspReplyWriter_.close();
+        if (principalProof_ != nullptr)
+            principalProof_->revokeAuthenticatedProof();
+        standaloneCredSspAcceptor_.reset();
+        standaloneReplyPending_ = false;
+        standaloneBindingReplyPending_ = false;
+        return LinuxCredSspStepResult{bytesRead, bytesWritten, status};
+    };
+
+    if (!connection_.active())
+        return fail(Step::Closed);
+    if (standaloneCredentialOwner_ == nullptr ||
+        standaloneCredentialGeneration_ == 0)
+    {
+        return fail(Step::Invalid);
+    }
+    const auto observation = standaloneCredentialOwner_->observation();
+    if (!observation.configured ||
+        observation.generation != standaloneCredentialGeneration_)
+    {
+        return fail(Step::Invalid);
+    }
+
+    if (standaloneReplyPending_)
+    {
+        const auto written = credSspReplyWriter_.writeOneTlsStep(connection_);
+        switch (written.status)
+        {
+        case WriteStatus::Progress:
+            return {0U, written.plaintextBytesWritten, Step::Progress};
+        case WriteStatus::NeedRead:
+            return {0U, 0U, Step::NeedRead};
+        case WriteStatus::NeedWrite:
+            return {0U, 0U, Step::NeedWrite};
+        case WriteStatus::Complete:
+        {
+            if (!credSspReplyWriter_.releaseReply())
+                return fail(Step::Invalid, 0U, written.plaintextBytesWritten);
+            standaloneReplyPending_ = false;
+            if (standaloneBindingReplyPending_)
+            {
+                standaloneBindingReplyPending_ = false;
+                credSspDiagnosticTransition_ =
+                    LinuxRuntimeCredSspDiagnosticTransition::BindingVerified;
+                return {0U, written.plaintextBytesWritten,
+                        Step::BindingVerified};
+            }
+            return {0U, written.plaintextBytesWritten, Step::Progress};
+        }
+        case WriteStatus::Invalid:
+            return fail(Step::Invalid);
+        case WriteStatus::Closed:
+            return fail(connection_.active() ? Step::Invalid : Step::Closed);
+        case WriteStatus::Idle:
+            return fail(Step::Invalid);
+        }
+    }
+
+    if (credSspReplyWriter_.status() != WriteStatus::Idle)
+        return fail(Step::Invalid);
+
+    std::size_t bytesRead = 0U;
+    if (credSspFrameReader_.status() ==
+        rdp_server::server::security::TsRequestFrameStatus::NeedMore)
+    {
+        const auto read = credSspFrameReader_.readOneTlsStep(connection_);
+        bytesRead = read.plaintextBytesRead;
+        switch (read.status)
+        {
+        case ReadStatus::Progress:
+            return {bytesRead, 0U, Step::Progress};
+        case ReadStatus::NeedRead:
+            return {0U, 0U, Step::NeedRead};
+        case ReadStatus::NeedWrite:
+            return {0U, 0U, Step::NeedWrite};
+        case ReadStatus::Complete:
+            break;
+        case ReadStatus::Closed:
+            return fail(connection_.active() ? Step::Invalid : Step::Closed,
+                        bytesRead, 0U);
+        case ReadStatus::Invalid:
+            return fail(Step::Invalid, bytesRead, 0U);
+        }
+    }
+    else if (credSspFrameReader_.status() !=
+             rdp_server::server::security::TsRequestFrameStatus::Complete)
+    {
+        return fail(Step::Invalid);
+    }
+
+    struct CredentialVisitContext final
+    {
+        rdp_server::server::security::StandaloneCredSspNtlmAcceptor *acceptor{};
+        rdp_server::server::transport::OwnedPreauthTcpConnection *connection{};
+        rdp_server::server::security::TsRequestFrameReader *reader{};
+        rdp_server::server::security::TsRequestTlsReplyWriter *writer{};
+        FrameStatus status{FrameStatus::Rejected};
+    } visitContext{
+        &standaloneCredSspAcceptor_, &connection_,
+        &credSspFrameReader_, &credSspReplyWriter_};
+
+    const auto visitor =
+        +[](const rdp_server::server::security::EphemeralNtlmV2Credential
+                &credential,
+            void *opaque) noexcept -> bool {
+            auto *context =
+                static_cast<CredentialVisitContext *>(opaque);
+            if (context == nullptr || context->acceptor == nullptr ||
+                context->connection == nullptr || context->reader == nullptr ||
+                context->writer == nullptr)
+            {
+                return false;
+            }
+            context->status = context->acceptor->processCompleteOwnedFrame(
+                *context->connection, *context->reader, *context->writer,
+                credential);
+            return true;
+        };
+
+    if (!standaloneCredentialOwner_->visit(
+            standaloneCredentialGeneration_, visitor, &visitContext))
+    {
+        return fail(Step::Invalid, bytesRead, 0U);
+    }
+
+    switch (visitContext.status)
+    {
+    case FrameStatus::NegoReplyQueued:
+        if (credSspReplyWriter_.status() != WriteStatus::NeedWrite)
+            return fail(Step::Invalid, bytesRead, 0U);
+        standaloneReplyPending_ = true;
+        return {bytesRead, 0U, Step::NeedWrite};
+    case FrameStatus::BindingReplyQueued:
+        if (credSspReplyWriter_.status() != WriteStatus::NeedWrite)
+            return fail(Step::Invalid, bytesRead, 0U);
+        standaloneReplyPending_ = true;
+        standaloneBindingReplyPending_ = true;
+        return {bytesRead, 0U, Step::NeedWrite};
+    case FrameStatus::CredentialsVerified:
+        if (!standalonePrincipalProof_.bind(
+                standaloneCredSspAcceptor_, *standaloneCredentialOwner_,
+                standaloneCredentialGeneration_, connection_))
+        {
+            return fail(Step::Invalid, bytesRead, 0U);
+        }
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
+        return {bytesRead, 0U, Step::CredentialsVerified};
+    case FrameStatus::Rejected:
+        return fail(Step::Invalid, bytesRead, 0U);
+    }
+    return fail(Step::Invalid, bytesRead, 0U);
+}
+
 LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
 {
+    if (!provisioned_ || !connection_.active())
+        return {0U, 0U, LinuxCredSspStepStatus::Closed};
+
+    if (authenticationMode_ ==
+        LinuxRuntimeAuthenticationMode::StandalonePassword)
+    {
+        return advanceStandaloneCredSsp();
+    }
+
     using HandshakeStatus =
         rdp_server::server::security::OwnedCredSspHandshakeStatus;
-
-    if (!provisioned_ || !connection_.active())
-    {
-        return {0, 0, LinuxCredSspStepStatus::Closed};
-    }
 
     const auto result = acceptor_.advanceOwnedCredSspHandshake(
         connection_, credSspFrameReader_, credSspReplyWriter_);
@@ -730,15 +981,29 @@ bool LinuxRuntimeConnection::issueAdmission(
     const rdp_server::server::security::ConsoleEvidenceRequest &request)
     noexcept
 {
+    auto *const proof = authenticatedPrincipalProof();
+    const bool mechanismReady =
+        authenticationMode_ == LinuxRuntimeAuthenticationMode::ExistingOsAccount
+            ? acceptor_.stage() ==
+                  rdp_server::server::security::SpnegoStage::ServerBindingPrepared
+            : standaloneCredSspAcceptor_.stage() ==
+                  rdp_server::server::security::StandaloneCredSspStage::
+                      CredentialsVerified;
+    const auto expectedAuthenticationKind =
+        authenticationMode_ == LinuxRuntimeAuthenticationMode::ExistingOsAccount
+            ? rdp_server::server::security::
+                  ConsoleEvidenceAuthenticationKind::KerberosPrincipal
+            : rdp_server::server::security::
+                  ConsoleEvidenceAuthenticationKind::StandalonePassword;
     if (!ready() || credSspReplyPending() || !broker_ || lease_ ||
-        acceptor_.stage() !=
-            rdp_server::server::security::SpnegoStage::ServerBindingPrepared)
+        proof == nullptr || !mechanismReady ||
+        request.authenticationKind != expectedAuthenticationKind)
     {
         revoke();
         return false;
     }
 
-    auto issued = broker_->issue(acceptor_, connection_, request);
+    auto issued = broker_->issue(*proof, connection_, request);
     if (!issued)
     {
         revoke();
@@ -760,7 +1025,7 @@ LinuxRuntimeConnection::authorizeMcsConnectInitial(
     }
 
     const auto result = broker_->authorizeR3McsConnectInitial(
-        *lease_, acceptor_, connection_, session_, completeTpkt);
+        *lease_, *principalProof_, connection_, session_, completeTpkt);
     if (result !=
         rdp_server::server::transport::McsSessionIntake::
             AdmittedConnectInitial)
@@ -815,7 +1080,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
         return {0U, Step::Invalid};
     }
 
-    if (!broker_->revalidate(*lease_, acceptor_, connection_))
+    if (!broker_->revalidate(*lease_, *principalProof_, connection_))
     {
         revoke();
         return {0U, Step::AdmissionDenied};
@@ -936,7 +1201,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite(
     }
 
     const auto pending = broker_->authorizeR3ConnectResponseWrite(
-        *lease_, acceptor_, connection_, session_);
+        *lease_, *principalProof_, connection_, session_);
     if (!pending || !*pending)
     {
         revoke();
@@ -962,7 +1227,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite(
         // lease, GSS/TLS owner and native generation are checked again.
         const auto outcome = broker_->completeR3ConnectResponseWrite(
             lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-            acceptor_, connection_, session_,
+            *principalProof_, connection_, session_,
             pending->replySequence, pending->writeSliceSequence, io.bytes);
         if (outcome == Outcome::Pending)
             return {io.bytes, Step::Progress};
@@ -1041,7 +1306,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsErectDomain(
     // Every native admission and TLS/R1 assertion is fresh immediately
     // before the one bounded read, not inferred from TCP readiness alone.
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         mcsErectDomainFrameReader_.close();
@@ -1097,7 +1362,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsErectDomain(
         }
 
         const Intake intake = broker_->authorizeR3ErectDomain(
-            *lease_, acceptor_, connection_, session_, completeTpkt);
+            *lease_, *principalProof_, connection_, session_, completeTpkt);
         if (intake == Intake::ErectDomainAccepted)
         {
             if (!mcsErectDomainFrameReader_.reset())
@@ -1220,7 +1485,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachUser(
     // Every native admission and TLS/R1 assertion is fresh immediately
     // before the one bounded read, not inferred from TCP readiness alone.
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         mcsErectDomainFrameReader_.close();
@@ -1276,7 +1541,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachUser(
         }
 
         const Intake intake = broker_->authorizeR3AttachUser(
-            *lease_, acceptor_, connection_, session_, completeTpkt);
+            *lease_, *principalProof_, connection_, session_, completeTpkt);
         if (intake == Intake::AttachUserAccepted)
         {
             if (!mcsErectDomainFrameReader_.reset())
@@ -1358,7 +1623,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachConfirmWrite(
     }
 
     const auto pending = broker_->authorizeR3AttachUserConfirmWrite(
-        *lease_, acceptor_, connection_, session_);
+        *lease_, *principalProof_, connection_, session_);
     if (!pending || !*pending)
     {
         revoke();
@@ -1389,7 +1654,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachConfirmWrite(
         }
         const auto outcome = broker_->completeR3AttachUserConfirmWrite(
             lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-            acceptor_, connection_, session_,
+            *principalProof_, connection_, session_,
             pending->replySequence, pending->writeSliceSequence, io.bytes);
         if (outcome == Outcome::Pending)
             return {io.bytes, Step::Progress};
@@ -1475,7 +1740,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
         // The read is never an authorization cache: check exact admission,
         // native generation, TLS owner and R3 session immediately before it.
         if (!broker_->authorizeR3ProtectedTransition(
-                *lease_, acceptor_, connection_, session_,
+                *lease_, *principalProof_, connection_, session_,
                 rdp_server::server::security::kConsoleViewPermission))
         {
             revoke();
@@ -1524,7 +1789,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
                 return {io.bytes, 0U, Step::Invalid};
             }
             const Start outcome = broker_->authorizeR3ChannelJoin(
-                *lease_, acceptor_, connection_, session_, completeTpkt);
+                *lease_, *principalProof_, connection_, session_, completeTpkt);
             if (!mcsErectDomainFrameReader_.reset())
             {
                 revoke();
@@ -1588,7 +1853,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
     }
 
     const auto pending = broker_->authorizeR3ChannelJoinConfirmWrite(
-        *lease_, acceptor_, connection_, session_);
+        *lease_, *principalProof_, connection_, session_);
     if (!pending || !*pending)
     {
         revoke();
@@ -1617,7 +1882,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
         }
         const Written outcome = broker_->completeR3ChannelJoinConfirmWrite(
             lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-            acceptor_, connection_, session_,
+            *principalProof_, connection_, session_,
             pending->replySequence, pending->writeSliceSequence, io.bytes);
         if (outcome == Written::Pending)
             return {0U, io.bytes, Step::Progress};
@@ -1630,7 +1895,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
         // R3 owns the expected negotiated user, I/O and static channel IDs.
         // Read its state only after the exact receipt and fresh R2 check.
         if (!broker_->authorizeR3ProtectedTransition(
-                *lease_, acceptor_, connection_, session_,
+                *lease_, *principalProof_, connection_, session_,
                 rdp_server::server::security::kConsoleViewPermission))
         {
             revoke();
@@ -1694,7 +1959,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsClientInfo(
     // The complete MCS join transcript is stored only by the R3 owner.
     // Revalidate that same R2 lease before reading R3 diagnostics.
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission) ||
         !allNegotiatedMcsChannelsJoined())
     {
@@ -1726,7 +1991,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsClientInfo(
     // Every native admission and TLS/R1 assertion is fresh immediately
     // before the one bounded read, not inferred from TCP readiness alone.
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         mcsErectDomainFrameReader_.close();
@@ -1784,7 +2049,7 @@ LinuxRuntimeConnection::advancePostAdmissionMcsClientInfo(
         // Real Client Info is private to the existing R2/R3 packet intake:
         // do not inspect, retain or substitute any credential or user field.
         const bool accepted = broker_->authorizeR3ClientInfoPacket(
-            *lease_, acceptor_, connection_, session_, completeTpkt)
+            *lease_, *principalProof_, connection_, session_, completeTpkt)
             .has_value();
         mcsErectDomainFrameReader_.close();
         if (accepted)
@@ -1824,7 +2089,7 @@ bool LinuxRuntimeConnection::selectPersonalDesktopLicensingMode(
             1U ||
         !ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         !broker_->authorizeR3PersonalDesktopLicensingMode(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy))
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy))
     {
         revoke();
         return false;
@@ -1889,7 +2154,7 @@ LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopServerLicenseRequestWrite(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             *identity, *credential);
     if (!pending)
     {
@@ -1911,7 +2176,7 @@ LinuxRuntimeConnection::advancePersonalDesktopServerLicenseRequestWrite(
         const auto outcome =
             broker_->completeR3PersonalDesktopServerLicenseRequestWrite(
                 lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-                acceptor_, connection_, session_, deploymentPolicy,
+                *principalProof_, connection_, session_, deploymentPolicy,
                 pending->replySequence, pending->writeSliceSequence,
                 io.bytes);
         if (outcome == Outcome::Pending)
@@ -2015,7 +2280,7 @@ LinuxRuntimeConnection::advancePersonalDesktopClientLicensingIntake(
     }
 
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         personalClientLicensingFrameReader_.close();
@@ -2077,7 +2342,7 @@ LinuxRuntimeConnection::advancePersonalDesktopClientLicensingIntake(
 
         const auto intake =
             broker_->authorizeR3PersonalDesktopClientLicensingMessage(
-                *lease_, acceptor_, connection_, session_,
+                *lease_, *principalProof_, connection_, session_,
                 deploymentPolicy, *credential, completeTpkt);
         personalClientLicensingFrameReader_.close();
         if (!intake)
@@ -2173,7 +2438,7 @@ LinuxRuntimeConnection::advancePersonalDesktopValidClientWrite(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopValidClientWrite(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (!pending)
     {
         personalValidClientTlsWritePending_ = false;
@@ -2196,7 +2461,7 @@ LinuxRuntimeConnection::advancePersonalDesktopValidClientWrite(
         const auto outcome =
             broker_->completeR3PersonalDesktopValidClientWrite(
                 lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-                acceptor_, connection_, session_, deploymentPolicy,
+                *principalProof_, connection_, session_, deploymentPolicy,
                 pending->replySequence, pending->writeSliceSequence,
                 io.bytes);
         if (outcome == Outcome::Pending)
@@ -2243,7 +2508,7 @@ LinuxRuntimeConnection::authorizePersonalDesktopValidClientWrite(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopValidClientWrite(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (!pending)
         revoke();
     return pending;
@@ -2269,7 +2534,7 @@ LinuxRuntimeConnection::completePersonalDesktopValidClientWrite(
         lease_ && !lease_->isRevoked() ? &*lease_ : nullptr;
     const auto outcome =
         broker_->completeR3PersonalDesktopValidClientWrite(
-            lease, acceptor_, connection_, session_, deploymentPolicy,
+            lease, *principalProof_, connection_, session_, deploymentPolicy,
             replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
         revoke();
@@ -2295,7 +2560,7 @@ LinuxRuntimeConnection::preparePersonalDesktopDemandActiveProfile(
 
     const auto profile =
         broker_->authorizeR3PersonalDesktopDemandActiveProfile(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             features);
     if (!profile)
         revoke();
@@ -2323,7 +2588,7 @@ bool LinuxRuntimeConnection::startPersonalDesktopShareActivation(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopShareActivation(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             profile);
     if (!pending || pending->kind != Kind::DemandActive ||
         !personalShareActivationFrameReader_.reset())
@@ -2410,7 +2675,7 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
 
         const auto pending =
             broker_->authorizeR3PersonalDesktopShareActivationWrite(
-                *lease_, acceptor_, connection_, session_, deploymentPolicy);
+                *lease_, *principalProof_, connection_, session_, deploymentPolicy);
         if (!pending)
         {
             personalShareTlsWritePending_ = false;
@@ -2434,7 +2699,7 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
             const auto outcome =
                 broker_->completeR3PersonalDesktopShareActivationWrite(
                     lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-                    acceptor_, connection_, session_, deploymentPolicy,
+                    *principalProof_, connection_, session_, deploymentPolicy,
                     pending->replySequence, pending->writeSliceSequence,
                     io.bytes);
             if (outcome == Outcome::Pending)
@@ -2517,7 +2782,7 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
     }
 
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         personalShareActivationFrameReader_.close();
@@ -2579,7 +2844,7 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
 
         const auto intake =
             broker_->authorizeR3PersonalDesktopShareActivationPdu(
-                *lease_, acceptor_, connection_, session_, deploymentPolicy,
+                *lease_, *principalProof_, connection_, session_, deploymentPolicy,
                 completeTpkt);
         if (intake == Intake::Rejected || intake == Intake::Closed ||
             !personalShareActivationFrameReader_.reset())
@@ -2645,7 +2910,7 @@ LinuxRuntimeConnection::beginPersonalDesktopShareActivation(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopShareActivation(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             profile);
     if (!pending)
         revoke();
@@ -2664,7 +2929,7 @@ LinuxRuntimeConnection::authorizePersonalDesktopShareActivationWrite(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopShareActivationWrite(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (!pending)
         revoke();
     return pending;
@@ -2690,7 +2955,7 @@ LinuxRuntimeConnection::completePersonalDesktopShareActivationWrite(
         lease_ && !lease_->isRevoked() ? &*lease_ : nullptr;
     const auto outcome =
         broker_->completeR3PersonalDesktopShareActivationWrite(
-            lease, acceptor_, connection_, session_, deploymentPolicy,
+            lease, *principalProof_, connection_, session_, deploymentPolicy,
             replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
         revoke();
@@ -2713,7 +2978,7 @@ LinuxRuntimeConnection::acceptPersonalDesktopShareActivationPdu(
 
     const auto intake =
         broker_->authorizeR3PersonalDesktopShareActivationPdu(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             completeTpkt);
     if (intake == Intake::Rejected || intake == Intake::Closed)
         revoke();
@@ -2742,7 +3007,7 @@ startPersonalDesktopGraphicsDynamicVirtualChannel(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy);
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (!pending || pending->kind != Kind::CapabilitiesRequest ||
         !personalGraphicsDvcFrameReader_.reset())
     {
@@ -2782,7 +3047,7 @@ LinuxRuntimeConnection::preflightPersonalDesktopGraphicsFramePublication(
     // subsequent capture. Frame start performs another fresh R2 transition.
     const auto readiness =
         broker_->preflightR3PersonalDesktopGraphicsFramePublication(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy, frameId);
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy, frameId);
     if (readiness == Readiness::Rejected)
         revoke();
     return readiness;
@@ -2815,7 +3080,7 @@ LinuxRuntimeConnection::beginPersonalDesktopGraphicsSurfaceReconfiguration(
 
     const Decision decision =
         broker_->beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             desktopGeometry);
     if (decision == Decision::Started)
     {
@@ -2857,7 +3122,7 @@ startPersonalDesktopClearCodecFramePublication(
 
     const auto pending =
         broker_->authorizeR3PersonalDesktopClearCodecFramePublication(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             deploymentPolicy, frameId, framebuffer);
     if (!pending ||
         pending->kind != Kind::GraphicsFrameData)
@@ -2890,7 +3155,7 @@ cancelUnwrittenPersonalDesktopGraphicsFrame(
     }
 
     if (!broker_->cancelR3PersonalDesktopUnwrittenGraphicsFrame(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             deploymentPolicy))
     {
         revoke();
@@ -2969,7 +3234,7 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
         const auto pending =
             broker_->
                 authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
-                    *lease_, acceptor_, connection_, session_,
+                    *lease_, *principalProof_, connection_, session_,
                     deploymentPolicy);
         if (!pending)
         {
@@ -2995,7 +3260,7 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
                 broker_->
                     completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
                         lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-                        acceptor_, connection_, session_, deploymentPolicy,
+                        *principalProof_, connection_, session_, deploymentPolicy,
                         pending->replySequence,
                         pending->writeSliceSequence, io.bytes);
             if (outcome == Outcome::Pending)
@@ -3088,7 +3353,7 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
     }
 
     if (!broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         personalGraphicsDvcFrameReader_.close();
@@ -3151,7 +3416,7 @@ LinuxRuntimeConnection::advancePersonalDesktopGraphicsDynamicVirtualChannel(
         const auto intake =
             broker_->
                 authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
-                    *lease_, acceptor_, connection_, session_,
+                    *lease_, *principalProof_, connection_, session_,
                     deploymentPolicy, completeTpkt);
         if (intake == Intake::Rejected ||
             intake == Intake::CreateRejected ||
@@ -3235,7 +3500,7 @@ LinuxRuntimeConnection::classifyPersonalDesktopPostShareTpkt(
     // R2 revalidates the native owner both before and after R3's read-only
     // route inspection. No route is an authorization grant to its consumer.
     const auto route = broker_->classifyR3PersonalDesktopPostShareTpkt(
-        *lease_, acceptor_, connection_, session_, deploymentPolicy,
+        *lease_, *principalProof_, connection_, session_, deploymentPolicy,
         completeTpkt);
     if (route.kind == Kind::UnsupportedOrMalformed ||
         route.completeTpkt.data() != completeTpkt.data() ||
@@ -3285,7 +3550,7 @@ LinuxRuntimeConnection::advancePersonalDesktopPostShareApplicationRead(
     }
     if (personalGraphicsDvcIoAction_ != Action::Ready ||
         !broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         personalGraphicsDvcFrameReader_.close();
@@ -3391,7 +3656,7 @@ bool LinuxRuntimeConnection::dispatchPersonalDesktopPostShareGraphicsTpkt(
     }
     const auto intake =
         broker_->authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy,
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy,
             completeTpkt);
     if (intake == Intake::GraphicsDataFragmentAccepted)
         return ready();
@@ -3401,7 +3666,7 @@ bool LinuxRuntimeConnection::dispatchPersonalDesktopPostShareGraphicsTpkt(
         return false;
     }
     const auto ack = broker_->consumeR3PersonalDesktopGraphicsFrameAcknowledge(
-        *lease_, acceptor_, connection_, session_, deploymentPolicy);
+        *lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (ack == Ack::Rejected || !ready())
     {
         revoke();
@@ -3423,7 +3688,7 @@ bool LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu(
         completeTpkt.empty() || !sink ||
         !ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         !broker_->dispatchR3PersonalDesktopSlowPathInputPdu(
-            &*lease_, acceptor_, connection_, session_,
+            &*lease_, *principalProof_, connection_, session_,
             deploymentPolicy, completeTpkt, sink))
     {
         revoke();
@@ -3437,7 +3702,7 @@ bool LinuxRuntimeConnection::authorizePersonalDesktopApplicationTraffic(
 {
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         !broker_->authorizeR3PersonalDesktopApplicationTraffic(
-            *lease_, acceptor_, connection_, session_, deploymentPolicy))
+            *lease_, *principalProof_, connection_, session_, deploymentPolicy))
     {
         revoke();
         return false;
@@ -3452,7 +3717,7 @@ bool LinuxRuntimeConnection::visitPersonalDesktopClipboardChannel(
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         personalDesktopPolicy_ != &deploymentPolicy ||
         !broker_->visitR3PersonalDesktopClipboardChannel(
-            &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+            &*lease_, *principalProof_, connection_, session_, deploymentPolicy,
             visitor))
     {
         revoke();
@@ -3469,7 +3734,7 @@ bool LinuxRuntimeConnection::dispatchPersonalDesktopClipboardTpkt(
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         personalDesktopPolicy_ != &deploymentPolicy ||
         !broker_->dispatchR3PersonalDesktopClipboardTpkt(
-            &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+            &*lease_, *principalProof_, connection_, session_, deploymentPolicy,
             completeTpkt, sink))
     {
         revoke();
@@ -3492,7 +3757,7 @@ LinuxRuntimeConnection::queuePersonalDesktopClipboardPdu(
     }
 
     auto pending = broker_->queueR3PersonalDesktopClipboardPdu(
-        &*lease_, acceptor_, connection_, session_, deploymentPolicy,
+        &*lease_, *principalProof_, connection_, session_, deploymentPolicy,
         completePdu);
     if (!pending)
         revoke();
@@ -3512,7 +3777,7 @@ LinuxRuntimeConnection::pendingPersonalDesktopClipboardWrite(
     }
 
     auto pending = broker_->pendingR3PersonalDesktopClipboardWrite(
-        &*lease_, acceptor_, connection_, session_, deploymentPolicy);
+        &*lease_, *principalProof_, connection_, session_, deploymentPolicy);
     if (!pending &&
         session_.phase() ==
             rdp_server::server::transport::McsSessionPhase::Closed)
@@ -3533,7 +3798,7 @@ LinuxRuntimeConnection::completePersonalDesktopClipboardWrite(
         broker_.has_value() && personalDesktopPolicy_ == &deploymentPolicy
             ? broker_->completeR3PersonalDesktopClipboardWrite(
                   lease_ && !lease_->isRevoked() ? &*lease_ : nullptr,
-                  acceptor_, connection_, session_, deploymentPolicy,
+                  *principalProof_, connection_, session_, deploymentPolicy,
                   routeGeneration, replySequence, writeSliceSequence,
                   acceptedBytes)
             : Outcome::Rejected;
@@ -3569,7 +3834,7 @@ bool LinuxRuntimeConnection::onNativeSessionChangeReady() noexcept
     }
 
     const bool remainsAuthorized =
-        broker_->onNativeSessionChangeReady(acceptor_, session_);
+        broker_->onNativeSessionChangeReady(*principalProof_, session_);
     if (!remainsAuthorized &&
         broker_->state() ==
             rdp_server::server::security::LinuxConsoleAdmissionState::Revoked)
@@ -3585,7 +3850,7 @@ bool LinuxRuntimeConnection::visitNativeDesktopSelection(
 {
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         !broker_->visitNativeDesktopSelection(
-            *lease_, acceptor_, connection_, visitor, context))
+            *lease_, *principalProof_, connection_, visitor, context))
     {
         revoke();
         return false;
@@ -3678,7 +3943,7 @@ bool LinuxRuntimeConnection::reauthorizeExistingCalValidation() noexcept
 {
     if (!ready() || !broker_ || !lease_ || lease_->isRevoked() ||
         !broker_->authorizeR3ProtectedTransition(
-            *lease_, acceptor_, connection_, session_,
+            *lease_, *principalProof_, connection_, session_,
             rdp_server::server::security::kConsoleViewPermission))
     {
         if (existingCalValidation_)
@@ -3971,14 +4236,25 @@ void LinuxRuntimeConnection::revoke() noexcept
         existingCalValidation_.reset();
     }
 
-    if (broker_)
+    if (broker_ && principalProof_ != nullptr)
     {
-        broker_->revokeR3Session(acceptor_, session_);
+        broker_->revokeR3Session(*principalProof_, session_);
     }
     else
     {
         session_.close();
-        acceptor_.reject();
+        if (principalProof_ != nullptr)
+            principalProof_->revokeAuthenticatedProof();
+        else
+            acceptor_.reject();
+    }
+
+    if (authenticationMode_ ==
+        LinuxRuntimeAuthenticationMode::StandalonePassword)
+    {
+        if (principalProof_ != nullptr)
+            principalProof_->revokeAuthenticatedProof();
+        standaloneCredSspAcceptor_.reset();
     }
 
     lease_.reset();
@@ -3992,6 +4268,11 @@ void LinuxRuntimeConnection::revoke() noexcept
     // R1 is deliberately last: its SSL/BIO/socket may be borrowed
     // synchronously by every R2 check above.
     connection_.cancel();
+    principalProof_ = nullptr;
+    standaloneCredentialOwner_ = nullptr;
+    standaloneCredentialGeneration_ = 0U;
+    standaloneReplyPending_ = false;
+    standaloneBindingReplyPending_ = false;
     provisioned_ = false;
 }
 

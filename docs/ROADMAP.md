@@ -1,3 +1,50 @@
+## R2/R10 per-connection authentication selector and standalone runtime composition (2026-10-20)
+
+Starting shared-main parent: `a66ea25fbf0cfc6ac0ad5002e695c0c280064ce1`.
+
+The production Linux connection aggregate now has one explicit
+`LinuxRuntimeAuthenticationSelection`. Existing callers retain
+`ExistingOsAccount` by default. R10 may instead select
+`StandalonePassword` for one accepted connection by supplying the exact
+service-lifetime `StandalonePasswordCredentialOwner`, its current generation,
+and one bounded non-secret NTLM challenge identity. Those challenge
+`string_view` fields are consumed synchronously by construction and are not
+retained by R10/R2.
+
+Standalone mode does not configure or drive the GSS acceptor. It advances the
+same R1-owned TSRequest reader/writer through
+`StandaloneCredSspNtlmAcceptor::processCompleteOwnedFrame`, visits the exact
+credential generation synchronously for every mechanism step, binds
+`StandalonePasswordAuthenticatedPrincipalProof` only after owner-bound
+`CredentialsVerified`, and then issues the normal
+`LinuxConsoleAdmissionBroker` lease. Every later R3 call is routed through
+the one selected `LinuxAuthenticatedPrincipalProof*`; no second broker,
+lease, native-session controller or R3 gateway exists.
+
+`LinuxRuntimeAdmissionConfiguration` also exposes the exact request hook for
+R10: Kerberos mode returns the configured principal/account selector, while
+standalone mode returns the same configured OS account/seat/display/permission
+scope with an explicitly empty Kerberos principal and
+`StandalonePassword` authentication kind.
+
+Dedicated ordinary CTest:
+`runtime.linux-connection-standalone-authentication-selector-denials`.
+It proves a current standalone credential/challenge can construct a scheduler-
+ready connection while GSS remains unconfigured, and that stale credential
+generation or an invalid challenge fails closed without a lease. The existing
+admission-configuration regression additionally pins the principal-free
+standalone request projection.
+
+R2C/R2P code composition is therefore no longer blocked on R10X/R5. The product
+GUI password field remains disabled: R10 still must choose this explicit hook
+from a reviewed product credential flow, and acceptance still requires a real
+unmodified Windows App/`mstsc.exe` authentication run. FIRST REAL DESKTOP TEST
+is separately waiting on a nominated exact-main SHA with the full hosted matrix
+green plus owner-approved live execution.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R2 standalone authenticated-principal proof owner binding (2026-10-20)
 
 Starting reconciled shared-main parent: `90c52e2eb5956a8b885e770018880febf8d4a69c`.

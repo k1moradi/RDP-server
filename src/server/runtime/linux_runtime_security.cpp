@@ -600,19 +600,42 @@ LinuxRuntimeAdmissionConfiguration::request(
     const LinuxRuntimeSecurityConfiguration& securityConfiguration)
     const noexcept
 {
+    return request(
+        securityConfiguration,
+        rdp_server::server::security::
+            ConsoleEvidenceAuthenticationKind::KerberosPrincipal);
+}
+
+std::optional<rdp_server::server::security::ConsoleEvidenceRequest>
+LinuxRuntimeAdmissionConfiguration::request(
+    const LinuxRuntimeSecurityConfiguration& securityConfiguration,
+    rdp_server::server::security::ConsoleEvidenceAuthenticationKind
+        authenticationKind) const noexcept
+{
     const auto* currentPolicy = securityConfiguration.policy();
     if (!configured_ || currentPolicy == nullptr ||
         currentPolicy != policy_ || policyGeneration_ == 0U ||
         currentPolicy->generation() != policyGeneration_)
         return std::nullopt;
 
+    using Kind =
+        rdp_server::server::security::ConsoleEvidenceAuthenticationKind;
+    if (authenticationKind != Kind::KerberosPrincipal &&
+        authenticationKind != Kind::StandalonePassword)
+        return std::nullopt;
+
+    const std::string_view kerberosPrincipal =
+        authenticationKind == Kind::KerberosPrincipal
+            ? std::string_view{
+                  kerberosPrincipal_.data(), kerberosPrincipalLength_}
+            : std::string_view{};
     return rdp_server::server::security::ConsoleEvidenceRequest{
-        std::string_view{
-            kerberosPrincipal_.data(), kerberosPrincipalLength_},
+        kerberosPrincipal,
         std::string_view{unixAccount_.data(), unixAccountLength_},
         std::string_view{seat_.data(), seatLength_},
         std::string_view{display_.data(), displayLength_},
-        permissions_};
+        permissions_,
+        authenticationKind};
 }
 
 bool configureLinuxRuntimeSecurityFromConfiguration(

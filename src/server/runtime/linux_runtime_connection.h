@@ -9,6 +9,7 @@
 #include "server/security/credssp_tsrequest.h"
 #include "runtime_tls_context.h"
 #include "server/security/linux_console_admission.h"
+#include "server/security/standalone_credssp.h"
 #include "server/transport/mcs_channel_connection.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
@@ -40,6 +41,27 @@ struct LinuxCredSspStepResult
     std::size_t plaintextBytesRead{};
     std::size_t plaintextBytesWritten{};
     LinuxCredSspStepStatus status{LinuxCredSspStepStatus::Closed};
+};
+
+enum class LinuxRuntimeAuthenticationMode : std::uint8_t
+{
+    ExistingOsAccount,
+    StandalonePassword,
+};
+
+// R10's per-accepted-connection authentication selector. Standalone challenge
+// string_views are consumed synchronously by the constructor and never retained.
+// The credential owner must outlive the connection; its exact generation is
+// revalidated for admission and every protected R3 operation.
+struct LinuxRuntimeAuthenticationSelection final
+{
+    LinuxRuntimeAuthenticationMode mode{
+        LinuxRuntimeAuthenticationMode::ExistingOsAccount};
+    const rdp_server::server::security::StandalonePasswordCredentialOwner
+        *standaloneCredentialOwner{};
+    std::uint64_t standaloneCredentialGeneration{};
+    rdp_server::server::security::StandaloneSpnegoChallengeConfiguration
+        standaloneChallenge{};
 };
 
 enum class LinuxPreAdmissionStepStatus : std::uint8_t
@@ -584,6 +606,16 @@ public:
             *attemptLimiter = nullptr,
         const rdp_server::server::security::CurrentOwnerSharingAuthority
             *ownerSharingAuthority = nullptr) noexcept;
+
+    LinuxRuntimeConnection(
+        LinuxRuntimeSecurityConfiguration &securityConfiguration,
+        rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+        rdp_server::server::security::AuthenticationAttemptLimiter
+            *attemptLimiter,
+        const rdp_server::server::security::CurrentOwnerSharingAuthority
+            *ownerSharingAuthority,
+        const LinuxRuntimeAuthenticationSelection &authenticationSelection)
+        noexcept;
     ~LinuxRuntimeConnection();
 
     LinuxRuntimeConnection(const LinuxRuntimeConnection &) = delete;
@@ -1052,6 +1084,20 @@ private:
 
 private:
     [[nodiscard]] bool credSspReplyPending() const noexcept;
+    [[nodiscard]] bool authenticationOwnerHealthy() const noexcept;
+    [[nodiscard]] rdp_server::server::security::LinuxAuthenticatedPrincipalProof
+        *authenticatedPrincipalProof() noexcept
+    {
+        return principalProof_;
+    }
+    [[nodiscard]] const
+        rdp_server::server::security::LinuxAuthenticatedPrincipalProof
+        *authenticatedPrincipalProof() const noexcept
+    {
+        return principalProof_;
+    }
+    [[nodiscard]] LinuxCredSspStepResult
+        advanceStandaloneCredSsp() noexcept;
     [[nodiscard]] bool postAdmissionMcsPolicyMatches(
         const RuntimeDeploymentPolicy &deploymentPolicy) const noexcept;
     // Membership-only R3 inspection; call only after fresh R2 admission
@@ -1071,6 +1117,19 @@ private:
     // before R1's connection owner.
     rdp_server::server::transport::OwnedPreauthTcpConnection connection_;
     rdp_server::server::security::GssapiSpnegoAcceptor acceptor_{};
+    rdp_server::server::security::StandaloneCredSspNtlmAcceptor
+        standaloneCredSspAcceptor_{};
+    rdp_server::server::security::StandalonePasswordAuthenticatedPrincipalProof
+        standalonePrincipalProof_{};
+    rdp_server::server::security::LinuxAuthenticatedPrincipalProof
+        *principalProof_{};
+    const rdp_server::server::security::StandalonePasswordCredentialOwner
+        *standaloneCredentialOwner_{};
+    std::uint64_t standaloneCredentialGeneration_{};
+    LinuxRuntimeAuthenticationMode authenticationMode_{
+        LinuxRuntimeAuthenticationMode::ExistingOsAccount};
+    bool standaloneReplyPending_{};
+    bool standaloneBindingReplyPending_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionBroker>
         broker_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>

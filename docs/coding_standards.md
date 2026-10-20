@@ -1,3 +1,17 @@
+## R2/R10 authentication selection is explicit per accepted connection (2026-10-20)
+
+Do not infer standalone-password mode from the mere presence of a configured
+credential. R10 must explicitly select existing-OS-account or standalone mode
+when constructing the sole `LinuxRuntimeConnection`. Standalone selection
+must name the exact credential owner/generation and bounded NTLM challenge
+identity; consume challenge views synchronously.
+
+After selection, keep exactly one `LinuxAuthenticatedPrincipalProof*` for all
+broker/R3 calls. GSS-only operations remain confined to existing-account mode;
+standalone TSRequest processing uses the exact R1 connection and synchronous
+credential visitor. Never add parallel brokers, leases, post-admission mode
+controllers or fake Kerberos principals.
+
 ## R2 standalone proof requires owner-bound TSRequest I/O (2026-10-20)
 
 A standalone `CredentialsVerified` result is production-eligible only when

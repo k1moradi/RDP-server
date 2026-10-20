@@ -1,3 +1,23 @@
+## R2/R10 one per-connection authentication selector (2026-10-20)
+
+`LinuxRuntimeConnection` owns one authentication-mode selector at
+construction. Existing-OS-account mode keeps the GSS/Kerberos owner. Standalone
+mode instead owns the standalone CredSSP acceptor/proof and borrows the exact
+service credential owner/generation. Both select one
+`LinuxAuthenticatedPrincipalProof`; the existing R2 broker, lease, native
+evidence, current-owner authority and all R3 gateways consume only that selected
+proof.
+
+Standalone CredSSP progression remains on the exact R1 connection's TSRequest
+reader/writer. Credential access is synchronous and generation-fenced.
+Post-admission code contains no mode-specific authorization branch: every
+protected operation reaches the same broker and proof revalidation.
+
+The admission-selector owner can project either the configured Kerberos
+principal/account request or a principal-free standalone request for the same
+OS account/seat/display/permission policy. This is the R10 hook; it does not
+enable the product password UI by itself.
+
 ## R2 standalone proof binds owner transport and credential generation (2026-10-20)
 
 Standalone CredSSP now distinguishes direct-SSL compatibility traffic from the

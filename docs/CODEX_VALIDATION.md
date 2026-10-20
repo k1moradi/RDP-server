@@ -1,3 +1,25 @@
+## R2/R10 standalone runtime-selector authoring receipt (2026-10-20)
+
+Starting shared-main parent: `a66ea25fbf0cfc6ac0ad5002e695c0c280064ce1`.
+
+R2 composes the standalone proof into the production
+`LinuxRuntimeConnection` behind one explicit per-connection authentication
+selector. Existing callers remain GSS by default. Standalone mode uses the exact
+R1-owned TSRequest I/O, synchronous exact-generation credential visits and the
+already-landed standalone proof, then converges on the existing broker/lease and
+all existing R3 protected-operation revalidation. The GSS acceptor is not
+configured in standalone mode.
+
+`LinuxRuntimeAdmissionConfiguration` supplies the matching R10 request hook:
+the standalone view carries the exact configured native account selector with
+an empty Kerberos principal.
+
+New ordinary CTest:
+`runtime.linux-connection-standalone-authentication-selector-denials`.
+Owner-local canonical configure/build/full CTest: **NOT RUN**. Exact
+publication-SHA hosted CI: **PENDING**. No listener publication, TLS handshake,
+native desktop, password UI or real client was activated by this test.
+
 ## R2 standalone authenticated-proof authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `90c52e2eb5956a8b885e770018880febf8d4a69c`.

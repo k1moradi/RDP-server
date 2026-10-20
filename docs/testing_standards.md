@@ -1,3 +1,20 @@
+## R2/R10 standalone connection-selector regression (2026-10-20)
+
+`runtime.linux-connection-standalone-authentication-selector-denials` must use
+the production `LinuxRuntimeConnection` and a real accepted loopback socket,
+but perform no TLS/client authentication. With a configured service policy,
+current standalone credential generation and valid bounded NTLM challenge, the
+connection may become pre-auth scheduler-ready while the GSS acceptor remains
+unconfigured and no lease exists. Replacing the credential generation or using
+an all-zero challenge must fail construction closed. This is selector/lifetime
+evidence only, not CredSSP or Microsoft-client acceptance.
+
+The existing
+`runtime.linux-security-admission-request-owned-generation-fence` also pins
+that R10 can obtain a standalone request with an empty Kerberos principal while
+retaining the exact configured account/seat/display/permission scope and policy
+generation fence.
+
 ## R2 standalone proof direct-TLS non-promotion regression (2026-10-20)
 
 `security.standalone-credssp-direct-tls-cannot-bind-admission-proof` must

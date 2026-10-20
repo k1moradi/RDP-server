@@ -3574,6 +3574,81 @@ void testConnectionAggregatePrematureAdmissionDenial(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testStandaloneAuthenticationSelectorDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-standalone-selector.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration securityConfiguration;
+    assert(securityConfiguration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    rdp_server::server::security::StandalonePasswordCredentialOwner
+        credentialOwner;
+    std::array<char16_t, 8> password{
+        u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+    assert(credentialOwner.configure(u"User", password));
+    const auto observation = credentialOwner.observation();
+    assert(observation.configured);
+    assert(observation.generation != 0U);
+
+    rdp_server::server::runtime::LinuxRuntimeAuthenticationSelection
+        selection{};
+    selection.mode =
+        rdp_server::server::runtime::LinuxRuntimeAuthenticationMode::
+            StandalonePassword;
+    selection.standaloneCredentialOwner = &credentialOwner;
+    selection.standaloneCredentialGeneration = observation.generation;
+    selection.standaloneChallenge = {
+        {0x01U, 0x23U, 0x45U, 0x67U,
+         0x89U, 0xabU, 0xcdU, 0xefU},
+        u"EXAMPLE", u"RDPHOST", 0x01d9c00000000000ULL};
+
+    int clientDescriptor = -1;
+    auto acceptedSocket = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection standalone{
+        securityConfiguration, std::move(acceptedSocket),
+        nullptr, nullptr, selection};
+    assert(standalone.ready());
+    assert(standalone.gssStage() == SpnegoStage::Unconfigured);
+    assert(!standalone.hasAdmissionLease());
+    standalone.revoke();
+    assert(!standalone.ready());
+    assert(::close(clientDescriptor) == 0);
+
+    // A replaced/stale credential generation cannot start another connection.
+    std::array<char16_t, 8> replacement{
+        u'N', u'e', u'w', u'P', u'a', u's', u's', u'1'};
+    assert(credentialOwner.configure(u"User", replacement));
+    int staleClientDescriptor = -1;
+    auto staleAcceptedSocket =
+        acceptLoopbackConnection(staleClientDescriptor);
+    LinuxRuntimeConnection stale{
+        securityConfiguration, std::move(staleAcceptedSocket),
+        nullptr, nullptr, selection};
+    assert(!stale.ready());
+    assert(stale.gssStage() == SpnegoStage::Unconfigured);
+    assert(!stale.hasAdmissionLease());
+    assert(::close(staleClientDescriptor) == 0);
+
+    // A current generation with an invalid challenge also fails closed.
+    selection.standaloneCredentialGeneration =
+        credentialOwner.observation().generation;
+    selection.standaloneChallenge.serverChallenge.fill(0U);
+    int invalidChallengeClientDescriptor = -1;
+    auto invalidChallengeAcceptedSocket =
+        acceptLoopbackConnection(invalidChallengeClientDescriptor);
+    LinuxRuntimeConnection invalidChallenge{
+        securityConfiguration, std::move(invalidChallengeAcceptedSocket),
+        nullptr, nullptr, selection};
+    assert(!invalidChallenge.ready());
+    assert(invalidChallenge.gssStage() == SpnegoStage::Unconfigured);
+    assert(!invalidChallenge.hasAdmissionLease());
+    assert(::close(invalidChallengeClientDescriptor) == 0);
+}
+
 void testAdmissionConfigurationOwnedGenerationFence(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3615,6 +3690,24 @@ void testAdmissionConfigurationOwnedGenerationFence(
            (kConsoleViewPermission |
             kConsoleInputPermission |
             kConsoleClipboardPermission));
+    assert(request->authenticationKind ==
+           rdp_server::server::security::
+               ConsoleEvidenceAuthenticationKind::KerberosPrincipal);
+
+    const auto standaloneRequest = admissionConfiguration.request(
+        securityConfiguration,
+        rdp_server::server::security::
+            ConsoleEvidenceAuthenticationKind::StandalonePassword);
+    assert(standaloneRequest.has_value());
+    assert(standaloneRequest->kerberosPrincipal.empty());
+    assert(standaloneRequest->unixAccount == "alice");
+    assert(standaloneRequest->seat == "seat0");
+    assert(standaloneRequest->display == ":0");
+    assert(standaloneRequest->requestedPermissions ==
+           request->requestedPermissions);
+    assert(standaloneRequest->authenticationKind ==
+           rdp_server::server::security::
+               ConsoleEvidenceAuthenticationKind::StandalonePassword);
 
     ConsoleIdentityRuleInput replacement = validRule();
     replacement.permissions = kConsoleViewPermission;
@@ -3769,6 +3862,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-admission-request-owned-generation-fence")
     {
         testAdmissionConfigurationOwnedGenerationFence(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-standalone-authentication-selector-denials")
+    {
+        testStandaloneAuthenticationSelectorDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-owner-framing")

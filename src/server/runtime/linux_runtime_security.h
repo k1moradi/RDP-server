@@ -188,6 +188,13 @@ public:
         const LinuxRuntimeSecurityConfiguration& securityConfiguration)
         const noexcept;
 
+    [[nodiscard]] std::optional<
+        rdp_server::server::security::ConsoleEvidenceRequest>
+    request(
+        const LinuxRuntimeSecurityConfiguration& securityConfiguration,
+        rdp_server::server::security::ConsoleEvidenceAuthenticationKind
+            authenticationKind) const noexcept;
+
 private:
     std::array<char, 129> kerberosPrincipal_{};
     std::array<char, 33> unixAccount_{};

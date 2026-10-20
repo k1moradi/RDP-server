@@ -820,6 +820,14 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         rdp-server-console-identity-policy
         rdp-server-linux-logind-evidence
         "${RDP_SERVER_GSSAPI_LIBRARY}")
+    # linux_logind_session_change_watch.cpp remains in this target, so compile
+    # it with the same libsystemd availability contract as the shared reader.
+    if(TARGET PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_link_libraries(rdp-server-linux-gssapi PRIVATE
+            PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_compile_definitions(rdp-server-linux-gssapi PRIVATE
+            XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN=1)
+    endif()
     if(MSVC)
         target_compile_options(rdp-server-linux-gssapi PRIVATE /W4)
     else()

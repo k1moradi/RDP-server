@@ -1,3 +1,9 @@
+**R2 libsystemd target-split correction (2026-10-19):** the positive owner
+reader is shared with Linux HostControl, while the existing native session-change
+watch remains compiled in rdp-server-linux-gssapi. Both now receive the same
+libsystemd link/compile definition, preserving real logind revoke readiness
+instead of compiling the watch's fail-closed fallback in production.
+
 ## R2 M1 owner-authority source/test gate (2026-10-19)
 
 Positive host-owned consent, login1 LockedHint fail-closed evidence, current UID

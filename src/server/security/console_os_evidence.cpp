@@ -37,7 +37,18 @@ namespace
 {
     // Never accept a caller-supplied local UID or owner UID. The provider
     // reads independent account and physical-console observations afresh.
-    if (request.kerberosPrincipal.empty() || request.unixAccount.empty() ||
+    // The standalone path must remain principal-free rather than borrowing or
+    // inventing the Kerberos identity stored in the configured OS-account rule.
+    const bool kerberosIdentity =
+        request.authenticationKind ==
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal;
+    const bool standaloneIdentity =
+        request.authenticationKind ==
+        ConsoleEvidenceAuthenticationKind::StandalonePassword;
+    if ((!kerberosIdentity && !standaloneIdentity) ||
+        (kerberosIdentity && request.kerberosPrincipal.empty()) ||
+        (standaloneIdentity && !request.kerberosPrincipal.empty()) ||
+        request.unixAccount.empty() ||
         request.seat.empty() || request.display.empty() ||
         request.requestedPermissions == 0 ||
         (request.requestedPermissions & ~kConsoleAllowedPermissions) != 0)
@@ -79,19 +90,31 @@ namespace
 
     // M1.14 is a candidate-policy check only. A controlled fake provider
     // in CTest can reach CandidateOnly, but can NEVER issue desktop access.
-    const ConsoleIdentityRequest policyCandidate{
-        request.kerberosPrincipal,
-        account.unixAccount,
-        session.seat,
-        session.display,
-        account.uid,
-        session.ownerUid,
-        request.requestedPermissions};
-    if (policy.matchCandidate(policyCandidate) !=
-        ConsolePolicyMatch::CandidateOnly)
+    ConsolePolicyMatch policyMatch = ConsolePolicyMatch::Denied;
+    if (kerberosIdentity)
     {
-        return ConsoleEvidenceMatch::Denied;
+        const ConsoleIdentityRequest policyCandidate{
+            request.kerberosPrincipal,
+            account.unixAccount,
+            session.seat,
+            session.display,
+            account.uid,
+            session.ownerUid,
+            request.requestedPermissions};
+        policyMatch = policy.matchCandidate(policyCandidate);
     }
+    else
+    {
+        policyMatch = policy.matchNativeAccountCandidate(
+            account.unixAccount,
+            session.seat,
+            session.display,
+            account.uid,
+            session.ownerUid,
+            request.requestedPermissions);
+    }
+    if (policyMatch != ConsolePolicyMatch::CandidateOnly)
+        return ConsoleEvidenceMatch::Denied;
 
     if (candidateFingerprint != nullptr)
     {

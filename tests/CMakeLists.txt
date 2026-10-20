@@ -742,6 +742,7 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-framed-handoff
                 gssapi-console-provenance-before-os-read
                 gssapi-native-os-admission-capability-denials
+                console-evidence-standalone-native-account-candidate
                 gssapi-native-admission-r1-nla-provenance-denials
                 gssapi-credssp-delegated-account-origin-denials
                 gssapi-r3-initial-nla-owner-fence

@@ -1,3 +1,13 @@
+## R2 standalone native identity must not synthesize Kerberos (2026-10-20)
+
+When independent-password authentication targets an existing OS desktop, carry
+an explicit standalone authentication kind and an empty Kerberos principal.
+Match the already configured exact Unix account, seat/display, native UID and
+permissions instead of manufacturing a principal string. Keep Kerberos
+principal matching unchanged for GSS. The identity-kind selector itself is
+untrusted metadata and must never authorize native access; only the one R2
+authenticated-proof/broker path may consume the resulting candidate evidence.
+
 ## R2 owner-grant observations stay non-authorizing (2026-10-20)
 
 When R10/R7 need to display current local-owner consent, expose only a read-only

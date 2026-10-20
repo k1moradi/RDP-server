@@ -88,6 +88,19 @@ public:
     [[nodiscard]] ConsolePolicyMatch matchCandidate(
         const ConsoleIdentityRequest &request) const noexcept;
 
+    // Native-account-only candidate query for an already authenticated
+    // standalone application-password proof. This deliberately does not
+    // accept or synthesize a Kerberos principal. The configured rule still
+    // supplies the exact OS account/seat/display/UID/permission policy, and
+    // the result remains non-authorizing CandidateOnly.
+    [[nodiscard]] ConsolePolicyMatch matchNativeAccountCandidate(
+        std::string_view unixAccount,
+        std::string_view seat,
+        std::string_view display,
+        std::uint32_t localUid,
+        std::uint32_t observedConsoleOwnerUid,
+        std::uint32_t requestedPermissions) const noexcept;
+
     // Read-only identity-only query for the final CredSSP boundary. This
     // deliberately ignores seat/display/UID/native evidence and can return
     // CandidateOnly only. expectedGeneration is the nonzero epoch captured

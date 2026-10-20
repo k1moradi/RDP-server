@@ -1,3 +1,17 @@
+## R2 principal-free standalone native evidence (2026-10-20)
+
+The native account/session evidence layer has two explicit candidate identity
+kinds. Kerberos admission retains the exact configured principal/account
+mapping. Standalone-password admission carries no Kerberos principal at all and
+matches only the configured Unix account, seat/display, native UID and
+permission scope. A standalone request containing a principal is rejected
+before native evidence is sampled.
+
+Both candidate kinds reuse the same NSS/logind physical-session sampling and
+session-generation fingerprint. This is deliberately below authentication:
+the enum is not proof, and `CandidateOnly` cannot create a lease. The sole R2
+broker must later join it to the corresponding authenticated-principal proof.
+
 ## R2 owner-grant observation boundary (2026-10-20)
 
 `CurrentOwnerSharingAuthority` remains the sole positive local-owner consent

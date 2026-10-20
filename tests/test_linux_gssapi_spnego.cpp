@@ -526,6 +526,70 @@ public:
     }
 };
 
+void testStandaloneNativeAccountEvidenceCandidate()
+{
+    ConsoleIdentityPolicy policy;
+    constexpr std::uint32_t permissions =
+        kConsoleViewPermission | kConsoleInputPermission;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001U, permissions}) ==
+           ConsoleRuleError::None);
+
+    CountingConsoleEvidenceSource evidence;
+    ConsoleOsEvidenceInspector inspector;
+    ConsoleCandidateSessionFingerprint fingerprint{};
+    const ConsoleEvidenceRequest standaloneRequest{
+        {}, "alice", "seat0", ":0", kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(inspector.inspectWithSessionFingerprint(
+               policy, standaloneRequest, evidence, fingerprint) ==
+           ConsoleEvidenceMatch::CandidateOnly);
+    assert(evidence.accountReads == 1);
+    assert(evidence.sessionReads == 1);
+    assert(evidence.clockReads == 1);
+    assert(fingerprint.accountUid == 1001U);
+    assert(fingerprint.consoleOwnerUid == 1001U);
+    assert(fingerprint.sessionGeneration == 4U);
+
+    // The same configured rule still requires its exact principal on the
+    // Kerberos path; standalone admission never obtains that name implicitly.
+    evidence.reset();
+    const ConsoleEvidenceRequest kerberosRequest{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    assert(inspector.inspect(policy, kerberosRequest, evidence) ==
+           ConsoleEvidenceMatch::CandidateOnly);
+
+    // A standalone request carrying any principal is rejected before native
+    // evidence is sampled, preventing a fake Kerberos bridge.
+    evidence.reset();
+    const ConsoleEvidenceRequest fakePrincipal{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(inspector.inspect(policy, fakePrincipal, evidence) ==
+           ConsoleEvidenceMatch::Denied);
+    assert(evidence.untouched());
+
+    // Native account/seat/display/permission policy remains exact.
+    evidence.reset();
+    const ConsoleEvidenceRequest wrongAccount{
+        {}, "bob", "seat0", ":0", kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(inspector.inspect(policy, wrongAccount, evidence) ==
+           ConsoleEvidenceMatch::Denied);
+    const ConsoleEvidenceRequest wrongSeat{
+        {}, "alice", "seat1", ":0", kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(inspector.inspect(policy, wrongSeat, evidence) ==
+           ConsoleEvidenceMatch::Denied);
+    const ConsoleEvidenceRequest excessivePermission{
+        {}, "alice", "seat0", ":0", kConsoleClipboardPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(inspector.inspect(policy, excessivePermission, evidence) ==
+           ConsoleEvidenceMatch::Denied);
+}
+
 using PositiveNativeAdmissionIssue =
     std::optional<LinuxConsoleAdmissionLease> (
         LinuxConsoleAdmissionBroker::*)(
@@ -2171,6 +2235,11 @@ int main(int argc, char **argv)
             testNativeAdmissionCapabilityDenials();
             return 0;
         }
+        if (name == "console-evidence-standalone-native-account-candidate")
+        {
+            testStandaloneNativeAccountEvidenceCandidate();
+            return 0;
+        }
         if (name == "gssapi-native-admission-r1-nla-provenance-denials")
         {
             testNativeAdmissionR1NlaProvenanceDenials();
@@ -2290,6 +2359,7 @@ int main(int argc, char **argv)
     testFramedGssHandoffFailClosed();
     testConsoleGssProvenanceBeforeOsRead();
     testNativeAdmissionCapabilityDenials();
+    testStandaloneNativeAccountEvidenceCandidate();
     testNativeAdmissionR1NlaProvenanceDenials();
     testCredSspDelegatedAccountOriginDenials();
     testR3InitialNlaOwnerFence();

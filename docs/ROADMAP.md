@@ -1,3 +1,30 @@
+## R2 principal-free standalone native-account candidate (2026-10-20)
+
+Starting shared-main parent: `71c02ece1d8b32bcc4d78990076d4f018b5dbdd8`.
+
+R2's native evidence/policy layer now distinguishes the existing Kerberos
+principal path from the standalone application-password path. A standalone
+candidate must carry an empty Kerberos principal and is matched only against
+the configured exact Unix account, seat0/display, native UID and permission
+scope. The configured rule's real Kerberos principal remains required and
+unchanged for GSS admission; it is never copied or fabricated for standalone
+authentication.
+
+The common NSS/logind sampling, physical-session checks, session generation and
+freshness fingerprint remain unchanged. This boundary is still candidate-only:
+choosing `StandalonePassword` is not authentication and cannot issue an R2
+lease. The next R2 increment must bind the exact R1 TLS/provenance,
+`StandaloneCredSspNtlmAcceptor::CredentialsVerified`, and the exact
+`StandalonePasswordCredentialOwner` generation into the one broker/lease
+owner before this native candidate can be consumed.
+
+Dedicated ordinary CTest:
+`security.console-evidence-standalone-native-account-candidate`.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. R10X and exact-head
+green CI remain the separate blockers for FIRST REAL DESKTOP TEST.
+
 ## R2 read-only owner-grant observation for R10/R7 (2026-10-20)
 
 Starting reconciled shared-main parent: `75668042f27f1e596d094a29ff08fd0fab870d19`.

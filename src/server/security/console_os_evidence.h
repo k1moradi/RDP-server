@@ -78,9 +78,17 @@ public:
     readMonotonicMilliseconds() noexcept = 0;
 };
 
-// Caller may propose ONLY identity, account, seat, display and permissions;
-// it cannot provide the UNIX UID or observed physical-console owner UID.
-// The Kerberos principal itself is still NOT authenticated at this boundary.
+enum class ConsoleEvidenceAuthenticationKind : std::uint8_t
+{
+    KerberosPrincipal,
+    StandalonePassword,
+};
+
+// Caller may propose ONLY the already-authenticated identity kind plus account,
+// seat, display and permissions; it cannot provide the UNIX UID or observed
+// physical-console owner UID. Neither enum selection nor the Kerberos principal
+// is authentication at this boundary. StandalonePassword requires an empty
+// kerberosPrincipal so no fake principal can be projected into native policy.
 struct ConsoleEvidenceRequest
 {
     std::string_view kerberosPrincipal{};
@@ -88,6 +96,8 @@ struct ConsoleEvidenceRequest
     std::string_view seat{};
     std::string_view display{};
     std::uint32_t requestedPermissions{};
+    ConsoleEvidenceAuthenticationKind authenticationKind{
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal};
 };
 
 enum class ConsoleEvidenceMatch : std::uint8_t

@@ -1,3 +1,22 @@
+## R2 standalone native-account candidate authoring receipt (2026-10-20)
+
+Starting shared-main parent: `71c02ece1d8b32bcc4d78990076d4f018b5dbdd8`.
+
+R2 removes the native-evidence layer's assumption that every authenticated
+connection must present a Kerberos principal. `ConsoleEvidenceRequest` now
+distinguishes Kerberos and standalone-password candidate identity kinds.
+Kerberos behavior is unchanged. Standalone candidates are required to carry no
+principal and reuse the existing rule's exact Unix account, seat/display, UID
+and permission policy plus the same NSS/logind session fingerprint.
+
+New ordinary CTest:
+`security.console-evidence-standalone-native-account-candidate`.
+
+This is non-authorizing candidate evidence only. It does not bind the
+standalone credential generation, prove TLS/CredSSP, issue a lease, enable the
+GUI password field or run a client. Owner-local canonical build/full CTest:
+**NOT RUN**. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R2 owner-grant observation authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `75668042f27f1e596d094a29ff08fd0fab870d19`.

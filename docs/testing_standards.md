@@ -1,3 +1,14 @@
+## R2 standalone native-account candidate regression (2026-10-20)
+
+`security.console-evidence-standalone-native-account-candidate` must exercise
+the production policy/evidence inspector with deterministic synthetic native
+observations. It proves an empty-principal standalone candidate can match the
+exact configured account/seat/display/UID/permission rule, the same rule still
+requires the exact Kerberos principal on the GSS path, and any standalone
+request carrying a principal is denied before native evidence reads. Wrong
+account/seat or permission scope must remain denied. This test cannot mint an
+R2 lease or claim standalone CredSSP authentication.
+
 ## R2 owner-grant observation regression (2026-10-20)
 
 `security.owner-consent-read-only-grant-observation` must prove the owner-grant

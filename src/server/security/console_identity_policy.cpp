@@ -292,6 +292,41 @@ ConsolePolicyMatch ConsoleIdentityPolicy::matchCandidate(
     return ConsolePolicyMatch::Denied;
 }
 
+ConsolePolicyMatch ConsoleIdentityPolicy::matchNativeAccountCandidate(
+    std::string_view unixAccount,
+    std::string_view seat,
+    std::string_view display,
+    std::uint32_t localUid,
+    std::uint32_t observedConsoleOwnerUid,
+    std::uint32_t requestedPermissions) const noexcept
+{
+    if (!validAccount(unixAccount) ||
+        !validSeat(seat) ||
+        !validDisplay(display) ||
+        localUid == 0 ||
+        localUid != observedConsoleOwnerUid ||
+        requestedPermissions == 0 ||
+        (requestedPermissions & ~kConsoleAllowedPermissions) != 0)
+    {
+        return ConsolePolicyMatch::Denied;
+    }
+
+    for (std::size_t index = 0; index < count_; ++index)
+    {
+        const auto &rule = rules_[index];
+        if (view(rule.account) == unixAccount &&
+            view(rule.seat) == seat &&
+            view(rule.display) == display &&
+            rule.uid == localUid &&
+            (rule.permissions & requestedPermissions) ==
+                requestedPermissions)
+        {
+            return ConsolePolicyMatch::CandidateOnly;
+        }
+    }
+    return ConsolePolicyMatch::Denied;
+}
+
 ConsolePolicyMatch ConsoleIdentityPolicy::matchPrincipalAccountCandidate(
     std::string_view kerberosPrincipal,
     std::string_view unixAccount,

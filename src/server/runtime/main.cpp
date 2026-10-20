@@ -1558,19 +1558,13 @@ struct LinuxFramePublicationContext final {
         rdp_server::server::runtime::RuntimeConfigurationField;
     unsigned parsedPort = 0U;
     unsigned maxConnections = 0U;
-    unsigned permissions = 0U;
     if (!rdp_server::server::runtime::parseRuntimeConfigurationDecimal(
             configuration.field(Field::ListenPort),
             1U, 65535U, parsedPort) ||
         !rdp_server::server::runtime::parseRuntimeConfigurationDecimal(
             configuration.field(Field::MaxConnections),
             1U, 64U, maxConnections) ||
-        maxConnections != 1U ||
-        !rdp_server::server::runtime::parseRuntimeConfigurationDecimal(
-            configuration.field(Field::AuthorizedPermissions),
-            1U,
-            rdp_server::server::security::kConsoleAllowedPermissions,
-            permissions)) {
+        maxConnections != 1U) {
         return false;
     }
 
@@ -1604,15 +1598,19 @@ struct LinuxFramePublicationContext final {
         return false;
     }
 
-    const rdp_server::server::security::ConsoleEvidenceRequest request{
-        configuration.field(Field::AuthorizedKerberosPrincipal),
-        configuration.field(Field::AuthorizedUnixAccount),
-        configuration.field(Field::AuthorizedSeat),
-        configuration.field(Field::AuthorizedDisplay),
-        static_cast<std::uint32_t>(permissions)};
+    rdp_server::server::runtime::LinuxRuntimeAdmissionConfiguration
+        admissionConfiguration;
+    if (!rdp_server::server::runtime::
+            configureLinuxRuntimeAdmissionFromConfiguration(
+                configuration, linuxSecurity, admissionConfiguration))
+        return false;
+    const auto request = admissionConfiguration.request(linuxSecurity);
+    if (!request)
+        return false;
+
     const auto preflight =
         linuxSecurity.preflightPersonalDesktopAdmission(
-            deploymentPolicy, request);
+            deploymentPolicy, *request);
     if (!preflight.readyForAuthenticatedAdmissionAttempt() ||
         preflight.authenticatedAdmission ||
         !hasLinuxServeDescriptorBudget(maxConnections)) {
@@ -1635,7 +1633,7 @@ struct LinuxFramePublicationContext final {
 
     LinuxServeAcceptContext acceptContext{
         &deploymentPolicy, &linuxSecurity, &tlsContext, &licensingContext,
-        &request, false};
+        &*request, false};
     using Clock = std::chrono::steady_clock;
     using namespace std::chrono_literals;
     while (!linuxServeStopRequested()) {

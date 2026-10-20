@@ -32,6 +32,22 @@ constexpr std::size_t kMaximumPathComponentBytes = 255;
 constexpr std::string_view kFilePrefix{"FILE:"};
 constexpr std::string_view kProcFdPrefix{"FILE:/proc/self/fd/"};
 
+template <std::size_t Capacity>
+[[nodiscard]] bool copyOwnedAdmissionText(
+    std::array<char, Capacity>& destination,
+    std::size_t& length,
+    std::string_view value) noexcept
+{
+    if (value.empty() || value.size() >= destination.size() ||
+        value.find('\0') != std::string_view::npos)
+        return false;
+
+    destination.fill('\0');
+    std::copy(value.begin(), value.end(), destination.begin());
+    length = value.size();
+    return true;
+}
+
 struct SensitiveCopyBuffer final
 {
     std::array<unsigned char, 16384> bytes{};
@@ -537,6 +553,68 @@ LinuxRuntimeSecurityConfiguration::policy() const noexcept
     return configured_ ? &policy_ : nullptr;
 }
 
+bool LinuxRuntimeAdmissionConfiguration::configureFromConfiguration(
+    const RuntimeConfigurationView& configuration,
+    const LinuxRuntimeSecurityConfiguration& securityConfiguration)
+    noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+
+    const auto* policy = securityConfiguration.policy();
+    if (!securityConfiguration.configured() || policy == nullptr ||
+        policy->size() == 0U || policy->generation() == 0U)
+        return false;
+
+    using Field = RuntimeConfigurationField;
+    unsigned parsedPermissions = 0U;
+    if (!parseRuntimeConfigurationDecimal(
+            configuration.field(Field::AuthorizedPermissions),
+            1U,
+            rdp_server::server::security::kConsoleAllowedPermissions,
+            parsedPermissions) ||
+        !copyOwnedAdmissionText(
+            kerberosPrincipal_, kerberosPrincipalLength_,
+            configuration.field(Field::AuthorizedKerberosPrincipal)) ||
+        !copyOwnedAdmissionText(
+            unixAccount_, unixAccountLength_,
+            configuration.field(Field::AuthorizedUnixAccount)) ||
+        !copyOwnedAdmissionText(
+            seat_, seatLength_,
+            configuration.field(Field::AuthorizedSeat)) ||
+        !copyOwnedAdmissionText(
+            display_, displayLength_,
+            configuration.field(Field::AuthorizedDisplay)))
+        return false;
+
+    permissions_ = static_cast<std::uint32_t>(parsedPermissions);
+    policy_ = policy;
+    policyGeneration_ = policy->generation();
+    configured_ = policyGeneration_ != 0U;
+    return configured_;
+}
+
+std::optional<rdp_server::server::security::ConsoleEvidenceRequest>
+LinuxRuntimeAdmissionConfiguration::request(
+    const LinuxRuntimeSecurityConfiguration& securityConfiguration)
+    const noexcept
+{
+    const auto* currentPolicy = securityConfiguration.policy();
+    if (!configured_ || currentPolicy == nullptr ||
+        currentPolicy != policy_ || policyGeneration_ == 0U ||
+        currentPolicy->generation() != policyGeneration_)
+        return std::nullopt;
+
+    return rdp_server::server::security::ConsoleEvidenceRequest{
+        std::string_view{
+            kerberosPrincipal_.data(), kerberosPrincipalLength_},
+        std::string_view{unixAccount_.data(), unixAccountLength_},
+        std::string_view{seat_.data(), seatLength_},
+        std::string_view{display_.data(), displayLength_},
+        permissions_};
+}
+
 bool configureLinuxRuntimeSecurityFromConfiguration(
     const RuntimeConfigurationView& configuration,
     LinuxRuntimeSecurityConfiguration& linuxSecurity) noexcept
@@ -593,6 +671,15 @@ bool configureLinuxRuntimeSecurityFromConfiguration(
         configuration.field(Field::GssKeytab),
         rule);
 #endif
+}
+
+bool configureLinuxRuntimeAdmissionFromConfiguration(
+    const RuntimeConfigurationView& configuration,
+    const LinuxRuntimeSecurityConfiguration& linuxSecurity,
+    LinuxRuntimeAdmissionConfiguration& admissionConfiguration) noexcept
+{
+    return admissionConfiguration.configureFromConfiguration(
+        configuration, linuxSecurity);
 }
 
 } // namespace rdp_server::server::runtime

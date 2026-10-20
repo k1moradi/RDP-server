@@ -1309,6 +1309,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-security-access-policy-replacement-revocation
             linux-security-keytab-snapshot-mutation-continuity
             linux-security-keytab-policy-denials
+            linux-security-admission-request-owned-generation-fence
             linux-connection-credssp-owner-framing
             linux-connection-credssp-progress-accounting
             linux-connection-r1-acceptance-diagnostics
@@ -1605,7 +1606,7 @@ set_tests_properties(
     runtime.licensing-authority-public-header-consumer-lifetime PROPERTIES
     LABELS "runtime;security;licensing;offline")
 
-# R10 immutable product mode and future loopback-only listener candidate gate.
+# R10 immutable product mode with explicit loopback/private-LAN candidate gates.
 # These cases exercise production policy code only; no socket is opened and no
 # R2/R3 positive authority is synthesized.
 add_executable(test_runtime_deployment_policy
@@ -1620,7 +1621,8 @@ else()
 endif()
 foreach(runtime_deployment_policy_case IN ITEMS
         personal-desktop-policy-immutable-denials
-        personal-desktop-loopback-listener-denials)
+        personal-desktop-loopback-listener-denials
+        personal-desktop-private-lan-candidate-denials)
     add_test(NAME "runtime.${runtime_deployment_policy_case}"
         COMMAND test_runtime_deployment_policy
             "${runtime_deployment_policy_case}")

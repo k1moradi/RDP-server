@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
+#include "server/runtime/runtime_deployment_policy.h"
 #include "server/runtime/runtime_host_control.h"
 #include "server/security/current_owner_sharing_authority.h"
 #include "server/security/linux_logind_console_evidence.h"
@@ -13,6 +14,8 @@ namespace rdp_server::server::runtime
 
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 class LinuxRuntimeSecurityConfiguration;
+class LinuxRuntimeAdmissionConfiguration;
+class RuntimeLicensingContext;
 class RuntimeServerTlsContext;
 #endif
 
@@ -38,7 +41,9 @@ public:
     // outlive this controller and every connection later created from it.
     LinuxRuntimeHostControl(
         LinuxRuntimeSecurityConfiguration& securityConfiguration,
-        const RuntimeServerTlsContext& tlsContext) noexcept;
+        const RuntimeServerTlsContext& tlsContext,
+        const LinuxRuntimeAdmissionConfiguration& admissionConfiguration,
+        const RuntimeLicensingContext& licensingContext) noexcept;
 #endif
     ~LinuxRuntimeHostControl() override;
     LinuxRuntimeHostControl(const LinuxRuntimeHostControl&) = delete;
@@ -77,6 +82,9 @@ private:
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
     const RuntimeServerTlsContext* tlsContext_{};
+    const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
+    const RuntimeLicensingContext* licensingContext_{};
+    std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};
     bool credentialsConfigured_{};
 #endif
     // Production-native evidence owns all borrowed views. It must outlive

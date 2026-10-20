@@ -1,3 +1,41 @@
+## R10 owned admission selector and private-LAN service policy (2026-10-20)
+
+Starting shared-main parent: `95e6762af32c8f5106101fe7d8fd11dcb6f0e6d0`. R2A, provisioned HostControl Start,
+TLS/listener generation binding and the persistent CLI runtime are already
+landed. R2P has independently advanced through standalone CredSSP final
+`authInfo` verification at `95e6762`; that remains parallel to the
+existing-OS-account first-client path.
+
+This increment removes two R10-owned prerequisites for servicing the GUI-owned
+listener. The validated configuration now snapshots the non-secret
+Kerberos/account/seat/display/permission selector into one bounded
+`LinuxRuntimeAdmissionConfiguration`. Its returned
+`ConsoleEvidenceRequest` borrows only that service-lifetime owner and becomes
+unavailable when the exact `ConsoleIdentityPolicy` pointer or generation
+changes. CLI and GUI both consume the same snapshot helper; no configuration
+string_view escapes the visitor callback.
+
+`RuntimeDeploymentPolicy` also gains an explicit PersonalDesktop private-LAN
+scope. It accepts only the same RFC1918 IPv4 and ULA/link-local IPv6 address
+classes as the verified LAN-listener policy and remains distinct from the
+existing loopback-only CLI mode. The provisioned Linux HostControl constructs
+that immutable policy only after TLS/listener binding and fresh owner
+reauthorization, immediately before listener publication. Stop/revoke retires
+the policy with the listener.
+
+Dedicated offline CTests:
+`runtime.personal-desktop-private-lan-candidate-denials` and
+`runtime.linux-security-admission-request-owned-generation-fence`.
+Owner-local canonical build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**.
+
+**Remaining R10 gate:** the GUI still needs a bounded same-thread service step
+that accepts from its exact `OwnedLanListener`, moves that socket into one
+`LinuxRuntimeConnection`, and incrementally advances the existing
+CredSSP/R2/MCS/Share/Graphics/X11 owners without blocking the Qt event loop.
+That scheduler/state-machine extraction is now the first code blocker; it is
+not an unresolved R1/R2/R5 dependency.
+
 ## R2 standalone CredSSP final authInfo equivalence (2026-10-20)
 
 Starting shared-main parent: `dd513ac1cf3789a7f3a9e993e7ae2dc0d551f76d`.

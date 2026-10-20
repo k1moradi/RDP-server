@@ -47,6 +47,12 @@ public:
     [[nodiscard]] bool configurePersonalDesktop(
         bool listenerEnabled, std::uint16_t listenPort) noexcept;
 
+    // Explicit GUI/LAN transport scope. This permits only private-LAN peer
+    // address classes matching R1's LAN-listener policy; it is not client
+    // authentication, owner consent or native-session authority.
+    [[nodiscard]] bool configurePersonalDesktopPrivateLan(
+        std::uint16_t listenPort) noexcept;
+
     [[nodiscard]] bool configured() const noexcept
     {
         return mode_ != RuntimeDeploymentMode::Unconfigured;
@@ -78,11 +84,22 @@ public:
     {
         return loopbackListenerEnabled() ? listenPort_ : 0U;
     }
+    [[nodiscard]] bool privateLanListenerEnabled() const noexcept
+    {
+        return mode_ == RuntimeDeploymentMode::PersonalDesktop &&
+               privateLanListenerEnabled_;
+    }
+    [[nodiscard]] std::uint16_t privateLanListenerPort() const noexcept
+    {
+        return privateLanListenerEnabled() ? listenPort_ : 0U;
+    }
 
     // Network-location policy only. A true result does not establish TLS,
     // CredSSP, native admission, licensing completion, Share, input or desktop
     // authority.
     [[nodiscard]] bool permitsLoopbackTransportCandidate(
+        std::span<const std::uint8_t> peerAddress) const noexcept;
+    [[nodiscard]] bool permitsPrivateLanTransportCandidate(
         std::span<const std::uint8_t> peerAddress) const noexcept;
 
 private:
@@ -90,6 +107,7 @@ private:
     std::uint16_t listenPort_{};
     bool attempted_{};
     bool listenerEnabled_{};
+    bool privateLanListenerEnabled_{};
 };
 
 } // namespace rdp_server::server::runtime

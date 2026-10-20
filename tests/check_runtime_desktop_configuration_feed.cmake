@@ -39,6 +39,7 @@ endforeach()
 foreach(required_text IN ITEMS
         "visitRuntimeConfigurationFile("
         "configureLinuxRuntimeSecurityFromConfiguration("
+        "configureLinuxRuntimeAdmissionFromConfiguration("
         "configureRuntimeLicensingContextFromConfiguration(")
     string(FIND "${runtime_main}" "${required_text}" found)
     if(found LESS 0)
@@ -60,6 +61,7 @@ foreach(required_text IN ITEMS
         "--config"
         "visitRuntimeConfigurationFile("
         "configureLinuxRuntimeSecurityFromConfiguration("
+        "configureLinuxRuntimeAdmissionFromConfiguration("
         "RuntimeServerTlsContext::"
         "configureRuntimeLicensingContextFromConfiguration("
         "LinuxRuntimeHostControl runtime{")

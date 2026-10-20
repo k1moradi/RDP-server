@@ -1,3 +1,17 @@
+## R10 owned admission snapshot and private-LAN policy tests (2026-10-20)
+
+`runtime.linux-security-admission-request-owned-generation-fence` must prove
+that the production admission snapshot survives mutation of the configuration
+source bytes, returns the exact bounded selector while the security policy
+generation is current, and becomes unavailable after access policy replacement.
+Oversized identity text must fail closed.
+
+`runtime.personal-desktop-private-lan-candidate-denials` must exercise the
+production deployment policy without opening a socket: permit RFC1918 IPv4 plus
+ULA/link-local IPv6 only in explicitly configured private-LAN mode, reject
+loopback/public/empty candidates, reject port zero and preserve one-shot policy
+immutability. Neither test is R2 positive admission or live LAN evidence.
+
 ## R2 standalone CredSSP final-authInfo tests (2026-10-20)
 
 The standalone CredSSP in-memory TLS fixture must continue through the server

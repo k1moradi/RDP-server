@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_connection.h"
 #include "server/runtime/linux_runtime_security.h"
+#include "server/runtime/runtime_configuration.h"
 #include "server/security/linux_console_admission.h"
 #include "server/security/authentication_attempt_limiter.h"
 
@@ -114,10 +115,15 @@ using rdp_server::server::runtime::LinuxRuntimeMcsTpktFrameStatus;
 using rdp_server::server::runtime::LinuxRuntimeNativeChangeRegistration;
 using rdp_server::server::runtime::LinuxRuntimeSocketPollStatus;
 using rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration;
+using rdp_server::server::runtime::LinuxRuntimeAdmissionConfiguration;
 using rdp_server::server::runtime::RuntimeLicensingAuthority;
 using rdp_server::server::runtime::RuntimeLicensingContext;
 using rdp_server::server::runtime::RuntimeLicensingExistingCalOperation;
 using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+using rdp_server::server::runtime::RuntimeConfigurationField;
+using rdp_server::server::runtime::RuntimeConfigurationView;
+using rdp_server::server::runtime::
+    configureLinuxRuntimeAdmissionFromConfiguration;
 using rdp_server::server::runtime::RuntimeServerTlsContext;
 using rdp_server::server::transport::RdpSlowPathInputEvent;
 using rdp_server::server::transport::RdpSlowPathInputEventSink;
@@ -3344,6 +3350,65 @@ void testConnectionAggregatePrematureAdmissionDenial(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testAdmissionConfigurationOwnedGenerationFence(
+    const std::filesystem::path &fixtureDirectory)
+{
+    const auto keytab =
+        fixtureDirectory / "runtime-admission-configuration.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration securityConfiguration;
+    assert(securityConfiguration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    std::string principal{"alice@EXAMPLE.TEST"};
+    RuntimeConfigurationView::Fields fields{};
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedKerberosPrincipal)] = principal;
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedUnixAccount)] = "alice";
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedSeat)] = "seat0";
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedDisplay)] = ":0";
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedPermissions)] = "7";
+    RuntimeConfigurationView view{fields};
+
+    LinuxRuntimeAdmissionConfiguration admissionConfiguration;
+    assert(configureLinuxRuntimeAdmissionFromConfiguration(
+        view, securityConfiguration, admissionConfiguration));
+
+    principal.assign(principal.size(), 'x');
+    const auto request =
+        admissionConfiguration.request(securityConfiguration);
+    assert(request.has_value());
+    assert(request->kerberosPrincipal == "alice@EXAMPLE.TEST");
+    assert(request->unixAccount == "alice");
+    assert(request->seat == "seat0");
+    assert(request->display == ":0");
+    assert(request->requestedPermissions ==
+           (kConsoleViewPermission |
+            kConsoleInputPermission |
+            kConsoleClipboardPermission));
+
+    ConsoleIdentityRuleInput replacement = validRule();
+    replacement.permissions = kConsoleViewPermission;
+    assert(securityConfiguration.replaceAuthorizedIdentity(replacement));
+    assert(!admissionConfiguration.request(
+        securityConfiguration).has_value());
+
+    std::string oversizedPrincipal(129U, 'a');
+    fields[static_cast<std::size_t>(
+        RuntimeConfigurationField::AuthorizedKerberosPrincipal)] =
+        oversizedPrincipal;
+    RuntimeConfigurationView oversizedView{fields};
+    LinuxRuntimeAdmissionConfiguration oversized;
+    assert(!configureLinuxRuntimeAdmissionFromConfiguration(
+        oversizedView, securityConfiguration, oversized));
+    assert(!oversized.request(securityConfiguration).has_value());
+}
+
 void testKeytabAndPolicyDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3475,6 +3540,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-keytab-policy-denials")
     {
         testKeytabAndPolicyDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-security-admission-request-owned-generation-fence")
+    {
+        testAdmissionConfigurationOwnedGenerationFence(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-owner-framing")

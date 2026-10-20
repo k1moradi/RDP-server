@@ -1,3 +1,33 @@
+## R10 LAN admission-lifetime preparation receipt (2026-10-20)
+
+Starting shared-main parent: `95e6762af32c8f5106101fe7d8fd11dcb6f0e6d0`. Dependency inspection confirmed no
+external road still blocks first-client composition: R2A is positive, R1 owns
+the verified listener/TLS identity, and R5/R3/R4 are already composed in the
+existing serialized Linux runtime. R2P's standalone CredSSP work has advanced
+through final authInfo equivalence and remains parallel.
+
+R10 now owns a bounded configuration-backed
+`LinuxRuntimeAdmissionConfiguration` for the exact existing-OS-account
+selector. It copies the validated principal/account/seat/display/permissions
+before the configuration callback returns and refuses to expose a request after
+the bound `ConsoleIdentityPolicy` generation changes. Both CLI and desktop
+provisioning use this owner. The Linux HostControl also borrows the already
+provisioned licensing context and requires admission/licensing readiness before
+publishing credential-ready state.
+
+The immutable deployment policy now has a separate private-LAN mode with
+production-backed denials for loopback/public/empty candidates. HostControl
+creates that mode transactionally before listener publication and retires it on
+Stop/Revoke. This grants no authentication, R2 lease, native desktop or Share.
+
+New CTests:
+`runtime.personal-desktop-private-lan-candidate-denials` and
+`runtime.linux-security-admission-request-owned-generation-fence`.
+The existing desktop shared-config and provisioned-listener source guards are
+also tightened to require the new owner/policy handoffs. Local build/full
+CTest: **NOT RUN**. Hosted exact-SHA CI: **PENDING**. No live listener/client
+test was executed.
+
 ## R2 standalone CredSSP authInfo authoring receipt (2026-10-20)
 
 Starting shared-main parent: `dd513ac1cf3789a7f3a9e993e7ae2dc0d551f76d`. Another agent had already advanced

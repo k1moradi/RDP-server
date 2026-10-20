@@ -10,6 +10,8 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <string_view>
 
 namespace rdp_server::server::runtime
@@ -158,8 +160,57 @@ private:
     bool configured_{};
 };
 
+// Service-lifetime owned copy of the non-secret R2 admission selector from the
+// validated configuration callback. Returned request string_views borrow this
+// object and are valid only while the exact security policy generation remains
+// current. Policy replacement/revocation invalidates the snapshot.
+class LinuxRuntimeAdmissionConfiguration final
+{
+public:
+    LinuxRuntimeAdmissionConfiguration() noexcept = default;
+    LinuxRuntimeAdmissionConfiguration(
+        const LinuxRuntimeAdmissionConfiguration&) = delete;
+    LinuxRuntimeAdmissionConfiguration& operator=(
+        const LinuxRuntimeAdmissionConfiguration&) = delete;
+    LinuxRuntimeAdmissionConfiguration(
+        LinuxRuntimeAdmissionConfiguration&&) = delete;
+    LinuxRuntimeAdmissionConfiguration& operator=(
+        LinuxRuntimeAdmissionConfiguration&&) = delete;
+
+    [[nodiscard]] bool configureFromConfiguration(
+        const RuntimeConfigurationView& configuration,
+        const LinuxRuntimeSecurityConfiguration& securityConfiguration)
+        noexcept;
+
+    [[nodiscard]] std::optional<
+        rdp_server::server::security::ConsoleEvidenceRequest>
+    request(
+        const LinuxRuntimeSecurityConfiguration& securityConfiguration)
+        const noexcept;
+
+private:
+    std::array<char, 129> kerberosPrincipal_{};
+    std::array<char, 33> unixAccount_{};
+    std::array<char, 17> seat_{};
+    std::array<char, 9> display_{};
+    std::size_t kerberosPrincipalLength_{};
+    std::size_t unixAccountLength_{};
+    std::size_t seatLength_{};
+    std::size_t displayLength_{};
+    std::uint32_t permissions_{};
+    const rdp_server::server::security::ConsoleIdentityPolicy* policy_{};
+    std::uint64_t policyGeneration_{};
+    bool attempted_{};
+    bool configured_{};
+};
+
 [[nodiscard]] bool configureLinuxRuntimeSecurityFromConfiguration(
     const RuntimeConfigurationView& configuration,
     LinuxRuntimeSecurityConfiguration& linuxSecurity) noexcept;
+
+[[nodiscard]] bool configureLinuxRuntimeAdmissionFromConfiguration(
+    const RuntimeConfigurationView& configuration,
+    const LinuxRuntimeSecurityConfiguration& linuxSecurity,
+    LinuxRuntimeAdmissionConfiguration& admissionConfiguration) noexcept;
 
 } // namespace rdp_server::server::runtime

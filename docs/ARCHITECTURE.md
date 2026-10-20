@@ -1,3 +1,19 @@
+## R10 GUI accepted-client service prerequisites (2026-10-20)
+
+The GUI LAN path must not retain `RuntimeConfigurationView` string_views.
+Existing-OS-account admission identity is copied once into bounded
+`LinuxRuntimeAdmissionConfiguration` storage and is usable only while the
+same service-owned `ConsoleIdentityPolicy` pointer and generation remain
+current. Policy replacement/revocation invalidates the admission selector
+before any later connection can use it.
+
+PersonalDesktop transport scope is explicit. The CLI retains loopback-only
+candidate policy. GUI LAN hosting uses a distinct immutable private-LAN policy
+that accepts only the address classes already eligible for R1 LAN binding.
+Neither scope is authentication or owner consent. The future GUI service loop
+must move the accepted descriptor into the existing `LinuxRuntimeConnection`;
+it may not create a parallel TLS, R2, R3, X11 or configuration owner.
+
 ## R2 standalone CredSSP authInfo retirement boundary (2026-10-20)
 
 After TLS-bound pubKeyAuth succeeds, the standalone CredSSP owner accepts only

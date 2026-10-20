@@ -2,6 +2,7 @@
 #include "linux_runtime_host_control.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 #include "linux_runtime_security.h"
+#include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
 #endif
 #include <algorithm>
@@ -176,10 +177,14 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 LinuxRuntimeHostControl::LinuxRuntimeHostControl(
     LinuxRuntimeSecurityConfiguration& securityConfiguration,
-    const RuntimeServerTlsContext& tlsContext) noexcept
+    const RuntimeServerTlsContext& tlsContext,
+    const LinuxRuntimeAdmissionConfiguration& admissionConfiguration,
+    const RuntimeLicensingContext& licensingContext) noexcept
     : ownerThread_(std::this_thread::get_id()),
       securityConfiguration_(&securityConfiguration),
-      tlsContext_(&tlsContext)
+      tlsContext_(&tlsContext),
+      admissionConfiguration_(&admissionConfiguration),
+      licensingContext_(&licensingContext)
 {
 }
 #endif
@@ -204,11 +209,16 @@ RuntimeHostResult LinuxRuntimeHostControl::deny(RuntimeHostError error) noexcept
 bool LinuxRuntimeHostControl::serviceCredentialsReady() const noexcept
 {
     if (securityConfiguration_ == nullptr ||
-        !securityConfiguration_->configured())
+        !securityConfiguration_->configured() ||
+        admissionConfiguration_ == nullptr ||
+        licensingContext_ == nullptr ||
+        !licensingContext_->configured())
         return false;
     const auto* policy = securityConfiguration_->policy();
     return policy != nullptr && policy->size() != 0U &&
-           policy->generation() != 0U;
+           policy->generation() != 0U &&
+           admissionConfiguration_->request(
+               *securityConfiguration_).has_value();
 }
 #endif
 
@@ -472,6 +482,16 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
             rdp_server::server::security::kConsoleViewPermission))
         return deny(RuntimeHostError::HostConsentRequired);
 
+    if (deploymentPolicy_.has_value())
+        return deny(RuntimeHostError::InvalidConfiguration);
+    deploymentPolicy_.emplace();
+    if (!deploymentPolicy_->configurePersonalDesktopPrivateLan(
+            selection_.port))
+    {
+        deploymentPolicy_.reset();
+        return deny(RuntimeHostError::InvalidConfiguration);
+    }
+
     listener_ = std::move(candidate);
     stage_ = RuntimeHostStage::ListenerAvailable;
     lastError_ = RuntimeHostError::None;
@@ -488,6 +508,9 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     // inserted between this revocation and the final listener close.
     ownerSharingAuthority_.revoke(reason);
     listener_.close();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    deploymentPolicy_.reset();
+#endif
 }
 RuntimeHostResult LinuxRuntimeHostControl::stopSharing()
 {

@@ -96,6 +96,61 @@ void testLoopbackListenerDenials()
         std::span<const std::uint8_t>{}));
 }
 
+void testPrivateLanListenerDenials()
+{
+    constexpr std::array<std::uint8_t, 4U> ipv4Private10{
+        10U, 1U, 2U, 3U};
+    constexpr std::array<std::uint8_t, 4U> ipv4Private172{
+        172U, 31U, 255U, 254U};
+    constexpr std::array<std::uint8_t, 4U> ipv4Private192{
+        192U, 168U, 1U, 9U};
+    constexpr std::array<std::uint8_t, 4U> ipv4BeforePrivate172{
+        172U, 15U, 1U, 1U};
+    constexpr std::array<std::uint8_t, 4U> ipv4AfterPrivate172{
+        172U, 32U, 1U, 1U};
+    constexpr std::array<std::uint8_t, 4U> ipv4Loopback{
+        127U, 0U, 0U, 1U};
+    constexpr std::array<std::uint8_t, 4U> ipv4Public{
+        203U, 0U, 113U, 10U};
+    constexpr std::array<std::uint8_t, 16U> ipv6UniqueLocal{
+        0xfdU, 0x12U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+    constexpr std::array<std::uint8_t, 16U> ipv6LinkLocal{
+        0xfeU, 0x80U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+    constexpr std::array<std::uint8_t, 16U> ipv6Loopback{
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+    constexpr std::array<std::uint8_t, 16U> ipv6Global{
+        0x20U, 0x01U, 0x0dU, 0xb8U, 0U, 0U, 0U, 0U,
+        0U, 0U, 0U, 0U, 0U, 0U, 0U, 1U};
+
+    RuntimeDeploymentPolicy invalid;
+    assert(!invalid.configurePersonalDesktopPrivateLan(0U));
+    assert(!invalid.configured());
+
+    RuntimeDeploymentPolicy lan;
+    assert(lan.configurePersonalDesktopPrivateLan(3389U));
+    assert(lan.privateLanListenerEnabled());
+    assert(lan.privateLanListenerPort() == 3389U);
+    assert(!lan.loopbackListenerEnabled());
+    assert(lan.permitsPrivateLanTransportCandidate(ipv4Private10));
+    assert(lan.permitsPrivateLanTransportCandidate(ipv4Private172));
+    assert(lan.permitsPrivateLanTransportCandidate(ipv4Private192));
+    assert(lan.permitsPrivateLanTransportCandidate(ipv6UniqueLocal));
+    assert(lan.permitsPrivateLanTransportCandidate(ipv6LinkLocal));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv4BeforePrivate172));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv4AfterPrivate172));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv4Loopback));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv4Public));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv6Loopback));
+    assert(!lan.permitsPrivateLanTransportCandidate(ipv6Global));
+    assert(!lan.permitsPrivateLanTransportCandidate(
+        std::span<const std::uint8_t>{}));
+    assert(!lan.permitsLoopbackTransportCandidate(ipv4Loopback));
+    assert(!lan.configurePersonalDesktop(true, 3389U));
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
@@ -110,6 +165,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "personal-desktop-loopback-listener-denials")
     {
         testLoopbackListenerDenials();
+        return 0;
+    }
+    if (testCase == "personal-desktop-private-lan-candidate-denials")
+    {
+        testPrivateLanListenerDenials();
         return 0;
     }
     assert(false);

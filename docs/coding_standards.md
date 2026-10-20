@@ -1,3 +1,17 @@
+## R10 configuration snapshots and LAN policy are lifetime owners (2026-10-20)
+
+Never retain a `RuntimeConfigurationView` or any of its field string_views
+past the visitor callback. Any identity needed for later R2 admission must be
+copied into bounded service-owned storage and fenced to the exact current
+identity-policy generation. Reconfiguration/revocation invalidates the old
+snapshot rather than updating it in place.
+
+Do not reuse the CLI loopback transport decision for GUI LAN acceptance.
+PersonalDesktop loopback and private-LAN scopes are explicit immutable policy
+modes. Private-LAN candidate classification is network location only; it must
+not replace TLS/CredSSP, current-owner authority, NSS/logind evidence or
+per-operation R2 reauthorization.
+
 ## R2 standalone authInfo credentials remain borrowed and non-authorizing (2026-10-20)
 
 Final standalone CredSSP authInfo must be accepted only after verified

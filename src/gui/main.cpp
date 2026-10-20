@@ -46,6 +46,8 @@ struct LinuxDesktopProvisioningContext final
     rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration*
         security{};
     rdp_server::server::runtime::RuntimeServerTlsContext* tls{};
+    rdp_server::server::runtime::LinuxRuntimeAdmissionConfiguration*
+        admission{};
     rdp_server::server::runtime::RuntimeLicensingContext* licensing{};
 };
 
@@ -69,12 +71,16 @@ linuxDesktopConfigurationCapabilities() noexcept
     auto* context =
         static_cast<LinuxDesktopProvisioningContext*>(rawContext);
     if (context == nullptr || context->security == nullptr ||
-        context->tls == nullptr || context->licensing == nullptr)
+        context->tls == nullptr || context->admission == nullptr ||
+        context->licensing == nullptr)
         return false;
 
     if (!rdp_server::server::runtime::
             configureLinuxRuntimeSecurityFromConfiguration(
-                configuration, *context->security))
+                configuration, *context->security) ||
+        !rdp_server::server::runtime::
+            configureLinuxRuntimeAdmissionFromConfiguration(
+                configuration, *context->security, *context->admission))
         return false;
 
     using Field =
@@ -113,10 +119,13 @@ int main(int argc, char** argv)
         rdp_server::server::runtime::LinuxRuntimeSecurityConfiguration
             securityConfiguration;
         rdp_server::server::runtime::RuntimeServerTlsContext tlsContext;
+        rdp_server::server::runtime::LinuxRuntimeAdmissionConfiguration
+            admissionConfiguration;
         rdp_server::server::runtime::RuntimeLicensingContext
             licensingContext;
         LinuxDesktopProvisioningContext provisioning{
-            &securityConfiguration, &tlsContext, &licensingContext};
+            &securityConfiguration, &tlsContext,
+            &admissionConfiguration, &licensingContext};
         if (!rdp_server::server::runtime::visitRuntimeConfigurationFile(
                 configurationPath,
                 linuxDesktopConfigurationCapabilities(),
@@ -124,7 +133,8 @@ int main(int argc, char** argv)
             return 2;
 
         rdp_server::server::runtime::LinuxRuntimeHostControl runtime{
-            securityConfiguration, tlsContext};
+            securityConfiguration, tlsContext,
+            admissionConfiguration, licensingContext};
         rdp::gui::HostControl control(runtime);
         rdp::gui::DesktopWindow window(control);
         window.show();

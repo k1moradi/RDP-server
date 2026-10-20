@@ -21,6 +21,8 @@ file(READ "${RDP_ROOT_CMAKE}" root_cmake)
 foreach(required_text IN ITEMS
         "LinuxRuntimeSecurityConfiguration& securityConfiguration"
         "const RuntimeServerTlsContext& tlsContext"
+        "const LinuxRuntimeAdmissionConfiguration& admissionConfiguration"
+        "const RuntimeLicensingContext& licensingContext"
         "serviceCredentialsReady() const noexcept")
     string(FIND "${host_header}" "${required_text}" found)
     if(found LESS 0)
@@ -45,6 +47,7 @@ set(ordered_tokens
     "const RuntimeTlsIdentityStatus unboundIdentity"
     "openLanListener({"
     "boundIdentity.boundIdentityMatchesGeneration("
+    "deploymentPolicy_->configurePersonalDesktopPrivateLan("
     "listener_ = std::move(candidate);")
 set(previous_position -1)
 foreach(token IN LISTS ordered_tokens)

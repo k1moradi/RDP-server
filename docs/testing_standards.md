@@ -1,3 +1,22 @@
+## R2 standalone NTLMSSP framing tests (2026-10-20)
+
+Keep Type 1/2/3 framing in the noninstalled standalone credential target and
+run it in ordinary full CTest. `security.ntlmssp-negotiate-challenge-framing`
+parses a published Microsoft Type 1 vector, rejects its non-CredSSP flag profile
+for a protected Type 2 reply, then checks the exact bounded challenge encoding
+for the required SIGN/SEAL/ESS/128 profile, TargetInfo and timestamp.
+`security.ntlmssp-microsoft-authenticate-bridge` parses Microsoft's published
+NTLMv2 Type 3 vector and feeds its borrowed fields into the existing independent
+User/Domain/Password proof/session-key KAT.
+`security.ntlmssp-security-buffer-mic-denials` mutates
+signature/type/offset/Unicode state and verifies that MsvAvFlags MIC presence
+reserves the 16-byte MIC header rather than allowing payload aliasing.
+
+These are framing/cryptographic bridge tests only. They MUST NOT be called
+SPNEGO, CredSSP pubKeyAuth/authInfo, NLA, R2 admission or Microsoft-client
+interoperability acceptance until the later stateful mechanism owner and real
+client evidence exist.
+
 ## R1 first-client runtime diagnostics / Stop preparation (2026-10-20)
 
 `runtime.linux-connection-r1-acceptance-diagnostics` uses the production

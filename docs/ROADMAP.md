@@ -1,3 +1,46 @@
+## R2 standalone NTLMSSP framing bridge (2026-10-20)
+
+Starting shared-main parent: `2e2a5f5e4b4bce2364958928d2caf636dea66b4a`.
+
+The R2P independent-session-password lane is not blocked by R2A anymore.
+Current main already has the positive noncopyable CurrentOwnerSharingAuthority;
+LinuxRuntimeHostControl can pass the owner-authority check and then fails closed
+at CredentialProviderUnavailable because R10 still lacks its separate
+service-lifetime credential/TLS composition. That R10 composition issue does not
+block offline progress on the first-party application-password provider.
+
+This increment extends the existing noninstalled standalone NTLMv2 component
+with bounded connection-oriented MS-NLMP framing. It parses Type 1
+NEGOTIATE_MESSAGE security buffers, emits one Type 2 CHALLENGE_MESSAGE with a
+caller-owned random challenge plus NetBIOS domain/computer/timestamp TargetInfo,
+and parses Type 3 AUTHENTICATE_MESSAGE into aligned bounded Unicode identity
+storage plus borrowed NTLMv2/key/MIC spans. The Type 3 result feeds the existing
+EphemeralNtlmV2Credential verifier without copying the NT challenge response.
+Security-buffer extents/overlap, Unicode alignment, LMv2 size, KEY_EXCH key
+length, canonical NTLMv2 AV framing and MIC header placement fail closed.
+
+Dedicated ordinary CTests are:
+`security.ntlmssp-negotiate-challenge-framing`,
+`security.ntlmssp-microsoft-authenticate-bridge`, and
+`security.ntlmssp-security-buffer-mic-denials`. The bridge uses Microsoft's
+published NTLMv2 AUTHENTICATE_MESSAGE bytes and reaches the existing
+proof/session-key verifier. This still does NOT implement SPNEGO token state,
+NTLM message MIC verification, stateful NTLM SIGN/SEAL wrap/unwrap for CredSSP
+pubKeyAuth/authInfo, GUI secret ownership, or R2 admission, and it makes no
+mstsc/Windows App interoperability claim.
+
+Dependency-graph update: R2A -> R10 is resolved at the R2 authorization
+boundary. R2P remains ACTIVE. The PASSWORD node remains blocked on the
+remaining SPNEGO + transcript/MIC + message-security + GUI/runtime ownership
+work. The first real desktop test remains blocked by R10's independent
+credential/TLS/start composition, not by absence of a positive R2 lease.
+
+Authoring validation: Microsoft Open Specifications wire review and source
+consistency **PASS**. Canonical owner build/full CTest: **NOT RUN** in this
+GitHub-connector environment. Exact publication-SHA hosted CI: **PENDING**.
+No listener, credential prompt, native desktop, service, firewall or client was
+started.
+
 ## R1 first accepted-client diagnostic preparation (2026-10-20)
 
 Starting shared-main parent: `a98962a8881768f2c21d100edf21149b380daae0`.

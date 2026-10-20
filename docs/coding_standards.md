@@ -1,3 +1,16 @@
+## R2 NTLMSSP security buffers are borrowed, bounded wire views (2026-10-20)
+
+For standalone NTLMSSP, treat each MS-NLMP SECURITY_BUFFER MaxLen as
+non-authoritative and validate only the transmitted Len plus BufferOffset
+against the exact caller-owned token. Nonempty Type 3 payload ranges must begin
+after the fixed header, optional VERSION and required MIC region and must not
+overlap one another. Decode negotiated Unicode identities byte-by-byte into
+bounded aligned char16_t storage; never reinterpret an untrusted byte pointer as
+char16_t. Keep NTLMv2 response/key bytes borrowed synchronously and do not cache
+a parser success Boolean as authentication. Exact transcript/MIC verification
+and stateful SIGN/SEAL remain responsibilities of the future single mechanism
+owner.
+
 ## R8 dormant activation composition rules (2026-10-19)
 
 When preparing clipboard before live authorization, compile the complete route

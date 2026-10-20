@@ -41,6 +41,28 @@ foreach(ntlmv2_case IN ITEMS
         LABELS "security;credentials;ntlmv2;credssp;offline")
 endforeach()
 
+# R2 standalone NTLMSSP framing bridge. These cases consume published MS-NLMP
+# wire examples and bounded parser fixtures only; they do not open TLS/network
+# state, grant R2 admission, or claim Microsoft-client interoperability.
+add_executable(test_standalone_ntlmssp test_standalone_ntlmssp.cpp)
+target_link_libraries(test_standalone_ntlmssp PRIVATE
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_standalone_ntlmssp PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_standalone_ntlmssp PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(ntlmssp_case IN ITEMS
+        ntlmssp-negotiate-challenge-framing
+        ntlmssp-microsoft-authenticate-bridge
+        ntlmssp-security-buffer-mic-denials)
+    add_test(NAME "security.${ntlmssp_case}"
+        COMMAND test_standalone_ntlmssp "${ntlmssp_case}")
+    set_tests_properties("security.${ntlmssp_case}" PROPERTIES
+        LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
+endforeach()
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

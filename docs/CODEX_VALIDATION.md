@@ -1,3 +1,27 @@
+## R2 standalone NTLMSSP framing authoring receipt (2026-10-20)
+
+Starting shared-main parent: `2e2a5f5e4b4bce2364958928d2caf636dea66b4a`. The R2A positive owner-authority
+blocker is already resolved on current main; this increment therefore continues
+the independent-password R2P lane instead of adding another authorization
+abstraction. Source adds bounded Type 1 parsing, Type 2 challenge/TargetInfo
+encoding and Type 3 security-buffer/Unicode/MIC-placement parsing in the same
+noninstalled standalone NTLMv2 target.
+
+The three new ordinary offline CTests use published Microsoft NEGOTIATE and
+NTLMv2 AUTHENTICATE wire examples plus mutation fixtures. The Type 3 published
+vector is bridged into the already-landed EphemeralNtlmV2Credential verifier,
+so parsing and the Microsoft proof/session-key known answer meet at one typed
+boundary without enabling SPNEGO or admission.
+
+Microsoft Open Specifications review: **PASS** for MS-NLMP message/security-
+buffer layout and connection-oriented sequencing, and for the later MS-CSSP
+requirement that pubKeyAuth/authInfo use the authenticated mechanism's
+encryption services. Owner-local canonical build/full CTest: **NOT RUN** in
+this connector environment. Exact publication-SHA hosted CI: **PENDING**.
+Remaining R2P P0: SPNEGO token state, exact NTLM transcript MIC verification,
+stateful SIGN/SEAL wrap/unwrap, CredSSP binding/authInfo integration and GUI
+memory-only secret ownership. No live client/listener was exercised.
+
 ## R5 source-contract reconciliation after R1 diagnostics (2026-10-20)
 
 **Authoring parent:** `4e885e06a9a6085c0be7ee99feab646a29906bb6`.

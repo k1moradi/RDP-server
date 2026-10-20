@@ -1,3 +1,27 @@
+## R2 standalone NTLMSSP wire boundary (2026-10-20)
+
+The independent-password provider reuses the existing
+`rdp-server-standalone-ntlmv2` owner. `standalone_ntlmssp` is only its
+connection-oriented MS-NLMP wire layer, not a second credential/session owner.
+Type 1 parsing is syntax-only. Type 2 encoding selects only the standalone
+CredSSP-required Unicode/NTLM/SIGN/SEAL/ESS/128 profile plus bounded optional
+client flags, carries a caller-owned 64-bit nonce, and publishes NetBIOS
+domain/computer/timestamp TargetInfo without a debugging VERSION tuple. The
+challenge encoder allocates nothing and writes only after all sizes/policy are
+validated.
+
+Type 3 parsing treats MaxLen as non-authoritative per MS-NLMP, validates the
+actual Len/offset extents, rejects overlapping used payload ranges, copies only
+bounded UTF-16 identity fields into aligned storage, and borrows response/key
+bytes from the caller-owned message. MsvAvFlags bit 0x2 controls whether the
+16-byte MIC header region is fenced from payload security buffers. The parser
+does not authenticate MIC or NTProofStr. Its verificationRequest() is only a
+typed bridge to the existing EphemeralNtlmV2Credential proof/key derivation.
+A future single SPNEGO/transcript owner must retain the exact Type 1/2/3 bytes,
+zero the MIC field for the specified HMAC calculation, verify it when required,
+then own stateful client/server NTLM sealing before CredSSP pubKeyAuth/authInfo.
+No parser Boolean can grant R2 admission.
+
 ## R1 first-client runtime diagnostic boundary (2026-10-20)
 
 R1 now exposes one bounded, read-only acceptance diagnostic snapshot from the

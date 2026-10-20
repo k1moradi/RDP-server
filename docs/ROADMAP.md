@@ -1,3 +1,29 @@
+## R2 read-only owner-grant observation for R10/R7 (2026-10-20)
+
+Starting reconciled shared-main parent: `75668042f27f1e596d094a29ff08fd0fab870d19`.
+
+R2 now exposes a non-secret read-only observation of the one existing
+`CurrentOwnerSharingAuthority` grant: active/expired/unavailable state,
+effective permission mask only while active, and remaining monotonic lifetime.
+The observation does not sample or cache native authorization, does not mutate
+the revocation epoch, and cannot substitute for `authorizes()`. Linux R10
+projects the same facts through `RuntimeHostStatus` for R7 presentation while
+continuing to perform the existing fresh view-permission authorization check.
+
+Dedicated ordinary CTest:
+`security.owner-consent-read-only-grant-observation`. It proves unavailable,
+active remaining lifetime, expiry with zero effective permissions, and explicit
+revocation, including that merely observing expiry cannot mutate authority.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**.
+
+This removes the owner-grant-observation subtask from R2C. It does not complete
+standalone-password admission: the remaining R2-owned boundary is still the
+single authenticated-principal proof that must converge GSS/Kerberos and the
+exact generation-fenced standalone CredSSP result on the existing native lease.
+R10X/X11 remains independent of that R2 work.
+
 ## R1 peer-termination classification after accepted-client unblock (2026-10-20)
 
 Starting shared-main parent: `bd134d748dbccbdf2b812c7ad9e20b1ad17ff247`.

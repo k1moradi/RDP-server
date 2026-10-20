@@ -1,3 +1,16 @@
+## R2 owner-grant observation boundary (2026-10-20)
+
+`CurrentOwnerSharingAuthority` remains the sole positive local-owner consent
+authority. Its read-only grant observation exposes only active/expired/
+unavailable state, the effective permission mask while active, and remaining
+monotonic lifetime. It does not expose session identifiers, UID, display,
+generation internals, credentials or secret material.
+
+R10 may project this observation to R7, but it is descriptive only. It does not
+sample native session authority, does not revoke or renew the grant and cannot
+replace the existing fresh `authorizes()` checks used at admission and every
+protected R3 operation.
+
 ## R1 native poll-error ownership and terminal classification (2026-10-20)
 
 The Linux runtime scheduler must not convert a native socket error into generic

@@ -1,3 +1,22 @@
+## R2 owner-grant observation authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `75668042f27f1e596d094a29ff08fd0fab870d19`.
+
+R2 adds the requested non-secret read-only owner-grant observation to the
+existing `CurrentOwnerSharingAuthority` and projects it through Linux R10's
+`RuntimeHostStatus`. Active observations contain only the effective permission
+mask and remaining monotonic lifetime; expired/revoked observations expose no
+permissions. The observation never samples native authorization or changes the
+revocation epoch, so it cannot replace the existing fresh `authorizes()`
+checks.
+
+New ordinary CTest:
+`security.owner-consent-read-only-grant-observation`.
+
+Owner-local canonical configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No listener, client,
+credential prompt, native desktop or service was activated.
+
 ## R1 terminal transport-classification authoring receipt (2026-10-20)
 
 Starting shared-main parent: `bd134d748dbccbdf2b812c7ad9e20b1ad17ff247`.

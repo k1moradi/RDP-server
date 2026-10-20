@@ -291,8 +291,26 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             endpointText(selection_.localAddress, selection_.port);
     if (listenerCurrent)
         snapshot.boundEndpoint = boundEndpointText(listener_.boundEndpoint());
-    // Status observes the same R2 owner used by admission. A GUI Boolean can
-    // never replace this production authority.
+    // Status observes the same R2 owner used by admission. The grant snapshot
+    // is intentionally descriptive; only the fresh authorizes() check below
+    // can report current protected-operation authority.
+    const auto ownerGrant = ownerSharingAuthority_.grantObservation();
+    using rdp_server::server::security::OwnerSharingGrantExpiryState;
+    switch (ownerGrant.expiryState)
+    {
+    case OwnerSharingGrantExpiryState::Active:
+        snapshot.ownerGrant.state = RuntimeOwnerGrantState::Active;
+        snapshot.ownerGrant.effectivePermissionMask =
+            ownerGrant.effectivePermissionMask;
+        snapshot.ownerGrant.remainingMilliseconds =
+            ownerGrant.remainingMilliseconds;
+        break;
+    case OwnerSharingGrantExpiryState::Expired:
+        snapshot.ownerGrant.state = RuntimeOwnerGrantState::Expired;
+        break;
+    case OwnerSharingGrantExpiryState::Unavailable:
+        break;
+    }
     snapshot.hostOwnerAuthorized =
         ownerSharingAuthority_.authorizes(
             rdp_server::server::security::kConsoleViewPermission);

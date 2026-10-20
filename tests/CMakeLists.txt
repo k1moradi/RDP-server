@@ -299,6 +299,7 @@ endif()
 foreach(owner_consent_case IN ITEMS
         owner-consent-positive-seat0-unlocked-grant
         owner-consent-expiry-revokes
+        owner-consent-read-only-grant-observation
         owner-consent-invalid-native-evidence-denials
         owner-consent-stop-lock-logout-switch-replacement-revocations
         owner-consent-credential-expiry-native-loss-revocations)

@@ -1,3 +1,13 @@
+## R2 owner-grant observation regression (2026-10-20)
+
+`security.owner-consent-read-only-grant-observation` must prove the owner-grant
+projection is unavailable without a grant, reports the exact effective
+permission mask and remaining monotonic lifetime while active, reports expired
+with zero permissions at the deadline, and becomes unavailable after explicit
+revocation. Reading the expired observation must not itself change the
+revocation generation. This is presentation-state coverage only and cannot be
+treated as native admission evidence.
+
 ## R1 terminal transport-classification regression (2026-10-20)
 
 `runtime.linux-connection-r1-terminal-transport-classification` uses the

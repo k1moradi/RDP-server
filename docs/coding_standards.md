@@ -1,3 +1,12 @@
+## R2 owner-grant observations stay non-authorizing (2026-10-20)
+
+When R10/R7 need to display current local-owner consent, expose only a read-only
+projection from the one `CurrentOwnerSharingAuthority`: effective permission
+mask while active plus remaining/expiry state. Do not expose native session
+identity, credential material or an authorization token. Observation must not
+renew, revoke or otherwise mutate the grant, and callers must still use the
+existing fresh `authorizes()` path before every protected operation.
+
 ## R1 native poll errors remain transport-owned (2026-10-20)
 
 Do not revoke an accepted connection merely because the external POSIX poller

@@ -170,6 +170,20 @@ struct RuntimeHostPermissionRequest final
     std::uint64_t requestedLifetimeMilliseconds{15U * 60U * 1000U};
 };
 
+enum class RuntimeOwnerGrantState : std::uint8_t
+{
+    Unavailable,
+    Active,
+    Expired,
+};
+
+struct RuntimeOwnerGrantObservation final
+{
+    RuntimeOwnerGrantState state{RuntimeOwnerGrantState::Unavailable};
+    std::uint32_t effectivePermissionMask{};
+    std::uint64_t remainingMilliseconds{};
+};
+
 struct RuntimeHostStatus
 {
     RuntimeHostStage stage{RuntimeHostStage::Stopped};
@@ -180,6 +194,10 @@ struct RuntimeHostStatus
     // synthesized by Qt. Unavailable while the R10 controller is deny-only.
     RuntimeTlsIdentityStatus tlsIdentity{};
     bool hostOwnerAuthorized{};
+    // Non-secret projection of the local owner's current consent grant.
+    // Descriptive only: R2 still revalidates native evidence on every
+    // protected operation and this value can never authorize a peer.
+    RuntimeOwnerGrantObservation ownerGrant{};
     bool listenerAvailable{};
     // Exact process-local generation of the currently owned R1 listener.
     // Zero means no current listener; never an admission capability.

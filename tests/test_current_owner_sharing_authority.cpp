@@ -90,6 +90,43 @@ int main(int argc, char **argv)
         assert(authority.revocationGeneration() != before);
         return 0;
     }
+    if (testCase == "owner-consent-read-only-grant-observation")
+    {
+        FakeOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+        const auto unavailable = authority.grantObservation();
+        assert(unavailable.expiryState ==
+               OwnerSharingGrantExpiryState::Unavailable);
+        assert(unavailable.effectivePermissionMask == 0U);
+        assert(unavailable.remainingMilliseconds == 0U);
+
+        constexpr std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleClipboardPermission;
+        grant(authority, 500U, permissions);
+        evidence.now = 1100U;
+        const auto active = authority.grantObservation();
+        assert(active.expiryState == OwnerSharingGrantExpiryState::Active);
+        assert(active.effectivePermissionMask == permissions);
+        assert(active.remainingMilliseconds == 400U);
+
+        const auto revocationBeforeExpiry = authority.revocationGeneration();
+        evidence.now = 1500U;
+        const auto expired = authority.grantObservation();
+        assert(expired.expiryState == OwnerSharingGrantExpiryState::Expired);
+        assert(expired.effectivePermissionMask == 0U);
+        assert(expired.remainingMilliseconds == 0U);
+        // Observation must stay read-only. Protected-operation authorization
+        // remains the owner that turns expiry into revocation.
+        assert(authority.revocationGeneration() == revocationBeforeExpiry);
+
+        authority.revoke(OwnerConsentRevocationReason::AuthorityExpired);
+        const auto revoked = authority.grantObservation();
+        assert(revoked.expiryState ==
+               OwnerSharingGrantExpiryState::Unavailable);
+        assert(revoked.effectivePermissionMask == 0U);
+        assert(revoked.remainingMilliseconds == 0U);
+        return 0;
+    }
     if (testCase == "owner-consent-invalid-native-evidence-denials")
     {
         CurrentOwnerSharingAuthority unavailable;

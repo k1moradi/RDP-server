@@ -45,6 +45,24 @@ enum class OwnerConsentRevocationReason : std::uint8_t
     NativeAuthorizationLost,
 };
 
+// Read-only presentation state for R10/R7. This observation is never an
+// authorization capability: only authorizes() may validate the current native
+// session and permission scope for a protected operation.
+enum class OwnerSharingGrantExpiryState : std::uint8_t
+{
+    Unavailable,
+    Active,
+    Expired,
+};
+
+struct OwnerSharingGrantObservation final
+{
+    OwnerSharingGrantExpiryState expiryState{
+        OwnerSharingGrantExpiryState::Unavailable};
+    std::uint32_t effectivePermissionMask{};
+    std::uint64_t remainingMilliseconds{};
+};
+
 // M1 deliberately limits one explicit local consent grant to at most one hour.
 // The GUI may request a shorter owner-selected interval.
 inline constexpr std::uint64_t
@@ -159,6 +177,38 @@ public:
             return false;
         }
         return grant_.revocationGeneration == revocationGeneration();
+    }
+
+    // Non-secret, non-authorizing grant projection. It deliberately samples
+    // only the monotonic clock and the current revocation epoch; it does not
+    // refresh native session evidence, revoke state, or substitute for
+    // authorizes(). Expired/revoked grants expose no effective permissions.
+    [[nodiscard]] OwnerSharingGrantObservation grantObservation() const noexcept
+    {
+        OwnerSharingGrantObservation observation{};
+        if (evidenceSource_ == nullptr ||
+            grant_.leaseGeneration == 0 ||
+            grant_.revocationGeneration != revocationGeneration())
+        {
+            return observation;
+        }
+
+        const std::optional<std::uint64_t> now =
+            evidenceSource_->readMonotonicMilliseconds();
+        if (!now.has_value())
+            return observation;
+
+        if (*now >= grant_.deadlineMonotonicMilliseconds)
+        {
+            observation.expiryState = OwnerSharingGrantExpiryState::Expired;
+            return observation;
+        }
+
+        observation.expiryState = OwnerSharingGrantExpiryState::Active;
+        observation.effectivePermissionMask = grant_.permissions;
+        observation.remainingMilliseconds =
+            grant_.deadlineMonotonicMilliseconds - *now;
+        return observation;
     }
 
     void revoke(OwnerConsentRevocationReason /* reason */) noexcept

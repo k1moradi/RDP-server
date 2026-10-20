@@ -1,3 +1,26 @@
+## R2 standalone CredSSP must reuse TLS-derived TSRequest provenance (2026-10-20)
+
+Do not create a standalone-password-specific DER parser, TLS reader/writer, or
+certificate identity cache. Feed only complete frames produced by the existing
+`TsRequestFrameReader`, pin the exact established server TLS object and
+selected-certificate fingerprint on the first frame, and queue replies only
+through the existing one-reply `TsRequestTlsReplyWriter`. A manually consumed
+DER frame has no TLS provenance and must fail terminally even when its syntax
+and NTLM token are otherwise valid.
+
+For NTLM CredSSP protected fields, require exactly one 16-byte NTLM message
+signature followed by the sealed plaintext. Use the already-established
+directional NTLM sequence/RC4 state; never derive a second set of keys or reset
+sequence numbers at the TLS binding boundary. After stream consumption, any
+signature, certificate, nonce, version, reader/writer, or TLS mismatch retires
+the entire standalone mechanism.
+
+When the final client SPNEGO token shares a TSRequest with `pubKeyAuth`,
+suppress a mechanism response only if it is the exact empty
+accept-completed envelope required to transition to the server binding reply.
+Never discard an outstanding response token or mechListMIC merely because the
+CredSSP server-binding shape omits `negoTokens`.
+
 ## R2 SPNEGO mechListMIC uses exact mechanism-list bytes and NTLM state (2026-10-20)
 
 When SPNEGO selects NTLM after another initiator-preferred mechanism, retain the

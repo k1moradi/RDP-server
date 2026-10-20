@@ -215,11 +215,14 @@ target_link_libraries(rdp-server-protocol PUBLIC
 add_library(rdp-server-standalone-ntlmv2 STATIC
     src/server/security/standalone_ntlmv2.cpp
     src/server/security/standalone_ntlmssp.cpp
-    src/server/security/standalone_spnego.cpp)
+    src/server/security/standalone_spnego.cpp
+    src/server/security/standalone_credssp.cpp)
 target_compile_features(rdp-server-standalone-ntlmv2 PUBLIC cxx_std_23)
 target_include_directories(rdp-server-standalone-ntlmv2 PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
-target_link_libraries(rdp-server-standalone-ntlmv2 PRIVATE OpenSSL::Crypto)
+target_link_libraries(rdp-server-standalone-ntlmv2
+    PUBLIC rdp-server-protocol
+    PRIVATE OpenSSL::Crypto)
 if(MSVC)
     target_compile_options(rdp-server-standalone-ntlmv2 PRIVATE /W4 /WX)
 else()
@@ -1205,6 +1208,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "standalone_ntlmv2.h" EXCLUDE
     PATTERN "standalone_ntlmssp.h" EXCLUDE
     PATTERN "standalone_spnego.h" EXCLUDE
+    PATTERN "standalone_credssp.h" EXCLUDE
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE

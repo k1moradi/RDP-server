@@ -1,3 +1,34 @@
+## R2 standalone CredSSP TLS-binding authoring receipt (2026-10-20)
+
+Starting shared-main parent: `cada67f186526f4a7f05f60b61528771a05363e1`. Current dependency inspection found
+the earlier R2 `std::span::fill` compile defect repaired at `86df5d18` and
+the R10 Linux serve preprocessor imbalance repaired at `cada67f18`. R10's
+first-client code gate remains accepted-socket servicing; it is independent of
+this R2P work.
+
+This increment adds a noninstalled standalone CredSSP connection owner which
+reuses the existing strict TLS-derived TSRequest reader/writer and active
+selected-certificate binding helpers. It pins one reader, writer, server
+`SSL*`, certificate fingerprint, and CredSSP v5/v6 version. Token-only SPNEGO
+continues through the existing standalone mechanism. The normative combined
+final Type 3 + protected client-binding request is unwrapped with that exact
+NTLM context, checked against the exact active TLS certificate/nonce, and
+answered with a protected server binding queued by the existing canonical
+TSRequest writer. Raw/manual DER provenance, ciphertext tampering, object/TLS
+substitution, and incompatible combined-final mechanism output fail closed.
+
+New ordinary CTests are
+`security.standalone-credssp-tls-bound-combined-pubkeyauth`,
+`security.standalone-credssp-pubkeyauth-tamper-revokes`, and
+`security.standalone-credssp-manual-frame-provenance-denial`.
+They use only an in-memory TLS BIO pair and test-only ephemeral certificate.
+
+Current Microsoft MS-CSSP/MS-NLMP source review: **PASS**. Owner-local
+canonical configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No listener,
+credential prompt, native desktop, firewall, service, `authInfo` credential,
+or real client was activated.
+
 ## R10 Linux serve guard compile repair (2026-10-20)
 
 Starting shared-main parent: `86df5d185867ffbf03485252273c712a8721830b`. Hosted production-security compilation

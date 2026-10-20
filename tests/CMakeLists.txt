@@ -132,6 +132,27 @@ add_test(NAME runtime.desktop-shared-configuration-feed
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
     LABELS "runtime;configuration;gui;r10-host-control;offline")
 
+# R2 standalone CredSSP TLS binding bridge. In-memory TLS only: these tests
+# cannot grant native admission, enable a listener or consume final authInfo.
+add_executable(test_standalone_credssp test_standalone_credssp.cpp)
+target_link_libraries(test_standalone_credssp PRIVATE
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_standalone_credssp PRIVATE /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(test_standalone_credssp PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(standalone_credssp_case IN ITEMS
+        standalone-credssp-tls-bound-combined-pubkeyauth
+        standalone-credssp-pubkeyauth-tamper-revokes
+        standalone-credssp-manual-frame-provenance-denial)
+    add_test(NAME "security.${standalone_credssp_case}"
+        COMMAND test_standalone_credssp "${standalone_credssp_case}")
+    set_tests_properties("security.${standalone_credssp_case}" PROPERTIES
+        LABELS "security;credentials;ntlmv2;spnego;credssp;tls;offline")
+endforeach()
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

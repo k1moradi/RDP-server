@@ -1,3 +1,28 @@
+## R2 standalone CredSSP TLS-binding owner (2026-10-20)
+
+The standalone application-password path now composes CredSSP without creating a
+parallel framing or TLS stack. `StandaloneCredSspNtlmAcceptor` contains the
+single `StandaloneSpnegoNtlmAcceptor`; its outer connection state borrows one
+existing `TsRequestFrameReader` and one `TsRequestTlsReplyWriter`, pins the
+first frame's established server TLS object plus selected-certificate SHA-256
+identity and version, and rejects substitution on every later frame.
+
+Public-key binding uses the same helpers as the GSS path. The client
+`pubKeyAuth` OCTET STRING is interpreted only after a TLS-derived TSRequest
+passes its required shape. NTLM connection-oriented unwrap authenticates and
+decrypts the signature-plus-ciphertext into the client binding hash; the hash is
+then compared against the exact active TLS SubjectPublicKey and client nonce.
+The server binding hash is computed from that same TLS certificate/nonce and
+wrapped using the same established NTLM security context before the canonical
+TSRequest writer owns the reply.
+
+MS-CSSP permits the last SPNEGO token and client binding in one request, while
+the server binding response contains no negotiation token. The standalone owner
+therefore suppresses only its exact empty accept-completed SPNEGO envelope on
+that combined NTLM-first transition. Any nonempty mechanism response or server
+mechListMIC cannot be discarded to force the shape and instead terminates the
+exchange. Final `authInfo` remains outside this increment.
+
 ## R2 SPNEGO mechListMIC and NTLM sequence continuity (2026-10-20)
 
 The standalone SPNEGO owner retains the exact encoded DER `MechTypeList` from

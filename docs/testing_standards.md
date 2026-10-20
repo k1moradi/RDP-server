@@ -1,3 +1,20 @@
+## R2 standalone CredSSP TLS public-key-binding tests (2026-10-20)
+
+The standalone CredSSP binding increment is exercised with an in-memory OpenSSL
+TLS client/server BIO pair, not a TCP listener. The server side must use the
+production `TsRequestFrameReader`, active selected-certificate binding helpers,
+and `TsRequestTlsReplyWriter`; the client side independently protects and
+checks the binding using the published NTLMv2-derived keys.
+
+Ordinary CTest must cover: token-only Type 1 negotiation followed by a combined
+Type 3 + `pubKeyAuth` + 32-byte nonce frame and exact server binding
+verification; mutation of the protected client binding causing terminal
+reader/writer/mechanism retirement; and denial of an otherwise valid TSRequest
+fed through manual `consume()` without TLS provenance. These are mechanism and
+TLS-transcript tests only. They do not consume `authInfo`, open a listener,
+authenticate a local OS account, create R2 owner consent, or prove Microsoft
+client interoperability.
+
 ## R2 SPNEGO fallback mechListMIC state test (2026-10-20)
 
 The standalone SPNEGO suite must include a deterministic fallback exchange where

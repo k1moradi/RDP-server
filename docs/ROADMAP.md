@@ -1,3 +1,56 @@
+## R2 standalone CredSSP TLS public-key binding (2026-10-20)
+
+Starting shared-main parent: `cada67f186526f4a7f05f60b61528771a05363e1`.
+
+Dependency recheck found both broad compile defects from the preceding shared
+head resolved: R2 repaired its standalone NTLM compile failure at `86df5d18`,
+and R10 repaired the production Linux serve preprocessor guard at
+`cada67f18`. The first Linux desktop/client chain is still independently
+blocked at R10's same-owner accepted-socket service handoff from the GUI-owned
+`OwnedLanListener` into the existing `LinuxRuntimeConnection` / persistent
+R2-selected X11 loop. That R10 blocker does not block the parallel R2P password
+lane.
+
+R2P now adds one noninstalled `StandaloneCredSspNtlmAcceptor` around the
+existing standalone SPNEGO/NTLM mechanism. It reuses the project's strict
+`TsRequestFrameReader` and one-reply `TsRequestTlsReplyWriter`; no second
+CredSSP DER parser, TLS transport, or message-security owner is introduced.
+The first complete frame pins the exact established server `SSL*`, selected
+X.509 certificate fingerprint, reader/writer objects, and CredSSP version 5/6.
+Every later frame must match that provenance.
+
+The owner accepts ordinary token-only negotiation and the MS-CSSP final
+combined client shape containing the last SPNEGO token, protected
+`pubKeyAuth`, and 32-byte client nonce. After the existing standalone NTLM
+mechanism verifies the Type 3 message, the 16-byte NTLM signature and encrypted
+32-byte client binding hash are unsealed through the same directional
+connection state, compared against the active TLS certificate/nonce, and the
+server-to-client binding hash is sealed through the opposite direction. The
+reply is queued through the existing TSRequest writer as `pubKeyAuth` only.
+For the combined NTLM-first fast path, only the exact empty SPNEGO
+accept-completed envelope may be suppressed; an outstanding response token or
+server mechListMIC is terminal rather than silently dropped.
+
+Dedicated ordinary CTests:
+`security.standalone-credssp-tls-bound-combined-pubkeyauth`,
+`security.standalone-credssp-pubkeyauth-tamper-revokes`, and
+`security.standalone-credssp-manual-frame-provenance-denial`. They use a
+memory-BIO TLS 1.2 client/server pair and a generated test-only certificate;
+no TCP listener, host credential, native desktop, or admission lease exists.
+
+Current Microsoft MS-CSSP/MS-NLMP review: **PASS** for the implemented
+v5/v6 public-key binding boundary and NTLM protected-message layout. Canonical
+owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**.
+
+R2P remains **ACTIVE**. The PASSWORD node is no longer blocked on SPNEGO or
+TLS-bound `pubKeyAuth`; its next code boundary is protected final
+`authInfo` consumption with exact standalone username/password equivalence and
+immediate plaintext retirement, followed by GUI memory-only secret
+ownership/revocation and real Windows App/mstsc evidence. This increment does
+not enable `IndependentApplicationPassword`, issue R2 admission, or downgrade
+NLA.
+
 ## R10 Linux serve compile-guard repair (2026-10-20)
 
 Current dependency state is unchanged: R2A and positive HostControl listener

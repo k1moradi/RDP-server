@@ -23,6 +23,7 @@ constexpr std::array<std::uint8_t, 10> kNtlmOid{
 
 constexpr std::uint8_t kAcceptCompleted = 0U;
 constexpr std::uint8_t kAcceptIncomplete = 1U;
+constexpr std::uint8_t kRequestMic = 3U;
 
 struct DerElement final
 {
@@ -169,9 +170,10 @@ struct DerElement final
 struct ParsedInitialToken final
 {
     ByteSpan mechanismToken{};
+    ByteSpan mechanismListEncoded{};
+    ByteSpan mechListMic{};
     bool ntlmOffered{};
     bool ntlmFirst{};
-    bool hasMechListMic{};
 };
 
 [[nodiscard]] bool parseMechanismList(
@@ -202,7 +204,45 @@ struct ParsedInitialToken final
         if (mechanismIndex > 16U)
             return false;
     }
-    return mechanismIndex != 0U && sawNtlm;
+    if (mechanismIndex == 0U || !sawNtlm)
+        return false;
+    result.mechanismListEncoded = encoded;
+    return true;
+}
+
+[[nodiscard]] bool validNegHints(ByteSpan encoded) noexcept
+{
+    ByteSpan sequence;
+    if (!unwrapSingle(encoded, 0x30U, sequence))
+        return false;
+
+    std::size_t offset = 0;
+    std::uint8_t previousTag = 0x9fU;
+    while (offset < sequence.size())
+    {
+        DerElement field;
+        if (!readDerElement(sequence, offset, field) ||
+            field.tag < 0xa0U || field.tag > 0xa1U ||
+            field.tag <= previousTag)
+        {
+            return false;
+        }
+        previousTag = field.tag;
+
+        ByteSpan nested;
+        if (field.tag == 0xa0U)
+        {
+            if (!unwrapSingle(field.content, 0x1bU, nested) ||
+                nested.empty() || nested.size() > 256U)
+                return false;
+        }
+        else if (!unwrapSingle(field.content, 0x04U, nested) ||
+                 nested.size() > 256U)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 [[nodiscard]] bool validContextFlags(ByteSpan encoded) noexcept
@@ -264,7 +304,7 @@ struct ParsedInitialToken final
     {
         DerElement field;
         if (!readDerElement(sequence, offset, field) ||
-            field.tag < 0xa0U || field.tag > 0xa3U ||
+            field.tag < 0xa0U || field.tag > 0xa4U ||
             field.tag <= previousTag)
         {
             return false;
@@ -275,9 +315,11 @@ struct ParsedInitialToken final
         switch (field.tag)
         {
         case 0xa0U:
-            if (sawMechanisms || !parseMechanismList(
-                    field.content, result))
+            if (sawMechanisms ||
+                !parseMechanismList(field.content, result))
+            {
                 return false;
+            }
             sawMechanisms = true;
             break;
         case 0xa1U:
@@ -294,21 +336,39 @@ struct ParsedInitialToken final
             result.mechanismToken = nested;
             break;
         case 0xa3U:
-            if (!unwrapSingle(field.content, 0x04U, nested))
+            // RFC 4178 NegTokenInit uses [3] for mechListMIC. Microsoft
+            // NegTokenInit2 reuses [3] for negHints and moves MIC to [4].
+            if (unwrapSingle(field.content, 0x04U, nested))
+            {
+                if (!result.mechListMic.empty())
+                    return false;
+                result.mechListMic = nested;
+            }
+            else if (!validNegHints(field.content))
+            {
                 return false;
-            result.hasMechListMic = !nested.empty();
+            }
+            break;
+        case 0xa4U:
+            if (!unwrapSingle(field.content, 0x04U, nested) ||
+                !result.mechListMic.empty())
+            {
+                return false;
+            }
+            result.mechListMic = nested;
             break;
         default:
             return false;
         }
     }
-    return sawMechanisms && result.ntlmOffered;
+    return sawMechanisms && result.ntlmOffered &&
+           !result.mechanismListEncoded.empty();
 }
 
 struct ParsedResponseToken final
 {
     ByteSpan mechanismToken{};
-    bool hasMechListMic{};
+    ByteSpan mechListMic{};
     bool hasNegState{};
     std::uint8_t negState{};
 };
@@ -376,7 +436,7 @@ struct ParsedResponseToken final
         case 0xa3U:
             if (!unwrapSingle(field.content, 0x04U, nested))
                 return false;
-            result.hasMechListMic = !nested.empty();
+            result.mechListMic = nested;
             break;
         default:
             return false;
@@ -395,12 +455,14 @@ struct ParsedResponseToken final
     std::uint8_t negState,
     bool includeSupportedMechanism,
     ByteSpan responseToken,
+    ByteSpan mechListMic,
     std::span<std::uint8_t> output,
     std::size_t &bytesWritten) noexcept
 {
     bytesWritten = 0;
-    if (negState > kAcceptIncomplete ||
-        responseToken.size() > kMaximumStandaloneNtlmMessageBytes)
+    if (negState > kRequestMic || negState == 2U ||
+        responseToken.size() > kMaximumStandaloneNtlmMessageBytes ||
+        mechListMic.size() > kNtlmMessageSignatureBytes)
     {
         return false;
     }
@@ -418,9 +480,14 @@ struct ParsedResponseToken final
         ? 0U : derElementBytes(responseToken.size());
     const std::size_t responseFieldBytes = responseToken.empty()
         ? 0U : derElementBytes(octetStringBytes);
+    const std::size_t micOctetStringBytes = mechListMic.empty()
+        ? 0U : derElementBytes(mechListMic.size());
+    const std::size_t micFieldBytes = mechListMic.empty()
+        ? 0U : derElementBytes(micOctetStringBytes);
 
     const std::size_t sequenceContentBytes =
-        stateFieldBytes + mechanismFieldBytes + responseFieldBytes;
+        stateFieldBytes + mechanismFieldBytes +
+        responseFieldBytes + micFieldBytes;
     const std::size_t sequenceBytes =
         derElementBytes(sequenceContentBytes);
     const std::size_t totalBytes =
@@ -467,11 +534,24 @@ struct ParsedResponseToken final
         }
     }
 
+    if (!mechListMic.empty())
+    {
+        if (!writeDerHeader(
+                output, offset, 0xa3U, micOctetStringBytes) ||
+            !writeDerHeader(
+                output, offset, 0x04U, mechListMic.size()) ||
+            !appendBytes(output, offset, mechListMic))
+        {
+            return false;
+        }
+    }
+
     if (offset != totalBytes)
         return false;
     bytesWritten = totalBytes;
     return true;
 }
+
 
 } // namespace
 
@@ -487,8 +567,11 @@ void StandaloneSpnegoNtlmAcceptor::clearMechanismState() noexcept
         negotiateMessage_.data(), negotiateMessage_.size());
     OPENSSL_cleanse(
         challengeMessage_.data(), challengeMessage_.size());
+    OPENSSL_cleanse(
+        mechanismList_.data(), mechanismList_.size());
     negotiateMessageLength_ = 0;
     challengeMessageLength_ = 0;
+    mechanismListLength_ = 0;
     ntlmWasFirstMechanism_ = false;
 }
 
@@ -566,6 +649,7 @@ bool StandaloneSpnegoNtlmAcceptor::configureChallenge(
 
 StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     std::span<const std::uint8_t> negotiateMessage,
+    bool includeSupportedMechanism,
     std::span<std::uint8_t> output) noexcept
 {
     if (negotiateMessage.empty() ||
@@ -602,9 +686,10 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     std::size_t bytesWritten = 0;
     if (!encodeServerResponse(
             kAcceptIncomplete,
-            true,
+            includeSupportedMechanism,
             std::span<const std::uint8_t>{challengeMessage_}.first(
                 challengeMessageLength_),
+            {},
             output,
             bytesWritten))
     {
@@ -625,19 +710,26 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
     ParsedInitialToken parsed;
     if (!parseInitialToken(token, parsed))
         return fail(StandaloneSpnegoStatus::InvalidToken);
-    if (parsed.hasMechListMic)
+    if (!parsed.mechListMic.empty() ||
+        parsed.mechanismListEncoded.size() > mechanismList_.size())
     {
         return fail(
             StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
     }
 
+    std::copy(
+        parsed.mechanismListEncoded.begin(),
+        parsed.mechanismListEncoded.end(),
+        mechanismList_.begin());
+    mechanismListLength_ = parsed.mechanismListEncoded.size();
+
     ntlmWasFirstMechanism_ = parsed.ntlmFirst;
     if (parsed.ntlmFirst && !parsed.mechanismToken.empty())
-        return issueChallenge(parsed.mechanismToken, output);
+        return issueChallenge(parsed.mechanismToken, true, output);
 
     std::size_t bytesWritten = 0;
     if (!encodeServerResponse(
-            kAcceptIncomplete, true, {}, output, bytesWritten))
+            kRequestMic, true, {}, {}, output, bytesWritten))
     {
         return fail(StandaloneSpnegoStatus::OutputTooSmall);
     }
@@ -664,18 +756,13 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
 
     if (stage_ == StandaloneSpnegoStage::AwaitNtlmNegotiate)
     {
-        if (parsed.hasMechListMic)
+        if (!parsed.mechListMic.empty())
         {
             return fail(
                 StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
         }
-        return issueChallenge(parsed.mechanismToken, output);
-    }
-
-    if (parsed.hasMechListMic || !ntlmWasFirstMechanism_)
-    {
-        return fail(
-            StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
+        return issueChallenge(
+            parsed.mechanismToken, false, output);
     }
 
     NtlmAuthenticateMessage authenticate;
@@ -723,12 +810,52 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
         }
     }
 
+    std::array<std::uint8_t, kNtlmMessageSignatureBytes>
+        serverMechListMic{};
+    ByteSpan serverMechListMicView{};
+    if (!parsed.mechListMic.empty())
+    {
+        if (parsed.mechListMic.size() != kNtlmMessageSignatureBytes ||
+            mechanismListLength_ == 0U)
+        {
+            return fail(StandaloneSpnegoStatus::InvalidToken);
+        }
+
+        const auto clientMic =
+            std::span<const std::uint8_t, kNtlmMessageSignatureBytes>{
+                parsed.mechListMic.data(),
+                parsed.mechListMic.size()};
+        const auto mechanismList =
+            std::span<const std::uint8_t>{mechanismList_}.first(
+                mechanismListLength_);
+        if (securityContext_.verifyClientMessageSignature(
+                mechanismList, clientMic) !=
+            NtlmMessageSecurityResult::Processed ||
+            securityContext_.signServerMessage(
+                mechanismList, serverMechListMic) !=
+            NtlmMessageSecurityResult::Processed)
+        {
+            return fail(StandaloneSpnegoStatus::CredentialRejected);
+        }
+        serverMechListMicView = serverMechListMic;
+    }
+    else if (!ntlmWasFirstMechanism_)
+    {
+        return fail(
+            StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
+    }
+
     std::size_t bytesWritten = 0;
     if (!encodeServerResponse(
-            kAcceptCompleted, false, {}, output, bytesWritten))
+            kAcceptCompleted, false, {},
+            serverMechListMicView, output, bytesWritten))
     {
+        OPENSSL_cleanse(
+            serverMechListMic.data(), serverMechListMic.size());
         return fail(StandaloneSpnegoStatus::OutputTooSmall);
     }
+    OPENSSL_cleanse(
+        serverMechListMic.data(), serverMechListMic.size());
 
     stage_ = StandaloneSpnegoStage::MechanismVerified;
     return {StandaloneSpnegoStatus::MechanismVerified, bytesWritten};

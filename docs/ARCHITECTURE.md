@@ -1,3 +1,25 @@
+## R2 SPNEGO mechListMIC and NTLM sequence continuity (2026-10-20)
+
+The standalone SPNEGO owner retains the exact encoded DER `MechTypeList` from
+the initiating token. When NTLM is selected after a more-preferred mechanism,
+the acceptor's first reply requests mechanism-list integrity. After NTLMv2
+authentication derives the connection security context, the client
+mechListMIC is verified with NTLM SIGN over those exact retained bytes; the
+server then signs the same list and returns its MIC with accept-completed.
+
+SIGN-only and SEAL share one directional NTLM Extended Session Security
+sequence/RC4 owner. With KEY_EXCH, signing consumes RC4 bytes for the encrypted
+checksum even though the message itself is not sealed. Therefore a successful
+client/server mechListMIC exchange consumes sequence zero in each direction,
+and subsequent CredSSP pubKeyAuth begins at sequence one without reinitializing
+the sealing stream.
+
+Initial-token parsing accepts both wire layouts required by the supported
+standards: RFC 4178 NegTokenInit may carry mechListMIC in context [3];
+Microsoft NegTokenInit2 may carry NegHints in [3] and mechListMIC in [4].
+NegHints are syntax-checked and ignored as hints; they never affect target
+identity, TLS provenance, authorization, or credential policy.
+
 ## R2 standalone SPNEGO/NTLM connection owner (2026-10-20)
 
 The independent-password path now has exactly one SPNEGO/NTLM connection owner,

@@ -1,3 +1,51 @@
+## R2 standalone SPNEGO fallback integrity and compile repair (2026-10-20)
+
+Starting shared-main parent: `2552a0d20f5fa09cfff013a766a8dd3bf15062a0`.
+
+Dependency recheck consumed R10's provisioned listener transaction and shared
+desktop configuration feed. The first Linux desktop/client path is therefore no
+longer blocked on R2A, HostControl credential/TLS composition, or GUI config
+provisioning. Its current independent blocker is R10's same-owner nonblocking
+accepted-socket handoff from the GUI-owned `OwnedLanListener` into the existing
+`LinuxRuntimeConnection` / persistent R2-selected X11 loop.
+
+The parallel R2P password lane remained actionable, but the latest R5 receipt
+also exposed a concrete R2 compile regression from the previous message-security
+increment: `std::span` has no `fill()`. This increment repairs that by using
+bounded iterator fill and factors the existing NTLM ESS MAC into SIGN-only
+client verification/server signing helpers that share the exact directional
+sequence number and KEY_EXCH RC4 checksum stream with SEAL.
+
+SPNEGO fallback now retains the exact DER `MechTypeList`, emits `request-mic`
+when NTLM was not the initiator's preferred mechanism, verifies the client's
+16-byte NTLM SIGN token over that exact list, returns the matching server
+mechListMIC with `accept-completed`, and preserves the advanced sequence/RC4
+state for the next CredSSP protected message. Microsoft NegTokenInit2 is also
+accepted correctly: context field [3] is parsed as `negHints` when it contains
+the NegHints SEQUENCE, while [4] is its mechListMIC; RFC 4178's legacy [3]
+mechListMIC form remains recognized. Missing or tampered fallback MIC is
+terminal.
+
+Dedicated ordinary CTest:
+`security.spnego-fallback-mechlistmic-roundtrip` pins request-mic selection,
+Microsoft-style negHints, exact client/server MICs from the existing Microsoft
+NTLMv2 KAT-derived keys, and sequence-one SIGN/SEAL continuity after the MIC
+exchange. Existing fallback denial coverage now also rejects a tampered MIC.
+
+Microsoft MS-SPNG/RFC 4178/MS-NLMP review: **PASS** for this mechanism-integrity
+increment. Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**. The separately reported R10 `src/gui/main.cpp` preprocessor
+imbalance is not modified here and may independently keep broad CI red until its
+owner fixes it.
+
+R2P remains **ACTIVE**. The PASSWORD node is no longer blocked on fallback
+mechListMIC; its next code boundary is TLS-proven CredSSP TSRequest integration
+of the established standalone mechanism for `pubKeyAuth` and `authInfo`,
+followed by GUI memory-only secret ownership/revocation and real Windows
+App/mstsc evidence. CLIENT remains independently blocked on R10 accepted-socket
+servicing.
+
 ## R10 shared desktop configuration feed (2026-10-20)
 
 Starting shared-main parent: `58080b10f44eb22e0f2e8635a16042c91d91cafe`. The R2A dependency is resolved and

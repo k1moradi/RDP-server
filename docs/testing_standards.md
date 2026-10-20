@@ -1,3 +1,16 @@
+## R2 SPNEGO fallback mechListMIC state test (2026-10-20)
+
+The standalone SPNEGO suite must include a deterministic fallback exchange where
+a mechanism precedes NTLM in MechTypeList, the initial token carries
+Microsoft-style NegHints, the server requests MIC, NTLM Type 1/2/3 completes,
+and exact client/server mechListMIC signatures are checked against independently
+fixed vectors. The same test must prove that the next client/server protected
+message uses sequence one and the already-advanced KEY_EXCH RC4 stream.
+
+Keep missing/tampered MIC denials terminal. This remains an offline mechanism
+test: no TSRequest, TLS socket, GUI password, native admission or Microsoft
+client is involved, so it cannot be reported as CredSSP/NLA interoperability.
+
 ## R2 standalone SPNEGO/NTLM state tests (2026-10-20)
 
 Standalone SPNEGO tests remain ordinary offline CTests. At minimum cover an

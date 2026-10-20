@@ -78,12 +78,6 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     return output;
 }
 
-[[nodiscard]] Bytes append(Bytes left, std::span<const std::uint8_t> right)
-{
-    left.insert(left.end(), right.begin(), right.end());
-    return left;
-}
-
 [[nodiscard]] Bytes oid(std::span<const std::uint8_t> value)
 {
     return tlv(0x06U, value);
@@ -112,7 +106,8 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
 
 [[nodiscard]] Bytes initialToken(
     const std::vector<Bytes> &mechanisms,
-    std::span<const std::uint8_t> mechanismToken)
+    std::span<const std::uint8_t> mechanismToken,
+    bool includeNegHints = false)
 {
     Bytes mechanismList;
     for (const auto &mechanism : mechanisms)
@@ -128,6 +123,14 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
         const auto tokenField =
             tlv(0xa2U, tlv(0x04U, mechanismToken));
         fields.insert(fields.end(), tokenField.begin(), tokenField.end());
+    }
+    if (includeNegHints)
+    {
+        constexpr std::array<std::uint8_t, 6> hint{
+            'T','E','R','M','S','R'};
+        const auto hintName = tlv(0xa0U, tlv(0x1bU, hint));
+        const auto negHints = tlv(0xa3U, tlv(0x30U, hintName));
+        fields.insert(fields.end(), negHints.begin(), negHints.end());
     }
 
     const auto init = tlv(0xa0U, tlv(0x30U, fields));
@@ -157,18 +160,29 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
 }
 
 [[nodiscard]] Bytes expectedServerResponse(
-    std::span<const std::uint8_t> responseToken)
+    std::uint8_t state,
+    bool includeSupportedMechanism,
+    std::span<const std::uint8_t> responseToken = {},
+    std::span<const std::uint8_t> mechListMic = {})
 {
-    constexpr std::array<std::uint8_t, 3> incomplete{
-        0x0a,0x01,0x01};
-    Bytes fields = tlv(0xa0U, incomplete);
-    const auto mechanism = tlv(0xa1U, oid(kNtlmOid));
-    fields.insert(fields.end(), mechanism.begin(), mechanism.end());
+    const std::array<std::uint8_t, 3> stateValue{
+        0x0a,0x01,state};
+    Bytes fields = tlv(0xa0U, stateValue);
+    if (includeSupportedMechanism)
+    {
+        const auto mechanism = tlv(0xa1U, oid(kNtlmOid));
+        fields.insert(fields.end(), mechanism.begin(), mechanism.end());
+    }
     if (!responseToken.empty())
     {
         const auto token =
             tlv(0xa2U, tlv(0x04U, responseToken));
         fields.insert(fields.end(), token.begin(), token.end());
+    }
+    if (!mechListMic.empty())
+    {
+        const auto mic = tlv(0xa3U, tlv(0x04U, mechListMic));
+        fields.insert(fields.end(), mic.begin(), mic.end());
     }
     return tlv(0xa1U, tlv(0x30U, fields));
 }
@@ -221,6 +235,7 @@ int main(int argc, char **argv)
             challenge);
         assert(encodedChallenge);
         const auto expected = expectedServerResponse(
+            1U, true,
             std::span<const std::uint8_t>{challenge}.first(
                 encodedChallenge.bytesWritten));
         assert(step.bytesWritten == expected.size());
@@ -272,6 +287,123 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    if (testCase == "spnego-fallback-mechlistmic-roundtrip")
+    {
+        constexpr std::array<std::uint8_t, 25> mechanismList{
+            0x30,0x17,
+            0x06,0x09,0x2a,0x86,0x48,0x86,0xf7,0x12,0x01,0x02,0x02,
+            0x06,0x0a,0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
+        constexpr std::array<std::uint8_t, 16> clientMechListMic{
+            0x01,0x00,0x00,0x00,0x2f,0xc3,0xa4,0x9a,
+            0x03,0x64,0x6d,0x31,0x00,0x00,0x00,0x00};
+        constexpr std::array<std::uint8_t, 16> serverMechListMic{
+            0x01,0x00,0x00,0x00,0x89,0x2e,0x18,0xaa,
+            0xaa,0xc3,0x41,0x28,0x00,0x00,0x00,0x00};
+        constexpr std::array<std::uint8_t, 21> serverPlaintext{
+            'C','r','e','d','S','S','P','-','s','e','r','v','e','r',
+            '-','p','u','b','k','e','y'};
+        constexpr std::array<std::uint8_t, 21> serverCiphertextAfterMic{
+            0x6b,0xb6,0x42,0xb3,0x70,0x08,0x7c,0x0a,0x8a,0xb5,0x66,
+            0xfd,0x44,0x71,0x49,0x68,0x60,0xb0,0x06,0xdd,0xbb};
+        constexpr std::array<std::uint8_t, 16> serverSignatureAfterMic{
+            0x01,0x00,0x00,0x00,0x10,0x2a,0x48,0x96,
+            0x4c,0x68,0xa4,0xda,0x01,0x00,0x00,0x00};
+        constexpr std::array<std::uint8_t, 21> clientPlaintext{
+            'C','r','e','d','S','S','P','-','c','l','i','e','n','t',
+            '-','p','u','b','k','e','y'};
+        constexpr std::array<std::uint8_t, 21> clientCiphertextAfterMic{
+            0xb4,0x12,0x31,0xa5,0xb7,0x48,0x27,0x2b,0xec,0x33,0x66,
+            0xe3,0xc8,0xe0,0x1a,0x7b,0x7f,0x1d,0x5f,0xa6,0x1d};
+        constexpr std::array<std::uint8_t, 16> clientSignatureAfterMic{
+            0x01,0x00,0x00,0x00,0xc2,0x40,0xe1,0x9b,
+            0x8e,0x02,0xb0,0x27,0x01,0x00,0x00,0x00};
+
+        const std::vector<Bytes> mechanisms{
+            Bytes(kKerberosOid.begin(), kKerberosOid.end()),
+            Bytes(kNtlmOid.begin(), kNtlmOid.end())};
+        StandaloneSpnegoNtlmAcceptor acceptor;
+        assert(configure(acceptor));
+
+        const std::array<std::uint8_t, 1> optimisticKerberos{0x01U};
+        const auto initial =
+            initialToken(mechanisms, optimisticKerberos, true);
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+        const auto selected = acceptor.acceptInitialToken(initial, reply);
+        assert(selected.status == StandaloneSpnegoStatus::Continue);
+        const auto expectedSelection =
+            expectedServerResponse(3U, true);
+        assert(selected.bytesWritten == expectedSelection.size());
+        assert(std::equal(
+            expectedSelection.begin(), expectedSelection.end(),
+            reply.begin()));
+
+        const auto negotiate = negotiateMessage();
+        const auto type1 = continuationToken(negotiate);
+        reply.fill(0);
+        const auto challengeStep = acceptor.acceptContinuationToken(
+            type1, EphemeralNtlmV2Credential{}, reply);
+        assert(challengeStep.status == StandaloneSpnegoStatus::Continue);
+
+        std::array<std::uint8_t, kMaximumStandaloneNtlmMessageBytes>
+            challenge{};
+        const auto encodedChallenge = encodeNtlmChallengeMessage(
+            {kServerChallenge, u"Domain", u"Server", kTimestamp,
+             kNtlmNegotiateUnicode |
+                 kNtlmNegotiateNtlm |
+                 kNtlmNegotiateAlwaysSign |
+                 kRequiredStandaloneCredSspNtlmFlags |
+                 kNtlmNegotiateKeyExchange |
+                 kNtlmNegotiate56},
+            challenge);
+        assert(encodedChallenge);
+        const auto expectedChallenge = expectedServerResponse(
+            1U, false,
+            std::span<const std::uint8_t>{challenge}.first(
+                encodedChallenge.bytesWritten));
+        assert(challengeStep.bytesWritten == expectedChallenge.size());
+        assert(std::equal(
+            expectedChallenge.begin(), expectedChallenge.end(),
+            reply.begin()));
+
+        EphemeralNtlmV2Credential credential;
+        auto mutablePassword = password();
+        assert(credential.configure(u"User", mutablePassword));
+        const auto type3 = continuationToken(
+            kMicrosoftAuthenticateMessage, clientMechListMic);
+        reply.fill(0);
+        const auto completed = acceptor.acceptContinuationToken(
+            type3, credential, reply);
+        assert(completed.status ==
+               StandaloneSpnegoStatus::MechanismVerified);
+        const auto expectedComplete = expectedServerResponse(
+            0U, false, {}, serverMechListMic);
+        assert(completed.bytesWritten == expectedComplete.size());
+        assert(std::equal(
+            expectedComplete.begin(), expectedComplete.end(),
+            reply.begin()));
+
+        // mechListMIC signs the exact DER MechTypeList and consumes sequence
+        // zero plus KEY_EXCH RC4 checksum bytes in each direction. The next
+        // protected CredSSP-shaped message therefore starts at sequence one.
+        assert(mechanismList.front() == 0x30U);
+        std::array<std::uint8_t, serverPlaintext.size()> serverSealed{};
+        std::array<std::uint8_t, kNtlmMessageSignatureBytes> serverSignature{};
+        assert(acceptor.wrapServerMessage(
+                   serverPlaintext, serverSealed, serverSignature) ==
+               NtlmMessageSecurityResult::Processed);
+        assert(serverSealed == serverCiphertextAfterMic);
+        assert(serverSignature == serverSignatureAfterMic);
+
+        std::array<std::uint8_t, clientPlaintext.size()> clientPlain{};
+        assert(acceptor.unwrapClientMessage(
+                   clientCiphertextAfterMic,
+                   clientSignatureAfterMic,
+                   clientPlain) ==
+               NtlmMessageSecurityResult::Processed);
+        assert(clientPlain == clientPlaintext);
+        return 0;
+    }
+
     if (testCase == "spnego-fallback-integrity-and-der-denials")
     {
         const auto negotiate = negotiateMessage();
@@ -289,7 +421,8 @@ int main(int argc, char **argv)
         assert(selected.status == StandaloneSpnegoStatus::Continue);
         assert(fallback.stage() ==
                StandaloneSpnegoStage::AwaitNtlmNegotiate);
-        const auto expectedSelection = expectedServerResponse({});
+        const auto expectedSelection =
+            expectedServerResponse(3U, true);
         assert(selected.bytesWritten == expectedSelection.size());
         assert(std::equal(
             expectedSelection.begin(), expectedSelection.end(),
@@ -311,6 +444,26 @@ int main(int argc, char **argv)
                    type3, credential, reply).status ==
                StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
         assert(fallback.stage() == StandaloneSpnegoStage::Failed);
+
+        StandaloneSpnegoNtlmAcceptor tampered;
+        assert(configure(tampered));
+        const auto tamperedInitial =
+            initialToken(mechanisms, optimisticKerberos, true);
+        assert(tampered.acceptInitialToken(
+            tamperedInitial, reply));
+        assert(tampered.acceptContinuationToken(
+            type1, EphemeralNtlmV2Credential{}, reply));
+        constexpr std::array<std::uint8_t, 16> validMic{
+            0x01,0x00,0x00,0x00,0x2f,0xc3,0xa4,0x9a,
+            0x03,0x64,0x6d,0x31,0x00,0x00,0x00,0x00};
+        auto badMic = validMic;
+        badMic[7] ^= 0x01U;
+        const auto tamperedType3 =
+            continuationToken(kMicrosoftAuthenticateMessage, badMic);
+        assert(tampered.acceptContinuationToken(
+                   tamperedType3, credential, reply).status ==
+               StandaloneSpnegoStatus::CredentialRejected);
+        assert(tampered.stage() == StandaloneSpnegoStage::Failed);
 
         StandaloneSpnegoNtlmAcceptor malformed;
         assert(configure(malformed));

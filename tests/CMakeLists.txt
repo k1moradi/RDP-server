@@ -98,6 +98,7 @@ endif()
 foreach(spnego_case IN ITEMS
         spnego-ntlm-first-negotiate-challenge
         spnego-ntlm-authenticate-known-answer
+        spnego-fallback-mechlistmic-roundtrip
         spnego-fallback-integrity-and-der-denials)
     add_test(NAME "security.${spnego_case}"
         COMMAND test_standalone_spnego "${spnego_case}")

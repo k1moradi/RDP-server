@@ -59,9 +59,9 @@ struct StandaloneSpnegoChallengeConfiguration final
 // application-password track.
 //
 // The object accepts only SPNEGO with the Microsoft NTLM mechanism OID. It can
-// select NTLM when it was not the initiator's first mechanism, but it refuses
-// to claim mechanism completion after such a fallback until mechListMIC
-// verification is implemented. The NTLM-first path retains the exact Type 1
+// select NTLM when it was not the initiator's first mechanism and requires the
+// RFC 4178 mechListMIC exchange before that fallback can complete. The
+// NTLM-first path retains the exact Type 1
 // and server-emitted Type 2 bytes, verifies the Type 3 password proof and MIC,
 // and then owns the established directional NTLM message-security state.
 //
@@ -113,6 +113,7 @@ public:
 private:
     [[nodiscard]] StandaloneSpnegoStep issueChallenge(
         std::span<const std::uint8_t> negotiateMessage,
+        bool includeSupportedMechanism,
         std::span<std::uint8_t> output) noexcept;
     [[nodiscard]] StandaloneSpnegoStep fail(
         StandaloneSpnegoStatus status) noexcept;
@@ -133,6 +134,9 @@ private:
     std::array<std::uint8_t, kMaximumStandaloneNtlmMessageBytes>
         challengeMessage_{};
     std::size_t challengeMessageLength_{};
+    std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes>
+        mechanismList_{};
+    std::size_t mechanismListLength_{};
 
     bool ntlmWasFirstMechanism_{};
     NtlmV2SecurityContext securityContext_{};

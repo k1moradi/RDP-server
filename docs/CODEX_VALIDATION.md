@@ -1,3 +1,32 @@
+## R2 SPNEGO mechListMIC / compile-repair authoring receipt (2026-10-20)
+
+Starting shared-main parent: `2552a0d20f5fa09cfff013a766a8dd3bf15062a0`. Dependency inspection found R10's
+positive listener Start and shared desktop configuration feed already landed;
+the first-client blocker has advanced to accepted-socket servicing. R2P could
+therefore continue independently.
+
+The inherited R2 build defect reported by the latest R5 receipt is corrected:
+the previous `std::span::fill` use is replaced with iterator-based
+`std::fill`. The same change factors NTLM connection-oriented ESS signing into
+SIGN-only verification/generation and reuses that state for SPNEGO
+mechListMIC. Fallback selection now emits request-mic, retains exact DER
+MechTypeList bytes, verifies the client MIC, returns the server MIC, and leaves
+both NTLM directions at sequence one for later CredSSP protection. Microsoft
+NegTokenInit2 NegHints [3] / mechListMIC [4] and RFC 4178 [3] mechListMIC are
+distinguished fail-closed.
+
+New ordinary CTest:
+`security.spnego-fallback-mechlistmic-roundtrip`. Existing
+`security.spnego-fallback-integrity-and-der-denials` gains tampered-MIC
+rejection.
+
+Normative MS-SPNG/RFC 4178/MS-NLMP source review: **PASS**. Owner-local canonical
+configure/build/full CTest: **NOT RUN** in this connector environment. Exact
+publication-SHA hosted CI: **PENDING**. The separately owned R10
+`src/gui/main.cpp` preprocessor imbalance reported on current main is not
+changed by this R2 commit. No listener, credential prompt, desktop, service,
+firewall or real client was activated.
+
 ## R5 harness continuation after R10 positive listener Start (2026-10-20)
 
 **Authoring parent:** `3fdd827e7222abe0053b356f12a64c0ed3452746`.

@@ -672,12 +672,116 @@ bool NtlmV2SecurityContext::verifyAuthenticateMessageMic(
                expectedMic.bytes.size()) == 0;
 }
 
+bool NtlmV2SecurityContext::makeMessageSignature(
+    std::span<const std::uint8_t> message,
+    const NtlmV2Key &signingKey,
+    Rc4StreamState &stream,
+    std::uint32_t sequence,
+    std::span<std::uint8_t, kNtlmMessageSignatureBytes> signature) noexcept
+{
+    std::array<std::uint8_t, 4> sequenceBytes{};
+    storeLe32(sequenceBytes.data(), sequence);
+    const std::array<ByteSpan, 2> macParts{
+        ByteSpan{sequenceBytes}, ByteSpan{message}};
+    ScopedSecret<kNtlmV2KeyBytes> digest;
+    if (!hmacMd5(signingKey, macParts, digest.bytes))
+        return false;
+
+    std::array<std::uint8_t, 8> checksum{};
+    std::copy_n(
+        digest.bytes.begin(), checksum.size(), checksum.begin());
+    if ((negotiateFlags_ & kNtlmNegotiateKeyExchange) != 0U)
+    {
+        cryptRc4Stream(
+            stream,
+            {checksum.data(), checksum.size()},
+            checksum);
+    }
+
+    std::fill(
+        signature.begin(), signature.end(), std::uint8_t{0});
+    storeLe32(signature.data(), 1U);
+    std::copy(
+        checksum.begin(), checksum.end(),
+        signature.begin() + 4);
+    storeLe32(signature.data() + 12U, sequence);
+    OPENSSL_cleanse(checksum.data(), checksum.size());
+    return true;
+}
+
+NtlmMessageSecurityResult
+NtlmV2SecurityContext::verifyClientMessageSignature(
+    std::span<const std::uint8_t> message,
+    std::span<const std::uint8_t, kNtlmMessageSignatureBytes>
+        signature) noexcept
+{
+    if (!active_)
+        return NtlmMessageSecurityResult::Inactive;
+    if (message.empty())
+        return NtlmMessageSecurityResult::InvalidInput;
+    if (clientSequence_ == (std::numeric_limits<std::uint32_t>::max)())
+    {
+        clear();
+        return NtlmMessageSecurityResult::SequenceExhausted;
+    }
+    if (loadLe32(signature.data()) != 1U ||
+        loadLe32(signature.data() + 12U) != clientSequence_)
+    {
+        clear();
+        return NtlmMessageSecurityResult::InvalidSignature;
+    }
+
+    std::array<std::uint8_t, kNtlmMessageSignatureBytes> expected{};
+    if (!makeMessageSignature(
+            message, clientSigningKey_, clientRc4_,
+            clientSequence_, expected))
+    {
+        clear();
+        return NtlmMessageSecurityResult::CryptoFailure;
+    }
+    if (CRYPTO_memcmp(
+            expected.data(), signature.data(), expected.size()) != 0)
+    {
+        OPENSSL_cleanse(expected.data(), expected.size());
+        clear();
+        return NtlmMessageSecurityResult::InvalidSignature;
+    }
+    OPENSSL_cleanse(expected.data(), expected.size());
+    ++clientSequence_;
+    return NtlmMessageSecurityResult::Processed;
+}
+
+NtlmMessageSecurityResult NtlmV2SecurityContext::signServerMessage(
+    std::span<const std::uint8_t> message,
+    std::span<std::uint8_t, kNtlmMessageSignatureBytes> signature) noexcept
+{
+    if (!active_)
+        return NtlmMessageSecurityResult::Inactive;
+    if (message.empty())
+        return NtlmMessageSecurityResult::InvalidInput;
+    if (serverSequence_ == (std::numeric_limits<std::uint32_t>::max)())
+    {
+        clear();
+        return NtlmMessageSecurityResult::SequenceExhausted;
+    }
+    if (!makeMessageSignature(
+            message, serverSigningKey_, serverRc4_,
+            serverSequence_, signature))
+    {
+        clear();
+        return NtlmMessageSecurityResult::CryptoFailure;
+    }
+    ++serverSequence_;
+    return NtlmMessageSecurityResult::Processed;
+}
+
 NtlmMessageSecurityResult NtlmV2SecurityContext::unwrapClientMessage(
     std::span<const std::uint8_t> sealedMessage,
     std::span<const std::uint8_t, kNtlmMessageSignatureBytes> signature,
     std::span<std::uint8_t> plaintext) noexcept
 {
-    if (!active_) return NtlmMessageSecurityResult::Inactive;
+    if (!active_)
+        return NtlmMessageSecurityResult::Inactive;
     if (sealedMessage.empty() || sealedMessage.size() != plaintext.size())
         return NtlmMessageSecurityResult::InvalidInput;
     if (clientSequence_ == (std::numeric_limits<std::uint32_t>::max)())
@@ -693,40 +797,11 @@ NtlmMessageSecurityResult NtlmV2SecurityContext::unwrapClientMessage(
     }
 
     cryptRc4Stream(clientRc4_, sealedMessage, plaintext);
-
-    std::array<std::uint8_t, 4> sequenceBytes{};
-    storeLe32(sequenceBytes.data(), clientSequence_);
-    const std::array<ByteSpan, 2> macParts{
-        ByteSpan{sequenceBytes}, ByteSpan{plaintext}};
-    ScopedSecret<kNtlmV2KeyBytes> digest;
-    if (!hmacMd5(clientSigningKey_, macParts, digest.bytes))
-    {
+    const auto result =
+        verifyClientMessageSignature(plaintext, signature);
+    if (result != NtlmMessageSecurityResult::Processed)
         OPENSSL_cleanse(plaintext.data(), plaintext.size());
-        clear();
-        return NtlmMessageSecurityResult::CryptoFailure;
-    }
-
-    std::array<std::uint8_t, 8> expectedChecksum{};
-    std::copy_n(digest.bytes.begin(), expectedChecksum.size(),
-                expectedChecksum.begin());
-    if ((negotiateFlags_ & kNtlmNegotiateKeyExchange) != 0U)
-    {
-        cryptRc4Stream(
-            clientRc4_,
-            {expectedChecksum.data(), expectedChecksum.size()},
-            expectedChecksum);
-    }
-    if (CRYPTO_memcmp(expectedChecksum.data(), signature.data() + 4U,
-                      expectedChecksum.size()) != 0)
-    {
-        OPENSSL_cleanse(plaintext.data(), plaintext.size());
-        OPENSSL_cleanse(expectedChecksum.data(), expectedChecksum.size());
-        clear();
-        return NtlmMessageSecurityResult::InvalidSignature;
-    }
-    OPENSSL_cleanse(expectedChecksum.data(), expectedChecksum.size());
-    ++clientSequence_;
-    return NtlmMessageSecurityResult::Processed;
+    return result;
 }
 
 NtlmMessageSecurityResult NtlmV2SecurityContext::wrapServerMessage(
@@ -734,7 +809,8 @@ NtlmMessageSecurityResult NtlmV2SecurityContext::wrapServerMessage(
     std::span<std::uint8_t> sealedMessage,
     std::span<std::uint8_t, kNtlmMessageSignatureBytes> signature) noexcept
 {
-    if (!active_) return NtlmMessageSecurityResult::Inactive;
+    if (!active_)
+        return NtlmMessageSecurityResult::Inactive;
     if (plaintext.empty() || plaintext.size() != sealedMessage.size())
         return NtlmMessageSecurityResult::InvalidInput;
     if (serverSequence_ == (std::numeric_limits<std::uint32_t>::max)())
@@ -743,33 +819,11 @@ NtlmMessageSecurityResult NtlmV2SecurityContext::wrapServerMessage(
         return NtlmMessageSecurityResult::SequenceExhausted;
     }
 
-    std::array<std::uint8_t, 4> sequenceBytes{};
-    storeLe32(sequenceBytes.data(), serverSequence_);
-    const std::array<ByteSpan, 2> macParts{
-        ByteSpan{sequenceBytes}, ByteSpan{plaintext}};
-    ScopedSecret<kNtlmV2KeyBytes> digest;
-    if (!hmacMd5(serverSigningKey_, macParts, digest.bytes))
-    {
-        clear();
-        return NtlmMessageSecurityResult::CryptoFailure;
-    }
-
     cryptRc4Stream(serverRc4_, plaintext, sealedMessage);
-    std::array<std::uint8_t, 8> checksum{};
-    std::copy_n(digest.bytes.begin(), checksum.size(), checksum.begin());
-    if ((negotiateFlags_ & kNtlmNegotiateKeyExchange) != 0U)
-    {
-        cryptRc4Stream(
-            serverRc4_, {checksum.data(), checksum.size()}, checksum);
-    }
-
-    signature.fill(0);
-    storeLe32(signature.data(), 1U);
-    std::copy(checksum.begin(), checksum.end(), signature.begin() + 4);
-    storeLe32(signature.data() + 12U, serverSequence_);
-    OPENSSL_cleanse(checksum.data(), checksum.size());
-    ++serverSequence_;
-    return NtlmMessageSecurityResult::Processed;
+    const auto result = signServerMessage(plaintext, signature);
+    if (result != NtlmMessageSecurityResult::Processed)
+        OPENSSL_cleanse(sealedMessage.data(), sealedMessage.size());
+    return result;
 }
 
 void NtlmV2SecurityContext::clear() noexcept

@@ -106,6 +106,18 @@ public:
         std::span<const std::uint8_t> authenticateMessage,
         std::size_t micOffset) const noexcept;
 
+    // SIGN-only integrity shares the same per-direction sequence/RC4 checksum
+    // state as SEAL. SPNEGO mechListMIC therefore advances the exact state
+    // later consumed by CredSSP pubKeyAuth/authInfo.
+    [[nodiscard]] NtlmMessageSecurityResult verifyClientMessageSignature(
+        std::span<const std::uint8_t> message,
+        std::span<const std::uint8_t, kNtlmMessageSignatureBytes>
+            signature) noexcept;
+    [[nodiscard]] NtlmMessageSecurityResult signServerMessage(
+        std::span<const std::uint8_t> message,
+        std::span<std::uint8_t, kNtlmMessageSignatureBytes>
+            signature) noexcept;
+
     [[nodiscard]] NtlmMessageSecurityResult unwrapClientMessage(
         std::span<const std::uint8_t> sealedMessage,
         std::span<const std::uint8_t, kNtlmMessageSignatureBytes> signature,
@@ -145,6 +157,13 @@ private:
         Rc4StreamState &state,
         std::span<const std::uint8_t> input,
         std::span<std::uint8_t> output) noexcept;
+    [[nodiscard]] bool makeMessageSignature(
+        std::span<const std::uint8_t> message,
+        const NtlmV2Key &signingKey,
+        Rc4StreamState &stream,
+        std::uint32_t sequence,
+        std::span<std::uint8_t, kNtlmMessageSignatureBytes>
+            signature) noexcept;
 
     NtlmV2Key sessionBaseKey_{};
     NtlmV2Key exportedSessionKey_{};

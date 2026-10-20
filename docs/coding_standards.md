@@ -1,3 +1,22 @@
+## R2 SPNEGO mechListMIC uses exact mechanism-list bytes and NTLM state (2026-10-20)
+
+When SPNEGO selects NTLM after another initiator-preferred mechanism, retain the
+exact DER-encoded MechTypeList and require the RFC 4178 mechanism-list MIC
+exchange before authentication can complete. Verify/sign that exact list with
+the already-established NTLM message-integrity service; do not re-encode OIDs,
+reset sequence numbers, clone RC4 state, or treat a successfully parsed MIC as
+authorization.
+
+NTLM SIGN-only and SEAL must consume the same per-direction sequence and
+KEY_EXCH RC4 checksum stream. A mechListMIC therefore advances the state later
+used by CredSSP pubKeyAuth/authInfo. On mismatch after RC4 consumption, retire
+the entire context rather than attempting rollback.
+
+Distinguish Microsoft NegTokenInit2 from the older RFC layout: context [3] is
+NegHints when it contains the NegHints SEQUENCE, context [4] is the Microsoft
+mechListMIC, while RFC 4178 may use [3] directly for mechListMIC. Hints are
+bounded syntax only and never trusted as server identity or policy.
+
 ## R2 standalone SPNEGO parsing and fallback integrity (2026-10-20)
 
 First-party SPNEGO must have one bounded connection owner; do not split

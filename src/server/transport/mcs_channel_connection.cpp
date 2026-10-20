@@ -26,6 +26,11 @@ namespace
 // if its MCS channel ID is assigned again by a later connection.
 std::atomic<std::uint64_t> nextClipboardRouteGeneration{1U};
 
+// Process-local reconnect correlation only. This value is never accepted as
+// R2 authority, a native-session generation or a protocol generation.
+std::atomic<std::uint64_t>
+    nextFirstClientAcceptanceReconnectGeneration{1U};
+
 [[nodiscard]] std::optional<std::uint64_t>
 allocateClipboardRouteGeneration() noexcept
 {
@@ -40,6 +45,26 @@ allocateClipboardRouteGeneration() noexcept
             return generation;
     }
     return std::nullopt;
+}
+
+[[nodiscard]] std::uint64_t
+allocateFirstClientAcceptanceReconnectGeneration() noexcept
+{
+    auto generation =
+        nextFirstClientAcceptanceReconnectGeneration.load(
+            std::memory_order_relaxed);
+    while (generation != 0U)
+    {
+        const auto next =
+            generation == std::numeric_limits<std::uint64_t>::max()
+                ? 0U
+                : generation + 1U;
+        if (nextFirstClientAcceptanceReconnectGeneration.compare_exchange_weak(
+                generation, next,
+                std::memory_order_relaxed, std::memory_order_relaxed))
+            return generation;
+    }
+    return 0U;
 }
 
 // T.125 aligned BASIC-PER nonnegative unconstrained INTEGER for
@@ -1328,6 +1353,9 @@ McsJoinWriteOutcome McsSessionLifecycle::completeChannelJoinConfirmWrite(
         replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == McsJoinWriteOutcome::Rejected)
         close();
+    else if (joins_.allConfiguredChannelsJoined())
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::McsEstablished);
     // Even an accepted full Join Confirm grants no licensing, Share Control
     // or application-channel dispatch without later protected transitions.
     return outcome;
@@ -1406,6 +1434,126 @@ McsSessionLifecycle::routeVerifiedR2ClientInfoEnvelope(
 
     // Syntax-only route: no sequence state changes here.
     return envelope.value;
+}
+
+McsSessionLifecycle::McsSessionLifecycle() noexcept
+    : firstClientAcceptanceReconnectGeneration_(
+          allocateFirstClientAcceptanceReconnectGeneration())
+{
+}
+
+void McsSessionLifecycle::recordFirstClientAcceptanceEvent(
+    RdpFirstClientAcceptanceEventKind kind) noexcept
+{
+    using Kind = RdpFirstClientAcceptanceEventKind;
+    switch (kind)
+    {
+    case Kind::McsEstablished:
+        if (firstClientAcceptanceMcsEstablished_)
+            return;
+        firstClientAcceptanceMcsEstablished_ = true;
+        break;
+    case Kind::ShareActivated:
+        if (firstClientAcceptanceShareActivated_)
+            return;
+        firstClientAcceptanceShareActivated_ = true;
+        break;
+    case Kind::GraphicsDynamicVirtualChannelActivated:
+        if (firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_)
+            return;
+        firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_ = true;
+        break;
+    case Kind::SurfaceCreated:
+        firstClientAcceptanceSurfaceCreated_ = true;
+        break;
+    case Kind::SurfaceMapped:
+        firstClientAcceptanceSurfaceMapped_ = true;
+        break;
+    case Kind::FirstFramePublicationAccepted:
+        if (firstClientAcceptanceFramePublicationAccepted_)
+            return;
+        firstClientAcceptanceFramePublicationAccepted_ = true;
+        break;
+    case Kind::FirstFrameAcknowledge:
+        if (firstClientAcceptanceFrameAcknowledge_)
+            return;
+        firstClientAcceptanceFrameAcknowledge_ = true;
+        break;
+    case Kind::ResizeRemapStarted:
+    case Kind::ResizeRemapCompleted:
+    case Kind::ResizeRemapRejected:
+        break;
+    case Kind::None:
+        return;
+    }
+
+    if (firstClientAcceptanceEventSequence_ ==
+        std::numeric_limits<std::uint64_t>::max())
+    {
+        if (firstClientAcceptanceDroppedEventCount_ !=
+            std::numeric_limits<std::uint64_t>::max())
+            ++firstClientAcceptanceDroppedEventCount_;
+        return;
+    }
+
+    const RdpFirstClientAcceptanceEvent event{
+        kind, ++firstClientAcceptanceEventSequence_};
+    if (firstClientAcceptanceEventCount_ <
+        kMaximumRdpFirstClientAcceptanceEvents)
+    {
+        const std::size_t index =
+            (firstClientAcceptanceEventStart_ +
+             firstClientAcceptanceEventCount_) %
+            kMaximumRdpFirstClientAcceptanceEvents;
+        firstClientAcceptanceEvents_[index] = event;
+        ++firstClientAcceptanceEventCount_;
+        return;
+    }
+
+    firstClientAcceptanceEvents_[firstClientAcceptanceEventStart_] = event;
+    firstClientAcceptanceEventStart_ =
+        (firstClientAcceptanceEventStart_ + 1U) %
+        kMaximumRdpFirstClientAcceptanceEvents;
+    if (firstClientAcceptanceDroppedEventCount_ !=
+        std::numeric_limits<std::uint64_t>::max())
+        ++firstClientAcceptanceDroppedEventCount_;
+}
+
+RdpFirstClientAcceptanceObservability
+McsSessionLifecycle::firstClientAcceptanceObservability() const noexcept
+{
+    RdpFirstClientAcceptanceObservability result{};
+    result.reconnectGeneration = firstClientAcceptanceReconnectGeneration_;
+    result.latestEventSequence = firstClientAcceptanceEventSequence_;
+    result.droppedEventCount = firstClientAcceptanceDroppedEventCount_;
+    result.eventCount = firstClientAcceptanceEventCount_;
+    result.mcsEstablished = firstClientAcceptanceMcsEstablished_;
+    result.shareActivated = firstClientAcceptanceShareActivated_;
+    result.graphicsDynamicVirtualChannelActivated =
+        firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_;
+    result.surfaceCreated = firstClientAcceptanceSurfaceCreated_;
+    result.surfaceMapped = firstClientAcceptanceSurfaceMapped_;
+    result.firstFramePublicationAccepted =
+        firstClientAcceptanceFramePublicationAccepted_;
+    result.firstFrameAcknowledge = firstClientAcceptanceFrameAcknowledge_;
+
+    const auto r4Status =
+        graphicsDynamicVirtualChannel_.presentationLifecycle_.
+            acceptanceStatus();
+    result.firstClearCodecFramePrepared =
+        r4Status.firstClearCodecFramePrepared;
+    result.resizeRemapInProgress =
+        graphicsDynamicVirtualChannel_.replacementSurfaceId_ != 0U;
+
+    for (std::size_t index = 0U;
+         index < firstClientAcceptanceEventCount_; ++index)
+    {
+        result.events[index] =
+            firstClientAcceptanceEvents_[
+                (firstClientAcceptanceEventStart_ + index) %
+                kMaximumRdpFirstClientAcceptanceEvents];
+    }
+    return result;
 }
 
 McsSessionLifecycle::~McsSessionLifecycle()
@@ -2108,7 +2256,11 @@ McsSessionLifecycle::completeVerifiedR2ShareActivationWrite(
         return outcome;
     }
     if (outcome == RdpShareActivationWriteOutcome::Activated)
+    {
         phase_ = McsSessionPhase::ShareActivated;
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::ShareActivated);
+    }
     return outcome;
 }
 
@@ -2526,12 +2678,70 @@ McsSessionLifecycle::completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
         return RdpGraphicsDvcWriteOutcome::Rejected;
     }
 
+    const auto pendingBefore =
+        graphicsDynamicVirtualChannel_.pendingServerWrite();
+    const auto pendingKind = pendingBefore.kind;
+    const bool completedCurrentSlice =
+        pendingBefore &&
+        acceptedBytes == pendingBefore.bytes.size();
+    const bool resizeRemapWasInProgress =
+        graphicsDynamicVirtualChannel_.replacementSurfaceId_ != 0U;
+    const auto acceptanceBefore =
+        graphicsDynamicVirtualChannel_.presentationLifecycle_.
+            acceptanceStatus();
+
     const auto outcome =
         graphicsDynamicVirtualChannel_.onServerBytesWritten(
             graphicsDynamicVirtualChannel_.channelGeneration(),
             replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == RdpGraphicsDvcWriteOutcome::Rejected)
+    {
+        if (resizeRemapWasInProgress)
+            recordFirstClientAcceptanceEvent(
+                RdpFirstClientAcceptanceEventKind::ResizeRemapRejected);
         close();
+        return outcome;
+    }
+
+    const auto acceptanceAfter =
+        graphicsDynamicVirtualChannel_.presentationLifecycle_.
+            acceptanceStatus();
+    if (!acceptanceBefore.firstExactFrameWriteCommitted &&
+        acceptanceAfter.firstExactFrameWriteCommitted)
+    {
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::
+                FirstFramePublicationAccepted);
+    }
+
+    if (completedCurrentSlice)
+    {
+        switch (pendingKind)
+        {
+        case RdpGraphicsDvcWriteKind::GraphicsCreateSurface:
+            recordFirstClientAcceptanceEvent(
+                RdpFirstClientAcceptanceEventKind::SurfaceCreated);
+            break;
+        case RdpGraphicsDvcWriteKind::GraphicsMapSurfaceToOutput:
+            if (graphicsDynamicVirtualChannel_.presentationMapped())
+            {
+                recordFirstClientAcceptanceEvent(
+                    RdpFirstClientAcceptanceEventKind::SurfaceMapped);
+                if (resizeRemapWasInProgress)
+                    recordFirstClientAcceptanceEvent(
+                        RdpFirstClientAcceptanceEventKind::
+                            ResizeRemapCompleted);
+            }
+            break;
+        case RdpGraphicsDvcWriteKind::None:
+        case RdpGraphicsDvcWriteKind::CapabilitiesRequest:
+        case RdpGraphicsDvcWriteKind::CreateRequest:
+        case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
+        case RdpGraphicsDvcWriteKind::GraphicsDeleteSurface:
+        case RdpGraphicsDvcWriteKind::GraphicsFrameData:
+            break;
+        }
+    }
     return outcome;
 }
 
@@ -2552,6 +2762,10 @@ McsSessionLifecycle::acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
     if (intake == RdpGraphicsDvcClientIntake::Rejected ||
         intake == RdpGraphicsDvcClientIntake::Closed)
         close();
+    else if (intake == RdpGraphicsDvcClientIntake::CreateAccepted)
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::
+                GraphicsDynamicVirtualChannelActivated);
     return intake;
 }
 
@@ -2574,11 +2788,21 @@ McsSessionLifecycle::consumeVerifiedR2GraphicsFrameAcknowledge(
         return Intake::Rejected;
     }
 
+    const auto acceptanceBefore =
+        graphicsDynamicVirtualChannel_.presentationLifecycle_.
+            acceptanceStatus();
     const auto intake =
         graphicsDynamicVirtualChannel_.consumePendingClientFrameAcknowledge(
             graphicsDynamicVirtualChannel_.channelGeneration());
+    const auto acceptanceAfter =
+        graphicsDynamicVirtualChannel_.presentationLifecycle_.
+            acceptanceStatus();
     if (intake == Intake::Rejected)
         close();
+    else if (!acceptanceBefore.firstGenuineFrameAcknowledge &&
+             acceptanceAfter.firstGenuineFrameAcknowledge)
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::FirstFrameAcknowledge);
     return intake;
 }
 
@@ -2604,11 +2828,23 @@ McsSessionLifecycle::beginVerifiedR2GraphicsSurfaceReconfiguration(
         !graphicsDynamicVirtualChannel_.graphicsCapabilitiesConfirmed() ||
         graphicsDynamicVirtualChannel_.channelGeneration() == 0U)
     {
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::ResizeRemapRejected);
         close();
         return RdpGraphicsSurfaceReconfiguration::Rejected;
     }
-    return graphicsDynamicVirtualChannel_.beginSurfaceReconfiguration(
-        graphicsDynamicVirtualChannel_.channelGeneration(), desktopGeometry);
+
+    const auto decision =
+        graphicsDynamicVirtualChannel_.beginSurfaceReconfiguration(
+            graphicsDynamicVirtualChannel_.channelGeneration(),
+            desktopGeometry);
+    if (decision == RdpGraphicsSurfaceReconfiguration::Started)
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::ResizeRemapStarted);
+    else if (decision == RdpGraphicsSurfaceReconfiguration::Rejected)
+        recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::ResizeRemapRejected);
+    return decision;
 }
 
 std::optional<RdpGraphicsDvcWriteView>

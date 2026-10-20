@@ -975,6 +975,16 @@ public:
     {
         return session_.phase();
     }
+
+    // Serialized R10 tests/logging may copy this bounded R3 snapshot. It is
+    // non-authorizing and contains no wire bytes, peer/credential data or
+    // protocol/native identity values.
+    [[nodiscard]] rdp_server::server::transport::
+        RdpFirstClientAcceptanceObservability
+    firstClientAcceptanceObservability() const noexcept
+    {
+        return session_.firstClientAcceptanceObservability();
+    }
     [[nodiscard]] bool hasAdmissionLease() const noexcept
     {
         return lease_.has_value() && !lease_->isRevoked();

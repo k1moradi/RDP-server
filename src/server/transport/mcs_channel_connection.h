@@ -1208,6 +1208,8 @@ public:
     }
 
 private:
+    friend class McsSessionLifecycle;
+
     [[nodiscard]] bool queueCapabilitiesRequest() noexcept;
     [[nodiscard]] bool queueCreateRequest() noexcept;
     [[nodiscard]] bool queueGraphicsApplicationPdu(
@@ -1447,10 +1449,69 @@ struct RdpPostShareTpktRoute
     std::span<const std::uint8_t> completeTpkt{};
 };
 
+
+// Bounded, non-authorizing R3 evidence for first real-client acceptance.
+// The snapshot contains only fixed-size status, local monotonic correlation
+// values and event kinds. It never exposes packet bytes, peer identity,
+// credentials, authorization generations, channel/surface/frame IDs or native
+// session metadata, and callers must never use it to authorize protocol work.
+enum class RdpFirstClientAcceptanceEventKind : std::uint8_t
+{
+    None,
+    McsEstablished,
+    ShareActivated,
+    GraphicsDynamicVirtualChannelActivated,
+    SurfaceCreated,
+    SurfaceMapped,
+    FirstFramePublicationAccepted,
+    FirstFrameAcknowledge,
+    ResizeRemapStarted,
+    ResizeRemapCompleted,
+    ResizeRemapRejected,
+};
+
+struct RdpFirstClientAcceptanceEvent
+{
+    RdpFirstClientAcceptanceEventKind kind{
+        RdpFirstClientAcceptanceEventKind::None};
+    std::uint64_t sequence{};
+};
+
+inline constexpr std::size_t kMaximumRdpFirstClientAcceptanceEvents = 32U;
+
+struct RdpFirstClientAcceptanceObservability
+{
+    std::uint64_t reconnectGeneration{};
+    std::uint64_t latestEventSequence{};
+    std::uint64_t droppedEventCount{};
+    std::size_t eventCount{};
+    std::array<RdpFirstClientAcceptanceEvent,
+               kMaximumRdpFirstClientAcceptanceEvents> events{};
+
+    // Sticky acceptance evidence only. These values never drive R1/R2/R3/R4
+    // state. First-frame/ACK transitions are sourced from R4's existing
+    // GfxPresentationAcceptanceStatus rather than a second ACK/frame owner.
+    bool mcsEstablished{};
+    bool shareActivated{};
+    bool graphicsDynamicVirtualChannelActivated{};
+    bool surfaceCreated{};
+    bool surfaceMapped{};
+    bool firstFramePublicationAccepted{};
+    bool firstFrameAcknowledge{};
+    bool firstClearCodecFramePrepared{};
+    bool resizeRemapInProgress{};
+
+    [[nodiscard]] std::span<const RdpFirstClientAcceptanceEvent>
+    eventView() const noexcept
+    {
+        return std::span{events}.first(eventCount);
+    }
+};
+
 class McsSessionLifecycle final
 {
 public:
-    McsSessionLifecycle() noexcept = default;
+    McsSessionLifecycle() noexcept;
     ~McsSessionLifecycle();
     McsSessionLifecycle(const McsSessionLifecycle &) = delete;
     McsSessionLifecycle &operator=(const McsSessionLifecycle &) = delete;
@@ -1458,6 +1519,10 @@ public:
     McsSessionLifecycle &operator=(McsSessionLifecycle &&) = delete;
 
     [[nodiscard]] McsSessionPhase phase() const noexcept { return phase_; }
+    // Serialized-owner observation only. The returned copy cannot grant
+    // admission, publication credit or transport progress.
+    [[nodiscard]] RdpFirstClientAcceptanceObservability
+    firstClientAcceptanceObservability() const noexcept;
     [[nodiscard]] RdpLicensingPhase licensingPhase() const noexcept
     {
         return licensing_.phase();
@@ -1865,6 +1930,9 @@ private:
     [[nodiscard]] bool abortVerifiedR2GraphicsFrame(
         const SecurityNegotiationProvenance &provenance) noexcept;
 
+    void recordFirstClientAcceptanceEvent(
+        RdpFirstClientAcceptanceEventKind kind) noexcept;
+
     McsDomainParameters connectResponseDomain_{};
     GccClientSettings connectResponseClientSettings_{};
     McsConnectResponseAllocation connectResponseAllocation_{};
@@ -1895,6 +1963,25 @@ private:
     std::uint64_t admissionGeneration_{};
     std::uint64_t sessionGeneration_{};
     bool personalDesktopPolicySelected_{};
+
+    // R3-local observability only. The fixed ring is retained across close()
+    // for bounded postmortem logging; it is never consulted by protocol state.
+    std::array<RdpFirstClientAcceptanceEvent,
+               kMaximumRdpFirstClientAcceptanceEvents>
+        firstClientAcceptanceEvents_{};
+    std::size_t firstClientAcceptanceEventStart_{};
+    std::size_t firstClientAcceptanceEventCount_{};
+    std::uint64_t firstClientAcceptanceEventSequence_{};
+    std::uint64_t firstClientAcceptanceDroppedEventCount_{};
+    std::uint64_t firstClientAcceptanceReconnectGeneration_{};
+    bool firstClientAcceptanceMcsEstablished_{};
+    bool firstClientAcceptanceShareActivated_{};
+    bool firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_{};
+    bool firstClientAcceptanceSurfaceCreated_{};
+    bool firstClientAcceptanceSurfaceMapped_{};
+    bool firstClientAcceptanceFramePublicationAccepted_{};
+    bool firstClientAcceptanceFrameAcknowledge_{};
+
     McsSessionPhase phase_{McsSessionPhase::AwaitVerifiedR2Admission};
 };
 

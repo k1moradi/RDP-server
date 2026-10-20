@@ -1,3 +1,31 @@
+## R3 bounded first-client acceptance observation boundary (2026-10-19)
+
+R3 now owns one fixed 32-entry acceptance-event ring inside the existing
+`McsSessionLifecycle`; it is observability, not protocol authority. The ring
+records only event kind plus a session-local sequence, while the copied snapshot
+carries one process-local reconnect correlation generation and saturating
+overflow count. No packet bytes, peer identity, credentials, R2/native
+generations, channel IDs, surface IDs or frame IDs cross this boundary. R10 may
+copy the snapshot from its serialized connection owner for tests/logging, but no
+field may authorize TLS I/O, MCS/Share progress, frame credit, surface work or
+native publication.
+
+Event boundaries reuse existing owners. MCS becomes established only after all
+configured Channel Join confirms are fully accepted. Share activation is the
+existing accepted-byte `Activated` transition. Graphics DVC activation is the
+peer-accepted DRDYNVC CREATE response. Surface create/map events occur only after
+the corresponding R3 writer and R4 presentation receipt complete. First frame
+publication and first FRAME_ACK are detected from R4's existing
+`GfxPresentationAcceptanceStatus` transitions, so R3 does not add an ACK set,
+frame counter or delivery truth. Resize start/reject comes from the existing R3
+surface-reconfiguration decision, and completion is correlated from R3's
+already-owned replacement-surface state through the final MAP receipt.
+
+The first live desktop path remains ClearCodec. R3 exposes R4's existing
+`firstClearCodecFramePrepared` Boolean only as non-authorizing status so a live
+acceptance trace can prove that fallback was used; this does not enable AVC420
+or alter any RDPGFX wire behavior.
+
 ## R8 prepared Linux clipboard composition boundary (2026-10-19)
 
 The Linux production binary now compiles one dormant

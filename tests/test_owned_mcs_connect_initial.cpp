@@ -249,6 +249,110 @@ public:
         return session.routeVerifiedR2SlowPathInputPdu(
             provenance, completeTpkt).has_value();
     }
+
+    [[nodiscard]] static bool stageMcsEstablishedForObservability(
+        McsSessionLifecycle &session) noexcept
+    {
+        session.phase_ = McsSessionPhase::AwaitChannelJoin;
+        session.allocatedUserId_ = 1007U;
+        session.connectResponseProvenanceBound_ = true;
+        session.connectResponseBoundProvenance_ =
+            {kRdpProtocolHybrid, kRdpProtocolHybrid};
+        constexpr std::array<std::uint16_t, 4> channels{
+            1007U, 1003U, 1004U, 1005U};
+        if (!session.joins_.configure(1007U, channels))
+            return false;
+
+        McsChannelRequest join{};
+        join.kind = McsChannelRequestKind::ChannelJoin;
+        join.initiator = 1007U;
+        for (const auto channelId : channels)
+        {
+            join.channelId = channelId;
+            if (session.joins_.beginJoin(join) !=
+                McsJoinStartOutcome::ReplyPending)
+                return false;
+            const auto pending = session.joins_.pendingBytes();
+            if (session.completeChannelJoinConfirmWrite(
+                    session.connectResponseBoundProvenance_,
+                    session.joins_.pendingReplySequence(),
+                    session.joins_.pendingWriteSliceSequence(),
+                    pending.size()) != McsJoinWriteOutcome::Confirmed)
+                return false;
+        }
+        return session.joins_.allConfiguredChannelsJoined();
+    }
+
+    static void stageFirstClientAcceptanceFoundations(
+        McsSessionLifecycle &session) noexcept
+    {
+        // stagePostShareClassifier() deliberately bypasses the real R2/MCS/
+        // Share transcript. Seed only those already-completed milestones so
+        // this offline fixture can exercise production Graphics hooks.
+        session.recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::McsEstablished);
+        session.recordFirstClientAcceptanceEvent(
+            RdpFirstClientAcceptanceEventKind::ShareActivated);
+    }
+
+    [[nodiscard]] static RdpGraphicsDvcClientIntake acceptGraphics(
+        McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept
+    {
+        return session.acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid}, completeTpkt);
+    }
+
+    [[nodiscard]] static std::optional<RdpGraphicsDvcWriteView>
+    pendingGraphics(McsSessionLifecycle &session) noexcept
+    {
+        return session.pendingVerifiedR2GraphicsDynamicVirtualChannelWrite(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid});
+    }
+
+    [[nodiscard]] static RdpGraphicsDvcWriteOutcome completeGraphics(
+        McsSessionLifecycle &session,
+        const RdpGraphicsDvcWriteView &write) noexcept
+    {
+        return session.completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid},
+            write.replySequence, write.writeSliceSequence,
+            write.bytes.size());
+    }
+
+    [[nodiscard]] static std::optional<RdpGraphicsDvcWriteView>
+    beginClearCodecFrame(
+        McsSessionLifecycle &session,
+        std::uint32_t frameId,
+        ::FramebufferView framebuffer) noexcept
+    {
+        return session.beginVerifiedR2GraphicsClearCodecFramePublication(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid},
+            frameId, framebuffer);
+    }
+
+    [[nodiscard]] static RdpGraphicsFrameAcknowledgeIntake
+    consumeFrameAcknowledge(McsSessionLifecycle &session) noexcept
+    {
+        return session.consumeVerifiedR2GraphicsFrameAcknowledge(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid});
+    }
+
+    [[nodiscard]] static RdpGraphicsSurfaceReconfiguration
+    beginSurfaceReconfiguration(
+        McsSessionLifecycle &session,
+        ::PixelSize geometry) noexcept
+    {
+        return session.beginVerifiedR2GraphicsSurfaceReconfiguration(
+            {kRdpProtocolHybrid, kRdpProtocolHybrid}, geometry);
+    }
+
+    static void recordAcceptanceEvent(
+        McsSessionLifecycle &session,
+        RdpFirstClientAcceptanceEventKind kind) noexcept
+    {
+        session.recordFirstClientAcceptanceEvent(kind);
+    }
 };
 } // namespace rdp_server::server::transport
 
@@ -5089,6 +5193,208 @@ void testGraphicsSurfaceRemap()
     assert(reconnected.beginSurfaceReconfiguration(205U, resized) ==
            Decision::Rejected);
     assert(!reconnected.pendingServerWrite());
+}
+
+
+void testFirstClientAcceptanceObservability()
+{
+    using Kind = RdpFirstClientAcceptanceEventKind;
+    using WriteKind = RdpGraphicsDvcWriteKind;
+    using WriteOutcome = RdpGraphicsDvcWriteOutcome;
+
+    McsSessionLifecycle mcsSession;
+    assert(McsSessionLifecycleTestAccess::
+        stageMcsEstablishedForObservability(mcsSession));
+    {
+        const auto observed =
+            mcsSession.firstClientAcceptanceObservability();
+        assert(observed.mcsEstablished);
+        assert(observed.eventCount == 1U);
+        assert(observed.events[0].kind == Kind::McsEstablished);
+        assert(observed.events[0].sequence == 1U);
+    }
+
+    McsSessionLifecycle session;
+    McsSessionLifecycle reconnect;
+    const auto empty = session.firstClientAcceptanceObservability();
+    const auto reconnectEmpty =
+        reconnect.firstClientAcceptanceObservability();
+    assert(empty.reconnectGeneration != 0U);
+    assert(reconnectEmpty.reconnectGeneration != 0U);
+    assert(empty.reconnectGeneration != reconnectEmpty.reconnectGeneration);
+    assert(empty.eventView().empty());
+    assert(empty.latestEventSequence == 0U);
+    assert(empty.droppedEventCount == 0U);
+
+    assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(session));
+    McsSessionLifecycleTestAccess::stageFirstClientAcceptanceFoundations(
+        session);
+    McsSessionLifecycleTestAccess::stageFirstClientAcceptanceFoundations(
+        session);
+
+    constexpr std::array<std::uint8_t, 4> dvcCapabilities{
+        0x50U, 0x00U, 0x03U, 0x00U};
+    assert(McsSessionLifecycleTestAccess::acceptGraphics(
+               session,
+               makeClientDynamicVirtualChannelTpkt(
+                   1007U, 1005U, dvcCapabilities)) ==
+           RdpGraphicsDvcClientIntake::CapabilitiesAccepted);
+
+    auto write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::CreateRequest);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Delivered);
+
+    constexpr std::array<std::uint8_t, 6> createResponse{
+        0x10U, 0x09U, 0x00U, 0x00U, 0x00U, 0x00U};
+    assert(McsSessionLifecycleTestAccess::acceptGraphics(
+               session,
+               makeClientDynamicVirtualChannelTpkt(
+                   1007U, 1005U, createResponse)) ==
+           RdpGraphicsDvcClientIntake::CreateAccepted);
+
+    constexpr std::array<std::uint8_t, 22> gfxCapabilities{
+        0x12U,0x00U,0x00U,0x00U,0x16U,0x00U,0x00U,0x00U,
+        0x01U,0x00U,
+        0x04U,0x00U,0x08U,0x00U,0x04U,0x00U,0x00U,0x00U,
+        0x00U,0x00U,0x00U,0x00U};
+    std::vector<std::uint8_t> gfxData{0x30U, 0x09U};
+    gfxData.insert(
+        gfxData.end(), gfxCapabilities.begin(), gfxCapabilities.end());
+    assert(McsSessionLifecycleTestAccess::acceptGraphics(
+               session,
+               makeClientDynamicVirtualChannelTpkt(
+                   1007U, 1005U, gfxData)) ==
+           RdpGraphicsDvcClientIntake::GraphicsCapabilitiesAccepted);
+
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write &&
+           write->kind == WriteKind::GraphicsCapabilitiesConfirm);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Pending);
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::GraphicsCreateSurface);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Pending);
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::GraphicsMapSurfaceToOutput);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Delivered);
+
+    constexpr PixelSize geometry{64U, 64U};
+    constexpr std::size_t bytesPerPixel = 4U;
+    const std::size_t pixelBytes =
+        static_cast<std::size_t>(geometry.widthPixels) *
+        geometry.heightPixels * bytesPerPixel;
+    auto pixels = std::make_unique_for_overwrite<std::byte[]>(pixelBytes);
+    for (std::size_t index = 0U; index < pixelBytes; ++index)
+        pixels[index] =
+            static_cast<std::byte>((index * 17U + 3U) & 0xffU);
+    const FramebufferView framebuffer{
+        std::span<const std::byte>{pixels.get(), pixelBytes},
+        geometry.widthPixels,
+        geometry.heightPixels,
+        static_cast<std::size_t>(geometry.widthPixels) * bytesPerPixel};
+    assert(McsSessionLifecycleTestAccess::beginClearCodecFrame(
+        session, 100U, framebuffer));
+
+    WriteOutcome frameOutcome = WriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U && frameOutcome == WriteOutcome::Pending;
+         ++attempt)
+    {
+        write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+        assert(write && write->kind == WriteKind::GraphicsFrameData);
+        frameOutcome =
+            McsSessionLifecycleTestAccess::completeGraphics(
+                session, *write);
+    }
+    assert(frameOutcome == WriteOutcome::Delivered);
+    assert(session.firstClientAcceptanceObservability().
+        firstClearCodecFramePrepared);
+
+    assert(McsSessionLifecycleTestAccess::acceptGraphics(
+               session,
+               makeR3GraphicsFrameAcknowledgeTpkt(
+                   9U, 100U, 4096U, 1U)) ==
+           RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(McsSessionLifecycleTestAccess::consumeFrameAcknowledge(session) ==
+           RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+
+    assert(McsSessionLifecycleTestAccess::beginSurfaceReconfiguration(
+               session, {80U, 64U}) ==
+           RdpGraphicsSurfaceReconfiguration::Started);
+    assert(session.firstClientAcceptanceObservability().
+        resizeRemapInProgress);
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::GraphicsDeleteSurface);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Pending);
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::GraphicsCreateSurface);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Pending);
+    write = McsSessionLifecycleTestAccess::pendingGraphics(session);
+    assert(write && write->kind == WriteKind::GraphicsMapSurfaceToOutput);
+    assert(McsSessionLifecycleTestAccess::completeGraphics(
+               session, *write) == WriteOutcome::Delivered);
+    assert(!session.firstClientAcceptanceObservability().
+        resizeRemapInProgress);
+    assert(McsSessionLifecycleTestAccess::beginSurfaceReconfiguration(
+               session, {0U, 64U}) ==
+           RdpGraphicsSurfaceReconfiguration::Rejected);
+
+    constexpr std::array<Kind, 12> expected{
+        Kind::McsEstablished,
+        Kind::ShareActivated,
+        Kind::GraphicsDynamicVirtualChannelActivated,
+        Kind::SurfaceCreated,
+        Kind::SurfaceMapped,
+        Kind::FirstFramePublicationAccepted,
+        Kind::FirstFrameAcknowledge,
+        Kind::ResizeRemapStarted,
+        Kind::SurfaceCreated,
+        Kind::SurfaceMapped,
+        Kind::ResizeRemapCompleted,
+        Kind::ResizeRemapRejected};
+    const auto observed = session.firstClientAcceptanceObservability();
+    assert(observed.reconnectGeneration == empty.reconnectGeneration);
+    assert(observed.eventCount == expected.size());
+    assert(observed.latestEventSequence == expected.size());
+    assert(observed.droppedEventCount == 0U);
+    assert(observed.mcsEstablished);
+    assert(observed.shareActivated);
+    assert(observed.graphicsDynamicVirtualChannelActivated);
+    assert(observed.surfaceCreated);
+    assert(observed.surfaceMapped);
+    assert(observed.firstFramePublicationAccepted);
+    assert(observed.firstFrameAcknowledge);
+    assert(observed.firstClearCodecFramePrepared);
+    assert(!observed.resizeRemapInProgress);
+    for (std::size_t index = 0U; index < expected.size(); ++index)
+    {
+        assert(observed.events[index].kind == expected[index]);
+        assert(observed.events[index].sequence == index + 1U);
+    }
+
+    McsSessionLifecycle bounded;
+    for (std::size_t index = 0U;
+         index < kMaximumRdpFirstClientAcceptanceEvents + 8U; ++index)
+    {
+        McsSessionLifecycleTestAccess::recordAcceptanceEvent(
+            bounded, Kind::ResizeRemapRejected);
+    }
+    const auto boundedObserved =
+        bounded.firstClientAcceptanceObservability();
+    assert(boundedObserved.eventCount ==
+           kMaximumRdpFirstClientAcceptanceEvents);
+    assert(boundedObserved.droppedEventCount == 8U);
+    assert(boundedObserved.latestEventSequence ==
+           kMaximumRdpFirstClientAcceptanceEvents + 8U);
+    assert(boundedObserved.events.front().sequence == 9U);
+    assert(boundedObserved.events[
+               kMaximumRdpFirstClientAcceptanceEvents - 1U].sequence ==
+           kMaximumRdpFirstClientAcceptanceEvents + 8U);
 }
 
 void testGraphicsPresentationInitializationWire()
@@ -12196,6 +12502,8 @@ constexpr std::array<McsTestCase, 164> kMcsTestCases{{
     {"dvc-graphics-frame-ack-handoff-stale", &testGraphicsFrameAcknowledgeHandoffStale},
     {"dvc-graphics-frame-credit-preflight", &testGraphicsFrameCreditPreflight},
     {"dvc-graphics-surface-remap", &testGraphicsSurfaceRemap},
+    {"dvc-graphics-first-client-acceptance-observability",
+     &testFirstClientAcceptanceObservability},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},
     {"dvc-graphics-pre-share-denial", &testGraphicsDynamicVirtualChannelPreShareDenial},

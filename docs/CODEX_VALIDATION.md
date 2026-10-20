@@ -1,3 +1,20 @@
+## R3 first-client acceptance observability authoring receipt (2026-10-19)
+
+**Starting shared main:** `ae757d15b77d09ddcef09bb5afabf8045dabf56c`.
+R4 supplies the authoritative generation-scoped first exact frame-write and
+genuine FRAME_ACK latches. This R3 increment consumes those observations and
+adds only bounded session-level event/status projection; it does not add a
+second ACK window, frame counter, surface owner, transport writer, scheduler or
+authorization generation.
+
+The dedicated case
+`transport.dvc-graphics-first-client-acceptance-observability` is enrolled in
+the R9 R3 Graphics DVC sanitizer selector, increasing its exact registry from
+21 to 22 with matching workflow-structure sentinel. Owner-local build/full
+CTest: **NOT RUN** in the GitHub connector environment. Exact publication-SHA
+hosted CI: **PENDING**. Real Microsoft-client/physical-seat acceptance:
+**BLOCKED / NOT RUN** pending genuine positive R2 owner authority and R10 Start.
+
 **R2 GUI consent selection contract (2026-10-19):** the R7/R10 GUI
 carries explicit owner-selected input/clipboard scope plus 1–60 minute lifetime
 into the positive R2 authority. The offscreen owner-permission forwarding CTest

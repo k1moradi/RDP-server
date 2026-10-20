@@ -1,3 +1,31 @@
+## R3 bounded first-client acceptance observability (2026-10-19)
+
+Starting shared `main`: `ae757d15b77d09ddcef09bb5afabf8045dabf56c`.
+R3 adds a fixed-capacity, allocation-free acceptance snapshot/event ring to the
+existing `McsSessionLifecycle`, with a thin read-only R10 projection. It covers
+MCS established, Share activated, Graphics DVC activated, surface created/mapped,
+first fully accepted frame publication, first genuine FRAME_ACK, resize remap
+started/completed/rejected and a reconnect correlation generation. The event
+stream contains no protocol payloads or sensitive/native identity values and is
+never consulted for authorization or scheduling.
+
+The first-frame and first-ACK transitions consume the R4
+`GfxPresentationAcceptanceStatus`; R4 remains the sole ACK/outstanding-frame
+truth. Surface/remap transitions use R3's existing accepted-byte writer receipts
+and replacement-surface state. ClearCodec remains the mandatory first live
+publication path; AVC420 is neither enabled nor redesigned here.
+
+New production-backed ordinary/sanitizer CTest:
+`transport.dvc-graphics-first-client-acceptance-observability`. The R9 R3
+Graphics DVC selector intentionally grows from 21 to 22 cases and its workflow
+structure sentinel is updated in the same change. Local owner build/full CTest
+is **NOT RUN** in this connector environment. Exact publication-SHA hosted CI is
+**PENDING** until the commit executes. R10's host-authority lifetime wiring does
+not remove the live blocker: positive Windows App/mstsc acceptance remains
+**BLOCKED / NOT RUN** until R2 can issue a genuine current-owner lease and R10
+can reach positive Start. Use this bounded trace only after that point, and fix
+only demonstrated interoperability failures.
+
 ### R2 owner-selected M1 consent scope/lifetime (2026-10-19)
 
 The local permissions page now sends one typed R10 request: view is mandatory,

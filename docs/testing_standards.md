@@ -1,3 +1,24 @@
+## R3 first-client acceptance observability CTest (2026-10-19)
+
+`transport.dvc-graphics-first-client-acceptance-observability` must exercise
+the existing R3 session/Graphics owner and accepted-byte receipts. It verifies
+that "MCS established" means all configured joins completed, then drives the
+production Graphics CREATE/CAPS/surface path, mandatory ClearCodec publication,
+a genuine R4-acknowledged FRAME_ACK, and DELETE/CREATE/MAP resize remap. Expected
+events are ordered and carry only local sequence numbers; reconnect correlation
+must differ across R3 session objects; duplicate one-shot milestones must not
+duplicate events; and more than 32 repeatable resize results must retain the
+newest 32 with exact overflow accounting.
+
+The first-frame and first-ACK assertions must come from the existing R4
+acceptance status, not a test-only ACK/frame counter. The offline fixture may
+stage already-completed R2/MCS/Share prerequisites only to reach the production
+R3 Graphics hooks; it must not fabricate a live R2 lease, socket/TLS peer,
+physical desktop owner or Microsoft client. Keep this case in R9's exact R3
+Graphics DVC sanitizer inventory, which is 22 cases after this addition.
+ClearCodec remains mandatory for this acceptance path and the test must not
+authorize AVC420 after remap.
+
 ## R8 prepared text-only activation regression (2026-10-19)
 
 Register `clipboard.x11-unicode-text-only-presentation` against the real

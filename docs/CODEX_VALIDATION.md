@@ -1,3 +1,13 @@
+**R2 standalone NTLMv2 KAT gate (2026-10-19):** a noninstalled
+first-party password core now verifies the canonical NTLMv2 proof, derives the
+published SessionBaseKey and KEY_EXCH exported session key, derives the four
+extended-session-security signing/sealing keys, and cleanses password/key
+material on revoke. security.ntlmv2-microsoft-known-answer-and-session-keys,
+security.ntlmv2-proof-blob-and-flag-denials and
+security.ntlmv2-ephemeral-secret-revocation are the dedicated offline gates.
+They do not prove SPNEGO/CredSSP message-security or mstsc/Windows App
+interoperability; the GUI independent-password action remains disabled.
+
 ## R3 first-client acceptance observability authoring receipt (2026-10-19)
 
 **Starting shared main:** `ae757d15b77d09ddcef09bb5afabf8045dabf56c`.

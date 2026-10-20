@@ -19,6 +19,28 @@ add_test(NAME security.lan-credential-mode-denials
 set_tests_properties(security.lan-credential-mode-denials PROPERTIES
     LABELS "security;credentials;offline")
 
+# R2 standalone password cryptographic core. Microsoft MS-NLMP known-answer
+# bytes are fixed independently in the fixture; this is not an interoperability
+# or positive R2-admission test.
+add_executable(test_standalone_ntlmv2 test_standalone_ntlmv2.cpp)
+target_link_libraries(test_standalone_ntlmv2 PRIVATE
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_standalone_ntlmv2 PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_standalone_ntlmv2 PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(ntlmv2_case IN ITEMS
+        ntlmv2-microsoft-known-answer-and-session-keys
+        ntlmv2-proof-blob-and-flag-denials
+        ntlmv2-ephemeral-secret-revocation)
+    add_test(NAME "security.${ntlmv2_case}"
+        COMMAND test_standalone_ntlmv2 "${ntlmv2_case}")
+    set_tests_properties("security.${ntlmv2_case}" PROPERTIES
+        LABELS "security;credentials;ntlmv2;credssp;offline")
+endforeach()
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

@@ -1,3 +1,14 @@
+## R2 standalone NTLMv2 password-core tests (2026-10-19)
+
+The standalone password track must keep Microsoft-published known answers
+hard-coded independently of implementation output. Its positive fixture checks
+ResponseKeyNT, NTProofStr acceptance, SessionBaseKey, encrypted random-session
+KEY_EXCH handling and client/server sign/seal keys. Denial fixtures mutate the
+proof, canonical response blob, required session-security flags and key length.
+The revocation fixture checks caller plaintext erasure plus private credential
+and security-context zeroization. None of these tests may be described as
+Windows-client interoperability or R2 admission.
+
 ## R3 first-client acceptance observability CTest (2026-10-19)
 
 `transport.dvc-graphics-first-client-acceptance-observability` must exercise

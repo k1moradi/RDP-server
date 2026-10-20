@@ -1,3 +1,26 @@
+### R2 standalone session-password cryptographic core (2026-10-19)
+
+The parallel independent-password track now has a noninstalled first-party
+EphemeralNtlmV2Credential core. It consumes mutable UTF-16 password storage,
+scrubs the plaintext caller buffer on every configure path, retains only a
+bounded username plus NT hash in memory, and non-elidably cleanses derived
+credential/security keys on revoke/destruction. Empty NTLM domains are
+supported; this first prototype deliberately rejects non-ASCII usernames
+rather than guessing Unicode uppercase mappings.
+
+The verifier accepts only NTLMv2 responses with canonical bounded blobs and a
+CredSSP-oriented 128-bit SIGN+SEAL+extended-session-security flag set. It
+validates NTProofStr in constant time, derives SessionBaseKey, handles the
+KEY_EXCH encrypted random session key, and derives client/server signing and
+sealing keys. Dedicated CTests use Microsoft's published User/Domain/Password
+known-answer values, proof/session-key bytes, denial mutations and zeroization.
+
+This is **not** a Microsoft-client interoperability claim. NTLM Type 1/2/3
+framing, SPNEGO token state, stateful NTLM wrap/unwrap for CredSSP pubKeyAuth
+and authInfo, GUI secret entry/ownership, and final R2 admission integration
+remain P0. IndependentApplicationPassword therefore remains disabled in the
+product UI and there is no NLA downgrade.
+
 ## R3 bounded first-client acceptance observability (2026-10-19)
 
 Starting shared `main`: `ae757d15b77d09ddcef09bb5afabf8045dabf56c`.

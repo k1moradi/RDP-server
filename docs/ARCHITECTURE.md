@@ -1,3 +1,19 @@
+## Standalone NTLMv2/CredSSP password-track boundary (2026-10-19)
+
+The first-party password track is separate from the existing Kerberos/PAM R2
+path. Its initial noninstalled primitive owns only memory-resident standalone
+credential material and NTLMv2 proof/session-key derivation. It cannot listen,
+select a desktop, issue a LinuxConsoleAdmissionLease, alter security negotiation
+or downgrade NLA. Password plaintext enters only through mutable caller-owned
+UTF-16 storage that is cleansed before configure() returns; retained NT hash and
+all session/sign/seal keys are cleansed on revoke/destruction.
+
+The next layer must parse exact NTLMSSP Type 1/2/3 messages inside SPNEGO and
+own the stateful client/server sealing ciphers and sequence numbers required to
+unwrap/wrap CredSSP pubKeyAuth and authInfo. Only after those message-security
+known answers and real Microsoft-client evidence exist may the GUI enable an
+independent session password.
+
 ## R3 bounded first-client acceptance observation boundary (2026-10-19)
 
 R3 now owns one fixed 32-entry acceptance-event ring inside the existing

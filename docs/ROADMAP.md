@@ -1,3 +1,46 @@
+## R10 provisioned HostControl listener transaction (2026-10-20)
+
+Starting shared-main parent: `b9e91adbed809dea091b9a271e6be3e651520401`. Dependency recheck found the
+former R2A owner-consent blocker resolved on main. R2P's standalone NTLM work
+continues independently and is not required for the first Linux acceptance,
+which may use the existing OS-account Kerberos/PAM path.
+
+R10 now has a production-security-only HostControl seam that borrows the
+already-provisioned `LinuxRuntimeSecurityConfiguration` and
+`RuntimeServerTlsContext`; it does not create a second credential, TLS or
+policy owner. Existing-account setup succeeds only while the retained R2
+service configuration and nonzero identity-policy generation are current.
+Positive Start is transactional: configured credentials -> genuine current
+owner consent -> fresh interface/address identity -> configured TLS identity ->
+local candidate `OwnedLanListener` bind -> bound certificate/listener
+generation match -> fresh owner reauthorization -> sole listener publication.
+Any failure before publication destroys the candidate locally. Stop/revoke
+still invalidates R2 before the listener, and terminal revoke clears the
+HostControl credential-ready projection.
+
+The Qt pre-Start gate no longer requires `nativeDesktopReady`; that state is
+post-accept/post-R2 by design and remains false until the existing connection
+runtime constructs the one authorized native owner. The ordinary GUI-only build
+remains fail-closed: the security/TLS seam is compiled only when
+`rdp-server-linux-runtime-security` exists, and the current
+`rdp-server-desktop` entry point still constructs the unprovisioned default
+controller.
+
+Dedicated offline CTest:
+`runtime.linux-host-control-provisioned-listener-transaction` pins the
+production linkage, exact transaction order and removal of the circular native
+pre-Start gate without fabricating an R2 grant or opening a listener. The
+existing Qt positive-workflow fixture now proves Start readiness while
+`nativeDesktopReady=false`. Owner-local build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**.
+
+**Next R10 gate:** extract/reuse the existing validated `rdp-server.conf`
+loading/provisioning boundary so `rdp-server-desktop` can construct these same
+service-lifetime owners, then hand accepted sockets into the existing
+`LinuxRuntimeConnection`/persistent X11 loop. Live Microsoft-client acceptance
+remains **BLOCKED / NOT RUN** until that concrete GUI config feed exists and the
+owner runs the physical-seat test.
+
 ## R2 standalone NTLM transcript and message security (2026-10-20)
 
 Starting shared-main parent: `df0eb78299f5be94d1325ebb36727746f5866f28`.

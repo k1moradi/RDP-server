@@ -163,6 +163,17 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-r2-authority-lifetime-handoff PROPERTIES
         LABELS "runtime;security;r2-owner-consent;r10-host-control;offline")
+    add_test(NAME runtime.linux-host-control-provisioned-listener-transaction
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
+            "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_GUI_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
+            "-DRDP_GUI_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+            "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_provisioned_listener_transaction.cmake")
+    set_tests_properties(
+        runtime.linux-host-control-provisioned-listener-transaction PROPERTIES
+        LABELS "runtime;security;r1-tls;r2-owner-consent;r10-host-control;offline")
 endif()
 
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.

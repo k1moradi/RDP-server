@@ -918,6 +918,16 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 HostControl may consume the already-provisioned Linux security/TLS
+# lifetime only when that production dependency graph actually exists.
+if(TARGET rdp-server-linux-host-control AND
+   TARGET rdp-server-linux-runtime-security)
+    target_link_libraries(rdp-server-linux-host-control PUBLIC
+        rdp-server-linux-runtime-security)
+    target_compile_definitions(rdp-server-linux-host-control PUBLIC
+        RDP_SERVER_HAVE_LINUX_HOST_SECURITY=1)
+endif()
+
 # R5 stateless authorized-input route. Build only where R10's concrete
 # R2 input gateway and the one-XCB native desktop owner both exist. It owns
 # no session/lease/input state; R10 links this only with its sole event loop.

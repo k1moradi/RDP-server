@@ -190,7 +190,7 @@ bool HostControl::start(const HostRequest& request)
         hasTerminalHostSessionError(snapshot.lastError) ||
         snapshot.stage == RuntimeHostStage::Revoked ||
         !snapshot.credentialsConfigured || !snapshot.hostOwnerAuthorized ||
-        !snapshot.tlsIdentityReady || !snapshot.nativeDesktopReady ||
+        !snapshot.tlsIdentityReady ||
         isSharingStage(snapshot.stage) || isPendingStage(snapshot.stage) ||
         request.interfaceId.isEmpty() || request.interfaceAddress.isEmpty())
         return false;

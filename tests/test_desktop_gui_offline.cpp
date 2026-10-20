@@ -729,12 +729,14 @@ int main(int argc, char** argv)
         runtime.snapshot.credentialsConfigured = true;
         runtime.snapshot.hostOwnerAuthorized = true;
         runtime.snapshot.tlsIdentityReady = true;
-        runtime.snapshot.nativeDesktopReady = true;
+        // Native desktop ownership is post-accept/post-R2 and must not gate Start.
+        runtime.snapshot.nativeDesktopReady = false;
         runtime.interfaces = {RuntimeHostInterface{
             "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
         window.refresh();
         interfaces->setCurrentIndex(1);
         window.refresh();
+        assert(!host.status().captureInputReady);
         assert(credentials->text().contains(
             "Permitted credentials: existing OS-account"));
         assert(permission->text().contains("Local owner permission is current"));

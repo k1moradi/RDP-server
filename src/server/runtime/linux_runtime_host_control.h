@@ -11,6 +11,11 @@
 namespace rdp_server::server::runtime
 {
 
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+class LinuxRuntimeSecurityConfiguration;
+class RuntimeServerTlsContext;
+#endif
+
 // Parse the GUI stable name#index into the CURRENT native name used by R1.
 // Returned string_view borrows stableId; this is not listener authority.
 struct LinuxNativeLanInterfaceIdentity
@@ -28,6 +33,13 @@ class LinuxRuntimeHostControl final : public RuntimeHostControl
 {
 public:
     LinuxRuntimeHostControl() noexcept;
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    // Borrow the already-validated service-lifetime R2/TLS owners. They must
+    // outlive this controller and every connection later created from it.
+    LinuxRuntimeHostControl(
+        LinuxRuntimeSecurityConfiguration& securityConfiguration,
+        const RuntimeServerTlsContext& tlsContext) noexcept;
+#endif
     ~LinuxRuntimeHostControl() override;
     LinuxRuntimeHostControl(const LinuxRuntimeHostControl&) = delete;
     LinuxRuntimeHostControl& operator=(const LinuxRuntimeHostControl&) = delete;
@@ -51,6 +63,9 @@ public:
 private:
     [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] RuntimeHostResult deny(RuntimeHostError error) noexcept;
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    [[nodiscard]] bool serviceCredentialsReady() const noexcept;
+#endif
     void retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
 
@@ -59,6 +74,11 @@ private:
     RuntimeHostStage stage_{RuntimeHostStage::Stopped};
     RuntimeHostError lastError_{RuntimeHostError::HostConsentRequired};
     bool selectionConfigured_{};
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
+    const RuntimeServerTlsContext* tlsContext_{};
+    bool credentialsConfigured_{};
+#endif
     // Production-native evidence owns all borrowed views. It must outlive
     // R2's host-lifetime authority and every admission broker borrowing it.
     rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource

@@ -417,7 +417,6 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const {
         || desktops_->currentData().toString() != state.desktop)
         return "Logged-in desktop not R2-authorized";
     if (!state.tlsReady) return "TLS identity unavailable";
-    if (!state.captureInputReady) return "Screen/input permissions unavailable";
     const QString selectedInterface = interfaces_->currentData().toString();
     const QString selectedInterfaceId =
         interfaces_->currentData(Qt::UserRole + 1).toString();

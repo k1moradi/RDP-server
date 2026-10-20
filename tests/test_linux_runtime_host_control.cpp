@@ -58,7 +58,7 @@ int main(int argc, char** argv)
             assert(configured.listenerGeneration == 0U);
             assert(configured.boundEndpoint.empty());
             assert(control.startSharing().error ==
-                   RuntimeHostError::HostConsentRequired);
+                   RuntimeHostError::CredentialProviderUnavailable);
             assert(!control.status().listenerAvailable);
             assert(control.status().boundEndpoint.empty());
         }
@@ -77,7 +77,7 @@ int main(int argc, char** argv)
             interfaces.front().localAddresses.front(), 3389U, true, false};
         assert(control.configure(selected).succeeded());
         assert(control.startSharing().error ==
-               RuntimeHostError::HostConsentRequired);
+               RuntimeHostError::CredentialProviderUnavailable);
 
         RuntimeHostOptions removed = selected;
         removed.interfaceId += "#stale";

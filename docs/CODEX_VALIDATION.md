@@ -1,3 +1,32 @@
+## R10 HostControl provisioned-listener authoring receipt (2026-10-20)
+
+Starting shared-main parent: `b9e91adbed809dea091b9a271e6be3e651520401`. The positive R2A local-owner
+authority is already present, so R10 continued instead of waiting on the
+independent R2P password lane.
+
+This increment conditionally connects the Linux HostControl to the existing
+service-lifetime runtime-security/TLS owners when that production target graph
+is built. Existing-account readiness is generation-checked. Start performs
+owner consent before fresh interface revalidation, then validates the configured
+TLS identity, binds one local candidate listener, requires the bound
+certificate identity to match that exact listener generation, reauthorizes the
+owner and only then publishes the listener. Failure leaves no published socket.
+Default GUI-only builds keep the prior fail-closed controller.
+
+The Qt Start gate is corrected so `nativeDesktopReady` is not required before
+Start; the real native owner remains a post-accept/post-R2 state. Dedicated
+offline CTest:
+`runtime.linux-host-control-provisioned-listener-transaction`. The existing
+offscreen positive-workflow case is tightened to keep
+`nativeDesktopReady=false` while Start becomes ready.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector-only environment. No live listener, credential,
+desktop or Microsoft client was started. Exact publication-SHA hosted CI:
+**PENDING**. Concrete desktop positive Start remains **BLOCKED** on the next
+R10-owned step: reuse the existing validated configuration loader to construct
+and feed these provisioned owners from `src/gui/main.cpp`.
+
 ## R2 standalone NTLM transcript/message-security authoring receipt (2026-10-20)
 
 Starting shared-main parent: `df0eb78299f5be94d1325ebb36727746f5866f28`. Dependency inspection found the

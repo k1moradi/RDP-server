@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_host_control.h"
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+#include "linux_runtime_security.h"
+#include "runtime_tls_context.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <charconv>
@@ -108,6 +112,31 @@ namespace
     }
     return buffer.data();
 }
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+[[nodiscard]] RuntimeHostError listenerRuntimeError(
+    rdp_server::server::transport::LanListenerError error) noexcept
+{
+    using rdp_server::server::transport::LanListenerError;
+    switch (error)
+    {
+    case LanListenerError::None:
+        return RuntimeHostError::None;
+    case LanListenerError::InvalidSelection:
+        return RuntimeHostError::InvalidConfiguration;
+    case LanListenerError::InterfaceUnavailable:
+        return RuntimeHostError::InterfaceUnavailable;
+    case LanListenerError::PermissionDenied:
+    case LanListenerError::PortOccupied:
+        return RuntimeHostError::PortUnavailable;
+    case LanListenerError::CertificateMismatch:
+        return RuntimeHostError::TlsIdentityUnavailable;
+    case LanListenerError::ListenerNotReady:
+    case LanListenerError::TerminalDisconnect:
+        return RuntimeHostError::InternalFailure;
+    }
+    return RuntimeHostError::InternalFailure;
+}
+#endif
 } // namespace
 
 std::optional<LinuxNativeLanInterfaceIdentity>
@@ -144,6 +173,16 @@ resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept
 
 LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
     : ownerThread_(std::this_thread::get_id()) {}
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+LinuxRuntimeHostControl::LinuxRuntimeHostControl(
+    LinuxRuntimeSecurityConfiguration& securityConfiguration,
+    const RuntimeServerTlsContext& tlsContext) noexcept
+    : ownerThread_(std::this_thread::get_id()),
+      securityConfiguration_(&securityConfiguration),
+      tlsContext_(&tlsContext)
+{
+}
+#endif
 LinuxRuntimeHostControl::~LinuxRuntimeHostControl()
 {
     // The owning event-loop thread destroys this after GUI shutdown. R2 is
@@ -161,6 +200,17 @@ RuntimeHostResult LinuxRuntimeHostControl::deny(RuntimeHostError error) noexcept
     lastError_ = error;
     return {error, false};
 }
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+bool LinuxRuntimeHostControl::serviceCredentialsReady() const noexcept
+{
+    if (securityConfiguration_ == nullptr ||
+        !securityConfiguration_->configured())
+        return false;
+    const auto* policy = securityConfiguration_->policy();
+    return policy != nullptr && policy->size() != 0U &&
+           policy->generation() != 0U;
+}
+#endif
 
 std::vector<RuntimeHostInterface>
 LinuxRuntimeHostControl::enumerateLocalInterfaces() const
@@ -229,12 +279,36 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             endpointText(selection_.localAddress, selection_.port);
     if (listenerCurrent)
         snapshot.boundEndpoint = boundEndpointText(listener_.boundEndpoint());
-    // Status observes the same R2 owner used by admission. This remains false
-    // today; a future positive provider cannot be replaced by a GUI Boolean.
+    // Status observes the same R2 owner used by admission. A GUI Boolean can
+    // never replace this production authority.
     snapshot.hostOwnerAuthorized =
         ownerSharingAuthority_.authorizes(
             rdp_server::server::security::kConsoleViewPermission);
-    // Credentials, TLS identity and native desktop remain unproven.
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    snapshot.credentialsConfigured =
+        credentialsConfigured_ && serviceCredentialsReady();
+    if (tlsContext_ != nullptr)
+    {
+        if (listener_.valid())
+        {
+            snapshot.tlsIdentity = tlsContext_->boundIdentityStatus(listener_);
+            snapshot.tlsIdentityReady =
+                listenerCurrent &&
+                snapshot.tlsIdentity.boundIdentityMatchesGeneration(
+                    snapshot.listenerGeneration);
+        }
+        else
+        {
+            snapshot.tlsIdentity = tlsContext_->identityStatus();
+            snapshot.tlsIdentityReady =
+                snapshot.tlsIdentity.fingerprintAvailable &&
+                snapshot.tlsIdentity.state ==
+                    RuntimeTlsIdentityState::ConfiguredUnbound;
+        }
+    }
+#endif
+    // nativeDesktopReady remains false until an accepted client passes R2 and
+    // the existing runtime constructs the one authorized native owner.
     return snapshot;
 }
 
@@ -276,12 +350,27 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     // Any credential-mode/configuration action invalidates prior consent.
     ownerSharingAuthority_.revoke(
         OwnerConsentRevocationReason::CredentialChange);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    credentialsConfigured_ = false;
+#endif
     const auto decision = assessLanCredentialChoice(choice);
     if (decision == LanCredentialDecision::UnsupportedIndependentPasswordCredSsp)
         return deny(RuntimeHostError::UnsupportedIndependentPasswordNla);
     if (decision == LanCredentialDecision::CredentialNotConfigured)
         return deny(RuntimeHostError::CredentialNotConfigured);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (securityConfiguration_ == nullptr ||
+        !securityConfiguration_->configured())
+        return deny(RuntimeHostError::CredentialProviderUnavailable);
+    if (!serviceCredentialsReady())
+        return deny(RuntimeHostError::CredentialNotConfigured);
+    credentialsConfigured_ = true;
+    stage_ = RuntimeHostStage::CredentialsConfigured;
+    lastError_ = RuntimeHostError::None;
+    return {RuntimeHostError::None, false};
+#else
     return deny(RuntimeHostError::CredentialProviderUnavailable);
+#endif
 }
 
 RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup(
@@ -330,25 +419,64 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::AccessRevoked);
     if (!selectionConfigured_)
         return deny(RuntimeHostError::InvalidConfiguration);
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    return deny(RuntimeHostError::CredentialProviderUnavailable);
+#else
+    if (securityConfiguration_ == nullptr ||
+        !securityConfiguration_->configured())
+        return deny(RuntimeHostError::CredentialProviderUnavailable);
+    if (!credentialsConfigured_ || !serviceCredentialsReady())
+        return deny(RuntimeHostError::CredentialNotConfigured);
+
+    // R2 owner consent precedes the fresh native interface/address check.
+    if (!ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission))
+        return deny(RuntimeHostError::HostConsentRequired);
+
     const auto current = assessRuntimeSelectedLanEndpoint(
         selection_, enumerateLocalInterfaces());
-    if (!current.succeeded() ||
-        !resolveCurrentLinuxNativeLanInterface(selection_.interfaceId))
+    const auto nativeIdentity =
+        resolveCurrentLinuxNativeLanInterface(selection_.interfaceId);
+    if (!current.succeeded() || !nativeIdentity)
     {
-        // The native interface/address changed since Configure. Discard the
-        // stale preference rather than letting a subsequent Start reuse it.
         selection_ = {};
         selectionConfigured_ = false;
         return deny(current.succeeded()
             ? RuntimeHostError::InterfaceUnavailable : current.error);
     }
+
+    if (tlsContext_ == nullptr)
+        return deny(RuntimeHostError::TlsIdentityUnavailable);
+    const RuntimeTlsIdentityStatus unboundIdentity =
+        tlsContext_->identityStatus();
+    if (!unboundIdentity.fingerprintAvailable ||
+        unboundIdentity.state != RuntimeTlsIdentityState::ConfiguredUnbound)
+        return deny(RuntimeHostError::TlsIdentityUnavailable);
+
+    auto listenerResult =
+        rdp_server::server::transport::openLanListener({
+            nativeIdentity->nativeName, selection_.localAddress,
+            selection_.port});
+    if (listenerResult.error !=
+        rdp_server::server::transport::LanListenerError::None)
+        return deny(listenerRuntimeError(listenerResult.error));
+
+    auto candidate = std::move(listenerResult.listener);
+    const RuntimeTlsIdentityStatus boundIdentity =
+        tlsContext_->boundIdentityStatus(candidate);
+    if (!boundIdentity.boundIdentityMatchesGeneration(
+            candidate.generation()))
+        return deny(RuntimeHostError::TlsIdentityUnavailable);
+
     if (!ownerSharingAuthority_.authorizes(
             rdp_server::server::security::kConsoleViewPermission))
         return deny(RuntimeHostError::HostConsentRequired);
 
-    // Owner consent is positive. Later credential/TLS/listener/native-desktop
-    // composition remains intentionally fail-closed in this GUI controller.
-    return deny(RuntimeHostError::CredentialProviderUnavailable);
+    listener_ = std::move(candidate);
+    stage_ = RuntimeHostStage::ListenerAvailable;
+    lastError_ = RuntimeHostError::None;
+    return {RuntimeHostError::None, false};
+#endif
 }
 
 void LinuxRuntimeHostControl::retireStoppedRuntime(
@@ -391,6 +519,9 @@ RuntimeHostResult LinuxRuntimeHostControl::revokeSharing()
             NativeAuthorizationLost);
     selection_ = {};
     selectionConfigured_ = false;
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    credentialsConfigured_ = false;
+#endif
     stage_ = RuntimeHostStage::Revoked;
     lastError_ = RuntimeHostError::AccessRevoked;
     return {RuntimeHostError::None, false};

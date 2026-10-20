@@ -1,3 +1,32 @@
+## R5 Qt-service X11 lifetime audit receipt (2026-10-20)
+
+Starting shared-main parent: `4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`. The R10 GUI path now reaches
+Graphics-ready through a bounded owner-thread service tick, so R5 re-audited
+the native X11 boundary rather than adding another owner.
+
+Source review confirms the existing R5 aggregate already has the required
+service-facing operations: construction solely from the R2-selected display;
+one XCB fd; event draining with an explicit budget and caller-supplied
+readability; monotonic capture generation plus typed native-session geometry
+observation; R2-protected synchronous XTEST dispatch; callback-scoped full
+framebuffer borrowing; and terminal no-XTEST authorization-loss retirement.
+The R2 logind source uses a zero-timeout readiness check. The only multi-fd
+blocking loop is the existing CLI R10 composition, outside the R5 owner.
+
+`docs/ARCHITECTURE.md` now records the exact R10 order from Graphics-ready
+through selected-owner construction, borrowed logind registration retirement,
+bounded XCB drain, second R2 fence, protected R1/R3 dispatch, typed
+RandR/remap/freshness checks, synchronous R4 framebuffer consumption and
+terminal teardown. It also records that the 25 ms cadence is a cooperative
+scheduler bound rather than a hard latency guarantee for synchronous local XCB
+request/reply calls.
+
+No production behavior changed and no new R5/Xvfb test was justified; existing
+native generation, event-service, synchronous-borrow and no-XTEST retirement
+coverage remains the relevant evidence. Canonical local build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**. No physical seat0 or Microsoft-client test was run.
+
 ## R10 bounded accepted-client scheduler authoring receipt (2026-10-20)
 
 Starting shared-main parent: `c911ffd48ad1f076efa4d969edf0c47e935267d2`. Dependency recheck found no external

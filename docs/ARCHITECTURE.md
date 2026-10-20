@@ -1,3 +1,63 @@
+## R5 X11 owner ordering for the Qt service lifetime (2026-10-20)
+
+Audit against current `main` found that R5 already exposes the native
+primitives R10 needs; R5 owns no CLI polling loop and does not need a second
+XCB owner or event loop. `X11DesktopResources` remains the sole aggregate for
+one XCB connection, XShm capture generation, Damage/RandR observation and
+XTEST input state. Construct, service, borrow and retire it on the same
+serialized Qt owner thread.
+
+The required R10 ordering after real RDPGFX control readiness is:
+
+1. Freshly authorize PersonalDesktop application traffic, then enter
+   `LinuxRuntimeConnection::visitNativeDesktopSelection()`. Inside that
+   synchronous R2 visitor, validate the exact selected display plus nonzero
+   admission/session generations and construct exactly one
+   `X11DesktopResources` from that display. Retain only the two scalar R2
+   generations beside the owner; never reread `DISPLAY`, client metadata or
+   configuration as native authority.
+2. On each service tick, reauthorize before native work. Borrow one R2 native
+   change registration and observe readiness with zero wait for its logind fd,
+   the X11 fd from `fileDescriptor()`, and the existing R1 socket. Unregister
+   that exact native-change record before any R2/R3/R5 callback, then either
+   dispatch its readiness or release it without dispatch.
+3. Drain only one bounded XCB batch with
+   `processEvents(128, &workMayRemain, x11Readable, ...)`. The method first
+   consumes already queued XCB events and reads the X11 socket only when R10
+   supplied current readability. RandR commits a replacement geometry-bound
+   capture/input generation before later queued events are eligible.
+4. Reauthorize again after the native drain. Service at most the existing
+   pending R3/R1 write or one protected post-Share application-read step; slow
+   path input may reach XTEST only through
+   `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt()`, which
+   re-enters R2 per decoded event and checks the exact current R5 capture
+   generation beside injection.
+5. Before capture, obtain `X11NativeGeometryObservation` using the current R2
+   native-session generation, verify `nativeGeometryIsCurrent()`, pass the
+   geometry through the existing protected R3 surface-remap/ACK-credit path,
+   recheck R5 currentness, and finally call the typed
+   `consumeR4Frame(observation, currentNativeSessionGeneration, ...)`.
+   The framebuffer span is synchronous borrow-only storage and must be fully
+   consumed before the callback returns, before another capture/RandR rebuild,
+   and before retirement.
+6. Treat lock/logout/session replacement, R2 revalidation failure, connection
+   loss, native failure and Stop/Revoke after owner-authority invalidation as
+   terminal. Retire any R8 native borrower first when present, then call
+   `retireAfterAuthorizationLoss()` before revoking/destroying the
+   R3/R2/R1 connection. That path discards held input state before all other
+   X11 children and emits no cleanup XTEST. `disconnect()` is reserved only
+   for an explicitly graceful native shutdown while input authority is still
+   current.
+
+The 25 ms Qt cadence bounds scheduler waits and units of work; it is not a
+hard real-time guarantee for a stalled local X server. Existing native setup
+and the explicitly synchronous XShm framebuffer borrow use local XCB
+request/reply round trips. They do not own a wait loop or a second scheduler,
+so this audit does not wrap them in a duplicate step API or worker thread. A
+future requirement for a hard wall-clock deadline across an unresponsive X
+server would require a separate asynchronous-XCB redesign rather than a thin
+R5 wrapper.
+
 ## R10 Qt accepted-client ownership through Graphics-ready (2026-10-20)
 
 The provisioned Linux GUI has one accepted-client owner at a time. The accepted

@@ -1,3 +1,47 @@
+## R5 Qt-service X11 owner lifetime audit (2026-10-20)
+
+Starting shared-main parent: `4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`.
+
+R5 audited the one existing X11 desktop aggregate against R10's new 25 ms Qt
+accepted-client scheduler. No missing R5 service primitive was found.
+`X11DesktopResources` already provides one selected-display constructor,
+one native fd, bounded/readiness-gated `processEvents()`, typed native
+geometry/capture generations, synchronous callback-only framebuffer borrowing,
+R2-gated slow-path XTEST dispatch, and terminal
+`retireAfterAuthorizationLoss()` with input retirement first and no cleanup
+XTEST. R2's existing logind change source is zero-timeout and exposes its fd;
+the blocking multi-fd `poll()` belongs only to the CLI composition in
+`main.cpp`, not to the R5 owner.
+
+The exact GUI composition contract is now documented in
+`docs/ARCHITECTURE.md`: after Graphics-ready and fresh R2 authorization,
+construct exactly one owner inside `visitNativeDesktopSelection()`; on later
+Qt ticks use zero-wait readiness, unregister the borrowed logind registration
+before callbacks, drain at most 128 XCB events, reauthorize, advance the sole
+R1/R3 post-Share operation, reconcile typed geometry, then synchronously borrow
+the current full framebuffer. Slow-path input remains behind the existing
+per-event R2 gateway. On any authority/session/connection/native retirement,
+R5 retires no-XTEST before the accepted connection is destroyed.
+
+No production R5 code or Xvfb behavior changed, so no duplicate step API and no
+new native test were added. Existing constructor/native capture calls contain
+synchronous local XCB request/reply boundaries; the project's required
+framebuffer handoff is explicitly synchronous. The Qt contract therefore
+bounds scheduler waits/work count, not worst-case wall-clock latency of a
+failed X server. A hard deadline for an unresponsive X server would be a
+separate asynchronous-XCB redesign, not a small wrapper around the current
+owner.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector environment. No live X11 desktop, listener or
+Microsoft client was started. Exact publication-SHA hosted CI: **PENDING**.
+
+**R10 remains the first desktop code blocker:** move this already-defined
+lifetime into `LinuxRuntimeHostControl` after `GraphicsReady`, set native
+desktop status only from that actual owner, and preserve owner-authority ->
+native no-XTEST retirement -> accepted-connection -> listener teardown. R5 has
+no additional prerequisite for that composition.
+
 ## R10 bounded GUI accepted-client scheduler through Graphics control (2026-10-20)
 
 Starting shared-main parent: `c911ffd48ad1f076efa4d969edf0c47e935267d2`. The only newer dependency work was

@@ -2273,6 +2273,72 @@ needed to correlate later R2/R3 reauthorization. If R2's post-callback
 revalidation fails, retire the just-created X11 owner without publishing or
 injecting anything.
 
+### Ubuntu 24.04 / GNOME 46 / Xorg physical-seat run sheet
+
+This run sheet is prepared for the first real Linux desktop acceptance, but it
+is **BLOCKED / NOT RUN** until R2 can issue a genuine positive current-owner
+authority and R10 GUI LAN Start is live. Canonical M1 remains the same-SHA
+owner-native build/CTest matrix; preparing this physical run does not advance
+or redefine M1. Do not substitute Xvfb, a configured `DISPLAY`,
+`LockedHint=no`, a test fixture, a debugger write, or a patched success
+Boolean for either live gate.
+
+Before allowing the client to connect, record the exact source SHA and client
+build, then use the GUI's **Refresh Linux X11 prerequisites** read-only report
+to record the current process UID, `XDG_SESSION_ID`, logind session UID,
+`Seat`, `Type`, `Active`, `Remote`, `State`, advisory
+`LockedHint`, and `DISPLAY`. Record the GUI-selected R10 LAN interface
+stable ID, address and port separately. `LockedHint=yes` is negative evidence
+and the run must not proceed; `LockedHint=no` is only advisory and never
+satisfies R2 owner consent or authoritative unlock.
+
+There is deliberately no pre-connection R5 capture generation. Creating an
+`X11DesktopResources` owner just to obtain one would cross the native
+authority boundary before R2/R10 permit it. Record that field as **unavailable
+by design** in the pre-connection evidence. After genuine R2 admission and
+inside the existing R2-selected native-owner lifetime, but before the first
+frame publication, record the R2 admission/session generations and the
+read-only `sourceGeometry()` / `captureGeneration()` values from that
+single owner. Record numbers and dimensions only; never pixels, credentials or
+input payloads.
+
+Use a controlled local test surface containing no private content. With one
+Microsoft client connected, execute this bounded operator sequence:
+
+1. Confirm the initial visible frame is the current physical desktop, not a
+   stale/test frame. Correlate the current capture generation with the existing
+   R4 first-ClearCodec/exact-write/genuine-FRAME_ACK acceptance status.
+2. Move the pointer, then perform one left click and one right click in the
+   controlled target. Confirm each event is accepted only through the existing
+   R2/R3 protected R5 route.
+3. Type ordinary keys and exercise at least Shift plus one other implemented
+   modifier. Do not claim unsupported E1/Pause, Unicode or relative input as
+   positive behavior.
+4. Disconnect and verify the controlled target shows no stuck key or button.
+   For authority-loss disconnect, require zero compensating XTEST cleanup after
+   revocation.
+5. If practical, perform one RandR resize or topology replacement. Record old
+   and new geometry/capture generations, require stale old-generation work to
+   be rejected, and require the replacement generation to produce the next
+   current frame.
+6. Invoke Stop and verify listener/client/native ownership retires. Reconnect
+   only after a fresh genuine R2 authorization and prove no old watcher,
+   session/capture generation, frame or input state is reusable.
+
+For failure routing, collect only the existing read-only/fail-only facts.
+Classify **X11 capture/native owner** when R2/R3 authority and the expected
+generation are current but the single `X11DesktopResources` owner becomes
+invalid, reports `failureReason()`, or its XShm capture fails. Classify
+**generation freshness** when the session generation, geometry observation or
+capture generation no longer equals the live owner (including RandR
+replacement); stale work being rejected is expected behavior, not an input
+authorization defect. Classify **input authorization** when capture freshness
+is current but the per-event R2/R3 protected input transition denies before
+XTEST. If the native XTEST controller itself fails after authorization, record
+that separately as an R5 native-input defect rather than weakening or bypassing
+R2. Do not add packet dumps, screenshots, key logs, a second XCB connection or
+a synthetic authority seam merely to improve diagnostics.
+
 The event loop registers only R2's borrowed logind fd/mask record. It never
 duplicates or closes that descriptor. Before any connection revoke or watcher
 dispatch, remove the exact registration from the external poller first; then

@@ -4,6 +4,8 @@
 #include <QString>
 #include <QStringView>
 
+#include <cstdint>
+
 class QLabel;
 
 namespace rdp::gui
@@ -13,14 +15,23 @@ namespace rdp::gui
 struct LinuxPrerequisiteObservation final
 {
     bool activePhysicalX11Seat0{};
+    std::uint64_t processUid{};
     QString sessionId;
+    QString sessionUserId;
+    QString seat;
+    QString sessionType;
+    QString active;
+    QString remote;
+    QString state;
+    QString lockedHint;
     QString displayName;
     QString missingLibraries;
 };
 
 [[nodiscard]] LinuxPrerequisiteObservation assessLinuxPrerequisites(
-    QStringView sessionId, QStringView sessionType, QStringView displayName,
-    QStringView logindProperties, QStringView missingLibraries);
+    std::uint64_t processUid, QStringView sessionId, QStringView sessionType,
+    QStringView displayName, QStringView logindProperties,
+    QStringView missingLibraries);
 
 [[nodiscard]] QString formatLinuxPrerequisites(
     const LinuxPrerequisiteObservation& observation);

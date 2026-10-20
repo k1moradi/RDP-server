@@ -1,3 +1,37 @@
+## R5 physical X11 acceptance-harness preflight (2026-10-19)
+
+**Authoring parent:** `19e92d6d90244223bff772e1506232205e123597`.
+The existing Linux Qt prerequisite observer is extended in place; no second
+native observer/controller is added. Its bounded read-only
+`loginctl show-session` query now records the current process UID and exact
+session `User`, `Seat`, `Type`, `Active`, `Remote`, `State`,
+`LockedHint` and `Display` evidence. The seat0 candidate additionally
+requires a non-root process UID matching logind's session UID. `LockedHint`
+is displayed as advisory evidence only and never becomes owner authorization or
+an unlock attestation. The existing R10-approved interface selector now makes
+its stable interface ID and address explicit in the GUI.
+
+The physical Ubuntu 24.04 / GNOME 46 / Xorg run sheet is consolidated in
+`docs/testing_standards.md`. It records pre-client UID/session/seat/lock/
+DISPLAY/LAN evidence, then—only after genuine R2 admission—records geometry and
+capture/session generations from the existing single `X11DesktopResources`
+owner before first publication. Pre-connection capture generation is explicitly
+**unavailable by design**; constructing an extra XCB/capture owner merely to
+obtain it is forbidden. The run sheet covers current first frame, pointer
+movement, left/right clicks, ordinary keyboard/modifiers, no stuck held input,
+one practical RandR replacement, Stop and fresh reconnect, with failure routing
+limited to X11 native/capture, generation freshness, protected input
+authorization, or a separately identified native-XTEST failure.
+
+The existing production-linked
+`gui.linux-readonly-seat0-prerequisite-denials` CTest is expanded with UID,
+individual logind-field, advisory-lock and preflight-generation assertions.
+Source review: **PASS**. Canonical owner build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**. No live
+desktop, client, listener, capture or XTEST action was executed. Physical
+remote-client acceptance remains **BLOCKED / NOT RUN** on positive R2
+current-owner authority plus R10 GUI LAN Start.
+
 ## R4 first-client acceptance telemetry authoring (2026-10-19)
 
 A narrow R4 observation surface is authored on current main: one read-only

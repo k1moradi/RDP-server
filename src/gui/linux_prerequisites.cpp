@@ -11,6 +11,8 @@
 #include <QtGlobal>
 
 #include <array>
+#include <cstdint>
+#include <unistd.h>
 
 namespace rdp::gui
 {
@@ -75,25 +77,41 @@ constexpr qsizetype kMaximumLogindReplyBytes = 4096;
 } // namespace
 
 LinuxPrerequisiteObservation assessLinuxPrerequisites(
-    QStringView sessionId, QStringView sessionType, QStringView displayName,
+    const std::uint64_t processUid, QStringView sessionId,
+    QStringView sessionType, QStringView displayName,
     QStringView logindProperties, QStringView missingLibraries)
 {
     LinuxPrerequisiteObservation result;
     const bool validSessionId = safeSessionId(sessionId);
+    result.processUid = processUid;
     result.sessionId = validSessionId ? sessionId.toString() : QString();
+    result.sessionUserId =
+        property(logindProperties, QStringView{u"User"});
+    result.seat = property(logindProperties, QStringView{u"Seat"});
+    result.sessionType = property(logindProperties, QStringView{u"Type"});
+    result.active = property(logindProperties, QStringView{u"Active"});
+    result.remote = property(logindProperties, QStringView{u"Remote"});
+    result.state = property(logindProperties, QStringView{u"State"});
+    result.lockedHint =
+        property(logindProperties, QStringView{u"LockedHint"});
     result.displayName = displayName.left(kMaximumSessionTextLength).toString();
     result.missingLibraries = missingLibraries.toString();
 
     // A matching logind observation is still NOT an authenticated R2
     // desktop selection. DISPLAY can be configured or point at Xvfb.
+    // LockedHint is recorded below only as advisory evidence; it is never
+    // treated as a positive unlock or physical-presence attestation.
+    const QString processUidText =
+        QString::number(static_cast<qulonglong>(processUid));
     result.activePhysicalX11Seat0 =
-        validSessionId && sessionType == QStringView{u"x11"} &&
-        !displayName.isEmpty() &&
-        property(logindProperties, QStringView{u"Seat"}) == QStringLiteral("seat0") &&
-        property(logindProperties, QStringView{u"Type"}) == QStringLiteral("x11") &&
-        property(logindProperties, QStringView{u"Active"}) == QStringLiteral("yes") &&
-        property(logindProperties, QStringView{u"Remote"}) == QStringLiteral("no") &&
-        property(logindProperties, QStringView{u"State"}) == QStringLiteral("active") &&
+        processUid != 0U && validSessionId &&
+        sessionType == QStringView{u"x11"} && !displayName.isEmpty() &&
+        result.sessionUserId == processUidText &&
+        result.seat == QStringLiteral("seat0") &&
+        result.sessionType == QStringLiteral("x11") &&
+        result.active == QStringLiteral("yes") &&
+        result.remote == QStringLiteral("no") &&
+        result.state == QStringLiteral("active") &&
         property(logindProperties, QStringView{u"Display"}) == displayName;
     return result;
 }
@@ -114,13 +132,28 @@ QString formatLinuxPrerequisites(
         ? QStringLiteral("X11/XShm/RandR/XTEST client libraries located")
         : QStringLiteral("missing runtime libraries: ") +
           observation.missingLibraries;
+    const auto evidence = [](const QString& value) {
+        return value.isEmpty() ? QStringLiteral("unavailable") : value;
+    };
     return QStringLiteral("Linux graphical prerequisites (read-only):\n")
         + nativeStatus
+        + QStringLiteral("\nCurrent process UID: ")
+        + QString::number(static_cast<qulonglong>(observation.processUid))
         + QStringLiteral("\nCurrent process session: ") + session
+        + QStringLiteral("\nlogind session UID: ")
+        + evidence(observation.sessionUserId)
+        + QStringLiteral("\nlogind Seat: ") + evidence(observation.seat)
+        + QStringLiteral("\nlogind Type: ") + evidence(observation.sessionType)
+        + QStringLiteral("\nlogind Active: ") + evidence(observation.active)
+        + QStringLiteral("\nlogind Remote: ") + evidence(observation.remote)
+        + QStringLiteral("\nlogind State: ") + evidence(observation.state)
+        + QStringLiteral("\nlogind LockedHint (advisory only): ")
+        + evidence(observation.lockedHint)
         + QStringLiteral("\nDISPLAY: ") + display
         + QStringLiteral("\n") + libraryStatus
         + QStringLiteral("\nR2 authenticated desktop: see host authorization above")
         + QStringLiteral("\nR2 admission/session generation: unavailable to preflight")
+        + QStringLiteral("\nR5 capture geometry/generation: unavailable until the R2-selected X11 owner exists")
         + QStringLiteral("\nAfter-login automatic launch: not installed or enabled by this ZIP")
         + QStringLiteral("\nNo login-screen sharing before a local graphical login.");
 }
@@ -141,11 +174,14 @@ void requestLinuxPrerequisites(QLabel* statusLabel)
     const QString sessionType = environment.value(QStringLiteral("XDG_SESSION_TYPE"));
     const QString display = environment.value(QStringLiteral("DISPLAY"));
     const QString missingLibraries = missingX11Libraries();
+    const std::uint64_t processUid =
+        static_cast<std::uint64_t>(::getuid());
 
-    auto showResult = [statusLabel, sessionId, sessionType, display,
+    auto showResult = [statusLabel, processUid, sessionId, sessionType, display,
                        missingLibraries](const QString& logindProperties) {
         const auto observation = assessLinuxPrerequisites(
-            sessionId, sessionType, display, logindProperties, missingLibraries);
+            processUid, sessionId, sessionType, display, logindProperties,
+            missingLibraries);
         statusLabel->setText(formatLinuxPrerequisites(observation));
     };
 
@@ -159,12 +195,14 @@ void requestLinuxPrerequisites(QLabel* statusLabel)
     process->setProgram(QStringLiteral("loginctl"));
     process->setArguments({QStringLiteral("show-session"), sessionId,
                            QStringLiteral("--no-pager"),
+                           QStringLiteral("-p"), QStringLiteral("User"),
                            QStringLiteral("-p"), QStringLiteral("Seat"),
                            QStringLiteral("-p"), QStringLiteral("Type"),
                            QStringLiteral("-p"), QStringLiteral("Active"),
                            QStringLiteral("-p"), QStringLiteral("Remote"),
                            QStringLiteral("-p"), QStringLiteral("Display"),
-                           QStringLiteral("-p"), QStringLiteral("State")});
+                           QStringLiteral("-p"), QStringLiteral("State"),
+                           QStringLiteral("-p"), QStringLiteral("LockedHint")});
     process->setProcessChannelMode(QProcess::SeparateChannels);
     process->setReadChannel(QProcess::StandardOutput);
     process->setStandardInputFile(QProcess::nullDevice());

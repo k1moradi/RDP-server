@@ -460,6 +460,9 @@ void DesktopWindow::refresh() {
     }
     selectedInterfaceStatus_->setText(interfaces_->currentIndex() > 0
         ? "Selected R10 LAN interface: " + interfaces_->currentText()
+            + "; stable ID: "
+            + interfaces_->currentData(Qt::UserRole + 1).toString()
+            + "; address: " + interfaces_->currentData().toString()
         : "No R10-approved LAN interface selected.");
     endpointStatus_->setText(snapshot.lanAddress.isEmpty()
         ? "Bound LAN endpoint: not reported by R10; no listener is implied."

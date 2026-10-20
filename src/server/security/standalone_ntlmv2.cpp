@@ -31,8 +31,7 @@ public:
     PasswordCleanser &operator=(const PasswordCleanser &) = delete;
     ~PasswordCleanser()
     {
-        if (!password_.empty())
-            OPENSSL_cleanse(password_.data(), password_.size_bytes());
+        cleanseStandalonePasswordInput(password_);
     }
 
 private:
@@ -580,6 +579,13 @@ constexpr char kServerSealingMagic[] =
 
 } // namespace
 
+void cleanseStandalonePasswordInput(
+    std::span<char16_t> password) noexcept
+{
+    if (!password.empty())
+        OPENSSL_cleanse(password.data(), password.size_bytes());
+}
+
 NtlmV2SecurityContext::~NtlmV2SecurityContext()
 {
     clear();
@@ -964,6 +970,61 @@ bool EphemeralNtlmV2Credential::matchesDelegatedPassword(
                candidateHash.bytes.data(),
                ntHash_.data(),
                candidateHash.bytes.size()) == 0;
+}
+
+StandalonePasswordCredentialOwner::~StandalonePasswordCredentialOwner()
+{
+    revoke();
+}
+
+bool StandalonePasswordCredentialOwner::advanceGeneration() noexcept
+{
+    if (generationExhausted_ ||
+        generation_ == (std::numeric_limits<std::uint64_t>::max)())
+    {
+        generationExhausted_ = true;
+        return false;
+    }
+    ++generation_;
+    return true;
+}
+
+bool StandalonePasswordCredentialOwner::configure(
+    std::u16string_view username,
+    std::span<char16_t> password) noexcept
+{
+    if (!advanceGeneration())
+    {
+        credential_.revoke();
+        cleanseStandalonePasswordInput(password);
+        return false;
+    }
+
+    return credential_.configure(username, password);
+}
+
+void StandalonePasswordCredentialOwner::revoke() noexcept
+{
+    const bool hadCredential = credential_.configured();
+    credential_.revoke();
+    if (!hadCredential)
+        return;
+
+    if (!advanceGeneration())
+        generationExhausted_ = true;
+}
+
+bool StandalonePasswordCredentialOwner::visit(
+    std::uint64_t expectedGeneration,
+    StandalonePasswordCredentialVisitor visitor,
+    void* context) const noexcept
+{
+    return !generationExhausted_ &&
+           expectedGeneration != 0U &&
+           expectedGeneration == generation_ &&
+           credential_.configured() &&
+           visitor != nullptr &&
+           visitor(credential_, context);
 }
 
 NtlmV2VerifyResult

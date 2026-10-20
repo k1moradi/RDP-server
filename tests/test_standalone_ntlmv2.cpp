@@ -113,12 +113,35 @@ constexpr std::uint32_t kMicrosoftExampleFlags = 0xe2888235U;
         kEncryptedRandomSessionKey};
 }
 
+struct CredentialVisitObservation final
+{
+    bool visited{};
+    NtlmV2Key responseKey{};
+};
+
+[[nodiscard]] bool observeCredential(
+    const EphemeralNtlmV2Credential& credential,
+    void* rawContext) noexcept
+{
+    auto* observation =
+        static_cast<CredentialVisitObservation*>(rawContext);
+    if (observation == nullptr)
+        return false;
+    observation->visited = true;
+    return credential.deriveResponseKeyNt(
+        u"Domain", observation->responseKey);
+}
+
 } // namespace
 
 static_assert(!std::is_copy_constructible_v<EphemeralNtlmV2Credential>);
 static_assert(!std::is_move_constructible_v<EphemeralNtlmV2Credential>);
 static_assert(!std::is_copy_constructible_v<NtlmV2SecurityContext>);
 static_assert(!std::is_move_constructible_v<NtlmV2SecurityContext>);
+static_assert(
+    !std::is_copy_constructible_v<StandalonePasswordCredentialOwner>);
+static_assert(
+    !std::is_move_constructible_v<StandalonePasswordCredentialOwner>);
 
 int main(int argc, char **argv)
 {
@@ -207,6 +230,61 @@ int main(int argc, char **argv)
         assert(credential.verifyAndDeriveSecurityContext(
                    request, context) ==
                NtlmV2VerifyResult::InvalidInput);
+        return 0;
+    }
+
+    if (testCase == "ntlmv2-credential-owner-generation-revocation")
+    {
+        StandalonePasswordCredentialOwner owner;
+        const auto empty = owner.observation();
+        assert(empty.generation == 0U && !empty.configured);
+
+        auto firstPassword = password();
+        assert(owner.configure(u"User", firstPassword));
+        assert(std::ranges::all_of(
+            firstPassword,
+            [](char16_t value) { return value == u'\0'; }));
+        const auto first = owner.observation();
+        assert(first.generation != 0U && first.configured);
+
+        CredentialVisitObservation observed;
+        assert(owner.visit(
+            first.generation, &observeCredential, &observed));
+        assert(observed.visited);
+        assert(observed.responseKey == kExpectedResponseKeyNt);
+        assert(!owner.visit(
+            first.generation + 1U, &observeCredential, &observed));
+        assert(!owner.visit(first.generation, nullptr, &observed));
+
+        std::array<char16_t, 2> rejectedPassword{u'x', u'y'};
+        assert(!owner.configure(u"Us\u00e9r", rejectedPassword));
+        assert(std::ranges::all_of(
+            rejectedPassword,
+            [](char16_t value) { return value == u'\0'; }));
+        const auto rejected = owner.observation();
+        assert(rejected.generation > first.generation);
+        assert(!rejected.configured);
+        assert(!owner.visit(
+            first.generation, &observeCredential, &observed));
+
+        auto secondPassword = password();
+        assert(owner.configure(u"User", secondPassword));
+        const auto second = owner.observation();
+        assert(second.configured);
+        assert(second.generation > rejected.generation);
+        assert(!owner.visit(
+            first.generation, &observeCredential, &observed));
+        observed = {};
+        assert(owner.visit(
+            second.generation, &observeCredential, &observed));
+        assert(observed.responseKey == kExpectedResponseKeyNt);
+
+        owner.revoke();
+        const auto revoked = owner.observation();
+        assert(!revoked.configured);
+        assert(revoked.generation > second.generation);
+        assert(!owner.visit(
+            second.generation, &observeCredential, &observed));
         return 0;
     }
 

@@ -821,7 +821,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(rdp-server-linux-host-control PUBLIC
         "${PROJECT_SOURCE_DIR}/src")
     target_link_libraries(rdp-server-linux-host-control PUBLIC
-        rdp-server-protocol rdp-server-linux-logind-evidence)
+        rdp-server-protocol
+        rdp-server-linux-logind-evidence
+        rdp-server-standalone-ntlmv2)
     target_compile_options(rdp-server-linux-host-control PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

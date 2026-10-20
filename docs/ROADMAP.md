@@ -1,3 +1,60 @@
+## R2 standalone application-password service owner (2026-10-20)
+
+Starting shared-main parent: `d46e0d944814a2d1a27f890619a79a920280b390`.
+
+Dependency recheck found the standalone password protocol core already advanced
+through Type 1/2/3, SPNEGO/mechListMIC, NTLM SIGN/SEAL, TLS-bound CredSSP
+`pubKeyAuth`, and final `authInfo` credential equivalence. R10 also owns the
+validated Linux admission selector/private-LAN service policy. The first real
+CLIENT path remains independently blocked on R10's same-owner nonblocking
+accepted-socket service step from the GUI-owned `OwnedLanListener` into the
+existing `LinuxRuntimeConnection` / persistent R2-selected X11 loop.
+
+R2P now adds one service-lifetime
+`StandalonePasswordCredentialOwner` around the existing
+`EphemeralNtlmV2Credential`. It retains no plaintext password: configure
+consumes and non-elidably scrubs the caller's mutable UTF-16 buffer, while the
+owner retains only the existing bounded username and NT hash. Every replacement
+advances a monotonic generation; synchronous visitors must name the exact
+current generation and cannot retain a raw credential reference. Failed
+replacement invalidates the prior credential, and generation exhaustion is
+terminal/fail-closed.
+
+The Linux R10 HostControl now owns this credential beside the existing
+current-owner authority. Its internal standalone setup seam revokes prior owner
+consent as `CredentialChange`, invalidates the existing-OS-account ready bit,
+and prepares the memory-only standalone credential without projecting generic
+`credentialsConfigured` or enabling the product credential selector. Switching
+back through any product credential-mode request, Stop, Revoke, or HostControl
+destruction revokes/cleanses the standalone credential before listener
+retirement.
+
+The product GUI remains intentionally unchanged: no password field is
+constructed, `IndependentApplicationPassword` still returns unsupported, and
+Start cannot be enabled from this internal owner. This preserves the existing
+rule that the secret input surface stays absent until real Microsoft-client NLA
+interoperability is proven.
+
+Dedicated ordinary CTests:
+`security.ntlmv2-credential-owner-generation-revocation` and
+`runtime.linux-host-control-standalone-password-lifecycle`. They pin caller
+buffer cleansing, generation replacement fences, synchronous credential visits,
+alternate-mode revocation, Stop/revoke retirement, and post-revoke input
+cleansing without opening a listener or granting R2 consent.
+
+Canonical owner checkout/build validation: **NOT RUN**. The required clone into
+`~/rdp-server` was attempted and failed with
+`Could not resolve host: github.com`; no alternate build root was created.
+Exact publication-SHA hosted CI: **PENDING**.
+
+R2P remains **ACTIVE**, but the next product-critical composition now meets the
+same R10 gate as CLIENT: the accepted-socket service owner must consume the
+exact standalone credential generation, run the already-landed standalone
+CredSSP exchange, and combine `CredentialsVerified` with fresh
+`CurrentOwnerSharingAuthority` before any native admission. Only after real
+Windows App/mstsc interoperability is accepted may R7 expose the GUI password
+entry or enable `IndependentApplicationPassword`.
+
 ## R10 owned admission selector and private-LAN service policy (2026-10-20)
 
 Starting shared-main parent: `95e6762af32c8f5106101fe7d8fd11dcb6f0e6d0`. R2A, provisioned HostControl Start,

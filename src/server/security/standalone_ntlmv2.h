@@ -195,6 +195,10 @@ private:
 // session/sign/seal keys. It does NOT parse NTLM Type 1/2/3 messages, implement
 // SPNEGO, wrap/unwrap pubKeyAuth/authInfo, grant R2 admission or claim mstsc /
 // Windows App interoperability.
+// Non-elidable cleanse for mutable GUI/runtime UTF-16 password staging.
+void cleanseStandalonePasswordInput(
+    std::span<char16_t> password) noexcept;
+
 class EphemeralNtlmV2Credential final
 {
 public:
@@ -243,6 +247,63 @@ private:
     std::size_t usernameLength_{};
     NtlmV2Key ntHash_{};
     bool configured_{};
+};
+
+struct StandalonePasswordCredentialObservation final
+{
+    std::uint64_t generation{};
+    bool configured{};
+};
+
+using StandalonePasswordCredentialVisitor =
+    bool (*)(const EphemeralNtlmV2Credential&, void*) noexcept;
+
+// Service-lifetime owner for the memory-only standalone application password.
+// Every successful/failed replacement advances one generation before the
+// credential is made visible. Callers may observe/visit only the exact current
+// generation; no raw credential reference escapes this owner.
+//
+// configure() consumes and scrubs the caller's mutable password buffer on every
+// path. revoke()/destruction cleanse username/hash material. Generation wrap is
+// terminal: once exhausted, later configuration attempts fail closed and still
+// scrub their input.
+class StandalonePasswordCredentialOwner final
+{
+public:
+    StandalonePasswordCredentialOwner() noexcept = default;
+    ~StandalonePasswordCredentialOwner();
+
+    StandalonePasswordCredentialOwner(
+        const StandalonePasswordCredentialOwner&) = delete;
+    StandalonePasswordCredentialOwner& operator=(
+        const StandalonePasswordCredentialOwner&) = delete;
+    StandalonePasswordCredentialOwner(
+        StandalonePasswordCredentialOwner&&) = delete;
+    StandalonePasswordCredentialOwner& operator=(
+        StandalonePasswordCredentialOwner&&) = delete;
+
+    [[nodiscard]] bool configure(
+        std::u16string_view username,
+        std::span<char16_t> password) noexcept;
+    void revoke() noexcept;
+
+    [[nodiscard]] StandalonePasswordCredentialObservation
+    observation() const noexcept
+    {
+        return {generation_, credential_.configured()};
+    }
+
+    [[nodiscard]] bool visit(
+        std::uint64_t expectedGeneration,
+        StandalonePasswordCredentialVisitor visitor,
+        void* context) const noexcept;
+
+private:
+    [[nodiscard]] bool advanceGeneration() noexcept;
+
+    EphemeralNtlmV2Credential credential_{};
+    std::uint64_t generation_{};
+    bool generationExhausted_{};
 };
 
 } // namespace rdp_server::server::security

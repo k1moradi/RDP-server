@@ -4,8 +4,10 @@
 #include "server/runtime/runtime_host_control.h"
 #include "server/security/current_owner_sharing_authority.h"
 #include "server/security/linux_logind_console_evidence.h"
+#include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
 #include <optional>
+#include <span>
 #include <string_view>
 #include <thread>
 
@@ -58,6 +60,23 @@ public:
         const RuntimeHostOptions& options) override;
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) override;
+
+    // Internal R2P service-lifetime preparation seam. It consumes/scrubs the
+    // mutable password and retains only the bounded username/NT hash. This does
+    // not enable the product IndependentApplicationPassword choice or make the
+    // generic RuntimeHostStatus credentialsConfigured flag positive.
+    [[nodiscard]] bool configureStandaloneApplicationPassword(
+        std::u16string_view username,
+        std::span<char16_t> password) noexcept;
+    [[nodiscard]]
+    rdp_server::server::security::StandalonePasswordCredentialObservation
+    standaloneApplicationPasswordObservation() const noexcept;
+    [[nodiscard]] bool visitStandaloneApplicationPassword(
+        std::uint64_t expectedGeneration,
+        rdp_server::server::security::StandalonePasswordCredentialVisitor
+            visitor,
+        void* context) const noexcept;
+
     [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
         const RuntimeHostPermissionRequest& request = {}) override;
     [[nodiscard]] RuntimeHostResult startSharing() override;
@@ -93,6 +112,11 @@ private:
         ownerEvidence_{};
     rdp_server::server::security::CurrentOwnerSharingAuthority
         ownerSharingAuthority_{ownerEvidence_};
+    // R2P service credential is memory-only and generation-fenced. Product UI
+    // remains fail-closed until real Microsoft-client interoperability accepts
+    // this path and R10 consumes it in the sole accepted-socket service owner.
+    rdp_server::server::security::StandalonePasswordCredentialOwner
+        standalonePasswordCredential_{};
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.
     rdp_server::server::transport::OwnedLanListener listener_{};
 };

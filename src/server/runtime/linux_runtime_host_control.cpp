@@ -351,15 +351,74 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
     return {RuntimeHostError::None, false};
 }
 
+bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
+    std::u16string_view username,
+    std::span<char16_t> password) noexcept
+{
+    using namespace rdp_server::server::security;
+    if (!onOwnerThread() ||
+        stage_ == RuntimeHostStage::Revoked ||
+        listener_.valid())
+    {
+        cleanseStandalonePasswordInput(password);
+        return false;
+    }
+
+    // Credential replacement invalidates prior owner approval even though this
+    // prototype is still hidden from the product credential selector.
+    ownerSharingAuthority_.revoke(
+        OwnerConsentRevocationReason::CredentialChange);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    credentialsConfigured_ = false;
+#endif
+
+    const bool configured =
+        standalonePasswordCredential_.configure(username, password);
+    if (!configured)
+    {
+        lastError_ = RuntimeHostError::CredentialNotConfigured;
+        return false;
+    }
+
+    // Do not project product readiness. Only the future same-owner accepted
+    // socket service may consume this generation after standalone CredSSP and
+    // fresh current-owner authorization both succeed.
+    stage_ = RuntimeHostStage::Stopped;
+    lastError_ = RuntimeHostError::None;
+    return true;
+}
+
+rdp_server::server::security::StandalonePasswordCredentialObservation
+LinuxRuntimeHostControl::standaloneApplicationPasswordObservation()
+    const noexcept
+{
+    if (!onOwnerThread())
+        return {};
+    return standalonePasswordCredential_.observation();
+}
+
+bool LinuxRuntimeHostControl::visitStandaloneApplicationPassword(
+    std::uint64_t expectedGeneration,
+    rdp_server::server::security::StandalonePasswordCredentialVisitor visitor,
+    void* context) const noexcept
+{
+    return onOwnerThread() &&
+           standalonePasswordCredential_.visit(
+               expectedGeneration, visitor, context);
+}
+
 RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     rdp_server::server::security::LanCredentialChoice choice)
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
     using namespace rdp_server::server::security;
-    // Any credential-mode/configuration action invalidates prior consent.
+    // Any credential-mode/configuration action invalidates prior consent and
+    // retires the alternate standalone credential mode before evaluating the
+    // requested product credential choice.
     ownerSharingAuthority_.revoke(
         OwnerConsentRevocationReason::CredentialChange);
+    standalonePasswordCredential_.revoke();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     credentialsConfigured_ = false;
 #endif
@@ -507,6 +566,7 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     // Accepted clients/native desktop are not owned here yet; they must be
     // inserted between this revocation and the final listener close.
     ownerSharingAuthority_.revoke(reason);
+    standalonePasswordCredential_.revoke();
     listener_.close();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     deploymentPolicy_.reset();

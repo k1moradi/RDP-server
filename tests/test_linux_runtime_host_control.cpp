@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_host_control.h"
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <limits>
 #include <net/if.h>
@@ -7,6 +9,31 @@
 #include <string_view>
 using namespace rdp_server::server::runtime;
 using rdp_server::server::security::LanCredentialChoice;
+
+namespace
+{
+struct StandaloneVisitObservation final
+{
+    bool visited{};
+};
+
+[[nodiscard]] bool observeStandaloneCredential(
+    const rdp_server::server::security::EphemeralNtlmV2Credential& credential,
+    void* rawContext) noexcept
+{
+    auto* observation =
+        static_cast<StandaloneVisitObservation*>(rawContext);
+    if (observation == nullptr)
+        return false;
+    observation->visited = credential.configured();
+    return observation->visited;
+}
+
+[[nodiscard]] std::array<char16_t, 8> standalonePassword()
+{
+    return {u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
+}
+} // namespace
 
 int main(int argc, char** argv)
 {
@@ -131,6 +158,80 @@ int main(int argc, char** argv)
         assert(!control.status().tlsIdentityReady);
         return 0;
     }
+    if (testCase == "linux-host-control-standalone-password-lifecycle")
+    {
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", password));
+        assert(std::ranges::all_of(
+            password,
+            [](char16_t value) { return value == u'\0'; }));
+
+        const auto first =
+            control.standaloneApplicationPasswordObservation();
+        assert(first.configured && first.generation != 0U);
+        assert(!control.status().credentialsConfigured);
+        assert(control.status().stage == RuntimeHostStage::Stopped);
+
+        StandaloneVisitObservation observed;
+        assert(control.visitStandaloneApplicationPassword(
+            first.generation, &observeStandaloneCredential, &observed));
+        assert(observed.visited);
+        assert(!control.visitStandaloneApplicationPassword(
+            first.generation + 1U,
+            &observeStandaloneCredential, &observed));
+
+        // Switching to any product credential mode revokes the alternate
+        // standalone credential even when that product request later denies.
+        assert(control.requestCredentialSetup(
+                   LanCredentialChoice::IndependentApplicationPassword).error ==
+               RuntimeHostError::UnsupportedIndependentPasswordNla);
+        const auto afterModeRequest =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterModeRequest.configured);
+        assert(afterModeRequest.generation > first.generation);
+        assert(!control.visitStandaloneApplicationPassword(
+            first.generation, &observeStandaloneCredential, &observed));
+
+        auto secondPassword = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", secondPassword));
+        const auto second =
+            control.standaloneApplicationPasswordObservation();
+        assert(second.configured);
+        assert(second.generation > afterModeRequest.generation);
+
+        assert(control.stopSharing().succeeded());
+        const auto afterStop =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterStop.configured);
+        assert(afterStop.generation > second.generation);
+        assert(!control.visitStandaloneApplicationPassword(
+            second.generation, &observeStandaloneCredential, &observed));
+
+        auto thirdPassword = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", thirdPassword));
+        const auto third =
+            control.standaloneApplicationPasswordObservation();
+        assert(third.configured && third.generation > afterStop.generation);
+
+        assert(control.revokeSharing().succeeded());
+        const auto afterRevoke =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterRevoke.configured);
+        assert(afterRevoke.generation > third.generation);
+
+        auto deniedPassword = standalonePassword();
+        assert(!control.configureStandaloneApplicationPassword(
+            u"User", deniedPassword));
+        assert(std::ranges::all_of(
+            deniedPassword,
+            [](char16_t value) { return value == u'\0'; }));
+        assert(!control.standaloneApplicationPasswordObservation().configured);
+        return 0;
+    }
+
     if (testCase == "linux-host-control-stop-revoke-retirement")
     {
         assert(control.stopSharing().succeeded());

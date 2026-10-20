@@ -1,3 +1,24 @@
+## R2 standalone password ownership is generation-fenced and non-public (2026-10-20)
+
+Keep one service-lifetime owner around the existing memory-only standalone
+credential. Configuration must consume a mutable UTF-16 password buffer and
+non-elidably cleanse it on every return path; retain only the existing bounded
+username/NT hash. Replacing credentials invalidates the old credential first
+and advances a monotonic generation. Never expose a durable raw
+`EphemeralNtlmV2Credential` pointer/reference across generations; use an exact
+generation plus a synchronous visitor.
+
+Credential replacement is an R2 authorization event: revoke current-owner
+consent as `CredentialChange`. Stop, explicit revoke, and owner destruction
+must cleanse standalone credential material before the listener retires.
+Switching to another credential mode must revoke the alternate standalone
+credential even if the requested replacement later fails.
+
+Do not project this internal owner as product credential readiness. Until a real
+unmodified Windows App/mstsc CredSSP exchange succeeds through the production
+accepted-socket path, keep `IndependentApplicationPassword` unsupported and
+construct no Qt password field.
+
 ## R10 configuration snapshots and LAN policy are lifetime owners (2026-10-20)
 
 Never retain a `RuntimeConfigurationView` or any of its field string_views

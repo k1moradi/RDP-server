@@ -34,6 +34,7 @@ endif()
 foreach(ntlmv2_case IN ITEMS
         ntlmv2-microsoft-known-answer-and-session-keys
         ntlmv2-proof-blob-and-flag-denials
+        ntlmv2-credential-owner-generation-revocation
         ntlmv2-ephemeral-secret-revocation)
     add_test(NAME "security.${ntlmv2_case}"
         COMMAND test_standalone_ntlmv2 "${ntlmv2_case}")
@@ -218,6 +219,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-revalidated-interface-denials
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
+            linux-host-control-standalone-password-lifecycle
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")

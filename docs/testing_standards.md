@@ -1,3 +1,19 @@
+## R2 standalone password service-owner lifecycle tests (2026-10-20)
+
+Ordinary offline coverage must test the memory-only owner separately from wire
+interoperability. Pin that a successful and failed configure both scrub the
+mutable caller password, replacement changes generation, stale generations
+cannot visit the credential, and explicit revoke makes the current generation
+unavailable. The visitor is synchronous only and must not retain the credential
+reference.
+
+Linux R10 coverage must additionally prove that configuring the standalone
+credential does not make generic `credentialsConfigured` positive, a product
+credential-mode request revokes it, Stop revokes it, explicit Revoke revokes it,
+and an attempted configure after terminal revoke still scrubs its input.
+These tests must not open a listener, synthesize current-owner consent, add a
+Qt secret field, or claim Microsoft-client compatibility.
+
 ## R10 owned admission snapshot and private-LAN policy tests (2026-10-20)
 
 `runtime.linux-security-admission-request-owned-generation-fence` must prove

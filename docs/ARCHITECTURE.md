@@ -1,3 +1,32 @@
+## R2 standalone password service-lifetime owner (2026-10-20)
+
+The application-password path has one memory-only service credential owner,
+`StandalonePasswordCredentialOwner`, which wraps the existing
+`EphemeralNtlmV2Credential`. R10 owns it for the host lifetime; connection
+code may inspect it only through a synchronous visitor naming the exact current
+generation. No raw credential pointer/reference is published as a durable
+capability.
+
+A configure attempt advances the credential generation before replacement.
+The existing credential consumes the mutable UTF-16 password and scrubs that
+caller buffer on every path; only its bounded username and NT hash remain.
+Invalid replacement therefore retires the old credential rather than silently
+falling back. Explicit revoke cleanses the retained username/hash and advances
+the generation. Generation exhaustion is terminal.
+
+Linux HostControl keeps this owner separate from existing-OS-account
+configuration and from `CurrentOwnerSharingAuthority`. Configuring the
+standalone credential revokes current owner consent as a credential change.
+Stop/revoke/destruction revoke both authorization and credential material before
+the listener is closed. The generic R10 status deliberately does not publish
+this prototype as product-ready credentials.
+
+The future accepted-socket owner must snapshot the exact credential generation,
+process standalone CredSSP synchronously through that generation, and then
+combine its non-authorizing `CredentialsVerified` result with a fresh owner
+authority check. Neither the credential generation nor CredSSP success can mint
+desktop admission on its own.
+
 ## R10 GUI accepted-client service prerequisites (2026-10-20)
 
 The GUI LAN path must not retain `RuntimeConfigurationView` string_views.

@@ -1,3 +1,37 @@
+## R2 standalone application-password owner authoring receipt (2026-10-20)
+
+Starting shared-main parent: `d46e0d944814a2d1a27f890619a79a920280b390`. Dependency inspection found R2P's
+wire/mechanism path already complete through TLS-bound `pubKeyAuth` and final
+`authInfo` equivalence, while R10's first-client path has advanced to the
+accepted-socket service scheduler/handoff as its next blocker.
+
+This increment adds a noncopyable service-lifetime
+`StandalonePasswordCredentialOwner` with generation-fenced synchronous
+visitation. The mutable UTF-16 input is non-elidably cleansed on every
+configuration path; only the existing bounded username and NT hash remain.
+Linux HostControl owns the credential, revokes current-owner consent on
+standalone credential replacement, revokes the alternate credential on product
+mode changes, and clears it on Stop/Revoke/destruction before listener close.
+The generic R10 readiness bit remains false for this prototype and the GUI
+continues to contain no password input surface.
+
+New ordinary CTests:
+`security.ntlmv2-credential-owner-generation-revocation` and
+`runtime.linux-host-control-standalone-password-lifecycle`.
+
+Owner canonical validation: **NOT RUN**. An exact attempt to create the mandated
+`~/rdp-server` checkout failed at DNS resolution:
+`fatal: unable to access 'https://github.com/k1moradi/RDP-server.git/':
+Could not resolve host: github.com`. No second build root was created.
+Exact publication-SHA hosted CI: **PENDING**. No listener, GUI secret, native
+desktop, service, firewall change, or client authentication was activated.
+
+The remaining product gate is the same-owner R10 accepted-socket service path:
+it must consume the exact standalone credential generation, run the landed
+standalone CredSSP owner, and require fresh current-owner authority before
+native admission. Real Microsoft-client evidence is still required before the
+product credential selector/password UI may be enabled.
+
 ## R10 LAN admission-lifetime preparation receipt (2026-10-20)
 
 Starting shared-main parent: `95e6762af32c8f5106101fe7d8fd11dcb6f0e6d0`. Dependency inspection confirmed no

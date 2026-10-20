@@ -312,30 +312,6 @@ void md4Utf16Le(
     OPENSSL_cleanse(encoded.data(), encoded.size());
 }
 
-[[nodiscard]] bool md5Parts(
-    std::span<const ByteSpan> parts,
-    NtlmV2Key &output) noexcept
-{
-    output.fill(0);
-    const std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> context(
-        EVP_MD_CTX_new(), &EVP_MD_CTX_free);
-    if (!context ||
-        EVP_DigestInit_ex(context.get(), EVP_md5(), nullptr) != 1)
-        return false;
-
-    for (const ByteSpan part : parts)
-    {
-        if (!part.empty() &&
-            EVP_DigestUpdate(
-                context.get(), part.data(), part.size()) != 1)
-            return false;
-    }
-    unsigned int size = 0;
-    return EVP_DigestFinal_ex(
-               context.get(), output.data(), &size) == 1 &&
-           size == output.size();
-}
-
 [[nodiscard]] bool hmacMd5(
     ByteSpan key,
     std::span<const ByteSpan> parts,

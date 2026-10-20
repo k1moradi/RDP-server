@@ -1,3 +1,12 @@
+## Exact-HEAD CI unblock for inherited R2 warning (2026-10-20)
+
+The first push of the R1 diagnostic increment reached hosted Linux/macOS Debug
+compilation and was blocked before the R1 targets by an unused `md5Parts`
+helper introduced in parent `a98962a8881768f2c21d100edf21149b380daae0`.
+Because warnings are errors, the helper is removed without changing the R2
+NTLMv2 API, behavior, vectors, secret lifetime or admission boundary. This
+cleanup exists only to let exact-HEAD CI reach the R1 production-backed tests.
+
 ## R1 first-client diagnostic preparation receipt (2026-10-20)
 
 Starting shared-main parent: `a98962a8881768f2c21d100edf21149b380daae0`.

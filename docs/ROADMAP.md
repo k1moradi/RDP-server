@@ -1,3 +1,26 @@
+## R2/R5 shared-proof input-route compile correction (2026-10-20)
+
+Exact-SHA CI for `c1ec4c675c68ad197254e43356dce2782681cf47` passed the production Linux security build but the
+ordinary Ubuntu Debug graph found one stale R5 type dependency:
+`x11_authorized_input_route.h` still named `GssapiSpnegoAcceptor` after R2
+moved the broker to `LinuxAuthenticatedPrincipalProof`. Re-introducing the
+GSS include would compile only the Kerberos path and would leave standalone
+input outside the shared R2 proof model.
+
+The R5 stateless authorized-input route now consumes
+`LinuxAuthenticatedPrincipalProof&` directly. Existing GSS tests still pass a
+real `GssapiSpnegoAcceptor` through normal derived-to-base conversion, while a
+standalone connection can use the same route after admission. No input
+authorization semantics change: the route still requires the exact lease,
+R1 connection, R3 session, native generation and fresh input permission check.
+
+R9's bounded direct runtime-security sanitizer selector also includes
+`runtime.linux-connection-standalone-authentication-selector-denials` and is
+pinned at 41 executable-backed cases instead of 40.
+
+Owner-local build/full CTest: **NOT RUN**. The failing hosted compiler boundary
+was identified at exact SHA `c1ec4c675c68ad197254e43356dce2782681cf47`; corrected exact-SHA CI is **PENDING**.
+
 ## R2/R10 per-connection authentication selector and standalone runtime composition (2026-10-20)
 
 Starting shared-main parent: `a66ea25fbf0cfc6ac0ad5002e695c0c280064ce1`.

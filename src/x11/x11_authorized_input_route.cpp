@@ -13,7 +13,7 @@ bool
 X11AuthorizedInputRoute::dispatch(
     rdp_server::server::security::LinuxConsoleAdmissionBroker &broker,
     const rdp_server::server::security::LinuxConsoleAdmissionLease *lease,
-    rdp_server::server::security::GssapiSpnegoAcceptor &acceptor,
+    rdp_server::server::security::LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
@@ -29,26 +29,26 @@ X11AuthorizedInputRoute::dispatch(
         desktop.captureGeneration() != expectedNativeGeneration)
     {
         desktop.retireAfterAuthorizationLoss();
-        broker.revokeR3Session(acceptor, session);
+        broker.revokeR3Session(principalProof, session);
         return false;
     }
 
     // Missing concrete admission is terminal even when native freshness
     // matches. Retire native input without any cleanup XTEST request, then
-    // close R3/R2/GSS.
+    // close R3/R2/authentication proof.
     if (lease == nullptr)
     {
         desktop.retireAfterAuthorizationLoss();
-        broker.revokeR3Session(acceptor, session);
+        broker.revokeR3Session(principalProof, session);
         return false;
     }
 
     // Revalidate the exact lease generation, native session generation,
-    // R1-owned GSS/TLS/NLA provenance, policy and input permission
-    // immediately before native injection. The broker closes R3/R2/GSS on
+    // R1-owned TLS/authentication/NLA provenance, policy and input permission
+    // immediately before native injection. The broker closes R3/R2/authentication proof on
     // any denial; a caller-selected SSL pointer is not an authority input.
     if (!broker.authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session, kConsoleInputPermission))
+            *lease, principalProof, connection, session, kConsoleInputPermission))
     {
         desktop.retireAfterAuthorizationLoss();
         return false;
@@ -60,7 +60,7 @@ X11AuthorizedInputRoute::dispatch(
         // transition. Never use graceful disconnect here: only a currently
         // authorized explicit Stop can emit held-key/button XTEST releases.
         desktop.retireAfterAuthorizationLoss();
-        broker.revokeR3Session(acceptor, session);
+        broker.revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -143,7 +143,7 @@ bool X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt(
         &context, &X11AuthorizedInputRoute::onAuthenticatedInput};
 
     // This is the ONLY code path invoking our private native XTEST sink.
-    // R2 checks the live lease, R1/GSS/TLS provenance, R3 session, negotiated
+    // R2 checks the live lease, R1/TLS/authentication provenance, R3 session, negotiated
     // capabilities and kConsoleInputPermission before EACH callback.
     if (!connection.dispatchPersonalDesktopSlowPathInputPdu(
             policy, completeTpkt, sink))

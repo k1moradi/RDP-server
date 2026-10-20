@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "x11/x11_authorized_input_route.h"
+#include "server/security/gssapi_spnego_acceptor.h"
 
 #include <cassert>
 #include <cstdint>

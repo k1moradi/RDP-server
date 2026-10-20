@@ -1386,11 +1386,11 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           set -euo pipefail
-          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(r3-authority|slow-path-input-gateway|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
+          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(standalone-authentication-selector-denials|credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(r3-authority|slow-path-input-gateway|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
           printf '%s\n' "$selected_tests"
-          readonly runtime_security_expected_test_count=40
+          readonly runtime_security_expected_test_count=41
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$runtime_security_expected_test_count" ]]; then
             printf 'R9 M2 runtime-security registry mismatch: expected %s tests, found %s\n' \
@@ -1401,6 +1401,7 @@ jobs:
           grep -Fq 'runtime.linux-security-keytab-snapshot-mutation-continuity' <<< "$selected_tests"
           grep -Fq 'runtime.linux-security-keytab-policy-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-security-pam-verifier-provisioning' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-standalone-authentication-selector-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-credssp-owner-framing' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-credssp-progress-accounting' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-pre-admission-dispatch' <<< "$selected_tests"
@@ -1443,7 +1444,7 @@ jobs:
 
       # The post-Share R2/R3 classifier and the single R1 TLS reader are
       # separate production-backed runtime denials. Retain the existing
-      # fixed 40-case R2 selection and all native-only gates unchanged.
+      # fixed 41-case R2 selection and all native-only gates unchanged.
       - name: Run R10 post-Share reader and classifier denials with sanitizers
         shell: bash
         env:
@@ -1558,7 +1559,1040 @@ jobs:
 
       # R2's post-admission read-generation regression is a source-level CMake
       # contract rather than a sanitizer-instrumented executable. Keep it out
-      # of the fixed 40-case executable-backed selector, but require it in the
+      # of the fixed 41-case executable-backed selector, but require it in the
+      # same focused assurance job so ordinary green CTest cannot hide omission.
+      - name: Run R2 protected-read generation fence in focused assurance
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          protected_read_selection='^runtime[.]linux-connection-protected-read-generation-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$protected_read_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-connection-protected-read-generation-denials' <<< "$selected_tests"
+          readonly protected_read_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$protected_read_expected_test_count" ]]; then
+            printf 'R9 R2 protected-read registry mismatch: expected %s test, found %s\n' "$protected_read_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 -R "$protected_read_selection" --output-on-failure
+
+      # R10/R8 production linkage guards are source/build-graph contracts, not
+      # sanitizer-instrumented executables. Pin both explicitly so a full CTest
+      # pass cannot hide accidental native input/clipboard activation in main.
+      - name: Run dormant native bridge linkage guards in focused assurance
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          native_bridge_linkage_selection='^runtime[.]linux-x11-(authorized-input|clipboard)-production-linkage$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_bridge_linkage_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-x11-authorized-input-production-linkage' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-x11-clipboard-production-linkage' <<< "$selected_tests"
+          readonly native_bridge_linkage_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$native_bridge_linkage_expected_test_count" ]]; then
+            printf 'R9 native bridge linkage registry mismatch: expected %s tests, found %s\n' \
+              "$native_bridge_linkage_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$native_bridge_linkage_selection" --output-on-failure
+
+      # R10's real R1 descriptor-poll boundary is additive. Keep the fixed
+      # 30-case R10/R2 security selector intact; this one test has its own sentinel.
+      - name: Run R10 production native poll with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          poll_selection='^runtime\.linux-connection-pre-admission-native-poll$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$poll_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-connection-pre-admission-native-poll' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 native-poll registry mismatch: expected 1 test, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$poll_selection" --output-on-failure
+
+      # Linux SO_LINGER abortive-close semantics are intentionally native-only.
+      # Select exactly the production-backed R1 TCP-reset terminal test so the
+      # pending read/write and SSL/BIO teardown path is sanitizer-visible.
+      - name: Run R1 native TCP reset with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          rst_selection='^transport\.tcp-owned-tls-application-tcp-rst-terminal$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$rst_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'transport.tcp-owned-tls-application-tcp-rst-terminal' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R1 TCP-reset sanitizer registry mismatch: expected 1 test, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$rst_selection" --output-on-failure
+
+      # R3's authenticated slow-path input route remains non-authorizing until
+      # the native session owner consumes it; pin its new wire/denial tests.
+      - name: Run R9 R3 slow-path input with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          slow_path_selection='^transport\.share-input-slow-path-(wire|rejections)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$slow_path_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq "transport.share-input-slow-path-wire" <<< "$selected_tests"
+          grep -Fq "transport.share-input-slow-path-rejections" <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 2 ]]; then
+            printf 'R9 R3 slow-path registry mismatch: expected 2 tests, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$slow_path_selection" --output-on-failure
+
+      - name: Run all R5 native X11 CTests with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-r4-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-r3-admission-route-denials-and-revocation|input-r2-authorized-slow-path-native-mapping-denials)$'
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
+          printf '%s\n' "$selected_tests"
+
+          readonly r5_expected_test_count=42
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:[[:space:]]+x11\./ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$r5_expected_test_count" ]]; then
+            printf 'R5 native X11 registry mismatch: expected %s tests, found %s\n' \
+              "$r5_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'x11.capture-r4-bgra-ingress' <<< "$selected_tests"
+          grep -Fq 'x11.capture-r4-stride-layout-denials' <<< "$selected_tests"
+          grep -Fq 'x11.capture-r4-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.native-geometry-observation-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.same-pixel-randr-capture-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.randr-burst-generation-retirement-recovery' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-pixel-parity' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-randr-capture-generation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-randr-stale-damage-isolation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-pointer-randr-stale-motion-isolation' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-capture-terminal-denial' <<< "$selected_tests"
+          grep -Fq 'x11.capture-native-destructor-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.input-native-generation-mismatch-denial' <<< "$selected_tests"
+          grep -Fq 'x11.input-native-authority-retirement-no-native-post' <<< "$selected_tests"
+          grep -Fq 'x11.input-r2-authorized-slow-path-native-mapping-denials' <<< "$selected_tests"
+
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$r5_x11_selection" --output-on-failure
+
+
+      - name: Run bounded coverage-guided MCS/CLIPRDR fuzzer
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          fuzz_selection='^fuzz\.mcs-cliprdr-bounded$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.mcs-cliprdr-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+      - name: Run bounded coverage-guided CredSSP fuzzer
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          fuzz_selection='^fuzz\.credssp-bounded$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$fuzz_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'fuzz.credssp-bounded' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$fuzz_selection" --output-on-failure
+
+  r7-macos-native-lifecycle:
+    needs: ci-workflow-structure
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenSSL (macOS)
+        run: brew install openssl@3
+      - name: Record hosted macOS toolchain evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
+          xcode-select -p
+          xcrun clang++ --version
+          xcrun --sdk macosx --show-sdk-version
+      - name: Configure focused R7 native lifecycle tests (Debug)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+            "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
+      - name: Compile focused R7 native lifecycle targets (Debug)
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_capture_pixel_buffer \
+            test_macos_input_controller \
+            test_macos_desktop_session_guard \
+            test_macos_capture_stream
+      - name: Preflight and run focused R7 native lifecycle tests (Debug)
+        shell: bash
+        run: |
+          set -euo pipefail
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
+          printf '%s\n' "$selected_tests"
+          for required_test in \
+            macos.desktop-geometry-epoch-generation-fence-revocation \
+            macos.capture-stream-geometry-generation-retirement \
+            macos.capture-stream-callback-retirement \
+            macos.capture-stream-consumer-cancellation \
+            macos.capture-stream-native-stop-single-ownership \
+            macos.capture-stream-backend-callback-reentry-retirement \
+            macos.capture-stream-start-retirement-after-completion \
+            macos.capture-stream-session-watch-frame-retirement \
+            macos.capture-stream-session-watch-consumer-race \
+            macos.capture-r4-bgra-layout-contract \
+            macos.capture-r4-pixel-lifetime-retirement \
+            macos.capture-r4-display-generation-denials \
+            macos.cursor-session-watch-revocation \
+            macos.cursor-topology-publication-revocation \
+            macos.cursor-geometry-generation-publication-denials \
+            macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-destructor-retirement; do
+            grep -Fq "$required_test" <<< "$selected_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$r7_focus" --output-on-failure
+      - name: Reconfigure focused R7 native lifecycle tests (Release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+            "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
+      - name: Compile focused R7 native lifecycle targets (Release)
+        run: |
+          cmake --build build --config Release --parallel 2 --target \
+            test_macos_capture_pixel_buffer \
+            test_macos_input_controller \
+            test_macos_desktop_session_guard \
+            test_macos_capture_stream
+      - name: Preflight and run focused R7 native lifecycle tests (Release)
+        shell: bash
+        run: |
+          set -euo pipefail
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
+          printf '%s\n' "$selected_tests"
+          for required_test in \
+            macos.desktop-geometry-epoch-generation-fence-revocation \
+            macos.capture-stream-geometry-generation-retirement \
+            macos.capture-stream-callback-retirement \
+            macos.capture-stream-consumer-cancellation \
+            macos.capture-stream-native-stop-single-ownership \
+            macos.capture-stream-backend-callback-reentry-retirement \
+            macos.capture-stream-start-retirement-after-completion \
+            macos.capture-stream-session-watch-frame-retirement \
+            macos.capture-stream-session-watch-consumer-race \
+            macos.capture-r4-bgra-layout-contract \
+            macos.capture-r4-pixel-lifetime-retirement \
+            macos.capture-r4-display-generation-denials \
+            macos.cursor-session-watch-revocation \
+            macos.cursor-topology-publication-revocation \
+            macos.cursor-geometry-generation-publication-denials \
+            macos.input-controller-session-watch-revocation \
+            macos.input-controller-authority-retirement-no-native-post \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-destructor-retirement; do
+            grep -Fq "$required_test" <<< "$selected_tests"
+          done
+          ctest --test-dir build --build-config Release --timeout 60 \
+            -R "$r7_focus" --output-on-failure
+
+
+  # Only trusted main may execute on the owner's clean standard-user VM.
+  # A missing interactive clean Windows VM is a hard release block.
+  # R9 ordinary hosted syntax gate; it must never wait on the clean VM.
+  r9-windows-powershell-parser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse real clean-Windows acceptance script
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tokens = $null
+          $parseErrors = $null
+          $scriptPath = Join-Path $PWD 'scripts\clean_windows_portable_gui.ps1'
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $scriptPath, [ref]$tokens, [ref]$parseErrors)
+          if (@($parseErrors).Count -ne 0) {
+              $details = @($parseErrors | ForEach-Object { $_.Message }) -join [Environment]::NewLine
+              throw ('clean_windows_portable_gui.ps1 parser regression:' + [Environment]::NewLine + $details)
+          }
+
+  r9-clean-windows-portable-gui:
+    if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    needs: [ci-workflow-structure, r6-windows-clang23, r9-windows-powershell-parser]
+    runs-on: [self-hosted, Windows, X64, r9-clean-windows-gui]
+    steps:
+      - name: Require clean-Windows producer and policy checks
+        shell: powershell
+        env:
+          STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
+          PRODUCER_RESULT: ${{ needs.r6-windows-clang23.result }}
+          PARSER_RESULT: ${{ needs.r9-windows-powershell-parser.result }}
+        run: |
+          if ($env:STRUCTURE_RESULT -ne 'success' -or
+              $env:PRODUCER_RESULT -ne 'success' -or
+              $env:PARSER_RESULT -ne 'success') {
+            throw 'Windows GUI release prerequisites failed'
+          }
+      - uses: actions/checkout@v4
+      - name: Download exact staged Windows PORTABLE-GUI candidate
+        uses: actions/download-artifact@v4
+        with:
+          name: r9-windows-unverified-${{ github.sha }}
+          path: build/clean-windows-input
+      - name: Validate unmodified ZIP and launch in ordinary Windows desktop
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archives = @(Get-ChildItem -LiteralPath 'build/clean-windows-input' -File -Filter '*.zip')
+          if ($archives.Count -ne 1) { throw 'Expected one exact Windows ZIP' }
+          & ./scripts/clean_windows_portable_gui.ps1 -Archive $archives[0].FullName -ExactGitSha '${{ github.sha }}' -Receipt 'build/clean-windows-receipt.json'
+          if (!$?) { throw 'Clean Windows GUI launch gate failed' }
+      - name: Upload clean-Windows exact-SHA acceptance receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-clean-windows-receipt-${{ github.sha }}
+          path: build/clean-windows-receipt.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload verified public Windows x86_64 PORTABLE-GUI ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-windows-x86_64
+          path: |
+            build/clean-windows-input/rdp-server-portable-gui-*-windows-x86_64-*.zip
+            build/clean-windows-input/rdp-server-portable-gui-*-windows-x86_64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  # R7/R9 native arm64 PORTABLE-GUI closure. Packages the real Qt .app but
+  # never grants R2 admission, starts a listener, or requests TCC.
+  r7-macos-portable-gui:
+    needs: ci-workflow-structure
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install macOS Qt/OpenSSL packaging dependencies
+        run: |
+          set -euo pipefail
+          brew install openssl@3 qt
+      - name: Verify arm64 runner and Qt deployment tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "arm64"
+          qt_prefix="$(brew --prefix qt)"
+          test -x "$qt_prefix/bin/macdeployqt"
+          "$qt_prefix/bin/qmake" -query QT_VERSION
+          xcrun clang++ --version
+          otool --version
+      - name: Configure and build real R7 Qt app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          qt_prefix="$(brew --prefix qt)"
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=ON \
+            "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" \
+            "-DCMAKE_PREFIX_PATH=$qt_prefix"
+          cmake --build build --config Release \
+            --target rdp-server-desktop --parallel 2
+          test -x build/rdp-server-desktop.app/Contents/MacOS/rdp-server-desktop
+          test -f build/rdp-server-desktop.app/Contents/Info.plist
+      - name: Run macOS portable GUI integrity and framework-alias CTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^(packaging[.]macos-portable-gui-(app-integrity-denials|framework-alias-integrity-denials)|packaging[.]portable-gui-macos-framework-link-verifier-denials)$'
+          inventory="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          for required in \
+            packaging.macos-portable-gui-app-integrity-denials \
+            packaging.macos-portable-gui-framework-alias-integrity-denials \
+            packaging.portable-gui-macos-framework-link-verifier-denials; do
+            grep -Fq "$required" <<< "$inventory"
+          done
+          ctest --test-dir build -C Release -R "$selector" --output-on-failure
+      - name: Build and run R7 Qt GUI offscreen behavior CTests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release --target test_desktop_gui_offline --parallel 2
+          ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
+          ctest --test-dir build -C Release --timeout 30 \
+            -R '^gui[.]offscreen-' --output-on-failure
+      - name: Pin R7 TLS fingerprint Qt regression on macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-tls-fingerprint-rotation-and-denials$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-tls-fingerprint-rotation-and-denials' <<< "$selected_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")" -eq 1
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # Independently count the R7 Qt client-stage regression on packaged arm64.
+      - name: Pin R7 client-stage Qt CTest at exact packaging HEAD
+        shell: bash
+        run: |
+          set -euo pipefail
+          client_stage_selection='^gui[.]offscreen-r10-client-stage-and-retirement-status-denials$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$client_stage_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-r10-client-stage-and-retirement-status-denials' <<< "$selected_tests"
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne 1 ]]; then
+            printf 'R9 R7 client-stage CTest registry mismatch: expected 1, found %s\n' \
+              "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$client_stage_selection" --output-on-failure
+
+      # Merged R7 GUI consent is a new exact-one offline Qt requirement;
+      # Start/Stop authority still belongs only to a future concrete R10.
+      - name: Pin R7 explicit GUI Stop-before-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-close-requires-explicit-owner-stop$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-close-requires-explicit-owner-stop' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 GUI close consent registry mismatch: expected 1, found %s\n' \
+              "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # R7 typed lifecycle/terminal-session projection must remain exact-one.
+      - name: Pin R7 lifecycle and terminal-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-r10-lifecycle-and-terminal-close-denials$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-r10-lifecycle-and-terminal-close-denials' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 R7 lifecycle registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # R7 unsupported independent-password mode must expose no secret inputs.
+      - name: Pin R7 non-collecting unsupported-password Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-independent-password-workflow-unavailable$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-independent-password-workflow-unavailable' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 unsupported-password registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # Pair R10's production stable-interface/address predicate with R7's
+      # Qt chooser on the same AppleClang/Qt Release packaging runner.
+      # Fixtures are offline and cannot authorize R1/R2 or open sockets.
+      - name: Run R10 R7 shared LAN endpoint selection denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release \
+            --target test_runtime_host_control test_desktop_gui_offline --parallel 2
+          lan_endpoint_selection='^(runtime[.]host-control-selected-lan-interface-denials|gui[.]offscreen-r10-selected-lan-endpoint-preflight-denials)$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$lan_endpoint_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.host-control-selected-lan-interface-denials' <<< "$selected_tests"
+          grep -Fq 'gui.offscreen-r10-selected-lan-endpoint-preflight-denials' <<< "$selected_tests"
+          readonly lan_endpoint_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$lan_endpoint_expected_test_count" ]]; then
+            printf 'R9 R10/R7 LAN registry mismatch: expected %s tests, found %s\n' \
+              "$lan_endpoint_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$lan_endpoint_selection" --output-on-failure
+
+      # Run the production GUI constructor-order security guard on the
+      # same hosted AppleClang/Qt build that packages and opens the actual
+      # extracted .app. Offscreen widget end-state checks cannot expose
+      # transient QLabel AutoText parsing during construction.
+      - name: Run R7 runtime PlainText constructor-order source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          gui_plain_text_source_selection='^gui[.]runtime-label-plain-before-text-assignment$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$gui_plain_text_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'gui.runtime-label-plain-before-text-assignment' <<< "$selected_tests"
+          readonly gui_plain_text_source_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$gui_plain_text_source_expected_test_count" ]]; then
+            printf 'R9 R7 Qt PlainText source registry mismatch: expected %s test, found %s\n' \
+              "$gui_plain_text_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$gui_plain_text_source_selection" --output-on-failure
+
+      - name: Package and verify real macOS Qt app closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          qt_prefix="$(brew --prefix qt)"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-portable-gui-$version-macos-arm64-$short_sha.zip"
+          python3 packaging/macos/gui_bundle.py \
+            --app build/rdp-server-desktop.app \
+            --macdeployqt "$qt_prefix/bin/macdeployqt" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --minimum-macos 13.0 \
+            --output "$archive"
+          outer_sha="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          test -n "$outer_sha"
+          grep -Fqx "$outer_sha  $(basename "$archive")" "$archive.sha256"
+          python3 scripts/verify_portable_gui.py \
+            --archive "$archive" \
+            --git-sha "$GITHUB_SHA" \
+            --outer-sha256 "$outer_sha"
+
+          extracted="build/Extracted macOS PORTABLE GUI"
+          rm -rf "$extracted"
+          mkdir -p "$extracted"
+          ditto -x -k "$archive" "$extracted"
+          app="$extracted/rdp-server-desktop.app"
+          test -x "$app/Contents/MacOS/rdp-server-desktop"
+          test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
+          for framework in QtCore QtGui QtWidgets; do
+            test -d "$app/Contents/Frameworks/$framework.framework"
+          done
+
+          report="build/macos-gui-otool.txt"
+          : > "$report"
+          while IFS= read -r binary; do
+            if file "$binary" | grep -q 'Mach-O'; then
+              printf '\n== %s ==\n' "$binary" >> "$report"
+              otool -L "$binary" >> "$report"
+            fi
+          done < <(find "$app/Contents" -type f -print)
+          test -s "$report"
+          if grep -E '/opt/homebrew|/usr/local|/Users/runner|/Users/runneradmin' "$report"; then
+            echo "Extracted macOS GUI retains nonportable build-host dependency" >&2
+            exit 1
+          fi
+
+          # Verify the *extracted* archive, not only the pre-ZIP staging tree.
+          # Ad-hoc signing is development-only; it grants no Gatekeeper trust.
+          codesign --verify --deep --strict "$app"
+          signature_report="$(codesign -dv "$app" 2>&1)"
+          printf '%s\n' "$signature_report"
+          grep -F 'Signature=adhoc' <<< "$signature_report"
+          if grep -Eq '^Authority=Developer ID|^TeamIdentifier=[A-Z0-9]+' <<< "$signature_report"; then
+            echo "Preview unexpectedly reports a production signing identity" >&2
+            exit 1
+          fi
+      - name: Launch extracted Cocoa app normally without opening TCP listeners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/smoke_macos_gui_open.py \
+            --app "build/Extracted macOS PORTABLE GUI/rdp-server-desktop.app"
+
+      # CI ad-hoc preview signing is not Developer ID signing or notarization.
+      # Publish only after extracted Cocoa launch, signature and Mach-O audits pass.
+      - name: Upload verified macOS arm64 PORTABLE-GUI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-macos-arm64
+          path: |
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  r7-macos-session-sanitizers:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard test_macos_input_controller \
+            test_macos_capture_pixel_buffer
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          desktop_session_selection='^macos\.desktop-session-'
+          desktop_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$desktop_session_selection")"
+          printf '%s\n' "$desktop_session_tests"
+          for required_test in \
+            macos.desktop-session-lifecycle \
+            macos.desktop-session-validation-denials \
+            macos.desktop-session-revocation-reentry \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-registration-retirement \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-partial-install-retirement \
+            macos.desktop-session-watch-destructor-retirement \
+            macos.desktop-session-watch-unavailable-denial; do
+            grep -Fq "$required_test" <<< "$desktop_session_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$desktop_session_selection" --output-on-failure
+
+          input_session_selection='^macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)$'
+          input_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$input_session_selection")"
+          printf '%s\n' "$input_session_tests"
+          readonly input_session_expected_test_count=2
+          input_session_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$input_session_tests")"
+          if [[ "$input_session_test_count" -ne "$input_session_expected_test_count" ]]; then
+            printf 'R7 input sanitizer registry mismatch: expected %s tests, found %s\n' \
+              "$input_session_expected_test_count" "$input_session_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'macos.input-controller-session-watch-revocation' <<< "$input_session_tests"
+          grep -Fq 'macos.input-controller-authority-retirement-no-native-post' <<< "$input_session_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$input_session_selection" --output-on-failure
+
+          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$cursor_publication_selection" --output-on-failure
+
+  documentation-policy:
+    needs: ci-workflow-structure
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [ci-workflow-structure, protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
+  # R5/R7/R9: distinct offline GUI ZIP; never starts the RDP server.
+  # Xvfb proves Qt/XCB startup only, never authenticates a physical seat0.
+  r5-linux-gui-zip:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt6 XCB and offline ZIP validation tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-qpa-plugins libssl-dev libsystemd-dev pkg-config \
+            xvfb xauth unzip python3
+      - name: R5 offline GUI packaging negative tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_linux_gui_preflight.py
+          python3 tests/test_linux_gui_bundle.py
+      - name: Build R7 GUI and run native read-only R5 preflight CTest
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON -DRDP_SERVER_BUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
+          cmake --build build --config Release \
+            --target rdp-server-desktop test_linux_gui_prerequisites \
+              test_desktop_gui_offline --parallel 2
+          ctest --test-dir build -C Release \
+            -R '^gui[.]linux-readonly-seat0-prerequisite-denials$' \
+            --output-on-failure
+          tls_selector='^gui[.]offscreen-tls-fingerprint-rotation-and-denials$'
+          selected_tls_tests="$(ctest --test-dir build -C Release -N -R "$tls_selector")"
+          printf '%s\n' "$selected_tls_tests"
+          grep -Fq ': gui.offscreen-tls-fingerprint-rotation-and-denials' <<< "$selected_tls_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tls_tests")" -eq 1
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$tls_selector" --output-on-failure
+      - name: Package, extract and inspect actual Qt/XCB closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          printf 'Qt XCB plugin: %s\n' "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-gui-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-gui-SHA256SUMS.txt
+          unzip -q "$archive" -d build/gui-extracted
+          test -x build/gui-extracted/bin/rdp-server-desktop
+          test -x build/gui-extracted/run-gui.sh
+          test -x "build/gui-extracted/RDP Server.desktop"
+          export LD_LIBRARY_PATH="$PWD/build/gui-extracted/lib"
+          ldd build/gui-extracted/bin/rdp-server-desktop \
+            | tee build/gui-extracted/elf-dependencies.txt
+          ldd build/gui-extracted/plugins/platforms/libqxcb.so \
+            | tee build/gui-extracted/plugin-dependencies.txt
+          if grep -Fq 'not found' build/gui-extracted/*dependencies.txt; then
+            echo "GUI ZIP contains unresolved native dependencies" >&2
+            exit 1
+          fi
+          (
+            cd build/gui-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../gui-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../gui-smoke.log
+              echo "Extracted Qt GUI failed startup/idle smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload Linux GUI preview ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-gui-linux
+          path: |
+            build/rdp-server-gui-*.zip
+            build/rdp-server-gui-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
+          printf '%s\n' "$selected_tests"
+          readonly runtime_security_expected_test_count=40
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$runtime_security_expected_test_count" ]]; then
+            printf 'R9 M2 runtime-security registry mismatch: expected %s tests, found %s\n' \
+              "$runtime_security_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'runtime.linux-security-explicit-keytab-continuity' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-security-keytab-snapshot-mutation-continuity' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-security-keytab-policy-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-security-pam-verifier-provisioning' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-credssp-owner-framing' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-credssp-progress-accounting' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-pre-admission-dispatch' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-pre-admission-native-poll' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-native-poll-expiry-revocation' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-mcs-framing-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-mcs-response-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-erect-domain-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-attach-user-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-attach-confirm-write-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-channel-join-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-post-admission-client-info-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-client-info-bounded-tpkt-framing' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-licensing-sequence-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-r3-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-clipboard-gateway-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-policy-receipt-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-license-request-r1-write-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-client-licensing-r1-intake-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-valid-client-r1-write-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-share-r1-io-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-graphics-dvc-r1-io-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-outbound-write-readiness' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-outbound-tls-want-precedence' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-outbound-cancellation-revocation' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-credssp-revocation-order' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-credssp-authorization-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-final-credential-native-admission-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-aggregate-ordered-revocation' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-aggregate-premature-admission-denial' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-native-monitor-borrow-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-native-monitor-registration-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-native-desktop-selection-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-existing-cal-unadmitted-denial' <<< "$selected_tests"
+
+          ctest --test-dir build --build-config Debug --timeout 60 --verbose \
+            -R "$runtime_security_selection" --output-on-failure
+
+      # The post-Share R2/R3 classifier and the single R1 TLS reader are
+      # separate production-backed runtime denials. Retain the existing
+      # fixed 41-case R2 selection and all native-only gates unchanged.
+      - name: Run R10 post-Share reader and classifier denials with sanitizers
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          post_share_selection='^runtime\.linux-connection-personal-post-share-(classifier-authority|single-reader)-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$post_share_selection")"
+          printf '%s\n' "$selected_tests"
+          readonly post_share_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$post_share_expected_test_count" ]]; then
+            printf 'R9 post-Share registry mismatch: expected %s tests, found %s\n' \
+              "$post_share_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'runtime.linux-connection-personal-post-share-classifier-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-post-share-single-reader-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$post_share_selection" --output-on-failure
+
+      # R10's persistent live application/native scheduler source contract
+      # is not an ASan-instrumented executable. Keep it separate from the
+      # exact-two post-Share runtime denials and the legacy 40-case selection.
+      - name: Run R10 persistent post-Share owner source guard
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          persistent_owner_selection='^runtime[.]linux-serve-persistent-post-share-single-owner$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$persistent_owner_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-serve-persistent-post-share-single-owner' <<< "$selected_tests"
+          readonly persistent_owner_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$persistent_owner_expected_test_count" ]]; then
+            printf 'R9 R10 persistent-owner registry mismatch: expected %s test, found %s\n' \
+              "$persistent_owner_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$persistent_owner_selection" --output-on-failure
+
+      # R10's cooperative Stop and R5's native input failure are distinct
+      # source-level CMake guards: neither attempts a live R2 admission,
+      # sends SIGTERM, or posts cleanup XTEST events. Do not count either
+      # as an executable ASan/UBSan or native X11 runtime test.
+      - name: Run R10 Stop and R5 terminal-input source fences
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          native_terminal_source_selection='^(runtime[.]linux-serve-cooperative-signal-stop-order|x11[.]input-direct-route-native-failure-no-xtest)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_terminal_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-serve-cooperative-signal-stop-order' <<< "$selected_tests"
+          grep -Fq 'x11.input-direct-route-native-failure-no-xtest' <<< "$selected_tests"
+          readonly native_terminal_source_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$native_terminal_source_expected_test_count" ]]; then
+            printf 'R9 R10/R5 source registry mismatch: expected %s tests, found %s\n' \
+              "$native_terminal_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$native_terminal_source_selection" --output-on-failure
+
+      # R8's new outbound CLIPRDR R1 TLS writer is production-backed
+      # but deliberately denies unleased native clipboard publication.
+      # This is not part of the fixed 87-case clipboard component inventory.
+      - name: Run R8 clipboard TLS receipt denials with sanitizers
+        shell: bash
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          clipboard_tls_selection='^runtime[.]linux-connection-personal-clipboard-tls-write-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$clipboard_tls_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-clipboard-tls-write-denials' <<< "$selected_tests"
+          readonly clipboard_tls_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$clipboard_tls_expected_test_count" ]]; then
+            printf 'R9 R8 clipboard TLS receipt registry mismatch: expected %s test, found %s\n' \
+              "$clipboard_tls_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$clipboard_tls_selection" --output-on-failure
+
+      # This R2 GSS-verified PAM per-account attempt budget is a source
+      # CTest, not a sanitized executable. Keep its syntax and ordering
+      # checks independently visible in the R9 focused assurance job.
+      - name: Run R2 verified-account PAM attempt source fence in focused assurance
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          pam_attempt_source_selection='^security[.]linux-verified-account-pam-attempt-fence-source$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$pam_attempt_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'security.linux-verified-account-pam-attempt-fence-source' <<< "$selected_tests"
+          readonly pam_attempt_source_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$pam_attempt_source_expected_test_count" ]]; then
+            printf 'R9 R2 PAM attempt source-fence registry mismatch: expected %s test, found %s\n' \
+              "$pam_attempt_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$pam_attempt_source_selection" --output-on-failure
+
+      # R2's post-admission read-generation regression is a source-level CMake
+      # contract rather than a sanitizer-instrumented executable. Keep it out
+      # of the fixed 41-case executable-backed selector, but require it in the
       # same focused assurance job so ordinary green CTest cannot hide omission.
       - name: Run R2 protected-read generation fence in focused assurance
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}

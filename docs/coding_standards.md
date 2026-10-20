@@ -1,3 +1,11 @@
+## Native bridges must not re-specialize the R2 proof (2026-10-20)
+
+After R2 selects a `LinuxAuthenticatedPrincipalProof`, native bridges such as
+the X11 input route must consume that common proof rather than naming a concrete
+GSS or standalone mechanism. Re-adding a mechanism-specific include to repair a
+compile failure is not acceptable because it fragments authorization and can
+silently exclude another authenticated mode.
+
 ## R2/R10 authentication selection is explicit per accepted connection (2026-10-20)
 
 Do not infer standalone-password mode from the mere presence of a configured

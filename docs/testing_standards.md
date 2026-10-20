@@ -1,3 +1,12 @@
+## R2 standalone selector sanitizer inventory (2026-10-20)
+
+The bounded Linux runtime-security sanitizer selection contains 41
+executable-backed cases and must explicitly include
+`runtime.linux-connection-standalone-authentication-selector-denials`.
+The X11 authorized-input tests continue compiling a concrete GSS proof through
+the common `LinuxAuthenticatedPrincipalProof&` route, which pins backward
+compatibility while preventing the native bridge from becoming GSS-specific.
+
 ## R2/R10 standalone connection-selector regression (2026-10-20)
 
 `runtime.linux-connection-standalone-authentication-selector-denials` must use

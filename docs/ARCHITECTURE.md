@@ -1,3 +1,12 @@
+## R5 input consumes the common R2 authentication proof (2026-10-20)
+
+The stateless X11 authorized-input adapter accepts
+`LinuxAuthenticatedPrincipalProof&`, not a GSS-specific acceptor. It still
+owns no authentication, lease, permission or session state. The sole R2 broker
+freshly revalidates whichever proof the connection selected immediately before
+native input, preserving one authorization path for Kerberos and standalone
+password admission.
+
 ## R2/R10 one per-connection authentication selector (2026-10-20)
 
 `LinuxRuntimeConnection` owns one authentication-mode selector at

@@ -1,3 +1,18 @@
+## R2/R5 shared-proof compile-fix receipt (2026-10-20)
+
+Exact-SHA hosted run for `c1ec4c675c68ad197254e43356dce2782681cf47` proved
+`rdp-server-linux-runtime-security` itself compiled successfully, then failed
+the Ubuntu Debug graph at `x11_authorized_input_route.h` because that R5
+adapter still named `GssapiSpnegoAcceptor`. The correction generalizes the
+route to `LinuxAuthenticatedPrincipalProof&` rather than restoring a stale GSS
+dependency, so both authentication modes retain the same R2/R3 input gate.
+
+The focused sanitizer inventory is also advanced from 40 to 41 runtime-security
+cases and explicitly selects the standalone connection-selector denial test.
+
+Owner-local canonical validation: **NOT RUN**. Corrected exact-SHA hosted CI:
+**PENDING**.
+
 ## R2/R10 standalone runtime-selector authoring receipt (2026-10-20)
 
 Starting shared-main parent: `a66ea25fbf0cfc6ac0ad5002e695c0c280064ce1`.

@@ -1,3 +1,12 @@
+## R9 Qt macro-safe transitive headers (2026-10-20)
+
+A header reachable from a Qt translation unit must remain valid when Qt
+keyword-like macros are active. Avoid identifier names such as bare `slots`
+in shared security/runtime headers; use descriptive names such as
+`attemptSlots`. Keep a non-Qt compile regression that defines the conflicting
+macro while including the production header, so packaging does not become the
+first place this class of error appears.
+
 ## R9 C++ portability fixes for hosted Clang/GCC (2026-10-20)
 
 In C++ translation units, initialize `sd_bus_error` with C++ aggregate

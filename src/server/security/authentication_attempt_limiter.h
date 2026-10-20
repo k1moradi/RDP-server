@@ -161,11 +161,11 @@ private:
 
     template <typename Slot, std::size_t Capacity, typename Matches>
     [[nodiscard]] static Slot *findOrReuseSlot(
-        std::array<Slot, Capacity> &slots, TimePoint now,
+        std::array<Slot, Capacity> &attemptSlots, TimePoint now,
         Matches matches) noexcept
     {
         Slot *reusable = nullptr;
-        for (auto &slot : slots)
+        for (auto &slot : attemptSlots)
         {
             if (!slot.window.active)
             {

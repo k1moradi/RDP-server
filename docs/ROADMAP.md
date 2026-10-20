@@ -1,3 +1,21 @@
+## R9 Linux GUI ZIP follow-up: Qt macro-safe limiter header (2026-10-20)
+
+Exact-SHA run `39473001753` at `c205913e1e121dfa59572205c91466894a3b4631`
+confirmed the earlier GCC 13 MD4 blocker is fixed: the standalone NTLMv2
+library built successfully. The same Linux GUI ZIP lane then exposed the next
+compile blocker when Qt's keyword-like `slots` macro reached
+`AuthenticationAttemptLimiter::findOrReuseSlot(... &slots, ...)`.
+
+Rename that private template parameter to `attemptSlots`; no API or limiter
+behavior changes. The existing limiter test now pre-includes the header with an
+empty `slots` macro after its standard dependencies, so any future
+Qt-sensitive identifier regression fails in ordinary compilation rather than
+only in the GUI packaging lane.
+
+SHA `c205913...` is therefore not the nominated desktop-test SHA. A new exact
+publication SHA must rerun the complete ordinary hosted matrix; clean Windows
+remains separate and must use that same final artifact identity.
+
 ## R9 exact-head CI repair after concurrent R10/R5/R3/R7 work (2026-10-20)
 
 **Publication parent:** `9620f5b78ac753e485125197a08d80a379f27029`. The failing evidence under repair remains

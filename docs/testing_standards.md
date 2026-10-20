@@ -1,3 +1,13 @@
+## R9 Qt keyword-macro header regression (2026-10-20)
+
+Security/runtime headers that can become transitively visible from Qt code must
+not use Qt keyword-macro tokens such as `slots` as identifiers. Keep the
+ordinary `test_authentication_attempt_limiter` translation unit compiling the
+production limiter header while an empty `slots` macro is defined, after the
+header's standard-library dependencies are already included. This is a
+compile-time regression only; it must not add Qt linkage or change limiter
+runtime semantics.
+
 ## R9 source-contract guards after concurrent R10/R5/R3/R7 changes (2026-10-20)
 
 Source-contract CTests must isolate the production function or helper that owns

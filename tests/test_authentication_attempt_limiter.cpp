@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "security/authentication_attempt_limiter.h"
-
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
+
+// Qt defines `slots` as a keyword-like macro. Compile the production limiter
+// with that token unavailable so private identifiers cannot collide with Qt.
+#define slots
+#include "security/authentication_attempt_limiter.h"
+#undef slots
 
 using rdp_server::server::security::AuthenticationAttemptLimiter;
 

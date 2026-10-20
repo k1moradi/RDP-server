@@ -1,3 +1,24 @@
+## R9 Linux GUI ZIP Qt-macro follow-up receipt (2026-10-20)
+
+Hosted run `39473001753` at exact SHA
+`c205913e1e121dfa59572205c91466894a3b4631` progressed past the prior
+`standalone_ntlmv2.cpp` GCC 13 `-Warray-bounds` failure: target
+`rdp-server-standalone-ntlmv2` linked successfully. The lane then failed while
+compiling `src/gui/main.cpp` because Qt's `slots` macro collided with the
+private `slots` parameter in `AuthenticationAttemptLimiter::findOrReuseSlot`.
+
+The correction is a private identifier rename to `attemptSlots`, plus a
+compile regression in `test_authentication_attempt_limiter.cpp` that defines
+`slots` away while including the production header. This exercises the exact
+preprocessor hazard without adding Qt as a dependency to the security test.
+No warning suppression, API change, allocation, limiter-policy change or GUI
+special case is introduced.
+
+Run `39473001753` is retained as failure evidence only; it cannot be used for
+FIRST REAL DESKTOP TEST qualification. The replacement exact SHA must be green
+across ordinary hosted lanes before nomination, with clean Windows still a
+separate same-SHA self-hosted gate.
+
 ## R9 current-CI repair reconciliation (2026-10-20)
 
 Publication work was rebased from failing SHA

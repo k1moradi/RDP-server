@@ -6,9 +6,9 @@ connection-oriented MS-NLMP wire layer, not a second credential/session owner.
 Type 1 parsing is syntax-only. Type 2 encoding selects only the standalone
 CredSSP-required Unicode/NTLM/SIGN/SEAL/ESS/128 profile plus bounded optional
 client flags, carries a caller-owned 64-bit nonce, and publishes NetBIOS
-domain/computer/timestamp TargetInfo without a debugging VERSION tuple. The
-challenge encoder allocates nothing and writes only after all sizes/policy are
-validated.
+domain/computer/timestamp TargetInfo while retaining the fixed 8-byte Version
+field as all zero when NEGOTIATE_VERSION is clear. The challenge encoder
+allocates nothing and writes only after all sizes/policy are validated.
 
 Type 3 parsing treats MaxLen as non-authoritative per MS-NLMP, validates the
 actual Len/offset extents, rejects overlapping used payload ranges, copies only

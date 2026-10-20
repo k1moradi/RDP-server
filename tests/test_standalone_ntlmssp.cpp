@@ -61,13 +61,14 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     0xc5,0xda,0xd2,0x54,0x4f,0xc9,0x79,0x90,
     0x94,0xce,0x1c,0xe9,0x0b,0xc9,0xd0,0x3e};
 
-constexpr std::array<std::uint8_t, 96> kExpectedChallengeMessage{
+constexpr std::array<std::uint8_t, 104> kExpectedChallengeMessage{
     0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,
     0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x30,0x00,0x00,0x00,0x31,0x82,0x8a,0xe0,
+    0x38,0x00,0x00,0x00,0x31,0x82,0x8a,0xe0,
     0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x30,0x00,0x30,0x00,0x30,0x00,0x00,0x00,
+    0x30,0x00,0x30,0x00,0x38,0x00,0x00,0x00,
+    0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
     0x02,0x00,0x0c,0x00,0x44,0x00,0x6f,0x00,
     0x6d,0x00,0x61,0x00,0x69,0x00,0x6e,0x00,
     0x01,0x00,0x0c,0x00,0x53,0x00,0x65,0x00,
@@ -96,28 +97,28 @@ constexpr void storeLe32(
     return {u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
 }
 
-[[nodiscard]] std::array<std::uint8_t, 160> micAuthenticateMessage()
+[[nodiscard]] std::array<std::uint8_t, 168> micAuthenticateMessage()
 {
-    std::array<std::uint8_t, 160> message{};
+    std::array<std::uint8_t, 168> message{};
     constexpr std::array<std::uint8_t, 8> signature{
         'N','T','L','M','S','S','P',0};
     std::copy(signature.begin(), signature.end(), message.begin());
     storeLe32(message.data() + 8U, 3U);
 
-    storeLe32(message.data() + 16U, 80U);
+    storeLe32(message.data() + 16U, 88U);
     storeLe16(message.data() + 20U, 60U);
     storeLe16(message.data() + 22U, 60U);
-    storeLe32(message.data() + 24U, 84U);
+    storeLe32(message.data() + 24U, 92U);
     storeLe16(message.data() + 28U, 2U);
     storeLe16(message.data() + 30U, 2U);
-    storeLe32(message.data() + 32U, 80U);
+    storeLe32(message.data() + 32U, 88U);
     storeLe16(message.data() + 36U, 2U);
     storeLe16(message.data() + 38U, 2U);
-    storeLe32(message.data() + 40U, 82U);
-    storeLe32(message.data() + 48U, 84U);
+    storeLe32(message.data() + 40U, 90U);
+    storeLe32(message.data() + 48U, 92U);
     storeLe16(message.data() + 52U, 16U);
     storeLe16(message.data() + 54U, 16U);
-    storeLe32(message.data() + 56U, 144U);
+    storeLe32(message.data() + 56U, 152U);
     storeLe32(
         message.data() + 60U,
         kNtlmNegotiateUnicode |
@@ -126,23 +127,23 @@ constexpr void storeLe32(
         kNtlmNegotiateKeyExchange);
 
     std::fill(
-        message.begin() + 64,
-        message.begin() + 80,
+        message.begin() + 72,
+        message.begin() + 88,
         std::uint8_t{0x5a});
-    message[80] = 'D';
-    message[82] = 'U';
+    message[88] = 'D';
+    message[90] = 'U';
 
-    const std::size_t blob = 100U;
+    const std::size_t blob = 108U;
     message[blob] = 1U;
     message[blob + 1U] = 1U;
-    storeLe16(message.data() + 128U, 6U);
-    storeLe16(message.data() + 130U, 4U);
-    storeLe32(message.data() + 132U, 2U);
-    storeLe16(message.data() + 136U, 0U);
-    storeLe16(message.data() + 138U, 0U);
+    storeLe16(message.data() + 136U, 6U);
+    storeLe16(message.data() + 138U, 4U);
+    storeLe32(message.data() + 140U, 2U);
+    storeLe16(message.data() + 144U, 0U);
+    storeLe16(message.data() + 146U, 0U);
 
     std::fill(
-        message.begin() + 144,
+        message.begin() + 152,
         message.end(),
         std::uint8_t{0x11});
     return message;
@@ -289,7 +290,7 @@ int main(int argc, char **argv)
                 return byte == 0x5aU;
             }));
 
-        storeLe32(micMessage.data() + 32U, 64U);
+        storeLe32(micMessage.data() + 32U, 72U);
         assert(parseNtlmAuthenticateMessage(
                    micMessage, parsed) ==
                NtlmMessageParseResult::InvalidSecurityBuffer);

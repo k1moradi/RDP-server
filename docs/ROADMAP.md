@@ -1,3 +1,23 @@
+## R2 NTLMSSP fixed Version-field correction (2026-10-20)
+
+Follow-up to `2131703acd28db77f6a6951139f18cc45fed7e01`: re-reading the
+published MS-NLMP structures found that NEGOTIATE_MESSAGE, CHALLENGE_MESSAGE
+and AUTHENTICATE_MESSAGE retain their 8-byte Version field even when
+NTLMSSP_NEGOTIATE_VERSION is clear; the field is then all zero. The first
+framing commit incorrectly treated that field as absent when the flag was
+clear, moving the server TargetInfo eight bytes early and allowing too-low
+payload floors in the no-Version parser case.
+
+The corrected wire owner uses fixed 40/56/72-byte Type 1/2/3 headers, requires
+the Type 1/3 Version bytes to be zero when the flag is clear, keeps the server
+Type 2 Version bytes zero, and starts a required Type 3 MIC only after the fixed
+72-byte header. The dedicated challenge oracle and MIC-alias denial fixture are
+updated with those exact offsets. This is a source-level correction only; no
+new capability or interoperability claim is added.
+
+Owner-local build/full CTest: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**.
+
 ## R2 standalone NTLMSSP framing bridge (2026-10-20)
 
 Starting shared-main parent: `2e2a5f5e4b4bce2364958928d2caf636dea66b4a`.

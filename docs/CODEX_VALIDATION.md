@@ -1,3 +1,21 @@
+## R2 NTLMSSP fixed Version-field authoring correction (2026-10-20)
+
+The initial NTLMSSP framing publication
+`2131703acd28db77f6a6951139f18cc45fed7e01` was rechecked against the
+published MS-NLMP Type 1/2/3 structures before hosted acceptance was claimed.
+That review found one wire-layout defect: the implementation treated the
+8-byte Version field as structurally absent whenever NEGOTIATE_VERSION was
+clear. MS-NLMP keeps the field in each message layout and requires zero bytes
+when the flag is clear.
+
+The correction uses fixed Type 1/2/3 header extents of 40/56/72 bytes, keeps
+the generated Type 2 Version field zero, validates zero Type 1/3 Version bytes
+when their flag is clear, and moves the synthetic MIC/payload fixture after the
+fixed Type 3 header. The exact Type 2 byte oracle now includes the eight zero
+Version bytes. Microsoft specification review: **PASS**. Local compile/full
+CTest: **NOT RUN** in this connector environment. Publication-SHA hosted CI:
+**PENDING**. No live authentication, listener or GUI secret path was enabled.
+
 ## R2 standalone NTLMSSP framing authoring receipt (2026-10-20)
 
 Starting shared-main parent: `2e2a5f5e4b4bce2364958928d2caf636dea66b4a`. The R2A positive owner-authority

@@ -17,10 +17,9 @@ using ByteSpan = std::span<const std::uint8_t>;
 
 constexpr std::array<std::uint8_t, 8> kNtlmSignature{
     'N', 'T', 'L', 'M', 'S', 'S', 'P', 0};
-constexpr std::size_t kNegotiateHeaderBytes = 32U;
-constexpr std::size_t kChallengeHeaderBytes = 48U;
-constexpr std::size_t kAuthenticateHeaderBytes = 64U;
-constexpr std::size_t kNtlmVersionBytes = 8U;
+constexpr std::size_t kNegotiateHeaderBytes = 40U;
+constexpr std::size_t kChallengeHeaderBytes = 56U;
+constexpr std::size_t kAuthenticateHeaderBytes = 72U;
 constexpr std::size_t kNtlmMicBytes = 16U;
 constexpr std::size_t kSecurityBufferBytes = 8U;
 constexpr std::size_t kNtlmV2ProofBytes = 16U;
@@ -302,12 +301,12 @@ NtlmMessageParseResult parseNtlmNegotiateMessage(
         return NtlmMessageParseResult::WrongMessageType;
 
     const std::uint32_t flags = loadLe32(message.data() + 12U);
-    const std::size_t headerBytes =
-        kNegotiateHeaderBytes +
-        ((flags & kNtlmNegotiateVersion) != 0U
-             ? kNtlmVersionBytes : 0U);
-    if (message.size() < headerBytes)
+    const std::size_t headerBytes = kNegotiateHeaderBytes;
+    if ((flags & kNtlmNegotiateVersion) == 0U &&
+        !allZero(message.subspan(32U, 8U)))
+    {
         return NtlmMessageParseResult::InvalidInput;
+    }
 
     SecurityBuffer domain;
     SecurityBuffer workstation;
@@ -488,12 +487,12 @@ NtlmMessageParseResult parseNtlmAuthenticateMessage(
         return NtlmMessageParseResult::UnsupportedFlags;
     }
 
-    const std::size_t baseHeaderBytes =
-        kAuthenticateHeaderBytes +
-        ((flags & kNtlmNegotiateVersion) != 0U
-             ? kNtlmVersionBytes : 0U);
-    if (message.size() < baseHeaderBytes)
+    const std::size_t baseHeaderBytes = kAuthenticateHeaderBytes;
+    if ((flags & kNtlmNegotiateVersion) == 0U &&
+        !allZero(message.subspan(64U, 8U)))
+    {
         return NtlmMessageParseResult::InvalidInput;
+    }
 
     SecurityBuffer preliminaryNtResponse;
     if (!readSecurityBuffer(

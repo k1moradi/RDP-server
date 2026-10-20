@@ -37,6 +37,9 @@ struct HostStatus
     bool controlAvailable{};
     bool credentialsConfigured{};
     bool desktopAuthorized{};
+    // Exact R2/R10 read-only grant observation. This is presentation state,
+    // never an authorization capability or a copy of requested GUI intent.
+    rdp_server::server::runtime::RuntimeOwnerGrantObservation ownerGrant{};
     bool tlsReady{};
     // Exact read-only R10 observation, with Unknown client trust.
     rdp_server::server::runtime::RuntimeTlsIdentityStatus tlsIdentity{};

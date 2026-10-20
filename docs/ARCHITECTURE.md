@@ -87,11 +87,19 @@ observation while the same listener remains current. New acceptance clears it;
 Stop/Revoke and listener retirement clear it. The observation is diagnostic
 only and carries no credential, protocol payload, native identity or authority.
 
-The owner-permission controls are requests, not a grant cache. Until R2
-publishes a read-only effective-grant observation, Qt must not display the
-requested scope or requested lifetime as authoritative. The application
-password path likewise has no product capability yet, so R7 constructs no
-password/confirmation fields and cannot reach the internal R2P credential owner.
+The owner-permission controls are requests, not a grant cache. R2 now publishes
+a read-only effective-grant observation through R10, so Qt may display only
+that typed active/expired/unavailable state, effective permission mask and
+remaining monotonic lifetime. An active observation is presented as current
+only when the same R10 snapshot independently reports fresh view authorization.
+Expired or terminal observations expose no effective scope. Requested checkbox
+or lifetime values are never copied into displayed grant state.
+
+R10X now owns the real X11 desktop after Graphics readiness, and R7 continues
+to require its concrete `nativeDesktopReady` observation before displaying
+Desktop Visible/connected state. The application password path still has no
+product capability, so R7 constructs no password/confirmation fields and
+cannot reach the internal R2P credential owner.
 
 ## R3/R10 first-client ownership and Graphics-control observation (2026-10-20)
 

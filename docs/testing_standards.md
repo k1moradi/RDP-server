@@ -1,3 +1,18 @@
+## R7 authoritative R2 grant / R10X status projection regression (2026-10-20)
+
+`gui.offscreen-r2-owner-grant-observation` must prove that Qt renders effective
+owner-grant scope and remaining lifetime only from R2's typed
+`RuntimeOwnerGrantObservation`. Deliberately make request controls disagree
+with the observed grant and require the observation to win. An expired grant
+must expose no effective scope/lifetime, and terminal host-session loss must
+suppress an otherwise-active stale observation.
+
+The existing `gui.offscreen-r10-graphics-native-desktop-projection` remains
+the R7 presentation gate for the now-landed R10X facts: Graphics readiness
+alone is not Desktop Visible; `nativeDesktopReady` is mandatory. These are
+offline presentation tests and cannot substitute for the owner-approved real
+desktop/client acceptance run.
+
 ## R2 authenticated-principal proof compatibility regression (2026-10-20)
 
 `security.authenticated-principal-proof-gss-compatibility` must prove the

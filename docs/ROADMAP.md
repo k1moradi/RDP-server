@@ -1,3 +1,46 @@
+## R7 consumes resolved R2 grant observation and R10X native status (2026-10-20)
+
+Starting reconciled shared-main parent:
+`e2329fc07321acc0d58cdf909591d962a0ff6a30`.
+
+Two R7 dependencies have landed from other owners. R2 exposes its read-only
+owner-grant observation through `RuntimeHostStatus`, and R10X owns the real
+R2-selected X11 desktop after genuine Graphics readiness. R7's existing
+graphics/native projection already requires the real `nativeDesktopReady`
+fact before it can display a visible/connected desktop, so no second native
+state machine is added.
+
+This increment consumes the R2 grant observation in Qt. The UI renders only
+R2's active/expired/unavailable state, effective permission mask and remaining
+monotonic lifetime. The input, clipboard and lifetime controls remain request
+intent and are never echoed as authoritative grant state. An active observation
+is shown as current only when the same R10 snapshot independently reports fresh
+view authorization; expiry or terminal host-session loss exposes no effective
+scope/lifetime.
+
+Dedicated ordinary offscreen CTest:
+`gui.offscreen-r2-owner-grant-observation`. It deliberately makes the request
+controls disagree with the R2 observation, requires the observed grant to win,
+then covers expiry and terminal-session suppression.
+
+R10X has removed the former native-composition code blocker for Desktop
+Visible/FIRST. Parent exact-head structure run `39476189223`: **PASS**.
+Parent main CI run `39476189243`: **QUEUED**. FIRST REAL DESKTOP therefore
+still waits on a nominated exact-main SHA with all ordinary hosted lanes green
+plus owner-approved live execution.
+
+Canonical owner-local `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**.
+
+Session Password remains **BLOCKED**. R2 has generalized the one
+`LinuxAuthenticatedPrincipalProof` broker contract, but still needs the
+standalone proof implementation bound to exact TLS/CredSSP
+`CredentialsVerified` plus exact `StandalonePasswordCredentialOwner`
+generation, then R10's per-connection selector hook and real Windows
+App/`mstsc.exe` interoperability proof before product password fields can be
+enabled.
+
 ## R2 common authenticated-principal proof contract (GSS migration) (2026-10-20)
 
 Starting reconciled shared-main parent: `5e9d6cb379232eb9b72749a77b3801df42b7f1c0`. R10X is now landed; FIRST REAL

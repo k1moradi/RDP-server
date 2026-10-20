@@ -70,12 +70,18 @@ plus its explicit read-only `graphicsReady`, `nativeDesktopInitializing`,
 connected desktop requires `nativeDesktopReady`; Share activation, RDPGFX
 control readiness and stale per-client flags are insufficient.
 
-Requested owner-permission scope/lifetime remains intent until R2 exposes an
-effective grant observation. Never copy those requested values into a status
-field or label them as granted. Session Password inputs remain absent until a
-production capability is backed by composed R2 admission and accepted
-Microsoft-client interoperability; do not add a developer/user switch that can
-bypass that product gate.
+Requested owner-permission scope/lifetime remains intent. R2's typed read-only
+grant observation is now the only GUI source for effective permission scope
+and remaining lifetime. Never copy requested checkbox/lifetime values into a
+grant field or label them as granted. Present an active observation as current
+only when the same R10 snapshot independently confirms view authorization;
+expiry or terminal host-session loss must expose no effective scope.
+
+R10X native readiness likewise stays authoritative for Desktop Visible; do not
+infer visibility from Share/Graphics stages or GUI state. Session Password
+inputs remain absent until a production capability is backed by composed R2
+admission and accepted Microsoft-client interoperability; do not add a
+developer/user switch that can bypass that product gate.
 
 ## R10 GUI service ticks stay bounded and single-owner (2026-10-20)
 

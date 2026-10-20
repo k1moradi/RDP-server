@@ -1,3 +1,31 @@
+## R7 resolved-dependency status projection authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent:
+`e2329fc07321acc0d58cdf909591d962a0ff6a30`.
+
+R2's read-only owner-grant observation and R10X's real X11 ownership are now
+present on shared main. R7 already consumes the R10X
+graphics/native-initializing/native-ready facts without manufacturing Desktop
+Visible. This increment adds the remaining R2 grant presentation: effective
+permission scope and remaining monotonic lifetime come only from the
+R2/R10 observation, never from request controls. Active scope is displayed only
+with an independently current view authorization; expiry and terminal-session
+loss expose no scope.
+
+New ordinary offscreen CTest:
+`gui.offscreen-r2-owner-grant-observation`.
+
+Canonical `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector environment. Parent exact-head structure run `39476189223`:
+**PASS**. Parent main CI run `39476189243`: **QUEUED**. Exact
+publication-SHA hosted CI: **PENDING**.
+
+No live listener, X11 desktop, input, clipboard, credential, password,
+Microsoft client or service state was exercised. R10X is no longer R7's
+Desktop-Visible code blocker. Session Password remains blocked on the standalone
+`LinuxAuthenticatedPrincipalProof` implementation, R10 selector composition
+and real-client proof.
+
 ## R2 authenticated-principal proof authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `5e9d6cb379232eb9b72749a77b3801df42b7f1c0`.

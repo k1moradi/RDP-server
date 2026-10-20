@@ -3351,6 +3351,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-permission-scope-lifetime-forwarding PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
+    add_test(NAME gui.offscreen-r2-owner-grant-observation
+        COMMAND test_desktop_gui_offline owner-grant-observation)
+    set_tests_properties(gui.offscreen-r2-owner-grant-observation PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
 
     add_test(NAME gui.offscreen-positive-owner-workflow-presentation
         COMMAND test_desktop_gui_offline positive-workflow)

@@ -2,6 +2,7 @@
 #include "desktop_window.h"
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
+#include "server/security/console_identity_policy.h"
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
 #endif
@@ -894,9 +895,85 @@ int main(int argc, char** argv)
         window.refresh();
         assert(host.status().desktopAuthorized);
         assert(permissionStatus->text().contains(
-            "Effective permission scope and remaining lifetime are not yet exposed by R2"));
+            "R2 grant observation is unavailable"));
         assert(!permissionStatus->text().contains("7 min"));
         assert(!window.canStart()); // TLS/native/interface gates are still absent.
+        return 0;
+    }
+
+    if (argc > 1 &&
+        QString::fromLocal8Bit(argv[1]) == "owner-grant-observation")
+    {
+        using namespace rdp_server::server::security;
+
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Active,
+            kConsoleViewPermission | kConsoleClipboardPermission,
+            6U * 60U * 1000U + 58U * 1000U};
+
+        DesktopWindow window(host);
+        auto* permissionStatus =
+            window.findChild<QLabel*>("permissionStatus");
+        auto* allowInput =
+            window.findChild<QCheckBox*>("allowRemoteInput");
+        auto* allowClipboard =
+            window.findChild<QCheckBox*>("allowClipboard");
+        auto* lifetime =
+            window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+        assert(permissionStatus && allowInput && allowClipboard && lifetime);
+
+        // Request intent deliberately disagrees with the R2 grant. Rendering
+        // must use the authoritative read-only observation instead.
+        allowInput->setChecked(true);
+        allowClipboard->setChecked(false);
+        lifetime->setValue(15);
+        window.refresh();
+        const auto active = host.status();
+        assert(active.desktopAuthorized);
+        assert(active.ownerGrant.state == RuntimeOwnerGrantState::Active);
+        assert(active.ownerGrant.effectivePermissionMask ==
+               (kConsoleViewPermission | kConsoleClipboardPermission));
+        assert(active.ownerGrant.remainingMilliseconds ==
+               6U * 60U * 1000U + 58U * 1000U);
+        assert(permissionStatus->text().contains(
+            "Effective scope: view, clipboard"));
+        assert(permissionStatus->text().contains(
+            "Remaining lifetime: 6 min 58 sec"));
+        assert(!permissionStatus->text().contains("input"));
+        assert(!permissionStatus->text().contains("15 min"));
+
+        // Expiry exposes neither stale effective permissions nor a requested
+        // lifetime, even if a deliberately inconsistent fake payload has them.
+        runtime.snapshot.hostOwnerAuthorized = false;
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Expired,
+            kConsoleAllowedPermissions,
+            15U * 60U * 1000U};
+        window.refresh();
+        assert(host.status().ownerGrant.state ==
+               RuntimeOwnerGrantState::Expired);
+        assert(permissionStatus->text().contains(
+            "Local owner permission expired"));
+        assert(!permissionStatus->text().contains("Effective scope"));
+        assert(!permissionStatus->text().contains("Remaining lifetime"));
+
+        // Terminal native/session loss suppresses an otherwise-active stale
+        // grant observation before it reaches the GUI.
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Active,
+            kConsoleViewPermission | kConsoleInputPermission,
+            59U * 1000U};
+        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
+        window.refresh();
+        const auto terminal = host.status();
+        assert(!terminal.desktopAuthorized);
+        assert(terminal.ownerGrant.state == RuntimeOwnerGrantState::Unavailable);
+        assert(permissionStatus->text().contains(
+            "Local owner permission is not established"));
+        assert(!permissionStatus->text().contains("Effective scope"));
         return 0;
     }
 

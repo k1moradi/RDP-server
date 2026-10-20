@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "desktop_window.h"
+#include "server/security/console_identity_policy.h"
 #if defined(Q_OS_LINUX)
 #include "linux_prerequisites.h"
 #endif
@@ -22,6 +23,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <tuple>
 namespace rdp::gui {
 namespace {
@@ -50,6 +52,72 @@ QString clipboardStatusText(
         return "Clipboard denied by current session policy.";
     }
     return "Clipboard unavailable: invalid session state.";
+}
+
+QString ownerPermissionStatusText(const HostStatus& status)
+{
+    using rdp_server::server::runtime::RuntimeOwnerGrantState;
+    using namespace rdp_server::server::security;
+
+    switch (status.ownerGrant.state) {
+    case RuntimeOwnerGrantState::Active: {
+        // R2's descriptive lease observation is not fresh native authority.
+        // Never present an active grant as current unless authorizes(view)
+        // independently succeeded in the same R10 status snapshot.
+        if (!status.desktopAuthorized)
+            break;
+
+        const std::uint32_t permissions =
+            status.ownerGrant.effectivePermissionMask;
+        if ((permissions & kConsoleViewPermission) == 0U ||
+            (permissions & ~kConsoleAllowedPermissions) != 0U)
+        {
+            return QStringLiteral(
+                "Local owner permission is current, but effective permission "
+                "scope is unavailable.");
+        }
+
+        QString scope = QStringLiteral("view");
+        if ((permissions & kConsoleInputPermission) != 0U)
+            scope += QStringLiteral(", input");
+        if ((permissions & kConsoleClipboardPermission) != 0U)
+            scope += QStringLiteral(", clipboard");
+
+        const std::uint64_t remainingMilliseconds =
+            status.ownerGrant.remainingMilliseconds;
+        QString remaining;
+        if (remainingMilliseconds < 1000U) {
+            remaining = QStringLiteral("<1 sec");
+        } else {
+            const std::uint64_t totalSeconds = remainingMilliseconds / 1000U;
+            const std::uint64_t minutes = totalSeconds / 60U;
+            const std::uint64_t seconds = totalSeconds % 60U;
+            remaining = minutes == 0U
+                ? QStringLiteral("%1 sec").arg(static_cast<qulonglong>(seconds))
+                : QStringLiteral("%1 min %2 sec")
+                    .arg(static_cast<qulonglong>(minutes))
+                    .arg(static_cast<qulonglong>(seconds));
+        }
+
+        return QStringLiteral(
+            "Local owner permission is current. Effective scope: %1. "
+            "Remaining lifetime: %2.")
+            .arg(scope, remaining);
+    }
+    case RuntimeOwnerGrantState::Expired:
+        return QStringLiteral(
+            "Local owner permission expired; request fresh permission. "
+            "Effective permissions are no longer active.");
+    case RuntimeOwnerGrantState::Unavailable:
+        break;
+    }
+
+    return status.desktopAuthorized
+        ? QStringLiteral(
+            "Local owner permission is current, but R2 grant observation is "
+            "unavailable.")
+        : QStringLiteral(
+            "Local owner permission is not established; Start remains blocked.");
 }
 
 // Only R1/R10 can supply this value-only certificate observation. Never
@@ -524,11 +592,7 @@ void DesktopWindow::refresh() {
           "The RDP client must still authenticate with that OS account."
         : "Permitted credentials unavailable: configure existing OS-account access. "
           "Independent application passwords remain unsupported for NLA.");
-    permissionStatus_->setText(snapshot.desktopAuthorized
-        ? "Local owner permission is current. Effective permission scope and "
-          "remaining lifetime are not yet exposed by R2; the controls above "
-          "are request intent only."
-        : "Local owner permission is not established; Start remains blocked.");
+    permissionStatus_->setText(ownerPermissionStatusText(snapshot));
     configureOsAccount_->setEnabled(
         snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);
     const bool permissionRequestEnabled =

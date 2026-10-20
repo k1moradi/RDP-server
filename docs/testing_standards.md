@@ -1,3 +1,26 @@
+## R9 source-contract guards after concurrent R10/R5/R3/R7 changes (2026-10-20)
+
+Source-contract CTests must isolate the production function or helper that owns
+the invariant. Do not let a first global `string(FIND)` bind to a legitimate
+status-path authorization call, and do not pin initializer punctuation when the
+invariant is unique typed ownership. Harmless line wrapping must not change a
+guard result.
+
+For current R9 coverage, preserve: exactly one HostControl
+`CurrentOwnerSharingAuthority`; the scoped Start transaction from credentials
+through listener publication; configured GSS -> verified-account limiter ->
+authority-aware R2 broker; and cooperative Stop reaching the real terminal
+helper with native no-XTEST retirement before aggregate connection revoke. The
+CLI listener must remain an outer RAII owner around every serialized candidate.
+
+R10X has not yet moved the native owner into HostControl, so no R9 source guard
+may fake a single integrated owner-authority -> native -> connection -> listener
+path. Until R10X lands, the existing bounded GUI scheduler guard independently
+pins owner-authority -> accepted-connection -> listener, while the cooperative
+CLI guard pins native -> connection -> listener. When R10X composes the owner,
+its dedicated structural test must join those halves and preserve the full
+owner-authority -> R8/native -> R3/R2/R1 -> listener order.
+
 ## R7 Graphics/native lifecycle projection gate (2026-10-20)
 
 `gui.offscreen-r10-graphics-native-desktop-projection` must drive only the

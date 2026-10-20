@@ -40,18 +40,31 @@ foreach(required_text IN ITEMS
     endif()
 endforeach()
 
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::startSharing()" transaction_begin)
+string(FIND "${host_source}"
+    "void LinuxRuntimeHostControl::clearAcceptedClient(" transaction_end)
+if(transaction_begin LESS 0 OR transaction_end LESS_EQUAL transaction_begin)
+    message(FATAL_ERROR "Unable to isolate HostControl Start transaction")
+endif()
+math(EXPR transaction_length "${transaction_end} - ${transaction_begin}")
+string(SUBSTRING "${host_source}" ${transaction_begin}
+    ${transaction_length} transaction_source)
+
+# Pin semantic boundaries, not line formatting.
 set(ordered_tokens
-    "if (!credentialsConfigured_ || !serviceCredentialsReady())"
-    "if (!ownerSharingAuthority_.authorizes("
-    "const auto current = assessRuntimeSelectedLanEndpoint("
-    "const RuntimeTlsIdentityStatus unboundIdentity"
-    "openLanListener({"
-    "boundIdentity.boundIdentityMatchesGeneration("
-    "deploymentPolicy_->configurePersonalDesktopPrivateLan("
-    "listener_ = std::move(candidate);")
+    "!credentialsConfigured_"
+    "ownerSharingAuthority_.authorizes("
+    "assessRuntimeSelectedLanEndpoint("
+    "resolveCurrentLinuxNativeLanInterface("
+    "tlsContext_->identityStatus()"
+    "openLanListener("
+    "tlsContext_->boundIdentityStatus("
+    "configurePersonalDesktopPrivateLan("
+    "listener_ = std::move(candidate)")
 set(previous_position -1)
 foreach(token IN LISTS ordered_tokens)
-    string(FIND "${host_source}" "${token}" token_position)
+    string(FIND "${transaction_source}" "${token}" token_position)
     if(token_position LESS 0)
         message(FATAL_ERROR "HostControl transaction token missing: ${token}")
     endif()
@@ -61,7 +74,7 @@ foreach(token IN LISTS ordered_tokens)
     set(previous_position ${token_position})
 endforeach()
 
-string(FIND "${host_source}"
+string(FIND "${transaction_source}"
     "stage_ = RuntimeHostStage::ListenerAvailable;" publication_stage)
 if(publication_stage LESS previous_position)
     message(FATAL_ERROR "Listener stage published before candidate ownership")

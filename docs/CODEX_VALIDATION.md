@@ -1,3 +1,35 @@
+## R9 current-CI repair reconciliation (2026-10-20)
+
+Publication work was rebased from failing SHA
+`4f5c9e75e15682ab38c8fa800c6cb4b6de050d10` / run `39468550998` onto current shared-main parent
+`9620f5b78ac753e485125197a08d80a379f27029`. The intervening R5, R3 and R7 commits were reviewed before
+publication. R7 adds authoritative client-lifecycle status in HostControl but
+preserves the failing R9 Start transaction and R2 authority ownership; none of
+the six production/source-guard files being corrected was concurrently edited.
+
+Observed failing-run evidence: Ubuntu had exactly four stale/ordering
+source-contract CTests; the sanitizer build rejected two C99
+`SD_BUS_ERROR_NULL` expansions in C++; and the Linux GUI ZIP GCC 13 build
+rejected the R2 MD4 staging `std::copy_n` path under `-Warray-bounds`.
+
+The repair keeps source checks architectural. The authority guard counts the
+single HostControl authority member instead of pinning `{};`; the listener
+transaction is scoped to `startSharing()` and checks semantic call boundaries;
+the verified-account guard accepts only the authority-aware broker constructor
+while retaining configured-GSS -> limiter -> broker order; and the cooperative
+Stop guard isolates the terminal native helper, requires Stop to reach it,
+requires native retirement before aggregate connection revoke, and verifies the
+listener RAII owner encloses every serialized candidate callback. HostControl's
+owner-authority -> accepted-connection -> listener order remains covered by its
+existing bounded scheduler guard; R10X is still responsible for integrating the
+native owner between those boundaries.
+
+Compiler corrections retain `-Werror`: no warning is disabled. Connector
+environment validation can review source and hosted logs but cannot run the
+canonical `~/rdp-server/build` locally. Exact-publication-SHA hosted CI is
+**PENDING**; the clean-Windows self-hosted job must be rerun for that same
+nominated SHA when its runner is available.
+
 ## R7 accepted-client/native status projection authoring receipt (2026-10-20)
 
 Starting shared-main parent: `68332b57ef12b5fc6ab9e51bbec1bc7c2c91a9ae`.

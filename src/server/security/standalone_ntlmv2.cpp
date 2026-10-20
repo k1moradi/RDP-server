@@ -101,9 +101,8 @@ public:
         {
             const std::size_t copyBytes =
                 (std::min)(buffer_.size() - bufferedBytes_, input.size());
-            std::copy_n(input.begin(), copyBytes,
-                        buffer_.begin() +
-                            static_cast<std::ptrdiff_t>(bufferedBytes_));
+            for (std::size_t index = 0; index < copyBytes; ++index)
+                buffer_[bufferedBytes_ + index] = input[index];
             bufferedBytes_ += copyBytes;
             consumed += copyBytes;
             if (bufferedBytes_ == buffer_.size())
@@ -122,9 +121,8 @@ public:
         const std::size_t remaining = input.size() - consumed;
         if (remaining != 0)
         {
-            std::copy_n(
-                input.begin() + static_cast<std::ptrdiff_t>(consumed),
-                remaining, buffer_.begin());
+            for (std::size_t index = 0; index < remaining; ++index)
+                buffer_[index] = input[consumed + index];
             bufferedBytes_ = remaining;
         }
     }

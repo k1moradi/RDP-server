@@ -1,3 +1,38 @@
+## R9 exact-head CI repair after concurrent R10/R5/R3/R7 work (2026-10-20)
+
+**Publication parent:** `9620f5b78ac753e485125197a08d80a379f27029`. The failing evidence under repair remains
+exact-head run `39468550998` at `4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`. The intervening R5/R3/R7
+commits do not change the six failing R9 production/source-guard files; the R7
+HostControl additions were rechecked and preserve the Start transaction and
+single current-owner authority.
+
+R9 repairs the four Ubuntu source-contract regressions without restoring
+obsolete spelling. HostControl is required to own exactly one R2 current-owner
+authority; Start is checked inside `startSharing()` as the semantic transaction
+credentials -> owner authorization -> endpoint revalidation -> TLS identity ->
+bind -> bound identity -> policy -> listener publication; the PAM attempt
+limiter remains between configured GSS and the authority-aware R2 broker; and
+cooperative Stop is scoped to the actual terminal helper, preserving native
+no-XTEST retirement before the accepted R3/R2/R1 aggregate and the outer
+listener lifetime.
+
+The full GUI order remains the R10X composition contract already documented by
+R5: owner-authority invalidation -> R8/native X11 retirement -> accepted
+R3/R2/R1 connection -> listener. R9 does not manufacture that not-yet-integrated
+HostControl/X11 ownership as source evidence; the existing bounded GUI scheduler
+guard pins owner-authority -> accepted-connection -> listener until R10X lands.
+
+The same correction removes two compiler blockers without suppressing warnings.
+C++ systemd errors use aggregate zero-initialization instead of the C99
+compound-literal `SD_BUS_ERROR_NULL` macro, and MD4's bounded staging copies
+use explicit indexed byte loops so GCC 13 cannot lower the copy through the
+observed false `-Warray-bounds` path.
+
+Exact-publication-SHA hosted CI is **PENDING**. FIRST REAL DESKTOP TEST remains
+blocked on R10X plus one nominated exact SHA with every ordinary hosted lane
+green. Clean Windows remains a separate self-hosted operational blocker; keep
+the nominated artifact/SHA identity and do not substitute another SHA.
+
 ## R7 authoritative accepted-client / native-desktop status projection (2026-10-20)
 
 Starting shared-main parent: `68332b57ef12b5fc6ab9e51bbec1bc7c2c91a9ae`.

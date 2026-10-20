@@ -101,9 +101,13 @@ string(FIND "${connection_source}"
     "securityConfiguration_.configureAcceptor(acceptor_)" security_provider)
 string(FIND "${connection_source}"
     "acceptor_.bindVerifiedAccountAttemptLimiter(" bind_budget)
-string(FIND "${connection_source}" "broker_.emplace(*policy)" broker_owner)
+string(FIND "${connection_source}" "broker_.emplace(" broker_owner)
+string(REGEX MATCH
+    "broker_[.]emplace[(][ \t\r\n]*[*]policy[ \t\r\n]*,[ \t\r\n]*ownerSharingAuthority[ \t\r\n]*[)]"
+    authority_aware_broker "${connection_source}")
 if(security_provider EQUAL -1 OR bind_budget EQUAL -1 OR
-   broker_owner EQUAL -1 OR security_provider GREATER bind_budget OR
-   bind_budget GREATER broker_owner)
-    message(FATAL_ERROR "Budget must bind between configured GSS and R2 broker")
+   broker_owner EQUAL -1 OR authority_aware_broker STREQUAL "" OR
+   security_provider GREATER bind_budget OR bind_budget GREATER broker_owner)
+    message(FATAL_ERROR
+        "Budget must bind between configured GSS and authority-aware R2 broker")
 endif()

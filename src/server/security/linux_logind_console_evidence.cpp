@@ -122,7 +122,7 @@ struct SdBusMessageDeleter final
     }
     const std::unique_ptr<sd_bus, SdBusDeleter> bus(rawBus);
 
-    sd_bus_error getSessionError = SD_BUS_ERROR_NULL;
+    sd_bus_error getSessionError{};
     sd_bus_message *rawReply = nullptr;
     const int getSessionStatus = ::sd_bus_call_method(
         bus.get(), "org.freedesktop.login1", "/org/freedesktop/login1",
@@ -139,7 +139,7 @@ struct SdBusMessageDeleter final
         return ConsoleDesktopLockState::Unknown;
 
     int locked = 0;
-    sd_bus_error lockError = SD_BUS_ERROR_NULL;
+    sd_bus_error lockError{};
     const int lockStatus = ::sd_bus_get_property_trivial(
         bus.get(), "org.freedesktop.login1", sessionPath,
         "org.freedesktop.login1.Session", "LockedHint",

@@ -1,3 +1,16 @@
+## R9 C++ portability fixes for hosted Clang/GCC (2026-10-20)
+
+In C++ translation units, initialize `sd_bus_error` with C++ aggregate
+zero-initialization (`sd_bus_error error{};`). Do not use
+`SD_BUS_ERROR_NULL` there: current systemd headers expand it through a C99
+compound literal that the bounded Clang sanitizer lane rejects under
+`-Werror,-Wc99-extensions`.
+
+Keep the standalone NTLMv2 MD4 owner warning-clean on GCC 13 without disabling
+`-Warray-bounds`. Its staging copies remain explicitly bounded and use direct
+indexed byte copies; warning suppression, optimization barriers, or a different
+CI compiler are not acceptance.
+
 ## R10 Linux desktop shared configuration feed (2026-10-20)
 
 When Linux production runtime security is built, the desktop may be launched

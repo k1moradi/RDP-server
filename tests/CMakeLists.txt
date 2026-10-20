@@ -606,6 +606,7 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-frame-credit-preflight
                 dvc-graphics-surface-remap
                 dvc-graphics-first-client-acceptance-observability
+                dvc-graphics-r4-acceptance-status-projection
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial

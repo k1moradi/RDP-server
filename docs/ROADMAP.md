@@ -1,3 +1,34 @@
+## R4 direct first-live lifecycle projection after R10X (2026-10-20)
+
+**Starting shared-main parent:** `e826b8fae92b6a8d3e74d3e5f2de5d4e2129efb4`.
+
+R10X is landed and source review confirms its bounded GUI lifetime preserves the
+existing R4 contract: remap before frame-credit preflight, nonterminal
+`DeferredForFrameAcknowledge` before capture/frame-ID advance, synchronous R5
+borrow into mandatory ClearCodec publication, one R1/R3 graphics write owner,
+and genuine post-Share FRAME_ACK intake through R4's sole ACK window. R8's
+dormant clipboard composition introduces no second graphics/ACK owner.
+
+The existing bounded first-client snapshot now projects R4's exact
+`firstExactFrameWriteCommitted`, authoritative
+`outstandingFrameAcknowledgements` and
+`firstGenuineFrameAcknowledge` values alongside
+`firstClearCodecFramePrepared`. Legacy first-frame/ACK summary booleans are
+sourced from those same R4 values; private R3 latches remain only to de-duplicate
+the bounded event ring. No frame ID, ACK set, publication credit, codec switch
+or transport state is added.
+
+Dedicated ordinary CTest:
+`transport.dvc-graphics-r4-acceptance-status-projection`. The hosted
+Graphics-DVC inventory advances 22 -> 23 and the independent CI structure
+validator requires the same sentinel/count.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Publication-SHA hosted CI: **PENDING**. FIRST REAL DESKTOP remains
+blocked on one all-green nominated exact-main SHA plus explicit owner
+authorization for the live test. ClearCodec remains the required first live
+codec; AVC420 remains secondary.
+
 ## Exact-head five-test contract reconciliation after R8/R2 composition (2026-10-20)
 
 Exact-main SHA `ce396d9633e54e8c4cb6188ee7f6de5c2fe32e19` compiled successfully on Ubuntu but full Debug CTest

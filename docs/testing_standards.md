@@ -520,6 +520,13 @@ existing receipt identities. Do not add a trace-only frame counter or ACK set.
 | Is this ordinary ACK backpressure? | Existing preflight returns `DeferredForFrameAcknowledge` and R4 reports 64 outstanding ACKs while acknowledgements are expected. | This is nonterminal: service real client DATA/ACK/SUSPEND intake and retry without capture or frame-ID advance. |
 | Is publication terminally rejected? | Existing preflight returns `Rejected`, including duplicate/stale/invalid lifecycle cases; R3 also retains the retired-surface ID fence. | Do not reinterpret as backpressure or invent credit; follow the existing terminal publication path. |
 
+The bounded first-client diagnostic snapshot must source
+`firstExactFrameWriteCommitted`, `outstandingFrameAcknowledgements` and
+`firstGenuineFrameAcknowledge` directly from
+`GfxPresentationAcceptanceStatus`; do not cache a second ACK count or delivery
+truth in R3/R10. Event-ring Boolean latches may exist only to suppress duplicate
+event entries.
+
 A full R1 plaintext commitment is not client-visible proof. The first Microsoft-
 client acceptance trace must correlate native capture, ClearCodec preparation,
 exact outer write completion, the authoritative outstanding count and a genuine

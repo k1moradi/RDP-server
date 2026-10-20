@@ -1539,15 +1539,24 @@ McsSessionLifecycle::firstClientAcceptanceObservability() const noexcept
     result.graphicsControlReady = firstClientAcceptanceGraphicsControlReady_;
     result.surfaceCreated = firstClientAcceptanceSurfaceCreated_;
     result.surfaceMapped = firstClientAcceptanceSurfaceMapped_;
-    result.firstFramePublicationAccepted =
-        firstClientAcceptanceFramePublicationAccepted_;
-    result.firstFrameAcknowledge = firstClientAcceptanceFrameAcknowledge_;
 
     const auto r4Status =
         graphicsDynamicVirtualChannel_.presentationLifecycle_.
             acceptanceStatus();
+    // The event latches remain only for bounded event-ring de-duplication.
+    // Public frame-delivery/ACK truth comes from the one R4 lifecycle owner.
+    result.firstFramePublicationAccepted =
+        r4Status.firstExactFrameWriteCommitted;
+    result.firstFrameAcknowledge =
+        r4Status.firstGenuineFrameAcknowledge;
     result.firstClearCodecFramePrepared =
         r4Status.firstClearCodecFramePrepared;
+    result.firstExactFrameWriteCommitted =
+        r4Status.firstExactFrameWriteCommitted;
+    result.outstandingFrameAcknowledgements =
+        r4Status.outstandingFrameAcknowledgements;
+    result.firstGenuineFrameAcknowledge =
+        r4Status.firstGenuineFrameAcknowledge;
     result.resizeRemapInProgress =
         graphicsDynamicVirtualChannel_.replacementSurfaceId_ != 0U;
 

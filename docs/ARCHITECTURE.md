@@ -508,10 +508,15 @@ frame counter or delivery truth. Resize start/reject comes from the existing R3
 surface-reconfiguration decision, and completion is correlated from R3's
 already-owned replacement-surface state through the final MAP receipt.
 
-The first live desktop path remains ClearCodec. R3 exposes R4's existing
-`firstClearCodecFramePrepared` Boolean only as non-authorizing status so a live
-acceptance trace can prove that fallback was used; this does not enable AVC420
-or alter any RDPGFX wire behavior.
+The first live desktop path remains ClearCodec. R3's bounded snapshot projects
+R4's existing `firstClearCodecFramePrepared`,
+`firstExactFrameWriteCommitted`, authoritative
+`outstandingFrameAcknowledgements` and
+`firstGenuineFrameAcknowledge` values as non-authorizing evidence. The legacy
+first-frame/ACK summary booleans are aliases sourced from the same R4 snapshot;
+private R3 latches exist only to de-duplicate event-ring entries. No frame ID,
+ACK set or publication credit crosses this observation boundary, and the
+projection does not enable AVC420 or alter any RDPGFX wire behavior.
 
 ## R8 prepared Linux clipboard composition boundary (2026-10-19)
 

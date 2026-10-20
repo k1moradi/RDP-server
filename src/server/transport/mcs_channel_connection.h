@@ -1499,9 +1499,16 @@ struct RdpFirstClientAcceptanceObservability
     bool graphicsControlReady{};
     bool surfaceCreated{};
     bool surfaceMapped{};
+    // Backward-compatible event-summary aliases plus the exact R4 lifecycle
+    // observations needed by the first-live trace. The ACK count is copied
+    // directly from R4's one GfxFrameAckWindow; none of these fields owns
+    // publication credit or frame identity.
     bool firstFramePublicationAccepted{};
     bool firstFrameAcknowledge{};
     bool firstClearCodecFramePrepared{};
+    bool firstExactFrameWriteCommitted{};
+    std::size_t outstandingFrameAcknowledgements{};
+    bool firstGenuineFrameAcknowledge{};
     bool resizeRemapInProgress{};
 
     [[nodiscard]] std::span<const RdpFirstClientAcceptanceEvent>

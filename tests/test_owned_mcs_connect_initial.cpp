@@ -5225,6 +5225,10 @@ void testFirstClientAcceptanceObservability()
     assert(empty.eventView().empty());
     assert(empty.latestEventSequence == 0U);
     assert(empty.droppedEventCount == 0U);
+    assert(!empty.firstClearCodecFramePrepared);
+    assert(!empty.firstExactFrameWriteCommitted);
+    assert(empty.outstandingFrameAcknowledgements == 0U);
+    assert(!empty.firstGenuineFrameAcknowledge);
 
     assert(McsSessionLifecycleTestAccess::stagePostShareClassifier(session));
     McsSessionLifecycleTestAccess::stageFirstClientAcceptanceFoundations(
@@ -5299,6 +5303,12 @@ void testFirstClientAcceptanceObservability()
         static_cast<std::size_t>(geometry.widthPixels) * bytesPerPixel};
     assert(McsSessionLifecycleTestAccess::beginClearCodecFrame(
         session, 100U, framebuffer));
+    const auto prepared =
+        session.firstClientAcceptanceObservability();
+    assert(prepared.firstClearCodecFramePrepared);
+    assert(!prepared.firstExactFrameWriteCommitted);
+    assert(prepared.outstandingFrameAcknowledgements == 0U);
+    assert(!prepared.firstGenuineFrameAcknowledge);
 
     WriteOutcome frameOutcome = WriteOutcome::Pending;
     for (std::size_t attempt = 0U;
@@ -5312,8 +5322,14 @@ void testFirstClientAcceptanceObservability()
                 session, *write);
     }
     assert(frameOutcome == WriteOutcome::Delivered);
-    assert(session.firstClientAcceptanceObservability().
-        firstClearCodecFramePrepared);
+    const auto committed =
+        session.firstClientAcceptanceObservability();
+    assert(committed.firstClearCodecFramePrepared);
+    assert(committed.firstFramePublicationAccepted);
+    assert(committed.firstExactFrameWriteCommitted);
+    assert(committed.outstandingFrameAcknowledgements == 1U);
+    assert(!committed.firstFrameAcknowledge);
+    assert(!committed.firstGenuineFrameAcknowledge);
 
     assert(McsSessionLifecycleTestAccess::acceptGraphics(
                session,
@@ -5322,6 +5338,13 @@ void testFirstClientAcceptanceObservability()
            RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
     assert(McsSessionLifecycleTestAccess::consumeFrameAcknowledge(session) ==
            RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    const auto acknowledged =
+        session.firstClientAcceptanceObservability();
+    assert(acknowledged.firstFramePublicationAccepted);
+    assert(acknowledged.firstExactFrameWriteCommitted);
+    assert(acknowledged.firstFrameAcknowledge);
+    assert(acknowledged.firstGenuineFrameAcknowledge);
+    assert(acknowledged.outstandingFrameAcknowledgements == 0U);
 
     assert(McsSessionLifecycleTestAccess::beginSurfaceReconfiguration(
                session, {80U, 64U}) ==
@@ -12362,7 +12385,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 165> kMcsTestCases{{
+constexpr std::array<McsTestCase, 166> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -12507,6 +12530,8 @@ constexpr std::array<McsTestCase, 165> kMcsTestCases{{
     {"dvc-graphics-frame-credit-preflight", &testGraphicsFrameCreditPreflight},
     {"dvc-graphics-surface-remap", &testGraphicsSurfaceRemap},
     {"dvc-graphics-first-client-acceptance-observability",
+     &testFirstClientAcceptanceObservability},
+    {"dvc-graphics-r4-acceptance-status-projection",
      &testFirstClientAcceptanceObservability},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},

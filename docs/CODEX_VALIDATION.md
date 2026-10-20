@@ -1,3 +1,23 @@
+## R4 first-live acceptance projection authoring receipt (2026-10-20)
+
+Starting shared-main parent: `e826b8fae92b6a8d3e74d3e5f2de5d4e2129efb4`.
+
+Source review of landed R10X plus current dormant R8 clipboard composition:
+**PASS** for R4 ownership/order. No codec, frame-credit, ACK-window, remap or
+transport behavior change is required.
+
+The bounded R3 first-client snapshot now copies ClearCodec preparation, exact
+full-frame commitment, authoritative outstanding ACK count and first genuine
+matching FRAME_ACK directly from R4's existing
+`GfxPresentationAcceptanceStatus`. Dedicated
+`transport.dvc-graphics-r4-acceptance-status-projection` pins
+prepared -> committed/outstanding -> acknowledged transitions through the
+production R3/R4 path. Hosted Graphics-DVC inventory is 23.
+
+Connector environment canonical build/full CTest: **NOT RUN**. Exact
+publication-SHA hosted CI: **PENDING**. No listener, credentials, live desktop,
+XTEST or Microsoft client was activated.
+
 ## Ubuntu exact-head five-failure triage receipt (2026-10-20)
 
 At `ce396d9633e54e8c4cb6188ee7f6de5c2fe32e19`, Ubuntu Debug compiled and ran 838 CTests; 833 passed and five

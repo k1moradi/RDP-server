@@ -541,7 +541,9 @@ public:
         LinuxRuntimeSecurityConfiguration &securityConfiguration,
         rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
         rdp_server::server::security::AuthenticationAttemptLimiter
-            *attemptLimiter = nullptr) noexcept;
+            *attemptLimiter = nullptr,
+        const rdp_server::server::security::CurrentOwnerSharingAuthority
+            *ownerSharingAuthority = nullptr) noexcept;
     ~LinuxRuntimeConnection();
 
     LinuxRuntimeConnection(const LinuxRuntimeConnection &) = delete;

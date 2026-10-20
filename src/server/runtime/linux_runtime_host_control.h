@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include "server/runtime/runtime_host_control.h"
+#include "server/security/current_owner_sharing_authority.h"
 #include "server/transport/lan_listener.h"
 #include <optional>
 #include <string_view>
@@ -48,13 +49,18 @@ public:
 private:
     [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] RuntimeHostResult deny(RuntimeHostError error) noexcept;
-    void retireStoppedRuntime() noexcept;
+    void retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
 
     const std::thread::id ownerThread_;
     RuntimeHostOptions selection_{};
     RuntimeHostStage stage_{RuntimeHostStage::Stopped};
     RuntimeHostError lastError_{RuntimeHostError::HostConsentRequired};
     bool selectionConfigured_{};
+    // R2's host-lifetime authority must outlive every admission broker that
+    // may borrow it from a future accepted LinuxRuntimeConnection.
+    rdp_server::server::security::CurrentOwnerSharingAuthority
+        ownerSharingAuthority_{};
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.
     rdp_server::server::transport::OwnedLanListener listener_{};
 };

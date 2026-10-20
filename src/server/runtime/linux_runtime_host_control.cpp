@@ -105,8 +105,10 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
     : ownerThread_(std::this_thread::get_id()) {}
 LinuxRuntimeHostControl::~LinuxRuntimeHostControl()
 {
-    // The owning event-loop thread destroys this after GUI shutdown.
-    retireStoppedRuntime();
+    // The owning event-loop thread destroys this after GUI shutdown. R2 is
+    // invalidated before any later-stage R1 listener retirement.
+    retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
 }
 
 bool LinuxRuntimeHostControl::onOwnerThread() const noexcept
@@ -181,7 +183,12 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.listenerAvailable = listenerCurrent;
     snapshot.listenerGeneration =
         listenerCurrent ? listener_.generation() : 0U;
-    // Credentials, R2 consent, TLS identity and desktop remain unproven.
+    // Status observes the same R2 owner used by admission. This remains false
+    // today; a future positive provider cannot be replaced by a GUI Boolean.
+    snapshot.hostOwnerAuthorized =
+        ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission);
+    // Credentials, TLS identity and native desktop remain unproven.
     return snapshot;
 }
 
@@ -232,7 +239,20 @@ RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup()
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
-    // A GUI request cannot mint an R2 consent capability.
+    if (stage_ == RuntimeHostStage::Revoked)
+        return deny(RuntimeHostError::AccessRevoked);
+
+    // Marshal only bounded, non-authorizing intent to the real R2 host owner.
+    // Request the complete product scope as an upper bound; the future trusted
+    // native interaction must choose the actual granted scope and deadline.
+    const auto result = ownerSharingAuthority_.requestConsent({
+        rdp_server::server::security::kConsoleAllowedPermissions,
+        rdp_server::server::security::kMaximumOwnerSharingLifetimeMilliseconds});
+    if (result ==
+        rdp_server::server::security::OwnerConsentRequestResult::InvalidIntent)
+        return deny(RuntimeHostError::InvalidConfiguration);
+
+    // Current portable Linux/X11 R2 has no trusted positive provider.
     return deny(RuntimeHostError::HostConsentRequired);
 }
 
@@ -261,17 +281,22 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     return deny(RuntimeHostError::HostConsentRequired);
 }
 
-void LinuxRuntimeHostControl::retireStoppedRuntime() noexcept
+void LinuxRuntimeHostControl::retireStoppedRuntime(
+    rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept
 {
-    // No client, input, frame, observer or admission lease can exist yet.
-    // Positive Start must retire each before this R1 listener is destroyed.
+    // Security-significant host teardown order: invalidate R2 first so no
+    // protected operation can escape while later R3/R5/R1 owners retire.
+    // Accepted clients/native desktop are not owned here yet; they must be
+    // inserted between this revocation and the final listener close.
+    ownerSharingAuthority_.revoke(reason);
     listener_.close();
 }
 RuntimeHostResult LinuxRuntimeHostControl::stopSharing()
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
-    retireStoppedRuntime();
+    retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
     if (stage_ != RuntimeHostStage::Revoked)
     {
         stage_ = RuntimeHostStage::Stopped;
@@ -291,7 +316,9 @@ RuntimeHostResult LinuxRuntimeHostControl::revokeSharing()
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
-    retireStoppedRuntime();
+    retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason::
+            NativeAuthorizationLost);
     selection_ = {};
     selectionConfigured_ = false;
     stage_ = RuntimeHostStage::Revoked;

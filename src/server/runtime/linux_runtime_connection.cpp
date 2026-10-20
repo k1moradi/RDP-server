@@ -110,8 +110,9 @@ void LinuxRuntimeMcsTpktFrameReader::close() noexcept
 LinuxRuntimeConnection::LinuxRuntimeConnection(
     LinuxRuntimeSecurityConfiguration &securityConfiguration,
     rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
-    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter)
-    noexcept
+    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter,
+    const rdp_server::server::security::CurrentOwnerSharingAuthority
+        *ownerSharingAuthority) noexcept
     : securityConfiguration_(securityConfiguration),
       connection_(
           std::move(acceptedSocket),
@@ -139,7 +140,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
         return;
     }
 
-    broker_.emplace(*policy);
+    // The host-level R2 authority is borrowed for the complete connection
+    // lifetime. nullptr deliberately preserves the legacy deny-only caller.
+    broker_.emplace(*policy, ownerSharingAuthority);
     provisioned_ = true;
 }
 

@@ -1,3 +1,15 @@
+## R10 production R2 host-authority lifetime handoff (2026-10-19)
+
+`runtime.linux-host-control-r2-authority-lifetime-handoff` is an offline
+source regression over the production Linux HostControl and connection
+aggregate. It requires one R2 `CurrentOwnerSharingAuthority` owned by R10,
+bounded consent intent routed through that owner, R2 revocation before R1
+listener close, and forwarding of the same host authority into
+`LinuxConsoleAdmissionBroker` for future accepted connections. It must not
+construct a positive owner lease, bind a listener, authenticate a user or
+substitute a GUI/test Boolean for R2. Positive HostControl tests remain blocked
+until the reviewed native R2 provider can issue its real opaque lease.
+
 ## R4 first-client visible-frame/FRAME_ACK trace checklist (2026-10-19)
 
 Use one frame ID from the existing R3/R4 publication path and preserve its

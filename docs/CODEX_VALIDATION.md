@@ -1,3 +1,20 @@
+## R10 host-owner authority lifetime handoff (2026-10-19)
+
+Inspected current shared main before publication. The Linux GUI HostControl now
+owns the production R2 `CurrentOwnerSharingAuthority`, sends bounded
+non-authorizing full-scope intent through it, invalidates that authority before
+closing its R1 `OwnedLanListener`, and exposes only the same authority's
+read-only view authorization in status. `LinuxRuntimeConnection` gains an
+optional service-lifetime authority borrow and forwards it into
+`LinuxConsoleAdmissionBroker`; legacy callers that omit it remain deny-only.
+Added `runtime.linux-host-control-r2-authority-lifetime-handoff`, an offline
+source regression that opens no socket and fabricates no positive owner lease.
+The CMake script itself was syntax-checked in the connector execution
+environment. Native C++ build/full CTest: **NOT RUN** because the connector has
+no approved project checkout/toolchain. Positive R2 provider, GUI credential/TLS
+provisioning, authorized LAN bind and Microsoft-client acceptance remain
+**BLOCKED / NOT RUN**.
+
 ## R5 physical X11 acceptance-harness preflight (2026-10-19)
 
 **Authoring parent:** `19e92d6d90244223bff772e1506232205e123597`.

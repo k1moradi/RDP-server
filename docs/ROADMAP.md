@@ -1,3 +1,25 @@
+## R10 P0 positive-Start prerequisite wiring (2026-10-19)
+
+R10 now owns one production `CurrentOwnerSharingAuthority` in
+`LinuxRuntimeHostControl`, marshals bounded full-scope GUI intent to that R2
+owner, revokes R2 before its R1 listener on Stop/Revoke/destruction, and lets a
+future accepted `LinuxRuntimeConnection` borrow that same host authority so
+`LinuxConsoleAdmissionBroker` no longer has to use the legacy no-authority
+constructor. The current Linux/X11 authority still cannot grant a positive
+lease, so this change opens no listener and adds no test-only grant path.
+Dedicated offline regression:
+`runtime.linux-host-control-r2-authority-lifetime-handoff`.
+
+**Still blocked for the first legitimate positive GUI Start:** R2 must land the
+reviewed positive owner lease/provider. In addition, the current Qt
+`LinuxRuntimeHostControl` still has no service-lifetime feed for the already
+existing Kerberos/PAM identity configuration and TLS certificate/private-key
+owners; `requestCredentialSetup(ExistingOsAccount)` therefore remains
+`CredentialProviderUnavailable`. Do not mark credentials/TLS ready from the
+button alone. The next R10 composition must reuse the existing validated
+runtime-security/TLS owners and persistent Linux connection/X11 runtime rather
+than invent parallel configuration, transport or session state.
+
 ## R4 first-client acceptance instrumentation authored (2026-10-19)
 
 R4 now has a compact generation-scoped acceptance snapshot for first ClearCodec

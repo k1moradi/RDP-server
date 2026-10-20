@@ -1,3 +1,27 @@
+## R9 malformed runtime-security workflow reconstruction (2026-10-20)
+
+Starting shared-main parent: `bf3755dfa119420c0c5550aac937bb68749aa0dc`.
+
+Exact-head Actions at `bf3755dfa119420c0c5550aac937bb68749aa0dc` failed before build/test evidence:
+independent structure run `39479019701` reported a YAML parse failure and the
+primary workflow could not create jobs. The R2 sanitizer-inventory edit had
+dropped the closing `$'` from `runtime_security_selection` and appended
+roughly one thousand duplicated workflow lines after the legitimate Linux GUI
+job tail.
+
+The workflow is reconstructed from last valid parent `c1ec4c675c68ad197254e43356dce2782681cf47` and
+reapplies only the intended R2 delta: add
+`runtime.linux-connection-standalone-authentication-selector-denials`, require
+it by exact name, and advance the executable-backed inventory from 40 to 41.
+The independent structure validator advances to the same exact-name/count
+contract. The landed R2 shared-proof input-route C++ and test changes on the
+starting parent are preserved.
+
+Owner-local canonical build/full CTest: **NOT RUN** in this connector
+environment. Failing workflow evidence: **CONFIRMED**. Corrective exact-SHA
+hosted CI: **PENDING**. R10X remains resolved; FIRST REAL DESKTOP TEST still
+requires a fully green nominated exact SHA plus owner-approved live execution.
+
 ## R2/R5 shared-proof input-route compile correction (2026-10-20)
 
 Exact-SHA CI for `c1ec4c675c68ad197254e43356dce2782681cf47` passed the production Linux security build but the

@@ -1,3 +1,15 @@
+## Runtime-security sanitizer inventory changes are atomic CI structure (2026-10-20)
+
+The direct Linux runtime-security sanitizer selector contains **41**
+executable-backed cases. The 41st is
+`runtime.linux-connection-standalone-authentication-selector-denials`.
+Whenever this inventory changes, update the selector regex, exact-name sentinel,
+numeric count and `scripts/validate_ci_workflow.py` required tokens together.
+
+Malformed or duplicated workflow YAML is CI-authoring failure, not protocol or
+sanitizer evidence. The independent structure workflow must reject it before
+heavyweight jobs.
+
 ## R2 standalone selector sanitizer inventory (2026-10-20)
 
 The bounded Linux runtime-security sanitizer selection contains 41

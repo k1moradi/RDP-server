@@ -1,3 +1,22 @@
+## R9 runtime-security workflow reconstruction receipt (2026-10-20)
+
+Starting shared-main parent: `bf3755dfa119420c0c5550aac937bb68749aa0dc`.
+
+First failing boundary is CI authoring, before compilation. Structure Actions
+`39479019701` failed YAML parsing; the primary workflow created no jobs. The
+malformed head contained an unterminated runtime-security selector and a
+duplicated workflow tail.
+
+Correction is fail-closed: reconstruct `.github/workflows/ci.yml` from valid
+parent `c1ec4c675c68ad197254e43356dce2782681cf47`, apply only the 41st standalone-selector case, exact-name
+sentinel and count, and advance `scripts/validate_ci_workflow.py` to require
+that same contract. No production C++ behavior changes in this corrective
+commit.
+
+Local canonical build/full CTest: **NOT RUN**. Corrective exact-SHA hosted CI:
+**PENDING**. No listener, credentials, native desktop, service or Microsoft
+client was activated.
+
 ## R2/R5 shared-proof compile-fix receipt (2026-10-20)
 
 Exact-SHA hosted run for `c1ec4c675c68ad197254e43356dce2782681cf47` proved

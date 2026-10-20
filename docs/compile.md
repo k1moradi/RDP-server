@@ -1,3 +1,12 @@
+## R9 runtime-security sanitizer selector is 41 cases (2026-10-20)
+
+The bounded Linux ASan/UBSan direct runtime-security inventory is **41** cases
+after the standalone authentication-selector denial regression joined the
+production connection aggregate. Keep the regex, explicit sentinel and
+structure-validator count synchronized. If workflow authoring duplicates job
+bodies, reconstruct from a known-valid parent rather than deleting arbitrary
+fragments from malformed YAML.
+
 ## R9 Linux sanitizer clipboard inventory reconciliation (2026-10-20)
 
 The Linux ASan/UBSan job pins 88 `clipboard`-labelled tests after R8 added

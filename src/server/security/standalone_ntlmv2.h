@@ -44,6 +44,18 @@ enum class NtlmV2VerifyResult : std::uint8_t
     CryptoFailure,
 };
 
+inline constexpr std::size_t kNtlmMessageSignatureBytes = 16U;
+
+enum class NtlmMessageSecurityResult : std::uint8_t
+{
+    Processed,
+    Inactive,
+    InvalidInput,
+    InvalidSignature,
+    SequenceExhausted,
+    CryptoFailure,
+};
+
 struct NtlmV2AuthenticateRequest final
 {
     NtlmServerChallenge serverChallenge{};
@@ -86,11 +98,34 @@ public:
     [[nodiscard]] std::span<const std::uint8_t, kNtlmV2KeyBytes>
     serverSealingKey() const noexcept { return serverSealingKey_; }
 
+    [[nodiscard]] bool verifyAuthenticateMessageMic(
+        std::span<const std::uint8_t> negotiateMessage,
+        std::span<const std::uint8_t> challengeMessage,
+        std::span<const std::uint8_t> authenticateMessage,
+        std::size_t micOffset) const noexcept;
+
+    [[nodiscard]] NtlmMessageSecurityResult unwrapClientMessage(
+        std::span<const std::uint8_t> sealedMessage,
+        std::span<const std::uint8_t, kNtlmMessageSignatureBytes> signature,
+        std::span<std::uint8_t> plaintext) noexcept;
+    [[nodiscard]] NtlmMessageSecurityResult wrapServerMessage(
+        std::span<const std::uint8_t> plaintext,
+        std::span<std::uint8_t> sealedMessage,
+        std::span<std::uint8_t, kNtlmMessageSignatureBytes> signature) noexcept;
+
     void clear() noexcept;
 
 private:
     friend class EphemeralNtlmV2Credential;
     friend struct StandaloneNtlmV2TestAccess;
+
+    struct Rc4StreamState final
+    {
+        std::array<std::uint8_t, 256> permutation{};
+        std::uint8_t i{};
+        std::uint8_t j{};
+        bool initialized{};
+    };
 
     void activate(
         const NtlmV2Key &sessionBaseKey,
@@ -98,7 +133,16 @@ private:
         const NtlmV2Key &clientSigningKey,
         const NtlmV2Key &serverSigningKey,
         const NtlmV2Key &clientSealingKey,
-        const NtlmV2Key &serverSealingKey) noexcept;
+        const NtlmV2Key &serverSealingKey,
+        std::uint32_t negotiateFlags) noexcept;
+
+    static void initializeRc4Stream(
+        Rc4StreamState &state,
+        std::span<const std::uint8_t, kNtlmV2KeyBytes> key) noexcept;
+    static void cryptRc4Stream(
+        Rc4StreamState &state,
+        std::span<const std::uint8_t> input,
+        std::span<std::uint8_t> output) noexcept;
 
     NtlmV2Key sessionBaseKey_{};
     NtlmV2Key exportedSessionKey_{};
@@ -106,6 +150,11 @@ private:
     NtlmV2Key serverSigningKey_{};
     NtlmV2Key clientSealingKey_{};
     NtlmV2Key serverSealingKey_{};
+    Rc4StreamState clientRc4_{};
+    Rc4StreamState serverRc4_{};
+    std::uint32_t negotiateFlags_{};
+    std::uint32_t clientSequence_{};
+    std::uint32_t serverSequence_{};
     bool active_{};
 };
 

@@ -1,3 +1,30 @@
+## R2 standalone NTLM transcript/message-security authoring receipt (2026-10-20)
+
+Starting shared-main parent: `df0eb78299f5be94d1325ebb36727746f5866f28`. Dependency inspection found the
+positive M1 owner authority and corrected standalone NTLMSSP Type 1/2/3 framing
+already landed, so R2P could continue without waiting for R10's separate
+positive-Start credential/TLS composition.
+
+Source adds exact Type 3 MIC verification plus stateful connection-oriented
+client unwrap and server wrap to the existing noncopyable
+`NtlmV2SecurityContext`. The implementation follows MS-NLMP Extended Session
+Security: HMAC-MD5 over LE sequence || plaintext, continuous directional RC4
+sealing, KEY_EXCH checksum encryption and 16-byte signature sequencing. A
+post-consumption mismatch cleanses plaintext and clears the entire context.
+
+New ordinary offline CTests are
+`security.ntlmv2-transcript-mic-verification`,
+`security.ntlmv2-session-security-sign-seal-known-answer`, and
+`security.ntlmv2-session-security-tamper-revokes`.
+
+Microsoft Open Specifications source review: **PASS**. Local canonical
+configure/build/full CTest: **NOT RUN** because shell checkout creation failed
+at DNS resolution for github.com; no alternate persistent build root was
+created. Exact publication-SHA hosted CI: **PENDING**. No listener, desktop,
+credential prompt, service or client was activated. Remaining R2P: SPNEGO token
+state, CredSSP pubKeyAuth/authInfo integration, GUI memory-only credential
+ownership and real Microsoft-client acceptance.
+
 ## R2 NTLMSSP fixed Version-field authoring correction (2026-10-20)
 
 The initial NTLMSSP framing publication

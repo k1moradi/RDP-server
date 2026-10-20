@@ -1,3 +1,24 @@
+## R2 standalone NTLM transcript / SIGN-SEAL boundary (2026-10-20)
+
+The independent-password path keeps one security-context owner. After the
+existing NTLMv2 proof derives ExportedSessionKey plus directional signing and
+sealing keys, that same noncopyable `NtlmV2SecurityContext` owns transcript
+MIC verification, both continuous connection-oriented RC4 streams and both
+sequence counters. No second mechanism/session owner is introduced.
+
+AUTHENTICATE_MESSAGE MIC verification is over the exact received Type 1, exact
+server-emitted Type 2 and exact Type 3 bytes with only the 16-byte MIC region
+replaced by zeroes. CredSSP application protection uses plaintext for HMAC,
+then the direction's continuous RC4 stream for message sealing and, under
+KEY_EXCH, for the eight-byte checksum. The sequence number is encoded in the
+16-byte Extended Session Security signature and advances only on successful
+processing. Any failure after stream consumption clears the whole context.
+
+This boundary is cryptographic mechanism state only. SPNEGO owns selection and
+token sequencing; CredSSP owns TSRequest/TLS provenance; R2 admission still
+requires the independent current-owner lease and policy. A parser success or a
+valid NTLM signature cannot authorize desktop access.
+
 ## R2 standalone NTLMSSP wire boundary (2026-10-20)
 
 The independent-password provider reuses the existing

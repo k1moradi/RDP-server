@@ -1,3 +1,14 @@
+## R2 standalone NTLM MIC and message-security tests (2026-10-20)
+
+Every standalone NTLM message-security increment must run under ordinary full
+CTest without network, GUI or native login dependencies. Pin three independent
+behaviors: exact transcript MIC success plus mutation denial; deterministic
+client unwrap/server wrap bytes for sequence zero using the Microsoft-derived
+known-answer keys; and terminal context retirement with plaintext cleansing on
+a consumed-stream signature mismatch. Do not label these tests CredSSP/NLA or
+Microsoft-client interoperability until SPNEGO, TSRequest integration and a
+real client exchange exist.
+
 ## R2 standalone NTLMSSP framing tests (2026-10-20)
 
 Keep Type 1/2/3 framing in the noninstalled standalone credential target and

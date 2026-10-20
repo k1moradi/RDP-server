@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <limits>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -584,13 +585,52 @@ NtlmV2SecurityContext::~NtlmV2SecurityContext()
     clear();
 }
 
+void NtlmV2SecurityContext::initializeRc4Stream(
+    Rc4StreamState &state,
+    std::span<const std::uint8_t, kNtlmV2KeyBytes> key) noexcept
+{
+    for (std::size_t index = 0; index < state.permutation.size(); ++index)
+        state.permutation[index] = static_cast<std::uint8_t>(index);
+    std::uint8_t j = 0;
+    for (std::size_t index = 0; index < state.permutation.size(); ++index)
+    {
+        j = static_cast<std::uint8_t>(
+            j + state.permutation[index] + key[index % key.size()]);
+        std::swap(state.permutation[index], state.permutation[j]);
+    }
+    state.i = 0;
+    state.j = 0;
+    state.initialized = true;
+}
+
+void NtlmV2SecurityContext::cryptRc4Stream(
+    Rc4StreamState &state,
+    std::span<const std::uint8_t> input,
+    std::span<std::uint8_t> output) noexcept
+{
+    if (!state.initialized || input.size() != output.size())
+        return;
+    for (std::size_t index = 0; index < input.size(); ++index)
+    {
+        state.i = static_cast<std::uint8_t>(state.i + 1U);
+        state.j = static_cast<std::uint8_t>(
+            state.j + state.permutation[state.i]);
+        std::swap(state.permutation[state.i], state.permutation[state.j]);
+        const std::uint8_t keyByte =
+            state.permutation[static_cast<std::uint8_t>(
+                state.permutation[state.i] + state.permutation[state.j])];
+        output[index] = input[index] ^ keyByte;
+    }
+}
+
 void NtlmV2SecurityContext::activate(
     const NtlmV2Key &sessionBaseKey,
     const NtlmV2Key &exportedSessionKey,
     const NtlmV2Key &clientSigningKey,
     const NtlmV2Key &serverSigningKey,
     const NtlmV2Key &clientSealingKey,
-    const NtlmV2Key &serverSealingKey) noexcept
+    const NtlmV2Key &serverSealingKey,
+    std::uint32_t negotiateFlags) noexcept
 {
     clear();
     sessionBaseKey_ = sessionBaseKey;
@@ -599,7 +639,137 @@ void NtlmV2SecurityContext::activate(
     serverSigningKey_ = serverSigningKey;
     clientSealingKey_ = clientSealingKey;
     serverSealingKey_ = serverSealingKey;
+    negotiateFlags_ = negotiateFlags;
+    initializeRc4Stream(clientRc4_, clientSealingKey_);
+    initializeRc4Stream(serverRc4_, serverSealingKey_);
     active_ = true;
+}
+
+bool NtlmV2SecurityContext::verifyAuthenticateMessageMic(
+    std::span<const std::uint8_t> negotiateMessage,
+    std::span<const std::uint8_t> challengeMessage,
+    std::span<const std::uint8_t> authenticateMessage,
+    std::size_t micOffset) const noexcept
+{
+    if (!active_ || negotiateMessage.empty() || challengeMessage.empty() ||
+        micOffset > authenticateMessage.size() ||
+        kNtlmMessageSignatureBytes > authenticateMessage.size() - micOffset)
+        return false;
+
+    constexpr std::array<std::uint8_t, kNtlmMessageSignatureBytes> zeroMic{};
+    const std::array<ByteSpan, 5> parts{
+        ByteSpan{negotiateMessage}, ByteSpan{challengeMessage},
+        ByteSpan{authenticateMessage.first(micOffset)}, ByteSpan{zeroMic},
+        ByteSpan{authenticateMessage.subspan(
+            micOffset + kNtlmMessageSignatureBytes)}};
+    ScopedSecret<kNtlmV2KeyBytes> expectedMic;
+    if (!hmacMd5(exportedSessionKey_, parts, expectedMic.bytes))
+        return false;
+    const auto receivedMic = authenticateMessage.subspan(
+        micOffset, kNtlmMessageSignatureBytes);
+    return CRYPTO_memcmp(
+               expectedMic.bytes.data(), receivedMic.data(),
+               expectedMic.bytes.size()) == 0;
+}
+
+NtlmMessageSecurityResult NtlmV2SecurityContext::unwrapClientMessage(
+    std::span<const std::uint8_t> sealedMessage,
+    std::span<const std::uint8_t, kNtlmMessageSignatureBytes> signature,
+    std::span<std::uint8_t> plaintext) noexcept
+{
+    if (!active_) return NtlmMessageSecurityResult::Inactive;
+    if (sealedMessage.empty() || sealedMessage.size() != plaintext.size())
+        return NtlmMessageSecurityResult::InvalidInput;
+    if (clientSequence_ == (std::numeric_limits<std::uint32_t>::max)())
+    {
+        clear();
+        return NtlmMessageSecurityResult::SequenceExhausted;
+    }
+    if (loadLe32(signature.data()) != 1U ||
+        loadLe32(signature.data() + 12U) != clientSequence_)
+    {
+        clear();
+        return NtlmMessageSecurityResult::InvalidSignature;
+    }
+
+    cryptRc4Stream(clientRc4_, sealedMessage, plaintext);
+
+    std::array<std::uint8_t, 4> sequenceBytes{};
+    storeLe32(sequenceBytes.data(), clientSequence_);
+    const std::array<ByteSpan, 2> macParts{
+        ByteSpan{sequenceBytes}, ByteSpan{plaintext}};
+    ScopedSecret<kNtlmV2KeyBytes> digest;
+    if (!hmacMd5(clientSigningKey_, macParts, digest.bytes))
+    {
+        OPENSSL_cleanse(plaintext.data(), plaintext.size());
+        clear();
+        return NtlmMessageSecurityResult::CryptoFailure;
+    }
+
+    std::array<std::uint8_t, 8> expectedChecksum{};
+    std::copy_n(digest.bytes.begin(), expectedChecksum.size(),
+                expectedChecksum.begin());
+    if ((negotiateFlags_ & kNtlmNegotiateKeyExchange) != 0U)
+    {
+        cryptRc4Stream(
+            clientRc4_,
+            {expectedChecksum.data(), expectedChecksum.size()},
+            expectedChecksum);
+    }
+    if (CRYPTO_memcmp(expectedChecksum.data(), signature.data() + 4U,
+                      expectedChecksum.size()) != 0)
+    {
+        OPENSSL_cleanse(plaintext.data(), plaintext.size());
+        OPENSSL_cleanse(expectedChecksum.data(), expectedChecksum.size());
+        clear();
+        return NtlmMessageSecurityResult::InvalidSignature;
+    }
+    OPENSSL_cleanse(expectedChecksum.data(), expectedChecksum.size());
+    ++clientSequence_;
+    return NtlmMessageSecurityResult::Processed;
+}
+
+NtlmMessageSecurityResult NtlmV2SecurityContext::wrapServerMessage(
+    std::span<const std::uint8_t> plaintext,
+    std::span<std::uint8_t> sealedMessage,
+    std::span<std::uint8_t, kNtlmMessageSignatureBytes> signature) noexcept
+{
+    if (!active_) return NtlmMessageSecurityResult::Inactive;
+    if (plaintext.empty() || plaintext.size() != sealedMessage.size())
+        return NtlmMessageSecurityResult::InvalidInput;
+    if (serverSequence_ == (std::numeric_limits<std::uint32_t>::max)())
+    {
+        clear();
+        return NtlmMessageSecurityResult::SequenceExhausted;
+    }
+
+    std::array<std::uint8_t, 4> sequenceBytes{};
+    storeLe32(sequenceBytes.data(), serverSequence_);
+    const std::array<ByteSpan, 2> macParts{
+        ByteSpan{sequenceBytes}, ByteSpan{plaintext}};
+    ScopedSecret<kNtlmV2KeyBytes> digest;
+    if (!hmacMd5(serverSigningKey_, macParts, digest.bytes))
+    {
+        clear();
+        return NtlmMessageSecurityResult::CryptoFailure;
+    }
+
+    cryptRc4Stream(serverRc4_, plaintext, sealedMessage);
+    std::array<std::uint8_t, 8> checksum{};
+    std::copy_n(digest.bytes.begin(), checksum.size(), checksum.begin());
+    if ((negotiateFlags_ & kNtlmNegotiateKeyExchange) != 0U)
+    {
+        cryptRc4Stream(
+            serverRc4_, {checksum.data(), checksum.size()}, checksum);
+    }
+
+    signature.fill(0);
+    storeLe32(signature.data(), 1U);
+    std::copy(checksum.begin(), checksum.end(), signature.begin() + 4);
+    storeLe32(signature.data() + 12U, serverSequence_);
+    OPENSSL_cleanse(checksum.data(), checksum.size());
+    ++serverSequence_;
+    return NtlmMessageSecurityResult::Processed;
 }
 
 void NtlmV2SecurityContext::clear() noexcept
@@ -616,6 +786,13 @@ void NtlmV2SecurityContext::clear() noexcept
         clientSealingKey_.data(), clientSealingKey_.size());
     OPENSSL_cleanse(
         serverSealingKey_.data(), serverSealingKey_.size());
+    OPENSSL_cleanse(clientRc4_.permutation.data(), clientRc4_.permutation.size());
+    OPENSSL_cleanse(serverRc4_.permutation.data(), serverRc4_.permutation.size());
+    clientRc4_ = {};
+    serverRc4_ = {};
+    negotiateFlags_ = 0;
+    clientSequence_ = 0;
+    serverSequence_ = 0;
     active_ = false;
 }
 
@@ -759,7 +936,8 @@ EphemeralNtlmV2Credential::verifyAndDeriveSecurityContext(
     output.activate(
         sessionBaseKey.bytes, exportedSessionKey.bytes,
         clientSigningKey.bytes, serverSigningKey.bytes,
-        clientSealingKey.bytes, serverSealingKey.bytes);
+        clientSealingKey.bytes, serverSealingKey.bytes,
+        request.negotiateFlags);
     return NtlmV2VerifyResult::Verified;
 }
 

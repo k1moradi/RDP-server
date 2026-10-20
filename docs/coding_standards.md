@@ -1,3 +1,18 @@
+## R2 stateful NTLM message security stays single-owner (2026-10-20)
+
+Connection-oriented NTLM SIGN/SEAL state is not a reusable stateless helper.
+Keep client/server RC4 permutations and sequence counters inside the same
+noncopyable security context that owns the derived keys. Compute the ESS HMAC
+over the plaintext and sequence number before sealing; when KEY_EXCH is active,
+encrypt the eight-byte checksum by continuing the same directional RC4 stream.
+If verification fails after stream consumption, cleanse output and retire the
+entire context instead of attempting rollback or stream reconstruction.
+
+Transcript MIC checks must consume exact wire bytes and logically zero only the
+MIC field for HMAC. Do not rebuild Type 1/2/3 messages from parsed structures
+for authentication, and never cache a successful parser Boolean as identity or
+admission evidence.
+
 ## R2 NTLMSSP security buffers are borrowed, bounded wire views (2026-10-20)
 
 For standalone NTLMSSP, treat each MS-NLMP SECURITY_BUFFER MaxLen as

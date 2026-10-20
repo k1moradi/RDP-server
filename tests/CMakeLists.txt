@@ -63,6 +63,27 @@ foreach(ntlmssp_case IN ITEMS
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
 endforeach()
 
+# R2 standalone NTLM transcript MIC and connection-oriented SIGN/SEAL state.
+add_executable(test_standalone_ntlm_security
+    test_standalone_ntlm_security.cpp)
+target_link_libraries(test_standalone_ntlm_security PRIVATE
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_standalone_ntlm_security PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_standalone_ntlm_security PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(ntlm_security_case IN ITEMS
+        ntlmv2-transcript-mic-verification
+        ntlmv2-session-security-sign-seal-known-answer
+        ntlmv2-session-security-tamper-revokes)
+    add_test(NAME "security.${ntlm_security_case}"
+        COMMAND test_standalone_ntlm_security "${ntlm_security_case}")
+    set_tests_properties("security.${ntlm_security_case}" PROPERTIES
+        LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
+endforeach()
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

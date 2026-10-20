@@ -1,3 +1,39 @@
+## R2 standalone NTLM transcript and message security (2026-10-20)
+
+Starting shared-main parent: `df0eb78299f5be94d1325ebb36727746f5866f28`.
+
+Dependency recheck against the owner graph found R2A already resolved and the
+corrected standalone Type 1/2/3 NTLMSSP framing landed on main. R10 positive
+GUI Start is still independently blocked on its service-lifetime credential/TLS
+composition, but that does not block offline R2P progress.
+
+R2P now extends the existing single `NtlmV2SecurityContext` owner with exact
+AUTHENTICATE_MESSAGE MIC verification and connection-oriented Extended Session
+Security SIGN/SEAL state. MIC verification uses ExportedSessionKey over exact
+NEGOTIATE || CHALLENGE || AUTHENTICATE-with-zero-MIC bytes. Client-to-server
+unwrap and server-to-client wrap each own one continuous RC4 state and 32-bit
+sequence counter; KEY_EXCH encrypts the eight-byte checksum on the same stream.
+A consumed-stream signature failure clears keys, RC4 state and counters rather
+than permitting desynchronized reuse.
+
+Dedicated ordinary CTests:
+`security.ntlmv2-transcript-mic-verification`,
+`security.ntlmv2-session-security-sign-seal-known-answer`, and
+`security.ntlmv2-session-security-tamper-revokes`. The keys originate from
+Microsoft's published NTLMv2 known-answer example; deterministic message
+security bytes are pinned independently. This still does NOT implement SPNEGO
+token state, CredSSP pubKeyAuth/authInfo framing integration, GUI secret
+ownership or R2 admission, and makes no mstsc/Windows App interoperability
+claim.
+
+Microsoft Open Specifications review: **PASS** for MS-NLMP connection-oriented
+Extended Session Security MAC/SEAL sequencing and MIC calculation, and MS-CSSP
+use of the negotiated mechanism confidentiality service. Owner-local
+`~/rdp-server/build` configure/build/full CTest: **NOT RUN** because this
+environment cannot resolve github.com for a checkout. Exact publication-SHA
+hosted CI: **PENDING**. R2P remains ACTIVE; PASSWORD remains blocked on SPNEGO,
+CredSSP integration and GUI/runtime secret ownership.
+
 ## R2 NTLMSSP fixed Version-field correction (2026-10-20)
 
 Follow-up to `2131703acd28db77f6a6951139f18cc45fed7e01`: re-reading the

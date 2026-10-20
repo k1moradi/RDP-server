@@ -1,3 +1,25 @@
+## R4 first-client acceptance observation boundary (2026-10-19)
+
+R4 exposes a compact, read-only `GfxPresentationAcceptanceStatus` from the
+single `GfxPresentationLifecycle`. It latches whether a ClearCodec frame has
+ever been prepared in the current Graphics generation, whether any exact
+full-frame delivery receipt has committed, and whether an exact outstanding
+frame has received a genuine `FRAME_ACKNOWLEDGE`. Its outstanding count is
+read directly from the embedded authoritative `GfxFrameAckWindow`; there is
+no second ACK counter, pending-ID set, frame store or scheduler.
+
+Candidate publication classification is likewise derived from that same owner
+through `framePublicationReadiness(generation, frameId)`. A fresh ID at the
+64-entry ACK bound is `DeferredForFrameAcknowledge`; an outstanding duplicate
+or invalid lifecycle state is `Rejected`. R3 keeps its separate retired-
+surface frame-ID fence, maps the R4 result to its existing
+`RdpGraphicsFramePublicationReadiness`, and does not manufacture credit.
+The status does not prove pixel capture, TLS progress or client visibility.
+
+The first live desktop remains mandatory ClearCodec. AVC420 remains disabled
+after surface remap unless a later integrated runtime explicitly rebinds and
+enables it under the already-proven IDR/reset invariants.
+
 ## R1/R10 TLS endpoint generation and authoritative status handoff (2026-10-19)
 
 R1's configured certificate observation comes only from the securely loaded

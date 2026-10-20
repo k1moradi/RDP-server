@@ -328,6 +328,13 @@ void ownedDeliveryRecovery()
     GfxPresentationLifecycle lifecycle;
     mapClearCodecSurface(
         lifecycle, firstGeneration, geometry);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(!status.firstClearCodecFramePrepared);
+        assert(!status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
 
     GfxClearCodecFrameRequest request{
         7U, 91U, framebuffer};
@@ -336,6 +343,13 @@ void ownedDeliveryRecovery()
         lifecycle, firstGeneration,
         request, frame));
     assert(segmentedClearCodecSequence(frame) == 0U);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstClearCodecFramePrepared);
+        assert(!status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
 
     // Conclusive zero publication consumes the same move-only owner but does
     // not consume ClearCodec sequence state. R3 must retire all borrows first.
@@ -353,6 +367,13 @@ void ownedDeliveryRecovery()
         lifecycle, frame, deliveredBytes));
     assert(!frame.valid());
     assert(lifecycle.outstandingFrames() == 1U);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstClearCodecFramePrepared);
+        assert(status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 1U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
 
     GfxFrameAckWindowResult result{};
     const auto ack = acknowledge(request.frameId);
@@ -361,6 +382,12 @@ void ownedDeliveryRecovery()
     assert(
         result ==
         GfxFrameAckWindowResult::Acknowledged);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(status.firstGenuineFrameAcknowledge);
+    }
 
     // Sequence advances only after complete R4-span delivery, never merely
     // after encoding. FRAME_ACKNOWLEDGE remains a later independent event.

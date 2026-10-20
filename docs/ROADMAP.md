@@ -1,3 +1,24 @@
+## R4 first-client acceptance instrumentation authored (2026-10-19)
+
+R4 now has a compact generation-scoped acceptance snapshot for first ClearCodec
+preparation, exact full-frame write commitment, the authoritative outstanding
+ACK count and first exact genuine FRAME_ACK. Frame-specific readiness is
+classified by the same R4 owner as Ready / DeferredForFrameAcknowledge /
+Rejected; R3 retains only its retired-surface frame-ID fence and maps that
+result to its existing preflight enum. No second ACK counter, ID set, scheduler
+or transport owner is added.
+
+Existing production-backed ClearCodec and frame-publication-backpressure tests
+were extended in place, so the fixed R4 CTest inventory does not grow. They
+check first-event status transitions, exact commitment/ACK separation, fresh-ID
+64-credit defer and duplicate-ID rejection at capacity. A first-client trace
+checklist is pinned in testing_standards.md.
+
+This authoring does not unblock live validation: Microsoft-client visible frame
+and FRAME_ACK acceptance remain BLOCKED / NOT RUN until positive R2/R10 Start.
+The first live frame remains ClearCodec; AVC420 stays disabled after remap
+unless the integrated runtime intentionally enables it later.
+
 ## R4 integrated RandR remap offline acceptance (2026-10-19)
 
 **Validated descendant:** `f3ffe85cbecbdbce55bd915d74b74a79155a50e2`.

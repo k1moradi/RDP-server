@@ -1,3 +1,26 @@
+## R4 first-client acceptance telemetry authoring (2026-10-19)
+
+A narrow R4 observation surface is authored on current main: one read-only
+generation-scoped snapshot latches first ClearCodec preparation, first exact
+full-frame commitment and first exact matching FRAME_ACK, while reporting the
+outstanding count directly from the existing `GfxFrameAckWindow`. A new
+read-only R4 publication classification centralizes duplicate/full-capacity
+semantics and is mapped by R3 to the already-existing Ready /
+DeferredForFrameAcknowledge / Rejected preflight. R3's retired-surface frame-ID
+fence remains R3-owned.
+
+The existing `graphics.frame-publication-backpressure` and ClearCodec owned-
+delivery regressions are extended rather than adding another CTest/scheduler/
+ACK counter. The trace checklist distinguishes capture absence, serialization
+absence, missing exact TLS commitment, missing genuine client ACK and ordinary
+64-credit backpressure.
+
+Owner-local build/full CTest and exact publication-SHA hosted CI are NOT RUN at
+authoring time. Physical Microsoft-client visible-frame/FRAME_ACK validation
+remains BLOCKED on positive R2/R10 Start. AVC420 remains non-prerequisite and
+disabled after remap unless future integrated runtime policy explicitly enables
+it.
+
 ## R4 integrated RandR remap offline acceptance (2026-10-19)
 
 **Validated descendant:** `f3ffe85cbecbdbce55bd915d74b74a79155a50e2`.

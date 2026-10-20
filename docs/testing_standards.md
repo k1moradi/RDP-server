@@ -1,3 +1,23 @@
+## R4 first-client visible-frame/FRAME_ACK trace checklist (2026-10-19)
+
+Use one frame ID from the existing R3/R4 publication path and preserve its
+existing receipt identities. Do not add a trace-only frame counter or ACK set.
+
+| Question | Required evidence | Diagnosis when missing |
+| --- | --- | --- |
+| Were pixels captured? | R5/R10 native capture/borrow succeeded for the current geometry/generation. | If absent, pixels were never captured; R4 status alone cannot manufacture this fact. |
+| Was a frame serialized? | `firstClearCodecFramePrepared` becomes true and the existing frame receipt has a nonzero exact byte count. | Capture exists but this remains false: the frame never serialized; inspect mapped geometry/generation and terminal `Rejected` preflight. |
+| Did the TLS write commit exactly? | `firstExactFrameWriteCommitted` becomes true only after R3 maps complete outer accepted-byte receipts back to `GfxPresentationLifecycle::completeFrameDelivery`. | Prepared=true and committed=false: the frame never reached exact write commitment; inspect R1 WANT/partial/zero-byte cancellation or terminal abort. |
+| Did the client ACK the frame? | `firstGenuineFrameAcknowledge` becomes true only for an exact outstanding-ID `Acknowledged` result; outstanding count comes from the same R4 ACK window. | Committed=true, outstanding>0 and genuine-ACK=false: the client has not ACKed that publication yet. |
+| Is this ordinary ACK backpressure? | Existing preflight returns `DeferredForFrameAcknowledge` and R4 reports 64 outstanding ACKs while acknowledgements are expected. | This is nonterminal: service real client DATA/ACK/SUSPEND intake and retry without capture or frame-ID advance. |
+| Is publication terminally rejected? | Existing preflight returns `Rejected`, including duplicate/stale/invalid lifecycle cases; R3 also retains the retired-surface ID fence. | Do not reinterpret as backpressure or invent credit; follow the existing terminal publication path. |
+
+A full R1 plaintext commitment is not client-visible proof. The first Microsoft-
+client acceptance trace must correlate native capture, ClearCodec preparation,
+exact outer write completion, the authoritative outstanding count and a genuine
+matching FRAME_ACK. Real client execution remains blocked until positive R2/R10
+Start authority exists.
+
 ## R9 clean-Windows checksum/parser release rule (2026-10-19)
 
 A queued self-hosted job is never the sole syntax validator for release code.

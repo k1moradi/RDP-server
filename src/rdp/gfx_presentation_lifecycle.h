@@ -70,6 +70,27 @@ struct GfxFrameDeliveryReceipt final
                            const GfxFrameDeliveryReceipt &) = default;
 };
 
+// Read-only R4 publication classification for one candidate frame ID.
+// Deferred is ordinary authoritative ACK-window saturation. Rejected covers
+// invalid/stale lifecycle state or duplicate IDs; this does not reserve credit.
+enum class GfxFramePublicationReadiness : std::uint8_t
+{
+    Ready,
+    DeferredForFrameAcknowledge,
+    Rejected,
+};
+
+// Generation-scoped first-client acceptance observations. The outstanding
+// value is read directly from the one GfxFrameAckWindow; this struct owns no
+// ACK set, counter, scheduler, transport state, or publication authority.
+struct GfxPresentationAcceptanceStatus final
+{
+    bool firstClearCodecFramePrepared{};
+    bool firstExactFrameWriteCommitted{};
+    std::size_t outstandingFrameAcknowledgements{};
+    bool firstGenuineFrameAcknowledge{};
+};
+
 class GfxPresentationLifecycle final
 {
 public:
@@ -111,6 +132,10 @@ public:
     // Read-only duplicate-ID observation from the one authoritative R4 ACK
     // window. This does not reserve credit or expose the pending-ID storage.
     [[nodiscard]] bool hasOutstandingFrame(
+        std::uint64_t generation, std::uint32_t frameId) const noexcept;
+    // Classify a candidate using the same authoritative R4 lifecycle and ACK
+    // window used by reservation. This is a read-only observation only.
+    [[nodiscard]] GfxFramePublicationReadiness framePublicationReadiness(
         std::uint64_t generation, std::uint32_t frameId) const noexcept;
     // Reserve exactly one outbound complete frame at a time; no ACK yet.
     [[nodiscard]] bool beginFrameDelivery(
@@ -160,6 +185,15 @@ public:
     [[nodiscard]] std::size_t outstandingFrames() const noexcept
     {
         return acknowledgements_.outstandingFrames();
+    }
+    [[nodiscard]] GfxPresentationAcceptanceStatus
+    acceptanceStatus() const noexcept
+    {
+        return {
+            firstClearCodecFramePrepared_,
+            firstExactFrameWriteCommitted_,
+            acknowledgements_.outstandingFrames(),
+            firstGenuineFrameAcknowledge_};
     }
     // MS-RDPEGFX queueDepth is client-buffered graphics bytes, not a frame
     // count. Zero means unavailable. These observations expose the existing
@@ -217,6 +251,9 @@ private:
     std::uint16_t surfaceId_{};
     std::uint8_t clearCodecSequence_{};
     bool avc420Enabled_{};
+    bool firstClearCodecFramePrepared_{};
+    bool firstExactFrameWriteCommitted_{};
+    bool firstGenuineFrameAcknowledge_{};
     PixelSize geometry_{};
     std::uint32_t originX_{};
     std::uint32_t originY_{};

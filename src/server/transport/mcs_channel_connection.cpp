@@ -3234,22 +3234,19 @@ RdpGraphicsDynamicVirtualChannelLifecycle::preflightFramePublication(
         frameId <= highestPublishedFrameId_)
         return Readiness::Rejected;
 
-    // R4 alone owns the authoritative pending-ID set at any capacity.
-    if (presentationLifecycle_.hasOutstandingFrame(
-            allocation_.generation, frameId))
-        return Readiness::Rejected;
-
-    if (presentationLifecycle_.canReserveFrame(
-            allocation_.generation, frameId))
-        return Readiness::Ready;
-
-    if (presentationLifecycle_.expectingFrameAcknowledgements() &&
-        presentationLifecycle_.outstandingFrames() >=
-            rdp_server::rdp::GfxFrameAckWindow::kMaximumPendingFrames)
+    // R4 alone owns the authoritative pending-ID set and capacity decision.
+    // R3 retains only its retired-surface frame-ID fence above.
+    switch (presentationLifecycle_.framePublicationReadiness(
+        allocation_.generation, frameId))
     {
+    case rdp_server::rdp::GfxFramePublicationReadiness::Ready:
+        return Readiness::Ready;
+    case rdp_server::rdp::GfxFramePublicationReadiness::
+        DeferredForFrameAcknowledge:
         return Readiness::DeferredForFrameAcknowledge;
+    case rdp_server::rdp::GfxFramePublicationReadiness::Rejected:
+        return Readiness::Rejected;
     }
-
     return Readiness::Rejected;
 }
 

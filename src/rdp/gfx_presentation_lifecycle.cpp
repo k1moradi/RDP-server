@@ -39,6 +39,9 @@ void GfxPresentationLifecycle::disconnect() noexcept
     clearCodecSequence_ = 0;
     lastUnwrittenAvc420CancellationSerial_ = 0;
     avc420Enabled_ = false;
+    firstClearCodecFramePrepared_ = false;
+    firstExactFrameWriteCommitted_ = false;
+    firstGenuineFrameAcknowledge_ = false;
     geometry_ = {};
     originX_ = 0;
     originY_ = 0;
@@ -216,6 +219,36 @@ bool GfxPresentationLifecycle::hasOutstandingFrame(
            acknowledgements_.hasOutstandingFrame(generation, frameId);
 }
 
+GfxFramePublicationReadiness
+GfxPresentationLifecycle::framePublicationReadiness(
+    std::uint64_t generation, std::uint32_t frameId) const noexcept
+{
+    if (!active(generation) ||
+        stage_ != GfxPresentationStage::Mapped ||
+        pendingFrame_.serial != 0 ||
+        lastSerial_ == std::numeric_limits<std::uint64_t>::max())
+    {
+        return GfxFramePublicationReadiness::Rejected;
+    }
+
+    // Duplicate IDs remain invalid even when the same authoritative ACK
+    // window is also full; only a fresh ID may be ordinary backpressure.
+    if (acknowledgements_.hasOutstandingFrame(generation, frameId))
+        return GfxFramePublicationReadiness::Rejected;
+
+    if (acknowledgements_.canRecordFrame(generation, frameId))
+        return GfxFramePublicationReadiness::Ready;
+
+    if (acknowledgements_.expectingAcknowledgements() &&
+        acknowledgements_.outstandingFrames() >=
+            GfxFrameAckWindow::kMaximumPendingFrames)
+    {
+        return GfxFramePublicationReadiness::DeferredForFrameAcknowledge;
+    }
+
+    return GfxFramePublicationReadiness::Rejected;
+}
+
 bool GfxPresentationLifecycle::beginFrameDelivery(
     std::uint64_t generation, std::uint32_t frameId, std::size_t frameBytes,
     GfxFrameDeliveryReceipt &receipt) noexcept
@@ -282,6 +315,7 @@ bool GfxPresentationLifecycle::prepareClearCodecFrame(
     }
 
     pendingFrameCodec_ = PendingFrameCodec::ClearCodec;
+    firstClearCodecFramePrepared_ = true;
     return true;
 }
 
@@ -323,6 +357,7 @@ bool GfxPresentationLifecycle::completeFrameDelivery(
         return false;
     }
 
+    firstExactFrameWriteCommitted_ = true;
     if (deliveredCodec == PendingFrameCodec::ClearCodec)
     {
         clearCodecSequence_ = static_cast<std::uint8_t>(
@@ -358,6 +393,8 @@ bool GfxPresentationLifecycle::onFrameAcknowledge(
     {
         return false;
     }
+    if (response == GfxFrameAckWindowResult::Acknowledged)
+        firstGenuineFrameAcknowledge_ = true;
     result = response;
     return true;
 }

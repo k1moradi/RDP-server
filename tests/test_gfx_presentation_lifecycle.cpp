@@ -195,6 +195,17 @@ void backpressure()
     assert(lifecycle.outstandingFrames() == 64U);
     assert(!lifecycle.canSubmitFrame(generation));
     assert(!lifecycle.canReserveFrame(generation, 65U));
+    assert(lifecycle.framePublicationReadiness(generation, 65U) ==
+           GfxFramePublicationReadiness::DeferredForFrameAcknowledge);
+    assert(lifecycle.framePublicationReadiness(generation, 1U) ==
+           GfxFramePublicationReadiness::Rejected);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(!status.firstClearCodecFramePrepared);
+        assert(status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 64U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
 
     const std::array<std::byte, 4U> pixels{
         std::byte{0x11}, std::byte{0x22},
@@ -220,6 +231,15 @@ void backpressure()
     assert(result == GfxFrameAckWindowResult::Acknowledged);
     assert(lifecycle.outstandingFrames() == 63U);
     assert(lifecycle.canReserveFrame(generation, request.frameId));
+    assert(lifecycle.framePublicationReadiness(
+               generation, request.frameId) ==
+           GfxFramePublicationReadiness::Ready);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 63U);
+        assert(status.firstGenuineFrameAcknowledge);
+    }
 
     // Zero outer-byte cancellation must return the reserved opportunity
     // without advancing ClearCodec sequence or recording any client ACK.
@@ -228,6 +248,7 @@ void backpressure()
     assert(receipt.frameId == 65U && receipt.bytes == 71U);
     assert(wire[42U] == std::byte{0});
     assert(lifecycle.outstandingFrames() == 63U);
+    assert(lifecycle.acceptanceStatus().firstClearCodecFramePrepared);
     assert(lifecycle.cancelUnwrittenFrameDelivery(receipt));
     assert(lifecycle.outstandingFrames() == 63U);
     assert(lifecycle.canReserveFrame(generation, request.frameId));

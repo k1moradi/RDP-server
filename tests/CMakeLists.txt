@@ -105,6 +105,32 @@ foreach(spnego_case IN ITEMS
         LABELS "security;credentials;spnego;ntlmv2;credssp;offline")
 endforeach()
 
+# R10 shared configuration grammar and bounded visitor lifetime.
+add_executable(test_runtime_configuration
+    test_runtime_configuration.cpp)
+target_link_libraries(test_runtime_configuration PRIVATE
+    rdp-server-runtime-configuration)
+if(MSVC)
+    target_compile_options(test_runtime_configuration PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_runtime_configuration PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME runtime.shared-configuration-grammar
+    COMMAND test_runtime_configuration)
+set_tests_properties(runtime.shared-configuration-grammar PROPERTIES
+    LABELS "runtime;configuration;security;offline")
+
+add_test(NAME runtime.desktop-shared-configuration-feed
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_RUNTIME_CONFIGURATION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_configuration.h"
+        "-DRDP_RUNTIME_CONFIGURATION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_configuration.cpp"
+        "-DRDP_RUNTIME_MAIN_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+        "-DRDP_GUI_MAIN_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_desktop_configuration_feed.cmake")
+set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
+    LABELS "runtime;configuration;gui;r10-host-control;offline")
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

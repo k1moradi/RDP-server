@@ -15,6 +15,7 @@
 namespace rdp_server::server::runtime
 {
 
+class RuntimeConfigurationView;
 class RuntimeDeploymentPolicy;
 
 // Non-secret pre-listener R2 facts. This is deliberately not an admission
@@ -156,5 +157,9 @@ private:
     bool attempted_{};
     bool configured_{};
 };
+
+[[nodiscard]] bool configureLinuxRuntimeSecurityFromConfiguration(
+    const RuntimeConfigurationView& configuration,
+    LinuxRuntimeSecurityConfiguration& linuxSecurity) noexcept;
 
 } // namespace rdp_server::server::runtime

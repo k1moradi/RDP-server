@@ -730,6 +730,26 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 shared secure configuration grammar/file-policy. Field views are scoped
+# to one visitor call, so CLI and GUI reuse the exact parser without retaining
+# path/config buffers as authority.
+add_library(rdp-server-runtime-configuration STATIC
+    src/server/runtime/runtime_configuration.cpp)
+target_compile_features(rdp-server-runtime-configuration PUBLIC cxx_std_23)
+target_include_directories(rdp-server-runtime-configuration PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-runtime-configuration PUBLIC
+    rdp-server-runtime-licensing)
+if(WIN32)
+    target_link_libraries(rdp-server-runtime-configuration PRIVATE Advapi32)
+endif()
+if(MSVC)
+    target_compile_options(rdp-server-runtime-configuration PRIVATE /W4)
+else()
+    target_compile_options(rdp-server-runtime-configuration PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R10 process entry point: compile and test it, but do not install/package
 # an RDP service before authenticating and OS-authorizing live sessions.
 add_executable(rdp-server src/server/runtime/main.cpp)
@@ -739,11 +759,8 @@ target_compile_definitions(rdp-server PRIVATE
 target_link_libraries(rdp-server PRIVATE
     rdp-server-protocol
     rdp-server-runtime-tls
-    rdp-server-runtime-licensing)
-if(WIN32)
-    # GetSecurityInfo on the *opened* file handle requires Advapi32.
-    target_link_libraries(rdp-server PRIVATE Advapi32)
-endif()
+    rdp-server-runtime-licensing
+    rdp-server-runtime-configuration)
 if(MSVC)
     target_compile_options(rdp-server PRIVATE /W4)
 else()
@@ -894,7 +911,8 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
     target_link_libraries(rdp-server-linux-runtime-security PUBLIC
         rdp-server-linux-gssapi
         rdp-server-runtime-tls
-        rdp-server-runtime-licensing)
+        rdp-server-runtime-licensing
+        rdp-server-runtime-configuration)
     if(RDP_SERVER_BUILD_LINUX_PAM)
         target_link_libraries(rdp-server-linux-runtime-security PRIVATE
             rdp-server-linux-pam-password-verifier)
@@ -1190,6 +1208,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "credssp_credentials_internal.h" EXCLUDE
     PATTERN "runtime_licensing_authority.h" EXCLUDE
     PATTERN "runtime_licensing_authority_internal.h" EXCLUDE
+    PATTERN "runtime_configuration.h" EXCLUDE
     PATTERN "r3_clipboard_transfer_bridge.h" EXCLUDE
     PATTERN "linux_pam_password_verifier.h" EXCLUDE
     PATTERN "windows_native_session_evidence.h" EXCLUDE

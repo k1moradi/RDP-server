@@ -1,3 +1,30 @@
+## R10 shared desktop configuration-feed authoring receipt (2026-10-20)
+
+Starting shared-main parent: `58080b10f44eb22e0f2e8635a16042c91d91cafe`.
+
+R10 extracts the former CLI-private runtime configuration grammar, licensing
+field validation and secure native file-open policy into one noninstalled
+runtime configuration target with callback-scoped borrowed views. CLI
+configuration checks/serve and the production-capable Linux desktop now consume
+that same boundary. Linux security provisioning is shared through
+`configureLinuxRuntimeSecurityFromConfiguration()`; the desktop snapshots the
+same runtime-security, TLS and licensing owners before constructing the
+provisioned HostControl. No configuration field grammar is duplicated in
+`src/gui/main.cpp`.
+
+Dedicated ordinary behavior CTest:
+`runtime.shared-configuration-grammar`. Dedicated source/composition CTest:
+`runtime.desktop-shared-configuration-feed`. Existing HostControl transaction
+CTest from `4ed44edf` remains the next stage guard.
+
+Canonical owner `~/rdp-server/build` build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**. No live
+network/native/client evidence is claimed.
+
+The next R10 code boundary is accepted-socket servicing from the Qt owner thread
+into the existing `LinuxRuntimeConnection`/persistent X11 loop; R2A is no
+longer the blocker and R2P remains parallel.
+
 ## R2 standalone SPNEGO/NTLM owner authoring receipt (2026-10-20)
 
 Starting shared-main parent: `4ed44edf816460c5819dab6420766922d7ab9f15`. Dependency inspection observed

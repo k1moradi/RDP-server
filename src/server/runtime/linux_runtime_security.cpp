@@ -2,6 +2,7 @@
 #include "linux_runtime_security.h"
 
 #include "runtime_deployment_policy.h"
+#include "runtime_configuration.h"
 #include "server/security/linux_logind_console_evidence.h"
 
 #include <openssl/crypto.h>
@@ -534,6 +535,64 @@ const rdp_server::server::security::ConsoleIdentityPolicy *
 LinuxRuntimeSecurityConfiguration::policy() const noexcept
 {
     return configured_ ? &policy_ : nullptr;
+}
+
+bool configureLinuxRuntimeSecurityFromConfiguration(
+    const RuntimeConfigurationView& configuration,
+    LinuxRuntimeSecurityConfiguration& linuxSecurity) noexcept
+{
+    using Field = RuntimeConfigurationField;
+    const std::array requiredFields{
+        Field::GssServicePrincipal,
+        Field::GssKeytab,
+        Field::AuthorizedKerberosPrincipal,
+        Field::AuthorizedUnixAccount,
+        Field::AuthorizedSeat,
+        Field::AuthorizedDisplay,
+        Field::AuthorizedUid,
+        Field::AuthorizedPermissions,
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+        Field::PamService,
+#endif
+    };
+    for (const Field field : requiredFields)
+    {
+        if (configuration.field(field).empty())
+            return false;
+    }
+
+    unsigned localUid = 0U;
+    unsigned permissions = 0U;
+    if (!parseRuntimeConfigurationDecimal(
+            configuration.field(Field::AuthorizedUid),
+            1U, 0xfffffffeU, localUid) ||
+        !parseRuntimeConfigurationDecimal(
+            configuration.field(Field::AuthorizedPermissions),
+            1U,
+            rdp_server::server::security::kConsoleAllowedPermissions,
+            permissions))
+        return false;
+
+    const rdp_server::server::security::ConsoleIdentityRuleInput rule{
+        configuration.field(Field::AuthorizedKerberosPrincipal),
+        configuration.field(Field::AuthorizedUnixAccount),
+        configuration.field(Field::AuthorizedSeat),
+        configuration.field(Field::AuthorizedDisplay),
+        static_cast<std::uint32_t>(localUid),
+        static_cast<std::uint32_t>(permissions)};
+
+#if defined(RDP_SERVER_HAVE_LINUX_PAM_PASSWORD_VERIFIER)
+    return linuxSecurity.configure(
+        configuration.field(Field::GssServicePrincipal),
+        configuration.field(Field::GssKeytab),
+        rule,
+        configuration.field(Field::PamService));
+#else
+    return linuxSecurity.configure(
+        configuration.field(Field::GssServicePrincipal),
+        configuration.field(Field::GssKeytab),
+        rule);
+#endif
 }
 
 } // namespace rdp_server::server::runtime

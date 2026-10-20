@@ -1,3 +1,45 @@
+## R10 shared desktop configuration feed (2026-10-20)
+
+Starting shared-main parent: `58080b10f44eb22e0f2e8635a16042c91d91cafe`. The R2A dependency is resolved and
+R2P continues independently; this increment advances the first-desktop R10
+path rather than waiting on the password lane.
+
+The former CLI-private configuration grammar and secure file-open policy are
+now one noninstalled `rdp-server-runtime-configuration` owner. It exposes only
+a callback-scoped `RuntimeConfigurationView`: field string_views cannot outlive
+the bounded file buffer, and both syntax-only checks and service consumers use
+the same 4096-byte grammar, POSIX no-final-symlink/regular-file/write-policy and
+Windows opened-handle/DACL policy. The licensing identity parser/configurer is
+also shared rather than duplicated.
+
+`LinuxRuntimeSecurityConfiguration` now consumes that same validated view
+through `configureLinuxRuntimeSecurityFromConfiguration()`. The existing CLI
+`--check-*` and `serve --config` paths are refactored onto the shared
+visitor without changing their startup authority. On production-capable Linux,
+`rdp-server-desktop --config FILE` uses that exact feed to provision the
+existing sealed keytab/PAM/native identity owner, TLS context and licensing
+context, then constructs the provisioned `LinuxRuntimeHostControl`. Ordinary
+GUI-only builds remain unprovisioned/fail-closed, and a malformed or unavailable
+`--config` request exits without showing a positive-ready controller.
+
+New ordinary CTest `runtime.shared-configuration-grammar` exercises base
+grammar, Linux/PAM capability gating, partial/duplicate groups, bounded decimal
+parsing and path traversal denial. Source/composition CTest
+`runtime.desktop-shared-configuration-feed` requires both CLI and GUI to
+consume the shared boundary and forbids credential-field grammar duplication
+inside either entry point.
+
+No listener, credential prompt, native desktop or client was started during
+authoring. Canonical owner build/full CTest: **NOT RUN** in this connector-only
+environment. Exact publication-SHA hosted CI: **PENDING**.
+
+**Next R10 gate:** the desktop can now reach the provisioned positive listener
+transaction after owner credential/consent actions. R10 still needs a
+same-owner, nonblocking accept/service path that moves the accepted socket into
+the existing `LinuxRuntimeConnection` and persistent X11 application loop.
+That is now the first code blocker before the real Windows App acceptance; it is
+R10-owned, not an unresolved R2A/R2P dependency.
+
 ## R2 standalone SPNEGO/NTLM owner (2026-10-20)
 
 Starting shared-main parent: `4ed44edf816460c5819dab6420766922d7ab9f15`.

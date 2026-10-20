@@ -1,3 +1,24 @@
+## R10 Linux desktop shared configuration feed (2026-10-20)
+
+When Linux production runtime security is built, the desktop may be launched
+with an explicit administrator/owner-provisioned configuration file:
+
+```bash
+rdp-server-desktop --config /absolute/or/owner-selected/path/server.conf
+```
+
+The desktop reuses the exact secure runtime configuration reader used by the
+CLI; it does not maintain a second parser, password file or GUI credential
+store. The configuration must satisfy the production Linux security/TLS and R3
+licensing provisioning required by the existing runtime owners. Supplying the
+file only provisions those service-lifetime owners. The GUI must still receive
+explicit existing-OS-account setup and genuine local-owner consent before R10
+may publish a LAN listener, and no client/native desktop is accepted merely by
+launching with `--config`.
+
+Ordinary GUI-only builds remain valid without GSS/PAM runtime security. On such
+builds `--config` is rejected rather than pretending the host is provisioned.
+
 ## R10 desktop GUI default and deliberate headless configuration (2026-10-19)
 
 `RDP_SERVER_BUILD_DESKTOP_GUI` defaults ON for ordinary application builds, so Qt 6.4+ Widgets is required and missing Qt must fail visibly. Deliberate protocol-only, production-security and sanitizer builds opt out explicitly in the same canonical build root:

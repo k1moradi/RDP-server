@@ -8,6 +8,9 @@
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 #include "x11/x11_desktop_resources.h"
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+#include "linux_prepared_clipboard_owner.h"
+#endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
 #include "x11/x11_authorized_input_route.h"
 #endif
@@ -38,6 +41,10 @@ namespace rdp_server::server::runtime
 struct LinuxHostNativeDesktopState final
 {
     std::optional<X11DesktopResources> desktop{};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    // Declared after desktop so destruction also retires clipboard state first.
+    LinuxPreparedClipboardOwner clipboard{};
+#endif
     std::uint64_t admissionGeneration{};
     std::uint64_t sessionGeneration{};
     std::uint32_t nextFrameId{1U};
@@ -202,6 +209,9 @@ struct LinuxHostPostShareDispatchContext final
     LinuxRuntimeConnection* connection{};
     const RuntimeDeploymentPolicy* policy{};
     X11DesktopResources* desktop{};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    LinuxPreparedClipboardOwner* clipboard{};
+#endif
 };
 
 [[nodiscard]] bool dispatchHostPostShareRoute(
@@ -237,8 +247,14 @@ struct LinuxHostPostShareDispatchContext final
         return false;
 #endif
     case Kind::ClipboardStaticChannel:
-        // R10X intentionally does not compose R8 yet.
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        return context->clipboard != nullptr &&
+               context->clipboard->active() &&
+               context->clipboard->dispatchAuthenticatedTpkt(
+                   *context->connection, *context->policy, completeTpkt);
+#else
         return false;
+#endif
     case Kind::UnsupportedOrMalformed:
         return false;
     }
@@ -746,6 +762,10 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 void LinuxRuntimeHostControl::retireNativeDesktop() noexcept
 {
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (nativeDesktop_ != nullptr)
+        nativeDesktop_->clipboard.retire();
+#endif
     if (nativeDesktop_ != nullptr &&
         nativeDesktop_->desktop.has_value())
         nativeDesktop_->desktop->retireAfterAuthorizationLoss();
@@ -773,6 +793,18 @@ RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept
         retireAcceptedClient(RuntimeHostError::GraphicsUnavailable);
         return {RuntimeHostError::GraphicsUnavailable, false};
     }
+
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (!candidate->clipboard.prepare(
+            *candidate->desktop, candidate->admissionGeneration,
+            candidate->sessionGeneration))
+    {
+        candidate->clipboard.retire();
+        candidate->desktop->retireAfterAuthorizationLoss();
+        retireAcceptedClient(RuntimeHostError::GraphicsUnavailable);
+        return {RuntimeHostError::GraphicsUnavailable, false};
+    }
+#endif
 
     nativeDesktop_ = std::move(candidate);
     lastError_ = RuntimeHostError::None;
@@ -837,6 +869,11 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
             nativeDesktop_->admissionGeneration ||
         nativeChange->sessionGeneration !=
             nativeDesktop_->sessionGeneration ||
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        !nativeDesktop_->clipboard.generationsMatch(
+            nativeChange->admissionGeneration,
+            nativeChange->sessionGeneration) ||
+#endif
         nativeChange->events >
             static_cast<int>((std::numeric_limits<short>::max)()))
     {
@@ -906,14 +943,24 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
         return retireStaleHost();
 
     bool moreX11Events = false;
+    X11EventSink* additionalEventSink = nullptr;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    additionalEventSink = nativeDesktop_->clipboard.eventSink();
+#endif
     if (nativeDesktop_->desktop->processEvents(
             kHostX11EventBudget, &moreX11Events,
-            (x11Events & POLLIN) != 0, nullptr) !=
+            (x11Events & POLLIN) != 0, additionalEventSink) !=
             ConnectionStatus::Ok ||
         !nativeDesktop_->desktop->valid() ||
         nativeDesktop_->desktop->captureGeneration() == 0U)
         return retireClient(RuntimeHostError::GraphicsUnavailable);
     nativeDesktop_->nativeWorkMayRemain = moreX11Events;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (!nativeDesktop_->clipboard.serviceNative(
+            *acceptedClient_, *deploymentPolicy_, Clock::now(),
+            !nativeDesktop_->graphicsWritePending))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+#endif
 
     // The event batch can invalidate geometry/input; refresh R2 before any
     // classified network input or framebuffer work in this same tick.
@@ -928,6 +975,20 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
     const bool socketWritable =
         (socketEvents & POLLOUT) != 0 || terminalTransportEvent;
 
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (nativeDesktop_->clipboard.writePending())
+    {
+        if (!nativeDesktop_->clipboard.advanceTlsWrite(
+                *acceptedClient_, *deploymentPolicy_,
+                socketReadable, socketWritable))
+            return retireClient(RuntimeHostError::GraphicsUnavailable);
+        // One actual R1/R3 write step per bounded Qt tick. A still-pending
+        // clipboard write keeps ownership of WANT_READ/WANT_WRITE.
+        if (nativeDesktop_->clipboard.writePending())
+            return {RuntimeHostError::None, true};
+    }
+    else
+#endif
     if (nativeDesktop_->graphicsWritePending)
     {
         const auto written =
@@ -960,6 +1021,9 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
         LinuxHostPostShareDispatchContext dispatchContext{
             acceptedClient_.get(), &*deploymentPolicy_,
             &*nativeDesktop_->desktop};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        dispatchContext.clipboard = &nativeDesktop_->clipboard;
+#endif
         const LinuxPostShareTpktSink sink{
             &dispatchContext, &dispatchHostPostShareRoute};
         const auto read =
@@ -980,6 +1044,15 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
         }
     }
 
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (!nativeDesktop_->clipboard.serviceAfterNetworkDispatch(
+            *acceptedClient_, *deploymentPolicy_, Clock::now()) ||
+        (nativeDesktop_->clipboard.writePending() &&
+         !nativeDesktop_->clipboard.advanceTlsWrite(
+             *acceptedClient_, *deploymentPolicy_, false, false)))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+#endif
+
     if (!acceptedClient_->ready() ||
         !acceptedClient_->authorizePersonalDesktopApplicationTraffic(
             *deploymentPolicy_))
@@ -989,6 +1062,10 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
     if (nativeDesktop_->resizeDeadline &&
         postIoNow >= *nativeDesktop_->resizeDeadline)
         return retireClient(RuntimeHostError::GraphicsUnavailable);
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    if (nativeDesktop_->clipboard.writePending())
+        return {RuntimeHostError::None, true};
+#endif
     if (nativeDesktop_->graphicsWritePending ||
         postIoNow < nativeDesktop_->nextCapture)
         return {RuntimeHostError::None, true};

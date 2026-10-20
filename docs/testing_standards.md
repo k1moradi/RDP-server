@@ -1,3 +1,17 @@
+## R8 HostControl dormant clipboard composition regression (2026-10-20)
+
+`runtime.linux-host-control-dormant-unicode-clipboard-composition` is an
+ordinary offline source/build-graph CTest. It must require the literal false
+activation gate, shared owner reuse, Unicode-text-only presentation, exact
+native-generation binding, the shared X11 event sink, R2/R3 clipboard gateway,
+sole R1 TLS writer handoff, clipboard-write scheduler precedence and
+R8 -> R5 -> accepted-connection teardown.
+
+The guard must reject a duplicate CLI owner, `xcb_connect`, direct
+`SSL_write`, worker-thread ownership and production PNG/FileContents/file
+publication calls. It does not authorize a listener, desktop, clipboard or
+Microsoft client and cannot satisfy the live activation gate.
+
 ## Runtime-security sanitizer inventory changes are atomic CI structure (2026-10-20)
 
 The direct Linux runtime-security sanitizer selector contains **41**

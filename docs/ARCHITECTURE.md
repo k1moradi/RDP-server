@@ -1,3 +1,30 @@
+## R8 shared dormant GUI/CLI clipboard owner after R10X (2026-10-20)
+
+Linux has exactly one reusable prepared clipboard composition class,
+`LinuxPreparedClipboardOwner`. The CLI stack candidate and GUI
+`LinuxHostNativeDesktopState` each own at most one instance inside their one
+accepted-client/native lifetime; they never create a second connection owner.
+
+The owner borrows the current R5 `X11DesktopResources` connection and pins the
+same R2 admission/session generations. Every remote CLIPRDR dispatch and native
+paste request re-enters the existing R2 clipboard gateway, R3 remains the sole
+static-channel route/reassembly/write-generation owner, and
+`advancePersonalDesktopClipboardTlsWrite()` remains the sole R1 TLS write
+handoff. The X11 adapter is an additional sink on the same bounded R5 event
+drain; no thread or second XCB connection exists.
+
+The GUI scheduler gives a pending clipboard TLS write precedence over Graphics
+write, application read and capture. One already-pending write gets at most one
+actual advance per Qt tick; only a newly staged response may prime the writer
+with `readable=false, writable=false`. Capture cannot resume while a clipboard
+write remains pending.
+
+Retirement is explicit before storage destruction: disconnect X11 selection,
+paste and INCR state; retire R8 bridge source/response/receipt identity; retire
+the R5 native owner; then revoke the accepted R3/R2/R1 aggregate. The shared
+activation gate remains literal false until first real desktop video/input/Stop
+acceptance, and the compiled first scope is Unicode text only.
+
 ## R5 input consumes the common R2 authentication proof (2026-10-20)
 
 The stateless X11 authorized-input adapter accepts

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-foreach(required_argument IN ITEMS RDP_ROOT_CMAKE RDP_RUNTIME_ENTRYPOINT_SOURCE)
+foreach(required_argument IN ITEMS RDP_ROOT_CMAKE RDP_RUNTIME_ENTRYPOINT_SOURCE RDP_LINUX_PREPARED_CLIPBOARD_HEADER)
     if(NOT DEFINED ${required_argument} OR "${${required_argument}}" STREQUAL "")
         message(FATAL_ERROR "Missing ${required_argument}")
     endif()
@@ -7,6 +7,7 @@ endforeach()
 
 file(READ "${RDP_ROOT_CMAKE}" root_cmake)
 file(READ "${RDP_RUNTIME_ENTRYPOINT_SOURCE}" runtime_source)
+file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" clipboard_owner_header)
 
 string(FIND "${root_cmake}"
     "# R8 production dependency readiness only." linkage_begin)
@@ -47,12 +48,21 @@ foreach(required IN ITEMS
         "dispatchPersonalDesktopClipboardTpkt("
         "queuePersonalDesktopClipboardPdu("
         "advancePersonalDesktopClipboardTlsWrite("
-        "recordAcceptedWriteReceipt("
+        "recordAcceptedWriteReceipt(")
+    string(FIND "${clipboard_owner_header}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "R8 shared prepared owner is missing: ${required}")
+    endif()
+endforeach()
+foreach(required IN ITEMS
+        "#include \"linux_prepared_clipboard_owner.h\""
+        "LinuxPreparedClipboardOwner clipboardOwner"
         "processEvents(")
     string(FIND "${runtime_source}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
-            "R8 prepared production route is missing: ${required}")
+            "R8 CLI prepared production route is missing: ${required}")
     endif()
 endforeach()
 
@@ -62,8 +72,9 @@ foreach(forbidden IN ITEMS
         "beginFileSizeRequest("
         "beginFileRangeRequest("
         "PasteKind::Png")
-    string(FIND "${runtime_source}" "${forbidden}" position)
-    if(NOT position EQUAL -1)
+    string(FIND "${clipboard_owner_header}" "${forbidden}" owner_position)
+    string(FIND "${runtime_source}" "${forbidden}" runtime_position)
+    if(NOT owner_position EQUAL -1 OR NOT runtime_position EQUAL -1)
         message(FATAL_ERROR
             "R8 first-acceptance runtime must remain text-only: ${forbidden}")
     endif()

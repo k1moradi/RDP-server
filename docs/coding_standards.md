@@ -1,3 +1,23 @@
+## R8 GUI/CLI prepared clipboard owner stays single-owner (2026-10-20)
+
+Do not duplicate the prepared Linux clipboard composition between CLI and Qt.
+Both lifetimes must use `LinuxPreparedClipboardOwner`, borrow the one R5 XCB
+connection, pin the exact R2 admission/session generations and re-enter the R2
+clipboard gateway for every protected transition. Build availability is never
+clipboard authorization.
+
+Keep `kLinuxProductionClipboardActivationApproved = false` until the recorded
+FIRST REAL DESKTOP video/input/Stop PASS. The first activation surface is
+`PresentationScope::UnicodeTextOnly`; production code must not call PNG,
+FileContents, completed-file or directory-transfer entry points.
+
+In the bounded Qt service loop, a pending clipboard R1/R3 write owns effective
+WANT_READ/WANT_WRITE before Graphics writes, application reads and capture.
+Advance an already-pending clipboard write at most once per service tick; a
+freshly staged response may only prime the existing writer with no readiness
+flags. On every terminal path retire R8 X11/INCR and bridge receipt state before
+R5, then the accepted connection.
+
 ## Native bridges must not re-specialize the R2 proof (2026-10-20)
 
 After R2 selects a `LinuxAuthenticatedPrincipalProof`, native bridges such as

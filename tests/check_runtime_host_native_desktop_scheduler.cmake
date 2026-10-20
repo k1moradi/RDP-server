@@ -95,9 +95,10 @@ if(NOT preemptive_pollerr EQUAL -1)
 endif()
 
 string(FIND "${host_source}" "case Kind::ClipboardStaticChannel:" clipboard_case)
-string(FIND "${host_source}" "R10X intentionally does not compose R8 yet." clipboard_gate)
-if(clipboard_case LESS 0 OR clipboard_gate LESS clipboard_case)
-    message(FATAL_ERROR "R10X clipboard route is not explicitly fail closed")
+string(FIND "${host_source}" "dispatchAuthenticatedTpkt(" clipboard_dispatch)
+if(clipboard_case LESS 0 OR clipboard_dispatch LESS clipboard_case)
+    message(FATAL_ERROR
+        "R10X clipboard route must remain behind the shared dormant R8 owner")
 endif()
 
 string(FIND "${service_source}"

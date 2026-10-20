@@ -1,3 +1,29 @@
+## R8 GUI dormant clipboard composition authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `78f518df84c40615c59cac7bded6aa8655c035b3`.
+
+R10X's GUI-owned X11 lifetime is now available, so the already-reviewed dormant
+R8 owner is shared by the CLI and HostControl. The GUI path binds the same R2
+generations, shares the R5 event drain, routes CLIPRDR through the R2/R3 gateway,
+preserves the sole R1 TLS writer, gives pending clipboard writes precedence,
+and retires adapter/INCR plus bridge receipt state before R5 and the accepted
+connection.
+
+Activation remains literal **false** and the first scope remains Unicode text
+only. No live listener, X11 clipboard claim, client, credential prompt or
+service action was performed.
+
+Authoring source invariants: **PASS** for the prepared tree (single shared
+owner, false gate, generation fence, write precedence, teardown order, and no
+rich-format production entry points). Canonical owner command:
+`cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`. Canonical local configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**.
+
+Next gate: all-green exact-main CI, then owner-approved FIRST REAL DESKTOP PASS
+for visible desktop + mouse + keyboard + Stop. R8 activation remains
+**BLOCKED** until that receipt exists.
+
 ## R9 runtime-security workflow reconstruction receipt (2026-10-20)
 
 Starting shared-main parent: `bf3755dfa119420c0c5550aac937bb68749aa0dc`.

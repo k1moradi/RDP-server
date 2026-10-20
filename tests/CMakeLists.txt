@@ -269,6 +269,17 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-native-desktop-bounded-post-share PROPERTIES
         LABELS "runtime;security;r1-transport;r2-admission;r3-graphics;r4-frame;r5-native;r10-host-control;x11;offline")
+
+    add_test(NAME runtime.linux-host-control-dormant-unicode-clipboard-composition
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
+            "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_clipboard_dormant_composition.cmake")
+    set_tests_properties(
+        runtime.linux-host-control-dormant-unicode-clipboard-composition PROPERTIES
+        LABELS "runtime;security;r8-r3;r10-host-control;x11;offline")
 endif()
 
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
@@ -2911,6 +2922,7 @@ add_test(NAME runtime.linux-x11-clipboard-production-linkage
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
         "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+        "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_clipboard_linkage.cmake")
 set_tests_properties(
     runtime.linux-x11-clipboard-production-linkage PROPERTIES

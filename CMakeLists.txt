@@ -999,16 +999,24 @@ endif()
 # post-Share R1/TLS router and X11/logind lifetime, but the prepared clipboard
 # route remains hard-disabled until real Windows App video/input/Stop acceptance.
 # Build availability is never clipboard authorization.
-if(TARGET rdp-server AND
-   TARGET rdp-server-linux-runtime-security AND
+if(TARGET rdp-server-linux-runtime-security AND
    TARGET rdp-server-linux-x11-desktop AND
    TARGET rdp-server-linux-x11-clipboard AND
    TARGET rdp-server-r8-r3-clipboard)
-    target_link_libraries(rdp-server PRIVATE
-        rdp-server-r8-r3-clipboard
-        rdp-server-linux-x11-clipboard)
-    target_compile_definitions(rdp-server PRIVATE
-        RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD=1)
+    if(TARGET rdp-server)
+        target_link_libraries(rdp-server PRIVATE
+            rdp-server-r8-r3-clipboard
+            rdp-server-linux-x11-clipboard)
+        target_compile_definitions(rdp-server PRIVATE
+            RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD=1)
+    endif()
+    if(TARGET rdp-server-linux-host-control)
+        target_link_libraries(rdp-server-linux-host-control PUBLIC
+            rdp-server-r8-r3-clipboard
+            rdp-server-linux-x11-clipboard)
+        target_compile_definitions(rdp-server-linux-host-control PUBLIC
+            RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD=1)
+    endif()
 endif()
 
 # R7 native macOS capture remains isolated from the portable protocol target.

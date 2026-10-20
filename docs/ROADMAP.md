@@ -1,3 +1,46 @@
+## R8 dormant GUI clipboard composition after R10X (2026-10-20)
+
+**Starting reconciled shared-main parent:** `78f518df84c40615c59cac7bded6aa8655c035b3`.
+
+R10X is landed, so R8 now reuses one shared
+`LinuxPreparedClipboardOwner` in both serialized Linux post-Share lifetimes:
+the CLI candidate and the GUI `LinuxRuntimeHostControl` native-desktop state.
+The GUI owner is prepared from the exact R2-selected admission/session
+generations and borrows the same R5 XCB connection. It introduces no second
+RDP parser, XCB connection, clipboard generation, authorization cache or TLS
+writer.
+
+Production activation remains intentionally **OFF**:
+`kLinuxProductionClipboardActivationApproved = false`. The shared owner keeps
+`PresentationScope::UnicodeTextOnly`; no PNG, FileContents, completed-file or
+directory-transfer entry point is composed. A pending clipboard R3/R1 write has
+scheduler precedence over Graphics write, application read and capture, and an
+already-pending write advances at most once per bounded Qt service tick. A
+newly staged response may only prime the existing writer with no readiness
+flags.
+
+Stop/Revoke/reconnect retirement is now identical in GUI and CLI:
+local-owner authority -> R8 X11 selection/paste/INCR plus bridge/receipt state ->
+R5 native desktop -> accepted R3/R2/R1 connection -> listener. No pending INCR
+transfer, selection ownership, stale positive TLS receipt or clipboard response
+route may survive the native owner.
+
+New ordinary offline CTest:
+`runtime.linux-host-control-dormant-unicode-clipboard-composition`. Existing
+`runtime.linux-x11-clipboard-production-linkage` now verifies the shared owner
+instead of a CLI-local duplicate.
+
+Canonical owner command: `cd ~/rdp-server && git switch main && git pull --ff-only origin main && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`.
+Connector-environment canonical build/full CTest: **NOT RUN**. Exact
+publication-SHA hosted CI: **PENDING**. Live Windows App/`mstsc.exe` desktop,
+input, Stop and clipboard: **BLOCKED / NOT RUN**; no live authorization was
+requested.
+
+**Next gate:** obtain one all-green exact-main SHA, then owner-authorize the
+FIRST REAL DESKTOP TEST and require visible desktop + mouse + keyboard + Stop.
+Only after that PASS may a later change flip the single activation gate for
+Unicode text. Images/files remain later.
+
 ## R9 malformed runtime-security workflow reconstruction (2026-10-20)
 
 Starting shared-main parent: `bf3755dfa119420c0c5550aac937bb68749aa0dc`.

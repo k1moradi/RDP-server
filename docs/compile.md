@@ -1,3 +1,16 @@
+## R8 dormant clipboard linkage for Linux HostControl (2026-10-20)
+
+When Linux runtime security, the R5 X11 desktop, X11 clipboard adapter and R8/R3
+bridge targets all exist, both `rdp-server` and
+`rdp-server-linux-host-control` link the same noninstalled R8 clipboard
+dependencies and receive `RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD=1`. Missing
+native XCB clipboard development files still omit this composition without
+affecting the portable SDK.
+
+This build definition only compiles the dormant route. It does not override
+`kLinuxProductionClipboardActivationApproved = false`, open a listener, claim
+CLIPBOARD or authorize a native session.
+
 ## R9 runtime-security sanitizer selector is 41 cases (2026-10-20)
 
 The bounded Linux ASan/UBSan direct runtime-security inventory is **41** cases

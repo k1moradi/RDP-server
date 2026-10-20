@@ -1,3 +1,23 @@
+## R10 Linux serve guard compile repair (2026-10-20)
+
+Starting shared-main parent: `86df5d185867ffbf03485252273c712a8721830b`. Hosted production-security compilation
+showed `src/server/runtime/main.cpp:1674: #endif without #if`: the shared
+configuration extraction had removed the opening
+`RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY` guard around the existing Linux serve
+aggregate while leaving its closing guard. Non-Linux builds consequently also
+saw Linux-only runtime types.
+
+This repair restores that one opening guard before
+`LinuxServeAcceptContext`. The existing
+`runtime.desktop-shared-configuration-feed` source/composition CTest is
+strengthened to require the serialized Linux serve aggregate to remain inside
+that guard. R2's separate `std::span::fill` compile failure is already fixed on
+current main by `86df5d18`.
+
+Owner-local build/full CTest: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**. No runtime behavior, listener,
+credential or native authority is changed by this repair.
+
 ## R2 SPNEGO mechListMIC / compile-repair authoring receipt (2026-10-20)
 
 Starting shared-main parent: `2552a0d20f5fa09cfff013a766a8dd3bf15062a0`. Dependency inspection found R10's

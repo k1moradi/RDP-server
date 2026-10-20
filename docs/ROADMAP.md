@@ -1,3 +1,18 @@
+## R10 Linux serve compile-guard repair (2026-10-20)
+
+Current dependency state is unchanged: R2A and positive HostControl listener
+Start are resolved; first-client progress is blocked on R10 accepted-socket
+servicing. Before continuing that work, hosted production-security compilation
+identified an R10 regression from the shared configuration extraction:
+the Linux-only CLI serve aggregate lost its opening
+`RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY` guard.
+
+The opening guard is restored and pinned by the existing
+`runtime.desktop-shared-configuration-feed` source CTest. This is a compile
+repair only. The next R10 production step remains the same-owner, nonblocking
+handoff from the GUI-owned `OwnedLanListener` into the existing
+`LinuxRuntimeConnection` / persistent X11 loop.
+
 ## R2 standalone SPNEGO fallback integrity and compile repair (2026-10-20)
 
 Starting shared-main parent: `2552a0d20f5fa09cfff013a766a8dd3bf15062a0`.

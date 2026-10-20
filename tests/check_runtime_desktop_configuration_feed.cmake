@@ -78,3 +78,20 @@ foreach(forbidden_text IN ITEMS
         message(FATAL_ERROR "desktop duplicated configuration grammar: ${forbidden_text}")
     endif()
 endforeach()
+
+
+# The CLI's Linux-only serialized service aggregate must remain entirely inside
+# the production Linux runtime-security guard. This prevents non-Linux builds
+# from seeing Linux-only types and catches a dropped opening #if before CI.
+string(FIND "${runtime_main}"
+    "#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)\n// R10's verified listener"
+    linux_service_guard)
+string(FIND "${runtime_main}"
+    "struct LinuxServeAcceptContext final" linux_service_context)
+string(FIND "${runtime_main}"
+    "[[nodiscard]] bool runLinuxPersonalDesktopServe(" linux_service_entry)
+if(linux_service_guard LESS 0 OR linux_service_context LESS linux_service_guard
+   OR linux_service_entry LESS linux_service_context)
+    message(FATAL_ERROR
+        "serialized Linux serve block escaped its runtime-security guard")
+endif()

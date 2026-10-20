@@ -128,6 +128,7 @@ private:
 };
 #endif
 
+#if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 // R10's verified listener is now shared with a future in-process GUI
 // controller; the existing CLI still owns exactly one local descriptor.
 struct LinuxServeAcceptContext final {

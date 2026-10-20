@@ -76,6 +76,7 @@ struct NtlmAuthenticateMessage final
     {
         return {
             serverChallenge,
+            username(),
             domain(),
             ntChallengeResponse,
             negotiateFlags,

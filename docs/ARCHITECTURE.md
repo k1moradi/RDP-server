@@ -1,3 +1,26 @@
+## R2 standalone SPNEGO/NTLM connection owner (2026-10-20)
+
+The independent-password path now has exactly one SPNEGO/NTLM connection owner,
+`StandaloneSpnegoNtlmAcceptor`. Challenge identity is copied into bounded
+storage before peer input. The owner parses the initial SPNEGO GSS token,
+selects only the Microsoft NTLM mechanism, passes an exact borrowed Type 1 into
+the existing NTLMSSP parser, retains the exact Type 1 and generated Type 2
+bytes for later NTLM MIC verification, and owns the final derived
+`NtlmV2SecurityContext`.
+
+DER is strict and bounded: definite canonical lengths only, ordered unique
+context fields, exact SPNEGO/NTLM OIDs and one bounded mechanism token. The
+NTLM-first path may complete after the Type 3 username/password proof and any
+present NTLM MIC verify. If NTLM is selected only after another mechanism was
+preferred, the owner can issue the NTLM challenge but cannot reach verified
+state until SPNEGO mechListMIC is implemented. This prevents fallback from
+silently dropping mechanism-list integrity.
+
+The SPNEGO owner performs no TLS or TSRequest I/O and grants no desktop
+authorization. Future CredSSP composition must feed it only negoTokens from the
+existing R1/TLS-derived TSRequest frame owner, then use its stateful NTLM
+wrap/unwrap solely for pubKeyAuth/authInfo on that same TLS transcript.
+
 ## R2 standalone NTLM transcript / SIGN-SEAL boundary (2026-10-20)
 
 The independent-password path keeps one security-context owner. After the

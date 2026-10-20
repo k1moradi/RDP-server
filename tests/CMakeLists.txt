@@ -84,6 +84,27 @@ foreach(ntlm_security_case IN ITEMS
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
 endforeach()
 
+# R2 standalone SPNEGO/NTLM mechanism state. These are bounded offline wire
+# and cryptographic tests only; no TSRequest/TLS, GUI secret or R2 admission.
+add_executable(test_standalone_spnego test_standalone_spnego.cpp)
+target_link_libraries(test_standalone_spnego PRIVATE
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_standalone_spnego PRIVATE /W4 /UNDEBUG)
+else()
+    target_compile_options(test_standalone_spnego PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(spnego_case IN ITEMS
+        spnego-ntlm-first-negotiate-challenge
+        spnego-ntlm-authenticate-known-answer
+        spnego-fallback-integrity-and-der-denials)
+    add_test(NAME "security.${spnego_case}"
+        COMMAND test_standalone_spnego "${spnego_case}")
+    set_tests_properties("security.${spnego_case}" PROPERTIES
+        LABELS "security;credentials;spnego;ntlmv2;credssp;offline")
+endforeach()
+
 # Fixed-capacity R2 authentication-abuse policy: real listener peer/global
 # guard and GSS-provider-verified account gate before PAM. Pure/offline.
 add_executable(test_authentication_attempt_limiter

@@ -1,3 +1,17 @@
+## R2 standalone SPNEGO/NTLM state tests (2026-10-20)
+
+Standalone SPNEGO tests remain ordinary offline CTests. At minimum cover an
+NTLM-first InitialContextToken through exact server challenge wrapping, a
+published NTLMv2 Type 3 response through accept-completed state, and a
+multi-mechanism fallback that can select NTLM but is denied final completion
+without mechListMIC. Mutation coverage must reject duplicate mechanism OIDs,
+noncanonical/malformed DER and username mismatch without opening TLS, reading
+native session state or granting R2 admission.
+
+Do not label these tests Microsoft-client interoperability: TSRequest/TLS
+provenance, CredSSP pubKeyAuth/authInfo, GUI secret lifetime and a real
+Windows App/mstsc exchange remain separate acceptance gates.
+
 ## R2 standalone NTLM MIC and message-security tests (2026-10-20)
 
 Every standalone NTLM message-security increment must run under ordinary full

@@ -865,6 +865,27 @@ EphemeralNtlmV2Credential::verifyAndDeriveSecurityContext(
     output.clear();
     if (!configured_)
         return NtlmV2VerifyResult::NotConfigured;
+
+    if (!validAsciiUsername(request.username) ||
+        request.username.size() != usernameLength_)
+    {
+        return NtlmV2VerifyResult::UsernameMismatch;
+    }
+    for (std::size_t index = 0; index < usernameLength_; ++index)
+    {
+        auto configuredCode = static_cast<std::uint16_t>(username_[index]);
+        auto presentedCode =
+            static_cast<std::uint16_t>(request.username[index]);
+        if (configuredCode >= static_cast<std::uint16_t>('a') &&
+            configuredCode <= static_cast<std::uint16_t>('z'))
+            configuredCode -= static_cast<std::uint16_t>('a' - 'A');
+        if (presentedCode >= static_cast<std::uint16_t>('a') &&
+            presentedCode <= static_cast<std::uint16_t>('z'))
+            presentedCode -= static_cast<std::uint16_t>('a' - 'A');
+        if (configuredCode != presentedCode)
+            return NtlmV2VerifyResult::UsernameMismatch;
+    }
+
     if ((request.negotiateFlags &
          kRequiredStandaloneCredSspNtlmFlags) !=
         kRequiredStandaloneCredSspNtlmFlags)

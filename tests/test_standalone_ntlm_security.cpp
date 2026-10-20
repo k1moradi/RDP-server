@@ -40,7 +40,7 @@ bool makeContext(EphemeralNtlmV2Credential& cred,NtlmV2SecurityContext& ctx)
     std::array<char16_t,8> pwd{u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
     return cred.configure(u"User",pwd) &&
         cred.verifyAndDeriveSecurityContext(
-            {kServerChallenge,u"Domain",kResponse,kFlags,kEncryptedRandomSessionKey},ctx)
+            {kServerChallenge,u"User",u"Domain",kResponse,kFlags,kEncryptedRandomSessionKey},ctx)
             == NtlmV2VerifyResult::Verified;
 }
 }

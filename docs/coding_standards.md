@@ -1,3 +1,19 @@
+## R2 standalone SPNEGO parsing and fallback integrity (2026-10-20)
+
+First-party SPNEGO must have one bounded connection owner; do not split
+mechanism selection, NTLM transcript retention and message-security sequence
+state across helpers with independent lifetimes. Parse canonical definite DER
+with exact context tags and OIDs, cap mechanism counts/tokens, and retain exact
+wire Type 1/server Type 2 bytes rather than reconstructing an authentication
+transcript.
+
+Selecting NTLM after a different initiator-preferred mechanism does not permit
+final authentication by itself. Until mechListMIC is verified with the
+negotiated mechanism integrity service, fail closed before a fallback exchange
+can become authenticated. A Type 3 password proof must also bind the presented
+username to the configured standalone username; password knowledge alone may
+not authorize an arbitrary claimed username.
+
 ## R2 stateful NTLM message security stays single-owner (2026-10-20)
 
 Connection-oriented NTLM SIGN/SEAL state is not a reusable stateless helper.

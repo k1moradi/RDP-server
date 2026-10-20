@@ -1,3 +1,53 @@
+## R2 standalone SPNEGO/NTLM owner (2026-10-20)
+
+Starting shared-main parent: `4ed44edf816460c5819dab6420766922d7ab9f15`.
+
+Dependency recheck found a real R10 advance on the first-desktop chain:
+`4ed44edf` now composes the already-provisioned Linux R2 credential policy,
+TLS context and transactional listener inside `LinuxRuntimeHostControl`.
+That clears the former HostControl credential/TLS/listener composition blocker.
+Positive GUI Start is still not reachable from the shipped desktop entry point:
+`src/gui/main.cpp` does not yet construct/feed those provisioned
+service-lifetime owners from the validated configuration loader. The first real
+desktop test remains blocked on that R10 GUI provisioning/handoff step, not on
+R2A. This does not block the parallel R2P application-password work.
+
+R2P now adds one noninstalled, noncopyable `StandaloneSpnegoNtlmAcceptor`
+around the already-landed Type 1/2/3, NTLMv2 proof, transcript MIC and
+directional SIGN/SEAL owners. It strictly parses the GSS InitialContextToken /
+NegTokenInit and continuation NegTokenResp DER, recognizes only the Microsoft
+NTLM mechanism OID, emits bounded accept-incomplete/accept-completed
+NegTokenResp messages, retains the exact NTLM Type 1 and server Type 2
+transcript, validates the Type 3 username/password proof and optional NTLM MIC,
+and keeps the derived message-security context in the same connection owner.
+
+The NTLM-first path can reach mechanism verification offline. A SPNEGO fallback
+from an earlier offered mechanism can select NTLM and issue Type 2, but final
+success is deliberately rejected until mechListMIC verification is implemented;
+mechanism-list integrity is never silently skipped. The standalone credential
+verifier also now binds the Type 3 username (ASCII case-insensitive under the
+current username policy) to the configured memory-only username instead of
+authenticating a password proof while ignoring the presented identity.
+
+Dedicated ordinary CTests:
+`security.spnego-ntlm-first-negotiate-challenge`,
+`security.spnego-ntlm-authenticate-known-answer`, and
+`security.spnego-fallback-integrity-and-der-denials`; the existing NTLMv2
+denial fixture additionally checks username mismatch. These remain offline
+protocol tests, not CredSSP/NLA or Microsoft-client acceptance.
+
+Current Microsoft Open Specifications review: **PASS** for the implemented
+MS-SPNG NegTokenInit/NegTokenResp subset and MS-CSSP's use of a negotiated
+mechanism security context. Canonical owner configure/build/full CTest:
+**NOT RUN** because this connector environment cannot resolve github.com for
+the mandated checkout. Exact publication-SHA hosted CI: **PENDING**.
+
+R2P remains ACTIVE. The PASSWORD node is now blocked on remaining SPNEGO
+mechListMIC fallback integrity, TLS-proven CredSSP TSRequest integration for
+pubKeyAuth/authInfo, GUI memory-only secret ownership/revocation and real
+Windows App/mstsc evidence. The CLIENT node is independently blocked on the R10
+desktop-entry-point provisioning/handoff described above.
+
 ## R10 provisioned HostControl listener transaction (2026-10-20)
 
 Starting shared-main parent: `b9e91adbed809dea091b9a271e6be3e651520401`. Dependency recheck found the

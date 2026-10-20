@@ -38,6 +38,7 @@ enum class NtlmV2VerifyResult : std::uint8_t
     Verified,
     NotConfigured,
     InvalidInput,
+    UsernameMismatch,
     UnsupportedFlags,
     InvalidResponse,
     ProofMismatch,
@@ -59,6 +60,7 @@ enum class NtlmMessageSecurityResult : std::uint8_t
 struct NtlmV2AuthenticateRequest final
 {
     NtlmServerChallenge serverChallenge{};
+    std::u16string_view username{};
     std::u16string_view domain{};
     std::span<const std::uint8_t> ntChallengeResponse{};
     std::uint32_t negotiateFlags{};

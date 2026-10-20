@@ -106,6 +106,7 @@ constexpr std::uint32_t kMicrosoftExampleFlags = 0xe2888235U;
 {
     return {
         kServerChallenge,
+        u"User",
         u"Domain",
         kNtlmV2Response,
         kMicrosoftExampleFlags,
@@ -186,6 +187,13 @@ int main(int argc, char **argv)
         assert(credential.verifyAndDeriveSecurityContext(
                    request, context) ==
                NtlmV2VerifyResult::InvalidResponse);
+
+        request = microsoftRequest();
+        request.username = u"Other";
+        assert(credential.verifyAndDeriveSecurityContext(
+                   request, context) ==
+               NtlmV2VerifyResult::UsernameMismatch);
+        assert(!context.active());
 
         request = microsoftRequest();
         request.negotiateFlags &= ~kNtlmNegotiateSeal;

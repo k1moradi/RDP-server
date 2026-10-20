@@ -1,3 +1,36 @@
+## R2 standalone SPNEGO/NTLM owner authoring receipt (2026-10-20)
+
+Starting shared-main parent: `4ed44edf816460c5819dab6420766922d7ab9f15`. Dependency inspection observed
+R10's newly landed provisioned HostControl listener transaction. That clears
+the previous internal credential/TLS/listener composition block, but the
+desktop GUI entry point still lacks the validated service configuration feed
+needed to instantiate that positive path. R2P remains independently actionable.
+
+This increment adds a bounded first-party SPNEGO/NTLM connection owner with
+strict InitialContextToken/NegTokenInit and NegTokenResp DER handling, NTLM OID
+selection, exact Type 1/2 transcript retention, Type 3 credential/MIC
+verification and ownership of the established directional NTLM security
+context. Fallback from a non-NTLM-first mechanism intentionally cannot complete
+until mechListMIC verification exists. The standalone credential request now
+also contains the parsed Type 3 username and rejects a mismatch against the
+configured ASCII username.
+
+New ordinary CTests:
+`security.spnego-ntlm-first-negotiate-challenge`,
+`security.spnego-ntlm-authenticate-known-answer`, and
+`security.spnego-fallback-integrity-and-der-denials`.
+The existing `security.ntlmv2-proof-blob-and-flag-denials` additionally
+checks username mismatch.
+
+Current Microsoft MS-SPNG/MS-CSSP source review: **PASS** for this bounded
+syntax/state increment. Owner-local canonical build/full CTest: **NOT RUN**;
+the attempted mandated checkout failed DNS resolution for github.com and no
+alternate persistent build root was created. The preceding R2P publication
+`b9e91adbed809dea091b9a271e6be3e651520401` has a green workflow-structure
+run; its primary CI was still queued during authoring. Exact new
+publication-SHA hosted CI: **PENDING**. No listener, credential prompt, native
+desktop, service, firewall or client was activated.
+
 ## R10 HostControl provisioned-listener authoring receipt (2026-10-20)
 
 Starting shared-main parent: `b9e91adbed809dea091b9a271e6be3e651520401`. The positive R2A local-owner

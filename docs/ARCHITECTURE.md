@@ -1,3 +1,19 @@
+## R10 Qt accepted-client ownership through Graphics-ready (2026-10-20)
+
+The provisioned Linux GUI has one accepted-client owner at a time. The accepted
+descriptor moves directly from `OwnedLanListener` into the existing
+nonmovable `LinuxRuntimeConnection`; HostControl retains only scheduler phase,
+deadline, opaque UI ID and redacted peer endpoint. The same service-wide
+authentication limiter and current-owner authority are supplied to the
+connection.
+
+Qt is the external scheduler. `serviceOnce()` performs at most one protocol
+advance plus one zero-wait readiness observation and never calls the CLI's
+blocking serialized candidate loop. Protocol state remains in R1/R2/R3. After
+real Share and Graphics control readiness, the connection is retained but no
+native owner is invented: R5/X11 construction and persistent post-Share
+dispatch remain the next explicit composition boundary.
+
 ## R2 standalone password service-lifetime owner (2026-10-20)
 
 The application-password path has one memory-only service credential owner,

@@ -2,12 +2,16 @@
 #pragma once
 #include "server/runtime/runtime_deployment_policy.h"
 #include "server/runtime/runtime_host_control.h"
+#include "server/security/authentication_attempt_limiter.h"
 #include "server/security/current_owner_sharing_authority.h"
 #include "server/security/linux_logind_console_evidence.h"
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
+#include <chrono>
+#include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <thread>
 
@@ -17,6 +21,7 @@ namespace rdp_server::server::runtime
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 class LinuxRuntimeSecurityConfiguration;
 class LinuxRuntimeAdmissionConfiguration;
+class LinuxRuntimeConnection;
 class RuntimeLicensingContext;
 class RuntimeServerTlsContext;
 #endif
@@ -80,6 +85,12 @@ public:
     [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
         const RuntimeHostPermissionRequest& request = {}) override;
     [[nodiscard]] RuntimeHostResult startSharing() override;
+
+    // Advance at most one accepted-client protocol operation plus one zero-wait
+    // readiness observation on the owner thread. This never blocks Qt, creates
+    // a second socket/TLS owner, or constructs the native desktop.
+    [[nodiscard]] RuntimeHostResult serviceOnce() noexcept;
+
     [[nodiscard]] RuntimeHostResult stopSharing() override;
     [[nodiscard]] RuntimeHostResult disconnectClient(
         std::uint64_t opaqueClientId) override;
@@ -88,7 +99,32 @@ private:
     [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] RuntimeHostResult deny(RuntimeHostError error) noexcept;
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    enum class AcceptedClientPhase : std::uint8_t
+    {
+        None,
+        PreAdmission,
+        McsConnectInitial,
+        McsConnectResponse,
+        McsErectDomain,
+        McsAttachUser,
+        McsAttachConfirm,
+        McsChannelJoins,
+        ClientInfo,
+        LicenseRequest,
+        ClientLicensing,
+        ValidClient,
+        ShareActivation,
+        GraphicsControl,
+        GraphicsReady,
+    };
+
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
+    [[nodiscard]] RuntimeHostResult acceptClientOnce(
+        std::chrono::steady_clock::time_point now) noexcept;
+    [[nodiscard]] RuntimeHostResult advanceAcceptedClientOnce() noexcept;
+    [[nodiscard]] RuntimeHostResult pollAcceptedClientReadiness() noexcept;
+    void retireAcceptedClient(RuntimeHostError error) noexcept;
+    void clearAcceptedClient() noexcept;
 #endif
     void retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
@@ -104,6 +140,15 @@ private:
     const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
     const RuntimeLicensingContext* licensingContext_{};
     std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};
+    std::unique_ptr<LinuxRuntimeConnection> acceptedClient_{};
+    rdp_server::server::security::AuthenticationAttemptLimiter authAttempts_{};
+    std::chrono::steady_clock::time_point acceptedClientDeadline_{};
+    AcceptedClientPhase acceptedClientPhase_{AcceptedClientPhase::None};
+    std::uint64_t nextClientId_{1U};
+    std::uint64_t acceptedClientId_{};
+    std::string acceptedClientPeer_{};
+    bool acceptedClientReadable_{};
+    bool acceptedClientWritable_{};
     bool credentialsConfigured_{};
 #endif
     // Production-native evidence owns all borrowed views. It must outlive

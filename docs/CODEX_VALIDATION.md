@@ -1,3 +1,29 @@
+## R10 bounded accepted-client scheduler authoring receipt (2026-10-20)
+
+Starting shared-main parent: `c911ffd48ad1f076efa4d969edf0c47e935267d2`. Dependency recheck found no external
+blocker for existing-OS-account first-client progression. R2P had added the
+parallel standalone-password service owner, while R10 still owned the
+accepted-socket scheduling gap.
+
+This increment wires the provisioned GUI listener to one
+`LinuxRuntimeConnection` without adding a second transport/protocol owner.
+Private-LAN peer classification and the service-wide authentication limiter run
+before connection construction. `serviceOnce()` executes on the Qt owner
+thread, uses only zero-wait socket readiness, and advances the existing
+production phase APIs through genuine R2 admission, MCS, licensing, Share and
+Graphics control. Active-client status is projected only from that owned
+connection. Disconnect revokes that connection; Stop/Revoke retires host owner
+authority, connection and listener in that order.
+
+The source-level CTest
+`runtime.linux-host-control-bounded-accepted-client-scheduler` pins the
+private-LAN/auth-limit/owner-authority handoff, zero-wait polling, phase order,
+teardown order and Qt timer integration. It does not fabricate positive R2
+evidence or a native desktop.
+
+Local canonical build/full CTest: **NOT RUN**. Exact publication-SHA hosted CI:
+**PENDING**. No live client/native desktop test was executed.
+
 ## R2 standalone application-password owner authoring receipt (2026-10-20)
 
 Starting shared-main parent: `d46e0d944814a2d1a27f890619a79a920280b390`. Dependency inspection found R2P's

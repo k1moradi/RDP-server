@@ -13,6 +13,7 @@
 #endif
 
 #include <QApplication>
+#include <QTimer>
 
 #include <string_view>
 #include <utility>
@@ -137,6 +138,26 @@ int main(int argc, char** argv)
             admissionConfiguration, licensingContext};
         rdp::gui::HostControl control(runtime);
         rdp::gui::DesktopWindow window(control);
+
+        // R10 remains on the Qt owner thread. Each tick performs at most one
+        // bounded protocol operation and a zero-wait readiness observation;
+        // there is no worker thread, blocking poll or second socket owner.
+        QTimer runtimeServiceTimer;
+        runtimeServiceTimer.setInterval(25);
+        QObject::connect(
+            &runtimeServiceTimer, &QTimer::timeout, &window,
+            [&runtime] { (void)runtime.serviceOnce(); });
+        runtimeServiceTimer.start();
+
+        // Status projection is deliberately slower than protocol servicing so
+        // interface enumeration/UI layout cannot become the network scheduler.
+        QTimer statusRefreshTimer;
+        statusRefreshTimer.setInterval(250);
+        QObject::connect(
+            &statusRefreshTimer, &QTimer::timeout, &window,
+            [&window] { window.refresh(); });
+        statusRefreshTimer.start();
+
         window.show();
         return application.exec();
     }

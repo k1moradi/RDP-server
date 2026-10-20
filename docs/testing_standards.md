@@ -1,3 +1,18 @@
+## R10 bounded accepted-client scheduler guard (2026-10-20)
+
+`runtime.linux-host-control-bounded-accepted-client-scheduler` is an offline
+source-composition guard because ordinary CI must not mint a positive physical
+seat0 owner lease. It must require private-LAN peer validation and the shared
+authentication-attempt limiter before `LinuxRuntimeConnection` construction,
+the exact current-owner authority handoff, zero-wait readiness, progression
+through the existing admission/MCS/licensing/Share/Graphics methods, and ordered
+owner-authority -> accepted-connection -> listener retirement.
+
+The same guard requires Qt timers to drive R10 and status projection separately,
+and rejects the CLI blocking candidate loop or a new `std::thread` in the GUI
+path. A passing guard is architecture evidence only; real Windows App acceptance
+and R2-selected X11 frame publication remain separate positive evidence.
+
 ## R2 standalone password service-owner lifecycle tests (2026-10-20)
 
 Ordinary offline coverage must test the memory-only owner separately from wire

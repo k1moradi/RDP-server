@@ -1,3 +1,16 @@
+## R10 GUI service ticks stay bounded and single-owner (2026-10-20)
+
+Do not call the CLI's serialized blocking candidate loop from Qt and do not add
+a worker thread or second poller. Accept directly from the exact R1 listener
+only when no client is owned, apply private-LAN and authentication-attempt gates
+before constructing `LinuxRuntimeConnection`, and pass the existing const
+owner-sharing authority into that connection.
+
+Each GUI service tick may advance one existing runtime phase and perform only a
+zero-wait readiness observation. Preserve the pre-Share deadline but do not
+invent a post-Share idle timeout. On Stop/Revoke, host-owner authority retires
+before the accepted connection, and the connection retires before the listener.
+
 ## R2 standalone password ownership is generation-fenced and non-public (2026-10-20)
 
 Keep one service-lifetime owner around the existing memory-only standalone

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_host_control.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+#include "linux_runtime_connection.h"
 #include "linux_runtime_security.h"
 #include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
@@ -11,6 +12,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -317,8 +319,26 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         }
     }
 #endif
-    // nativeDesktopReady remains false until an accepted client passes R2 and
-    // the existing runtime constructs the one authorized native owner.
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (acceptedClient_ != nullptr && acceptedClientId_ != 0U)
+    {
+        RuntimeHostClient client;
+        client.opaqueId = acceptedClientId_;
+        client.peerAddress = acceptedClientPeer_;
+        client.authenticating =
+            stage_ == RuntimeHostStage::ClientAuthenticating;
+        client.shareActivated =
+            stage_ == RuntimeHostStage::ShareActivated ||
+            stage_ == RuntimeHostStage::DesktopVisible ||
+            stage_ == RuntimeHostStage::ClientConnected;
+        client.desktopVisible =
+            stage_ == RuntimeHostStage::DesktopVisible ||
+            stage_ == RuntimeHostStage::ClientConnected;
+        snapshot.activeClients.emplace_back(std::move(client));
+    }
+#endif
+    // nativeDesktopReady remains false until the accepted client reaches the
+    // R2-selected native owner, which is intentionally the next composition.
     return snapshot;
 }
 
@@ -558,15 +578,623 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 #endif
 }
 
+
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+void LinuxRuntimeHostControl::clearAcceptedClient() noexcept
+{
+    acceptedClient_.reset();
+    acceptedClientDeadline_ = {};
+    acceptedClientPhase_ = AcceptedClientPhase::None;
+    acceptedClientId_ = 0U;
+    acceptedClientPeer_.clear();
+    acceptedClientReadable_ = false;
+    acceptedClientWritable_ = false;
+}
+
+void LinuxRuntimeHostControl::retireAcceptedClient(
+    RuntimeHostError error) noexcept
+{
+    if (acceptedClient_ != nullptr)
+        acceptedClient_->revoke();
+    clearAcceptedClient();
+    stage_ = listener_.valid()
+        ? RuntimeHostStage::ListenerAvailable
+        : RuntimeHostStage::Stopped;
+    lastError_ = error;
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::pollAcceptedClientReadiness() noexcept
+{
+    if (acceptedClient_ == nullptr)
+        return deny(RuntimeHostError::ClientNotFound);
+
+    const auto ready = acceptedClient_->pollSocketReadinessOnce(
+        acceptedClientDeadline_, std::chrono::milliseconds{0});
+    using PollStatus = LinuxRuntimeSocketPollStatus;
+    switch (ready.status)
+    {
+    case PollStatus::Ready:
+        acceptedClientReadable_ = ready.readable;
+        acceptedClientWritable_ = ready.writable;
+        return {RuntimeHostError::None, false};
+    case PollStatus::NoEvent:
+        return {RuntimeHostError::None, true};
+    case PollStatus::Expired:
+    case PollStatus::Closed:
+    case PollStatus::Failure:
+        retireAcceptedClient(RuntimeHostError::AuthenticationRejected);
+        return {RuntimeHostError::AuthenticationRejected, false};
+    }
+    retireAcceptedClient(RuntimeHostError::InternalFailure);
+    return {RuntimeHostError::InternalFailure, false};
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
+    std::chrono::steady_clock::time_point now) noexcept
+{
+    using namespace rdp_server::server::transport;
+    if (acceptedClient_ != nullptr || !listener_.valid() ||
+        securityConfiguration_ == nullptr || tlsContext_ == nullptr ||
+        admissionConfiguration_ == nullptr || licensingContext_ == nullptr ||
+        !deploymentPolicy_.has_value())
+        return deny(RuntimeHostError::InvalidConfiguration);
+
+    auto accepted =
+        acceptNonblockingTcpConnection(listener_.nativeSocket());
+    if (accepted.outcome == TcpAcceptOutcome::WouldBlock)
+        return {RuntimeHostError::None, true};
+    if (accepted.outcome != TcpAcceptOutcome::Accepted ||
+        !accepted.connection.valid())
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::InternalFailure;
+        return {lastError_, false};
+    }
+
+    const TcpPeerEndpoint peer = accepted.connection.peerEndpoint();
+    std::span<const std::uint8_t> peerAddress;
+    if (peer.family == TcpPeerAddressFamily::Ipv4)
+        peerAddress = std::span<const std::uint8_t>{peer.address}.first(4U);
+    else if (peer.family == TcpPeerAddressFamily::Ipv6)
+        peerAddress = std::span<const std::uint8_t>{peer.address};
+    else
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::ListenerPolicyDenied;
+        return {lastError_, false};
+    }
+
+    if (!deploymentPolicy_->permitsPrivateLanTransportCandidate(peerAddress))
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::ListenerPolicyDenied;
+        return {lastError_, false};
+    }
+
+    if (!authAttempts_.reservePeerAuthenticationAttempt(peerAddress, now))
+    {
+        lastError_ = RuntimeHostError::AuthenticationRateLimited;
+        return {lastError_, true};
+    }
+
+    if (nextClientId_ ==
+        (std::numeric_limits<std::uint64_t>::max)())
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::InternalFailure;
+        return {lastError_, false};
+    }
+
+    auto connection = std::make_unique<LinuxRuntimeConnection>(
+        *securityConfiguration_, std::move(accepted.connection),
+        &authAttempts_, &ownerSharingAuthority_);
+    if (!connection->ready())
+    {
+        lastError_ = RuntimeHostError::AuthenticationRejected;
+        return {lastError_, false};
+    }
+
+    acceptedClient_ = std::move(connection);
+    acceptedClientDeadline_ = now + std::chrono::seconds{30};
+    acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;
+    acceptedClientId_ = nextClientId_++;
+    acceptedClientPeer_ = boundEndpointText(peer);
+    acceptedClientReadable_ = false;
+    acceptedClientWritable_ = false;
+    stage_ = RuntimeHostStage::ClientAuthenticating;
+    lastError_ = RuntimeHostError::None;
+    return {RuntimeHostError::None, false};
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
+{
+    if (acceptedClient_ == nullptr || !acceptedClient_->ready() ||
+        !deploymentPolicy_.has_value() || securityConfiguration_ == nullptr ||
+        tlsContext_ == nullptr || admissionConfiguration_ == nullptr ||
+        licensingContext_ == nullptr)
+    {
+        retireAcceptedClient(RuntimeHostError::AuthenticationRejected);
+        return {RuntimeHostError::AuthenticationRejected, false};
+    }
+
+    const bool readable = std::exchange(acceptedClientReadable_, false);
+    const bool writable = std::exchange(acceptedClientWritable_, false);
+
+    const auto hostSessionStale = [this]() noexcept {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::HostSessionStale;
+        return RuntimeHostResult{lastError_, false};
+    };
+    const auto peerFailure = [this](RuntimeHostError error) noexcept {
+        retireAcceptedClient(error);
+        return RuntimeHostResult{error, false};
+    };
+
+    switch (acceptedClientPhase_)
+    {
+    case AcceptedClientPhase::None:
+        return peerFailure(RuntimeHostError::ClientNotFound);
+
+    case AcceptedClientPhase::PreAdmission:
+    {
+        const auto step = acceptedClient_->advancePreAdmission(
+            readable, writable, *tlsContext_);
+        using Step = LinuxPreAdmissionStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+        case Step::TlsEstablished:
+        case Step::BindingVerified:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::CredentialsVerified:
+        {
+            const auto request =
+                admissionConfiguration_->request(*securityConfiguration_);
+            if (!request)
+                return hostSessionStale();
+            if (!acceptedClient_->issueAdmission(*request))
+            {
+                if (!ownerSharingAuthority_.authorizes(
+                        rdp_server::server::security::
+                            kConsoleViewPermission))
+                    return hostSessionStale();
+                return peerFailure(RuntimeHostError::AuthenticationRejected);
+            }
+            acceptedClientPhase_ = AcceptedClientPhase::McsConnectInitial;
+            return {RuntimeHostError::None, false};
+        }
+        case Step::UnsupportedFinalCredentials:
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsConnectInitial:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsConnectInitial(
+                readable, writable);
+        using Step = LinuxPostAdmissionMcsStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::AdmittedConnectInitial:
+            acceptedClientPhase_ = AcceptedClientPhase::McsConnectResponse;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsConnectResponse:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsConnectResponseWrite(
+                readable, writable);
+        using Step = LinuxPostAdmissionMcsResponseStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Delivered:
+            acceptedClientPhase_ = AcceptedClientPhase::McsErectDomain;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsErectDomain:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsErectDomain(
+                readable, writable);
+        using Step = LinuxPostAdmissionMcsErectStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::ErectDomainAccepted:
+            acceptedClientPhase_ = AcceptedClientPhase::McsAttachUser;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsAttachUser:
+    {
+        const auto step = acceptedClient_->advancePostAdmissionMcsAttachUser(
+            *deploymentPolicy_, readable, writable);
+        using Step = LinuxPostAdmissionMcsAttachStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::AttachUserAccepted:
+            acceptedClientPhase_ = AcceptedClientPhase::McsAttachConfirm;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsAttachConfirm:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsAttachConfirmWrite(
+                *deploymentPolicy_, readable, writable);
+        using Step = LinuxPostAdmissionMcsAttachConfirmStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Delivered:
+            acceptedClientPhase_ = AcceptedClientPhase::McsChannelJoins;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::McsChannelJoins:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsChannelJoins(
+                *deploymentPolicy_, readable, writable);
+        using Step = LinuxPostAdmissionMcsChannelJoinStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::AllChannelsJoined:
+            acceptedClientPhase_ = AcceptedClientPhase::ClientInfo;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::ClientInfo:
+    {
+        const auto step =
+            acceptedClient_->advancePostAdmissionMcsClientInfo(
+                *deploymentPolicy_, readable, writable);
+        using Step = LinuxPostAdmissionMcsClientInfoStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::ClientInfoAccepted:
+            if (!acceptedClient_->selectPersonalDesktopLicensingMode(
+                    *deploymentPolicy_))
+                return peerFailure(
+                    RuntimeHostError::ShareActivationUnavailable);
+            acceptedClientPhase_ = AcceptedClientPhase::LicenseRequest;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::AuthenticationRejected);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::LicenseRequest:
+    {
+        const auto step =
+            acceptedClient_->advancePersonalDesktopServerLicenseRequestWrite(
+                *deploymentPolicy_, *licensingContext_,
+                readable, writable);
+        using Step = LinuxPersonalDesktopLicenseWriteStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Delivered:
+            acceptedClientPhase_ = AcceptedClientPhase::ClientLicensing;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(
+                RuntimeHostError::ShareActivationUnavailable);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::ClientLicensing:
+    {
+        const auto step =
+            acceptedClient_->advancePersonalDesktopClientLicensingIntake(
+                *deploymentPolicy_, *licensingContext_,
+                readable, writable);
+        using Step = LinuxPersonalDesktopClientLicensingStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::ClientLicenseInfoAccepted:
+        case Step::ClientNewLicenseRequestAccepted:
+            acceptedClientPhase_ = AcceptedClientPhase::ValidClient;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(
+                RuntimeHostError::ShareActivationUnavailable);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::ValidClient:
+    {
+        const auto step =
+            acceptedClient_->advancePersonalDesktopValidClientWrite(
+                *deploymentPolicy_, readable, writable);
+        using Step = LinuxPersonalDesktopValidClientWriteStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Delivered:
+        {
+            const auto request =
+                admissionConfiguration_->request(*securityConfiguration_);
+            if (!request)
+                return hostSessionStale();
+
+            using Feature =
+                rdp_server::server::transport::RdpDemandActiveFeature;
+            auto features = Feature::DynamicVirtualChannels;
+            if ((request->requestedPermissions &
+                 rdp_server::server::security::
+                    kConsoleInputPermission) != 0U)
+                features = features | Feature::SlowPathInput;
+
+            const auto profile =
+                acceptedClient_->preparePersonalDesktopDemandActiveProfile(
+                    *deploymentPolicy_, features);
+            if (!profile ||
+                !acceptedClient_->startPersonalDesktopShareActivation(
+                    *deploymentPolicy_, *profile))
+                return peerFailure(
+                    RuntimeHostError::ShareActivationUnavailable);
+
+            acceptedClientPhase_ = AcceptedClientPhase::ShareActivation;
+            return {RuntimeHostError::None, false};
+        }
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(
+                RuntimeHostError::ShareActivationUnavailable);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::ShareActivation:
+    {
+        const auto step =
+            acceptedClient_->advancePersonalDesktopShareActivation(
+                *deploymentPolicy_, readable, writable);
+        using Step = LinuxPersonalDesktopShareActivationStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Activated:
+            stage_ = RuntimeHostStage::ShareActivated;
+            if (!acceptedClient_->
+                    startPersonalDesktopGraphicsDynamicVirtualChannel(
+                        *deploymentPolicy_))
+                return peerFailure(RuntimeHostError::GraphicsUnavailable);
+            acceptedClientPhase_ = AcceptedClientPhase::GraphicsControl;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(
+                RuntimeHostError::ShareActivationUnavailable);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::GraphicsControl:
+    {
+        const auto step =
+            acceptedClient_->
+                advancePersonalDesktopGraphicsDynamicVirtualChannel(
+                    *deploymentPolicy_, readable, writable);
+        using Step = LinuxPersonalDesktopGraphicsDvcStepStatus;
+        switch (step.status)
+        {
+        case Step::Progress:
+            return {RuntimeHostError::None, false};
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return pollAcceptedClientReadiness();
+        case Step::Ready:
+            if (!acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+                    *deploymentPolicy_))
+                return hostSessionStale();
+            acceptedClientPhase_ = AcceptedClientPhase::GraphicsReady;
+            stage_ = RuntimeHostStage::ShareActivated;
+            lastError_ = RuntimeHostError::None;
+            return {RuntimeHostError::None, false};
+        case Step::AdmissionDenied:
+            return hostSessionStale();
+        case Step::Invalid:
+        case Step::Closed:
+            return peerFailure(RuntimeHostError::GraphicsUnavailable);
+        }
+        break;
+    }
+
+    case AcceptedClientPhase::GraphicsReady:
+        if (!acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+                *deploymentPolicy_))
+            return hostSessionStale();
+        return {RuntimeHostError::None, true};
+    }
+
+    return peerFailure(RuntimeHostError::InternalFailure);
+}
+#endif
+
+RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept
+{
+    if (!onOwnerThread())
+        return {RuntimeHostError::ControlUnavailable, false};
+    if (stage_ == RuntimeHostStage::Revoked)
+        return {RuntimeHostError::AccessRevoked, false};
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    return {RuntimeHostError::CredentialProviderUnavailable, false};
+#else
+    if (!listener_.valid())
+        return {RuntimeHostError::None, true};
+    if (!listener_.interfaceStillMatches())
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::InterfaceUnavailable;
+        return {lastError_, false};
+    }
+    if (!ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission))
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::HostSessionStale;
+        return {lastError_, false};
+    }
+
+    if (acceptedClient_ == nullptr)
+        return acceptClientOnce(std::chrono::steady_clock::now());
+    return advanceAcceptedClientOnce();
+#endif
+}
+
 void LinuxRuntimeHostControl::retireStoppedRuntime(
     rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept
 {
-    // Security-significant host teardown order: invalidate R2 first so no
-    // protected operation can escape while later R3/R5/R1 owners retire.
-    // Accepted clients/native desktop are not owned here yet; they must be
-    // inserted between this revocation and the final listener close.
+    // Security-significant host teardown order: invalidate host-owner R2
+    // first, then retire the accepted R3/R2/R1 aggregate, then close R1's
+    // listener. No accepted TLS/socket or later native owner may outlive Stop.
     ownerSharingAuthority_.revoke(reason);
     standalonePasswordCredential_.revoke();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (acceptedClient_ != nullptr)
+        acceptedClient_->revoke();
+    clearAcceptedClient();
+#endif
     listener_.close();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     deploymentPolicy_.reset();
@@ -590,8 +1218,17 @@ RuntimeHostResult LinuxRuntimeHostControl::disconnectClient(
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (opaqueClientId == 0U || acceptedClient_ == nullptr ||
+        acceptedClientId_ != opaqueClientId)
+        return deny(RuntimeHostError::ClientNotFound);
+
+    retireAcceptedClient(RuntimeHostError::None);
+    return {RuntimeHostError::None, false};
+#else
     (void)opaqueClientId;
     return deny(RuntimeHostError::ClientNotFound);
+#endif
 }
 RuntimeHostResult LinuxRuntimeHostControl::revokeSharing()
 {

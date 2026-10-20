@@ -1,3 +1,42 @@
+## R10 bounded GUI accepted-client scheduler through Graphics control (2026-10-20)
+
+Starting shared-main parent: `c911ffd48ad1f076efa4d969edf0c47e935267d2`. The only newer dependency work was
+R2P's service-lifetime standalone-password owner; the existing-OS-account
+CLIENT path remained blocked in R10 at the GUI-owned accepted-socket scheduler.
+
+R10 now accepts at most one socket directly from the exact
+`OwnedLanListener`, requires the immutable private-LAN deployment policy,
+reserves the existing service-wide peer/global authentication-attempt budget,
+and moves the descriptor once into `LinuxRuntimeConnection` with the same
+`CurrentOwnerSharingAuthority`. The HostControl stores no TLS/GSS/MCS parser
+or credential duplicate.
+
+`serviceOnce()` advances one existing connection phase per Qt owner-thread
+tick. Socket readiness uses `pollSocketReadinessOnce(..., 0ms)`; no callback
+blocks the UI thread and no worker/poller is added. The progression reuses the
+landed R1/R2/R3 owners through HYBRID TLS/CredSSP, native R2 admission, MCS
+Connect/Attach/joins, protected Client Info, PersonalDesktop licensing, Share
+activation, and DRDYNVC/RDPGFX control. Every R2 admission-denial transition is
+treated as terminal host-session staleness. Ordinary malformed/disconnected
+peer failures retire only that client and keep the authorized listener.
+
+Stop/Revoke invalidates local-owner authority first, explicitly revokes the
+accepted R3/R2/R1 aggregate second, and closes the listener last. The GUI drives
+the bounded service tick every 25 ms and refreshes presentation state separately
+every 250 ms; UI refresh is not the network scheduler.
+
+Dedicated source-composition CTest:
+`runtime.linux-host-control-bounded-accepted-client-scheduler`.
+Owner-local build/full CTest: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**.
+
+**Remaining R10 gate:** after RDPGFX control becomes ready, R10 still has to
+construct the one R2-selected X11 owner and move the existing persistent
+post-Share capture/input/logind loop into the same bounded Qt-driven lifetime.
+Until that lands, `nativeDesktopReady` remains false and no desktop frame is
+published. This is now the first code blocker; it is not an unresolved R1/R2/R3
+or R5 dependency.
+
 ## R2 standalone application-password service owner (2026-10-20)
 
 Starting shared-main parent: `d46e0d944814a2d1a27f890619a79a920280b390`.

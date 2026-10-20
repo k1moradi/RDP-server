@@ -1497,6 +1497,230 @@ void testConnectionR1AcceptanceDiagnostics(
     assert(::close(handshakeClientDescriptor) == 0);
 }
 
+[[nodiscard]] bool sendTlsCloseNotify(SSL *clientTls) noexcept
+{
+    if (clientTls == nullptr)
+        return false;
+    for (std::size_t attempt = 0; attempt < 16384; ++attempt)
+    {
+        const int result = SSL_shutdown(clientTls);
+        if (result == 0 || result == 1)
+            return true;
+        const int sslError = SSL_get_error(clientTls, result);
+        if (sslError != SSL_ERROR_WANT_READ &&
+            sslError != SSL_ERROR_WANT_WRITE)
+            return false;
+        std::this_thread::yield();
+    }
+    return false;
+}
+
+[[nodiscard]] LinuxPreAdmissionStepStatus
+advancePreAdmissionUntilTerminal(
+    LinuxRuntimeConnection &connection,
+    const RuntimeServerTlsContext &tlsContext)
+{
+    using Poll = LinuxRuntimeSocketPollStatus;
+    using Step = LinuxPreAdmissionStepStatus;
+    using namespace std::chrono_literals;
+
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    for (std::size_t attempt = 0;
+         attempt < 16384 &&
+         std::chrono::steady_clock::now() < deadline;
+         ++attempt)
+    {
+        const auto readiness =
+            connection.pollSocketReadinessOnce(deadline, 5ms);
+        if (readiness.status == Poll::NoEvent)
+            continue;
+        if (readiness.status == Poll::Closed)
+            return Step::Closed;
+        assert(readiness.status == Poll::Ready);
+
+        const auto step = connection.advancePreAdmission(
+            readiness.readable, readiness.writable, tlsContext);
+        if (step.status == Step::Closed || step.status == Step::Invalid)
+            return step.status;
+        assert(step.status == Step::Progress ||
+               step.status == Step::NeedRead ||
+               step.status == Step::NeedWrite);
+    }
+
+    assert(false && "R1 peer termination did not become terminal");
+    return Step::Closed;
+}
+
+void testConnectionR1TerminalTransportClassification(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using DiagnosticTlsStage =
+        rdp_server::server::runtime::LinuxRuntimeTlsHandshakeDiagnosticStage;
+    using Step = LinuxPreAdmissionStepStatus;
+    using Termination =
+        rdp_server::server::transport::TcpConnectionTermination;
+    using Poll = LinuxRuntimeSocketPollStatus;
+    using namespace std::chrono_literals;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-r1-terminal-transport.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "r1-terminal-transport");
+
+    // A genuine TLS close_notify is orderly TLS closure, never cancellation.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        TestSsl clientTls =
+            establishHybridTls(connection, clientDescriptor, tlsContext);
+
+        assert(sendTlsCloseNotify(clientTls.get()));
+        const auto terminal =
+            advancePreAdmissionUntilTerminal(connection, tlsContext);
+        assert(terminal == Step::Closed || terminal == Step::Invalid);
+        const auto diagnostics = connection.acceptanceDiagnostics();
+        assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+        assert(diagnostics.termination == Termination::OrderlyTlsClose);
+        assert(!connection.ready());
+
+        clientTls.reset();
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // A TCP FIN without close_notify is a transport close, not orderly TLS.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        TestSsl clientTls =
+            establishHybridTls(connection, clientDescriptor, tlsContext);
+
+        assert(::shutdown(clientDescriptor, SHUT_WR) == 0);
+        const auto terminal =
+            advancePreAdmissionUntilTerminal(connection, tlsContext);
+        assert(terminal == Step::Closed || terminal == Step::Invalid);
+        const auto diagnostics = connection.acceptanceDiagnostics();
+        assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+        assert(diagnostics.termination == Termination::TransportError);
+        assert(!connection.ready());
+
+        clientTls.reset();
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // POLLERR from an abortive peer close must reach R1 once so SSL/recv owns
+    // the reset classification. The external scheduler must not pre-cancel it.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        TestSsl clientTls =
+            establishHybridTls(connection, clientDescriptor, tlsContext);
+
+        linger abortiveClose{};
+        abortiveClose.l_onoff = 1;
+        abortiveClose.l_linger = 0;
+        assert(::setsockopt(
+                   clientDescriptor, SOL_SOCKET, SO_LINGER,
+                   &abortiveClose, sizeof(abortiveClose)) == 0);
+        clientTls.reset();
+        assert(::close(clientDescriptor) == 0);
+        clientDescriptor = -1;
+
+        const auto terminal =
+            advancePreAdmissionUntilTerminal(connection, tlsContext);
+        assert(terminal == Step::Closed || terminal == Step::Invalid);
+        const auto diagnostics = connection.acceptanceDiagnostics();
+        assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+        assert(diagnostics.termination == Termination::TransportError);
+        assert(!connection.ready());
+    }
+
+    // Malformed TLS bytes after the exact HYBRID/X.224 ownership transfer are
+    // a TLS failure and cannot be mislabeled as protocol admission or Stop.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        assert(setNonblocking(clientDescriptor));
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        assert(sendSocketAll(clientDescriptor, kHybridNlaRequest));
+
+        auto step =
+            connection.advancePreAdmission(true, false, tlsContext);
+        assert(step.status == Step::NeedWrite);
+        step = connection.advancePreAdmission(false, true, tlsContext);
+        assert(step.status == Step::Progress);
+        assert(connection.acceptanceDiagnostics().tlsHandshakeStage ==
+               DiagnosticTlsStage::Handshaking);
+
+        constexpr std::array<std::uint8_t, 18> malformedTlsBytes{
+            0x47, 0x45, 0x54, 0x20, 0x2f, 0x20,
+            0x48, 0x54, 0x54, 0x50, 0x2f, 0x31,
+            0x2e, 0x30, 0x0d, 0x0a, 0x0d, 0x0a};
+        assert(sendSocketAll(clientDescriptor, malformedTlsBytes));
+
+        const auto terminal =
+            advancePreAdmissionUntilTerminal(connection, tlsContext);
+        assert(terminal == Step::Closed || terminal == Step::Invalid);
+        const auto diagnostics = connection.acceptanceDiagnostics();
+        assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+        assert(diagnostics.termination == Termination::TlsFailure);
+        assert(!connection.ready());
+        assert(::close(clientDescriptor) == 0);
+    }
+
+    // Closing the R1 owner must make later kernel reuse of the same descriptor
+    // number harmless. Late readiness/cancellation cannot close the new fd.
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        const auto nativeSocket = accepted.nativeSocket();
+        assert(nativeSocket <= static_cast<std::uintptr_t>(
+            (std::numeric_limits<int>::max)()));
+        const int retiredServerDescriptor =
+            static_cast<int>(nativeSocket);
+
+        LinuxRuntimeConnection connection{
+            configuration, std::move(accepted)};
+        connection.revoke();
+        assert(connection.acceptanceDiagnostics().termination ==
+               Termination::Cancelled);
+
+        int replacementDescriptor =
+            ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
+        assert(replacementDescriptor >= 0);
+        if (replacementDescriptor != retiredServerDescriptor)
+        {
+            assert(::dup2(
+                       replacementDescriptor,
+                       retiredServerDescriptor) == retiredServerDescriptor);
+            assert(::close(replacementDescriptor) == 0);
+            replacementDescriptor = retiredServerDescriptor;
+        }
+
+        const auto stalePoll = connection.pollSocketReadinessOnce(
+            std::chrono::steady_clock::now() + 1s, 0ms);
+        assert(stalePoll.status == Poll::Closed);
+        assert(::fcntl(replacementDescriptor, F_GETFD) >= 0);
+        const auto staleAdvance =
+            connection.advancePreAdmission(true, true, tlsContext);
+        assert(staleAdvance.status == Step::Closed);
+        assert(::fcntl(replacementDescriptor, F_GETFD) >= 0);
+
+        assert(::close(replacementDescriptor) == 0);
+        assert(::close(clientDescriptor) == 0);
+    }
+}
+
 void testConnectionPreAdmissionDispatch(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3560,6 +3784,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-r1-acceptance-diagnostics")
     {
         testConnectionR1AcceptanceDiagnostics(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-r1-terminal-transport-classification")
+    {
+        testConnectionR1TerminalTransportClassification(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-pre-admission-dispatch")

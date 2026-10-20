@@ -1,3 +1,33 @@
+## R1 terminal transport-classification authoring receipt (2026-10-20)
+
+Starting shared-main parent: `bd134d748dbccbdf2b812c7ad9e20b1ad17ff247`.
+
+Current-main review confirmed the R10 Qt accepted-client scheduler exists and
+the remaining R10X dependency is the native X11 post-Share owner, not R1 socket
+ownership. R1 therefore continued with offline production transport coverage.
+
+The review found that `LinuxRuntimeConnection::pollSocketReadinessOnce()`
+revoked on `POLLERR` before the existing R1 recv/send/OpenSSL operation could
+observe an abortive peer close. That path could erase the useful peer-reset
+classification as generic cancellation. The correction dispatches
+`POLLERR`/ `POLLHUP` once in the requested direction and leaves
+`POLLNVAL` as the scheduler-level invalid-descriptor failure.
+
+Dedicated ordinary CTest
+`runtime.linux-connection-r1-terminal-transport-classification` covers a real
+TLS `close_notify`, TCP half-close without TLS shutdown, abortive RST through
+the native poll path, malformed TLS during the HYBRID handshake and explicit
+descriptor reuse after revoke. The expected diagnostic classes are
+`OrderlyTlsClose`, `TransportError`, `TlsFailure` and `Cancelled`;
+late operations must remain closed without touching the replacement fd.
+
+Canonical local build/full CTest: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**. No positive HostControl listener,
+R2 lease, Share/Graphics session, X11 desktop or real Microsoft client was
+created. Positive HostControl Stop/Revoke timing under an authorized listener
+still requires owner-approved runtime evidence; visible desktop acceptance
+remains blocked on R10X and green exact-head CI.
+
 ## R9 source-guard follow-up receipt (2026-10-20)
 
 Exact-SHA run `39473001753` established that

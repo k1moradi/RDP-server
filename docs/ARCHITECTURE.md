@@ -1,3 +1,18 @@
+## R1 native poll-error ownership and terminal classification (2026-10-20)
+
+The Linux runtime scheduler must not convert a native socket error into generic
+cancellation before the sole R1 transport owner observes it. `POLLHUP` and
+`POLLERR` are therefore surfaced once in the connection's currently requested
+read/write direction; the existing R1 recv/send/OpenSSL operation remains the
+only component that classifies orderly TLS closure, transport reset/EOF or TLS
+failure. `POLLNVAL` remains an invalid-descriptor scheduler failure.
+
+This preserves the single socket/BIO/SSL owner and makes first-client
+diagnostics meaningful under peer RST as well as graceful `close_notify`.
+After R1 cancellation, the owned descriptor is invalidated before kernel
+descriptor reuse; late runtime polling or protocol advancement must remain
+closed and must not touch a newly reused descriptor number.
+
 ## R7 authoritative GUI lifecycle projection (2026-10-20)
 
 R7 remains a read-only presentation layer over the single R10 owner. R10's

@@ -426,17 +426,22 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
         return {false, false, Status::NoEvent};
     }
 
-    if ((ready.revents & (POLLERR | POLLNVAL)) != 0)
+    if ((ready.revents & POLLNVAL) != 0)
     {
         revoke();
         return {false, false, Status::Failure};
     }
 
-    // HUP is dispatched once in the currently requested direction so R1 sees
-    // the real EOF/send failure through its existing recv/send/TLS owner.
-    const bool hungUp = (ready.revents & POLLHUP) != 0;
-    const bool readable = (ready.revents & POLLIN) != 0 || hungUp;
-    const bool writable = (ready.revents & POLLOUT) != 0 || hungUp;
+    // HUP/POLLERR are dispatched once in the currently requested direction so
+    // the sole R1 recv/send/TLS owner observes EOF/reset and records the real
+    // terminal classification. The scheduler must not rewrite a peer reset as
+    // generic cancellation before R1 consumes the native error.
+    const bool terminalTransportEvent =
+        (ready.revents & (POLLHUP | POLLERR)) != 0;
+    const bool readable =
+        (ready.revents & POLLIN) != 0 || terminalTransportEvent;
+    const bool writable =
+        (ready.revents & POLLOUT) != 0 || terminalTransportEvent;
     if ((requested == Interest::Read && !readable) ||
         (requested == Interest::Write && !writable))
     {

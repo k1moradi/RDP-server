@@ -1,3 +1,23 @@
+## R1 terminal transport-classification regression (2026-10-20)
+
+`runtime.linux-connection-r1-terminal-transport-classification` uses the
+production `LinuxRuntimeConnection`, real nonblocking loopback TCP and the
+production TLS context. It must distinguish: peer `close_notify` as
+`OrderlyTlsClose`; TCP half-close without TLS shutdown and abortive peer RST
+as `TransportError`; malformed post-X.224 TLS bytes as `TlsFailure`; and
+explicit local revoke as `Cancelled`.
+
+The RST case must traverse `pollSocketReadinessOnce()`; a native
+`POLLERR` must be surfaced to R1 rather than preemptively revoked by the
+scheduler. The descriptor-reuse case retires the connection, deliberately
+reuses the old numeric fd for an unrelated socket, then proves late poll and
+advance calls remain closed without touching that replacement descriptor.
+
+This is offline transport evidence only. It does not synthesize current-owner
+consent, publish a HostControl LAN listener, create an R2 lease, reach Share or
+construct a native desktop. Positive HostControl Stop/Revoke races under a real
+listener remain a separate owner-authorized runtime test.
+
 ## R9 CMake source-guard token rules (2026-10-20)
 
 When a CMake source-contract test checks call order, anchor method/assignment

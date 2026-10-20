@@ -1,3 +1,17 @@
+## R1 native poll errors remain transport-owned (2026-10-20)
+
+Do not revoke an accepted connection merely because the external POSIX poller
+reports `POLLERR` or `POLLHUP`. Surface one readiness event in R1's exact
+currently requested direction so the sole recv/send/OpenSSL owner observes the
+EOF/reset and records the terminal transport classification. Only
+`POLLNVAL` is an invalid-descriptor scheduler failure. This avoids rewriting
+peer resets as Stop/cancellation and preserves one socket/BIO/SSL authority.
+
+After terminal R1 teardown, never act on the retired numeric descriptor again.
+A later kernel reuse of that fd number belongs to a different owner; stale
+poll/advance calls must remain closed and must not close or mutate the reused
+descriptor.
+
 ## R7 authoritative lifecycle facts stay read-only (2026-10-20)
 
 Do not create a GUI-side connection state machine. Project R10's typed stage

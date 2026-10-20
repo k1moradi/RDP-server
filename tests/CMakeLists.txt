@@ -1325,6 +1325,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-credssp-owner-framing
             linux-connection-credssp-progress-accounting
             linux-connection-r1-acceptance-diagnostics
+            linux-connection-r1-terminal-transport-classification
             linux-connection-pre-admission-dispatch
             linux-connection-pre-admission-native-poll
             linux-connection-native-poll-expiry-revocation

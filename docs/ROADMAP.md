@@ -1,3 +1,39 @@
+## R1 peer-termination classification after accepted-client unblock (2026-10-20)
+
+Starting shared-main parent: `bd134d748dbccbdf2b812c7ad9e20b1ad17ff247`.
+
+Dependency recheck confirms R10's bounded GUI accepted-client scheduler is
+landed, so R1 no longer waits on an accepted-socket handoff for offline
+transport work. R10X native X11 composition still blocks the first real desktop
+test, and exact-head ordinary hosted CI is still pending; neither blocks this
+production-backed loopback/TLS increment.
+
+Source review found one R1 diagnostic defect: Linux
+`pollSocketReadinessOnce()` treated `POLLERR` as immediate generic revoke,
+allowing an abortive peer reset to become `Cancelled` before the sole R1
+SSL/socket owner could classify it. The scheduler now reserves immediate
+failure for `POLLNVAL`; `POLLERR` and `POLLHUP` are dispatched once in
+the currently requested direction so the existing R1 operation observes the
+real EOF/reset.
+
+New ordinary CTest:
+`runtime.linux-connection-r1-terminal-transport-classification`. It uses real
+nonblocking loopback TCP plus the production TLS context and covers graceful
+`close_notify`, TCP half-close without TLS shutdown, abortive peer RST,
+malformed TLS during handshake, and deliberate descriptor-number reuse after
+revoke. It requires the corresponding `OrderlyTlsClose`, `TransportError`,
+`TlsFailure` and `Cancelled` diagnostics and proves stale calls cannot touch
+a reused fd.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**. No HostControl listener, R2 admission, native desktop, service,
+firewall or Microsoft client was activated. The remaining HostControl-specific
+R1 Stop/Revoke cases that require a genuinely authorized positive listener are
+not fabricated by ordinary CTest; they remain for an owner-authorized live
+protocol/transport trace. Desktop acceptance remains **BLOCKED on R10X plus a
+green nominated exact SHA**.
+
 ## R9 source-guard follow-up from exact-SHA hosted evidence (2026-10-20)
 
 Run `39473001753` at superseded SHA `c205913...` proved the provisioned-listener

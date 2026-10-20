@@ -1,3 +1,13 @@
+## CI structure and clipboard sanitizer inventory change together (2026-10-20)
+
+When the fixed R8 clipboard sanitizer registry changes, update all three
+artifacts atomically: the workflow's explicit test-name sentinel, its exact
+count, and `scripts/validate_ci_workflow.py`'s matching required tokens. A
+workflow-only count update must fail the independent structure guard.
+
+Current authoritative inventory: 88 cases, including
+`clipboard.x11-unicode-text-only-presentation`.
+
 ## R9/R8 sanitizer clipboard inventory is 88 cases (2026-10-20)
 
 The bounded Linux ASan/UBSan `-L clipboard` registry contains **88** ordinary

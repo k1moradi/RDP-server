@@ -1,3 +1,23 @@
+## R9 structure-validator follow-up for 88-case clipboard inventory (2026-10-20)
+
+Starting shared-main parent: `371502512ca6748d57afa7592d6be41453b09e18`.
+
+Corrective SHA `371502512ca6748d57afa7592d6be41453b09e18` updated the primary sanitizer workflow to the
+intentional 88-case R8 clipboard inventory, but independent structure Actions
+`39475811289` failed immediately because
+`scripts/validate_ci_workflow.py` still required the stale literal
+`clipboard_expected_test_count=87`. Primary run `39475811293` failed the
+same structure prerequisite before the heavyweight matrix could qualify the SHA.
+
+The structure validator now advances atomically with the workflow: it requires
+`clipboard.x11-unicode-text-only-presentation` and
+`clipboard_expected_test_count=88`. No production/runtime behavior changes.
+
+Local canonical build/full CTest: **NOT RUN** in this connector environment.
+Failing structure evidence: **CONFIRMED**. Corrective exact-SHA hosted CI:
+**PENDING**. R10X remains landed; FIRST REAL DESKTOP TEST is waiting on a
+fully green exact SHA and owner-approved live execution.
+
 ## R9 exact-head clipboard sanitizer inventory repair after R10X (2026-10-20)
 
 Starting shared-main parent: `8af251c751d87a21565a02593134808d0b4a2661`.

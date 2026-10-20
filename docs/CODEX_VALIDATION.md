@@ -1,3 +1,17 @@
+## R9 88-case clipboard structure-validator correction receipt (2026-10-20)
+
+Starting shared-main parent: `371502512ca6748d57afa7592d6be41453b09e18`.
+
+Independent structure run `39475811289` failed with:
+`CI workflow validation FAIL: missing required workflow token:
+clipboard_expected_test_count=87`. This is the validator-side half of the
+same R8 inventory drift already corrected in the workflow.
+
+The validator now requires the new Unicode-text-only clipboard test name and
+the 88-case count. This preserves fail-closed structure checking rather than
+weakening or bypassing it. Exact corrective hosted CI: **PENDING**. No live
+listener/client/native desktop was exercised.
+
 ## R9 clipboard sanitizer inventory repair receipt after R10X (2026-10-20)
 
 Starting shared-main parent: `8af251c751d87a21565a02593134808d0b4a2661`.

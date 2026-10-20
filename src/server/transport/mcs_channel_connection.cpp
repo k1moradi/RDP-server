@@ -1463,6 +1463,11 @@ void McsSessionLifecycle::recordFirstClientAcceptanceEvent(
             return;
         firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_ = true;
         break;
+    case Kind::GraphicsControlReady:
+        if (firstClientAcceptanceGraphicsControlReady_)
+            return;
+        firstClientAcceptanceGraphicsControlReady_ = true;
+        break;
     case Kind::SurfaceCreated:
         firstClientAcceptanceSurfaceCreated_ = true;
         break;
@@ -1531,6 +1536,7 @@ McsSessionLifecycle::firstClientAcceptanceObservability() const noexcept
     result.shareActivated = firstClientAcceptanceShareActivated_;
     result.graphicsDynamicVirtualChannelActivated =
         firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_;
+    result.graphicsControlReady = firstClientAcceptanceGraphicsControlReady_;
     result.surfaceCreated = firstClientAcceptanceSurfaceCreated_;
     result.surfaceMapped = firstClientAcceptanceSurfaceMapped_;
     result.firstFramePublicationAccepted =
@@ -2718,6 +2724,13 @@ McsSessionLifecycle::completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
     {
         switch (pendingKind)
         {
+        case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
+            if (graphicsDynamicVirtualChannel_.graphicsCapabilitiesConfirmed())
+            {
+                recordFirstClientAcceptanceEvent(
+                    RdpFirstClientAcceptanceEventKind::GraphicsControlReady);
+            }
+            break;
         case RdpGraphicsDvcWriteKind::GraphicsCreateSurface:
             recordFirstClientAcceptanceEvent(
                 RdpFirstClientAcceptanceEventKind::SurfaceCreated);
@@ -2736,7 +2749,6 @@ McsSessionLifecycle::completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
         case RdpGraphicsDvcWriteKind::None:
         case RdpGraphicsDvcWriteKind::CapabilitiesRequest:
         case RdpGraphicsDvcWriteKind::CreateRequest:
-        case RdpGraphicsDvcWriteKind::GraphicsCapabilitiesConfirm:
         case RdpGraphicsDvcWriteKind::GraphicsDeleteSurface:
         case RdpGraphicsDvcWriteKind::GraphicsFrameData:
             break;

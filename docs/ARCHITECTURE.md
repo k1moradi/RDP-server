@@ -1,3 +1,22 @@
+## R3/R10 first-client ownership and Graphics-control observation (2026-10-20)
+
+R10's bounded Qt accepted-client scheduler is an external scheduler only. It
+retains one `LinuxRuntimeConnection` and advances its existing production phase
+APIs; R1 remains the sole TLS application-I/O owner, R3's
+`McsSessionLifecycle` remains the sole MCS/Share/channel/Graphics parser-state
+owner, and R4 remains the sole frame-publication/FRAME_ACK credit owner. R10
+does not copy packet offsets, channel generations, surface IDs, frame IDs or ACK
+membership into HostControl.
+
+First-client diagnostics therefore observe existing accepted transitions rather
+than inventing scheduler state. `GraphicsDynamicVirtualChannelActivated` means
+the peer accepted the existing DRDYNVC CREATE. The distinct
+`GraphicsControlReady` milestone means R3's existing CAPS_CONFIRM write was
+fully accepted and `graphicsCapabilitiesConfirmed()` is true. Only later
+existing accepted-byte receipts may record surface CREATE/MAP. This separation
+lets a live trace distinguish DRDYNVC establishment from RDPGFX control failure
+without changing wire behavior or giving observability any authorization role.
+
 ## R5 X11 owner ordering for the Qt service lifetime (2026-10-20)
 
 Audit against current `main` found that R5 already exposes the native

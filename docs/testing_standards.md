@@ -1,3 +1,49 @@
+## R3 first-client Windows App / mstsc trace-analysis checklist (2026-10-20)
+
+Use this checklist only after R10 has attached the genuine R2-selected X11
+desktop and the exact server SHA is otherwise eligible for the first real
+desktop test. Run Windows App on macOS and Windows 11 `mstsc.exe` as separate
+acceptance cells; success or failure in one client never substitutes for the
+other.
+
+- Record the exact server SHA, timestamp, server OS/session, client OS build,
+  client application/build, and one non-secret trace identifier. Never retain
+  passwords, NTLM/GSS responses, session keys or delegated credentials in the
+  diagnostic record.
+- Correlate one R3 `reconnectGeneration` and require ordered milestones:
+  MCS established -> Share activated -> DRDYNVC activated -> Graphics control
+  ready -> surface created -> surface mapped -> first frame publication accepted
+  -> first genuine FRAME_ACK. Record `droppedEventCount`; any overflow makes
+  the retained event prefix incomplete for diagnosis.
+- If MCS or Share is absent, stop R3 Graphics triage and report the earlier
+  R1/R2/R10 boundary. If Share exists but DRDYNVC does not, inspect the joined
+  `drdynvc` route and CREATE exchange; do not change RDPGFX codec behavior.
+- If DRDYNVC is active but Graphics control is not ready, inspect the client
+  RDPGFX CAPS intake and the exact accepted CAPS_CONFIRM write boundary. This is
+  the first R3 control-handshake diagnosis point.
+- If Graphics control is ready but surface CREATE/MAP is missing, inspect the
+  existing R3 writer receipts and R4 presentation lifecycle. Do not create a
+  second surface state machine or infer success from queued bytes.
+- If the surface is mapped but no first frame is accepted, first distinguish
+  missing R10/R5 native capture/borrow from R3 serialization. A missing native
+  frame is not evidence for a wire change.
+- If the first frame is fully accepted but no genuine FRAME_ACK appears,
+  correlate the exact TLS frame commitment with the client trace and R4's
+  existing ACK window. Ordinary frame-credit deferral is not a protocol
+  failure. If FRAME_ACK exists but the desktop is not visible, continue with
+  rendering/native-lifetime diagnosis rather than changing R3 wire behavior.
+- Record the first terminal disconnect/termination boundary and preserve the
+  bounded event snapshot for postmortem comparison. Make a protocol change only
+  for a reproducible post-Share failure demonstrated by the real-client trace.
+
+The existing
+`transport.dvc-graphics-first-client-acceptance-observability` regression must
+keep DRDYNVC activation and Graphics-control readiness distinct: the latter is
+false after client CAPS intake and becomes true only after the complete
+CAPS_CONFIRM receipt. The R9 R3 Graphics-DVC sanitizer inventory remains 22
+tests because this extends the existing behavior case rather than adding a
+second observability test owner.
+
 ## R10 bounded accepted-client scheduler guard (2026-10-20)
 
 `runtime.linux-host-control-bounded-accepted-client-scheduler` is an offline

@@ -5266,12 +5266,14 @@ void testFirstClientAcceptanceObservability()
                makeClientDynamicVirtualChannelTpkt(
                    1007U, 1005U, gfxData)) ==
            RdpGraphicsDvcClientIntake::GraphicsCapabilitiesAccepted);
+    assert(!session.firstClientAcceptanceObservability().graphicsControlReady);
 
     write = McsSessionLifecycleTestAccess::pendingGraphics(session);
     assert(write &&
            write->kind == WriteKind::GraphicsCapabilitiesConfirm);
     assert(McsSessionLifecycleTestAccess::completeGraphics(
                session, *write) == WriteOutcome::Pending);
+    assert(session.firstClientAcceptanceObservability().graphicsControlReady);
     write = McsSessionLifecycleTestAccess::pendingGraphics(session);
     assert(write && write->kind == WriteKind::GraphicsCreateSurface);
     assert(McsSessionLifecycleTestAccess::completeGraphics(
@@ -5344,10 +5346,11 @@ void testFirstClientAcceptanceObservability()
                session, {0U, 64U}) ==
            RdpGraphicsSurfaceReconfiguration::Rejected);
 
-    constexpr std::array<Kind, 12> expected{
+    constexpr std::array<Kind, 13> expected{
         Kind::McsEstablished,
         Kind::ShareActivated,
         Kind::GraphicsDynamicVirtualChannelActivated,
+        Kind::GraphicsControlReady,
         Kind::SurfaceCreated,
         Kind::SurfaceMapped,
         Kind::FirstFramePublicationAccepted,
@@ -5365,6 +5368,7 @@ void testFirstClientAcceptanceObservability()
     assert(observed.mcsEstablished);
     assert(observed.shareActivated);
     assert(observed.graphicsDynamicVirtualChannelActivated);
+    assert(observed.graphicsControlReady);
     assert(observed.surfaceCreated);
     assert(observed.surfaceMapped);
     assert(observed.firstFramePublicationAccepted);

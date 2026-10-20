@@ -1,3 +1,46 @@
+## R3 R10 scheduler review and explicit Graphics-control observability (2026-10-20)
+
+**Authoring parent:** `20831e2698f9849d508daceb33a5caa4f0379c0a`; R10 scheduler reviewed at
+`4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`. The intervening R5 lifetime audit changes documentation only
+and confirms that no additional R5 service primitive is required before R10
+attaches the one selected X11 owner.
+
+Source review confirms the new Qt scheduler does not create another RDP parser,
+TLS owner or Graphics state machine. One `LinuxRuntimeConnection` still owns the
+R1 TLS application stream and the existing R3 `McsSessionLifecycle`; R10 only
+advances one existing phase per owner-thread tick. The positive progression is
+Share activation -> existing DRDYNVC begin/advance -> RDPGFX control -> the
+existing application-traffic gate. R4 remains the sole frame/FRAME_ACK truth.
+
+The review exposed one observability-only gap in R3: the bounded first-client
+trace already distinguished MCS established, Share activated, peer-accepted
+DRDYNVC CREATE, surface CREATE/MAP, first fully accepted frame publication and
+first genuine FRAME_ACK, but it did not separately identify completion of the
+RDPGFX control handshake. R3 now records `GraphicsControlReady` only after the
+existing writer has fully accepted CAPS_CONFIRM and the existing Graphics owner
+reports `graphicsCapabilitiesConfirmed()`. The diagnostic enum value is
+appended so existing diagnostic values remain stable. No wire bytes, capability
+selection, surface/frame ownership, ACK credit, authorization or scheduler
+behavior changes.
+
+The existing
+`transport.dvc-graphics-first-client-acceptance-observability` CTest now pins
+the distinct ordering
+MCS -> Share -> DRDYNVC -> Graphics control -> surface CREATE -> surface MAP ->
+first frame -> first FRAME_ACK. No new test executable or sanitizer selector is
+added; the R9 Graphics-DVC inventory remains 22 cases.
+
+The Windows App on macOS / Windows 11 `mstsc.exe` trace-analysis checklist is
+canonicalized in [testing standards](testing_standards.md). Protocol changes
+remain **BLOCKED** until R10 attaches the R2-selected native X11 desktop and a
+real client produces a failing trace. The first missing post-Share milestone,
+not speculation, determines R3's next diagnosis.
+
+Owner-local canonical build/full CTest: **NOT RUN** in this GitHub connector
+environment. Exact publication-SHA hosted CI: **PENDING**. Real Windows App,
+`mstsc.exe`, physical X11 desktop and FRAME_ACK acceptance: **BLOCKED / NOT
+RUN** on the remaining R10 native-owner/post-Share loop plus a green exact SHA.
+
 ## R5 Qt-service X11 owner lifetime audit (2026-10-20)
 
 Starting shared-main parent: `4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`.

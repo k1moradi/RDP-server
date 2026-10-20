@@ -1468,6 +1468,8 @@ enum class RdpFirstClientAcceptanceEventKind : std::uint8_t
     ResizeRemapStarted,
     ResizeRemapCompleted,
     ResizeRemapRejected,
+    // Kept at the end so existing diagnostic enum values remain stable.
+    GraphicsControlReady,
 };
 
 struct RdpFirstClientAcceptanceEvent
@@ -1494,6 +1496,7 @@ struct RdpFirstClientAcceptanceObservability
     bool mcsEstablished{};
     bool shareActivated{};
     bool graphicsDynamicVirtualChannelActivated{};
+    bool graphicsControlReady{};
     bool surfaceCreated{};
     bool surfaceMapped{};
     bool firstFramePublicationAccepted{};
@@ -1977,6 +1980,7 @@ private:
     bool firstClientAcceptanceMcsEstablished_{};
     bool firstClientAcceptanceShareActivated_{};
     bool firstClientAcceptanceGraphicsDynamicVirtualChannelActivated_{};
+    bool firstClientAcceptanceGraphicsControlReady_{};
     bool firstClientAcceptanceSurfaceCreated_{};
     bool firstClientAcceptanceSurfaceMapped_{};
     bool firstClientAcceptanceFramePublicationAccepted_{};

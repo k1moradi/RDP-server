@@ -1,3 +1,30 @@
+## R3 R10 scheduler/first-client observability review receipt (2026-10-20)
+
+**Authoring parent:** `20831e2698f9849d508daceb33a5caa4f0379c0a`; R10 scheduler reviewed at
+`4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`. Source review: **PASS** for the single-owner invariant.
+HostControl schedules the existing `LinuxRuntimeConnection`; R1 retains TLS
+I/O ownership, R3 retains parser/state ownership, and R4 retains
+frame/FRAME_ACK authority. The intervening R5 documentation audit confirms the
+native owner can be composed without a second XCB owner or scheduler.
+
+The only correction is diagnostic. R3 adds
+`GraphicsControlReady` at the existing fully accepted CAPS_CONFIRM boundary,
+between peer-accepted DRDYNVC CREATE and surface CREATE/MAP observations. The
+existing `transport.dvc-graphics-first-client-acceptance-observability` case
+now proves the flag is false before CAPS_CONFIRM completion and true afterward,
+then verifies the complete ordered event sequence. No wire behavior, codec
+policy, parser, writer, scheduler, authorization or ACK-window logic changes.
+The exact R9 Graphics-DVC selector remains 22 cases.
+
+Owner-local `~/rdp-server/build` configure/build/full CTest: **NOT RUN**
+(connector environment has no owner checkout/build execution). Exact
+publication-SHA hosted CI: **PENDING**. Windows App on macOS, Windows 11
+`mstsc.exe`, physical X11 desktop, first frame and FRAME_ACK: **BLOCKED / NOT
+RUN** until R10 attaches the native owner/post-Share loop and the exact SHA is
+green. Next R3 gate: analyze the first failing post-Share milestone from the
+canonical trace checklist; do not alter RDPGFX wire behavior without that
+evidence.
+
 ## R5 Qt-service X11 lifetime audit receipt (2026-10-20)
 
 Starting shared-main parent: `4f5c9e75e15682ab38c8fa800c6cb4b6de050d10`. The R10 GUI path now reaches

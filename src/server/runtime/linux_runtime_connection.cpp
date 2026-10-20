@@ -8,6 +8,8 @@
 #include <limits>
 #include <utility>
 
+#include <openssl/evp.h>
+#include <openssl/x509.h>
 #include <poll.h>
 
 namespace rdp_server::server::runtime
@@ -166,6 +168,63 @@ bool LinuxRuntimeConnection::ready() const noexcept
                rdp_server::server::security::SpnegoStage::Failed &&
            session_.phase() !=
                rdp_server::server::transport::McsSessionPhase::Closed;
+}
+
+LinuxRuntimeConnectionAcceptanceDiagnostics
+LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
+{
+    using Stage = rdp_server::server::transport::PreauthStage;
+    LinuxRuntimeConnectionAcceptanceDiagnostics snapshot{};
+    snapshot.preauthStage = connection_.stage();
+    snapshot.negotiatedSecurityProtocol = negotiatedSecurityProtocol_;
+    snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
+    snapshot.credSspTransition = credSspDiagnosticTransition_;
+    snapshot.mcsPhase = session_.phase();
+    snapshot.shareActivated =
+        snapshot.mcsPhase ==
+        rdp_server::server::transport::McsSessionPhase::ShareActivated;
+    snapshot.termination = connection_.termination();
+    snapshot.certificateSha256 = negotiatedCertificateSha256_;
+    snapshot.certificateFingerprintAvailable =
+        negotiatedCertificateFingerprintAvailable_;
+
+    if (!connection_.active())
+        snapshot.tlsHandshakeStage =
+            LinuxRuntimeTlsHandshakeDiagnosticStage::Closed;
+    else if (tlsEverEstablished_)
+        snapshot.tlsHandshakeStage =
+            LinuxRuntimeTlsHandshakeDiagnosticStage::Established;
+    else if (snapshot.preauthStage == Stage::AwaitTls)
+        snapshot.tlsHandshakeStage =
+            LinuxRuntimeTlsHandshakeDiagnosticStage::Handshaking;
+    else
+        snapshot.tlsHandshakeStage =
+            LinuxRuntimeTlsHandshakeDiagnosticStage::NotStarted;
+    return snapshot;
+}
+
+void LinuxRuntimeConnection::captureEstablishedTlsDiagnostics() noexcept
+{
+    const SSL *const tls = connection_.establishedTls();
+    if (tls == nullptr)
+        return;
+
+    tlsEverEstablished_ = true;
+    negotiatedTlsProtocolVersion_ = ::SSL_version(tls);
+    if (const auto provenance = connection_.securityNegotiationProvenance())
+        negotiatedSecurityProtocol_ = provenance->serverSelectedProtocol;
+
+    X509 *const certificate = ::SSL_get_certificate(const_cast<SSL *>(tls));
+    unsigned int fingerprintBytes = 0U;
+    RuntimeTlsCertificateFingerprint fingerprint{};
+    if (certificate != nullptr &&
+        ::X509_digest(certificate, ::EVP_sha256(), fingerprint.data(),
+                      &fingerprintBytes) == 1 &&
+        fingerprintBytes == fingerprint.size())
+    {
+        negotiatedCertificateSha256_ = fingerprint;
+        negotiatedCertificateFingerprintAvailable_ = true;
+    }
 }
 
 bool LinuxRuntimeConnection::credSspReplyPending() const noexcept
@@ -461,6 +520,9 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
         if (stageBefore == Stage::AwaitTls &&
             connection_.stage() == Stage::AwaitCredSsp)
         {
+            captureEstablishedTlsDiagnostics();
+            credSspDiagnosticTransition_ =
+                LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken;
             return {0, 0, Step::TlsEstablished};
         }
 
@@ -587,7 +649,15 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
     }
 
     const auto result = connection_.onTlsIoReady();
-    if (result == rdp_server::server::transport::TlsHandshakeStatus::Invalid ||
+    if (result ==
+        rdp_server::server::transport::TlsHandshakeStatus::Established)
+    {
+        captureEstablishedTlsDiagnostics();
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken;
+    }
+    else if (
+        result == rdp_server::server::transport::TlsHandshakeStatus::Invalid ||
         result == rdp_server::server::transport::TlsHandshakeStatus::Closed)
     {
         revoke();
@@ -619,20 +689,30 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::NeedWrite};
     case HandshakeStatus::BindingVerified:
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::BindingVerified;
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::BindingVerified};
     case HandshakeStatus::CredentialsVerified:
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::CredentialsVerified};
     case HandshakeStatus::UnsupportedFinalCredentials:
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::Failed;
         revoke();
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::UnsupportedFinalCredentials};
     case HandshakeStatus::Rejected:
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::Failed;
         revoke();
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::Invalid};
     case HandshakeStatus::TransportClosed:
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::Closed;
         revoke();
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::Closed};

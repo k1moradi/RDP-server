@@ -1,3 +1,21 @@
+## R1 first-client runtime diagnostic boundary (2026-10-20)
+
+R1 now exposes one bounded, read-only acceptance diagnostic snapshot from the
+existing `LinuxRuntimeConnection`. It derives TLS stage, the exact X.224
+selected security protocol, negotiated TLS version, CredSSP transition, R3
+Share phase, terminal transport classification and the SHA-256 fingerprint of
+the certificate selected by the exact established SSL. The snapshot stores no
+passwords, NTLM/GSS responses, session keys, delegated credentials or private
+certificate material and grants no authority.
+
+R10 host status also separates the configured selected endpoint from the
+getsockname-derived bound endpoint and listener generation. A selected endpoint
+is intent only. A bound endpoint/generation remains valid only while the sole
+`OwnedLanListener` is current; Stop/revoke clears the listener before any
+replacement. R10 must combine these existing observations for the first human
+acceptance log rather than create a second listener, TLS owner or protocol
+state machine.
+
 ## Standalone NTLMv2/CredSSP password-track boundary (2026-10-19)
 
 The first-party password track is separate from the existing Kerberos/PAM R2

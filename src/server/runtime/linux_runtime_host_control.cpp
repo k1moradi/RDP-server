@@ -44,6 +44,47 @@ namespace
     return false;
 }
 
+[[nodiscard]] std::string endpointText(
+    std::string_view address, std::uint16_t port)
+{
+    if (address.empty() || port == 0U)
+        return {};
+    const bool ipv6 = address.find(':') != std::string_view::npos;
+    std::string endpoint;
+    endpoint.reserve(address.size() + 8U);
+    if (ipv6)
+        endpoint.push_back('[');
+    endpoint.append(address);
+    if (ipv6)
+        endpoint.push_back(']');
+    endpoint.push_back(':');
+    endpoint.append(std::to_string(port));
+    return endpoint;
+}
+
+[[nodiscard]] std::string boundEndpointText(
+    const rdp_server::server::transport::TcpPeerEndpoint &endpoint)
+{
+    if (!endpoint.valid() || endpoint.port == 0U)
+        return {};
+
+    int family = 0;
+    if (endpoint.family ==
+        rdp_server::server::transport::TcpPeerAddressFamily::Ipv4)
+        family = AF_INET;
+    else if (endpoint.family ==
+             rdp_server::server::transport::TcpPeerAddressFamily::Ipv6)
+        family = AF_INET6;
+    if (family == 0)
+        return {};
+
+    std::array<char, INET6_ADDRSTRLEN> buffer{};
+    if (::inet_ntop(family, endpoint.address.data(),
+                    buffer.data(), buffer.size()) == nullptr)
+        return {};
+    return endpointText(buffer.data(), endpoint.port);
+}
+
 [[nodiscard]] std::string numericAddress(const sockaddr* address)
 {
     if (!isEligibleAddress(address))
@@ -183,6 +224,11 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.listenerAvailable = listenerCurrent;
     snapshot.listenerGeneration =
         listenerCurrent ? listener_.generation() : 0U;
+    if (selectionConfigured_)
+        snapshot.selectedEndpoint =
+            endpointText(selection_.localAddress, selection_.port);
+    if (listenerCurrent)
+        snapshot.boundEndpoint = boundEndpointText(listener_.boundEndpoint());
     // Status observes the same R2 owner used by admission. This remains false
     // today; a future positive provider cannot be replaced by a GUI Boolean.
     snapshot.hostOwnerAuthorized =

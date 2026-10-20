@@ -1,3 +1,20 @@
+## R1 first-client runtime diagnostics / Stop preparation (2026-10-20)
+
+`runtime.linux-connection-r1-acceptance-diagnostics` uses the production
+`LinuxRuntimeConnection`, a real nonblocking loopback connection and the
+production TLS context to verify the pre-TLS -> handshaking -> established
+diagnostic transition, exact HYBRID selection, negotiated TLS version, selected
+certificate SHA-256 continuity across configured-certificate rotation, and
+Stop/revoke during both established and in-progress TLS without creating an R2
+lease or Share. Host-control denial coverage also requires configured selected
+endpoint observation while bound endpoint/listener generation remain absent.
+
+This is offline preparation only. Positive R2-authorized R10 LAN Start,
+accepted-socket lifetime under that owner, live WANT_READ/WANT_WRITE, partial
+TLS writes, close_notify/half-close/RST, Stop race, interface disappearance,
+descriptor reuse and Microsoft-client acceptance remain NOT RUN until the
+positive Start path exists.
+
 ## R2 standalone NTLMv2 password-core tests (2026-10-19)
 
 The standalone password track must keep Microsoft-published known answers

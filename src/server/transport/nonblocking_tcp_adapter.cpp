@@ -874,19 +874,23 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
         pendingApplicationBytes_ = attemptedBytes;
         return {Outcome::NeedWrite, 0};
     case SSL_ERROR_ZERO_RETURN:
+        termination_ = TcpConnectionTermination::OrderlyTlsClose;
         cancel();
         return {Outcome::TlsClosed, 0};
     case SSL_ERROR_SYSCALL:
+        termination_ = TcpConnectionTermination::TransportError;
         cancel();
         return {Outcome::TransportClosed, 0};
     case SSL_ERROR_SSL:
         if (isUnexpectedTlsEof())
         {
+            termination_ = TcpConnectionTermination::TransportError;
             cancel();
             return {Outcome::TransportClosed, 0};
         }
         [[fallthrough]];
     default:
+        termination_ = TcpConnectionTermination::TlsFailure;
         cancel();
         return {Outcome::FatalTlsFailure, 0};
     }
@@ -972,6 +976,8 @@ OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
 
 void OwnedPreauthTcpConnection::cancel() noexcept
 {
+    if (termination_ == TcpConnectionTermination::Open)
+        termination_ = TcpConnectionTermination::Cancelled;
     // No borrowed application buffer is stored, but pending readiness must
     // become inert before SSL/BIO teardown. The BIO borrows io_; free its
     // SSL before closing the native socket.
@@ -986,9 +992,16 @@ TcpPreauthEvent OwnedPreauthTcpConnection::onReadable() noexcept
 {
     if (!active()) return TcpPreauthEvent::Closed;
     const auto status = adapter_.onReadable();
-    if (status == TcpPreauthEvent::Closed ||
-        status == TcpPreauthEvent::Invalid)
+    if (status == TcpPreauthEvent::Closed)
+    {
+        termination_ = TcpConnectionTermination::TransportError;
         cancel();
+    }
+    else if (status == TcpPreauthEvent::Invalid)
+    {
+        termination_ = TcpConnectionTermination::ProtocolError;
+        cancel();
+    }
     return status;
 }
 
@@ -996,9 +1009,16 @@ TcpPreauthEvent OwnedPreauthTcpConnection::onWritable() noexcept
 {
     if (!active()) return TcpPreauthEvent::Closed;
     const auto status = adapter_.onWritable();
-    if (status == TcpPreauthEvent::Closed ||
-        status == TcpPreauthEvent::Invalid)
+    if (status == TcpPreauthEvent::Closed)
+    {
+        termination_ = TcpConnectionTermination::TransportError;
         cancel();
+    }
+    else if (status == TcpPreauthEvent::Invalid)
+    {
+        termination_ = TcpConnectionTermination::ProtocolError;
+        cancel();
+    }
     return status;
 }
 
@@ -1035,9 +1055,16 @@ TlsHandshakeStatus OwnedPreauthTcpConnection::onTlsIoReady() noexcept
         return TlsHandshakeStatus::Invalid;
     }
     const auto result = adapter_.onAttachedTlsIoReady();
-    if (result == TlsHandshakeStatus::Invalid ||
-        result == TlsHandshakeStatus::Closed)
+    if (result == TlsHandshakeStatus::Invalid)
+    {
+        termination_ = TcpConnectionTermination::TlsFailure;
         cancel();
+    }
+    else if (result == TlsHandshakeStatus::Closed)
+    {
+        termination_ = TcpConnectionTermination::TransportError;
+        cancel();
+    }
     return result;
 }
 

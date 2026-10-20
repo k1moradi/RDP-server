@@ -18,6 +18,7 @@ int main(int argc, char** argv)
     {
         assert(control.status().stage == RuntimeHostStage::Stopped);
         assert(!control.status().listenerAvailable);
+        assert(control.status().selectedEndpoint.empty());
         assert(!control.status().hostOwnerAuthorized);
         assert(!control.status().tlsIdentityReady);
         assert(!control.status().nativeDesktopReady);
@@ -52,6 +53,10 @@ int main(int argc, char** argv)
                 interfaces.front().stableId,
                 interfaces.front().localAddresses.front(), 3389U, true, false};
             assert(control.configure(current).succeeded());
+            const auto configured = control.status();
+            assert(!configured.selectedEndpoint.empty());
+            assert(configured.listenerGeneration == 0U);
+            assert(configured.boundEndpoint.empty());
             assert(control.startSharing().error ==
                    RuntimeHostError::HostConsentRequired);
             assert(!control.status().listenerAvailable);

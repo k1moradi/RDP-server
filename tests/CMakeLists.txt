@@ -1185,6 +1185,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-security-keytab-policy-denials
             linux-connection-credssp-owner-framing
             linux-connection-credssp-progress-accounting
+            linux-connection-r1-acceptance-diagnostics
             linux-connection-pre-admission-dispatch
             linux-connection-pre-admission-native-poll
             linux-connection-native-poll-expiry-revocation

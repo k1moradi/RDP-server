@@ -360,6 +360,46 @@ struct LinuxRuntimeSocketPollResult
     LinuxRuntimeSocketPollStatus status{LinuxRuntimeSocketPollStatus::Closed};
 };
 
+enum class LinuxRuntimeTlsHandshakeDiagnosticStage : std::uint8_t
+{
+    NotStarted,
+    Handshaking,
+    Established,
+    Closed,
+};
+
+enum class LinuxRuntimeCredSspDiagnosticTransition : std::uint8_t
+{
+    NotStarted,
+    AwaitingToken,
+    BindingVerified,
+    CredentialsVerified,
+    Failed,
+    Closed,
+};
+
+// Bounded, non-authorizing first-client diagnostic snapshot. It contains only
+// protocol/lifecycle scalars plus the public certificate fingerprint; never
+// passwords, NTLM/GSS responses, session keys or delegated credentials.
+struct LinuxRuntimeConnectionAcceptanceDiagnostics final
+{
+    rdp_server::server::transport::PreauthStage preauthStage{
+        rdp_server::server::transport::PreauthStage::Closed};
+    LinuxRuntimeTlsHandshakeDiagnosticStage tlsHandshakeStage{
+        LinuxRuntimeTlsHandshakeDiagnosticStage::Closed};
+    std::uint32_t negotiatedSecurityProtocol{};
+    int negotiatedTlsProtocolVersion{};
+    LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
+        LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    rdp_server::server::transport::McsSessionPhase mcsPhase{
+        rdp_server::server::transport::McsSessionPhase::Closed};
+    bool shareActivated{};
+    rdp_server::server::transport::TcpConnectionTermination termination{
+        rdp_server::server::transport::TcpConnectionTermination::Cancelled};
+    RuntimeTlsCertificateFingerprint certificateSha256{};
+    bool certificateFingerprintAvailable{};
+};
+
 namespace detail
 {
 // Derived scheduler snapshot only: this owns no protocol bytes, offsets,
@@ -990,6 +1030,9 @@ public:
         return lease_.has_value() && !lease_->isRevoked();
     }
 
+    [[nodiscard]] LinuxRuntimeConnectionAcceptanceDiagnostics
+    acceptanceDiagnostics() const noexcept;
+
 private:
     enum class PersonalDesktopGraphicsDvcIoAction : std::uint8_t
     {
@@ -1018,6 +1061,7 @@ private:
     [[nodiscard]] bool nativeChangeRegistrationMatches(
         const LinuxRuntimeNativeChangeRegistration &registration) const
         noexcept;
+    void captureEstablishedTlsDiagnostics() noexcept;
 
     LinuxRuntimeSecurityConfiguration &securityConfiguration_;
 
@@ -1065,6 +1109,13 @@ private:
     std::optional<LinuxRuntimeNativeChangeRegistration>
         nativeChangeRegistration_{};
     bool nativeChangeRegistrationUnregistered_{};
+    LinuxRuntimeCredSspDiagnosticTransition credSspDiagnosticTransition_{
+        LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    RuntimeTlsCertificateFingerprint negotiatedCertificateSha256_{};
+    bool negotiatedCertificateFingerprintAvailable_{};
+    std::uint32_t negotiatedSecurityProtocol_{};
+    int negotiatedTlsProtocolVersion_{};
+    bool tlsEverEstablished_{};
     // Retired explicitly before the exact borrowed R1 TLS owner is canceled.
     rdp_server::server::security::TsRequestFrameReader credSspFrameReader_{};
     rdp_server::server::security::TsRequestTlsReplyWriter credSspReplyWriter_{};

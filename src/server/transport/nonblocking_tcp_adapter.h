@@ -365,6 +365,18 @@ private:
      Failure,
  };
 
+ // Non-secret terminal transport classification for first-client diagnostics.
+ // It is descriptive only and never grants authentication/session authority.
+ enum class TcpConnectionTermination : std::uint8_t
+ {
+     Open,
+     OrderlyTlsClose,
+     TransportError,
+     TlsFailure,
+     ProtocolError,
+     Cancelled,
+ };
+
  struct TcpConnectionPollResult
  {
      TcpConnectionPollOutcome outcome{TcpConnectionPollOutcome::Closed};
@@ -442,6 +454,10 @@ private:
      [[nodiscard]] PreauthStage stage() const noexcept
      {
          return adapter_.connection().stage();
+     }
+     [[nodiscard]] TcpConnectionTermination termination() const noexcept
+     {
+         return termination_;
      }
 
      // Only for plaintext X.224 socket readiness. Subsequent TLS/MCS
@@ -556,6 +572,7 @@ private:
          TcpConnectionIoInterest::Read};
      // Size only: caller memory is never borrowed beyond a method call.
      std::size_t pendingApplicationBytes_{};
+     TcpConnectionTermination termination_{TcpConnectionTermination::Open};
  };
 
 } // namespace rdp_server::server::transport

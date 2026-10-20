@@ -1,3 +1,26 @@
+## R1 first-client diagnostic preparation receipt (2026-10-20)
+
+Starting shared-main parent: `a98962a8881768f2c21d100edf21149b380daae0`.
+
+This increment adds non-secret diagnostics on the sole production R1 connection
+owner: TLS handshake stage, negotiated RDP security protocol and TLS version,
+CredSSP transition, Share activation state, orderly TLS close versus transport /
+TLS / protocol error classification, and exact selected-certificate SHA-256.
+R10 host status now publishes configured selected endpoint separately from
+actual bound endpoint/listener generation. No listener, R2 lease, credential,
+native desktop or Share is created by these observations.
+
+Dedicated offline CTest:
+`runtime.linux-connection-r1-acceptance-diagnostics`. It includes production
+TLS establishment, configured-certificate rotation continuity, and Stop during
+the TLS-handshake window without positive R2 admission. Existing
+`runtime.tls-identity-offline-lifecycle-denials` remains the certificate
+rotation/stale listener-generation/identity-invalidation gate.
+
+Owner-local canonical build/full CTest: **NOT RUN** in the connector-only
+environment. Positive R2-authorized R10 LAN Start and real-client acceptance:
+**BLOCKED / NOT RUN**.
+
 **R2 standalone NTLMv2 KAT gate (2026-10-19):** a noninstalled
 first-party password core now verifies the canonical NTLMv2 proof, derives the
 published SessionBaseKey and KEY_EXCH exported session key, derives the four

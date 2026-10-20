@@ -1,3 +1,29 @@
+## R1 first accepted-client diagnostic preparation (2026-10-20)
+
+Starting shared-main parent: `a98962a8881768f2c21d100edf21149b380daae0`.
+
+R1 adds a bounded non-authorizing diagnostic snapshot on the existing
+`LinuxRuntimeConnection`: preauth/TLS stage, exact negotiated Enhanced
+Security protocol, TLS protocol version, CredSSP transition, R3 Share activation
+state, terminal transport classification and SHA-256 of the certificate
+selected by the exact established SSL. R10 host status separately reports the
+configured selected endpoint and the current getsockname-derived bound endpoint
+plus listener generation. No password, NTLM/GSS response, session key,
+delegated credential or private certificate material enters diagnostics.
+
+Offline production-backed coverage adds
+`runtime.linux-connection-r1-acceptance-diagnostics`: real nonblocking
+loopback/TLS ownership, certificate-rotation continuity, and Stop during both
+established and in-progress TLS while no R2 lease or Share can exist. Existing
+R1 TLS lifecycle coverage remains authoritative for stale listener generation
+and TLS identity invalidation.
+
+**Still BLOCKED / NOT RUN:** positive R2-authorized R10 LAN Start, the first
+actual LAN accepted socket, live WANT_READ/WANT_WRITE and partial TLS writes
+under that Start owner, close_notify/half-close/RST, Stop race, interface
+disappearance, descriptor reuse, and Microsoft Windows App/mstsc acceptance.
+Do not add a second listener or bypass HostControl to obtain those claims.
+
 ### R2 standalone session-password cryptographic core (2026-10-19)
 
 The parallel independent-password track now has a noninstalled first-party

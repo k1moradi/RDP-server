@@ -186,6 +186,9 @@ struct RuntimeHostStatus
     std::uint64_t listenerGeneration{};
     bool nativeDesktopReady{};
     RuntimeClipboardState clipboardState{RuntimeClipboardState::Unavailable};
+    // Configured intent versus getsockname-derived reality are deliberately
+    // separate diagnostics; neither is listener/admission authority.
+    std::string selectedEndpoint;
     std::string boundEndpoint;
     std::vector<RuntimeHostClient> activeClients;
     RuntimeHostError lastError{RuntimeHostError::ControlUnavailable};

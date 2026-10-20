@@ -1399,6 +1399,98 @@ void testConnectionPostAdmissionMcsFramingDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionR1AcceptanceDiagnostics(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using DiagnosticTlsStage =
+        rdp_server::server::runtime::LinuxRuntimeTlsHandshakeDiagnosticStage;
+    using DiagnosticCredSsp =
+        rdp_server::server::runtime::LinuxRuntimeCredSspDiagnosticTransition;
+    using Termination =
+        rdp_server::server::transport::TcpConnectionTermination;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-r1-diagnostics.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "r1-diagnostics");
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+
+    auto diagnostics = connection.acceptanceDiagnostics();
+    assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::NotStarted);
+    assert(diagnostics.negotiatedSecurityProtocol == 0U);
+    assert(diagnostics.negotiatedTlsProtocolVersion == 0);
+    assert(diagnostics.credSspTransition == DiagnosticCredSsp::NotStarted);
+    assert(!diagnostics.shareActivated);
+    assert(!diagnostics.certificateFingerprintAvailable);
+    assert(diagnostics.termination == Termination::Open);
+
+    TestSsl clientTls =
+        establishHybridTls(connection, clientDescriptor, tlsContext);
+    diagnostics = connection.acceptanceDiagnostics();
+    assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Established);
+    assert(diagnostics.negotiatedSecurityProtocol == kRdpProtocolHybrid);
+    assert(diagnostics.negotiatedTlsProtocolVersion == TLS1_2_VERSION ||
+           diagnostics.negotiatedTlsProtocolVersion == TLS1_3_VERSION);
+    assert(diagnostics.credSspTransition == DiagnosticCredSsp::AwaitingToken);
+    assert(diagnostics.certificateFingerprintAvailable);
+    assert(!diagnostics.shareActivated);
+    assert(diagnostics.termination == Termination::Open);
+
+    const auto originalIdentity = tlsContext.identityStatus();
+    assert(originalIdentity.fingerprintAvailable);
+    assert(diagnostics.certificateSha256 ==
+           originalIdentity.certificateSha256);
+
+    auto rotatedContext =
+        makeRuntimeTlsContext(fixtureDirectory, "r1-diagnostics-rotated");
+    const auto rotatedIdentity = rotatedContext.identityStatus();
+    assert(rotatedIdentity.fingerprintAvailable);
+    assert(rotatedIdentity.certificateSha256 !=
+           originalIdentity.certificateSha256);
+    assert(connection.acceptanceDiagnostics().certificateSha256 ==
+           originalIdentity.certificateSha256);
+
+    connection.revoke();
+    diagnostics = connection.acceptanceDiagnostics();
+    assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+    assert(diagnostics.termination == Termination::Cancelled);
+    assert(diagnostics.certificateFingerprintAvailable);
+    assert(!connection.hasAdmissionLease());
+    assert(::close(clientDescriptor) == 0);
+
+    int handshakeClientDescriptor = -1;
+    auto handshakeAccepted =
+        acceptLoopbackConnection(handshakeClientDescriptor);
+    assert(setNonblocking(handshakeClientDescriptor));
+    LinuxRuntimeConnection handshakeConnection{
+        configuration, std::move(handshakeAccepted)};
+    assert(sendSocketAll(handshakeClientDescriptor, kHybridNlaRequest));
+    auto step = handshakeConnection.advancePreAdmission(
+        true, false, tlsContext);
+    assert(step.status == LinuxPreAdmissionStepStatus::NeedWrite);
+    step = handshakeConnection.advancePreAdmission(
+        false, true, tlsContext);
+    assert(step.status == LinuxPreAdmissionStepStatus::Progress);
+    diagnostics = handshakeConnection.acceptanceDiagnostics();
+    assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Handshaking);
+    handshakeConnection.revoke();
+    diagnostics = handshakeConnection.acceptanceDiagnostics();
+    assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
+    assert(diagnostics.termination == Termination::Cancelled);
+    assert(diagnostics.negotiatedSecurityProtocol == 0U);
+    assert(!diagnostics.certificateFingerprintAvailable);
+    assert(!diagnostics.shareActivated);
+    assert(::close(handshakeClientDescriptor) == 0);
+}
+
 void testConnectionPreAdmissionDispatch(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3393,6 +3485,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-credssp-progress-accounting")
     {
         testConnectionCredSspProgressAccounting(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-r1-acceptance-diagnostics")
+    {
+        testConnectionR1AcceptanceDiagnostics(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-pre-admission-dispatch")

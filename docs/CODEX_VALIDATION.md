@@ -1,3 +1,37 @@
+## R7 accepted-client/native status projection authoring receipt (2026-10-20)
+
+Starting shared-main parent: `68332b57ef12b5fc6ab9e51bbec1bc7c2c91a9ae`.
+
+Source review of R10's new GUI scheduler found that Share activation and
+Graphics control readiness were both projected through the same
+`RuntimeHostStage::ShareActivated`, while Linux correctly kept
+`nativeDesktopReady == false`. R7 now consumes a separate read-only
+`graphicsReady` observation derived from R10's existing internal phase,
+reserves native-initializing/readiness as independent facts, and requires
+`nativeDesktopReady` before a client can be presented as visible/connected.
+Accepted-client retirement also exposes one bounded listener-scoped
+disconnected observation; host teardown clears it.
+
+R2's current `CurrentOwnerSharingAuthority` was re-read. Its effective
+permission bits/deadline remain private and it has no read-only grant
+observation, so this increment does not invent one or echo the permission-page
+request as granted state. The product GUI still constructs no Session Password
+or confirmation field and adds no bypassable capability switch.
+
+New ordinary offscreen CTest:
+`gui.offscreen-r10-graphics-native-desktop-projection`. Existing lifecycle,
+client-stage, owner-permission and unsupported-password fixtures are tightened.
+The R10 scheduler source guard additionally pins that Graphics-ready status is
+derived from the sole `AcceptedClientPhase::GraphicsReady` owner.
+
+Canonical `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**. No listener,
+native desktop, password, credential or Microsoft client was exercised.
+Desktop-visible remains **BLOCKED on R10 native X11 composition**; effective
+grant scope/lifetime remains **BLOCKED on R2 read-only grant observation**;
+Session Password remains **BLOCKED on composed R2 standalone admission plus
+real-client proof**.
+
 ## R3 R10 scheduler/first-client observability review receipt (2026-10-20)
 
 **Authoring parent:** `20831e2698f9849d508daceb33a5caa4f0379c0a`; R10 scheduler reviewed at

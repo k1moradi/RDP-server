@@ -1,3 +1,24 @@
+## R7 authoritative GUI lifecycle projection (2026-10-20)
+
+R7 remains a read-only presentation layer over the single R10 owner. R10's
+existing accepted-client phase may publish `graphicsReady` only after genuine
+RDPGFX control readiness. `nativeDesktopInitializing` and
+`nativeDesktopReady` are separate native-owner facts; neither may be inferred
+from Share activation, Graphics readiness, a GUI request, or a per-client
+presentation flag. The Qt adapter requires `nativeDesktopReady` before any
+client can enter its visible/connected list.
+
+A retired accepted client may leave one bounded `clientDisconnected`
+observation while the same listener remains current. New acceptance clears it;
+Stop/Revoke and listener retirement clear it. The observation is diagnostic
+only and carries no credential, protocol payload, native identity or authority.
+
+The owner-permission controls are requests, not a grant cache. Until R2
+publishes a read-only effective-grant observation, Qt must not display the
+requested scope or requested lifetime as authoritative. The application
+password path likewise has no product capability yet, so R7 constructs no
+password/confirmation fields and cannot reach the internal R2P credential owner.
+
 ## R3/R10 first-client ownership and Graphics-control observation (2026-10-20)
 
 R10's bounded Qt accepted-client scheduler is an external scheduler only. It

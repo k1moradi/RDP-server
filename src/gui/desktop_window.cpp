@@ -146,19 +146,35 @@ QString hostLifecycleText(const HostStatus& state)
     case RuntimeHostStage::CredentialsConfigured:
         return QStringLiteral("OS credentials configured; listener not ready.");
     case RuntimeHostStage::ListenerAvailable:
-        return state.listenerReady
-            ? QStringLiteral("Listener ready; waiting for desktop connection.")
-            : QStringLiteral("Listener readiness unconfirmed.");
+        if (!state.listenerReady)
+            return QStringLiteral("Listener readiness unconfirmed.");
+        return state.clientDisconnected
+            ? QStringLiteral(
+                "Client disconnected; listening for another desktop connection.")
+            : QStringLiteral("Listening; waiting for desktop connection.");
     case RuntimeHostStage::ClientAuthenticating:
-        return QStringLiteral("Peer authenticating; desktop not yet visible.");
+        return QStringLiteral("Client authenticating; desktop not yet visible.");
     case RuntimeHostStage::ShareActivated:
-        return QStringLiteral("Share activated; desktop not yet visible.");
+        if (state.nativeDesktopInitializing && state.graphicsReady)
+            return QStringLiteral(
+                "Native desktop initializing; desktop not yet visible.");
+        if (state.graphicsReady)
+            return state.nativeDesktopReady
+                ? QStringLiteral(
+                    "Graphics ready; native desktop ready, visibility not yet confirmed.")
+                : QStringLiteral(
+                    "Graphics ready; native desktop not yet initialized.");
+        return QStringLiteral("Share activated; graphics not yet ready.");
     case RuntimeHostStage::DesktopVisible:
-        return QStringLiteral("Desktop visible; client not yet confirmed.");
+        return state.nativeDesktopReady
+            ? QStringLiteral("Desktop visible; native desktop ready.")
+            : QStringLiteral(
+                "Desktop visibility unconfirmed; native desktop is not ready.");
     case RuntimeHostStage::ClientConnected:
-        return state.clients.isEmpty()
-            ? QStringLiteral("Client-connected stage; no visible client confirmed.")
-            : QStringLiteral("Client connected; desktop visible.");
+        return state.nativeDesktopReady && !state.clients.isEmpty()
+            ? QStringLiteral("Client connected; desktop visible.")
+            : QStringLiteral(
+                "Client-connected stage; desktop visibility unconfirmed.");
     case RuntimeHostStage::Revoked:
         return QStringLiteral("Sharing revoked/stopped.");
     }
@@ -509,7 +525,9 @@ void DesktopWindow::refresh() {
         : "Permitted credentials unavailable: configure existing OS-account access. "
           "Independent application passwords remain unsupported for NLA.");
     permissionStatus_->setText(snapshot.desktopAuthorized
-        ? "Local owner permission is current for the reported desktop."
+        ? "Local owner permission is current. Effective permission scope and "
+          "remaining lifetime are not yet exposed by R2; the controls above "
+          "are request intent only."
         : "Local owner permission is not established; Start remains blocked.");
     configureOsAccount_->setEnabled(
         snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);

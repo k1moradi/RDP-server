@@ -90,10 +90,20 @@ HostStatus HostControl::status() const
     view.tlsReady = tlsObservationCurrent && runtimeStatus.tlsIdentityReady;
     if (tlsObservationCurrent)
         view.tlsIdentity = runtimeStatus.tlsIdentity;
-    view.captureInputReady =
-        runtimeStatus.nativeDesktopReady && !terminalHostSession;
+    const bool sharingStage = isSharingStage(runtimeStatus.stage);
+    view.graphicsReady =
+        sharingStage && runtimeStatus.graphicsReady && !terminalHostSession;
+    view.nativeDesktopReady =
+        sharingStage && runtimeStatus.nativeDesktopReady && !terminalHostSession;
+    view.nativeDesktopInitializing =
+        view.graphicsReady && runtimeStatus.nativeDesktopInitializing &&
+        !view.nativeDesktopReady;
+    view.captureInputReady = view.nativeDesktopReady;
+    view.clientDisconnected =
+        runtimeStatus.clientDisconnected && view.listenerReady &&
+        runtimeStatus.stage == RuntimeHostStage::ListenerAvailable;
     view.sharing =
-        isSharingStage(runtimeStatus.stage) && !terminalHostSession;
+        sharingStage && !terminalHostSession;
     view.startPending =
         isPendingStage(runtimeStatus.stage) && !terminalHostSession;
     view.clipboardState = runtimeStatus.clipboardState;
@@ -123,7 +133,6 @@ HostStatus HostControl::status() const
     // A stale or unavailable runtime snapshot cannot prove a bound endpoint
     // or client presence. Keep pending and connected clients distinct: an
     // R2 authentication attempt is not a visible, admitted R3 desktop.
-    const bool sharingStage = isSharingStage(runtimeStatus.stage);
     const bool activeStage = sharingStage || isPendingStage(runtimeStatus.stage);
     if (view.controlAvailable && activeStage && !terminalHostSession)
     {
@@ -133,19 +142,37 @@ HostStatus HostControl::status() const
             const QString displayName = client.peerAddress.empty()
                 ? QStringLiteral("Client %1").arg(client.opaqueId)
                 : toQString(client.peerAddress);
-            if (sharingStage && client.shareActivated &&
-                client.desktopVisible && !client.authenticating)
+            if (view.nativeDesktopReady && sharingStage &&
+                client.shareActivated && client.desktopVisible &&
+                !client.authenticating)
+            {
                 view.clients.push_back(displayName);
+            }
             else if (client.authenticating)
+            {
                 view.pendingClients.push_back(
                     QStringLiteral("Authenticating: ") + displayName);
-            else if (client.shareActivated && !client.desktopVisible)
-                view.pendingClients.push_back(
-                    QStringLiteral("Share activated; desktop pending: ") +
-                    displayName);
+            }
+            else if (client.shareActivated)
+            {
+                if (view.nativeDesktopInitializing)
+                    view.pendingClients.push_back(
+                        QStringLiteral("Native desktop initializing: ") +
+                        displayName);
+                else if (view.graphicsReady)
+                    view.pendingClients.push_back(
+                        QStringLiteral("Graphics ready; native desktop pending: ") +
+                        displayName);
+                else
+                    view.pendingClients.push_back(
+                        QStringLiteral("Share activated; desktop pending: ") +
+                        displayName);
+            }
             else
+            {
                 view.pendingClients.push_back(
                     QStringLiteral("Desktop not confirmed: ") + displayName);
+            }
 
             // R10 owns the lifetime of this opaque disconnect handle,
             // including for authentications which are still pending.
@@ -158,6 +185,9 @@ HostStatus HostControl::status() const
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited)
         view.authenticationFailures.push_back(
             toQString(runtimeHostErrorMessage(runtimeStatus.lastError)));
+    if (view.clientDisconnected)
+        view.disconnected.push_back(
+            QStringLiteral("Client disconnected; listener remains active"));
     if (runtimeStatus.stage == RuntimeHostStage::Revoked ||
         runtimeStatus.lastError == RuntimeHostError::AccessRevoked)
         view.revoked.push_back(QStringLiteral("Sharing access revoked"));

@@ -394,14 +394,25 @@ int main(int argc, char** argv)
         checkStage(RuntimeHostStage::CredentialsConfigured, "OS credentials");
         checkStage(RuntimeHostStage::ListenerAvailable, "readiness unconfirmed");
         runtime.snapshot.listenerAvailable = true;
-        checkStage(RuntimeHostStage::ListenerAvailable, "Listener ready");
-        checkStage(RuntimeHostStage::ClientAuthenticating, "Peer authenticating");
+        checkStage(RuntimeHostStage::ListenerAvailable, "Listening");
+        checkStage(RuntimeHostStage::ClientAuthenticating, "Client authenticating");
         checkStage(RuntimeHostStage::ShareActivated, "Share activated");
+        runtime.snapshot.graphicsReady = true;
+        checkStage(RuntimeHostStage::ShareActivated, "Graphics ready");
+        runtime.snapshot.nativeDesktopInitializing = true;
+        checkStage(RuntimeHostStage::ShareActivated, "Native desktop initializing");
+        runtime.snapshot.nativeDesktopInitializing = false;
+        checkStage(RuntimeHostStage::DesktopVisible, "visibility unconfirmed");
+        runtime.snapshot.nativeDesktopReady = true;
         checkStage(RuntimeHostStage::DesktopVisible, "Desktop visible");
-        checkStage(RuntimeHostStage::ClientConnected, "no visible client confirmed");
+        checkStage(RuntimeHostStage::ClientConnected, "visibility unconfirmed");
         runtime.snapshot.activeClients = {
             RuntimeHostClient{17U, "192.168.9.17", false, true, true}};
         checkStage(RuntimeHostStage::ClientConnected, "Client connected");
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.clientDisconnected = true;
+        checkStage(RuntimeHostStage::ListenerAvailable, "Client disconnected");
+        runtime.snapshot.clientDisconnected = false;
         checkStage(RuntimeHostStage::Revoked, "revoked/stopped");
 
         // R2 terminal error can hide projected Share before R10 retirement.
@@ -482,6 +493,12 @@ int main(int argc, char** argv)
 
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
         window.refresh();
+        const auto notYetVisible = host.status();
+        assert(notYetVisible.clients.empty());
+        assert(activity->text().contains("Connected clients: None"));
+
+        runtime.snapshot.nativeDesktopReady = true;
+        window.refresh();
         const auto connected = host.status();
         assert(connected.clients.size() == 1);
         assert(connected.clients.front() == "192.168.0.103");
@@ -546,6 +563,78 @@ int main(int argc, char** argv)
         assert(!host.disconnectClient(12U));
         assert(runtime.configureCalls == 0 && runtime.startCalls == 0 &&
                runtime.disconnectCalls == 0);
+        return 0;
+    }
+
+    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "graphics-native-status")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ShareActivated;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.activeClients = {
+            {21U, "192.168.0.121", false, true, true}};
+        DesktopWindow window(host);
+        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
+        auto* activity = window.findChild<QLabel*>("clientStatus");
+        assert(lifecycle && activity);
+
+        // Share alone is not Graphics-ready and a stale desktopVisible bit
+        // cannot bypass the nativeDesktopReady fact.
+        assert(lifecycle->text().contains("Share activated"));
+        assert(host.status().clients.empty());
+
+        runtime.snapshot.graphicsReady = true;
+        window.refresh();
+        assert(lifecycle->text().contains("Graphics ready"));
+        assert(!lifecycle->text().contains("Desktop visible"));
+        assert(activity->text().contains(
+            "Graphics ready; native desktop pending: 192.168.0.121"));
+        assert(host.status().clients.empty());
+
+        runtime.snapshot.nativeDesktopInitializing = true;
+        window.refresh();
+        assert(lifecycle->text().contains("Native desktop initializing"));
+        assert(activity->text().contains(
+            "Native desktop initializing: 192.168.0.121"));
+        assert(host.status().clients.empty());
+
+        runtime.snapshot.stage = RuntimeHostStage::DesktopVisible;
+        runtime.snapshot.nativeDesktopInitializing = false;
+        window.refresh();
+        assert(lifecycle->text().contains("visibility unconfirmed"));
+        assert(host.status().clients.empty());
+
+        runtime.snapshot.nativeDesktopReady = true;
+        window.refresh();
+        assert(lifecycle->text().contains("Desktop visible"));
+        assert(host.status().nativeDesktopReady);
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        window.refresh();
+        assert(host.status().clients.size() == 1);
+        assert(activity->text().contains(
+            "Connected clients: 192.168.0.121"));
+
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.activeClients.clear();
+        runtime.snapshot.graphicsReady = false;
+        runtime.snapshot.nativeDesktopReady = false;
+        runtime.snapshot.clientDisconnected = true;
+        window.refresh();
+        const auto disconnected = host.status();
+        assert(disconnected.clientDisconnected);
+        assert(disconnected.startPending);
+        assert(disconnected.clients.empty());
+        assert(lifecycle->text().contains("Client disconnected"));
+        assert(activity->text().contains(
+            "Disconnected: Client disconnected; listener remains active"));
+
+        runtime.snapshot.stage = RuntimeHostStage::Revoked;
+        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
+        window.refresh();
+        assert(host.status().revoked.size() == 1);
+        assert(lifecycle->text().contains("revoked/stopped"));
         return 0;
     }
 
@@ -748,6 +837,7 @@ int main(int argc, char** argv)
         runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
         runtime.snapshot.activeClients = {
             RuntimeHostClient{9U, "192.168.0.44", false, true, true}};
+        runtime.snapshot.nativeDesktopReady = true;
         window.refresh();
         assert(readiness->text().contains("R10 sharing address"));
         assert(stop->isEnabled());
@@ -771,8 +861,10 @@ int main(int argc, char** argv)
             window.findChild<QCheckBox*>("allowClipboard");
         auto* lifetime =
             window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+        auto* permissionStatus =
+            window.findChild<QLabel*>("permissionStatus");
         assert(configureAccount && requestPermission && allowInput &&
-               allowClipboard && lifetime);
+               allowClipboard && lifetime && permissionStatus);
         assert(configureAccount->isEnabled());
         assert(!requestPermission->isEnabled());
         assert(allowInput->isChecked() && allowClipboard->isChecked());
@@ -801,6 +893,9 @@ int main(int argc, char** argv)
         runtime.snapshot.hostOwnerAuthorized = true;
         window.refresh();
         assert(host.status().desktopAuthorized);
+        assert(permissionStatus->text().contains(
+            "Effective permission scope and remaining lifetime are not yet exposed by R2"));
+        assert(!permissionStatus->text().contains("7 min"));
         assert(!window.canStart()); // TLS/native/interface gates are still absent.
         return 0;
     }

@@ -1,3 +1,45 @@
+## R7 authoritative accepted-client / native-desktop status projection (2026-10-20)
+
+Starting shared-main parent: `68332b57ef12b5fc6ab9e51bbec1bc7c2c91a9ae`.
+
+R7 now consumes R10's bounded accepted-client scheduler without creating a
+second lifecycle owner. The shared runtime status exposes a read-only
+`graphicsReady` fact only when the sole accepted connection has reached
+R10's existing `AcceptedClientPhase::GraphicsReady`. It also reserves
+`nativeDesktopInitializing` for the real R10/R5 owner and reports a bounded
+`clientDisconnected` observation only after an accepted client is actually
+retired while the current listener remains live.
+
+The Qt projection renders Listening, Client authenticating, Share activated,
+Graphics ready, Native desktop initializing, Desktop visible, disconnected and
+revoked as distinct facts. A client is never listed as connected/visible unless
+R10's authoritative `nativeDesktopReady` is also true; a Share/RDPGFX-ready
+stage or stale per-client `desktopVisible` bit cannot manufacture that fact.
+Current Linux R10 still leaves native initialization/readiness false, so the
+real Desktop visible transition remains **BLOCKED on R10 X11 composition**.
+
+R2 still does not expose a read-only effective grant observation: permission
+bits, deadline and lease generation remain private inside
+`CurrentOwnerSharingAuthority`. R7 therefore continues to send the requested
+scope/lifetime as intent only and explicitly does not present those UI controls
+as the effective grant. Effective scope and remaining lifetime stay
+**BLOCKED on the R2 observation API**.
+
+The Session Password surface remains non-collecting. No password or
+confirmation widget is constructed and no user-settable capability flag is
+introduced while standalone CredSSP admission is not composed into the live
+accepted-client path and no real Windows App/mstsc interoperability receipt
+exists. The landed R2P memory-only credential owner therefore remains internal;
+product password UI is still **BLOCKED on R2 standalone admission + real-client
+proof**.
+
+Dedicated ordinary offscreen CTest:
+`gui.offscreen-r10-graphics-native-desktop-projection`. Existing lifecycle,
+client-retirement, unsupported-password and owner-permission forwarding tests
+are tightened around the same contract. Canonical local build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**.
+
 ## R3 R10 scheduler review and explicit Graphics-control observability (2026-10-20)
 
 **Authoring parent:** `20831e2698f9849d508daceb33a5caa4f0379c0a`; R10 scheduler reviewed at

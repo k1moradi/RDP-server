@@ -1,3 +1,19 @@
+## R7 Graphics/native lifecycle projection gate (2026-10-20)
+
+`gui.offscreen-r10-graphics-native-desktop-projection` must drive only the
+typed R10 status seam. Prove ShareActivated without Graphics readiness,
+Graphics-ready with no native owner, native initialization, a deliberately
+inconsistent DesktopVisible stage while `nativeDesktopReady == false`, the
+positive native-ready visible case, listener-preserving disconnect, and
+revocation. A stale `RuntimeHostClient::desktopVisible` bit must never make
+the connected-client list positive without `nativeDesktopReady`.
+
+Keep the independent-password test non-collecting: no password/confirmation
+QObject may exist while product capability is unavailable. Owner-permission
+tests may assert request forwarding, but must also prove the GUI does not echo
+the requested lifetime/scope as an effective R2 grant before a real read-only
+grant observation exists.
+
 ## R3 first-client Windows App / mstsc trace-analysis checklist (2026-10-20)
 
 Use this checklist only after R10 has attached the genuine R2-selected X11

@@ -59,7 +59,9 @@ foreach(required_text IN ITEMS
         "std::chrono::milliseconds{0}"
         "if (!listener_.interfaceStillMatches())"
         "ownerSharingAuthority_.authorizes("
-        "authorizePersonalDesktopApplicationTraffic(")
+        "authorizePersonalDesktopApplicationTraffic("
+        "snapshot.graphicsReady ="
+        "acceptedClientPhase_ == AcceptedClientPhase::GraphicsReady")
     string(FIND "${host_source}" "${required_text}" found)
     if(found LESS 0)
         message(FATAL_ERROR "bounded scheduler safety gate missing: ${required_text}")

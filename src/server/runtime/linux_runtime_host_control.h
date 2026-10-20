@@ -149,6 +149,7 @@ private:
     std::string acceptedClientPeer_{};
     bool acceptedClientReadable_{};
     bool acceptedClientWritable_{};
+    bool clientDisconnected_{};
     bool credentialsConfigured_{};
 #endif
     // Production-native evidence owns all borrowed views. It must outlive

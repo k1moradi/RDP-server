@@ -1,3 +1,18 @@
+## R7 authoritative lifecycle facts stay read-only (2026-10-20)
+
+Do not create a GUI-side connection state machine. Project R10's typed stage
+plus its explicit read-only `graphicsReady`, `nativeDesktopInitializing`,
+`nativeDesktopReady` and `clientDisconnected` observations. A visible or
+connected desktop requires `nativeDesktopReady`; Share activation, RDPGFX
+control readiness and stale per-client flags are insufficient.
+
+Requested owner-permission scope/lifetime remains intent until R2 exposes an
+effective grant observation. Never copy those requested values into a status
+field or label them as granted. Session Password inputs remain absent until a
+production capability is backed by composed R2 admission and accepted
+Microsoft-client interoperability; do not add a developer/user switch that can
+bypass that product gate.
+
 ## R10 GUI service ticks stay bounded and single-owner (2026-10-20)
 
 Do not call the CLI's serialized blocking candidate loop from Qt and do not add

@@ -320,6 +320,11 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     }
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    snapshot.graphicsReady =
+        acceptedClient_ != nullptr &&
+        acceptedClientPhase_ == AcceptedClientPhase::GraphicsReady;
+    snapshot.clientDisconnected =
+        listenerCurrent && acceptedClient_ == nullptr && clientDisconnected_;
     if (acceptedClient_ != nullptr && acceptedClientId_ != 0U)
     {
         RuntimeHostClient client;
@@ -331,14 +336,17 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             stage_ == RuntimeHostStage::ShareActivated ||
             stage_ == RuntimeHostStage::DesktopVisible ||
             stage_ == RuntimeHostStage::ClientConnected;
+        // A protocol-stage label cannot manufacture native desktop visibility.
         client.desktopVisible =
-            stage_ == RuntimeHostStage::DesktopVisible ||
-            stage_ == RuntimeHostStage::ClientConnected;
+            snapshot.nativeDesktopReady &&
+            (stage_ == RuntimeHostStage::DesktopVisible ||
+             stage_ == RuntimeHostStage::ClientConnected);
         snapshot.activeClients.emplace_back(std::move(client));
     }
 #endif
-    // nativeDesktopReady remains false until the accepted client reaches the
-    // R2-selected native owner, which is intentionally the next composition.
+    // nativeDesktopInitializing/nativeDesktopReady remain false until the
+    // accepted client reaches the R2-selected native owner. Graphics readiness
+    // above is only the existing R3/RDPGFX control fact and publishes no frame.
     return snapshot;
 }
 
@@ -594,9 +602,12 @@ void LinuxRuntimeHostControl::clearAcceptedClient() noexcept
 void LinuxRuntimeHostControl::retireAcceptedClient(
     RuntimeHostError error) noexcept
 {
+    const bool hadAcceptedClient =
+        acceptedClient_ != nullptr && acceptedClientId_ != 0U;
     if (acceptedClient_ != nullptr)
         acceptedClient_->revoke();
     clearAcceptedClient();
+    clientDisconnected_ = hadAcceptedClient && listener_.valid();
     stage_ = listener_.valid()
         ? RuntimeHostStage::ListenerAvailable
         : RuntimeHostStage::Stopped;
@@ -713,6 +724,7 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
     acceptedClientPeer_ = boundEndpointText(peer);
     acceptedClientReadable_ = false;
     acceptedClientWritable_ = false;
+    clientDisconnected_ = false;
     stage_ = RuntimeHostStage::ClientAuthenticating;
     lastError_ = RuntimeHostError::None;
     return {RuntimeHostError::None, false};
@@ -1194,6 +1206,7 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     if (acceptedClient_ != nullptr)
         acceptedClient_->revoke();
     clearAcceptedClient();
+    clientDisconnected_ = false;
 #endif
     listener_.close();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

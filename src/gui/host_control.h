@@ -41,6 +41,10 @@ struct HostStatus
     // Exact read-only R10 observation, with Unknown client trust.
     rdp_server::server::runtime::RuntimeTlsIdentityStatus tlsIdentity{};
     bool captureInputReady{};
+    bool graphicsReady{};
+    bool nativeDesktopInitializing{};
+    bool nativeDesktopReady{};
+    bool clientDisconnected{};
     bool sharing{};
     bool startPending{};
     rdp_server::server::runtime::RuntimeClipboardState clipboardState{

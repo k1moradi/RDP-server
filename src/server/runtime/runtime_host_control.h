@@ -192,6 +192,14 @@ struct RuntimeHostStatus
     std::string boundEndpoint;
     std::vector<RuntimeHostClient> activeClients;
     RuntimeHostError lastError{RuntimeHostError::ControlUnavailable};
+
+    // Read-only milestones from R10's sole accepted-client/native owner.
+    // They are presentation facts only and cannot grant Share/native authority.
+    bool graphicsReady{};
+    bool nativeDesktopInitializing{};
+    // True only after an accepted client was actually retired while the
+    // current listener remains active. Cleared on a new accept/host teardown.
+    bool clientDisconnected{};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.

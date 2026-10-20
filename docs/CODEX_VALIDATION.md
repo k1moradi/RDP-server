@@ -1,3 +1,12 @@
+## R2 M1 owner-authority source/test gate (2026-10-19)
+
+Positive host-owned consent, login1 LockedHint fail-closed evidence, current UID
+binding, fresh seat/session revalidation and all required revocation classes are
+now source-backed. Dedicated owner-consent CTests cover positive grant, expiry
+and revocation transitions. This is deterministic capability evidence only;
+hosted exact-SHA CI and physical GNOME/Xorg Microsoft-client acceptance remain
+separate and must not be inferred from it.
+
 ## R8 dormant text-only production composition (2026-10-19)
 
 **Authoring parent:** `a552314401c667aa38982421b756e0a71ab1d364`.

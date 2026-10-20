@@ -2,6 +2,7 @@
 #pragma once
 #include "server/runtime/runtime_host_control.h"
 #include "server/security/current_owner_sharing_authority.h"
+#include "server/security/linux_logind_console_evidence.h"
 #include "server/transport/lan_listener.h"
 #include <optional>
 #include <string_view>
@@ -57,10 +58,12 @@ private:
     RuntimeHostStage stage_{RuntimeHostStage::Stopped};
     RuntimeHostError lastError_{RuntimeHostError::HostConsentRequired};
     bool selectionConfigured_{};
-    // R2's host-lifetime authority must outlive every admission broker that
-    // may borrow it from a future accepted LinuxRuntimeConnection.
+    // Production-native evidence owns all borrowed views. It must outlive
+    // R2's host-lifetime authority and every admission broker borrowing it.
+    rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource
+        ownerEvidence_{};
     rdp_server::server::security::CurrentOwnerSharingAuthority
-        ownerSharingAuthority_{};
+        ownerSharingAuthority_{ownerEvidence_};
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.
     rdp_server::server::transport::OwnedLanListener listener_{};
 };

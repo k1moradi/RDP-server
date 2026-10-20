@@ -1,3 +1,21 @@
+## R2 M1 positive local-owner authority (2026-10-19)
+
+M1 now trusts the currently logged-in local desktop-user session plus explicit
+interaction with the locally running server GUI as the local consent boundary.
+It does not claim resistance to malicious processes already running as the
+same UID or to X11 clients capable of synthetic input; same-user/X11 compromise
+is explicitly outside the M1 threat model.
+
+R10 owns one noncopyable CurrentOwnerSharingAuthority. A positive grant requires
+fresh native process UID, active physical non-remote seat0, exact session ID and
+start generation/display, known-unlocked login1 LockedHint, requested scope and
+a short lifetime (hard maximum one hour). Accepted connections receive only a
+const authority borrow, so no network peer can grant consent. Every protected
+R2 operation revalidates the native evidence. Stop, locked or unknown lock,
+logout, user switch, session replacement, credential change, expiry and native
+authorization loss revoke the current epoch. This consent remains additive to
+HYBRID TLS/CredSSP, GSS/PAM, NSS/logind and R3 authorization.
+
 ## R8 dormant text-only production composition prepared (2026-10-19)
 
 **Authoring parent:** `a552314401c667aa38982421b756e0a71ab1d364`.

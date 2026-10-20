@@ -227,6 +227,9 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
     using namespace rdp_server::server::security;
+    // Any credential-mode/configuration action invalidates prior consent.
+    ownerSharingAuthority_.revoke(
+        OwnerConsentRevocationReason::CredentialChange);
     const auto decision = assessLanCredentialChoice(choice);
     if (decision == LanCredentialDecision::UnsupportedIndependentPasswordCredSsp)
         return deny(RuntimeHostError::UnsupportedIndependentPasswordNla);
@@ -242,17 +245,30 @@ RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup()
     if (stage_ == RuntimeHostStage::Revoked)
         return deny(RuntimeHostError::AccessRevoked);
 
-    // Marshal only bounded, non-authorizing intent to the real R2 host owner.
-    // Request the complete product scope as an upper bound; the future trusted
-    // native interaction must choose the actual granted scope and deadline.
+    // This call is reachable from the locally running GUI, never from an
+    // accepted peer. M1 trusts that explicit click, then R2 binds it to fresh
+    // process-UID/physical-seat0/session/unlocked native evidence.
+    constexpr std::uint64_t kDefaultOwnerLifetimeMilliseconds =
+        15U * 60U * 1000U;
     const auto result = ownerSharingAuthority_.requestConsent({
         rdp_server::server::security::kConsoleAllowedPermissions,
-        rdp_server::server::security::kMaximumOwnerSharingLifetimeMilliseconds});
-    if (result ==
-        rdp_server::server::security::OwnerConsentRequestResult::InvalidIntent)
+        kDefaultOwnerLifetimeMilliseconds});
+    using rdp_server::server::security::OwnerConsentRequestResult;
+    switch (result)
+    {
+    case OwnerConsentRequestResult::Granted:
+        lastError_ = RuntimeHostError::None;
+        return {RuntimeHostError::None, false};
+    case OwnerConsentRequestResult::InvalidIntent:
         return deny(RuntimeHostError::InvalidConfiguration);
-
-    // Current portable Linux/X11 R2 has no trusted positive provider.
+    case OwnerConsentRequestResult::GenerationExhausted:
+        return deny(RuntimeHostError::InternalFailure);
+    case OwnerConsentRequestResult::TrustedOwnerProofUnavailable:
+    case OwnerConsentRequestResult::NativeSessionUnavailable:
+    case OwnerConsentRequestResult::LockStateNotUnlocked:
+        lastError_ = RuntimeHostError::HostConsentRequired;
+        return {RuntimeHostError::HostConsentRequired, true};
+    }
     return deny(RuntimeHostError::HostConsentRequired);
 }
 
@@ -276,9 +292,13 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(current.succeeded()
             ? RuntimeHostError::InterfaceUnavailable : current.error);
     }
-    // R1 verified bind, R2 lease, TLS identity, Share/native session are
-    // intentionally absent. No socket, firewall or service modifications.
-    return deny(RuntimeHostError::HostConsentRequired);
+    if (!ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission))
+        return deny(RuntimeHostError::HostConsentRequired);
+
+    // Owner consent is positive. Later credential/TLS/listener/native-desktop
+    // composition remains intentionally fail-closed in this GUI controller.
+    return deny(RuntimeHostError::CredentialProviderUnavailable);
 }
 
 void LinuxRuntimeHostControl::retireStoppedRuntime(

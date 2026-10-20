@@ -9,6 +9,7 @@
 #include <utility>
 
 #ifdef XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN
+#include <systemd/sd-bus.h>
 #include <systemd/sd-daemon.h>
 #include <systemd/sd-login.h>
 
@@ -16,6 +17,7 @@
 #include <cstring>
 #include <memory>
 #include <sys/types.h>
+#include <unistd.h>
 #endif
 
 namespace rdp_server::server::security
@@ -88,6 +90,66 @@ using LibcString = std::unique_ptr<char, decltype(&std::free)>;
         return {};
     }
     return {value.get(), length};
+}
+
+struct SdBusDeleter final
+{
+    void operator()(sd_bus *bus) const noexcept
+    {
+        if (bus != nullptr)
+            ::sd_bus_unref(bus);
+    }
+};
+
+struct SdBusMessageDeleter final
+{
+    void operator()(sd_bus_message *message) const noexcept
+    {
+        if (message != nullptr)
+            ::sd_bus_message_unref(message);
+    }
+};
+
+[[nodiscard]] ConsoleDesktopLockState readDesktopLockState(
+    const char *sessionId) noexcept
+{
+    sd_bus *rawBus = nullptr;
+    if (::sd_bus_default_system(&rawBus) < 0 || rawBus == nullptr)
+    {
+        if (rawBus != nullptr)
+            ::sd_bus_unref(rawBus);
+        return ConsoleDesktopLockState::Unknown;
+    }
+    const std::unique_ptr<sd_bus, SdBusDeleter> bus(rawBus);
+
+    sd_bus_error getSessionError = SD_BUS_ERROR_NULL;
+    sd_bus_message *rawReply = nullptr;
+    const int getSessionStatus = ::sd_bus_call_method(
+        bus.get(), "org.freedesktop.login1", "/org/freedesktop/login1",
+        "org.freedesktop.login1.Manager", "GetSession",
+        &getSessionError, &rawReply, "s", sessionId);
+    const std::unique_ptr<sd_bus_message, SdBusMessageDeleter> reply(rawReply);
+    ::sd_bus_error_free(&getSessionError);
+    if (getSessionStatus < 0 || reply == nullptr)
+        return ConsoleDesktopLockState::Unknown;
+
+    const char *sessionPath = nullptr;
+    if (::sd_bus_message_read(reply.get(), "o", &sessionPath) < 0 ||
+        sessionPath == nullptr)
+        return ConsoleDesktopLockState::Unknown;
+
+    int locked = 0;
+    sd_bus_error lockError = SD_BUS_ERROR_NULL;
+    const int lockStatus = ::sd_bus_get_property_trivial(
+        bus.get(), "org.freedesktop.login1", sessionPath,
+        "org.freedesktop.login1.Session", "LockedHint",
+        &lockError, 'b', &locked);
+    ::sd_bus_error_free(&lockError);
+    if (lockStatus < 0)
+        return ConsoleDesktopLockState::Unknown;
+    return locked != 0
+        ? ConsoleDesktopLockState::Locked
+        : ConsoleDesktopLockState::Unlocked;
 }
 
 #endif
@@ -228,10 +290,17 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     }
 
     const auto observedAt = readMonotonicMilliseconds();
-    if (!observedAt.has_value() || *observedAt == 0)
+    const uid_t processUid = ::geteuid();
+    if (!observedAt.has_value() || *observedAt == 0 ||
+        processUid == 0 || !std::in_range<std::uint32_t>(processUid))
     {
         return {};
     }
+
+    // login1 LockedHint is the strongest currently supported GNOME/logind
+    // lock evidence. D-Bus failure remains Unknown and therefore fail-closed.
+    const ConsoleDesktopLockState lockState =
+        readDesktopLockState(initialSession.get());
 
     // Own the returned views. No provider-allocated buffer escapes, and
     // every libsystemd string is released by LibcString on each path.
@@ -245,7 +314,8 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
             {sessionIdBytes_.data(), sessionId.size()}, "seat0",
             {displayBytes_.data(), observedDisplay.size()},
             facts.sessionOwnerUid, facts.sessionStartRealtimeMicroseconds,
-            *observedAt, true, true};
+            *observedAt, true, true,
+            static_cast<std::uint32_t>(processUid), lockState, false};
 #endif
 }
 

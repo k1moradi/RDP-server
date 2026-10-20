@@ -745,15 +745,44 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# R10 Linux GUI HostControl: real inventory, fail-closed Start.
+# Shared read-only Linux owner/session evidence. libsystemd is optional for
+# generic Linux builds and mandatory for production runtime security.
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY)
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN REQUIRED IMPORTED_TARGET
+            libsystemd)
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
+                libsystemd)
+        endif()
+    endif()
+
+    add_library(rdp-server-linux-logind-evidence STATIC
+        src/server/security/linux_nss_console_evidence.cpp
+        src/server/security/linux_logind_console_evidence.cpp)
+    target_compile_features(rdp-server-linux-logind-evidence PUBLIC cxx_std_23)
+    target_include_directories(rdp-server-linux-logind-evidence PUBLIC
+        "${PROJECT_SOURCE_DIR}/src")
+    if(TARGET PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_link_libraries(rdp-server-linux-logind-evidence PRIVATE
+            PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
+        target_compile_definitions(rdp-server-linux-logind-evidence PRIVATE
+            XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN=1)
+    endif()
+    target_compile_options(rdp-server-linux-logind-evidence PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+
+    # R10 Linux GUI HostControl owns the one positive local-owner R2 authority.
     add_library(rdp-server-linux-host-control STATIC
         src/server/runtime/linux_runtime_host_control.cpp)
     target_compile_features(rdp-server-linux-host-control PUBLIC cxx_std_23)
     target_include_directories(rdp-server-linux-host-control PUBLIC
         "${PROJECT_SOURCE_DIR}/src")
     target_link_libraries(rdp-server-linux-host-control PUBLIC
-        rdp-server-protocol)
+        rdp-server-protocol rdp-server-linux-logind-evidence)
     target_compile_options(rdp-server-linux-host-control PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -773,17 +802,6 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         find_path(RDP_SERVER_PAM_INCLUDE_DIR NAMES security/pam_appl.h REQUIRED)
         find_library(RDP_SERVER_PAM_LIBRARY NAMES pam REQUIRED)
     endif()
-    if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY)
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN REQUIRED IMPORTED_TARGET
-            libsystemd)
-    else()
-        find_package(PkgConfig QUIET)
-        if(PkgConfig_FOUND)
-            pkg_check_modules(RDP_SERVER_SYSTEMD_LOGIN QUIET IMPORTED_TARGET
-                libsystemd)
-        endif()
-    endif()
     add_library(rdp-server-linux-gssapi STATIC
         src/server/security/gssapi_spnego_acceptor.cpp
         src/server/security/gssapi_credssp_binding.cpp
@@ -792,8 +810,6 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
         # admission below owns concrete native NSS/logind/watch provenance.
         src/server/security/gssapi_console_gate.cpp
         src/server/security/console_os_evidence.cpp
-        src/server/security/linux_nss_console_evidence.cpp
-        src/server/security/linux_logind_console_evidence.cpp
         src/server/security/linux_logind_session_change_watch.cpp
         src/server/security/linux_console_admission.cpp)
     target_compile_features(rdp-server-linux-gssapi PUBLIC cxx_std_23)
@@ -802,13 +818,8 @@ if(RDP_SERVER_BUILD_LINUX_GSSAPI)
     target_link_libraries(rdp-server-linux-gssapi PUBLIC
         rdp-server-protocol
         rdp-server-console-identity-policy
+        rdp-server-linux-logind-evidence
         "${RDP_SERVER_GSSAPI_LIBRARY}")
-    if(TARGET PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
-        target_link_libraries(rdp-server-linux-gssapi PRIVATE
-            PkgConfig::RDP_SERVER_SYSTEMD_LOGIN)
-        target_compile_definitions(rdp-server-linux-gssapi PRIVATE
-            XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN=1)
-    endif()
     if(MSVC)
         target_compile_options(rdp-server-linux-gssapi PRIVATE /W4)
     else()

@@ -3,69 +3,181 @@
 
 #include <array>
 #include <cassert>
+#include <cstdint>
+#include <optional>
 #include <string_view>
 #include <type_traits>
 
 using namespace rdp_server::server::security;
 
-int main(int argumentCount, char** argumentValues)
+namespace
 {
-    if (argumentCount != 2 || argumentValues[1] == nullptr)
-        return 2;
-    const std::string_view testCase{argumentValues[1]};
-    CurrentOwnerSharingAuthority authority;
-    static_assert(!std::is_copy_constructible_v<CurrentOwnerSharingAuthority>);
+class FakeOwnerEvidence final : public ConsoleOsEvidenceSource
+{
+public:
+    ConsoleSessionObservation session{
+        ConsoleEvidenceReadStatus::Observed, "session-1", "seat0", ":0",
+        1000U, 41U, 1000U, true, true, 1000U,
+        ConsoleDesktopLockState::Unlocked, false};
+    std::optional<std::uint64_t> now{1000U};
 
-    if (testCase == "owner-consent-gui-intent-never-authorizes")
+    [[nodiscard]] ConsoleAccountObservation readUnixAccount(
+        std::string_view) noexcept override { return {}; }
+    [[nodiscard]] ConsoleSessionObservation readActiveConsole() noexcept override
     {
-        assert(authority.requestConsent({kConsoleViewPermission, 60'000U}) ==
-               OwnerConsentRequestResult::TrustedOwnerProofUnavailable);
-        assert(authority.requestConsent({kConsoleAllowedPermissions,
-                                         kMaximumOwnerSharingLifetimeMilliseconds}) ==
-               OwnerConsentRequestResult::TrustedOwnerProofUnavailable);
-        assert(!authority.authorizes(kConsoleViewPermission));
-        assert(!authority.authorizes(kConsoleInputPermission));
+        session.observedAtMonotonicMilliseconds = now.value_or(0U);
+        return session;
+    }
+    [[nodiscard]] std::optional<std::uint64_t>
+    readMonotonicMilliseconds() noexcept override { return now; }
+};
+
+void grant(CurrentOwnerSharingAuthority &authority,
+           std::uint64_t lifetimeMilliseconds = 500U,
+           std::uint32_t permissions =
+               kConsoleViewPermission | kConsoleInputPermission)
+{
+    assert(authority.requestConsent({permissions, lifetimeMilliseconds}) ==
+           OwnerConsentRequestResult::Granted);
+}
+
+template <typename Mutator>
+void expectRevocation(Mutator mutate)
+{
+    FakeOwnerEvidence evidence;
+    CurrentOwnerSharingAuthority authority(evidence);
+    grant(authority);
+    const std::uint64_t before = authority.revocationGeneration();
+    mutate(evidence, authority);
+    assert(!authority.authorizes(kConsoleViewPermission));
+    assert(authority.revocationGeneration() != before);
+}
+} // namespace
+
+static_assert(!std::is_copy_constructible_v<CurrentOwnerSharingAuthority>);
+static_assert(!std::is_copy_assignable_v<CurrentOwnerSharingAuthority>);
+static_assert(!std::is_move_constructible_v<CurrentOwnerSharingAuthority>);
+static_assert(!std::is_move_assignable_v<CurrentOwnerSharingAuthority>);
+
+int main(int argc, char **argv)
+{
+    if (argc != 2 || argv[1] == nullptr) return 2;
+    const std::string_view testCase{argv[1]};
+
+    if (testCase == "owner-consent-positive-seat0-unlocked-grant")
+    {
+        FakeOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+        grant(authority);
+        assert(authority.authorizes(kConsoleViewPermission));
+        assert(authority.authorizes(kConsoleInputPermission));
         assert(!authority.authorizes(kConsoleClipboardPermission));
-        assert(!authority.authorizes(kConsoleAllowedPermissions));
+        grant(authority, 250U,
+              kConsoleViewPermission | kConsoleClipboardPermission);
+        assert(authority.authorizes(kConsoleViewPermission));
+        assert(authority.authorizes(kConsoleClipboardPermission));
+        assert(!authority.authorizes(kConsoleInputPermission));
         return 0;
     }
-    if (testCase == "owner-consent-invalid-scope-and-lifetime-denials")
+    if (testCase == "owner-consent-expiry-revokes")
     {
-        constexpr std::array invalidRequests{
-            OwnerSharingIntent{0U, 60'000U},
-            OwnerSharingIntent{kConsoleInputPermission, 60'000U},
-            OwnerSharingIntent{kConsoleViewPermission | 0x80U, 60'000U},
+        FakeOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+        grant(authority, 100U);
+        const auto before = authority.revocationGeneration();
+        evidence.now = 1100U;
+        assert(!authority.authorizes(kConsoleViewPermission));
+        assert(authority.revocationGeneration() != before);
+        return 0;
+    }
+    if (testCase == "owner-consent-invalid-native-evidence-denials")
+    {
+        CurrentOwnerSharingAuthority unavailable;
+        assert(unavailable.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::TrustedOwnerProofUnavailable);
+        FakeOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+        constexpr std::array invalidIntents{
+            OwnerSharingIntent{0U, 100U},
+            OwnerSharingIntent{kConsoleInputPermission, 100U},
+            OwnerSharingIntent{kConsoleViewPermission | 0x80U, 100U},
             OwnerSharingIntent{kConsoleViewPermission, 0U},
             OwnerSharingIntent{kConsoleViewPermission,
-                kMaximumOwnerSharingLifetimeMilliseconds + 1U},
-        };
-        for (const auto& request : invalidRequests)
-            assert(authority.requestConsent(request) ==
+                kMaximumOwnerSharingLifetimeMilliseconds + 1U}};
+        for (const auto &intent : invalidIntents)
+            assert(authority.requestConsent(intent) ==
                    OwnerConsentRequestResult::InvalidIntent);
-        assert(!authority.authorizes(kConsoleViewPermission));
+        evidence.session.lockState = ConsoleDesktopLockState::Unknown;
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::LockStateNotUnlocked);
+        evidence.session.lockState = ConsoleDesktopLockState::Locked;
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::LockStateNotUnlocked);
+        evidence.session.lockState = ConsoleDesktopLockState::Unlocked;
+        evidence.session.remote = true;
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::NativeSessionUnavailable);
+        evidence.session.remote = false;
+        evidence.session.seat = "seat1";
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::NativeSessionUnavailable);
+        evidence.session.seat = "seat0";
+        evidence.session.localProcessUid = 1001U;
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::NativeSessionUnavailable);
         return 0;
     }
-    if (testCase == "owner-consent-stop-lock-session-credential-revocations")
+    if (testCase ==
+        "owner-consent-stop-lock-logout-switch-replacement-revocations")
     {
-        constexpr std::array reasons{
-            OwnerConsentRevocationReason::Stop,
-            OwnerConsentRevocationReason::LockOrUnknown,
-            OwnerConsentRevocationReason::Logout,
-            OwnerConsentRevocationReason::UserSwitch,
-            OwnerConsentRevocationReason::SessionReplacement,
-            OwnerConsentRevocationReason::CredentialChange,
-            OwnerConsentRevocationReason::NativeAuthorizationLost,
-        };
-        auto generation = authority.revocationGeneration();
-        for (const auto reason : reasons)
-        {
-            authority.revoke(reason);
-            ++generation;
-            assert(authority.revocationGeneration() == generation);
-            assert(!authority.authorizes(kConsoleAllowedPermissions));
-            assert(authority.requestConsent({kConsoleViewPermission, 1U}) ==
-                   OwnerConsentRequestResult::TrustedOwnerProofUnavailable);
-        }
+        expectRevocation([](FakeOwnerEvidence &,
+                            CurrentOwnerSharingAuthority &authority) {
+            authority.revoke(OwnerConsentRevocationReason::Stop);
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.lockState = ConsoleDesktopLockState::Locked;
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.lockState = ConsoleDesktopLockState::Unknown;
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.active = false;
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.ownerUid = 1001U;
+            evidence.session.localProcessUid = 1001U;
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.sessionId = "session-2";
+            ++evidence.session.sessionGeneration;
+        });
+        return 0;
+    }
+    if (testCase ==
+        "owner-consent-credential-expiry-native-loss-revocations")
+    {
+        expectRevocation([](FakeOwnerEvidence &,
+                            CurrentOwnerSharingAuthority &authority) {
+            authority.revoke(OwnerConsentRevocationReason::CredentialChange);
+        });
+        expectRevocation([](FakeOwnerEvidence &,
+                            CurrentOwnerSharingAuthority &authority) {
+            authority.revoke(OwnerConsentRevocationReason::AuthorityExpired);
+        });
+        expectRevocation([](FakeOwnerEvidence &,
+                            CurrentOwnerSharingAuthority &authority) {
+            authority.revoke(
+                OwnerConsentRevocationReason::NativeAuthorizationLost);
+        });
+        expectRevocation([](FakeOwnerEvidence &evidence,
+                            CurrentOwnerSharingAuthority &) {
+            evidence.session.status = ConsoleEvidenceReadStatus::Unavailable;
+        });
         return 0;
     }
     return 2;

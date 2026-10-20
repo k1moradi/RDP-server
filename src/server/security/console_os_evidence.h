@@ -33,6 +33,13 @@ struct ConsoleAccountObservation
     std::uint32_t uid{};
 };
 
+enum class ConsoleDesktopLockState : std::uint8_t
+{
+    Unknown,
+    Unlocked,
+    Locked,
+};
+
 struct ConsoleSessionObservation
 {
     ConsoleEvidenceReadStatus status{ConsoleEvidenceReadStatus::Unavailable};
@@ -46,6 +53,11 @@ struct ConsoleSessionObservation
     std::uint64_t observedAtMonotonicMilliseconds{};
     bool active{};
     bool physical{};
+    // Native process identity; never supplied by GUI or a network peer.
+    std::uint32_t localProcessUid{};
+    // Unknown is distinct from unlocked and fails positive owner consent.
+    ConsoleDesktopLockState lockState{ConsoleDesktopLockState::Unknown};
+    bool remote{};
 };
 
 // Source is not owned by the inspector. Each inspect() samples afresh.

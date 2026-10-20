@@ -121,9 +121,9 @@ foreach(host_control_case IN ITEMS
         LABELS "runtime;security;host-control;offline")
 endforeach()
 
-# R2 host consent is an independent deny-only authority boundary until a
-# trusted physical-seat owner/lock provider exists. Synthetic cases must
-# never issue an admission lease or open a listener.
+# R2 M1 host consent is one noncopyable positive authority owned by R10.
+# Deterministic injected evidence tests the capability state machine only;
+# no socket, live seat or network peer can mint consent from these fixtures.
 add_executable(test_current_owner_sharing_authority
     test_current_owner_sharing_authority.cpp)
 target_include_directories(test_current_owner_sharing_authority PRIVATE
@@ -137,9 +137,11 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(owner_consent_case IN ITEMS
-        owner-consent-gui-intent-never-authorizes
-        owner-consent-invalid-scope-and-lifetime-denials
-        owner-consent-stop-lock-session-credential-revocations)
+        owner-consent-positive-seat0-unlocked-grant
+        owner-consent-expiry-revokes
+        owner-consent-invalid-native-evidence-denials
+        owner-consent-stop-lock-logout-switch-replacement-revocations
+        owner-consent-credential-expiry-native-loss-revocations)
     add_test(NAME "security.${owner_consent_case}"
         COMMAND test_current_owner_sharing_authority "${owner_consent_case}")
     set_tests_properties("security.${owner_consent_case}" PROPERTIES

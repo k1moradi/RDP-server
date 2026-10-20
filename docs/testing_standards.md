@@ -1,3 +1,28 @@
+## R8 prepared text-only activation regression (2026-10-19)
+
+Register `clipboard.x11-unicode-text-only-presentation` against the real
+`X11ClipboardAdapter` with deterministic native operations. Feed one remote
+offer containing Unicode text plus PNG/DIB, construct the adapter with
+`PresentationScope::UnicodeTextOnly`, and require TARGETS to expose only
+TARGETS + UTF8_STRING. A PNG SelectionRequest must fail with no property write,
+while a UTF8_STRING request must produce exactly one pending
+`CF_UNICODETEXT` remote fetch.
+
+Keep `runtime.linux-x11-clipboard-production-linkage` as a production-source
+guard. It must require the dormant `LinuxPreparedClipboardOwner`, exact R2/R3
+clipboard dispatch and queue calls, the sole R1 clipboard TLS writer/receipt,
+the shared X11 event route, and the literal
+`kLinuxProductionClipboardActivationApproved = false`. It must reject
+production references to completed-file publication, FileContents request
+entry points or PNG paste routing.
+
+These are offline preparation tests only. They do not satisfy live clipboard
+acceptance and must never flip the production gate. First live R8 activation
+remains BLOCKED until the same physical Windows App session has already passed
+video, input and Stop acceptance; that later authorized run begins with plain
+text only and must separately demonstrate Stop/revoke/reconnect stale-state
+retirement.
+
 ## R10 production R2 host-authority lifetime handoff (2026-10-19)
 
 `runtime.linux-host-control-r2-authority-lifetime-handoff` is an offline

@@ -14,6 +14,11 @@
 #include "server/security/authentication_attempt_limiter.h"
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 #include "x11/x11_desktop_resources.h"
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+#include "clipboard/clipboard_protocol.h"
+#include "server/clipboard/r3_clipboard_transfer_bridge.h"
+#include "x11/x11_clipboard_adapter.h"
+#endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
 #include "x11/x11_authorized_input_route.h"
 #endif
@@ -772,6 +777,226 @@ struct LinuxAuthorizedX11DesktopOwner final {
     context->sessionGeneration = selection.sessionGeneration();
     return true;
 }
+
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+// Production R8 activation remains blocked until the first real Windows App
+// video/input/Stop acceptance is recorded. Keep this hard gate false in M1;
+// the prepared route below is still compiled and reviewed in ordinary builds.
+constexpr bool kLinuxProductionClipboardActivationApproved = false;
+
+// Stack-owned by exactly one serialized R10 client candidate. It borrows R5's
+// XCB owner and never owns R1/R2/R3. The R2 admission/session pair is retained
+// only as stale-work provenance; every clipboard transition still re-enters R2.
+class LinuxPreparedClipboardOwner final {
+public:
+    using Connection =
+        rdp_server::server::runtime::LinuxRuntimeConnection;
+    using Policy =
+        rdp_server::server::runtime::RuntimeDeploymentPolicy;
+    using Bridge =
+        rdp_server::server::clipboard::R3ClipboardTransferBridge;
+    using Adapter = X11ClipboardAdapter;
+    using Clock = std::chrono::steady_clock;
+
+    LinuxPreparedClipboardOwner() noexcept = default;
+    ~LinuxPreparedClipboardOwner() noexcept { retire(); }
+
+    LinuxPreparedClipboardOwner(const LinuxPreparedClipboardOwner&) = delete;
+    LinuxPreparedClipboardOwner& operator=(
+        const LinuxPreparedClipboardOwner&) = delete;
+
+    [[nodiscard]] bool prepare(
+        X11DesktopResources& desktop, std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) noexcept {
+        if (!kLinuxProductionClipboardActivationApproved) {
+            return true;
+        }
+        xcb_connection_t* nativeConnection = desktop.nativeConnection();
+        if (nativeConnection == nullptr ||
+            desktop.rootWindow() == XCB_WINDOW_NONE ||
+            admissionGeneration == 0U || sessionGeneration == 0U) {
+            return false;
+        }
+
+        // No image/file/directory transfer is exposed by the first production
+        // activation. Existing richer R8 machinery remains offline-only.
+        bridge_.emplace(0U, true);
+        adapter_.emplace(
+            bridge_->transfer(), *nativeConnection, desktop.rootWindow(),
+            Adapter::PresentationScope::UnicodeTextOnly);
+        if (!adapter_->valid()) {
+            retire();
+            return false;
+        }
+
+        admissionGeneration_ = admissionGeneration;
+        sessionGeneration_ = sessionGeneration;
+        return true;
+    }
+
+    [[nodiscard]] bool active() const noexcept {
+        return bridge_.has_value() && adapter_.has_value() &&
+               adapter_->valid();
+    }
+
+    [[nodiscard]] bool generationsMatch(
+        std::uint64_t admissionGeneration,
+        std::uint64_t sessionGeneration) const noexcept {
+        return !active() ||
+               (admissionGeneration_ == admissionGeneration &&
+                sessionGeneration_ == sessionGeneration);
+    }
+
+    [[nodiscard]] X11EventSink* eventSink() noexcept {
+        return active() ? static_cast<X11EventSink*>(&*adapter_) : nullptr;
+    }
+
+    [[nodiscard]] bool dispatchAuthenticatedTpkt(
+        Connection& connection, const Policy& policy,
+        std::span<const std::uint8_t> completeTpkt) noexcept {
+        return active() &&
+               connection.visitPersonalDesktopClipboardChannel(
+                   policy, bridge_->channelVisitor()) &&
+               connection.dispatchPersonalDesktopClipboardTpkt(
+                   policy, completeTpkt, bridge_->completePduSink());
+    }
+
+    [[nodiscard]] bool serviceAfterNetworkDispatch(
+        Connection& connection, const Policy& policy,
+        Clock::time_point now) noexcept {
+        if (!active()) {
+            return true;
+        }
+        if (!queuePendingApplicationPdu(connection, policy)) {
+            return false;
+        }
+
+        // A non-text remote offer is a valid CLIPRDR exchange but must not
+        // claim the native clipboard during the first acceptance phase.
+        (void)adapter_->publishCurrentRemoteOffer(now);
+        return adapter_->servicePendingPaste(now);
+    }
+
+    [[nodiscard]] bool serviceNative(
+        Connection& connection, const Policy& policy,
+        Clock::time_point now, bool mayStartRemoteFetch) noexcept {
+        if (!active()) {
+            return true;
+        }
+        if (!adapter_->servicePendingPaste(now)) {
+            return false;
+        }
+        if (!mayStartRemoteFetch || writePending_) {
+            return true;
+        }
+
+        const auto fetch = adapter_->pendingRemoteFetch();
+        if (!fetch) {
+            return true;
+        }
+        if (fetch->kind !=
+                rdp_server::server::clipboard::RemoteTransfer::PasteKind::
+                    UnicodeText ||
+            fetch->formatId != rdp_server::clipboard::kFormatUnicodeText) {
+            return false;
+        }
+
+        // The native request is intent only. Fresh R2 clipboard permission and
+        // the exact R3 route are required before staging the Unicode request.
+        if (!connection.visitPersonalDesktopClipboardChannel(
+                policy, bridge_->channelVisitor()) ||
+            !bridge_->beginFormatDataRequest(fetch->formatId) ||
+            !queuePendingApplicationPdu(connection, policy) ||
+            !adapter_->markRemoteFetchStarted(fetch->pasteSequence)) {
+            return false;
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool writePending() const noexcept {
+        return active() && writePending_;
+    }
+
+    [[nodiscard]] bool advanceTlsWrite(
+        Connection& connection, const Policy& policy,
+        bool readable, bool writable) noexcept {
+        using Step =
+            rdp_server::server::runtime::LinuxClipboardTlsWriteStatus;
+        if (!writePending()) {
+            return true;
+        }
+
+        const auto result =
+            connection.advancePersonalDesktopClipboardTlsWrite(
+                policy, readable, writable);
+        if (result.acceptedBytes != 0U &&
+            !bridge_->recordAcceptedWriteReceipt(
+                result.routeGeneration, result.replySequence,
+                result.writeSliceSequence, result.offeredBytes,
+                result.acceptedBytes, result.receipt)) {
+            return false;
+        }
+
+        switch (result.status) {
+        case Step::Progress:
+        case Step::NeedRead:
+        case Step::NeedWrite:
+            return true;
+        case Step::Delivered:
+            writePending_ = false;
+            return true;
+        case Step::AdmissionDenied:
+        case Step::Invalid:
+        case Step::Closed:
+            return false;
+        }
+        return false;
+    }
+
+    void retire() noexcept {
+        // X11 INCR/paste spans may borrow RemoteTransfer storage. Cancel them
+        // before retiring bridge/source state, then discard response/receipt
+        // identity before this R10 candidate can be replaced.
+        if (adapter_) {
+            adapter_->disconnect();
+            adapter_.reset();
+        }
+        if (bridge_) {
+            bridge_->retireR3ChannelState();
+            bridge_.reset();
+        }
+        writePending_ = false;
+        admissionGeneration_ = 0U;
+        sessionGeneration_ = 0U;
+    }
+
+private:
+    [[nodiscard]] bool queuePendingApplicationPdu(
+        Connection& connection, const Policy& policy) noexcept {
+        const auto applicationPdu = bridge_->pendingApplicationPdu();
+        if (applicationPdu.empty() || writePending_) {
+            return true;
+        }
+
+        const auto write =
+            connection.queuePersonalDesktopClipboardPdu(
+                policy, applicationPdu);
+        if (!write || !bridge_->bindQueuedWrite(*write)) {
+            return false;
+        }
+        writePending_ = true;
+        return true;
+    }
+
+    // Declaration order is intentional: adapter_ is explicitly disconnected
+    // before bridge_ clears RemoteTransfer, and both die before R5/R1 owners.
+    std::optional<Bridge> bridge_{};
+    std::optional<Adapter> adapter_{};
+    std::uint64_t admissionGeneration_{};
+    std::uint64_t sessionGeneration_{};
+    bool writePending_{};
+};
+#endif
 #endif
 
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -781,6 +1006,9 @@ struct LinuxPostShareDispatchContext final {
     rdp_server::server::runtime::LinuxRuntimeConnection* connection{};
     const rdp_server::server::runtime::RuntimeDeploymentPolicy* policy{};
     X11DesktopResources* desktop{};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    LinuxPreparedClipboardOwner* clipboard{};
+#endif
 };
 
 [[nodiscard]] bool dispatchLinuxPostShareRoute(
@@ -809,9 +1037,14 @@ struct LinuxPostShareDispatchContext final {
         return false;
 #endif
     case Kind::ClipboardStaticChannel:
-        // R8 native source and outbound receipt owner are not yet composed.
-        // No trial parsing, fabricated clipboard permission or silent ignore.
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        return context->clipboard != nullptr &&
+               context->clipboard->active() &&
+               context->clipboard->dispatchAuthenticatedTpkt(
+                   *context->connection, *context->policy, completeTpkt);
+#else
         return false;
+#endif
     case Kind::UnsupportedOrMalformed:
         return false;
     }
@@ -1550,6 +1783,17 @@ struct LinuxFramePublicationContext final {
         return true;
     }
 
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    LinuxPreparedClipboardOwner clipboardOwner{};
+    if (!clipboardOwner.prepare(
+            *nativeOwner.desktop, nativeOwner.admissionGeneration,
+            nativeOwner.sessionGeneration)) {
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+        return true;
+    }
+#endif
+
     // One persistent serialized owner for the admitted R1 TLS connection,
     // R2 lease/logind monitor, R3 Graphics presentation and R5 XCB desktop.
     // Native poll records borrow descriptors for exactly one bounded call;
@@ -1563,8 +1807,18 @@ struct LinuxFramePublicationContext final {
     using Clock = std::chrono::steady_clock;
     LinuxPostShareDispatchContext dispatchContext{
         &connection, context->policy, &*nativeOwner.desktop};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+    dispatchContext.clipboard = &clipboardOwner;
+#endif
     const rdp_server::server::runtime::LinuxPostShareTpktSink sink{
         &dispatchContext, &dispatchLinuxPostShareRoute};
+    const auto retireNativeCandidate = [&]() noexcept {
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        clipboardOwner.retire();
+#endif
+        nativeOwner.desktop->retireAfterAuthorizationLoss();
+        connection.revoke();
+    };
     std::uint32_t nextFrameId = 1U;
     bool frameWritePending = false;
     bool nativeWorkMayRemain = true;
@@ -1580,8 +1834,7 @@ struct LinuxFramePublicationContext final {
             break;
         }
         if (resizeDeadline && Clock::now() >= *resizeDeadline) {
-            nativeOwner.desktop->retireAfterAuthorizationLoss();
-            connection.revoke();
+            retireNativeCandidate();
             return true;
         }
         const int socketDescriptor = connection.nativeSocketPollDescriptor();
@@ -1597,6 +1850,11 @@ struct LinuxFramePublicationContext final {
         }
         if (nativeChange->admissionGeneration != nativeOwner.admissionGeneration ||
             nativeChange->sessionGeneration != nativeOwner.sessionGeneration ||
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+            !clipboardOwner.generationsMatch(
+                nativeChange->admissionGeneration,
+                nativeChange->sessionGeneration) ||
+#endif
             nativeChange->events >
                 static_cast<int>((std::numeric_limits<short>::max)())) {
             // A borrowed descriptor has been registered but was never added
@@ -1617,13 +1875,19 @@ struct LinuxFramePublicationContext final {
                  socketInterest == Interest::Read ? POLLIN : POLLOUT), 0},
         }};
         const auto now = Clock::now();
-        const bool bufferedApplicationData = !frameWritePending &&
+        bool clipboardWritePending = false;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        clipboardWritePending = clipboardOwner.writePending();
+#endif
+        const bool outboundWritePending =
+            frameWritePending || clipboardWritePending;
+        const bool bufferedApplicationData = !outboundWritePending &&
             connection.bufferedTlsApplicationReadReady();
-        // An outstanding TLS Graphics write is not eligible for capture:
-        // the expired capture deadline must never turn WANT_READ/WANT_WRITE
-        // into a zero-timeout busy poll. Socket and logind/X11 events still
-        // wake the sole serialized owner immediately.
-        const auto untilCapture = !frameWritePending && nextCapture > now
+        // An outstanding TLS Graphics/clipboard write is not eligible for
+        // capture: the expired capture deadline must never turn
+        // WANT_READ/WANT_WRITE into a zero-timeout busy poll. Socket and
+        // logind/X11 events still wake the sole serialized owner immediately.
+        const auto untilCapture = !outboundWritePending && nextCapture > now
             ? std::chrono::duration_cast<std::chrono::milliseconds>(
                   nextCapture - now)
             : std::chrono::milliseconds{0};
@@ -1637,8 +1901,9 @@ struct LinuxFramePublicationContext final {
         }
         const auto wait =
             rdp_server::server::runtime::detail::selectLinuxPostSharePollWait(
-                kLinuxPostSharePollQuantum, untilCapture, frameWritePending,
-                bufferedApplicationData, nativeWorkMayRemain,
+                kLinuxPostSharePollQuantum, untilCapture,
+                outboundWritePending, bufferedApplicationData,
+                nativeWorkMayRemain,
                 untilResizeDeadline);
         const int timeoutMilliseconds = static_cast<int>(wait.count());
         errno = 0;
@@ -1680,22 +1945,44 @@ struct LinuxFramePublicationContext final {
         }
 
         bool moreX11Events = false;
+        X11EventSink* additionalEventSink = nullptr;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        additionalEventSink = clipboardOwner.eventSink();
+#endif
         if (nativeOwner.desktop->processEvents(
-                128U, &moreX11Events, (x11Events & POLLIN) != 0) !=
-                ConnectionStatus::Ok ||
+                128U, &moreX11Events, (x11Events & POLLIN) != 0,
+                additionalEventSink) != ConnectionStatus::Ok ||
             !nativeOwner.desktop->valid() ||
             nativeOwner.desktop->captureGeneration() == 0U) {
             break;
         }
         nativeWorkMayRemain = moreX11Events;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        if (!clipboardOwner.serviceNative(
+                connection, *context->policy, Clock::now(),
+                !frameWritePending)) {
+            retireNativeCandidate();
+            return true;
+        }
+#endif
 
-        // A pending R3/R1 Graphics write owns WANT_READ/WANT_WRITE until
-        // its exact accepted-byte receipt finishes; never reinterpret its
-        // WANT_READ as an application TPKT read.
+        // A pending R3/R1 Graphics or clipboard write owns
+        // WANT_READ/WANT_WRITE until its exact accepted-byte receipt finishes;
+        // never reinterpret that WANT_READ as an application TPKT read.
         const bool socketReadable =
             (socketEvents & (POLLIN | POLLHUP)) != 0;
         const bool socketWritable =
             (socketEvents & (POLLOUT | POLLHUP)) != 0;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        if (clipboardOwner.writePending()) {
+            if (!clipboardOwner.advanceTlsWrite(
+                    connection, *context->policy,
+                    socketReadable, socketWritable)) {
+                retireNativeCandidate();
+                return true;
+            }
+        } else
+#endif
         if (frameWritePending) {
             const auto written =
                 connection.advancePersonalDesktopGraphicsDynamicVirtualChannel(
@@ -1711,8 +1998,7 @@ struct LinuxFramePublicationContext final {
             case FrameStep::AdmissionDenied:
             case FrameStep::Invalid:
             case FrameStep::Closed:
-                nativeOwner.desktop->retireAfterAuthorizationLoss();
-                connection.revoke();
+                retireNativeCandidate();
                 return true;
             }
         } else {
@@ -1728,11 +2014,20 @@ struct LinuxFramePublicationContext final {
             case ReadStep::AdmissionDenied:
             case ReadStep::Invalid:
             case ReadStep::Closed:
-                nativeOwner.desktop->retireAfterAuthorizationLoss();
-                connection.revoke();
+                retireNativeCandidate();
                 return true;
             }
         }
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        if (!clipboardOwner.serviceAfterNetworkDispatch(
+                connection, *context->policy, Clock::now()) ||
+            (clipboardOwner.writePending() &&
+             !clipboardOwner.advanceTlsWrite(
+                 connection, *context->policy, false, false))) {
+            retireNativeCandidate();
+            return true;
+        }
+#endif
         if (linuxServeStopRequested() || !connection.ready() ||
             !connection.authorizePersonalDesktopApplicationTraffic(
                 *context->policy)) {
@@ -1746,10 +2041,14 @@ struct LinuxFramePublicationContext final {
         // the 100 ms retry cadence and the original six-second elapsed bound.
         const auto postIoNow = Clock::now();
         if (resizeDeadline && postIoNow >= *resizeDeadline) {
-            nativeOwner.desktop->retireAfterAuthorizationLoss();
-            connection.revoke();
+            retireNativeCandidate();
             return true;
         }
+#if defined(RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD)
+        if (clipboardOwner.writePending()) {
+            continue;
+        }
+#endif
         if (!frameWritePending && postIoNow >= nextCapture) {
             const std::uint64_t currentNativeSessionGeneration =
                 nativeChange->sessionGeneration;
@@ -1759,8 +2058,7 @@ struct LinuxFramePublicationContext final {
             if (!geometry.valid() ||
                 !nativeOwner.desktop->nativeGeometryIsCurrent(
                     geometry, currentNativeSessionGeneration)) {
-                nativeOwner.desktop->retireAfterAuthorizationLoss();
-                connection.revoke();
+                retireNativeCandidate();
                 return true;
             }
 
@@ -1794,8 +2092,7 @@ struct LinuxFramePublicationContext final {
                     postIoNow + kLinuxPostShareCaptureInterval;
                 continue; // Existing writer drains DELETE -> CREATE -> MAP.
             case Reconfiguration::Rejected:
-                nativeOwner.desktop->retireAfterAuthorizationLoss();
-                connection.revoke();
+                retireNativeCandidate();
                 return true;
             }
 
@@ -1817,8 +2114,7 @@ struct LinuxFramePublicationContext final {
             if (readiness != Readiness::Ready ||
                 !nativeOwner.desktop->nativeGeometryIsCurrent(
                     geometry, currentNativeSessionGeneration)) {
-                nativeOwner.desktop->retireAfterAuthorizationLoss();
-                connection.revoke();
+                retireNativeCandidate();
                 return true;
             }
             LinuxFramePublicationContext frameContext{
@@ -1835,10 +2131,10 @@ struct LinuxFramePublicationContext final {
             nextCapture = Clock::now() + kLinuxPostShareCaptureInterval;
         }
     }
-    // Authorization may have expired inside a callback. Do not send cleanup
-    // input events after closure, even if the old X11 connection is alive.
-    nativeOwner.desktop->retireAfterAuthorizationLoss();
-    connection.revoke();
+    // Authorization may have expired inside a callback. Retire R8's native
+    // selection/INCR/paste state before R5 and before a replacement client can
+    // activate another R3 route. Do not post cleanup input after closure.
+    retireNativeCandidate();
 #else
     // Without the complete R5 X11 aggregate this build cannot publish a Linux
     // desktop even after genuine Share and Graphics control activation.

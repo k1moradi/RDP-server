@@ -1,3 +1,32 @@
+## R8 dormant text-only production composition (2026-10-19)
+
+**Authoring parent:** `a552314401c667aa38982421b756e0a71ab1d364`.
+
+Source review: **PASS** for the prepared composition. The production Linux
+post-Share owner now contains the exact dormant chain from authenticated R3
+CLIPRDR dispatch through `R3ClipboardTransferBridge`, the current R5 X11
+owner, R3 static-channel queue/receipt and
+`advancePersonalDesktopClipboardTlsWrite()` on the sole R1 TLS owner. The
+owner is stack-bound to the current R2 admission/session generation pair and
+disconnects X11 selection/paste/INCR state before retiring bridge/source state.
+No second socket/XCB owner or clipboard authority cache was added.
+
+The activation barrier is explicitly
+`kLinuxProductionClipboardActivationApproved = false`; no live production
+clipboard path is enabled by this change. The first future activation is
+`PresentationScope::UnicodeTextOnly`. A new
+`clipboard.x11-unicode-text-only-presentation` offline CTest proves mixed
+text+image offers expose only text and reject native PNG requests. The updated
+production-linkage guard requires the dormant route and false gate while
+forbidding file/FileContents/PNG runtime calls.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** because the owner checkout/build tree is unavailable in this
+GitHub-connector environment. Exact publication-SHA hosted CI: **PENDING**.
+No live listener, X11 clipboard mutation or Microsoft client acceptance was
+executed. Production R8 activation remains **BLOCKED** until the first real
+Windows App video/input/Stop acceptance passes.
+
 ## R10 host-owner authority lifetime handoff (2026-10-19)
 
 Inspected current shared main before publication. The Linux GUI HostControl now

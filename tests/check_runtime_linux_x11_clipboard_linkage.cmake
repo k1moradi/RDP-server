@@ -36,24 +36,38 @@ foreach(required IN ITEMS
     endif()
 endforeach()
 
-# Linkage is build readiness only. Until R10 owns one persistent post-Share
-# complete-TPKT/TLS router and the same live X11/logind owner, main must not
-# construct R8/native clipboard state or dispatch through the protected route.
-foreach(forbidden IN ITEMS
-        "X11ClipboardAdapter"
-        "R3ClipboardTransferBridge"
-        "visitPersonalDesktopClipboardChannel("
+# R8 is prepared in the production runtime but remains hard-disabled until the
+# first real Windows App video/input/Stop acceptance is recorded. The prepared
+# route must use the existing R2/R3 gateways, the one X11 owner and the sole R1
+# TLS writer; first clipboard acceptance is Unicode text only.
+foreach(required IN ITEMS
+        "kLinuxProductionClipboardActivationApproved = false"
+        "LinuxPreparedClipboardOwner"
+        "PresentationScope::UnicodeTextOnly"
         "dispatchPersonalDesktopClipboardTpkt("
         "queuePersonalDesktopClipboardPdu("
-        "pendingPersonalDesktopClipboardWrite("
-        "completePersonalDesktopClipboardWrite("
-        "publishCurrentRemoteOffer(")
+        "advancePersonalDesktopClipboardTlsWrite("
+        "recordAcceptedWriteReceipt("
+        "processEvents(")
+    string(FIND "${runtime_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "R8 prepared production route is missing: ${required}")
+    endif()
+endforeach()
+
+foreach(forbidden IN ITEMS
+        "publishCompletedFile("
+        "publishCompletedFiles("
+        "beginFileSizeRequest("
+        "beginFileRangeRequest("
+        "PasteKind::Png")
     string(FIND "${runtime_source}" "${forbidden}" position)
     if(NOT position EQUAL -1)
         message(FATAL_ERROR
-            "R8 clipboard runtime use is premature before persistent routing: ${forbidden}")
+            "R8 first-acceptance runtime must remain text-only: ${forbidden}")
     endif()
 endforeach()
 
 message(STATUS
-    "R8 bridge and X11 clipboard adapter are production-linked; live use remains fail-closed")
+    "R8 production route is prepared, Unicode-text-only and activation-gated off")

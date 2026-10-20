@@ -2721,10 +2721,10 @@ set_tests_properties(
     runtime.linux-x11-authorized-input-production-linkage PROPERTIES
     LABELS "runtime;security;r10-native;x11;input;offline")
 
-# R8 production dependency readiness mirrors the fail-closed R5 input linkage.
-# This source/build-graph guard must keep main free of live clipboard
-# construction/dispatch until R10 supplies the single persistent application
-# router and native owner lifetime.
+# R8 production dependency readiness plus dormant-route policy guard. The
+# persistent R10 router/native lifetime now exists, so require the compiled
+# composition while pinning its explicit production activation gate to false
+# and keeping the first future acceptance Unicode-text-only.
 add_test(NAME runtime.linux-x11-clipboard-production-linkage
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
@@ -2933,6 +2933,7 @@ if(TARGET rdp-server-linux-x11-clipboard)
     foreach(case_name IN ITEMS
             x11-targets-publication
             x11-selection-request-nonblocking
+            x11-unicode-text-only-presentation
             x11-completed-file-uri-handoff
             x11-completed-multi-file-uri-handoff
             x11-selection-owner-loss

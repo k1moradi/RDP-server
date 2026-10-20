@@ -84,6 +84,14 @@ public:
         SelfGeneratedNativeTransition,
     };
 
+    // First live R8 acceptance may deliberately expose only CF_UNICODETEXT.
+    // AllSupported preserves the existing offline image/file test surface.
+    enum class PresentationScope : std::uint8_t
+    {
+        AllSupported,
+        UnicodeTextOnly,
+    };
+
     struct RemoteFetchRequest
     {
         std::uint64_t pasteSequence{};
@@ -93,12 +101,17 @@ public:
         RemoteTransfer::PasteKind kind{RemoteTransfer::PasteKind::UnicodeText};
     };
 
-    X11ClipboardAdapter(RemoteTransfer &remoteTransfer,
-                        xcb_connection_t &connection,
-                        xcb_window_t rootWindow) noexcept;
-    X11ClipboardAdapter(RemoteTransfer &remoteTransfer,
-                        X11ClipboardNativeOperations nativeOperations,
-                        xcb_window_t rootWindow) noexcept;
+    X11ClipboardAdapter(
+        RemoteTransfer &remoteTransfer, xcb_connection_t &connection,
+        xcb_window_t rootWindow,
+        PresentationScope presentationScope =
+            PresentationScope::AllSupported) noexcept;
+    X11ClipboardAdapter(
+        RemoteTransfer &remoteTransfer,
+        X11ClipboardNativeOperations nativeOperations,
+        xcb_window_t rootWindow,
+        PresentationScope presentationScope =
+            PresentationScope::AllSupported) noexcept;
     ~X11ClipboardAdapter() noexcept override;
 
     X11ClipboardAdapter(const X11ClipboardAdapter &) = delete;
@@ -286,6 +299,7 @@ private:
     void clearPublicationState() noexcept;
 
     RemoteTransfer &remoteTransfer_;
+    PresentationScope presentationScope_{PresentationScope::AllSupported};
     X11ClipboardNativeOperations nativeOperations_{};
     xcb_window_t rootWindow_{XCB_WINDOW_NONE};
     xcb_window_t ownerWindow_{XCB_WINDOW_NONE};

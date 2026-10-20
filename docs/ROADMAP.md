@@ -1,3 +1,46 @@
+## R8 dormant text-only production composition prepared (2026-10-19)
+
+**Authoring parent:** `a552314401c667aa38982421b756e0a71ab1d364`.
+
+R10's persistent post-Share loop now has one compiled R8 composition owner for
+the existing chain: authenticated R3 `ClipboardStaticChannel` route -> R8
+`R3ClipboardTransferBridge` -> the current R2-selected R5 X11 connection ->
+R3 static-channel response queue -> `advancePersonalDesktopClipboardTlsWrite`
+through the sole R1 TLS owner. No second reader, writer, route parser,
+authorization cache or XCB connection is introduced. The R8 owner is stack-bound
+to one serialized R10 client candidate and pins the same R2 admission/session
+generations already used by the native desktop owner; every clipboard operation
+still re-enters the existing R2 clipboard gateway.
+
+Production activation is intentionally **OFF**:
+`kLinuxProductionClipboardActivationApproved = false`. This gate must remain
+false through M1 and may change only after the first real Windows App
+video/input/Stop acceptance succeeds. The prepared first-acceptance path uses
+`X11ClipboardAdapter::PresentationScope::UnicodeTextOnly`; PNG, file,
+FileContents and directory publication/request entry points are not called by
+the runtime. Existing richer R8 components remain available only to their
+offline tests.
+
+Stop/revoke/reconnect retirement is ordered so the X11 adapter first releases
+CLIPBOARD ownership, pending paste receipts and INCR transfers, then the R8
+bridge retires its source generation, pending application response and stale
+receipt identity; R5 and the R1/R2/R3 connection retire afterward. A new route
+cannot reuse the old stack owner. Clipboard TLS writes take scheduler precedence
+only while an R3 write is pending; capture and application reads resume after the
+exact R1/R2/R3 receipt is committed.
+
+New dedicated offline behavior:
+`clipboard.x11-unicode-text-only-presentation`. The production linkage guard
+now requires the prepared R2/R3/R1 composition, requires the activation gate to
+remain false, and forbids image/file request/publication calls from
+`main.cpp`.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this GitHub-connector environment. Exact publication-SHA hosted
+CI: **PENDING**. No live listener, desktop, clipboard or Microsoft client was
+started. R8 production activation remains **BLOCKED** on the first real Windows
+App video/input/Stop acceptance described above.
+
 ## R10 P0 positive-Start prerequisite wiring (2026-10-19)
 
 R10 now owns one production `CurrentOwnerSharingAuthority` in

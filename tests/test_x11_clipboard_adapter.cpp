@@ -729,6 +729,36 @@ void targetsPublication()
 
 }
 
+void unicodeTextOnlyPresentation()
+{
+    RemoteTransfer transfer;
+    offerTextAndPng(transfer, true);
+    FakeNative native;
+    X11ClipboardAdapter adapter(
+        transfer, native.operations(), kRootWindow,
+        X11ClipboardAdapter::PresentationScope::UnicodeTextOnly);
+    const Clock::time_point start{std::chrono::seconds{11}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+
+    dispatchRequest(adapter, requestFor(kTargetsAtom, 871, 71), start);
+    assert(native.propertyWrites.size() == 1U);
+    const auto targets = propertyAtoms(native.propertyWrites.back());
+    assert((targets == std::vector<xcb_atom_t>{
+        kTargetsAtom, kUtf8Atom}));
+
+    const std::size_t writesBeforePng = native.propertyWrites.size();
+    dispatchRequest(adapter, requestFor(kPngAtom, 872, 72), start);
+    assert(native.propertyWrites.size() == writesBeforePng);
+    assert(native.notifications.back().property == XCB_ATOM_NONE);
+
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 873, 73), start);
+    const auto fetch = adapter.pendingRemoteFetch();
+    assert(fetch);
+    assert(fetch->kind == RemoteTransfer::PasteKind::UnicodeText);
+    assert(fetch->formatId ==
+           rdp_server::clipboard::kFormatUnicodeText);
+}
+
 void completedFileUriHandoff()
 {
     constexpr std::string_view kLocalFileUri{
@@ -1326,6 +1356,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-selection-request-nonblocking")
     {
         selectionRequestNonblocking();
+        return 0;
+    }
+    if (behavior == "x11-unicode-text-only-presentation")
+    {
+        unicodeTextOnlyPresentation();
         return 0;
     }
     if (behavior == "x11-completed-file-uri-handoff")

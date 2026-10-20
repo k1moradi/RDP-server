@@ -274,19 +274,21 @@ X11ClipboardAdapter::makeXcbOperations(xcb_connection_t &connection) noexcept
     };
 }
 
-X11ClipboardAdapter::X11ClipboardAdapter(RemoteTransfer &remoteTransfer,
-                                         xcb_connection_t &connection,
-                                         xcb_window_t rootWindow) noexcept
+X11ClipboardAdapter::X11ClipboardAdapter(
+    RemoteTransfer &remoteTransfer, xcb_connection_t &connection,
+    xcb_window_t rootWindow, PresentationScope presentationScope) noexcept
     : X11ClipboardAdapter(remoteTransfer, makeXcbOperations(connection),
-                          rootWindow)
+                          rootWindow, presentationScope)
 {
 }
 
 X11ClipboardAdapter::X11ClipboardAdapter(
     RemoteTransfer &remoteTransfer,
     X11ClipboardNativeOperations nativeOperations,
-    xcb_window_t rootWindow) noexcept
+    xcb_window_t rootWindow,
+    PresentationScope presentationScope) noexcept
     : remoteTransfer_(remoteTransfer),
+      presentationScope_(presentationScope),
       nativeOperations_(nativeOperations),
       rootWindow_(rootWindow)
 {
@@ -511,7 +513,9 @@ X11ClipboardAdapter::publishCompletedFiles(
         rdp::linux_platform::LinuxClipboardFileDestination::
             kMaximumLocalFileUriBytes);
 
-    if (!valid() || destinations.empty() ||
+    if (!valid() ||
+        presentationScope_ == PresentationScope::UnicodeTextOnly ||
+        destinations.empty() ||
         destinations.size() > kMaximumCompletedFiles ||
         !remoteTransfer_.synchronized())
     {
@@ -655,8 +659,12 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
     }
 
     const bool textOffered = remoteTextOffered();
-    const bool pngOffered = remotePngFormatId() != 0;
-    const bool fileOffered = fileHandoffAvailable();
+    const bool extendedPresentation =
+        presentationScope_ == PresentationScope::AllSupported;
+    const bool pngOffered =
+        extendedPresentation && remotePngFormatId() != 0;
+    const bool fileOffered =
+        extendedPresentation && fileHandoffAvailable();
     if (!textOffered && !pngOffered && !fileOffered)
     {
         releaseNativeOwnership();

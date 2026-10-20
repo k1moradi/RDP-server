@@ -1,3 +1,30 @@
+## R8 dormant activation composition rules (2026-10-19)
+
+When preparing clipboard before live authorization, compile the complete route
+but keep one explicit production gate false. Do not replace that gate with a
+GUI preference, build-option default, cached permission Boolean or synthetic R2
+lease. The serialized runtime owner must re-enter the existing R2 clipboard
+gateway for every R3 route observation and native paste request.
+
+Use the already-owned R5 XCB connection and event loop. The R8 adapter must
+retire before its `RemoteTransfer` owner because INCR and delayed-selection
+state may borrow verified payload storage. On Stop/revoke/reconnect, disconnect
+the X11 adapter first, retire the R8 bridge/source/response state second, then
+retire R5 and the R1/R2/R3 connection. Generation values are anti-stale
+provenance only and never authorization.
+
+While an R3 clipboard write is queued, the sole R1 TLS writer owns the effective
+WANT direction. Prime that existing writer without I/O after a newly staged
+response so the next poll projects the correct direction; do not add another
+socket writer or infer completion from writability. Defer capture/application
+reads until the exact R2/R3 accepted-byte receipt clears the clipboard write.
+
+The first production scope is Unicode text only. Use the adapter's explicit
+`PresentationScope::UnicodeTextOnly`; never rely on callers merely promising
+not to request PNG/files. Production `main.cpp` must not call completed-file,
+FileContents, PNG-paste or directory-transfer entry points until a separately
+reviewed post-acceptance change authorizes them.
+
 ## R2 current-owner consent does not follow identity automatically (2026-10-19)
 
 R2 owns one sharing authority distinct from R1 CredSSP/GSS identity, NSS,

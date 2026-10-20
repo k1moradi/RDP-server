@@ -1,3 +1,43 @@
+## R8 prepared Linux clipboard composition boundary (2026-10-19)
+
+The Linux production binary now compiles one dormant
+`LinuxPreparedClipboardOwner` inside the already-serialized R10 post-Share
+client lifetime. It owns only R8 application/native presentation state:
+`R3ClipboardTransferBridge` is declared before `X11ClipboardAdapter`, and
+explicit retirement disconnects the X11 adapter before retiring the bridge so
+an INCR span can never outlive `RemoteTransfer` storage. Both objects are
+destroyed before the borrowed R5 XCB desktop owner and before a replacement
+client candidate can exist.
+
+Authority is unchanged. The owner stores the current native
+admission/session generation pair solely as stale-work provenance, while every
+CLIPRDR dispatch and every native paste fetch synchronously calls
+`visitPersonalDesktopClipboardChannel()` before entering R3. R3 remains the
+only static-channel route/reassembly/write-generation owner and R1 remains the
+only TLS application writer. A staged R8 PDU is queued through
+`queuePersonalDesktopClipboardPdu()`, bound to the returned R3
+route/reply identity, and completed only from scalar receipts returned by
+`advancePersonalDesktopClipboardTlsWrite()`.
+
+The same R5 event loop forwards X11 events to the adapter; no second XCB
+connection or clipboard thread exists. A pending clipboard TLS write suppresses
+capture/application reads until its exact WANT/receipt lifecycle completes.
+Stop, R2 revocation, native-generation mismatch and reconnect destroy the stack
+owner; X11 ownership/paste/INCR state is retired before bridge source/response
+state, then the existing R5/R3/R2/R1 teardown continues.
+
+For the first future production acceptance the adapter is constructed with
+`PresentationScope::UnicodeTextOnly`. This masks PNG and completed-file
+targets even when the remote format list advertises them, rejects native PNG
+selection requests, and disables completed-file publication. The runtime
+initiates only `CF_UNICODETEXT` format-data requests. The broader image/file
+implementation remains unchanged and offline-only.
+
+The production gate
+`kLinuxProductionClipboardActivationApproved = false` is a deliberate
+compile-checked policy barrier, not feature detection or authority. It remains
+false until real Windows App video/input/Stop acceptance has passed.
+
 ## R4 first-client acceptance observation boundary (2026-10-19)
 
 R4 exposes a compact, read-only `GfxPresentationAcceptanceStatus` from the

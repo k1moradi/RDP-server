@@ -909,9 +909,10 @@ if(TARGET rdp-server AND TARGET rdp-server-linux-x11-authorized-input)
         RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT=1)
 endif()
 
-# R8 production dependency readiness only. The bridge and native adapter stay
-# dormant until R10 owns the single persistent post-Share R1/TLS router and
-# X11/logind lifetime; build availability is not clipboard authorization.
+# R8 production dependency readiness only. R10 now owns the persistent
+# post-Share R1/TLS router and X11/logind lifetime, but the prepared clipboard
+# route remains hard-disabled until real Windows App video/input/Stop acceptance.
+# Build availability is never clipboard authorization.
 if(TARGET rdp-server AND
    TARGET rdp-server-linux-runtime-security AND
    TARGET rdp-server-linux-x11-desktop AND

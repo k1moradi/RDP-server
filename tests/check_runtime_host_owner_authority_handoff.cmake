@@ -38,7 +38,7 @@ if(r2_revoke EQUAL -1 OR listener_close EQUAL -1 OR
         "Linux HostControl must revoke R2 authority before retiring the R1 listener")
 endif()
 
-string(FIND "${host_source}" "ownerSharingAuthority_.requestConsent({" consent_request)
+string(FIND "${host_source}" "ownerSharingAuthority_.requestConsent(" consent_request)
 if(consent_request EQUAL -1)
     message(FATAL_ERROR
         "Linux HostControl must marshal permission intent to the production R2 authority")

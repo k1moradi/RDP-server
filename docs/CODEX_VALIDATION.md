@@ -1,3 +1,15 @@
+## R9 source-guard follow-up receipt (2026-10-20)
+
+Exact-SHA run `39473001753` established that
+`runtime.linux-host-control-provisioned-listener-transaction` and
+`security.linux-verified-account-pam-attempt-fence-source` are green after the
+first repair. The remaining source failures were guard mechanics:
+`requestConsent({` did not tolerate line wrapping; bare
+`AcceptedClientPhase::GraphicsReady` matched R7 status projection before the
+scheduler transition; and quoted CMake tokens ending in semicolons produced an
+empty list element. The corrected guards retain the same semantic invariants
+without those formatting dependencies.
+
 ## R9 Linux GUI ZIP Qt-macro follow-up receipt (2026-10-20)
 
 Hosted run `39473001753` at exact SHA

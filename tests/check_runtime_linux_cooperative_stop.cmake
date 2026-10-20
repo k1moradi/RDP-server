@@ -46,8 +46,8 @@ math(EXPR helper_length "${owner} - ${retire_helper}")
 string(SUBSTRING "${candidate}" ${retire_helper}
     ${helper_length} retire_helper_source)
 set(retire_tokens
-    "nativeOwner.desktop->retireAfterAuthorizationLoss();"
-    "connection.revoke();")
+    "nativeOwner.desktop->retireAfterAuthorizationLoss()"
+    "connection.revoke()")
 set(previous_position -1)
 foreach(token IN LISTS retire_tokens)
     string(FIND "${retire_helper_source}" "${token}" token_position)

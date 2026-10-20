@@ -1,3 +1,14 @@
+## R9 source-guard follow-up from exact-SHA hosted evidence (2026-10-20)
+
+Run `39473001753` at superseded SHA `c205913...` proved the provisioned-listener
+and verified-account guards pass, but exposed three remaining formatting/scope
+defects: a wrapped `requestConsent()` call, an earlier status-only
+`GraphicsReady` observation, and CMake list splitting on semicolons in the
+cooperative-retirement token list. R9 now anchors the consent method call
+independent of argument wrapping, requires the actual scheduler assignment to
+`GraphicsReady`, and compares semicolon-free call tokens inside the isolated
+retirement helper. No production ownership or teardown behavior changes.
+
 ## R9 Linux GUI ZIP follow-up: Qt macro-safe limiter header (2026-10-20)
 
 Exact-SHA run `39473001753` at `c205913e1e121dfa59572205c91466894a3b4631`

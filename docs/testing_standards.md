@@ -1,3 +1,12 @@
+## R9 CMake source-guard token rules (2026-10-20)
+
+When a CMake source-contract test checks call order, anchor method/assignment
+semantics rather than argument punctuation or a bare enum value that may also
+appear in status projection. Do not place a trailing C++ semicolon inside a
+CMake list token unless it is escaped; otherwise list parsing can create empty
+elements and false ordering failures. Isolate the owning function/helper first,
+then compare semicolon-free semantic anchors.
+
 ## R9 Qt keyword-macro header regression (2026-10-20)
 
 Security/runtime headers that can become transitively visible from Qt code must

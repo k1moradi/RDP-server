@@ -41,7 +41,7 @@ set(ordered_tokens
     "stage_ = RuntimeHostStage::ShareActivated"
     "startPersonalDesktopGraphicsDynamicVirtualChannel("
     "advancePersonalDesktopGraphicsDynamicVirtualChannel("
-    "AcceptedClientPhase::GraphicsReady")
+    "acceptedClientPhase_ = AcceptedClientPhase::GraphicsReady")
 set(previous_position -1)
 foreach(token IN LISTS ordered_tokens)
     string(FIND "${host_source}" "${token}" token_position)

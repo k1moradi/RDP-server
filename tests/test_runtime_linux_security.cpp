@@ -3536,7 +3536,10 @@ void testConnectionAggregatePrematureAdmissionDenial(
             unconfigured, std::move(unconfiguredAccepted)};
         assert(!denied.ready());
         assert(!unconfiguredAccepted.valid());
-        assert(denied.gssStage() == SpnegoStage::Failed);
+        // Service provisioning failed before an authentication mechanism was
+        // selected/configured, so GSS remains untouched rather than becoming
+        // a fabricated terminal mechanism result.
+        assert(denied.gssStage() == SpnegoStage::Unconfigured);
         assert(denied.admissionState() ==
                LinuxConsoleAdmissionState::Revoked);
         assert(denied.mcsPhase() == McsSessionPhase::Closed);

@@ -25,6 +25,19 @@ foreach(required_text IN ITEMS
     endif()
 endforeach()
 
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept"
+    scheduler_begin)
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept"
+    scheduler_end)
+if(scheduler_begin LESS 0 OR scheduler_end LESS_EQUAL scheduler_begin)
+    message(FATAL_ERROR "unable to isolate accepted-client scheduler")
+endif()
+math(EXPR scheduler_length "${scheduler_end} - ${scheduler_begin}")
+string(SUBSTRING "${host_source}" ${scheduler_begin}
+    ${scheduler_length} scheduler_source)
+
 set(ordered_tokens
     "acceptNonblockingTcpConnection(listener_.nativeSocket())"
     "permitsPrivateLanTransportCandidate(peerAddress)"
@@ -44,7 +57,7 @@ set(ordered_tokens
     "acceptedClientPhase_ = AcceptedClientPhase::GraphicsReady")
 set(previous_position -1)
 foreach(token IN LISTS ordered_tokens)
-    string(FIND "${host_source}" "${token}" token_position)
+    string(FIND "${scheduler_source}" "${token}" token_position)
     if(token_position LESS 0)
         message(FATAL_ERROR "accepted-client scheduler token missing: ${token}")
     endif()

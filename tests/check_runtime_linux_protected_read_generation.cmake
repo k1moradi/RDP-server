@@ -35,7 +35,7 @@ function(require_call_between start_marker end_marker required_call forbidden_ca
 endfunction()
 
 set(bare_revalidate
-    "broker_->revalidate(*lease_, acceptor_, connection_)")
+    "broker_->revalidate(*lease_, *principalProof_, connection_)")
 set(protected_transition
     "broker_->authorizeR3ProtectedTransition(")
 
@@ -71,7 +71,7 @@ require_call_between(
     "${bare_revalidate}")
 
 string(REGEX MATCHALL
-    "broker_->revalidate\\(\\*lease_, acceptor_, connection_\\)"
+    "broker_->revalidate\\(\\*lease_, \\*principalProof_, connection_\\)"
     bare_calls "${runtime_source}")
 list(LENGTH bare_calls bare_call_count)
 if(NOT bare_call_count EQUAL 1)

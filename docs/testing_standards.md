@@ -1,3 +1,17 @@
+## Source-contract tests follow ownership boundaries, not global token order (2026-10-20)
+
+When one source file contains both pre-Share and post-Share schedulers, order
+checks must isolate the owning function before comparing tokens. A later
+post-Share call appearing textually earlier in the file is not a pre-Share
+ordering regression.
+
+Mechanism-neutral R2 tests must name
+`LinuxAuthenticatedPrincipalProof`/the selected `principalProof` rather than
+hard-code GSS-specific `acceptor` spellings. Likewise, dormant R8 route checks
+must pin the actual scoped owner expression. An unconfigured service that
+denies before selecting/configuring an authentication mechanism must not invent
+a terminal mechanism state merely to satisfy a historical assertion.
+
 ## R8 HostControl dormant clipboard composition regression (2026-10-20)
 
 `runtime.linux-host-control-dormant-unicode-clipboard-composition` is an

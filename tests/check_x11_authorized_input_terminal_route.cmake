@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # R5's legacy direct gateway and the R10 post-Share R2 callback must agree
 # that native input failure is terminal. This offline source test cannot
-# fabricate a positive GSS/PAM/logind R2 lease or call XTEST.
+# fabricate a positive authentication/PAM/logind R2 lease or call XTEST.
 if(NOT DEFINED RDP_R5_AUTHORIZED_INPUT_SOURCE OR
    "${RDP_R5_AUTHORIZED_INPUT_SOURCE}" STREQUAL "")
     message(FATAL_ERROR "Missing R5 production input route source")
@@ -24,7 +24,7 @@ foreach(required IN ITEMS
         "kConsoleInputPermission"
         "if(!desktop.handleAuthorizedInput(expectedNativeGeneration,event)){"
         "desktop.retireAfterAuthorizationLoss();"
-        "broker.revokeR3Session(acceptor,session);")
+        "broker.revokeR3Session(principalProof,session);")
     string(FIND "${normalized}" "${required}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR "R5 direct route missing protected input terminal fence: ${required}")
@@ -38,7 +38,7 @@ string(FIND "${normalized}"
     "if(!desktop.handleAuthorizedInput(expectedNativeGeneration,event)){" failure)
 string(SUBSTRING "${normalized}" ${failure} -1 terminal)
 string(FIND "${terminal}" "desktop.retireAfterAuthorizationLoss();" retire)
-string(FIND "${terminal}" "broker.revokeR3Session(acceptor,session);" revoke)
+string(FIND "${terminal}" "broker.revokeR3Session(principalProof,session);" revoke)
 string(FIND "${terminal}" "returnfalse;" denied)
 if(retire EQUAL -1 OR revoke EQUAL -1 OR denied EQUAL -1 OR
    NOT retire LESS revoke OR NOT revoke LESS denied)

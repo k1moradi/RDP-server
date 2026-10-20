@@ -1,3 +1,20 @@
+## Ubuntu exact-head five-failure triage receipt (2026-10-20)
+
+At `ce396d9633e54e8c4cb6188ee7f6de5c2fe32e19`, Ubuntu Debug compiled and ran 838 CTests; 833 passed and five
+failed. The failures were:
+`runtime.linux-host-control-bounded-accepted-client-scheduler`,
+`runtime.linux-host-control-dormant-unicode-clipboard-composition`,
+`runtime.linux-connection-aggregate-premature-admission-denial`,
+`runtime.linux-connection-protected-read-generation-denials`, and
+`x11.input-direct-route-native-failure-no-xtest`.
+
+Production inspection confirmed the intended R10/R8/R2 behavior is present:
+the native-desktop bounded scheduler test itself passes; clipboard remains
+dormant behind the false activation gate; post-admission reads use the selected
+`LinuxAuthenticatedPrincipalProof`; and the R5 terminal route revokes through
+that same proof. This correction updates stale test/source-contract assumptions
+without changing production code. Exact corrective hosted CI: **PENDING**.
+
 ## R8 GUI dormant clipboard composition authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `78f518df84c40615c59cac7bded6aa8655c035b3`.

@@ -62,7 +62,7 @@ foreach(required_text IN ITEMS
         "clipboard.writePending()"
         "clipboard.advanceTlsWrite("
         "clipboard.serviceAfterNetworkDispatch("
-        "clipboard.dispatchAuthenticatedTpkt(")
+        "context->clipboard->dispatchAuthenticatedTpkt(")
     string(FIND "${host_source}" "${required_text}" found)
     if(found LESS 0)
         message(FATAL_ERROR

@@ -1,3 +1,29 @@
+## Exact-head five-test contract reconciliation after R8/R2 composition (2026-10-20)
+
+Exact-main SHA `ce396d9633e54e8c4cb6188ee7f6de5c2fe32e19` compiled successfully on Ubuntu but full Debug CTest
+run `39482380643` reported five failures. Review found no new runtime
+authorization or native-owner defect. Four failures were source-contract tests
+still naming pre-refactor spellings or searching across multiple scheduler
+functions; the fifth expected GSS to become `Failed` even when service
+provisioning now denies before any authentication mechanism is configured.
+
+The corrective increment changes tests/contracts only:
+- scope accepted-client phase ordering to
+  `LinuxRuntimeHostControl::advanceAcceptedClientOnce()`, so the earlier
+  bounded post-Share Graphics progression cannot confuse the pre-Share order;
+- require the actual `context->clipboard->dispatchAuthenticatedTpkt(...)`
+  dormant R8 route;
+- require `principalProof` rather than the retired GSS-specific
+  `acceptor` name in the R5 terminal-input fence and the sole pre-R3
+  `broker_->revalidate(...)` source contract;
+- keep the configured premature-admission case terminal, while the
+  unconfigured-service constructor correctly leaves GSS `Unconfigured`.
+
+No production C++ behavior changes. R10X remains landed; clipboard activation
+remains false. FIRST REAL DESKTOP TEST still requires a fully green exact-main
+SHA and explicit owner authorization for live execution. Corrective exact-SHA
+hosted CI: **PENDING**.
+
 ## R8 dormant GUI clipboard composition after R10X (2026-10-20)
 
 **Starting reconciled shared-main parent:** `78f518df84c40615c59cac7bded6aa8655c035b3`.

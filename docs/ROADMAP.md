@@ -1,3 +1,39 @@
+## R2 standalone authenticated-principal proof owner binding (2026-10-20)
+
+Starting reconciled shared-main parent: `90c52e2eb5956a8b885e770018880febf8d4a69c`.
+
+The standalone CredSSP owner now has a production-only frame path that accepts
+only TSRequests read through the exact `OwnedPreauthTcpConnection`. It rejects
+mixing the direct-SSL compatibility path with owner-bound frames, pins the
+exact connection/TLS/certificate provenance across all CredSSP frames, and
+queues every response through the same R1 owner. A direct in-memory TLS fixture
+may still reach mechanism-level `CredentialsVerified`, but can never qualify
+as production R2 proof.
+
+`StandalonePasswordAuthenticatedPrincipalProof` implements the shared R2
+proof contract. Binding requires the exact owner-bound CredSSP
+`CredentialsVerified` state plus the exact current configured
+`StandalonePasswordCredentialOwner` generation. Initial admission,
+completion, and every later protected-operation revalidation recheck that
+credential generation and exact active TLS owner. Revoking one connection
+retires its CredSSP/proof state but does not revoke the service-lifetime
+application password.
+
+Dedicated ordinary CTest:
+`security.standalone-credssp-direct-tls-cannot-bind-admission-proof`.
+It proves the existing direct-SSL test path cannot be promoted into a native
+admission proof even with a configured matching credential generation.
+
+This completes the standalone proof object itself, but not the production
+connection composition. R10/runtime still needs the exact per-connection hook
+that selects GSS versus standalone CredSSP, visits the service credential at
+its captured generation while advancing the owner-bound standalone handshake,
+then passes the resulting proof to the already-shared broker. The GUI password
+field remains disabled until real Windows App/mstsc acceptance.
+
+Canonical owner-local build/full CTest: **NOT RUN**. Exact publication-SHA
+hosted CI: **PENDING**.
+
 ## R7 consumes resolved R2 grant observation and R10X native status (2026-10-20)
 
 Starting reconciled shared-main parent:

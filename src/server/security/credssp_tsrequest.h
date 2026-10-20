@@ -230,6 +230,25 @@ public:
     // partial frames, released frames and closed readers. This is proof
     // of transport provenance, never of user/GSS authentication.
     [[nodiscard]] const SSL *completedFrameServerTls() const noexcept;
+
+    // Production provenance observation only. These methods never authenticate
+    // a user or grant admission; they distinguish an exact R1-owner read from
+    // the direct-SSL compatibility path before a mechanism may qualify as a
+    // production authenticated proof.
+    [[nodiscard]] bool completedFrameUsesOwnedTransport() const noexcept
+    {
+        return status_ == TsRequestFrameStatus::Complete &&
+               boundOwner_ != nullptr &&
+               completedFrameServerTls() != nullptr;
+    }
+    [[nodiscard]] bool completedFrameOwnedBy(
+        const transport::OwnedPreauthTcpConnection &connection) const noexcept
+    {
+        return status_ == TsRequestFrameStatus::Complete &&
+               boundOwner_ == &connection &&
+               completedFrameServerTls() != nullptr;
+    }
+
     // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
     // TLS-derived frames revalidate the pinned SSL/certificate first and
     // close terminally on stale provenance. Offline consume() frames retain

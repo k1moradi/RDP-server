@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/standalone_credssp.h"
 #include "server/security/credssp_tls_certificate.h"
+#include "server/transport/nonblocking_tcp_adapter.h"
 
 #include <openssl/bio.h>
 #include <openssl/evp.h>
@@ -816,6 +817,52 @@ void testAuthInfoExactCredentialMatch()
     assert(serverCredential.configured());
 }
 
+void testDirectTlsCannotBindAdmissionProof()
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer);
+
+    const auto credentials =
+        passwordCredentials({}, u"User", u"Password");
+    const auto protectedAuthInfo =
+        protectAuthInfo(clientSecurity, credentials);
+    const auto request = authInfoRequest(protectedAuthInfo);
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+    assert(!reader.completedFrameUsesOwnedTransport());
+
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::CredentialsVerified);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::CredentialsVerified);
+
+    StandalonePasswordCredentialOwner credentialOwner;
+    std::array<char16_t, 8> password{
+        u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+    assert(credentialOwner.configure(u"User", password));
+    const auto observation = credentialOwner.observation();
+    assert(observation.configured);
+    assert(observation.generation != 0);
+
+    using rdp_server::server::transport::OwnedNativeTcpSocket;
+    using rdp_server::server::transport::OwnedPreauthTcpConnection;
+    OwnedPreauthTcpConnection inactiveConnection{OwnedNativeTcpSocket{}};
+    StandalonePasswordAuthenticatedPrincipalProof proof;
+    assert(!proof.bind(
+        acceptor, credentialOwner, observation.generation,
+        inactiveConnection));
+    assert(acceptor.stage() == StandaloneCredSspStage::Unconfigured);
+}
+
 void testAuthInfoCredentialMismatchRevokes()
 {
     const auto runMismatch = [](
@@ -943,6 +990,12 @@ int main(int argc, char **argv)
         "standalone-credssp-authinfo-exact-credential-match")
     {
         testAuthInfoExactCredentialMatch();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-direct-tls-cannot-bind-admission-proof")
+    {
+        testDirectTlsCannotBindAdmissionProof();
         return 0;
     }
     if (testCase ==

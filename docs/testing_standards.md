@@ -1,3 +1,13 @@
+## R2 standalone proof direct-TLS non-promotion regression (2026-10-20)
+
+`security.standalone-credssp-direct-tls-cannot-bind-admission-proof` must
+complete the existing direct memory-BIO CredSSP/authInfo path to
+`CredentialsVerified`, configure a real generation-fenced standalone
+credential owner, and still prove the R2 standalone proof cannot bind without
+an exact R1-owned connection transcript. Failure must retire the connection-
+scoped CredSSP state. This is a negative production-provenance test and cannot
+claim Microsoft-client interoperability or native admission.
+
 ## R7 authoritative R2 grant / R10X status projection regression (2026-10-20)
 
 `gui.offscreen-r2-owner-grant-observation` must prove that Qt renders effective

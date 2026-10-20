@@ -2,6 +2,7 @@
 #pragma once
 
 #include "credssp_tsrequest.h"
+#include "linux_authenticated_principal_proof.h"
 #include "standalone_spnego.h"
 
 #include <openssl/ssl.h>
@@ -75,6 +76,21 @@ public:
         TsRequestTlsReplyWriter &writer,
         const EphemeralNtlmV2Credential &credential) noexcept;
 
+    // Production-only counterpart. The completed frame must have been read by
+    // TsRequestFrameReader through this exact R1 connection owner, and every
+    // queued reply remains bound to that owner. Direct-SSL test frames can
+    // never qualify for credentialsVerifiedForOwnedConnection().
+    [[nodiscard]] StandaloneCredSspFrameStatus processCompleteOwnedFrame(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer,
+        const EphemeralNtlmV2Credential &credential) noexcept;
+
+    [[nodiscard]] bool credentialsVerifiedForOwnedConnection(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) const noexcept;
+
     [[nodiscard]] StandaloneCredSspStage stage() const noexcept
     {
         return stage_;
@@ -84,9 +100,21 @@ public:
 
 private:
     [[nodiscard]] bool bindOrMatchFrameProvenance(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            *connection,
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer,
         const TsRequestResult &request) noexcept;
+    [[nodiscard]] bool queueReply(
+        TsRequestTlsReplyWriter &writer,
+        CredSspServerReplyField field,
+        std::span<const std::uint8_t> providerOutput) noexcept;
+    [[nodiscard]] StandaloneCredSspFrameStatus processCompleteFrameImpl(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            *connection,
+        TsRequestFrameReader &reader,
+        TsRequestTlsReplyWriter &writer,
+        const EphemeralNtlmV2Credential &credential) noexcept;
     [[nodiscard]] StandaloneCredSspFrameStatus processNego(
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer,
@@ -111,9 +139,62 @@ private:
     TsRequestFrameReader *boundReader_{};
     TsRequestTlsReplyWriter *boundWriter_{};
     const SSL *boundServerTls_{};
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        *boundConnection_{};
     CredSspTlsCertificateFingerprint pinnedCertificate_{};
     std::uint32_t negotiatedVersion_{};
     StandaloneCredSspStage stage_{StandaloneCredSspStage::Unconfigured};
+};
+
+
+// Connection-scoped R2 proof for the independent application password.
+// It borrows the already-verified standalone CredSSP owner and the service-
+// lifetime credential owner at one exact generation. It owns no password/hash,
+// native session, owner consent, lease or R3 state.
+class StandalonePasswordAuthenticatedPrincipalProof final
+    : public LinuxAuthenticatedPrincipalProof
+{
+public:
+    StandalonePasswordAuthenticatedPrincipalProof() noexcept = default;
+    ~StandalonePasswordAuthenticatedPrincipalProof() override;
+
+    StandalonePasswordAuthenticatedPrincipalProof(
+        const StandalonePasswordAuthenticatedPrincipalProof &) = delete;
+    StandalonePasswordAuthenticatedPrincipalProof &operator=(
+        const StandalonePasswordAuthenticatedPrincipalProof &) = delete;
+
+    [[nodiscard]] bool bind(
+        StandaloneCredSspNtlmAcceptor &acceptor,
+        const StandalonePasswordCredentialOwner &credentialOwner,
+        std::uint64_t credentialGeneration,
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) noexcept;
+
+private:
+    [[nodiscard]] bool credentialGenerationCurrent() const noexcept;
+    [[nodiscard]] bool pendingNativeAdmissionMatches(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override;
+    [[nodiscard]] bool completeNativeAdmission(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) noexcept override;
+    [[nodiscard]] bool revalidatesNativeAdmission(
+        const SSL *activeServerTls,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override;
+    void revokeAuthenticatedProof() noexcept override;
+
+    StandaloneCredSspNtlmAcceptor *acceptor_{};
+    const StandalonePasswordCredentialOwner *credentialOwner_{};
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        *connection_{};
+    std::uint64_t credentialGeneration_{};
+    std::uint64_t policyGeneration_{};
+    bool nativeAdmissionComplete_{};
 };
 
 } // namespace rdp_server::server::security

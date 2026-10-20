@@ -148,6 +148,7 @@ foreach(standalone_credssp_case IN ITEMS
         standalone-credssp-tls-bound-combined-pubkeyauth
         standalone-credssp-pubkeyauth-tamper-revokes
         standalone-credssp-authinfo-exact-credential-match
+        standalone-credssp-direct-tls-cannot-bind-admission-proof
         standalone-credssp-authinfo-credential-mismatch-revokes
         standalone-credssp-authinfo-tamper-revokes
         standalone-credssp-manual-frame-provenance-denial)

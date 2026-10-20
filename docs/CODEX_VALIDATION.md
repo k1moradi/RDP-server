@@ -1,3 +1,23 @@
+## R2 standalone authenticated-proof authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `90c52e2eb5956a8b885e770018880febf8d4a69c`.
+
+R2 adds the production-owned standalone CredSSP frame path and
+`StandalonePasswordAuthenticatedPrincipalProof`. The mechanism pins the exact
+R1 owner/TLS/certificate across frames and uses owner-bound reply writes;
+direct-SSL fixtures remain non-production. The proof additionally binds the
+exact current `StandalonePasswordCredentialOwner` generation and rechecks it
+with the exact active TLS owner throughout R2 revalidation.
+
+New ordinary CTest:
+`security.standalone-credssp-direct-tls-cannot-bind-admission-proof`.
+It proves a complete direct-SSL `CredentialsVerified` transcript cannot be
+promoted into R2 proof even when the service credential generation is valid.
+
+Owner-local canonical build/full CTest: **NOT RUN**. Exact publication-SHA
+hosted CI: **PENDING**. No listener, native desktop, GUI password field or real
+client was activated.
+
 ## R7 resolved-dependency status projection authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent:

@@ -1,3 +1,16 @@
+## R2 standalone proof requires owner-bound TSRequest I/O (2026-10-20)
+
+A standalone `CredentialsVerified` result is production-eligible only when
+every TSRequest was read through the exact R1 `OwnedPreauthTcpConnection` and
+every CredSSP reply was queued through that same owner. Keep direct-SSL
+memory-BIO/provider paths test-only and incapable of binding an R2 proof.
+
+The standalone authenticated-principal proof must also retain and recheck the
+exact `StandalonePasswordCredentialOwner` generation on initial admission,
+completion and every protected-operation revalidation. Connection failure
+retires connection-scoped proof/CredSSP state, not the service-lifetime
+credential.
+
 ## R2 authentication mechanisms converge before native authorization (2026-10-20)
 
 Authentication mechanisms must implement the one

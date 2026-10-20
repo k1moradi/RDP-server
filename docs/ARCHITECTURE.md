@@ -1,3 +1,18 @@
+## R2 standalone proof binds owner transport and credential generation (2026-10-20)
+
+Standalone CredSSP now distinguishes direct-SSL compatibility traffic from the
+production R1-owned path. Production frames and replies remain bound to one
+exact `OwnedPreauthTcpConnection`, active TLS object and selected certificate;
+the final `CredentialsVerified` state is production-eligible only when every
+frame came through that owner.
+
+`StandalonePasswordAuthenticatedPrincipalProof` borrows that verified
+connection owner plus the service-lifetime standalone credential owner at one
+exact generation. It implements the same proof contract as GSS. Generation
+replacement, TLS/connection substitution or proof revocation fails later R2
+revalidation without creating a second native-session or R3 controller. The
+service credential is not revoked merely because one client connection fails.
+
 ## R2 authenticated-principal proof convergence (2026-10-20)
 
 `LinuxConsoleAdmissionBroker` no longer owns GSS-specific authentication

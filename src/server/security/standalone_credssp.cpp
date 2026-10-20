@@ -2,6 +2,7 @@
 #include "standalone_credssp.h"
 
 #include "credssp_tls_certificate.h"
+#include "transport/nonblocking_tcp_adapter.h"
 #include "credssp_credentials_internal.h"
 
 #include <openssl/crypto.h>
@@ -56,6 +57,19 @@ void matchStandalonePasswordFields(
            !request.value.hasErrorCode;
 }
 
+[[nodiscard]] bool hasOwnedHybridNlaProvenance(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection) noexcept
+{
+    using namespace rdp_server::server::transport;
+    const auto provenance = connection.securityNegotiationProvenance();
+    return connection.active() &&
+           connection.establishedTls() != nullptr &&
+           provenance.has_value() &&
+           (provenance->clientRequestedProtocols & kRdpProtocolHybrid) != 0 &&
+           provenance->serverSelectedProtocol == kRdpProtocolHybrid;
+}
+
 } // namespace
 
 StandaloneCredSspNtlmAcceptor::~StandaloneCredSspNtlmAcceptor()
@@ -84,6 +98,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     boundReader_ = nullptr;
     boundWriter_ = nullptr;
     boundServerTls_ = nullptr;
+    boundConnection_ = nullptr;
     negotiatedVersion_ = 0;
     stage_ = StandaloneCredSspStage::Unconfigured;
 }
@@ -112,15 +127,24 @@ bool StandaloneCredSspNtlmAcceptor::matchesPinnedTls(
 }
 
 bool StandaloneCredSspNtlmAcceptor::bindOrMatchFrameProvenance(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        *connection,
     TsRequestFrameReader &reader,
     TsRequestTlsReplyWriter &writer,
     const TsRequestResult &request) noexcept
 {
     const SSL *sourceTls = reader.completedFrameServerTls();
+    const bool ownerBound = reader.completedFrameUsesOwnedTransport();
     if (!request ||
         (request.value.version != 5 && request.value.version != 6) ||
         sourceTls == nullptr ||
-        writer.status() != TsRequestTlsWriteStatus::Idle)
+        writer.status() != TsRequestTlsWriteStatus::Idle ||
+        (connection == nullptr && ownerBound) ||
+        (connection != nullptr &&
+         (!ownerBound ||
+          !reader.completedFrameOwnedBy(*connection) ||
+          !hasOwnedHybridNlaProvenance(*connection) ||
+          connection->establishedTls() != sourceTls)))
     {
         return false;
     }
@@ -136,6 +160,7 @@ bool StandaloneCredSspNtlmAcceptor::bindOrMatchFrameProvenance(
         boundReader_ = &reader;
         boundWriter_ = &writer;
         boundServerTls_ = sourceTls;
+        boundConnection_ = connection;
         pinnedCertificate_ = fingerprint;
         OPENSSL_cleanse(fingerprint.data(), fingerprint.size());
         negotiatedVersion_ = request.value.version;
@@ -144,8 +169,27 @@ bool StandaloneCredSspNtlmAcceptor::bindOrMatchFrameProvenance(
 
     return boundReader_ == &reader &&
            boundWriter_ == &writer &&
+           boundConnection_ == connection &&
            negotiatedVersion_ == request.value.version &&
            matchesPinnedTls(sourceTls);
+}
+
+bool StandaloneCredSspNtlmAcceptor::queueReply(
+    TsRequestTlsReplyWriter &writer,
+    CredSspServerReplyField field,
+    std::span<const std::uint8_t> providerOutput) noexcept
+{
+    if (boundConnection_ != nullptr)
+    {
+        return writer.queueReply(
+            *boundConnection_,
+            static_cast<std::uint8_t>(negotiatedVersion_),
+            field, providerOutput);
+    }
+    return writer.queueReply(
+        const_cast<SSL *>(boundServerTls_),
+        static_cast<std::uint8_t>(negotiatedVersion_),
+        field, providerOutput);
 }
 
 StandaloneCredSspFrameStatus StandaloneCredSspNtlmAcceptor::reject(
@@ -160,6 +204,7 @@ StandaloneCredSspFrameStatus StandaloneCredSspNtlmAcceptor::reject(
     boundReader_ = nullptr;
     boundWriter_ = nullptr;
     boundServerTls_ = nullptr;
+    boundConnection_ = nullptr;
     negotiatedVersion_ = 0;
     stage_ = StandaloneCredSspStage::Failed;
     return StandaloneCredSspFrameStatus::Rejected;
@@ -255,9 +300,8 @@ StandaloneCredSspNtlmAcceptor::processBinding(
     OPENSSL_cleanse(
         serverSignature.data(), serverSignature.size());
 
-    const bool queued = writer.queueReply(
-        const_cast<SSL *>(sourceTls),
-        static_cast<std::uint8_t>(negotiatedVersion_),
+    const bool queued = queueReply(
+        writer,
         CredSspServerReplyField::EncryptedServerBinding,
         protectedReply);
     OPENSSL_cleanse(
@@ -410,11 +454,8 @@ StandaloneCredSspNtlmAcceptor::processNego(
     const auto replyBytes =
         std::span<const std::uint8_t>{mechanismReply}.first(
             step.bytesWritten);
-    const bool queued = writer.queueReply(
-        const_cast<SSL *>(boundServerTls_),
-        static_cast<std::uint8_t>(negotiatedVersion_),
-        CredSspServerReplyField::NegoToken,
-        replyBytes);
+    const bool queued = queueReply(
+        writer, CredSspServerReplyField::NegoToken, replyBytes);
     OPENSSL_cleanse(
         mechanismReply.data(), mechanismReply.size());
     if (!queued || !reader.releaseFrame())
@@ -433,6 +474,30 @@ StandaloneCredSspNtlmAcceptor::processCompleteFrame(
     TsRequestTlsReplyWriter &writer,
     const EphemeralNtlmV2Credential &credential) noexcept
 {
+    return processCompleteFrameImpl(
+        nullptr, reader, writer, credential);
+}
+
+StandaloneCredSspFrameStatus
+StandaloneCredSspNtlmAcceptor::processCompleteOwnedFrame(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer,
+    const EphemeralNtlmV2Credential &credential) noexcept
+{
+    return processCompleteFrameImpl(
+        &connection, reader, writer, credential);
+}
+
+StandaloneCredSspFrameStatus
+StandaloneCredSspNtlmAcceptor::processCompleteFrameImpl(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        *connection,
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer,
+    const EphemeralNtlmV2Credential &credential) noexcept
+{
     if (stage_ != StandaloneCredSspStage::AwaitInitialNego &&
         stage_ != StandaloneCredSspStage::NegoContinue &&
         stage_ != StandaloneCredSspStage::AwaitBinding &&
@@ -444,7 +509,7 @@ StandaloneCredSspNtlmAcceptor::processCompleteFrame(
     const auto request =
         parseCredSspTsRequest(reader.completeDer());
     if (!bindOrMatchFrameProvenance(
-            reader, writer, request))
+            connection, reader, writer, request))
     {
         return reject(reader, writer);
     }
@@ -461,6 +526,129 @@ StandaloneCredSspNtlmAcceptor::processCompleteFrame(
     }
     return processNego(
         reader, writer, request, credential);
+}
+
+bool StandaloneCredSspNtlmAcceptor::credentialsVerifiedForOwnedConnection(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection) const noexcept
+{
+    return stage_ == StandaloneCredSspStage::CredentialsVerified &&
+           boundConnection_ == &connection &&
+           hasOwnedHybridNlaProvenance(connection) &&
+           connection.establishedTls() == boundServerTls_ &&
+           matchesPinnedTls(boundServerTls_);
+}
+
+StandalonePasswordAuthenticatedPrincipalProof::
+    ~StandalonePasswordAuthenticatedPrincipalProof()
+{
+    revokeAuthenticatedProof();
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::credentialGenerationCurrent()
+    const noexcept
+{
+    if (credentialOwner_ == nullptr || credentialGeneration_ == 0)
+        return false;
+    const auto observation = credentialOwner_->observation();
+    return observation.configured &&
+           observation.generation == credentialGeneration_;
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::bind(
+    StandaloneCredSspNtlmAcceptor &acceptor,
+    const StandalonePasswordCredentialOwner &credentialOwner,
+    std::uint64_t credentialGeneration,
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection) noexcept
+{
+    if (acceptor_ != nullptr || credentialOwner_ != nullptr ||
+        connection_ != nullptr || credentialGeneration == 0 ||
+        !acceptor.credentialsVerifiedForOwnedConnection(connection))
+    {
+        acceptor.reset();
+        return false;
+    }
+
+    const auto observation = credentialOwner.observation();
+    if (!observation.configured ||
+        observation.generation != credentialGeneration)
+    {
+        acceptor.reset();
+        return false;
+    }
+
+    acceptor_ = &acceptor;
+    credentialOwner_ = &credentialOwner;
+    connection_ = &connection;
+    credentialGeneration_ = credentialGeneration;
+    return true;
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::
+    pendingNativeAdmissionMatches(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept
+{
+    return !nativeAdmissionComplete_ &&
+           policyGeneration != 0 &&
+           request.authenticationKind ==
+               ConsoleEvidenceAuthenticationKind::StandalonePassword &&
+           request.kerberosPrincipal.empty() &&
+           acceptor_ != nullptr &&
+           connection_ == &connection &&
+           credentialGenerationCurrent() &&
+           acceptor_->credentialsVerifiedForOwnedConnection(connection);
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::completeNativeAdmission(
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        &connection,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration) noexcept
+{
+    if (!pendingNativeAdmissionMatches(
+            connection, request, policyGeneration))
+    {
+        return false;
+    }
+    policyGeneration_ = policyGeneration;
+    nativeAdmissionComplete_ = true;
+    return true;
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::revalidatesNativeAdmission(
+    const SSL *activeServerTls,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration) const noexcept
+{
+    return nativeAdmissionComplete_ &&
+           policyGeneration != 0 &&
+           policyGeneration_ == policyGeneration &&
+           request.authenticationKind ==
+               ConsoleEvidenceAuthenticationKind::StandalonePassword &&
+           request.kerberosPrincipal.empty() &&
+           connection_ != nullptr &&
+           activeServerTls != nullptr &&
+           connection_->establishedTls() == activeServerTls &&
+           credentialGenerationCurrent() &&
+           acceptor_ != nullptr &&
+           acceptor_->credentialsVerifiedForOwnedConnection(*connection_);
+}
+
+void StandalonePasswordAuthenticatedPrincipalProof::
+    revokeAuthenticatedProof() noexcept
+{
+    if (acceptor_ != nullptr)
+        acceptor_->reset();
+    acceptor_ = nullptr;
+    credentialOwner_ = nullptr;
+    connection_ = nullptr;
+    credentialGeneration_ = 0;
+    policyGeneration_ = 0;
+    nativeAdmissionComplete_ = false;
 }
 
 } // namespace rdp_server::server::security

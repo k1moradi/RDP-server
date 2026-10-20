@@ -845,12 +845,13 @@ jobs:
           grep -Fq 'clipboard.windows-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
+          grep -Fq 'clipboard.x11-unicode-text-only-presentation' <<< "$selected_tests"
           grep -Fq 'clipboard.r3-bridge-source-request-receipt' <<< "$selected_tests"
           grep -Fq 'clipboard.r3-bridge-missing-activated-route-denial' <<< "$selected_tests"
           grep -Fq 'clipboard.r3-bridge-old-route-generation-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.r3-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.r3-bridge-filecontents-request-receipt' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=87
+          readonly clipboard_expected_test_count=88
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
             printf 'R8 clipboard registry mismatch: expected %s tests, found %s\n' \
@@ -892,7 +893,7 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$r3_clipboard_selection" --output-on-failure
       # Focused R9 regressions remain distinct from the fixed R3 20-case
-      # Graphics and R8 87-case clipboard sanitizer inventories.
+      # Graphics and R8 88-case clipboard sanitizer inventories.
       - name: Pin R2 R4 and R8 focused exact-HEAD sanitizer inventory
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

@@ -1,3 +1,11 @@
+## R9 Linux sanitizer clipboard inventory reconciliation (2026-10-20)
+
+The Linux ASan/UBSan job pins 88 `clipboard`-labelled tests after R8 added
+`clipboard.x11-unicode-text-only-presentation`. Keep the explicit name check
+and fixed count synchronized with reviewed behavior-test additions/removals.
+Do not hide registry drift by dropping the count assertion or by deleting an
+unrelated test.
+
 ## R9 Qt macro-safe transitive headers (2026-10-20)
 
 A header reachable from a Qt translation unit must remain valid when Qt

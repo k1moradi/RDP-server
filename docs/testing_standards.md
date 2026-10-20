@@ -1,3 +1,16 @@
+## R9/R8 sanitizer clipboard inventory is 88 cases (2026-10-20)
+
+The bounded Linux ASan/UBSan `-L clipboard` registry contains **88** ordinary
+CTest registrations. The inventory includes
+`clipboard.x11-unicode-text-only-presentation`, the R8 regression that pins
+the prepared Unicode-text-only presentation scope while production clipboard
+activation remains false.
+
+R9 must require that case by exact name before checking the fixed total. A
+registry mismatch is CI-structure evidence, not a sanitizer failure in any
+clipboard implementation; actual sanitizer PASS/FAIL begins only when the 88
+registered tests execute.
+
 ## R10X HostControl native-owner composition gate (2026-10-20)
 
 Ordinary CI must not fabricate a positive physical seat/logind lease merely to

@@ -1,3 +1,29 @@
+## R9 exact-head clipboard sanitizer inventory repair after R10X (2026-10-20)
+
+Starting shared-main parent: `8af251c751d87a21565a02593134808d0b4a2661`.
+
+R10X is now landed, so FIRST REAL DESKTOP TEST is no longer code-blocked on
+native X11 composition. The remaining prerequisite is a nominated exact-main
+SHA with every ordinary hosted lane green.
+
+Hosted evidence on R1 SHA `75668042f27f1e596d094a29ff08fd0fab870d19`
+(run `39474368698`) and its R2 descendant showed the same deterministic R9
+failure before clipboard CTests executed:
+`R8 clipboard registry mismatch: expected 87 tests, found 88`.
+
+The 88th registration is intentional:
+`clipboard.x11-unicode-text-only-presentation`, introduced by R8's prepared
+text-only production-composition work. CI now requires that exact behavior by
+name and pins the sanitizer clipboard inventory at 88. No runtime, clipboard
+activation, R1 transport, R2 authority, R10X native ownership or protocol
+behavior changes.
+
+Canonical owner `~/rdp-server/build` configure/build/full CTest:
+**NOT RUN** in this connector environment. Failing hosted evidence:
+**CONFIRMED**. Corrective exact-publication-SHA hosted CI: **PENDING**.
+After green ordinary hosted CI, the next R1/R10 gate is the owner-approved
+FIRST REAL DESKTOP protocol/transport/visible-frame test.
+
 ## R10X GUI-owned X11 desktop and bounded post-Share service (2026-10-20)
 
 **Starting reconciled shared-main parent:** `a870aab1c1708d313e38dcbe6046ec4996be0b61`.

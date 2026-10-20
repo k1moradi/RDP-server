@@ -1,3 +1,22 @@
+## R9 clipboard sanitizer inventory repair receipt after R10X (2026-10-20)
+
+Starting shared-main parent: `8af251c751d87a21565a02593134808d0b4a2661`.
+
+R10X source composition is present on the parent and removes the former native
+X11 code blocker. Review of the failing sanitizer runs found no R1/R10X
+sanitizer defect: configure/build succeeded, the dedicated R1 native TCP reset
+sanitizer step passed, and the job's first failure was the fixed clipboard
+registry assertion reporting 88 registrations against a stale expected 87.
+
+Source-history reconciliation identifies
+`clipboard.x11-unicode-text-only-presentation` as the deliberate additional
+R8 test. The workflow now explicitly greps for it and changes the fixed
+clipboard count to 88; the corresponding inventory comment is updated.
+
+Local canonical build/full CTest: **NOT RUN** in this connector environment.
+Corrective exact-SHA hosted CI: **PENDING**. No listener, native desktop,
+clipboard activation, credential, service or Microsoft client was exercised.
+
 ## R10X bounded Qt X11 composition authoring receipt (2026-10-20)
 
 Starting reconciled shared-main parent: `a870aab1c1708d313e38dcbe6046ec4996be0b61`. R5's X11 lifetime contract

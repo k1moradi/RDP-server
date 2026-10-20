@@ -1,3 +1,34 @@
+## R2 common authenticated-principal proof contract (GSS migration) (2026-10-20)
+
+Starting reconciled shared-main parent: `5e9d6cb379232eb9b72749a77b3801df42b7f1c0`. R10X is now landed; FIRST REAL
+DESKTOP TEST therefore no longer waits on native X11 composition and is blocked
+only on a nominated fully green exact SHA plus owner-approved live execution.
+That acceptance gate does not block this R2 work.
+
+R2 now owns one `LinuxAuthenticatedPrincipalProof` contract for the existing
+native admission broker. The contract covers pending admission proof, the
+one-shot native-admission completion latch, protected-operation revalidation
+against the active TLS identity/policy generation, and terminal proof
+revocation. `LinuxConsoleAdmissionBroker` and all R3 protected gateways now
+consume this abstraction rather than naming `GssapiSpnegoAcceptor` directly.
+
+The existing GSS/Kerberos owner is the first implementation. It preserves the
+same exact R1-owned HYBRID/TLS binding, GSS principal, PAM-authorized account,
+policy-generation and terminal-reject checks. The one R2 lease also retains the
+candidate authentication kind so revalidation can reconstruct the exact
+identity shape.
+
+Dedicated ordinary CTest:
+`security.authenticated-principal-proof-gss-compatibility`.
+
+The next R2 step is a standalone proof implementation bound to the exact
+accepted R1 connection/TLS provenance, `CredentialsVerified`, and exact
+`StandalonePasswordCredentialOwner` generation, followed by R10's
+per-connection selector hook. No second broker or lease owner is introduced.
+
+Canonical owner-local build/full CTest: **NOT RUN**. Exact publication-SHA
+hosted CI: **PENDING**.
+
 ## R9 structure-validator follow-up for 88-case clipboard inventory (2026-10-20)
 
 Starting shared-main parent: `371502512ca6748d57afa7592d6be41453b09e18`.

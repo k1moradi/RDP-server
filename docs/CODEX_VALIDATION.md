@@ -1,3 +1,22 @@
+## R2 authenticated-principal proof authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `5e9d6cb379232eb9b72749a77b3801df42b7f1c0`.
+
+R2 introduces one mechanism-neutral `LinuxAuthenticatedPrincipalProof` and
+migrates `LinuxConsoleAdmissionBroker`, including every protected R3 gateway,
+to consume it. The existing `GssapiSpnegoAcceptor` implements the contract by
+delegating to its already-private exact-connection principal/account completion
+and active-TLS revalidation state. No GSS authentication rule is relaxed.
+
+The admission lease retains the authentication-kind discriminator so a future
+standalone proof can carry an empty Kerberos principal while using the same
+native session/permission/generation machinery. New ordinary CTest:
+`security.authenticated-principal-proof-gss-compatibility`.
+
+R10X is already present on this parent. Owner-local canonical build/full CTest:
+**NOT RUN**. Exact publication-SHA hosted CI: **PENDING**. No listener, client,
+native desktop or secret UI was activated.
+
 ## R9 88-case clipboard structure-validator correction receipt (2026-10-20)
 
 Starting shared-main parent: `371502512ca6748d57afa7592d6be41453b09e18`.

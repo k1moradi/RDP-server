@@ -1,3 +1,13 @@
+## R2 authenticated-principal proof compatibility regression (2026-10-20)
+
+`security.authenticated-principal-proof-gss-compatibility` must prove the
+existing GSS owner implements the shared R2 proof contract and that an
+unconfigured GSS proof plus inactive R1 connection still fails terminally
+through the generalized broker, including concrete GSS owner rejection.
+Existing GSS/R3 tests remain the semantic regression matrix after the broker
+signatures move to the proof base type. Do not introduce a test-only positive
+proof capable of minting a native lease.
+
 ## CI structure and clipboard sanitizer inventory change together (2026-10-20)
 
 When the fixed R8 clipboard sanitizer registry changes, update all three

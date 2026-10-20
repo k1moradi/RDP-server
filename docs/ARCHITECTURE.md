@@ -1,3 +1,18 @@
+## R2 authenticated-principal proof convergence (2026-10-20)
+
+`LinuxConsoleAdmissionBroker` no longer owns GSS-specific authentication
+logic. It consumes one `LinuxAuthenticatedPrincipalProof` interface for
+initial proof matching/completion, live TLS/policy revalidation and terminal
+proof revocation. Native NSS/logind/session evidence, current-owner consent,
+permission scope, the admission lease and every R3 authorization remain owned
+once by the broker.
+
+`GssapiSpnegoAcceptor` implements this contract without changing its
+Kerberos/PAM semantics. The lease records the authentication-kind discriminator
+alongside its existing bounded identity/session metadata so the same broker can
+later revalidate a principal-free standalone proof without inventing a Kerberos
+name.
+
 ## R10X GUI native desktop ownership after GraphicsReady (2026-10-20)
 
 The GUI path closes the former gap between RDPGFX control and R5. One

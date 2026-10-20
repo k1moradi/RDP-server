@@ -5,6 +5,7 @@
 #include "credssp_tls_certificate.h"
 #include "credssp_credentials.h"
 #include "console_identity_policy.h"
+#include "linux_authenticated_principal_proof.h"
 
 #include <gssapi/gssapi.h>
 
@@ -128,7 +129,7 @@ inline constexpr std::size_t kMaximumSpnegoRoundTrips = 16;
 [[nodiscard]] bool isInitialSpnegoToken(
     std::span<const std::uint8_t> token) noexcept;
 
-class GssapiSpnegoAcceptor final
+class GssapiSpnegoAcceptor final : public LinuxAuthenticatedPrincipalProof
 {
 public:
     GssapiSpnegoAcceptor() noexcept = default;
@@ -331,6 +332,20 @@ public:
 
 private:
     friend class LinuxConsoleAdmissionBroker;
+
+    [[nodiscard]] bool pendingNativeAdmissionMatches(
+        const transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override;
+    [[nodiscard]] bool completeNativeAdmission(
+        const transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) noexcept override;
+    [[nodiscard]] bool revalidatesNativeAdmission(
+        const SSL *activeServerTls,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override;
+    void revokeAuthenticatedProof() noexcept override;
 
     // Native admission must not be derived from public binding-level identity.
     // Final PAM success is retained only as an account-bound private candidate;

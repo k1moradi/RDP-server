@@ -593,7 +593,7 @@ void testStandaloneNativeAccountEvidenceCandidate()
 using PositiveNativeAdmissionIssue =
     std::optional<LinuxConsoleAdmissionLease> (
         LinuxConsoleAdmissionBroker::*)(
-            GssapiSpnegoAcceptor &,
+            LinuxAuthenticatedPrincipalProof &,
             OwnedPreauthTcpConnection &,
             const ConsoleEvidenceRequest &) noexcept;
 constexpr PositiveNativeAdmissionIssue kPositiveNativeAdmissionIssue =
@@ -602,7 +602,7 @@ constexpr PositiveNativeAdmissionIssue kPositiveNativeAdmissionIssue =
 using LegacyNativeAdmissionIssue =
     std::optional<LinuxConsoleAdmissionLease> (
         LinuxConsoleAdmissionBroker::*)(
-            GssapiSpnegoAcceptor &,
+            LinuxAuthenticatedPrincipalProof &,
             const SSL *,
             const ConsoleEvidenceRequest &) noexcept;
 using R3McsAdmission =
@@ -713,6 +713,32 @@ static_assert(std::is_invocable_r_v<
               McsSessionLifecycle &,
               std::span<const std::uint8_t>>);
 
+
+void testAuthenticatedPrincipalProofGssCompatibility()
+{
+    static_assert(std::is_base_of_v<
+        LinuxAuthenticatedPrincipalProof, GssapiSpnegoAcceptor>);
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add({"alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+                       1001U, kConsoleViewPermission}) ==
+           ConsoleRuleError::None);
+
+    GssapiSpnegoAcceptor acceptor;
+    LinuxAuthenticatedPrincipalProof &proof = acceptor;
+    LinuxConsoleAdmissionBroker broker(policy);
+    OwnedPreauthTcpConnection inactive{OwnedNativeTcpSocket{}};
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+
+    // The generalized proof contract preserves the existing fail-closed GSS
+    // behavior: neither an unconfigured proof nor inactive R1 owner can issue
+    // a lease, and terminal cleanup reaches the concrete GSS owner.
+    assert(!broker.issue(proof, inactive, request));
+    assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+    assert(acceptor.stage() == SpnegoStage::Failed);
+}
 
 void testCredSspDelegatedAccountOriginDenials()
 {
@@ -2250,6 +2276,11 @@ int main(int argc, char **argv)
             testCredSspDelegatedAccountOriginDenials();
             return 0;
         }
+        if (name == "authenticated-principal-proof-gss-compatibility")
+        {
+            testAuthenticatedPrincipalProofGssCompatibility();
+            return 0;
+        }
         if (name == "gssapi-r3-initial-nla-owner-fence")
         {
             testR3InitialNlaOwnerFence();
@@ -2362,6 +2393,7 @@ int main(int argc, char **argv)
     testStandaloneNativeAccountEvidenceCandidate();
     testNativeAdmissionR1NlaProvenanceDenials();
     testCredSspDelegatedAccountOriginDenials();
+    testAuthenticatedPrincipalProofGssCompatibility();
     testR3InitialNlaOwnerFence();
     testR3McsAdmissionContract();
     testR3ProtectedTransitionGenerationFence();

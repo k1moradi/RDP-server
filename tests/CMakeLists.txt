@@ -755,6 +755,7 @@ function(add_rdp_test source_file suite behavior)
                 console-evidence-standalone-native-account-candidate
                 gssapi-native-admission-r1-nla-provenance-denials
                 gssapi-credssp-delegated-account-origin-denials
+                authenticated-principal-proof-gss-compatibility
                 gssapi-r3-initial-nla-owner-fence
                 gssapi-r3-mcs-admission-contract
                 gssapi-r3-protected-transition-generation-fence

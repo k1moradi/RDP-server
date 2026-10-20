@@ -87,6 +87,7 @@ template <std::size_t Capacity>
 LinuxConsoleAdmissionLease::LinuxConsoleAdmissionLease(
     std::shared_ptr<LinuxConsoleAdmissionControl> control,
     std::uint64_t admissionGeneration,
+    ConsoleEvidenceAuthenticationKind authenticationKind,
     std::string_view kerberosPrincipal,
     std::string_view unixAccount,
     const ConsoleCandidateSessionFingerprint &fingerprint,
@@ -98,7 +99,8 @@ LinuxConsoleAdmissionLease::LinuxConsoleAdmissionLease(
       localUid_(fingerprint.accountUid),
       sessionGeneration_(fingerprint.sessionGeneration),
       permissions_(permissions),
-      admissionGeneration_(admissionGeneration)
+      admissionGeneration_(admissionGeneration),
+      authenticationKind_(authenticationKind)
 {
     std::copy(kerberosPrincipal.begin(), kerberosPrincipal.end(),
               kerberosPrincipal_.begin());
@@ -126,7 +128,8 @@ LinuxConsoleAdmissionLease::LinuxConsoleAdmissionLease(
       localUid_(other.localUid_),
       sessionGeneration_(other.sessionGeneration_),
       permissions_(other.permissions_),
-      admissionGeneration_(other.admissionGeneration_)
+      admissionGeneration_(other.admissionGeneration_),
+      authenticationKind_(other.authenticationKind_)
 {
     other.clearMetadata();
 }
@@ -151,6 +154,7 @@ LinuxConsoleAdmissionLease &LinuxConsoleAdmissionLease::operator=(
     sessionGeneration_ = other.sessionGeneration_;
     permissions_ = other.permissions_;
     admissionGeneration_ = other.admissionGeneration_;
+    authenticationKind_ = other.authenticationKind_;
     other.clearMetadata();
     return *this;
 }
@@ -180,6 +184,8 @@ void LinuxConsoleAdmissionLease::clearMetadata() noexcept
     sessionGeneration_ = 0;
     permissions_ = 0;
     admissionGeneration_ = 0;
+    authenticationKind_ =
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal;
 }
 
 bool LinuxConsoleAdmissionLease::isRevoked() const noexcept
@@ -282,13 +288,13 @@ void LinuxConsoleAdmissionBroker::clearRequest() noexcept
 }
 
 void LinuxConsoleAdmissionBroker::deny(
-    GssapiSpnegoAcceptor &acceptor) noexcept
+    LinuxAuthenticatedPrincipalProof &principalProof) noexcept
 {
     revokeControl();
     clearRequest();
     changes_.reset();
     personalDesktopPolicy_ = nullptr;
-    acceptor.reject();
+    principalProof.revokeAuthenticatedProof();
     state_ = LinuxConsoleAdmissionState::Revoked;
 }
 
@@ -334,12 +340,13 @@ ConsoleEvidenceRequest LinuxConsoleAdmissionBroker::requestView(
         {lease.unixAccount_.data(), lease.unixAccountLength_},
         {seat_.data(), seatLength_},
         {display_.data(), displayLength_},
-        lease.permissions_};
+        lease.permissions_,
+        lease.authenticationKind_};
 }
 
 std::optional<LinuxConsoleAdmissionLease>
 LinuxConsoleAdmissionBroker::issue(
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
@@ -348,7 +355,7 @@ LinuxConsoleAdmissionBroker::issue(
         ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(request.requestedPermissions))
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
@@ -359,24 +366,21 @@ LinuxConsoleAdmissionBroker::issue(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security)
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
     const std::uint64_t policyGeneration = policy_.generation();
-    const std::string_view proven =
-        acceptor.verifiedPrincipalForOwnedConnection(connection);
-    if (policyGeneration == 0 || proven.empty() ||
-        proven != request.kerberosPrincipal ||
-        !acceptor.pendingCredentialAuthorizationMatches(
-            connection, proven, request.unixAccount, policyGeneration) ||
+    if (policyGeneration == 0 ||
+        !principalProof.pendingNativeAdmissionMatches(
+            connection, request, policyGeneration) ||
         !copyBounded(seat_, seatLength_, request.seat) ||
         !copyBounded(display_, displayLength_, request.display))
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
-    // Establish the concrete native change monitor only after genuine GSS/TLS
+    // Establish the concrete native change monitor only after genuine TLS/authenticated-proof
     // identity exists, but before any NSS/logind identity/session sampling.
     try
     {
@@ -384,16 +388,16 @@ LinuxConsoleAdmissionBroker::issue(
     }
     catch (const std::bad_alloc &)
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
     if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
-        !acceptor.pendingCredentialAuthorizationMatches(
-            connection, proven, request.unixAccount, policyGeneration) ||
+        !principalProof.pendingNativeAdmissionMatches(
+            connection, request, policyGeneration) ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
@@ -407,10 +411,10 @@ LinuxConsoleAdmissionBroker::issue(
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
         policy_.generation() != policyGeneration ||
-        !acceptor.pendingCredentialAuthorizationMatches(
-            connection, proven, request.unixAccount, policyGeneration))
+        !principalProof.pendingNativeAdmissionMatches(
+            connection, request, policyGeneration))
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
@@ -421,7 +425,7 @@ LinuxConsoleAdmissionBroker::issue(
     }
     catch (const std::bad_alloc &)
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
@@ -432,18 +436,18 @@ LinuxConsoleAdmissionBroker::issue(
         *now > std::numeric_limits<std::int64_t>::max() -
                    kAdmissionValidityMilliseconds)
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
     // All native facts and the change watch are live at this exact boundary.
     // Only now may R2 set its private completion latch and tell the sole R1
     // owner that CredSSP is complete. Neither transition is publicly callable.
-    if (!acceptor.completeCredentialAuthorizationForNativeAdmission(
-            connection, proven, request.unixAccount, policyGeneration) ||
+    if (!principalProof.completeNativeAdmission(
+            connection, request, policyGeneration) ||
         !connection.completeCredSspAdmission())
     {
-        deny(acceptor);
+        deny(principalProof);
         return std::nullopt;
     }
 
@@ -457,40 +461,40 @@ LinuxConsoleAdmissionBroker::issue(
     state_ = LinuxConsoleAdmissionState::Active;
 
     LinuxConsoleAdmissionLease lease{
-        control_, generation, request.kerberosPrincipal,
-        request.unixAccount, fingerprint, request.requestedPermissions};
+        control_, generation, request.authenticationKind,
+        request.kerberosPrincipal, request.unixAccount,
+        fingerprint, request.requestedPermissions};
     return std::optional<LinuxConsoleAdmissionLease>{std::move(lease)};
 }
 
 std::optional<LinuxConsoleAdmissionLease>
 LinuxConsoleAdmissionBroker::issue(
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const SSL *activeServerTls,
     const ConsoleEvidenceRequest &request) noexcept
 {
     // Compatibility only: an arbitrary SSL* cannot establish that the same
     // R1-owned connection selected NLA/HYBRID. Never sample native evidence
-    // or preserve GSS state through this route.
+    // or preserve authentication-proof state through this route.
     (void)activeServerTls;
     (void)request;
-    deny(acceptor);
+    deny(principalProof);
     return std::nullopt;
 }
 
 bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const SSL *activeServerTls) noexcept
 {
-    const std::string_view leasePrincipal{
-        lease.kerberosPrincipal_.data(), lease.kerberosPrincipalLength_};
     // Every protected R2 operation revalidates affirmative native authority.
     if (ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(lease.permissions_) ||
         !ownsActiveLease(lease) ||
         control_->policyGeneration != policy_.generation() ||
-        acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
-            leasePrincipal ||
+        !principalProof.revalidatesNativeAdmission(
+            activeServerTls, requestView(lease),
+            control_->policyGeneration) ||
         changes_ == nullptr ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
@@ -509,8 +513,9 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
         fingerprint.accountUid != lease.localUid_ ||
         fingerprint.consoleOwnerUid != lease.localUid_ ||
         fingerprint.sessionGeneration != lease.sessionGeneration_ ||
-        acceptor.nativeAdmissionPrincipalForTls(activeServerTls) !=
-            leasePrincipal ||
+        !principalProof.revalidatesNativeAdmission(
+            activeServerTls, requestView(lease),
+            control_->policyGeneration) ||
         !refreshDeadline(lease.admissionGeneration_))
     {
         return false;
@@ -520,36 +525,36 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
 
 bool LinuxConsoleAdmissionBroker::authorizationChecksPass(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const SSL *activeServerTls,
     std::uint32_t requiredPermissions) noexcept
 {
     return requiredPermissions != 0 &&
            (requiredPermissions & ~kConsoleAllowedPermissions) == 0 &&
            (lease.permissions_ & requiredPermissions) == requiredPermissions &&
-           revalidationChecksPass(lease, acceptor, activeServerTls);
+           revalidationChecksPass(lease, principalProof, activeServerTls);
 }
 
 bool LinuxConsoleAdmissionBroker::revalidate(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection) noexcept
 {
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (r1Security &&
         revalidationChecksPass(
-            lease, acceptor, r1Security->activeServerTls))
+            lease, principalProof, r1Security->activeServerTls))
     {
         return true;
     }
-    deny(acceptor);
+    deny(principalProof);
     return false;
 }
 
 bool LinuxConsoleAdmissionBroker::authorizes(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection,
     std::uint32_t requiredPermissions) noexcept
@@ -557,19 +562,19 @@ bool LinuxConsoleAdmissionBroker::authorizes(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (r1Security &&
         authorizationChecksPass(
-            lease, acceptor, r1Security->activeServerTls,
+            lease, principalProof, r1Security->activeServerTls,
             requiredPermissions))
     {
         return true;
     }
-    deny(acceptor);
+    deny(principalProof);
     return false;
 }
 
 rdp_server::server::transport::McsSessionIntake
 LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
@@ -579,10 +584,10 @@ LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security ||
         !authorizationChecksPass(
-            lease, acceptor, r1Security->activeServerTls,
+            lease, principalProof, r1Security->activeServerTls,
             kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return McsSessionIntake::AdmissionDenied;
     }
 
@@ -593,14 +598,14 @@ LinuxConsoleAdmissionBroker::authorizeR3McsConnectInitial(
         // A malformed/wrong-order MCS envelope terminates the same identity
         // capability; never retain a valid lease for replay on a fresh R3
         // owner after this connection-level protocol violation.
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     }
     return result;
 }
 
 bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransitionForEstablishedTls(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const SSL *activeServerTls,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint32_t requiredPermissions) noexcept
@@ -613,15 +618,15 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransitionForEstablishedTl
     if (session.phase() ==
         rdp_server::server::transport::McsSessionPhase::Closed)
     {
-        revoke(acceptor);
+        revoke(principalProof);
         return false;
     }
 
     if (!authorizationChecksPass(
-            lease, acceptor, activeServerTls, requiredPermissions))
+            lease, principalProof, activeServerTls, requiredPermissions))
     {
-        // Preserve ordered R3 -> R2/GSS teardown on every protected denial.
-        revokeR3Session(acceptor, session);
+        // Preserve ordered R3 -> R2/authentication-proof teardown on every protected denial.
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -633,7 +638,7 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransitionForEstablishedTl
 
 bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
@@ -642,11 +647,11 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return authorizeR3ProtectedTransitionForEstablishedTls(
-        lease, acceptor, r1Security->activeServerTls, session,
+        lease, principalProof, r1Security->activeServerTls, session,
         requiredPermissions);
 }
 
@@ -654,24 +659,24 @@ bool LinuxConsoleAdmissionBroker::authorizeR3ProtectedTransition(
 std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security ||
         !authorizeR3ProtectedTransitionForEstablishedTls(
-            lease, acceptor, r1Security->activeServerTls, session,
+            lease, principalProof, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
             rdp_server::server::transport::McsSessionPhase::Closed)
         {
-            revokeR3Session(acceptor, session);
+            revokeR3Session(principalProof, session);
         }
         else
         {
-            revoke(acceptor);
+            revoke(principalProof);
         }
         return std::nullopt;
     }
@@ -680,7 +685,7 @@ LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
         session.prepareConnectResponseWrite(r1Security->provenance);
     if (!pending)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
     return pending;
@@ -689,7 +694,7 @@ LinuxConsoleAdmissionBroker::authorizeR3ConnectResponseWrite(
 rdp_server::server::transport::McsConnectResponseWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
@@ -706,17 +711,17 @@ LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (lease == nullptr || !r1Security ||
         !authorizeR3ProtectedTransitionForEstablishedTls(
-            *lease, acceptor, r1Security->activeServerTls, session,
+            *lease, principalProof, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
             rdp_server::server::transport::McsSessionPhase::Closed)
         {
-            revokeR3Session(acceptor, session);
+            revokeR3Session(principalProof, session);
         }
         else
         {
-            revoke(acceptor);
+            revoke(principalProof);
         }
         return Outcome::Rejected;
     }
@@ -724,14 +729,14 @@ LinuxConsoleAdmissionBroker::completeR3ConnectResponseWrite(
     const auto outcome = session.completeConnectResponseWrite(
         replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 rdp_server::server::transport::McsSessionIntake
 LinuxConsoleAdmissionBroker::authorizeR3ErectDomain(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
@@ -740,79 +745,79 @@ LinuxConsoleAdmissionBroker::authorizeR3ErectDomain(
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security ||
         !authorizeR3ProtectedTransitionForEstablishedTls(
-            lease, acceptor, r1Security->activeServerTls, session,
+            lease, principalProof, r1Security->activeServerTls, session,
             kConsoleViewPermission))
     {
         if (session.phase() !=
             rdp_server::server::transport::McsSessionPhase::Closed)
         {
-            revokeR3Session(acceptor, session);
+            revokeR3Session(principalProof, session);
         }
         else
         {
-            revoke(acceptor);
+            revoke(principalProof);
         }
         return McsSessionIntake::AdmissionDenied;
     }
 
     const auto result = session.onVerifiedR2ErectDomain(completeTpkt);
     if (result != McsSessionIntake::ErectDomainAccepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
 rdp_server::server::transport::McsSessionIntake
 LinuxConsoleAdmissionBroker::authorizeR3AttachUser(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using rdp_server::server::transport::McsSessionIntake;
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return McsSessionIntake::AdmissionDenied;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return McsSessionIntake::AdmissionDenied;
     }
     const auto result = session.onVerifiedR2AttachUser(*provenance, completeTpkt);
     if (result != McsSessionIntake::AttachUserAccepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
 std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3AttachUserConfirmWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
     const auto pending = session.prepareAttachUserConfirmWrite(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::McsConnectResponseWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3AttachUserConfirmWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
@@ -823,78 +828,78 @@ LinuxConsoleAdmissionBroker::completeR3AttachUserConfirmWrite(
         rdp_server::server::transport::McsConnectResponseWriteOutcome;
     if (lease == nullptr ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session, kConsoleViewPermission))
+            *lease, principalProof, connection, session, kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
     const auto outcome = session.completeAttachUserConfirmWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 rdp_server::server::transport::McsJoinStartOutcome
 LinuxConsoleAdmissionBroker::authorizeR3ChannelJoin(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using Outcome = rdp_server::server::transport::McsJoinStartOutcome;
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return Outcome::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.onVerifiedR2ChannelJoin(
         *provenance, completeTpkt);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3ChannelJoinConfirmWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
     const auto pending = session.prepareChannelJoinConfirmWrite(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::McsJoinWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
@@ -904,72 +909,72 @@ LinuxConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
     using Outcome = rdp_server::server::transport::McsJoinWriteOutcome;
     if (lease == nullptr ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session, kConsoleViewPermission))
+            *lease, principalProof, connection, session, kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completeChannelJoinConfirmWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 std::optional<std::uint16_t>
 LinuxConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleClipboardPermission))
+            lease, principalProof, connection, session, kConsoleClipboardPermission))
         return std::nullopt;
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
     const auto channel = session.resolveVerifiedR2JoinedClipboardChannel(
         *provenance);
     if (session.phase() ==
         rdp_server::server::transport::McsSessionPhase::Closed)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return channel;
 }
 
 std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>
 LinuxConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto accepted =
         session.acceptVerifiedR2ClientInfoPacket(*provenance, completeTpkt);
     if (!accepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return accepted;
 }
 
@@ -977,7 +982,7 @@ std::optional<
     rdp_server::server::transport::RdpServerLicenseRequestWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::transport::RdpServerLicenseIdentity
@@ -986,27 +991,27 @@ LinuxConsoleAdmissionBroker::authorizeR3ServerLicenseRequestWrite(
         &credential) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending = session.prepareServerLicenseRequestWrite(
         *provenance, identity, credential);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3ServerLicenseRequestWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
@@ -1018,23 +1023,23 @@ LinuxConsoleAdmissionBroker::completeR3ServerLicenseRequestWrite(
 
     if (lease == nullptr ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session, kConsoleViewPermission))
+            *lease, principalProof, connection, session, kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completeServerLicenseRequestWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
@@ -1042,32 +1047,32 @@ std::optional<
     rdp_server::server::transport::RdpServerPlatformChallengeWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3ServerPlatformChallengeWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending =
         session.prepareServerPlatformChallengeWrite(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3ServerPlatformChallengeWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::uint64_t replySequence,
@@ -1078,30 +1083,30 @@ LinuxConsoleAdmissionBroker::completeR3ServerPlatformChallengeWrite(
         rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome;
     if (lease == nullptr ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session, kConsoleViewPermission))
+            *lease, principalProof, connection, session, kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completeServerPlatformChallengeWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 std::optional<rdp_server::server::transport::RdpLicensingIntake>
 LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::transport::RdpLicensingServiceCredential
@@ -1109,20 +1114,20 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientLicensingMessage(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto accepted = session.acceptVerifiedR2ClientLicensingMessage(
         *provenance, credential, completeTpkt);
     if (!accepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return accepted;
 }
 
@@ -1139,7 +1144,7 @@ bool LinuxConsoleAdmissionBroker::personalDesktopPolicyMatches(
 
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopTransition(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1147,9 +1152,9 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopTransition(
 {
     if (!personalDesktopPolicyMatches(deploymentPolicy) ||
         !authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -1157,7 +1162,7 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopTransition(
 
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopLicensingMode(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1169,10 +1174,10 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopLicensingMode(
         deploymentPolicy.maximumInteractiveConsoleSessionsPerConnection() !=
             1U ||
         !authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission) ||
+            lease, principalProof, connection, session, kConsoleViewPermission) ||
         !session.selectVerifiedR2PersonalDesktopLicensingMode())
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -1183,7 +1188,7 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopLicensingMode(
 std::optional<rdp_server::server::transport::RdpServerLicenseRequestWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopServerLicenseRequestWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1193,27 +1198,27 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopServerLicenseRequestWrite
         &credential) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending = session.prepareServerLicenseRequestWrite(
         *provenance, identity, credential);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3PersonalDesktopServerLicenseRequestWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1227,30 +1232,30 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopServerLicenseRequestWrite(
 
     if (lease == nullptr ||
         !authorizeR3PersonalDesktopTransition(
-            *lease, acceptor, connection, session, deploymentPolicy))
+            *lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completeServerLicenseRequestWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 std::optional<rdp_server::server::transport::RdpLicensingIntake>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClientLicensingMessage(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1260,20 +1265,20 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClientLicensingMessage(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto accepted = session.acceptVerifiedR2ClientLicensingMessage(
         *provenance, credential, completeTpkt);
     if (!accepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return accepted;
 }
 
@@ -1281,34 +1286,34 @@ std::optional<
     rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopValidClientWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending =
         session.preparePersonalDesktopValidClientWrite(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpPersonalDesktopValidClientWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3PersonalDesktopValidClientWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1322,30 +1327,30 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopValidClientWrite(
 
     if (lease == nullptr ||
         !authorizeR3PersonalDesktopTransition(
-            *lease, acceptor, connection, session, deploymentPolicy))
+            *lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completePersonalDesktopValidClientWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopDemandActiveProfile(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1361,30 +1366,30 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopDemandActiveProfile(
 
     if (!personalDesktopPolicyMatches(deploymentPolicy) ||
         !authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, requiredPermissions))
+            lease, principalProof, connection, session, requiredPermissions))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto profile =
         session.prepareVerifiedR2DemandActiveProfile(*provenance, features);
     if (!profile)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return profile;
 }
 
 std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1401,57 +1406,57 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
 
     if (!personalDesktopPolicyMatches(deploymentPolicy) ||
         !authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, requiredPermissions))
+            lease, principalProof, connection, session, requiredPermissions))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending =
         session.beginVerifiedR2ShareActivation(*provenance, profile);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending =
         session.pendingVerifiedR2ShareActivationWrite(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpShareActivationWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3PersonalDesktopShareActivationWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1465,30 +1470,30 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopShareActivationWrite(
 
     if (lease == nullptr ||
         !authorizeR3PersonalDesktopTransition(
-            *lease, acceptor, connection, session, deploymentPolicy))
+            *lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto outcome = session.completeVerifiedR2ShareActivationWrite(
         *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
 rdp_server::server::transport::RdpShareActivationClientIntake
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationPdu(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1499,13 +1504,13 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationPdu(
         rdp_server::server::transport::RdpShareActivationClientIntake;
 
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Intake::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Intake::Rejected;
     }
 
@@ -1513,54 +1518,54 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationPdu(
         session.acceptVerifiedR2ShareActivationPdu(
             *provenance, completeTpkt);
     if (intake == Intake::Rejected || intake == Intake::Closed)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return intake;
 }
 
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
     const auto pending =
         session.beginVerifiedR2GraphicsDynamicVirtualChannel(*provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
@@ -1568,14 +1573,14 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
         session.pendingVerifiedR2GraphicsDynamicVirtualChannelWrite(
             *provenance);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 rdp_server::server::transport::RdpGraphicsDvcWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1588,16 +1593,16 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChan
 
     if (lease == nullptr ||
         !authorizeR3PersonalDesktopTransition(
-            *lease, acceptor, connection, session, deploymentPolicy))
+            *lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
 
@@ -1605,7 +1610,7 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChan
         session.completeVerifiedR2GraphicsDynamicVirtualChannelWrite(
             *provenance, replySequence, writeSliceSequence, acceptedBytes);
     if (outcome == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return outcome;
 }
 
@@ -1613,7 +1618,7 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopGraphicsDynamicVirtualChan
 rdp_server::server::transport::RdpPostShareTpktRoute
 LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1621,13 +1626,13 @@ LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return {};
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return {};
     }
 
@@ -1635,7 +1640,7 @@ LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt(
         session.classifyVerifiedR2PostShareTpkt(*provenance, completeTpkt);
     // Never expose a stale route after native admission changes.
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return {};
     return route;
 }
@@ -1643,7 +1648,7 @@ LinuxConsoleAdmissionBroker::classifyR3PersonalDesktopPostShareTpkt(
 rdp_server::server::transport::RdpGraphicsDvcClientIntake
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1653,13 +1658,13 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
     using Intake = rdp_server::server::transport::RdpGraphicsDvcClientIntake;
 
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Intake::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Intake::Rejected;
     }
 
@@ -1667,7 +1672,7 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
         session.acceptVerifiedR2GraphicsDynamicVirtualChannelPdu(
             *provenance, completeTpkt);
     if (intake == Intake::Rejected || intake == Intake::Closed)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return intake;
 }
 
@@ -1676,7 +1681,7 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopGraphicsDynamicVirtualCha
 rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake
 LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1684,13 +1689,13 @@ LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge(
 {
     using Intake = rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake;
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Intake::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Intake::Rejected;
     }
 
@@ -1698,9 +1703,9 @@ LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge(
         session.consumeVerifiedR2GraphicsFrameAcknowledge(*provenance);
     if (result == Intake::Rejected ||
         !authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Intake::Rejected;
     }
     return result;
@@ -1709,7 +1714,7 @@ LinuxConsoleAdmissionBroker::consumeR3PersonalDesktopGraphicsFrameAcknowledge(
 rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
 LinuxConsoleAdmissionBroker::preflightR3PersonalDesktopGraphicsFramePublication(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1719,13 +1724,13 @@ LinuxConsoleAdmissionBroker::preflightR3PersonalDesktopGraphicsFramePublication(
     using Readiness =
         rdp_server::server::transport::RdpGraphicsFramePublicationReadiness;
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Readiness::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Readiness::Rejected;
     }
 
@@ -1734,18 +1739,18 @@ LinuxConsoleAdmissionBroker::preflightR3PersonalDesktopGraphicsFramePublication(
             *provenance, frameId);
 
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Readiness::Rejected;
 
     if (readiness == Readiness::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return readiness;
 }
 
 rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
 LinuxConsoleAdmissionBroker::beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1755,13 +1760,13 @@ LinuxConsoleAdmissionBroker::beginR3PersonalDesktopGraphicsSurfaceReconfiguratio
     using Decision =
         rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration;
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Decision::Rejected;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Decision::Rejected;
     }
 
@@ -1769,18 +1774,18 @@ LinuxConsoleAdmissionBroker::beginR3PersonalDesktopGraphicsSurfaceReconfiguratio
         session.beginVerifiedR2GraphicsSurfaceReconfiguration(
             *provenance, desktopGeometry);
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Decision::Rejected;
 
     if (result == Decision::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
 std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
 LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublication(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1789,14 +1794,14 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublicatio
     ::FramebufferView framebuffer) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
 
     const auto provenance =
         connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
@@ -1804,21 +1809,21 @@ LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopClearCodecFramePublicatio
         session.beginVerifiedR2GraphicsClearCodecFramePublication(
             *provenance, frameId, framebuffer);
     if (!pending)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return pending;
 }
 
 bool LinuxConsoleAdmissionBroker::
 cancelR3PersonalDesktopUnwrittenGraphicsFrame(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return false;
 
     const auto provenance =
@@ -1827,7 +1832,7 @@ cancelR3PersonalDesktopUnwrittenGraphicsFrame(
         !session.cancelVerifiedR2UnwrittenGraphicsFrame(
             *provenance))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -1836,7 +1841,7 @@ cancelR3PersonalDesktopUnwrittenGraphicsFrame(
 bool LinuxConsoleAdmissionBroker::
 authorizeR3PersonalDesktopClipboardTransition(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1845,10 +1850,10 @@ authorizeR3PersonalDesktopClipboardTransition(
     if (lease == nullptr ||
         !personalDesktopPolicyMatches(deploymentPolicy) ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session,
+            *lease, principalProof, connection, session,
             kConsoleViewPermission | kConsoleClipboardPermission))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -1856,7 +1861,7 @@ authorizeR3PersonalDesktopClipboardTransition(
 
 bool LinuxConsoleAdmissionBroker::visitR3PersonalDesktopClipboardChannel(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1865,9 +1870,9 @@ bool LinuxConsoleAdmissionBroker::visitR3PersonalDesktopClipboardChannel(
 {
     if (!visitor ||
         !authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     const auto provenance = connection.securityNegotiationProvenance();
@@ -1876,7 +1881,7 @@ bool LinuxConsoleAdmissionBroker::visitR3PersonalDesktopClipboardChannel(
         : std::nullopt;
     if (!route || !visitor.visit(visitor.context, *route))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -1884,7 +1889,7 @@ bool LinuxConsoleAdmissionBroker::visitR3PersonalDesktopClipboardChannel(
 
 bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopClipboardTpkt(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1894,15 +1899,15 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopClipboardTpkt(
 {
     if (!sink ||
         !authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -1911,7 +1916,7 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopClipboardTpkt(
         *provenance, completeTpkt, completePdu);
     if (result == rdp_server::server::transport::RdpClipboardChunkIntake::Rejected)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     if (result == rdp_server::server::transport::RdpClipboardChunkIntake::NeedMore)
@@ -1921,11 +1926,11 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopClipboardTpkt(
     // immediately before the synchronous R8 callback, which must not retain
     // the borrowed PDU span or reenter this connection event loop.
     if (!authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy) ||
+            lease, principalProof, connection, session, deploymentPolicy) ||
         !session.verifiedR2ApplicationTrafficReady(*provenance) ||
         !sink.consume(sink.context, completePdu))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -1935,7 +1940,7 @@ std::optional<
     rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
 LinuxConsoleAdmissionBroker::queueR3PersonalDesktopClipboardPdu(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1943,14 +1948,14 @@ LinuxConsoleAdmissionBroker::queueR3PersonalDesktopClipboardPdu(
     std::span<const std::uint8_t> completePdu) noexcept
 {
     if (!authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
     const auto provenance = connection.securityNegotiationProvenance();
     const auto result = provenance
         ? session.queueVerifiedR2ClipboardPdu(*provenance, completePdu)
         : std::nullopt;
     if (!result)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
@@ -1958,32 +1963,32 @@ std::optional<
     rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
 LinuxConsoleAdmissionBroker::pendingR3PersonalDesktopClipboardWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return std::nullopt;
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
     const auto result = session.pendingVerifiedR2ClipboardWrite(*provenance);
     if (session.phase() ==
         rdp_server::server::transport::McsSessionPhase::Closed)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
 rdp_server::server::transport::RdpClipboardWriteOutcome
 LinuxConsoleAdmissionBroker::completeR3PersonalDesktopClipboardWrite(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -1993,25 +1998,25 @@ LinuxConsoleAdmissionBroker::completeR3PersonalDesktopClipboardWrite(
 {
     using Outcome = rdp_server::server::transport::RdpClipboardWriteOutcome;
     if (!authorizeR3PersonalDesktopClipboardTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return Outcome::Rejected;
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return Outcome::Rejected;
     }
     const auto result = session.completeVerifiedR2ClipboardWrite(
         *provenance, generation, replySequence, writeSliceSequence,
         acceptedBytes);
     if (result == Outcome::Rejected)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return result;
 }
 
 bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
     const LinuxConsoleAdmissionLease *lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
@@ -2026,17 +2031,17 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
     if (lease == nullptr || !sink ||
         !personalDesktopPolicyMatches(deploymentPolicy) ||
         !authorizeR3ProtectedTransition(
-            *lease, acceptor, connection, session,
+            *lease, principalProof, connection, session,
             requiredIngressPermissions))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -2044,7 +2049,7 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
         session.routeVerifiedR2SlowPathInputPdu(*provenance, completeTpkt);
     if (!input)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -2054,10 +2059,10 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
         if (!input->eventAt(index, event) ||
             !personalDesktopPolicyMatches(deploymentPolicy) ||
             !authorizeR3ProtectedTransition(
-                *lease, acceptor, connection, session,
+                *lease, principalProof, connection, session,
                 kConsoleInputPermission))
         {
-            revokeR3Session(acceptor, session);
+            revokeR3Session(principalProof, session);
             return false;
         }
 
@@ -2068,7 +2073,7 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
                 *currentProvenance) ||
             !sink.dispatch(sink.context, event))
         {
-            revokeR3Session(acceptor, session);
+            revokeR3Session(principalProof, session);
             return false;
         }
     }
@@ -2077,21 +2082,21 @@ bool LinuxConsoleAdmissionBroker::dispatchR3PersonalDesktopSlowPathInputPdu(
 
 bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopApplicationTraffic(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
     if (!authorizeR3PersonalDesktopTransition(
-            lease, acceptor, connection, session, deploymentPolicy))
+            lease, principalProof, connection, session, deploymentPolicy))
         return false;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance ||
         !session.verifiedR2ApplicationTrafficReady(*provenance))
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
     return true;
@@ -2100,7 +2105,7 @@ bool LinuxConsoleAdmissionBroker::authorizeR3PersonalDesktopApplicationTraffic(
 std::optional<rdp_server::server::transport::RdpLicensingIntake>
 LinuxConsoleAdmissionBroker::authorizeR3ClientPlatformChallengeResponse(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     rdp_server::server::transport::McsSessionLifecycle &session,
     const rdp_server::server::transport::RdpLicensingServiceCredential
@@ -2108,13 +2113,13 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientPlatformChallengeResponse(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     if (!authorizeR3ProtectedTransition(
-            lease, acceptor, connection, session, kConsoleViewPermission))
+            lease, principalProof, connection, session, kConsoleViewPermission))
         return std::nullopt;
 
     const auto provenance = connection.securityNegotiationProvenance();
     if (!provenance)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return std::nullopt;
     }
 
@@ -2122,28 +2127,28 @@ LinuxConsoleAdmissionBroker::authorizeR3ClientPlatformChallengeResponse(
         session.acceptVerifiedR2ClientPlatformChallengeResponse(
             *provenance, credential, completeTpkt);
     if (!accepted)
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
     return accepted;
 }
 
 void LinuxConsoleAdmissionBroker::revokeR3Session(
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     // Protocol/session state dies before authentication and before the caller
     // releases R1 TLS/socket ownership.
     session.close();
-    revoke(acceptor);
+    revoke(principalProof);
 }
 
 bool LinuxConsoleAdmissionBroker::onNativeSessionChangeReady(
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     if (state_ != LinuxConsoleAdmissionState::Active ||
         changes_ == nullptr)
     {
-        revokeR3Session(acceptor, session);
+        revokeR3Session(principalProof, session);
         return false;
     }
 
@@ -2156,25 +2161,25 @@ bool LinuxConsoleAdmissionBroker::onNativeSessionChangeReady(
     }
 
     // Keep teardown ordering deterministic: R3 drops all protocol state before
-    // GSS/TLS-bound admission is invalidated. R1 may release TLS only later.
-    revokeR3Session(acceptor, session);
+    // TLS/authenticated-proof-bound admission is invalidated. R1 may release TLS only later.
+    revokeR3Session(principalProof, session);
     return false;
 }
 
 void LinuxConsoleAdmissionBroker::revoke(
-    GssapiSpnegoAcceptor &acceptor) noexcept
+    LinuxAuthenticatedPrincipalProof &principalProof) noexcept
 {
     revokeControl();
     clearRequest();
     changes_.reset();
     personalDesktopPolicy_ = nullptr;
-    acceptor.reject();
+    principalProof.revokeAuthenticatedProof();
     state_ = LinuxConsoleAdmissionState::Revoked;
 }
 
 bool LinuxConsoleAdmissionBroker::visitNativeDesktopSelection(
     const LinuxConsoleAdmissionLease &lease,
-    GssapiSpnegoAcceptor &acceptor,
+    LinuxAuthenticatedPrincipalProof &principalProof,
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         &connection,
     LinuxNativeDesktopSelectionVisitor visitor,
@@ -2183,10 +2188,10 @@ bool LinuxConsoleAdmissionBroker::visitNativeDesktopSelection(
     const auto before = r1HybridNlaSecurityView(connection);
     if (visitor == nullptr || !before ||
         !authorizationChecksPass(
-            lease, acceptor, before->activeServerTls,
+            lease, principalProof, before->activeServerTls,
             kConsoleViewPermission))
     {
-        deny(acceptor);
+        deny(principalProof);
         return false;
     }
 
@@ -2198,7 +2203,7 @@ bool LinuxConsoleAdmissionBroker::visitNativeDesktopSelection(
 
     if (!visitor(selection, context))
     {
-        deny(acceptor);
+        deny(principalProof);
         return false;
     }
 
@@ -2207,9 +2212,9 @@ bool LinuxConsoleAdmissionBroker::visitNativeDesktopSelection(
     // replacement cannot turn the just-consumed selector into authorization.
     const auto after = r1HybridNlaSecurityView(connection);
     if (!after ||
-        !revalidationChecksPass(lease, acceptor, after->activeServerTls))
+        !revalidationChecksPass(lease, principalProof, after->activeServerTls))
     {
-        deny(acceptor);
+        deny(principalProof);
         return false;
     }
     return true;

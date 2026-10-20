@@ -1,3 +1,13 @@
+## R2 authentication mechanisms converge before native authorization (2026-10-20)
+
+Authentication mechanisms must implement the one
+`LinuxAuthenticatedPrincipalProof` contract instead of adding
+mechanism-specific broker/R3 gateways. The proof may validate only its own
+exact authentication/TLS/generation provenance. Current-owner consent, native
+NSS/logind evidence, permissions, lease lifetime and R3 protected-operation
+authorization remain in the sole `LinuxConsoleAdmissionBroker`. Mechanism
+revocation must flow through the proof contract on every broker denial.
+
 ## R10X post-Share Qt ticks own exactly one native desktop (2026-10-20)
 
 After Graphics control readiness, construct the Linux native desktop only

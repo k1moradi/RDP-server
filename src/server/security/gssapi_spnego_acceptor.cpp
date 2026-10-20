@@ -873,6 +873,57 @@ std::string_view GssapiSpnegoAcceptor::nativeAdmissionPrincipalForTls(
     return verifiedPrincipalForTls(activeServerTls);
 }
 
+bool GssapiSpnegoAcceptor::pendingNativeAdmissionMatches(
+    const transport::OwnedPreauthTcpConnection &connection,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration) const noexcept
+{
+    if (request.authenticationKind !=
+            ConsoleEvidenceAuthenticationKind::KerberosPrincipal ||
+        request.kerberosPrincipal.empty())
+    {
+        return false;
+    }
+    const std::string_view proven =
+        verifiedPrincipalForOwnedConnection(connection);
+    return !proven.empty() &&
+           proven == request.kerberosPrincipal &&
+           pendingCredentialAuthorizationMatches(
+               connection, proven, request.unixAccount, policyGeneration);
+}
+
+bool GssapiSpnegoAcceptor::completeNativeAdmission(
+    const transport::OwnedPreauthTcpConnection &connection,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration) noexcept
+{
+    return request.authenticationKind ==
+               ConsoleEvidenceAuthenticationKind::KerberosPrincipal &&
+           completeCredentialAuthorizationForNativeAdmission(
+               connection, request.kerberosPrincipal,
+               request.unixAccount, policyGeneration);
+}
+
+bool GssapiSpnegoAcceptor::revalidatesNativeAdmission(
+    const SSL *activeServerTls,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration) const noexcept
+{
+    return request.authenticationKind ==
+               ConsoleEvidenceAuthenticationKind::KerberosPrincipal &&
+           policyGeneration != 0 &&
+           identityPolicy_ != nullptr &&
+           identityPolicyGeneration_ == policyGeneration &&
+           identityPolicy_->generation() == policyGeneration &&
+           nativeAdmissionPrincipalForTls(activeServerTls) ==
+               request.kerberosPrincipal;
+}
+
+void GssapiSpnegoAcceptor::revokeAuthenticatedProof() noexcept
+{
+    reject();
+}
+
 SpnegoStep GssapiSpnegoAcceptor::accept(
     std::span<const std::uint8_t> token) noexcept
 {

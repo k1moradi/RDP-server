@@ -3,7 +3,7 @@
 
 #include "console_os_evidence.h"
 #include "current_owner_sharing_authority.h"
-#include "gssapi_spnego_acceptor.h"
+#include "linux_authenticated_principal_proof.h"
 #include "linux_logind_console_evidence.h"
 #include "linux_logind_session_change_watch.h"
 #include "transport/mcs_channel_connection.h"
@@ -28,7 +28,7 @@ namespace rdp_server::server::security
 // Protocol-shape validation only. A true result is never an admission
 // capability: positive R2 use accepts this snapshot only when it was obtained
 // directly from the same live R1 OwnedPreauthTcpConnection that owns the
-// established TLS object used by the GSS/CredSSP transcript.
+// established TLS object used by the CredSSP transcript.
 [[nodiscard]] constexpr bool hasHybridNlaNegotiationProvenance(
     const std::optional<
         rdp_server::server::transport::SecurityNegotiationProvenance>
@@ -116,14 +116,14 @@ enum class LinuxConsoleAdmissionState : std::uint8_t
 };
 
 // Move-only R2 capability. Ordinary callers cannot construct one: only the
-// concrete LinuxConsoleAdmissionBroker can mint it after genuine GSS/TLS and
+// concrete LinuxConsoleAdmissionBroker can mint it after genuine TLS-bound authentication and
 // native NSS/logind/session-watch checks. Metadata is bounded and contains no
 // password, ticket, keytab or delegated credential plaintext.
 //
 // The service-owned ConsoleIdentityPolicy must outlive this lease. Dropping
 // the lease revokes its shared control epoch. A lease is intentionally not
 // self-sufficient for protected R3 transitions: use broker.authorizes(),
-// which revalidates live GSS/TLS, policy, logind/NSS and change-watch state.
+// which revalidates live authenticated TLS, policy, logind/NSS and change-watch state.
 class LinuxConsoleAdmissionLease final
 {
 public:
@@ -153,6 +153,7 @@ private:
     LinuxConsoleAdmissionLease(
         std::shared_ptr<LinuxConsoleAdmissionControl> control,
         std::uint64_t admissionGeneration,
+        ConsoleEvidenceAuthenticationKind authenticationKind,
         std::string_view kerberosPrincipal,
         std::string_view unixAccount,
         const ConsoleCandidateSessionFingerprint &fingerprint,
@@ -172,12 +173,14 @@ private:
     std::uint64_t sessionGeneration_{};
     std::uint32_t permissions_{};
     std::uint64_t admissionGeneration_{};
+    ConsoleEvidenceAuthenticationKind authenticationKind_{
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal};
 };
 
 // Linux-first production authorization broker. There is deliberately no
 // ConsoleOsEvidenceSource or ConsoleSessionChangeSource injection point:
 // positive issuance always constructs and owns the concrete NSS/logind reader
-// and concrete logind monitor after genuine TLS-bound GSS identity exists.
+// and concrete logind monitor after genuine TLS-bound authenticated identity exists.
 //
 // Broker methods are single-threaded. Lease revocation/expiry observations use
 // atomics so an R3 holder can observe terminal revocation safely. The broker
@@ -202,7 +205,7 @@ public:
     // immutable X.224 negotiation provenance are borrowed synchronously from
     // that owner; neither can be supplied independently by the caller.
     [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issue(
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request) noexcept;
 
@@ -210,13 +213,13 @@ public:
     // SSL pointer, even when genuinely established, cannot prove which X.224
     // security protocol the owning R1 connection actually selected.
     [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issue(
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const SSL *activeServerTls,
         const ConsoleEvidenceRequest &request) noexcept;
 
     [[nodiscard]] bool revalidate(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection) noexcept;
 
@@ -226,7 +229,7 @@ public:
     // callers must monitor nativeChangeFd() and revoke on disconnect/teardown.
     [[nodiscard]] bool authorizes(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         std::uint32_t requiredPermissions) noexcept;
@@ -239,7 +242,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeR3McsConnectInitial(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -250,10 +253,10 @@ public:
     // generations still match this exact lease, then R2 repeats permission,
     // GSS/TLS, policy, NSS/logind and native-watch validation. This method
     // never advances R3 state or writes bytes. Any failure closes R3 and
-    // revokes R2/GSS so a stale capability cannot be retried elsewhere.
+    // revokes R2/authentication-proof so a stale capability cannot be retried elsewhere.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -263,7 +266,7 @@ public:
         rdp_server::server::transport::McsConnectResponseWriteView>
     authorizeR3ConnectResponseWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
@@ -277,7 +280,7 @@ public:
     rdp_server::server::transport::McsConnectResponseWriteOutcome
     completeR3ConnectResponseWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -290,7 +293,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeR3ErectDomain(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -301,7 +304,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeR3AttachUser(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -313,7 +316,7 @@ public:
         rdp_server::server::transport::McsConnectResponseWriteView>
     authorizeR3AttachUserConfirmWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
@@ -324,7 +327,7 @@ public:
     rdp_server::server::transport::McsConnectResponseWriteOutcome
     completeR3AttachUserConfirmWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -338,7 +341,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsJoinStartOutcome
     authorizeR3ChannelJoin(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -348,7 +351,7 @@ public:
         rdp_server::server::transport::McsConnectResponseWriteView>
     authorizeR3ChannelJoinConfirmWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
@@ -357,7 +360,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::McsJoinWriteOutcome
     completeR3ChannelJoinConfirmWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -371,7 +374,7 @@ public:
     [[nodiscard]] std::optional<std::uint16_t>
     authorizeR3JoinedClipboardChannel(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
@@ -384,21 +387,21 @@ public:
         rdp_server::server::transport::RdpClientInfoPacketSummary>
     authorizeR3ClientInfoPacket(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
     // Start or resume the sole R3-owned SERVER_LICENSE_REQUEST write only
-    // after fresh view permission plus exact R1 HYBRID/TLS/GSS/native-session
+    // after fresh view permission plus exact R1 HYBRID/TLS/authentication proof/native-session
     // reauthorization. The immutable identity supplies service provisioning;
     // R3 generates ServerRandom internally. Neither is R2/license authority.
     [[nodiscard]] std::optional<
         rdp_server::server::transport::RdpServerLicenseRequestWriteView>
     authorizeR3ServerLicenseRequestWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -414,7 +417,7 @@ public:
     rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
     completeR3ServerLicenseRequestWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -429,7 +432,7 @@ public:
         rdp_server::server::transport::RdpServerPlatformChallengeWriteView>
     authorizeR3ServerPlatformChallengeWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
@@ -438,7 +441,7 @@ public:
     rdp_server::server::transport::RdpServerPlatformChallengeWriteOutcome
     completeR3ServerPlatformChallengeWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -454,7 +457,7 @@ public:
         rdp_server::server::transport::RdpLicensingIntake>
     authorizeR3ClientLicensingMessage(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -464,12 +467,12 @@ public:
 
     // One-shot R10 policy -> R2 -> R3 selection. R10 supplies only its
     // immutable service-lifetime deployment policy; R2 independently proves
-    // the current lease, exact TLS/GSS owner and native-session generations
+    // the current lease, exact TLS/authentication proof owner and native-session generations
     // before invoking R3's private selector. Duplicate/wrong-mode selection is
     // terminal. No generation or caller Boolean can select this branch.
     [[nodiscard]] bool authorizeR3PersonalDesktopLicensingMode(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -484,7 +487,7 @@ public:
         rdp_server::server::transport::RdpServerLicenseRequestWriteView>
     authorizeR3PersonalDesktopServerLicenseRequestWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -499,7 +502,7 @@ public:
     rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
     completeR3PersonalDesktopServerLicenseRequestWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -513,7 +516,7 @@ public:
         rdp_server::server::transport::RdpLicensingIntake>
     authorizeR3PersonalDesktopClientLicensingMessage(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -531,7 +534,7 @@ public:
             RdpPersonalDesktopValidClientWriteView>
     authorizeR3PersonalDesktopValidClientWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -543,7 +546,7 @@ public:
         RdpPersonalDesktopValidClientWriteOutcome
     completeR3PersonalDesktopValidClientWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -561,7 +564,7 @@ public:
         rdp_server::server::transport::RdpDemandActiveProfileView>
     authorizeR3PersonalDesktopDemandActiveProfile(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -575,7 +578,7 @@ public:
         rdp_server::server::transport::RdpShareActivationWriteView>
     authorizeR3PersonalDesktopShareActivation(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -588,7 +591,7 @@ public:
         rdp_server::server::transport::RdpShareActivationWriteView>
     authorizeR3PersonalDesktopShareActivationWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -599,7 +602,7 @@ public:
     rdp_server::server::transport::RdpShareActivationWriteOutcome
     completeR3PersonalDesktopShareActivationWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -613,7 +616,7 @@ public:
     rdp_server::server::transport::RdpShareActivationClientIntake
     authorizeR3PersonalDesktopShareActivationPdu(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -626,14 +629,14 @@ public:
     [[nodiscard]] rdp_server::server::transport::RdpPostShareTpktRoute
     classifyR3PersonalDesktopPostShareTpkt(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
     // Graphics DVC control remains owned by R3 after Share activation. R2
-    // freshly reauthorizes the exact PersonalDesktop policy, R1 TLS/GSS owner,
+    // freshly reauthorizes the exact PersonalDesktop policy, R1 TLS/authentication proof owner,
     // lease/native session and generation pair before every begin, slice,
     // accepted-byte receipt and client TPKT intake. These methods grant no
     // graphics authority outside the single synchronous transition.
@@ -641,7 +644,7 @@ public:
         rdp_server::server::transport::RdpGraphicsDvcWriteView>
     authorizeR3PersonalDesktopGraphicsDynamicVirtualChannel(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -652,7 +655,7 @@ public:
         rdp_server::server::transport::RdpGraphicsDvcWriteView>
     authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -662,7 +665,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcWriteOutcome
     completeR3PersonalDesktopGraphicsDynamicVirtualChannelWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -675,7 +678,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcClientIntake
     authorizeR3PersonalDesktopGraphicsDynamicVirtualChannelPdu(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -689,7 +692,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake
     consumeR3PersonalDesktopGraphicsFrameAcknowledge(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
@@ -700,7 +703,7 @@ public:
     rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
     preflightR3PersonalDesktopGraphicsFramePublication(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -716,7 +719,7 @@ public:
     rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
     beginR3PersonalDesktopGraphicsSurfaceReconfiguration(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -731,7 +734,7 @@ public:
         rdp_server::server::transport::RdpGraphicsDvcWriteView>
     authorizeR3PersonalDesktopClearCodecFramePublication(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -743,7 +746,7 @@ public:
     [[nodiscard]] bool
     cancelR3PersonalDesktopUnwrittenGraphicsFrame(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -752,12 +755,12 @@ public:
 
     // R3 CLIPRDR post-Share gateway; only this concrete R2 broker can
     // enter the private R3 channel resolver and framing lifecycle.
-    // Every call revalidates the exact R1 TLS/GSS provenance, current native
+    // Every call revalidates the exact R1 TLS/authentication proof provenance, current native
     // R2 lease, PersonalDesktop mode and clipboard permission. Callbacks are
     // synchronous; do not retain the borrowed PDU/route or reenter the owner.
     [[nodiscard]] bool visitR3PersonalDesktopClipboardChannel(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
@@ -765,7 +768,7 @@ public:
 
     [[nodiscard]] bool dispatchR3PersonalDesktopClipboardTpkt(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
@@ -776,7 +779,7 @@ public:
         rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
     queueR3PersonalDesktopClipboardPdu(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
@@ -786,7 +789,7 @@ public:
         rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
     pendingR3PersonalDesktopClipboardWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;
@@ -794,7 +797,7 @@ public:
     [[nodiscard]] rdp_server::server::transport::RdpClipboardWriteOutcome
     completeR3PersonalDesktopClipboardWrite(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy,
@@ -808,7 +811,7 @@ public:
     // authority and failure retires the whole R3/R2 session.
     [[nodiscard]] bool dispatchR3PersonalDesktopSlowPathInputPdu(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -821,7 +824,7 @@ public:
     // is ephemeral: the next protected operation must reauthorize again.
     [[nodiscard]] bool authorizeR3PersonalDesktopApplicationTraffic(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -836,7 +839,7 @@ public:
         rdp_server::server::transport::RdpLicensingIntake>
     authorizeR3ClientPlatformChallengeResponse(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -844,34 +847,34 @@ public:
             &credential,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
-    // Ordered R3 -> R2/GSS cancellation barrier. The caller must stop protocol
+    // Ordered R3 -> R2/authentication-proof cancellation barrier. The caller must stop protocol
     // buffers first, call this, and only then release R1 TLS/socket ownership.
     // Idempotent and safe when no positive lease was ever issued.
     void revokeR3Session(
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
     // Event-loop callback for readiness on nativeChangeFd(). A real logind
-    // change or monitor failure closes R3 first, then revokes R2/GSS. A
+    // change or monitor failure closes R3 first, then revokes R2/authentication-proof. A
     // spurious wake with no queued change leaves state untouched and grants
     // no permission; the caller must still call authorizes() immediately
     // before every later protected R3 transition.
     [[nodiscard]] bool onNativeSessionChangeReady(
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
 
     // Connection/R3 teardown path: terminally invalidates the capability and
     // clears the GSS context. Idempotent.
-    void revoke(GssapiSpnegoAcceptor &acceptor) noexcept;
+    void revoke(LinuxAuthenticatedPrincipalProof &principalProof) noexcept;
 
     // R10 may synchronously consume the admitted native desktop selection
-    // only through this visitor. R2 revalidates TLS/GSS, PAM-derived account
+    // only through this visitor. R2 revalidates TLS/authentication proof, PAM-derived account
     // binding, NSS/logind evidence and its change monitor immediately before
     // and after the visitor. The view must not escape the callback. A missing
     // lease, failed revalidation or consumer failure is terminal.
     [[nodiscard]] bool visitNativeDesktopSelection(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         LinuxNativeDesktopSelectionVisitor visitor,
@@ -886,20 +889,20 @@ private:
 
     void revokeControl() noexcept;
     void clearRequest() noexcept;
-    void deny(GssapiSpnegoAcceptor &acceptor) noexcept;
+    void deny(LinuxAuthenticatedPrincipalProof &principalProof) noexcept;
     [[nodiscard]] bool refreshDeadline(std::uint64_t generation) noexcept;
     [[nodiscard]] bool revalidationChecksPass(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const SSL *activeServerTls) noexcept;
     [[nodiscard]] bool authorizationChecksPass(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const SSL *activeServerTls,
         std::uint32_t requiredPermissions) noexcept;
     [[nodiscard]] bool authorizeR3ProtectedTransitionForEstablishedTls(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const SSL *activeServerTls,
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::uint32_t requiredPermissions) noexcept;
@@ -908,7 +911,7 @@ private:
             &deploymentPolicy) const noexcept;
     [[nodiscard]] bool authorizeR3PersonalDesktopTransition(
         const LinuxConsoleAdmissionLease &lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -916,7 +919,7 @@ private:
             &deploymentPolicy) noexcept;
     [[nodiscard]] bool authorizeR3PersonalDesktopClipboardTransition(
         const LinuxConsoleAdmissionLease *lease,
-        GssapiSpnegoAcceptor &acceptor,
+        LinuxAuthenticatedPrincipalProof &principalProof,
         const rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         rdp_server::server::transport::McsSessionLifecycle &session,
         const rdp_server::server::runtime::RuntimeDeploymentPolicy &deploymentPolicy) noexcept;

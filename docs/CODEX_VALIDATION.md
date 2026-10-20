@@ -1,3 +1,26 @@
+## R5 source-contract reconciliation after R1 diagnostics (2026-10-20)
+
+**Authoring parent:** `4e885e06a9a6085c0be7ee99feab646a29906bb6`.
+
+R1's first-client diagnostic increment centralized terminal native teardown in
+the existing local `retireNativeCandidate()` helper. Parent Ubuntu CTest then
+failed the two R5 persistent-X11 source guards because they still required a
+literal `retireAfterAuthorizationLoss()` call after XCB dispatch. Source review
+confirms production ordering is unchanged: the borrowed R2/logind watch is
+unregistered before X11 dispatch; the helper retires R5 native state before
+`connection.revoke()`; its final invocation follows the persistent X11 loop;
+and the existing fresh R2 fences, typed geometry/session freshness and
+synchronous XShm-to-R4 borrow remain in place.
+
+This test-only correction makes the guard verify the helper body plus its final
+invocation instead of requiring duplicated teardown text in the scheduler. No
+production runtime code, listener, X11 connection, capture, XTEST input or
+physical client action is added or executed. R2 positive current-owner authority
+is already landed; the live Ubuntu 24.04 / GNOME 46 / Xorg acceptance remains
+**BLOCKED / NOT RUN** on R10's genuine positive GUI LAN Start. Local native
+build/full CTest: **NOT RUN** in this connector environment. Exact publication
+SHA hosted CI: **PENDING**.
+
 ## Exact-HEAD CI unblock for inherited R2 warning (2026-10-20)
 
 The first push of the R1 diagnostic increment reached hosted Linux/macOS Debug

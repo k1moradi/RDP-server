@@ -7,24 +7,45 @@ if(NOT DEFINED RDP_RUNTIME_ENTRYPOINT_SOURCE OR
 endif()
 file(READ "${RDP_RUNTIME_ENTRYPOINT_SOURCE}" runtime_source)
 
-# Inspect only the serialized live scheduler, not a helper or legacy one-shot
-# native poll. The final no-XTEST retirement is deliberately after the loop.
+# Inspect only the serialized live scheduler and its one local terminal-retirement
+# helper, not a legacy one-shot native poll. R1 diagnostic refactors may route
+# multiple terminal branches through this helper, but native retirement must
+# remain before R3/R1 revoke and the final helper invocation must follow the loop.
 string(FIND "${runtime_source}"
     "while (connection.ready() && nativeOwner.desktop->valid())" owner_loop)
+string(FIND "${runtime_source}"
+    "const auto retireNativeCandidate = [&]() noexcept {" retirement_helper)
+if(owner_loop EQUAL -1 OR retirement_helper EQUAL -1 OR
+   NOT retirement_helper LESS owner_loop)
+    message(FATAL_ERROR
+        "R5 persistent XCB owner must define one terminal-retirement helper before its live loop")
+endif()
+math(EXPR helper_span "${owner_loop} - ${retirement_helper}")
+string(SUBSTRING "${runtime_source}" ${retirement_helper} ${helper_span}
+    retirement_helper_body)
+string(FIND "${retirement_helper_body}"
+    "nativeOwner.desktop->retireAfterAuthorizationLoss();" helper_native_retirement)
+string(FIND "${retirement_helper_body}"
+    "connection.revoke();" helper_connection_revoke)
+if(helper_native_retirement EQUAL -1 OR helper_connection_revoke EQUAL -1 OR
+   NOT helper_native_retirement LESS helper_connection_revoke)
+    message(FATAL_ERROR
+        "R5 terminal helper must retire native input before R3/R1 revoke")
+endif()
+
 string(FIND "${runtime_source}"
     "if (!connection.unregisterNativeChange(*nativeChange))" unregistration)
 string(FIND "${runtime_source}"
     "nativeOwner.desktop->processEvents(" native_dispatch)
 string(FIND "${runtime_source}"
-    "nativeOwner.desktop->retireAfterAuthorizationLoss();"
-    terminal_retirement REVERSE)
-if(owner_loop EQUAL -1 OR unregistration EQUAL -1 OR
-   native_dispatch EQUAL -1 OR terminal_retirement EQUAL -1 OR
+    "retireNativeCandidate();" terminal_retirement REVERSE)
+if(unregistration EQUAL -1 OR native_dispatch EQUAL -1 OR
+   terminal_retirement EQUAL -1 OR
    NOT owner_loop LESS unregistration OR
    NOT unregistration LESS native_dispatch OR
    NOT native_dispatch LESS terminal_retirement)
     message(FATAL_ERROR
-        "R5 persistent XCB owner must unregister R2 watch before dispatch and retire without native input")
+        "R5 persistent XCB owner must unregister R2 watch before dispatch and invoke terminal retirement after the loop")
 endif()
 
 math(EXPR span_length "${terminal_retirement} - ${unregistration}")
@@ -40,7 +61,7 @@ foreach(required IN ITEMS
         "nativeOwner.desktop->captureGeneration() == 0U"
         "connection.advancePersonalDesktopPostShareApplicationRead("
         "nativeOwner.desktop->consumeR4Frame("
-        "nativeOwner.desktop->retireAfterAuthorizationLoss()")
+        "retireNativeCandidate()")
     string(FIND "${owner_handoff}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR "R5 persistent native handoff missing: ${required}")

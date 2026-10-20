@@ -7,11 +7,13 @@
 #endif
 
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QTimer>
 #include <algorithm>
 
@@ -30,6 +32,7 @@ public:
     std::vector<RuntimeHostInterface> interfaces;
     RuntimeHostStatus snapshot;
     RuntimeHostOptions lastOptions;
+    RuntimeHostPermissionRequest lastPermissionRequest;
     int configureCalls{};
     int credentialSetupCalls{};
     int permissionSetupCalls{};
@@ -70,9 +73,11 @@ public:
             : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
     }
 
-    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup() override
+    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
+        const RuntimeHostPermissionRequest& request = {}) override
     {
         ++permissionSetupCalls;
+        lastPermissionRequest = request;
         return permissionSetupSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
             : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
@@ -758,9 +763,18 @@ int main(int argc, char** argv)
             window.findChild<QPushButton*>("configureOsAccount");
         auto* requestPermission =
             window.findChild<QPushButton*>("requestHostPermission");
-        assert(configureAccount && requestPermission);
+        auto* allowInput =
+            window.findChild<QCheckBox*>("allowRemoteInput");
+        auto* allowClipboard =
+            window.findChild<QCheckBox*>("allowClipboard");
+        auto* lifetime =
+            window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+        assert(configureAccount && requestPermission && allowInput &&
+               allowClipboard && lifetime);
         assert(configureAccount->isEnabled());
         assert(!requestPermission->isEnabled());
+        assert(allowInput->isChecked() && allowClipboard->isChecked());
+        assert(lifetime->value() == 15);
 
         configureAccount->click();
         assert(runtime.credentialSetupCalls == 1);
@@ -770,8 +784,15 @@ int main(int argc, char** argv)
         runtime.snapshot.credentialsConfigured = true;
         window.refresh();
         assert(requestPermission->isEnabled());
+        allowInput->setChecked(false);
+        allowClipboard->setChecked(true);
+        lifetime->setValue(7);
         requestPermission->click();
         assert(runtime.permissionSetupCalls == 1);
+        assert(!runtime.lastPermissionRequest.allowInput);
+        assert(runtime.lastPermissionRequest.allowClipboard);
+        assert(runtime.lastPermissionRequest.requestedLifetimeMilliseconds ==
+               7U * 60U * 1000U);
         assert(!host.status().desktopAuthorized);
         assert(!window.canStart());
 

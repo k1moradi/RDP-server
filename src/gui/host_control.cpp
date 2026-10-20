@@ -173,9 +173,10 @@ bool HostControl::requestExistingOsAccount()
         LanCredentialChoice::ExistingOsAccount).succeeded();
 }
 
-bool HostControl::requestHostPermission()
+bool HostControl::requestHostPermission(
+    const rdp_server::server::runtime::RuntimeHostPermissionRequest& request)
 {
-    return runtime_.requestHostPermissionSetup().succeeded();
+    return runtime_.requestHostPermissionSetup(request).succeeded();
 }
 
 bool HostControl::start(const HostRequest& request)

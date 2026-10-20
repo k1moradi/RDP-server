@@ -238,7 +238,8 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     return deny(RuntimeHostError::CredentialProviderUnavailable);
 }
 
-RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup()
+RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup(
+    const RuntimeHostPermissionRequest& request)
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
@@ -248,11 +249,14 @@ RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup()
     // This call is reachable from the locally running GUI, never from an
     // accepted peer. M1 trusts that explicit click, then R2 binds it to fresh
     // process-UID/physical-seat0/session/unlocked native evidence.
-    constexpr std::uint64_t kDefaultOwnerLifetimeMilliseconds =
-        15U * 60U * 1000U;
-    const auto result = ownerSharingAuthority_.requestConsent({
-        rdp_server::server::security::kConsoleAllowedPermissions,
-        kDefaultOwnerLifetimeMilliseconds});
+    std::uint32_t permissions =
+        rdp_server::server::security::kConsoleViewPermission;
+    if (request.allowInput)
+        permissions |= rdp_server::server::security::kConsoleInputPermission;
+    if (request.allowClipboard)
+        permissions |= rdp_server::server::security::kConsoleClipboardPermission;
+    const auto result = ownerSharingAuthority_.requestConsent(
+        {permissions, request.requestedLifetimeMilliseconds});
     using rdp_server::server::security::OwnerConsentRequestResult;
     switch (result)
     {

@@ -1,3 +1,8 @@
+**R2 GUI consent selection contract (2026-10-19):** the R7/R10 GUI
+carries explicit owner-selected input/clipboard scope plus 1–60 minute lifetime
+into the positive R2 authority. The offscreen owner-permission forwarding CTest
+verifies the exact typed request; no fake native authorization is created.
+
 **R2 libsystemd target-split correction (2026-10-19):** the positive owner
 reader is shared with Linux HostControl, while the existing native session-change
 watch remains compiled in rdp-server-linux-gssapi. Both now receive the same

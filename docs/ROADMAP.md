@@ -1,3 +1,12 @@
+### R2 owner-selected M1 consent scope/lifetime (2026-10-19)
+
+The local permissions page now sends one typed R10 request: view is mandatory,
+while remote input and clipboard are independent owner checkboxes and lifetime
+is owner-selected from 1–60 minutes. R10 maps only that request into R2 scope;
+the network-facing runtime receives only the existing const authority borrow.
+The dedicated offscreen GUI CTest verifies exact scope/lifetime forwarding and
+does not fabricate positive native seat evidence.
+
 ## R2 M1 positive local-owner authority (2026-10-19)
 
 M1 now trusts the currently logged-in local desktop-user session plus explicit

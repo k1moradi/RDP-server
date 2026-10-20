@@ -41,7 +41,8 @@ public:
         const RuntimeHostOptions& options) override;
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) override;
-    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup() override;
+    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
+        const RuntimeHostPermissionRequest& request = {}) override;
     [[nodiscard]] RuntimeHostResult startSharing() override;
     [[nodiscard]] RuntimeHostResult stopSharing() override;
     [[nodiscard]] RuntimeHostResult disconnectClient(

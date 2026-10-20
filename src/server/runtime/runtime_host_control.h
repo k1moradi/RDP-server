@@ -161,6 +161,15 @@ struct RuntimeHostClient
     bool desktopVisible{};
 };
 
+struct RuntimeHostPermissionRequest final
+{
+    // View is always implicit. Input/clipboard are independently
+    // owner-selectable least-privilege additions.
+    bool allowInput{true};
+    bool allowClipboard{true};
+    std::uint64_t requestedLifetimeMilliseconds{15U * 60U * 1000U};
+};
+
 struct RuntimeHostStatus
 {
     RuntimeHostStage stage{RuntimeHostStage::Stopped};
@@ -196,7 +205,8 @@ public:
         const RuntimeHostOptions& options) = 0;
     [[nodiscard]] virtual RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) = 0;
-    [[nodiscard]] virtual RuntimeHostResult requestHostPermissionSetup() = 0;
+    [[nodiscard]] virtual RuntimeHostResult requestHostPermissionSetup(
+        const RuntimeHostPermissionRequest& request = {}) = 0;
     [[nodiscard]] virtual RuntimeHostResult startSharing() = 0;
     [[nodiscard]] virtual RuntimeHostResult stopSharing() = 0;
     [[nodiscard]] virtual RuntimeHostResult disconnectClient(
@@ -226,7 +236,8 @@ public:
             return {RuntimeHostError::CredentialNotConfigured, false};
         return {};
     }
-    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup() override
+    [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
+        const RuntimeHostPermissionRequest& = {}) override
     { return {}; }
     [[nodiscard]] RuntimeHostResult startSharing() override { return {}; }
     [[nodiscard]] RuntimeHostResult stopSharing() override { return {}; }

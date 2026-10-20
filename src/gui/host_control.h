@@ -74,7 +74,9 @@ public:
 
     [[nodiscard]] HostStatus status() const;
     [[nodiscard]] bool requestExistingOsAccount();
-    [[nodiscard]] bool requestHostPermission();
+    [[nodiscard]] bool requestHostPermission(
+        const rdp_server::server::runtime::RuntimeHostPermissionRequest&
+            request = {});
     [[nodiscard]] bool start(const HostRequest& request);
     [[nodiscard]] bool disconnectClient(std::uint64_t opaqueClientId);
     void stopAndRevoke();

@@ -4,6 +4,7 @@
 #include "linux_prerequisites.h"
 #endif
 #include <QApplication>
+#include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
@@ -190,6 +191,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
       clientSelection_(new QComboBox(this)),
       port_(new QSpinBox(this)),
+      allowRemoteInput_(new QCheckBox(
+          "Allow remote keyboard and pointer input", this)),
+      allowClipboard_(new QCheckBox("Allow clipboard redirection", this)),
+      permissionLifetimeMinutes_(new QSpinBox(this)),
       configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
       requestHostPermission_(new QPushButton("Request Local Owner Permission", this)),
       start_(new QPushButton("Start Sharing", this)),
@@ -281,6 +286,24 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         requestLinuxPrerequisites(linuxPrerequisites);
     });
 #endif
+    permissions->addWidget(label(
+        "M1 local consent trusts this GUI click and the current desktop-user "
+        "session. Malicious same-user processes and X11 clients capable of "
+        "synthetic input are outside the M1 threat model."));
+    allowRemoteInput_->setObjectName("allowRemoteInput");
+    allowRemoteInput_->setChecked(true);
+    permissions->addWidget(allowRemoteInput_);
+    allowClipboard_->setObjectName("allowClipboard");
+    allowClipboard_->setChecked(true);
+    permissions->addWidget(allowClipboard_);
+    permissionLifetimeMinutes_->setObjectName("ownerPermissionLifetimeMinutes");
+    permissionLifetimeMinutes_->setRange(1, 60);
+    permissionLifetimeMinutes_->setValue(15);
+    permissionLifetimeMinutes_->setSuffix(" min");
+    auto* ownerPermissionForm = new QFormLayout();
+    ownerPermissionForm->addRow(
+        "Owner permission lifetime", permissionLifetimeMinutes_);
+    permissions->addLayout(ownerPermissionForm);
     requestHostPermission_->setObjectName("requestHostPermission");
     permissions->addWidget(requestHostPermission_);
     permissionStatus_->setObjectName("permissionStatus");
@@ -330,7 +353,13 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         refresh(); // Only a later R10 snapshot may report configured state.
     });
     connect(requestHostPermission_, &QPushButton::clicked, this, [this] {
-        (void)host_.requestHostPermission();
+        rdp_server::server::runtime::RuntimeHostPermissionRequest request;
+        request.allowInput = allowRemoteInput_->isChecked();
+        request.allowClipboard = allowClipboard_->isChecked();
+        request.requestedLifetimeMilliseconds =
+            static_cast<std::uint64_t>(permissionLifetimeMinutes_->value()) *
+            60'000U;
+        (void)host_.requestHostPermission(request);
         refresh(); // A request never fabricates desktop authorization.
     });
     connect(start_, &QPushButton::clicked, this, [this] {
@@ -485,9 +514,13 @@ void DesktopWindow::refresh() {
         : "Local owner permission is not established; Start remains blocked.");
     configureOsAccount_->setEnabled(
         snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);
-    requestHostPermission_->setEnabled(
+    const bool permissionRequestEnabled =
         snapshot.controlAvailable && snapshot.credentialsConfigured &&
-        !snapshot.sharing && !snapshot.startPending);
+        !snapshot.sharing && !snapshot.startPending;
+    allowRemoteInput_->setEnabled(permissionRequestEnabled);
+    allowClipboard_->setEnabled(permissionRequestEnabled);
+    permissionLifetimeMinutes_->setEnabled(permissionRequestEnabled);
+    requestHostPermission_->setEnabled(permissionRequestEnabled);
     const QString denial = blockedReason(snapshot);
     clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
     hostLifecycleStatus_->setText(hostLifecycleText(snapshot));

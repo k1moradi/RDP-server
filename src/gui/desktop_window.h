@@ -2,6 +2,7 @@
 #pragma once
 #include "host_control.h"
 #include <QWidget>
+class QCheckBox;
 class QCloseEvent;
 class QComboBox;
 class QLabel;
@@ -24,6 +25,9 @@ private:
     QComboBox* interfaces_;
     QComboBox* clientSelection_;
     QSpinBox* port_;
+    QCheckBox* allowRemoteInput_;
+    QCheckBox* allowClipboard_;
+    QSpinBox* permissionLifetimeMinutes_;
     QPushButton* configureOsAccount_;
     QPushButton* requestHostPermission_;
     QPushButton* start_;

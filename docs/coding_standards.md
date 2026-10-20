@@ -1,3 +1,24 @@
+## R10X post-Share Qt ticks own exactly one native desktop (2026-10-20)
+
+After Graphics control readiness, construct the Linux native desktop only
+through the current R2 `visitNativeDesktopSelection(...)` callback and retain
+exactly one X11 owner beside the accepted connection. The callback may copy only
+the admission/session generations; the DISPLAY view is consumed synchronously.
+Never fall back to configured/environment DISPLAY or create another XCB owner.
+
+A Qt service tick is a bounded work budget, not a blocking loop: use zero-timeout
+readiness, retire the borrowed logind registration before callbacks, cap X11
+events, advance at most one existing application-read/Graphics-write operation,
+then use the existing resize scheduler, frame-credit preflight and synchronous
+typed framebuffer borrow. Reauthorize after native changes and after the X11
+drain. A socket `POLLERR/POLLHUP` is readiness for the sole R1 operation, not
+a HostControl cancellation; only `POLLNVAL` is scheduler-terminal. Clipboard
+remains out of this increment.
+
+Stop/Revoke must order current-owner authority -> native no-XTEST retirement ->
+accepted R3/R2/R1 aggregate -> listener. Explicit client disconnect retires
+native -> accepted aggregate and preserves the current authorized listener.
+
 ## R2 standalone native identity must not synthesize Kerberos (2026-10-20)
 
 When independent-password authentication targets an existing OS desktop, carry

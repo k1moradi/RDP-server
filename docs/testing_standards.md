@@ -1,3 +1,20 @@
+## R10X HostControl native-owner composition gate (2026-10-20)
+
+Ordinary CI must not fabricate a positive physical seat/logind lease merely to
+reach the GUI native owner. Source-composition coverage must instead pin the
+production build edge and HostControl ordering: one R2-selected X11 owner,
+zero-timeout native/logind/socket poll, exact unregister-before-callback
+lifetime, bounded X11 batch, existing R1/R3 reader/writer, R1 ownership of
+`POLLERR/POLLHUP` classification, authenticated input route, RandR generation
+checks around remap/frame borrow, no clipboard activation, reconnect replacement,
+and authority -> native -> connection -> listener Stop order.
+
+Keep the existing R1 real-loopback transport classification and R5 native/Xvfb
+tests as executable lower-level evidence for peer-close ownership, no-XTEST
+retirement and RandR capture-generation invalidation. A passing source guard is
+not FIRST REAL DESKTOP acceptance; that still requires an exact-green SHA and a
+real client/owner-authorized desktop.
+
 ## R2 standalone native-account candidate regression (2026-10-20)
 
 `security.console-evidence-standalone-native-account-candidate` must exercise

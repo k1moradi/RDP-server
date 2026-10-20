@@ -1,3 +1,32 @@
+## R10X bounded Qt X11 composition authoring receipt (2026-10-20)
+
+Starting reconciled shared-main parent: `a870aab1c1708d313e38dcbe6046ec4996be0b61`. R5's X11 lifetime contract
+is already sufficient and R9's source-contract/compiler repairs are landed, so
+no external code blocker remained. Concurrent R1 and R2 owner-grant/standalone
+candidate increments were reconciled before publication; their production and
+test changes are preserved.
+
+HostControl owns one R2-selected `X11DesktopResources` beside the accepted
+connection after genuine Graphics control readiness. The Qt tick ports the
+existing production post-Share ordering with a zero-timeout poll: R2/logind
+freshness, bounded X11 drain, one existing R1/R3 read-or-Graphics-write
+progression, typed RandR/remap checks, R4 credit preflight and at most one
+eligible synchronous frame borrow/publication. Socket `POLLERR/POLLHUP`
+continues to R1 for final classification. Slow-path input stays behind the
+existing R2-protected `X11AuthorizedInputRoute`; R8 clipboard is not composed.
+
+Retirement is authority -> native no-XTEST -> accepted connection -> listener;
+explicit client disconnect omits listener retirement. New source-composition
+CTest `runtime.linux-host-control-native-desktop-bounded-post-share` pins the
+one-owner build graph, zero-wait service, R1 terminal-event handoff,
+generation/RandR fences, no clipboard, reconnect lifetime and Stop ordering.
+The pre-existing bounded scheduler guard now also requires native retirement
+before connection retirement.
+
+Local canonical build/full CTest: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**. No positive physical-seat lease,
+X11 desktop, live listener or Microsoft client was synthesized or exercised.
+
 ## R2 standalone native-account candidate authoring receipt (2026-10-20)
 
 Starting shared-main parent: `71c02ece1d8b32bcc4d78990076d4f018b5dbdd8`.

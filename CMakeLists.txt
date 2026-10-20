@@ -950,6 +950,12 @@ if(TARGET rdp-server-linux-host-control AND
         rdp-server-linux-runtime-security)
     target_compile_definitions(rdp-server-linux-host-control PUBLIC
         RDP_SERVER_HAVE_LINUX_HOST_SECURITY=1)
+    if(TARGET rdp-server-linux-x11-desktop)
+        target_link_libraries(rdp-server-linux-host-control PUBLIC
+            rdp-server-linux-x11-desktop)
+        target_compile_definitions(rdp-server-linux-host-control PUBLIC
+            RDP_SERVER_HAVE_LINUX_X11_DESKTOP=1)
+    endif()
 endif()
 
 # R5 stateless authorized-input route. Build only where R10's concrete
@@ -970,9 +976,17 @@ if(TARGET rdp-server-linux-runtime-security AND
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# R10 consumes the landed R5/R2 typed bridge only as a production dependency.
-# Live dispatch stays disabled until the sole post-Share R1 TPKT reader/router
-# can demultiplex input from Graphics/clipboard without a second protocol owner.
+if(TARGET rdp-server-linux-host-control AND
+   TARGET rdp-server-linux-x11-authorized-input)
+    target_link_libraries(rdp-server-linux-host-control PUBLIC
+        rdp-server-linux-x11-authorized-input)
+    target_compile_definitions(rdp-server-linux-host-control PUBLIC
+        RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT=1)
+endif()
+
+# R10 consumes the landed R5/R2 typed bridge through the existing serialized
+# CLI and GUI HostControl lifetimes. The bridge owns no reader, R2 lease or XCB
+# connection; the sole post-Share R1 classifier remains authoritative.
 if(TARGET rdp-server AND TARGET rdp-server-linux-x11-authorized-input)
     target_link_libraries(rdp-server PRIVATE
         rdp-server-linux-x11-authorized-input)

@@ -6,9 +6,16 @@
 #include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
 #endif
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+#include "x11/x11_desktop_resources.h"
+#if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
+#include "x11/x11_authorized_input_route.h"
+#endif
+#endif
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <cerrno>
 #include <cstdint>
 #include <cstring>
 #include <iterator>
@@ -21,9 +28,27 @@
 #include <net/if.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+#include <poll.h>
+#endif
 
 namespace rdp_server::server::runtime
 {
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+struct LinuxHostNativeDesktopState final
+{
+    std::optional<X11DesktopResources> desktop{};
+    std::uint64_t admissionGeneration{};
+    std::uint64_t sessionGeneration{};
+    std::uint32_t nextFrameId{1U};
+    bool graphicsWritePending{};
+    bool framePublicationPending{};
+    bool nativeWorkMayRemain{true};
+    std::optional<std::chrono::steady_clock::time_point> resizeDeadline{};
+    std::chrono::steady_clock::time_point nextCapture{};
+};
+#endif
+
 namespace
 {
 // Mirror R1's private-LAN selection filter; R1 remains the bind authority.
@@ -138,6 +163,108 @@ namespace
         return RuntimeHostError::InternalFailure;
     }
     return RuntimeHostError::InternalFailure;
+}
+#endif
+
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+constexpr std::uint64_t kMaximumHostX11CapturePixels =
+    16U * 1024U * 1024U;
+constexpr std::size_t kHostX11EventBudget = 128U;
+constexpr std::chrono::milliseconds kHostCaptureInterval{100};
+constexpr std::chrono::seconds kHostResizeMaximumLifetime{6};
+
+[[nodiscard]] bool constructHostAuthorizedX11Desktop(
+    const rdp_server::server::security::LinuxNativeDesktopSelectionView&
+        selection,
+    void* rawContext) noexcept
+{
+    auto* state = static_cast<LinuxHostNativeDesktopState*>(rawContext);
+    if (state == nullptr || state->desktop.has_value() ||
+        selection.display().empty() ||
+        selection.admissionGeneration() == 0U ||
+        selection.sessionGeneration() == 0U)
+        return false;
+    state->desktop.emplace(
+        selection.display(), kMaximumHostX11CapturePixels);
+    if (!state->desktop->valid())
+    {
+        state->desktop.reset();
+        return false;
+    }
+    state->admissionGeneration = selection.admissionGeneration();
+    state->sessionGeneration = selection.sessionGeneration();
+    state->nextCapture = std::chrono::steady_clock::now();
+    return true;
+}
+
+struct LinuxHostPostShareDispatchContext final
+{
+    LinuxRuntimeConnection* connection{};
+    const RuntimeDeploymentPolicy* policy{};
+    X11DesktopResources* desktop{};
+};
+
+[[nodiscard]] bool dispatchHostPostShareRoute(
+    void* rawContext,
+    rdp_server::server::transport::RdpPostShareTpktRouteKind kind,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using Kind =
+        rdp_server::server::transport::RdpPostShareTpktRouteKind;
+    auto* context =
+        static_cast<LinuxHostPostShareDispatchContext*>(rawContext);
+    if (context == nullptr || context->connection == nullptr ||
+        context->policy == nullptr || context->desktop == nullptr ||
+        !context->desktop->valid() ||
+        context->desktop->captureGeneration() == 0U)
+        return false;
+
+    switch (kind)
+    {
+    case Kind::GraphicsDynamicVirtualChannel:
+        return context->connection->
+            dispatchPersonalDesktopPostShareGraphicsTpkt(
+                *context->policy, completeTpkt);
+    case Kind::SlowPathInput:
+#if defined(RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT)
+        return X11AuthorizedInputRoute::
+            dispatchAuthenticatedSlowPathTpkt(
+                *context->connection, *context->policy,
+                *context->desktop,
+                context->desktop->captureGeneration(),
+                completeTpkt);
+#else
+        return false;
+#endif
+    case Kind::ClipboardStaticChannel:
+        // R10X intentionally does not compose R8 yet.
+        return false;
+    case Kind::UnsupportedOrMalformed:
+        return false;
+    }
+    return false;
+}
+
+struct LinuxHostFramePublicationContext final
+{
+    LinuxRuntimeConnection* connection{};
+    const RuntimeDeploymentPolicy* policy{};
+    std::uint32_t frameId{};
+    std::uint64_t expectedGeneration{};
+};
+
+[[nodiscard]] bool publishHostCapturedFrame(
+    void* rawContext, const FramebufferView& framebuffer,
+    std::uint64_t captureGeneration) noexcept
+{
+    auto* context =
+        static_cast<LinuxHostFramePublicationContext*>(rawContext);
+    return context != nullptr && context->connection != nullptr &&
+           context->policy != nullptr && context->frameId != 0U &&
+           captureGeneration == context->expectedGeneration &&
+           context->connection->
+               startPersonalDesktopClearCodecFramePublication(
+                   *context->policy, context->frameId, framebuffer);
 }
 #endif
 } // namespace
@@ -341,6 +468,16 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.graphicsReady =
         acceptedClient_ != nullptr &&
         acceptedClientPhase_ == AcceptedClientPhase::GraphicsReady;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    snapshot.nativeDesktopReady =
+        snapshot.graphicsReady && nativeDesktop_ != nullptr &&
+        nativeDesktop_->desktop.has_value() &&
+        nativeDesktop_->desktop->valid() &&
+        nativeDesktop_->admissionGeneration != 0U &&
+        nativeDesktop_->sessionGeneration != 0U;
+    snapshot.nativeDesktopInitializing =
+        snapshot.graphicsReady && !snapshot.nativeDesktopReady;
+#endif
     snapshot.clientDisconnected =
         listenerCurrent && acceptedClient_ == nullptr && clientDisconnected_;
     if (acceptedClient_ != nullptr && acceptedClientId_ != 0U)
@@ -362,9 +499,9 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         snapshot.activeClients.emplace_back(std::move(client));
     }
 #endif
-    // nativeDesktopInitializing/nativeDesktopReady remain false until the
-    // accepted client reaches the R2-selected native owner. Graphics readiness
-    // above is only the existing R3/RDPGFX control fact and publishes no frame.
+    // Graphics readiness is an R3/RDPGFX fact. Native readiness above is
+    // projected only from the one live R2-selected X11 owner; neither grants
+    // authority and neither implies that a frame has completed delivery.
     return snapshot;
 }
 
@@ -606,6 +743,331 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 
 
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+void LinuxRuntimeHostControl::retireNativeDesktop() noexcept
+{
+    if (nativeDesktop_ != nullptr &&
+        nativeDesktop_->desktop.has_value())
+        nativeDesktop_->desktop->retireAfterAuthorizationLoss();
+    nativeDesktop_.reset();
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept
+{
+    if (acceptedClient_ == nullptr || !acceptedClient_->ready() ||
+        !deploymentPolicy_.has_value() ||
+        acceptedClientPhase_ != AcceptedClientPhase::GraphicsReady ||
+        nativeDesktop_ != nullptr)
+        return deny(RuntimeHostError::GraphicsUnavailable);
+
+    auto candidate = std::make_unique<LinuxHostNativeDesktopState>();
+    if (!acceptedClient_->visitNativeDesktopSelection(
+            &constructHostAuthorizedX11Desktop, candidate.get()) ||
+        !candidate->desktop.has_value() ||
+        !candidate->desktop->valid() ||
+        candidate->admissionGeneration == 0U ||
+        candidate->sessionGeneration == 0U)
+    {
+        if (candidate->desktop.has_value())
+            candidate->desktop->retireAfterAuthorizationLoss();
+        retireAcceptedClient(RuntimeHostError::GraphicsUnavailable);
+        return {RuntimeHostError::GraphicsUnavailable, false};
+    }
+
+    nativeDesktop_ = std::move(candidate);
+    lastError_ = RuntimeHostError::None;
+    return {RuntimeHostError::None, false};
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
+{
+    using Clock = std::chrono::steady_clock;
+    using Interest =
+        rdp_server::server::transport::TcpConnectionIoInterest;
+    using ReadStep = LinuxPostShareApplicationReadStatus;
+    using FrameStep = LinuxPersonalDesktopGraphicsDvcStepStatus;
+    using Reconfiguration =
+        rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration;
+    using Readiness =
+        rdp_server::server::transport::RdpGraphicsFramePublicationReadiness;
+
+    const auto retireClient =
+        [this](RuntimeHostError error) noexcept -> RuntimeHostResult {
+            retireAcceptedClient(error);
+            return {error, false};
+        };
+    const auto retireStaleHost =
+        [this]() noexcept -> RuntimeHostResult {
+            retireStoppedRuntime(
+                rdp_server::server::security::
+                    OwnerConsentRevocationReason::NativeAuthorizationLost);
+            stage_ = RuntimeHostStage::Revoked;
+            lastError_ = RuntimeHostError::HostSessionStale;
+            return {lastError_, false};
+        };
+
+    if (acceptedClient_ == nullptr || !acceptedClient_->ready() ||
+        !deploymentPolicy_.has_value() || nativeDesktop_ == nullptr ||
+        !nativeDesktop_->desktop.has_value() ||
+        !nativeDesktop_->desktop->valid())
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    if (!acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+            *deploymentPolicy_))
+        return retireStaleHost();
+
+    const auto now = Clock::now();
+    if (nativeDesktop_->resizeDeadline &&
+        now >= *nativeDesktop_->resizeDeadline)
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    const int socketDescriptor =
+        acceptedClient_->nativeSocketPollDescriptor();
+    const Interest socketInterest = acceptedClient_->ioInterest();
+    if (socketDescriptor < 0 ||
+        (socketInterest != Interest::Read &&
+         socketInterest != Interest::Write))
+        return retireClient(RuntimeHostError::AuthenticationRejected);
+
+    const auto nativeChange = acceptedClient_->registerNativeChange();
+    if (!nativeChange)
+        return retireStaleHost();
+
+    if (nativeChange->admissionGeneration !=
+            nativeDesktop_->admissionGeneration ||
+        nativeChange->sessionGeneration !=
+            nativeDesktop_->sessionGeneration ||
+        nativeChange->events >
+            static_cast<int>((std::numeric_limits<short>::max)()))
+    {
+        if (acceptedClient_->unregisterNativeChange(*nativeChange))
+            (void)acceptedClient_->releaseNativeChangeWithoutDispatch(
+                *nativeChange);
+        return retireStaleHost();
+    }
+
+    std::array<pollfd, 3U> pollDescriptors{{
+        {nativeChange->descriptor,
+         static_cast<short>(nativeChange->events), 0},
+        {nativeDesktop_->desktop->fileDescriptor(), POLLIN, 0},
+        {socketDescriptor,
+         static_cast<short>(
+             socketInterest == Interest::Read ? POLLIN : POLLOUT),
+         0},
+    }};
+    errno = 0;
+    const int polled = ::poll(
+        pollDescriptors.data(),
+        static_cast<nfds_t>(pollDescriptors.size()), 0);
+    const int pollError = errno;
+    const short nativeChangeEvents = pollDescriptors[0].revents;
+    const short x11Events = pollDescriptors[1].revents;
+    const short socketEvents = pollDescriptors[2].revents;
+
+    // The zero-wait poll set is dead before any R2, X11 or TLS callback.
+    if (!acceptedClient_->unregisterNativeChange(*nativeChange))
+        return retireStaleHost();
+
+    if (polled < 0)
+    {
+        if (!acceptedClient_->releaseNativeChangeWithoutDispatch(
+                *nativeChange))
+            return retireStaleHost();
+        if (pollError == EINTR)
+            return {RuntimeHostError::None, true};
+        return retireClient(RuntimeHostError::InternalFailure);
+    }
+
+    const bool nativeChangeReady =
+        polled > 0 && nativeChangeEvents != 0;
+    if (nativeChangeReady)
+    {
+        if ((nativeChangeEvents & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
+            !acceptedClient_->dispatchNativeChangeReady(*nativeChange))
+            return retireStaleHost();
+    }
+    else if (!acceptedClient_->releaseNativeChangeWithoutDispatch(
+                 *nativeChange))
+    {
+        return retireStaleHost();
+    }
+
+    if ((x11Events & (POLLERR | POLLHUP | POLLNVAL)) != 0)
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+    // Only an invalid descriptor is a scheduler failure. POLLERR/POLLHUP
+    // must reach the sole R1 read/write owner once so it can classify the
+    // actual transport/TLS termination instead of being pre-cancelled here.
+    if ((socketEvents & POLLNVAL) != 0)
+        return retireClient(RuntimeHostError::AuthenticationRejected);
+
+    if (!acceptedClient_->ready() ||
+        !acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+            *deploymentPolicy_))
+        return retireStaleHost();
+
+    bool moreX11Events = false;
+    if (nativeDesktop_->desktop->processEvents(
+            kHostX11EventBudget, &moreX11Events,
+            (x11Events & POLLIN) != 0, nullptr) !=
+            ConnectionStatus::Ok ||
+        !nativeDesktop_->desktop->valid() ||
+        nativeDesktop_->desktop->captureGeneration() == 0U)
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+    nativeDesktop_->nativeWorkMayRemain = moreX11Events;
+
+    // The event batch can invalidate geometry/input; refresh R2 before any
+    // classified network input or framebuffer work in this same tick.
+    if (!acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+            *deploymentPolicy_))
+        return retireStaleHost();
+
+    const bool terminalTransportEvent =
+        (socketEvents & (POLLERR | POLLHUP)) != 0;
+    const bool socketReadable =
+        (socketEvents & POLLIN) != 0 || terminalTransportEvent;
+    const bool socketWritable =
+        (socketEvents & POLLOUT) != 0 || terminalTransportEvent;
+
+    if (nativeDesktop_->graphicsWritePending)
+    {
+        const auto written =
+            acceptedClient_->
+                advancePersonalDesktopGraphicsDynamicVirtualChannel(
+                    *deploymentPolicy_, socketReadable, socketWritable);
+        switch (written.status)
+        {
+        case FrameStep::Ready:
+            nativeDesktop_->graphicsWritePending = false;
+            if (nativeDesktop_->framePublicationPending)
+            {
+                nativeDesktop_->framePublicationPending = false;
+                stage_ = RuntimeHostStage::DesktopVisible;
+            }
+            break;
+        case FrameStep::Progress:
+        case FrameStep::NeedRead:
+        case FrameStep::NeedWrite:
+            return {RuntimeHostError::None, true};
+        case FrameStep::AdmissionDenied:
+            return retireStaleHost();
+        case FrameStep::Invalid:
+        case FrameStep::Closed:
+            return retireClient(RuntimeHostError::GraphicsUnavailable);
+        }
+    }
+    else
+    {
+        LinuxHostPostShareDispatchContext dispatchContext{
+            acceptedClient_.get(), &*deploymentPolicy_,
+            &*nativeDesktop_->desktop};
+        const LinuxPostShareTpktSink sink{
+            &dispatchContext, &dispatchHostPostShareRoute};
+        const auto read =
+            acceptedClient_->advancePersonalDesktopPostShareApplicationRead(
+                *deploymentPolicy_, socketReadable, socketWritable, sink);
+        switch (read.status)
+        {
+        case ReadStep::Progress:
+        case ReadStep::Routed:
+        case ReadStep::NeedRead:
+        case ReadStep::NeedWrite:
+            break;
+        case ReadStep::AdmissionDenied:
+            return retireStaleHost();
+        case ReadStep::Invalid:
+        case ReadStep::Closed:
+            return retireClient(RuntimeHostError::AuthenticationRejected);
+        }
+    }
+
+    if (!acceptedClient_->ready() ||
+        !acceptedClient_->authorizePersonalDesktopApplicationTraffic(
+            *deploymentPolicy_))
+        return retireStaleHost();
+
+    const auto postIoNow = Clock::now();
+    if (nativeDesktop_->resizeDeadline &&
+        postIoNow >= *nativeDesktop_->resizeDeadline)
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+    if (nativeDesktop_->graphicsWritePending ||
+        postIoNow < nativeDesktop_->nextCapture)
+        return {RuntimeHostError::None, true};
+
+    const std::uint64_t currentNativeSessionGeneration =
+        nativeChange->sessionGeneration;
+    const X11NativeGeometryObservation geometry =
+        nativeDesktop_->desktop->observeNativeGeometry(
+            currentNativeSessionGeneration);
+    if (!geometry.valid() ||
+        !nativeDesktop_->desktop->nativeGeometryIsCurrent(
+            geometry, currentNativeSessionGeneration))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    const Reconfiguration reconfiguration =
+        acceptedClient_->
+            beginPersonalDesktopGraphicsSurfaceReconfiguration(
+                *deploymentPolicy_, geometry.pixelGeometry);
+    switch (reconfiguration)
+    {
+    case Reconfiguration::Unchanged:
+        nativeDesktop_->resizeDeadline.reset();
+        break;
+    case Reconfiguration::Deferred:
+        if (!nativeDesktop_->resizeDeadline)
+            nativeDesktop_->resizeDeadline =
+                postIoNow + kHostResizeMaximumLifetime;
+        nativeDesktop_->nextCapture =
+            postIoNow + kHostCaptureInterval;
+        return {RuntimeHostError::None, true};
+    case Reconfiguration::Started:
+        if (!nativeDesktop_->resizeDeadline)
+            nativeDesktop_->resizeDeadline =
+                postIoNow + kHostResizeMaximumLifetime;
+        nativeDesktop_->graphicsWritePending = true;
+        nativeDesktop_->nextCapture =
+            postIoNow + kHostCaptureInterval;
+        return {RuntimeHostError::None, false};
+    case Reconfiguration::Rejected:
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+    }
+
+    if (nativeDesktop_->nextFrameId == 0U)
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    const Readiness readiness =
+        acceptedClient_->
+            preflightPersonalDesktopGraphicsFramePublication(
+                *deploymentPolicy_, nativeDesktop_->nextFrameId);
+    if (readiness == Readiness::DeferredForFrameAcknowledge)
+    {
+        nativeDesktop_->nextCapture =
+            Clock::now() + kHostCaptureInterval;
+        return {RuntimeHostError::None, true};
+    }
+    if (readiness != Readiness::Ready ||
+        !nativeDesktop_->desktop->nativeGeometryIsCurrent(
+            geometry, currentNativeSessionGeneration))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    LinuxHostFramePublicationContext frameContext{
+        acceptedClient_.get(), &*deploymentPolicy_,
+        nativeDesktop_->nextFrameId, geometry.captureGeneration};
+    if (!nativeDesktop_->desktop->consumeR4Frame(
+            geometry, currentNativeSessionGeneration,
+            X11R4BgraFrameConsumer{
+                &frameContext, &publishHostCapturedFrame}))
+        return retireClient(RuntimeHostError::GraphicsUnavailable);
+
+    ++nativeDesktop_->nextFrameId;
+    nativeDesktop_->graphicsWritePending = true;
+    nativeDesktop_->framePublicationPending = true;
+    nativeDesktop_->nextCapture =
+        Clock::now() + kHostCaptureInterval;
+    lastError_ = RuntimeHostError::None;
+    return {RuntimeHostError::None, false};
+}
+#endif
+
 void LinuxRuntimeHostControl::clearAcceptedClient() noexcept
 {
     acceptedClient_.reset();
@@ -622,6 +1084,9 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
 {
     const bool hadAcceptedClient =
         acceptedClient_ != nullptr && acceptedClientId_ != 0U;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    retireNativeDesktop();
+#endif
     if (acceptedClient_ != nullptr)
         acceptedClient_->revoke();
     clearAcceptedClient();
@@ -1168,7 +1633,13 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
         if (!acceptedClient_->authorizePersonalDesktopApplicationTraffic(
                 *deploymentPolicy_))
             return hostSessionStale();
-        return {RuntimeHostError::None, true};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+        if (nativeDesktop_ == nullptr)
+            return initializeNativeDesktop();
+        return serviceNativeDesktopOnce();
+#else
+        return peerFailure(RuntimeHostError::GraphicsUnavailable);
+#endif
     }
 
     return peerFailure(RuntimeHostError::InternalFailure);
@@ -1221,6 +1692,9 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     ownerSharingAuthority_.revoke(reason);
     standalonePasswordCredential_.revoke();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    retireNativeDesktop();
+#endif
     if (acceptedClient_ != nullptr)
         acceptedClient_->revoke();
     clearAcceptedClient();

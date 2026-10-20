@@ -1,3 +1,55 @@
+## R10X GUI-owned X11 desktop and bounded post-Share service (2026-10-20)
+
+**Starting reconciled shared-main parent:** `a870aab1c1708d313e38dcbe6046ec4996be0b61`.
+
+Dependency reconciliation against the current graph found R5's native
+step/lifetime prerequisite already complete at `20831e2698`: the existing
+`X11DesktopResources`, typed RandR-generation borrow, authorized slow-path
+input route and R2 native-change registration are sufficient. R9's stale
+source-contract/compiler blockers are repaired on this parent. Intervening R1
+transport classification and R2 owner-grant/standalone-candidate increments were
+also reconciled: R10X preserves their behavior, and none is an external R10X
+code blocker.
+
+After genuine RDPGFX control reaches `GraphicsReady`, the GUI HostControl uses
+the existing `visitNativeDesktopSelection(...)` authority boundary to construct
+exactly one X11 owner from R2's selected DISPLAY and admission/session
+generations. The owner lives beside the sole accepted `LinuxRuntimeConnection`;
+status reports native initialization/readiness only from that concrete owner.
+
+The 25 ms Qt service timer remains the only scheduler. Each post-Share tick
+performs fresh R2 authorization, registers the current logind borrow, executes
+one zero-timeout three-fd poll, unregisters the borrow before callbacks, drains
+at most 128 X11 events, advances at most one existing R1/R3 application read or
+Graphics write, progresses the existing resize/remap state, preflights R4 frame
+credit, and performs at most one eligible typed synchronous R5 framebuffer
+borrow/ClearCodec publication. `POLLERR/POLLHUP` is surfaced to R1 in its
+requested direction for terminal classification; only `POLLNVAL` is a
+scheduler-level socket failure. Clipboard remains explicitly fail-closed.
+
+Terminal Stop/Revoke ordering is current-owner R2 authority -> X11 native
+owner/no-XTEST retirement -> accepted R3/R2/R1 aggregate -> listener.
+`disconnectClient()` uses native-before-connection retirement but keeps an
+otherwise authorized listener, so reconnect constructs a fresh owner. A
+completed first frame write may advance the presentation stage to
+`DesktopVisible`; this is not real-client acceptance.
+
+Dedicated offline source-composition CTest:
+`runtime.linux-host-control-native-desktop-bounded-post-share`. The existing
+bounded HostControl scheduler guard is tightened to include native retirement
+between R2 authority and the accepted connection. Existing R1 loopback,
+R5 native/Xvfb and RandR tests remain lower-level production evidence; ordinary
+CI does not fabricate a positive seat0/logind lease.
+
+Canonical `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI: **PENDING**. No live
+desktop, XTEST, credential, listener or Microsoft client was exercised here.
+
+**Next gate:** FIRST REAL DESKTOP TEST is blocked only on an exact-main SHA with
+this R10X composition and all ordinary hosted lanes green. The separate clean
+Windows runner remains an R6/R9 packaging acceptance dependency, not an R10X
+code prerequisite.
+
 ## R2 principal-free standalone native-account candidate (2026-10-20)
 
 Starting shared-main parent: `71c02ece1d8b32bcc4d78990076d4f018b5dbdd8`.

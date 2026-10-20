@@ -25,6 +25,9 @@ class LinuxRuntimeConnection;
 class RuntimeLicensingContext;
 class RuntimeServerTlsContext;
 #endif
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+struct LinuxHostNativeDesktopState;
+#endif
 
 // Parse the GUI stable name#index into the CURRENT native name used by R1.
 // Returned string_view borrows stableId; this is not listener authority.
@@ -86,9 +89,9 @@ public:
         const RuntimeHostPermissionRequest& request = {}) override;
     [[nodiscard]] RuntimeHostResult startSharing() override;
 
-    // Advance at most one accepted-client protocol operation plus one zero-wait
-    // readiness observation on the owner thread. This never blocks Qt, creates
-    // a second socket/TLS owner, or constructs the native desktop.
+    // Advance at most one accepted-client/native operation plus zero-wait
+    // readiness observations on the owner thread. This never blocks Qt and
+    // never creates a second socket/TLS/X11 owner.
     [[nodiscard]] RuntimeHostResult serviceOnce() noexcept;
 
     [[nodiscard]] RuntimeHostResult stopSharing() override;
@@ -123,6 +126,11 @@ private:
         std::chrono::steady_clock::time_point now) noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientOnce() noexcept;
     [[nodiscard]] RuntimeHostResult pollAcceptedClientReadiness() noexcept;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    [[nodiscard]] RuntimeHostResult initializeNativeDesktop() noexcept;
+    [[nodiscard]] RuntimeHostResult serviceNativeDesktopOnce() noexcept;
+    void retireNativeDesktop() noexcept;
+#endif
     void retireAcceptedClient(RuntimeHostError error) noexcept;
     void clearAcceptedClient() noexcept;
 #endif
@@ -141,6 +149,11 @@ private:
     const RuntimeLicensingContext* licensingContext_{};
     std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};
     std::unique_ptr<LinuxRuntimeConnection> acceptedClient_{};
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+    // Exactly one R2-selected X11 owner may coexist with the accepted client.
+    // It is retired before acceptedClient_ on every terminal path.
+    std::unique_ptr<LinuxHostNativeDesktopState> nativeDesktop_{};
+#endif
     rdp_server::server::security::AuthenticationAttemptLimiter authAttempts_{};
     std::chrono::steady_clock::time_point acceptedClientDeadline_{};
     AcceptedClientPhase acceptedClientPhase_{AcceptedClientPhase::None};

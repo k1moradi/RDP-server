@@ -1,3 +1,20 @@
+## R10X GUI native desktop ownership after GraphicsReady (2026-10-20)
+
+The GUI path closes the former gap between RDPGFX control and R5. One
+`LinuxRuntimeHostControl` owns one accepted `LinuxRuntimeConnection` and,
+only after fresh R2 selection, one `X11DesktopResources`. The X11 owner never
+has an independent socket/TLS/R3 state machine. Qt's 25 ms timer drives a
+zero-wait bounded post-Share step; R1 remains the sole application reader/writer
+and terminal transport classifier, R3 the sole classifier/Graphics owner, R4
+the ACK-credit owner, and R5 the synchronous native capture/input owner.
+
+Stop/Revoke invalidates host authority before native input/capture, then retires
+the accepted protocol aggregate and finally the listener. A per-client
+disconnect retires native and protocol owners while leaving an otherwise
+authorized listener alive for a fresh reconnect. Clipboard is not part of this
+composition. R2 grant observations and standalone candidate proof remain
+separate authority/admission concerns and never replace per-operation checks.
+
 ## R2 principal-free standalone native evidence (2026-10-20)
 
 The native account/session evidence layer has two explicit candidate identity

@@ -89,6 +89,7 @@ math(EXPR retire_length "${retire_end} - ${retire_start}")
 string(SUBSTRING "${host_source}" ${retire_start} ${retire_length} retire_source)
 set(retire_tokens
     "ownerSharingAuthority_.revoke(reason)"
+    "retireNativeDesktop()"
     "acceptedClient_->revoke()"
     "listener_.close()")
 set(previous_position -1)

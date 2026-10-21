@@ -51,6 +51,27 @@ foreach ($directory in $forbiddenDevelopmentDirectories) {
     }
 }
 $operatingSystem = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+$osArchitecture =
+    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+$processArchitecture =
+    [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+if ($osArchitecture -cne 'X64') {
+    throw 'Clean Windows evidence must come from an x86-64 OS'
+}
+$executionOrigin =
+    if ($env:GITHUB_ACTIONS -ceq 'true') {
+        'self-hosted-clean-runner'
+    }
+    else {
+        'manual-owner-native'
+    }
+$acceptanceLabel =
+    if ($executionOrigin -ceq 'manual-owner-native') {
+        'MANUAL CLEAN PASS'
+    }
+    else {
+        'SELF-HOSTED CLEAN PASS'
+    }
 
 # The exact producer archive is structurally bounded and inspected before
 # extraction. No ZIP rewriting, dependency deployment, or copying DLLs.
@@ -235,11 +256,24 @@ foreach ($name in $namesToRestore) {
 }
 $windows = [Environment]::GetFolderPath('Windows')
 if (!$windows) { throw 'Windows root unavailable' }
-$env:PATH = "$windows\System32;$windows;$windows\System32\Wbem"
+$isolatedChildPath = "$windows\System32;$windows;$windows\System32\Wbem"
+$env:PATH = $isolatedChildPath
 foreach ($name in $namesToRestore) {
     [Environment]::SetEnvironmentVariable($name,$null,'Process')
 }
 $env:QT_QPA_PLATFORM = 'windows'
+if ($env:PATH -cne $isolatedChildPath) {
+    throw 'GUI child PATH was not isolated to Windows system directories'
+}
+foreach ($name in $namesToRestore) {
+    if ($name -ne 'QT_QPA_PLATFORM' -and
+        [Environment]::GetEnvironmentVariable($name,'Process')) {
+        throw "GUI inherited developer environment override: $name"
+    }
+}
+if ($env:QT_QPA_PLATFORM -cne 'windows') {
+    throw 'Qt platform selection was not pinned to the native Windows plugin'
+}
 try {
     # This real GUI smoke runs hidden tests, first window, ordinary close,
     # relaunch and second close, plus per-process TCP/UDP socket assertions.
@@ -277,6 +311,8 @@ New-Item -ItemType Directory -Path $receiptDirectory -Force | Out-Null
     status = 'PASS'
     gate = 'clean-windows-portable-gui'
     evidence_path = 'manual-or-self-hosted-clean-windows'
+    execution_origin = $executionOrigin
+    acceptance_label = $acceptanceLabel
     generated_utc = [DateTime]::UtcNow.ToString('o')
     exact_git_sha = $ExactGitSha
     archive = $archiveName
@@ -288,6 +324,8 @@ New-Item -ItemType Directory -Path $receiptDirectory -Force | Out-Null
         windows_caption = [string]$operatingSystem.Caption
         windows_version = [string]$operatingSystem.Version
         windows_build = [string]$operatingSystem.BuildNumber
+        os_architecture = $osArchitecture
+        process_architecture = $processArchitecture
         powershell_version = $PSVersionTable.PSVersion.ToString()
     }
     user = [ordered]@{
@@ -308,6 +346,9 @@ New-Item -ItemType Directory -Path $receiptDirectory -Force | Out-Null
         first_window_observed = $true
         ordinary_close_observed = $true
         relaunch_observed = $true
+        no_process_tcp_udp_before_start = $true
+        child_path_windows_system_only = $true
+        developer_environment_cleared = $true
         system_state_before_sha256 = $beforeDigest
         system_state_after_sha256 = $afterDigest
         system_state_unchanged = $true
@@ -326,4 +367,6 @@ $receiptDigest =
 $receiptSidecar = "$receiptPath.sha256"
 "$receiptDigest  $(Split-Path -Leaf $receiptPath)" |
     Set-Content -LiteralPath $receiptSidecar -Encoding Ascii
+Write-Host "R9 CLEAN evidence classification: $acceptanceLabel"
+Write-Host "R9 CLEAN receipt SHA-256: $receiptDigest"
 Write-Host 'R9 clean Windows portable GUI acceptance PASS'

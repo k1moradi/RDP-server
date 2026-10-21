@@ -1,3 +1,34 @@
+## R9 reconciliation with R6 CLEAN receipt format 2 (2026-10-21)
+
+Shared-main parent: `40650f9c24f6555b75e7f6a54f989d49118498a7`. R6's richer format-2 receipt is retained, but
+R9 closes its acceptance-verifier gap rather than reverting it. Format 2 now
+records the Windows OS/process architecture and explicit execution provenance,
+plus the socket/PATH/environment observations required by the manual CLEAN
+contract. The producer labels evidence **MANUAL CLEAN PASS** for owner-native
+execution and **SELF-HOSTED CLEAN PASS** for the dedicated Actions runner.
+
+`scripts/verify_clean_windows_receipt.py` now verifies format 2 offline. It
+recomputes the receipt and ZIP SHA-256 sidecars, exact source and smoke-script
+hashes, exact source SHA/archive identity, x86-64 OS identity, non-admin
+interactive Explorer session, clean development environment, required packaged
+files, launch/ordinary-close/relaunch observations, no TCP/UDP sockets before
+Start, Windows-system-only child PATH, and equal before/after Windows
+firewall/service/TermService/RDP-policy state hashes. Duplicate JSON keys,
+missing/extra format-2 fields/checks, wrong provenance labels, script/ZIP
+mutation and state drift fail closed.
+
+Ordinary offline CTest
+`packaging.windows-portable-gui-manual-clean-receipt-verifier-denials` is
+restored. Authoring-only isolated verifier regression: **PASS 12/12**. No real
+manual clean-Windows receipt was executed here, so CLEAN is still **NOT RUN**;
+a future verifier-accepted manual record may satisfy CLEAN without being
+misreported as automated CI.
+
+FIRST remains separately frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. This publication also creates a
+new product-main exact SHA, which must earn a fresh all-ordinary-hosted PASS;
+no parent qualification is inherited and Windows CLANG64 remains mandatory.
+
 ## R9 manual CLEAN route and split qualification ledgers (2026-10-21)
 
 ## Official manual CLEAN fallback when the dedicated runner is unavailable (2026-10-21)

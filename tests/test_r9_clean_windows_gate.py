@@ -98,6 +98,11 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         "relaunch_observed = $true", "system_state_before_sha256 = $beforeDigest",
         "system_state_after_sha256 = $afterDigest", "system_state_unchanged = $true",
         "receipt-sha256", "$receiptSidecar = \"$receiptPath.sha256\"",
+        "execution_origin = $executionOrigin", "acceptance_label = $acceptanceLabel",
+        "os_architecture = $osArchitecture", "process_architecture = $processArchitecture",
+        "no_process_tcp_udp_before_start = $true",
+        "child_path_windows_system_only = $true", "developer_environment_cleared = $true",
+        "R9 CLEAN evidence classification:", "R9 CLEAN receipt SHA-256:",
     ):
         if required not in verifier:
             raise AssertionError(f"Consumer security guard absent: {required}")

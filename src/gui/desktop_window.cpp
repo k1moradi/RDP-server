@@ -151,7 +151,7 @@ QString tlsIdentityStatusText(const HostStatus& status)
         break;
     case RuntimeTlsIdentityState::BoundAndMatched:
         explanation = status.listenerReady && !status.lanAddress.isEmpty() &&
-                      identity.fingerprintAvailable
+                      status.tlsFingerprintAvailable
             ? QStringLiteral("TLS certificate matches the active LAN endpoint: ") +
                   status.lanAddress
             : QStringLiteral(
@@ -173,7 +173,7 @@ QString tlsIdentityStatusText(const HostStatus& status)
         break;
     }
 
-    if (identity.fingerprintAvailable)
+    if (status.tlsFingerprintAvailable)
     {
         using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
         constexpr std::size_t certificateSha256Size =
@@ -187,7 +187,7 @@ QString tlsIdentityStatusText(const HostStatus& status)
         std::array<char, fingerprintCharacterCount> fingerprint{};
         for (std::size_t index = 0; index < certificateSha256Size; ++index)
         {
-            const auto byte = identity.certificateSha256[index];
+            const auto byte = status.tlsFingerprint[index];
             const std::size_t offset = index * 3U;
             fingerprint[offset] = hexDigits[byte >> 4U];
             fingerprint[offset + 1U] = hexDigits[byte & 0x0fU];
@@ -211,71 +211,40 @@ QString tlsIdentityStatusText(const HostStatus& status)
 
 QString hostLifecycleText(const HostStatus& state)
 {
-    using rdp_server::server::runtime::RuntimeHostStage;
-
-    if (!state.controlAvailable)
-        return QStringLiteral("Hosting control is unavailable.");
-
-    switch (state.stage)
+    using State = rdp_server::server::runtime::RuntimeProductHostState;
+    switch (state.productState)
     {
-    case RuntimeHostStage::Stopped:
-        return QStringLiteral("Stopped.");
-    case RuntimeHostStage::PackageInstalled:
-        return QStringLiteral("Installed; sharing is stopped.");
-    case RuntimeHostStage::CredentialsConfigured:
-        return QStringLiteral("Access configured; sharing is stopped.");
-    case RuntimeHostStage::ListenerAvailable:
-        return state.listenerReady
-            ? (state.clientDisconnected
-                   ? QStringLiteral(
-                         "Listening; the previous device disconnected.")
-                   : QStringLiteral("Listening for a remote device."))
-            : QStringLiteral("Starting the LAN listener.");
-    case RuntimeHostStage::ClientAuthenticating:
+    case State::Stopped: return QStringLiteral("Stopped.");
+    case State::Starting: return QStringLiteral("Starting.");
+    case State::Listening:
+        return state.clientDisconnected
+            ? QStringLiteral("Listening; the previous device disconnected.")
+            : QStringLiteral("Listening for a remote device.");
+    case State::Authenticating:
         return QStringLiteral("A remote device is authenticating.");
-    case RuntimeHostStage::ShareActivated:
-        if (state.nativeDesktopInitializing && state.graphicsReady)
-            return QStringLiteral("Preparing the local desktop.");
-        if (state.graphicsReady)
-            return state.nativeDesktopReady
-                ? QStringLiteral("Desktop ready; waiting for visibility.")
-                : QStringLiteral("Graphics ready; preparing the local desktop.");
-        return QStringLiteral("Remote session activated; preparing graphics.");
-    case RuntimeHostStage::DesktopVisible:
-        return state.nativeDesktopReady
-            ? QStringLiteral("Desktop is visible remotely.")
-            : QStringLiteral("Desktop visibility is not yet confirmed.");
-    case RuntimeHostStage::ClientConnected:
-        return state.nativeDesktopReady && !state.clients.isEmpty()
-            ? QStringLiteral("Remote device connected.")
-            : QStringLiteral("Connection established; desktop is not yet confirmed.");
-    case RuntimeHostStage::Revoked:
-        return QStringLiteral("Sharing stopped.");
+    case State::DesktopInitializing:
+        return QStringLiteral("Preparing the local desktop.");
+    case State::Connected:
+        return QStringLiteral("Remote device connected.");
+    case State::Stopping: return QStringLiteral("Stopping.");
+    case State::Error:
+        return state.failure.isEmpty()
+            ? QStringLiteral("Hosting error.")
+            : QStringLiteral("Hosting error: ") + state.failure;
     }
-
-    return QStringLiteral("Unknown hosting state.");
+    return QStringLiteral("Hosting error.");
 }
 
 [[nodiscard]] bool mayStillBeHosting(const HostStatus& state) noexcept
 {
-    using rdp_server::server::runtime::RuntimeHostStage;
+    return rdp_server::server::runtime::runtimeProductStateMayHost(
+        state.productState);
+}
 
-    switch (state.stage)
-    {
-    case RuntimeHostStage::ListenerAvailable:
-    case RuntimeHostStage::ClientAuthenticating:
-    case RuntimeHostStage::ShareActivated:
-    case RuntimeHostStage::DesktopVisible:
-    case RuntimeHostStage::ClientConnected:
-        return true;
-    case RuntimeHostStage::Stopped:
-    case RuntimeHostStage::PackageInstalled:
-    case RuntimeHostStage::CredentialsConfigured:
-    case RuntimeHostStage::Revoked:
-        return state.sharing || state.startPending;
-    }
-
-    return true;
+[[nodiscard]] bool sharingToggleOn(const HostStatus& state) noexcept
+{
+    return rdp_server::server::runtime::runtimeProductStateSharingToggleOn(
+        state.productState);
 }
 
 QString platformUnavailableText(const HostStatus& status)
@@ -600,6 +569,8 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
 {
     if (!state.controlAvailable)
         return QStringLiteral("Remote hosting is unavailable in this build");
+    if (!state.credentialCapabilities.existingOsAccount)
+        return QStringLiteral("Existing OS Account access is unavailable");
     if (!state.credentialsConfigured)
         return QStringLiteral("Existing OS Account access is not configured");
     if (!state.desktopAuthorized || state.desktop.isEmpty())
@@ -664,9 +635,7 @@ void DesktopWindow::requestStart()
     }
 
     userFacingError_.clear();
-    stopRequested_ = false;
-    startRequested_ = host_.start(currentHostRequest());
-    if (!startRequested_)
+    if (!host_.start(currentHostRequest()))
         userFacingError_ = QStringLiteral("Sharing could not be started.");
     refresh();
 }
@@ -676,14 +645,11 @@ void DesktopWindow::requestStop()
     const HostStatus snapshot = host_.status();
     if (!mayStillBeHosting(snapshot))
     {
-        stopRequested_ = false;
         refresh();
         return;
     }
 
     userFacingError_.clear();
-    startRequested_ = false;
-    stopRequested_ = true;
     host_.stopAndRevoke();
     refresh();
 }
@@ -691,8 +657,6 @@ void DesktopWindow::requestStop()
 void DesktopWindow::requestQuit()
 {
     quitRequested_ = true;
-    startRequested_ = false;
-    stopRequested_ = true;
     userFacingError_.clear();
 
     // Explicit Quit always enters the runtime's Stop/Revoke path first.
@@ -707,28 +671,45 @@ void DesktopWindow::updateTray(
     const HostStatus& snapshot, const QString& address)
 {
     trayCopy_->setEnabled(!address.isEmpty());
-    traySharing_->setText(
-        mayStillBeHosting(snapshot)
-            ? (stopRequested_ ? QStringLiteral("Stopping…")
-                              : QStringLiteral("Stop Sharing"))
-            : (startRequested_ ? QStringLiteral("Starting…")
-                               : QStringLiteral("Start Sharing")));
+    using ProductState =
+        rdp_server::server::runtime::RuntimeProductHostState;
+    switch (snapshot.productState)
+    {
+    case ProductState::Starting:
+        traySharing_->setText(QStringLiteral("Starting…")); break;
+    case ProductState::Stopping:
+        traySharing_->setText(QStringLiteral("Stopping…")); break;
+    case ProductState::Listening:
+    case ProductState::Authenticating:
+    case ProductState::DesktopInitializing:
+    case ProductState::Connected:
+        traySharing_->setText(QStringLiteral("Stop Sharing")); break;
+    case ProductState::Stopped:
+    case ProductState::Error:
+        traySharing_->setText(QStringLiteral("Start Sharing")); break;
+    }
     traySharing_->setEnabled(
-        mayStillBeHosting(snapshot) || canStart());
+        snapshot.productState != ProductState::Starting &&
+        snapshot.productState != ProductState::Stopping &&
+        (sharingToggleOn(snapshot) || canStart()));
 
-    if (!snapshot.clients.isEmpty())
+    if (snapshot.clientCount != 0U &&
+        snapshot.productState ==
+            rdp_server::server::runtime::RuntimeProductHostState::Connected)
     {
         trayClients_->setText(
-            snapshot.clients.size() == 1
+            snapshot.clientCount == 1U
                 ? QStringLiteral("1 connected device")
                 : QStringLiteral("%1 connected devices")
-                      .arg(snapshot.clients.size()));
+                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
     }
-    else if (!snapshot.pendingClients.isEmpty())
+    else if (snapshot.clientCount != 0U)
     {
         trayClients_->setText(
-            QStringLiteral("%1 device connecting")
-                .arg(snapshot.pendingClients.size()));
+            snapshot.clientCount == 1U
+                ? QStringLiteral("1 device connecting")
+                : QStringLiteral("%1 devices connecting")
+                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
     }
     else
     {
@@ -781,21 +762,24 @@ void DesktopWindow::refresh()
             }
         }
 
-        // Prefer a private IPv4 address for the product default, then fall
-        // back to the first runtime-approved private address. Manual Advanced
-        // overrides remain sticky while that exact interface/address survives.
-        if (selectedIndex == 0)
+        // R10 owns the automatic endpoint recommendation. Manual Advanced
+        // override remains sticky while the exact prior choice survives.
+        if (selectedIndex == 0 &&
+            !snapshot.recommendedInterfaceId.isEmpty() &&
+            !snapshot.recommendedAddress.isEmpty())
         {
             for (int index = 1; index < interfaces_->count(); ++index)
             {
-                if (!interfaces_->itemData(index).toString().contains(':'))
+                if (interfaces_->itemData(index).toString() ==
+                        snapshot.recommendedAddress &&
+                    interfaces_->itemData(
+                        index, Qt::UserRole + 1).toString() ==
+                        snapshot.recommendedInterfaceId)
                 {
                     selectedIndex = index;
                     break;
                 }
             }
-            if (selectedIndex == 0 && interfaces_->count() > 1)
-                selectedIndex = 1;
         }
         interfaces_->setCurrentIndex(selectedIndex);
     }
@@ -819,28 +803,34 @@ void DesktopWindow::refresh()
             clientSelection_->setCurrentIndex(index);
     }
 
-    if (mayStillBeHosting(snapshot))
-        startRequested_ = false;
-    else
-        stopRequested_ = false;
-    if (!snapshot.failure.isEmpty() || !snapshot.controlAvailable)
-        startRequested_ = false;
-
-    const bool authoritativeOn = mayStillBeHosting(snapshot);
+    const bool authoritativeOn = sharingToggleOn(snapshot);
     {
         const QSignalBlocker blocked(sharingToggle_);
         sharingToggle_->setChecked(authoritativeOn);
     }
 
-    if (stopRequested_ && authoritativeOn)
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopping…"));
-    else if (authoritativeOn &&
-             (snapshot.listenerReady || snapshot.sharing))
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Sharing"));
-    else if (authoritativeOn || startRequested_ || snapshot.startPending)
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Starting…"));
-    else
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopped"));
+    using ProductState =
+        rdp_server::server::runtime::RuntimeProductHostState;
+    switch (snapshot.productState)
+    {
+    case ProductState::Stopped:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopped")); break;
+    case ProductState::Starting:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Starting")); break;
+    case ProductState::Listening:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Listening")); break;
+    case ProductState::Authenticating:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Authenticating")); break;
+    case ProductState::DesktopInitializing:
+        serverStateTitle_->setText(
+            QStringLiteral("RDP Server — Desktop Initializing")); break;
+    case ProductState::Connected:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Connected")); break;
+    case ProductState::Stopping:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopping")); break;
+    case ProductState::Error:
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Error")); break;
+    }
 
     const QString platformMessage = platformUnavailableText(snapshot);
     platformStatus_->setText(platformMessage);
@@ -854,51 +844,66 @@ void DesktopWindow::refresh()
     copy_->setEnabled(!address.isEmpty());
 
     credentialStatus_->setText(
-        snapshot.credentialsConfigured
+        !snapshot.credentialCapabilities.existingOsAccount
             ? QStringLiteral(
-                  "Existing OS Account mode is configured. Remote clients "
-                  "must sign in with that account.")
-            : QStringLiteral(
-                  "Existing OS Account mode. Configure access before sharing."));
+                  "Existing OS Account mode is unavailable in this build.")
+            : (snapshot.credentialsConfigured
+                ? QStringLiteral(
+                      "Existing OS Account mode is configured. Remote clients "
+                      "must sign in with that account.")
+                : QStringLiteral(
+                      "Existing OS Account mode. Configure access before sharing.")));
     configureOsAccount_->setEnabled(
-        snapshot.controlAvailable && !authoritativeOn && !startRequested_);
+        snapshot.controlAvailable &&
+        snapshot.credentialCapabilities.existingOsAccount &&
+        !mayStillBeHosting(snapshot));
 
     permissionStatus_->setText(ownerPermissionStatusText(snapshot));
     requestHostPermission_->setEnabled(
         snapshot.controlAvailable && snapshot.credentialsConfigured &&
-        !authoritativeOn && !startRequested_);
+        !mayStillBeHosting(snapshot));
     allowRemoteInput_->setEnabled(
-        snapshot.controlAvailable && !authoritativeOn && !startRequested_);
+        snapshot.controlAvailable && !mayStillBeHosting(snapshot));
     permissionLifetimeMinutes_->setEnabled(
         snapshot.controlAvailable && snapshot.credentialsConfigured &&
-        !authoritativeOn && !startRequested_);
+        !mayStillBeHosting(snapshot));
 
     const QString denial = blockedReason(snapshot);
     sharingToggle_->setEnabled(
-        authoritativeOn || (!startRequested_ && denial.isEmpty()));
+        snapshot.productState != ProductState::Starting &&
+        snapshot.productState != ProductState::Stopping &&
+        (authoritativeOn ||
+         (snapshot.productState == ProductState::Stopped &&
+          denial.isEmpty())));
 
-    if (stopRequested_ && authoritativeOn)
+    switch (snapshot.productState)
     {
-        status_->setText(QStringLiteral("Stopping sharing…"));
-    }
-    else if (authoritativeOn &&
-             (snapshot.listenerReady || snapshot.sharing))
-    {
-        status_->setText(QStringLiteral("Sharing is on."));
-    }
-    else if (authoritativeOn || startRequested_ || snapshot.startPending)
-    {
-        status_->setText(QStringLiteral("Starting sharing…"));
-    }
-    else if (snapshot.failure.isEmpty() && denial.isEmpty())
-    {
-        status_->setText(QStringLiteral("Ready to share."));
-    }
-    else
-    {
+    case ProductState::Starting:
+        status_->setText(QStringLiteral("Starting sharing…")); break;
+    case ProductState::Listening:
+        status_->setText(QStringLiteral("Listening for a remote device.")); break;
+    case ProductState::Authenticating:
+        status_->setText(QStringLiteral("A remote device is authenticating.")); break;
+    case ProductState::DesktopInitializing:
+        status_->setText(QStringLiteral("Preparing the local desktop.")); break;
+    case ProductState::Connected:
+        status_->setText(QStringLiteral("Sharing is on.")); break;
+    case ProductState::Stopping:
+        status_->setText(QStringLiteral("Stopping sharing…")); break;
+    case ProductState::Error:
         status_->setText(
-            QStringLiteral("Not ready: ") +
-            (snapshot.failure.isEmpty() ? denial : snapshot.failure));
+            snapshot.failure.isEmpty()
+                ? QStringLiteral("Hosting error.")
+                : QStringLiteral("Hosting error: ") + snapshot.failure);
+        break;
+    case ProductState::Stopped:
+        if (snapshot.failure.isEmpty() && denial.isEmpty())
+            status_->setText(QStringLiteral("Ready to share."));
+        else
+            status_->setText(
+                QStringLiteral("Not ready: ") +
+                (snapshot.failure.isEmpty() ? denial : snapshot.failure));
+        break;
     }
 
     selectedInterfaceStatus_->setText(
@@ -916,7 +921,7 @@ void DesktopWindow::refresh()
 
     const bool clientActionsEnabled =
         snapshot.controlAvailable &&
-        (snapshot.sharing || snapshot.startPending) &&
+        mayStillBeHosting(snapshot) &&
         !snapshot.activeClients.isEmpty();
     clientSelection_->setEnabled(clientActionsEnabled);
     disconnect_->setEnabled(

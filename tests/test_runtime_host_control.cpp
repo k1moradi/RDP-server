@@ -77,6 +77,64 @@ int main(int argumentCount, char** argumentValues)
         assert(!host.status().listenerAvailable);
         return 0;
     }
+    if (testCase == "host-control-product-status-projection")
+    {
+        const std::vector<RuntimeHostInterface> interfaces{
+            {"z-ipv6", "IPv6", {"fd00::20"}, false, true},
+            {"b-ipv4", "IPv4 B", {"192.168.2.22"}, false, true},
+            {"a-ipv4", "IPv4 A", {"10.0.0.7"}, false, true}};
+        const auto recommended =
+            recommendRuntimePrivateLanEndpoint(interfaces, 3390U);
+        assert(recommended.valid());
+        assert(recommended.interfaceId == "a-ipv4");
+        assert(recommended.address == "10.0.0.7");
+        assert(recommended.port == 3390U);
+
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::Stopped, RuntimeHostError::None,
+                   false) == RuntimeProductHostState::Stopped);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::ListenerAvailable, RuntimeHostError::None,
+                   false) == RuntimeProductHostState::Listening);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::ClientAuthenticating,
+                   RuntimeHostError::None,
+                   false) == RuntimeProductHostState::Authenticating);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::ShareActivated, RuntimeHostError::None,
+                   false) == RuntimeProductHostState::DesktopInitializing);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::ClientConnected, RuntimeHostError::None,
+                   true) == RuntimeProductHostState::Connected);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::Revoked, RuntimeHostError::AccessRevoked,
+                   false) == RuntimeProductHostState::Stopped);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::Revoked,
+                   RuntimeHostError::HostSessionStale,
+                   false) == RuntimeProductHostState::Error);
+
+        assert(runtimeProductStateMayHost(
+            RuntimeProductHostState::Starting));
+        assert(runtimeProductStateMayHost(
+            RuntimeProductHostState::Stopping));
+        assert(!runtimeProductStateSharingToggleOn(
+            RuntimeProductHostState::Starting));
+        assert(runtimeProductStateSharingToggleOn(
+            RuntimeProductHostState::Listening));
+        assert(runtimeProductStateSharingToggleOn(
+            RuntimeProductHostState::Stopping));
+        assert(!kStandalonePasswordProductCapabilityApproved);
+
+        const auto unavailableStatus = host.status();
+        assert(unavailableStatus.product.state ==
+               RuntimeProductHostState::Error);
+        assert(!unavailableStatus.product.controlAvailable);
+        assert(unavailableStatus.product.lastErrorMessage ==
+               "Host control unavailable");
+        return 0;
+    }
+
     if (testCase == "host-control-clipboard-state-denials")
     {
         assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);

@@ -227,6 +227,7 @@ if(TARGET rdp-server-linux-host-control)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     foreach(host_control_case IN ITEMS
             linux-host-control-no-consent-start-denials
+            linux-host-control-product-status-projection
             linux-host-control-revalidated-interface-denials
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
@@ -317,6 +318,7 @@ else()
 endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
+        host-control-product-status-projection
         host-control-clipboard-state-denials
         host-control-credential-setup-denials
         host-control-selected-lan-interface-denials
@@ -3383,6 +3385,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-authoritative-sharing-toggle
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;lifecycle" TIMEOUT 30)
+    add_test(NAME gui.offscreen-r10-product-status-authority
+        COMMAND test_desktop_gui_offline product-status-authority)
+    set_tests_properties(gui.offscreen-r10-product-status-authority
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;runtime;lifecycle;lan" TIMEOUT 30)
     # Closing while active hides only presentation; explicit Quit enters
     # Stop/Revoke first and cannot complete before authoritative retirement.
     add_test(NAME gui.offscreen-tray-close-hide-and-explicit-quit

@@ -51,6 +51,7 @@ public:
     bool permissionSetupSucceeds{};
     bool startSucceeds{};
     bool refuseRetirement{};
+    bool deriveProductStatusFromLegacy{true};
 
     [[nodiscard]] std::vector<RuntimeHostInterface>
     enumerateLocalInterfaces() const override
@@ -60,7 +61,41 @@ public:
 
     [[nodiscard]] RuntimeHostStatus status() const override
     {
-        return snapshot;
+        RuntimeHostStatus result = snapshot;
+        if (!deriveProductStatusFromLegacy)
+            return result;
+
+        result.product.controlAvailable =
+            result.lastError != RuntimeHostError::ControlUnavailable;
+        result.product.eligibleLanInterfaces = interfaces;
+        result.product.recommendedEndpoint =
+            recommendRuntimePrivateLanEndpoint(interfaces);
+        result.product.boundEndpoint = result.boundEndpoint;
+        result.product.clientCount = result.activeClients.size();
+        result.product.activeClientIds.clear();
+        for (const RuntimeHostClient& client : result.activeClients)
+        {
+            if (client.opaqueId != 0U)
+                result.product.activeClientIds.emplace_back(client.opaqueId);
+        }
+        result.product.credentialsConfigured =
+            result.credentialsConfigured;
+        result.product.ownerAuthorized = result.hostOwnerAuthorized;
+        result.product.ownerPermission = result.ownerGrant;
+        result.product.tlsIdentityReady = result.tlsIdentityReady;
+        if (result.tlsIdentity.fingerprintAvailable)
+        {
+            result.product.tlsFingerprint =
+                result.tlsIdentity.certificateSha256;
+            result.product.tlsFingerprintAvailable = true;
+        }
+        result.product.state = runtimeProductStateFor(
+            result.stage, result.lastError, result.nativeDesktopReady);
+        result.product.lastErrorMessage =
+            result.lastError == RuntimeHostError::None
+            ? std::string{}
+            : std::string(runtimeHostErrorMessage(result.lastError));
+        return result;
     }
 
     [[nodiscard]] RuntimeHostResult configure(
@@ -111,8 +146,16 @@ public:
     [[nodiscard]] RuntimeHostResult stopSharing() override
     {
         ++stopCalls;
-        if (!refuseRetirement)
+        if (refuseRetirement)
+        {
+            deriveProductStatusFromLegacy = false;
+            snapshot.product.state = RuntimeProductHostState::Stopping;
+        }
+        else
+        {
+            deriveProductStatusFromLegacy = true;
             snapshot.stage = RuntimeHostStage::Stopped;
+        }
         return {RuntimeHostError::None, false};
     }
 
@@ -140,6 +183,7 @@ public:
         ++revokeCalls;
         if (!refuseRetirement)
         {
+            deriveProductStatusFromLegacy = true;
             snapshot.stage = RuntimeHostStage::Revoked;
             snapshot.clipboardState = RuntimeClipboardState::Retired;
         }
@@ -192,6 +236,7 @@ void prepareReadyHost(FakeRuntimeHost& runtime)
     runtime.snapshot.credentialsConfigured = true;
     runtime.snapshot.hostOwnerAuthorized = true;
     runtime.snapshot.tlsIdentityReady = true;
+    runtime.snapshot.product.credentialCapabilities.existingOsAccount = true;
     runtime.interfaces = {
         RuntimeHostInterface{
             "ethernet-1", "Private Ethernet",
@@ -321,14 +366,14 @@ int main(int argc, char** argv)
         toggle->click();
         assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
         assert(!toggle->isChecked());
-        assert(title->text().contains("Starting"));
+        assert(title->text().contains("Stopped"));
 
         runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
         runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         window.refresh();
         assert(toggle->isChecked());
-        assert(title->text().contains("Sharing"));
+        assert(title->text().contains("Listening"));
 
         runtime.refuseRetirement = true;
         toggle->click();
@@ -614,33 +659,27 @@ int main(int argc, char** argv)
 
     if (mode == "lifecycle-stages")
     {
+        runtime.deriveProductStatusFromLegacy = false;
         runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.product.controlAvailable = true;
         DesktopWindow window(host);
         auto* lifecycle =
             requiredLabel(window, "hostLifecycleStatus");
-        const auto check = [&](RuntimeHostStage stage, const char* text) {
-            runtime.snapshot.stage = stage;
-            window.refresh();
-            assert(lifecycle->text().contains(
-                QString::fromLatin1(text)));
-        };
-        check(RuntimeHostStage::Stopped, "Stopped");
-        check(RuntimeHostStage::PackageInstalled, "Installed");
-        check(RuntimeHostStage::CredentialsConfigured, "Access configured");
-        check(RuntimeHostStage::ListenerAvailable, "Starting");
-        runtime.snapshot.listenerAvailable = true;
-        check(RuntimeHostStage::ListenerAvailable, "Listening");
-        check(RuntimeHostStage::ClientAuthenticating, "authenticating");
-        check(RuntimeHostStage::ShareActivated, "activated");
-        runtime.snapshot.graphicsReady = true;
-        check(RuntimeHostStage::ShareActivated, "Graphics ready");
-        runtime.snapshot.nativeDesktopInitializing = true;
-        check(RuntimeHostStage::ShareActivated, "Preparing");
-        runtime.snapshot.nativeDesktopInitializing = false;
-        check(RuntimeHostStage::DesktopVisible, "not yet confirmed");
-        runtime.snapshot.nativeDesktopReady = true;
-        check(RuntimeHostStage::DesktopVisible, "visible");
-        check(RuntimeHostStage::Revoked, "stopped");
+        const auto check =
+            [&](RuntimeProductHostState state, const char* text) {
+                runtime.snapshot.product.state = state;
+                window.refresh();
+                assert(lifecycle->text().contains(
+                    QString::fromLatin1(text)));
+            };
+        check(RuntimeProductHostState::Stopped, "Stopped");
+        check(RuntimeProductHostState::Starting, "Starting");
+        check(RuntimeProductHostState::Listening, "Listening");
+        check(RuntimeProductHostState::Authenticating, "authenticating");
+        check(RuntimeProductHostState::DesktopInitializing, "Preparing");
+        check(RuntimeProductHostState::Connected, "connected");
+        check(RuntimeProductHostState::Stopping, "Stopping");
+        check(RuntimeProductHostState::Error, "error");
         return 0;
     }
 
@@ -681,20 +720,94 @@ int main(int argc, char** argv)
         auto* lifecycle =
             requiredLabel(window, "hostLifecycleStatus");
 
-        assert(lifecycle->text().contains("activated"));
+        assert(lifecycle->text().contains("Preparing"));
+        const QString initializingText = lifecycle->text();
         runtime.snapshot.graphicsReady = true;
         window.refresh();
-        assert(lifecycle->text().contains("Graphics ready"));
+        assert(lifecycle->text() == initializingText);
         runtime.snapshot.nativeDesktopInitializing = true;
         window.refresh();
-        assert(lifecycle->text().contains("Preparing"));
+        assert(lifecycle->text() == initializingText);
         runtime.snapshot.stage = RuntimeHostStage::DesktopVisible;
         runtime.snapshot.nativeDesktopInitializing = false;
         window.refresh();
-        assert(lifecycle->text().contains("not yet confirmed"));
+        assert(lifecycle->text().contains("Preparing"));
         runtime.snapshot.nativeDesktopReady = true;
         window.refresh();
-        assert(lifecycle->text().contains("visible"));
+        assert(lifecycle->text().contains("connected"));
+        return 0;
+    }
+
+    if (mode == "product-status-authority")
+    {
+        runtime.deriveProductStatusFromLegacy = false;
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.boundEndpoint = "10.9.9.9:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.activeClients = {
+            {77U, "192.168.50.77", false, true, true}};
+        runtime.interfaces = {
+            {"ethernet-1", "Ethernet", {"192.168.50.10"}, false, true},
+            {"wifi-2", "Wi-Fi", {"192.168.50.20"}, false, true}};
+
+        auto& product = runtime.snapshot.product;
+        product.state = RuntimeProductHostState::Stopped;
+        product.controlAvailable = true;
+        product.eligibleLanInterfaces = runtime.interfaces;
+        product.recommendedEndpoint =
+            {"wifi-2", "192.168.50.20", 3389U};
+        product.credentialCapabilities.existingOsAccount = true;
+        product.credentialsConfigured = true;
+        product.ownerAuthorized = true;
+        product.tlsIdentityReady = true;
+
+        DesktopWindow window(host);
+        auto* toggle = sharingToggle(window);
+        auto* title = requiredLabel(window, "serverStateTitle");
+        auto* address = requiredLabel(window, "connectionAddress");
+        auto* interfaces = requiredCombo(window, "lanInterface");
+
+        assert(!toggle->isChecked());
+        assert(title->text().contains("Stopped"));
+        assert(interfaces->currentData().toString() ==
+               QStringLiteral("192.168.50.20"));
+        assert(address->text() ==
+               QStringLiteral("192.168.50.20:3389"));
+
+        runtime.snapshot.stage = RuntimeHostStage::Stopped;
+        runtime.snapshot.listenerAvailable = false;
+        runtime.snapshot.nativeDesktopReady = false;
+        runtime.snapshot.boundEndpoint.clear();
+        product.state = RuntimeProductHostState::Connected;
+        product.boundEndpoint = "192.168.50.20:3389";
+        product.clientCount = 1U;
+        product.activeClientIds = {77U};
+        window.refresh();
+        assert(toggle->isChecked());
+        assert(title->text().contains("Connected"));
+        assert(address->text() ==
+               QStringLiteral("192.168.50.20:3389"));
+        assert(host.status().clientCount == 1U);
+        assert(host.status().activeClients.size() == 1U);
+        assert(host.status().activeClients.front().opaqueId == 77U);
+
+        product.state = RuntimeProductHostState::Stopping;
+        window.refresh();
+        assert(toggle->isChecked());
+        assert(title->text().contains("Stopping"));
+
+        product.state = RuntimeProductHostState::Error;
+        product.lastErrorMessage = "Host operation failed";
+        window.refresh();
+        assert(!toggle->isChecked());
+        assert(title->text().contains("Error"));
+        assert(requiredLabel(window, "sharingReadinessStatus")
+                   ->text().contains("Host operation failed"));
         return 0;
     }
 

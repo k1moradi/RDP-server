@@ -62,6 +62,35 @@ int main(int argc, char** argv)
         assert(control.status().activeClients.empty());
         return 0;
     }
+    if (testCase == "linux-host-control-product-status-projection")
+    {
+        const auto status = control.status();
+        assert(status.product.state == RuntimeProductHostState::Stopped);
+        assert(status.product.controlAvailable);
+        assert(!status.product.credentialCapabilities.existingOsAccount);
+        assert(!status.product.credentialCapabilities.standalonePassword);
+        assert(!status.product.credentialsConfigured);
+        assert(!status.product.ownerAuthorized);
+        assert(status.product.clientCount == 0U);
+        assert(status.product.activeClientIds.empty());
+        assert(status.product.boundEndpoint.empty());
+        assert(status.product.lastErrorMessage ==
+               "Host-owner permission required");
+
+        const auto expected = recommendRuntimePrivateLanEndpoint(
+            status.product.eligibleLanInterfaces);
+        assert(status.product.recommendedEndpoint.valid() == expected.valid());
+        if (expected.valid())
+        {
+            assert(status.product.recommendedEndpoint.interfaceId ==
+                   expected.interfaceId);
+            assert(status.product.recommendedEndpoint.address ==
+                   expected.address);
+            assert(status.product.recommendedEndpoint.port == expected.port);
+        }
+        return 0;
+    }
+
     if (testCase == "linux-host-control-revalidated-interface-denials")
     {
         RuntimeHostOptions options{"missing#0", "0.0.0.0", 3389U, true, false};

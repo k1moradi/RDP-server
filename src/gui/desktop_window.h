@@ -78,8 +78,6 @@ private:
     QAction* trayClients_;
     QAction* trayQuit_;
 
-    bool startRequested_{false};
-    bool stopRequested_{false};
     bool quitRequested_{false};
     QString userFacingError_;
 };

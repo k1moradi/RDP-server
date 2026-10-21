@@ -5,6 +5,7 @@
 #include "server/runtime/runtime_tls_identity_status.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -113,6 +114,18 @@ struct RuntimeHostOptions
     bool afterLoginLaunchRequested{};
 };
 
+struct RuntimeHostRecommendedEndpoint final
+{
+    std::string interfaceId;
+    std::string address;
+    std::uint16_t port{};
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return !interfaceId.empty() && !address.empty() && port != 0U;
+    }
+};
+
 // This is a pure R10-selected bind-preflight, never listener authorization.
 // A real controller must re-enumerate the selected native interface/address
 // immediately before the R1 bind and revalidate the actual bound endpoint.
@@ -151,6 +164,46 @@ struct RuntimeHostOptions
         : RuntimeHostResult{RuntimeHostError::InterfaceUnavailable, false};
 }
 
+[[nodiscard]] inline RuntimeHostRecommendedEndpoint
+recommendRuntimePrivateLanEndpoint(
+    const std::vector<RuntimeHostInterface>& interfaces,
+    const std::uint16_t port = 3389U)
+{
+    RuntimeHostRecommendedEndpoint recommended;
+    bool recommendedIsIpv6 = true;
+    for (const RuntimeHostInterface& interface : interfaces)
+    {
+        for (const std::string& address : interface.localAddresses)
+        {
+            const RuntimeHostOptions candidate{
+                interface.stableId, address, port, true, false};
+            if (!assessRuntimeSelectedLanEndpoint(
+                    candidate, interfaces).succeeded())
+                continue;
+
+            const bool candidateIsIpv6 =
+                address.find(':') != std::string::npos;
+            const bool betterFamily =
+                recommended.valid() && recommendedIsIpv6 && !candidateIsIpv6;
+            const bool sameFamilyBetterIdentity =
+                recommended.valid() &&
+                candidateIsIpv6 == recommendedIsIpv6 &&
+                (interface.stableId < recommended.interfaceId ||
+                 (interface.stableId == recommended.interfaceId &&
+                  address < recommended.address));
+            if (!recommended.valid() || betterFamily ||
+                sameFamilyBetterIdentity)
+            {
+                recommended.interfaceId = interface.stableId;
+                recommended.address = address;
+                recommended.port = port;
+                recommendedIsIpv6 = candidateIsIpv6;
+            }
+        }
+    }
+    return recommended;
+}
+
 struct RuntimeHostClient
 {
     // Opaque GUI handle, not an R2 lease or R3 session identifier.
@@ -182,6 +235,140 @@ struct RuntimeOwnerGrantObservation final
     RuntimeOwnerGrantState state{RuntimeOwnerGrantState::Unavailable};
     std::uint32_t effectivePermissionMask{};
     std::uint64_t remainingMilliseconds{};
+};
+
+enum class RuntimeProductHostState : std::uint8_t
+{
+    Stopped,
+    Starting,
+    Listening,
+    Authenticating,
+    DesktopInitializing,
+    Connected,
+    Stopping,
+    Error,
+};
+
+[[nodiscard]] constexpr bool runtimeProductStateMayHost(
+    RuntimeProductHostState state) noexcept
+{
+    switch (state)
+    {
+    case RuntimeProductHostState::Starting:
+    case RuntimeProductHostState::Listening:
+    case RuntimeProductHostState::Authenticating:
+    case RuntimeProductHostState::DesktopInitializing:
+    case RuntimeProductHostState::Connected:
+    case RuntimeProductHostState::Stopping:
+        return true;
+    case RuntimeProductHostState::Stopped:
+    case RuntimeProductHostState::Error:
+        return false;
+    }
+    return true;
+}
+
+[[nodiscard]] constexpr bool runtimeProductStateSharingToggleOn(
+    RuntimeProductHostState state) noexcept
+{
+    switch (state)
+    {
+    case RuntimeProductHostState::Listening:
+    case RuntimeProductHostState::Authenticating:
+    case RuntimeProductHostState::DesktopInitializing:
+    case RuntimeProductHostState::Connected:
+    case RuntimeProductHostState::Stopping:
+        return true;
+    case RuntimeProductHostState::Stopped:
+    case RuntimeProductHostState::Starting:
+    case RuntimeProductHostState::Error:
+        return false;
+    }
+    return false;
+}
+
+[[nodiscard]] constexpr RuntimeProductHostState runtimeProductStateFor(
+    RuntimeHostStage stage, RuntimeHostError error,
+    bool nativeDesktopReady) noexcept
+{
+    switch (stage)
+    {
+    case RuntimeHostStage::ListenerAvailable:
+        return RuntimeProductHostState::Listening;
+    case RuntimeHostStage::ClientAuthenticating:
+        return RuntimeProductHostState::Authenticating;
+    case RuntimeHostStage::ShareActivated:
+        return RuntimeProductHostState::DesktopInitializing;
+    case RuntimeHostStage::DesktopVisible:
+    case RuntimeHostStage::ClientConnected:
+        return nativeDesktopReady
+            ? RuntimeProductHostState::Connected
+            : RuntimeProductHostState::DesktopInitializing;
+    case RuntimeHostStage::Revoked:
+        return error == RuntimeHostError::HostSessionStale ||
+                       error == RuntimeHostError::InternalFailure ||
+                       error == RuntimeHostError::NativeAuthorizationDenied
+            ? RuntimeProductHostState::Error
+            : RuntimeProductHostState::Stopped;
+    case RuntimeHostStage::Stopped:
+    case RuntimeHostStage::PackageInstalled:
+    case RuntimeHostStage::CredentialsConfigured:
+        break;
+    }
+
+    switch (error)
+    {
+    case RuntimeHostError::ControlUnavailable:
+    case RuntimeHostError::InvalidConfiguration:
+    case RuntimeHostError::NativeAuthorizationDenied:
+    case RuntimeHostError::HostSessionStale:
+    case RuntimeHostError::InternalFailure:
+        return RuntimeProductHostState::Error;
+    case RuntimeHostError::None:
+    case RuntimeHostError::CredentialNotConfigured:
+    case RuntimeHostError::UnsupportedIndependentPasswordNla:
+    case RuntimeHostError::CredentialProviderUnavailable:
+    case RuntimeHostError::HostConsentRequired:
+    case RuntimeHostError::InterfaceUnavailable:
+    case RuntimeHostError::ListenerPolicyDenied:
+    case RuntimeHostError::PortUnavailable:
+    case RuntimeHostError::TlsIdentityUnavailable:
+    case RuntimeHostError::AuthenticationRejected:
+    case RuntimeHostError::ShareActivationUnavailable:
+    case RuntimeHostError::GraphicsUnavailable:
+    case RuntimeHostError::ClientNotFound:
+    case RuntimeHostError::AccessRevoked:
+    case RuntimeHostError::AuthenticationRateLimited:
+        return RuntimeProductHostState::Stopped;
+    }
+    return RuntimeProductHostState::Error;
+}
+
+struct RuntimeCredentialCapabilities final
+{
+    bool existingOsAccount{};
+    bool standalonePassword{};
+};
+
+inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;
+
+struct RuntimeProductHostStatus final
+{
+    RuntimeProductHostState state{RuntimeProductHostState::Error};
+    bool controlAvailable{};
+    std::vector<RuntimeHostInterface> eligibleLanInterfaces;
+    RuntimeHostRecommendedEndpoint recommendedEndpoint{};
+    std::string boundEndpoint;
+    std::size_t clientCount{};
+    std::vector<std::uint64_t> activeClientIds;
+    RuntimeCredentialCapabilities credentialCapabilities{};
+    bool credentialsConfigured{};
+    bool ownerAuthorized{};
+    RuntimeOwnerGrantObservation ownerPermission{};
+    bool tlsIdentityReady{};
+    RuntimeTlsCertificateFingerprint tlsFingerprint{};
+    bool tlsFingerprintAvailable{};
+    std::string lastErrorMessage;
 };
 
 struct RuntimeHostStatus
@@ -218,6 +405,10 @@ struct RuntimeHostStatus
     // True only after an accepted client was actually retired while the
     // current listener remains active. Cleared on a new accept/host teardown.
     bool clientDisconnected{};
+
+    // R10-owned product projection. R7 must not rebuild lifecycle from the
+    // protocol/native diagnostics above.
+    RuntimeProductHostStatus product{};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.
@@ -250,7 +441,14 @@ class UnavailableRuntimeHostControl final : public RuntimeHostControl
 public:
     [[nodiscard]] std::vector<RuntimeHostInterface>
     enumerateLocalInterfaces() const override { return {}; }
-    [[nodiscard]] RuntimeHostStatus status() const override { return {}; }
+    [[nodiscard]] RuntimeHostStatus status() const override
+    {
+        RuntimeHostStatus snapshot;
+        snapshot.product.state = RuntimeProductHostState::Error;
+        snapshot.product.lastErrorMessage =
+            std::string(runtimeHostErrorMessage(snapshot.lastError));
+        return snapshot;
+    }
     [[nodiscard]] RuntimeHostResult configure(
         const RuntimeHostOptions&) override { return {}; }
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(

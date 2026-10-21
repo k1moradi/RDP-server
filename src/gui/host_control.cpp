@@ -29,30 +29,6 @@ using rdp_server::server::runtime::RuntimeHostError;
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
 }
 
-[[nodiscard]] bool isSharingStage(RuntimeHostStage stage) noexcept
-{
-    switch (stage)
-    {
-    case RuntimeHostStage::ShareActivated:
-    case RuntimeHostStage::DesktopVisible:
-    case RuntimeHostStage::ClientConnected:
-        return true;
-    case RuntimeHostStage::Stopped:
-    case RuntimeHostStage::PackageInstalled:
-    case RuntimeHostStage::CredentialsConfigured:
-    case RuntimeHostStage::ListenerAvailable:
-    case RuntimeHostStage::ClientAuthenticating:
-    case RuntimeHostStage::Revoked:
-        return false;
-    }
-    return false;
-}
-
-[[nodiscard]] bool isPendingStage(RuntimeHostStage stage) noexcept
-{
-    return stage == RuntimeHostStage::ListenerAvailable ||
-           stage == RuntimeHostStage::ClientAuthenticating;
-}
 } // namespace
 
 HostControl::HostControl(
@@ -68,6 +44,7 @@ HostStatus HostControl::status() const
     const RuntimeHostStatus runtimeStatus = runtime_.status();
     HostStatus view;
     view.stage = runtimeStatus.stage;
+    view.productState = runtimeStatus.product.state;
     const bool terminalHostSession =
         hasTerminalHostSessionError(runtimeStatus.lastError) ||
         runtimeStatus.stage == RuntimeHostStage::Revoked;
@@ -75,16 +52,17 @@ HostStatus HostControl::status() const
     // Preserve the raw R10 stage for explicit Stop/close retirement.
     view.listenerReady = runtimeStatus.listenerAvailable && !terminalHostSession &&
                          runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
-    view.controlAvailable =
-        runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
-    view.credentialsConfigured = runtimeStatus.credentialsConfigured;
+    view.controlAvailable = runtimeStatus.product.controlAvailable;
+    view.credentialsConfigured = runtimeStatus.product.credentialsConfigured;
+    view.credentialCapabilities =
+        runtimeStatus.product.credentialCapabilities;
     view.desktopAuthorized =
-        runtimeStatus.hostOwnerAuthorized && !terminalHostSession;
+        runtimeStatus.product.ownerAuthorized && !terminalHostSession;
     // Preserve only the current R2/R10 read-only observation. The GUI never
     // synthesizes granted scope/lifetime from its request controls, and an
     // unavailable/terminal host cannot publish stale effective grant facts.
     if (view.controlAvailable && !terminalHostSession)
-        view.ownerGrant = runtimeStatus.ownerGrant;
+        view.ownerGrant = runtimeStatus.product.ownerPermission;
     // Terminal ownership loss and unavailable control invalidate stale TLS
     // observations. A configured certificate is not permission to listen.
     const bool tlsObservationCurrent =
@@ -92,25 +70,33 @@ HostStatus HostControl::status() const
         runtimeStatus.lastError != RuntimeHostError::ControlUnavailable &&
         runtimeStatus.tlsIdentity.endpointGenerationIsCurrent(
             runtimeStatus.listenerGeneration);
-    view.tlsReady = tlsObservationCurrent && runtimeStatus.tlsIdentityReady;
+    view.tlsReady =
+        tlsObservationCurrent && runtimeStatus.product.tlsIdentityReady;
     if (tlsObservationCurrent)
         view.tlsIdentity = runtimeStatus.tlsIdentity;
-    const bool sharingStage = isSharingStage(runtimeStatus.stage);
+    view.tlsFingerprint = runtimeStatus.product.tlsFingerprint;
+    view.tlsFingerprintAvailable =
+        runtimeStatus.product.tlsFingerprintAvailable && tlsObservationCurrent;
+
+    const bool productMayHost =
+        runtimeProductStateMayHost(view.productState) && !terminalHostSession;
     view.graphicsReady =
-        sharingStage && runtimeStatus.graphicsReady && !terminalHostSession;
+        productMayHost && runtimeStatus.graphicsReady && !terminalHostSession;
     view.nativeDesktopReady =
-        sharingStage && runtimeStatus.nativeDesktopReady && !terminalHostSession;
+        productMayHost && runtimeStatus.nativeDesktopReady && !terminalHostSession;
     view.nativeDesktopInitializing =
-        view.graphicsReady && runtimeStatus.nativeDesktopInitializing &&
+        productMayHost && runtimeStatus.nativeDesktopInitializing &&
         !view.nativeDesktopReady;
     view.captureInputReady = view.nativeDesktopReady;
     view.clientDisconnected =
         runtimeStatus.clientDisconnected && view.listenerReady &&
-        runtimeStatus.stage == RuntimeHostStage::ListenerAvailable;
+        view.productState == RuntimeProductHostState::Listening;
     view.sharing =
-        sharingStage && !terminalHostSession;
+        runtimeProductStateSharingToggleOn(view.productState) &&
+        !terminalHostSession;
     view.startPending =
-        isPendingStage(runtimeStatus.stage) && !terminalHostSession;
+        view.productState == RuntimeProductHostState::Starting &&
+        !terminalHostSession;
     view.clipboardState = runtimeStatus.clipboardState;
     if (view.desktopAuthorized)
         view.desktop = QStringLiteral("Authorized logged-in desktop");
@@ -118,8 +104,8 @@ HostStatus HostControl::status() const
     // R10 owns the exact native interface/endpoint selection policy.
     // Project only eligible choices; a GUI label or wildcard is not bind
     // authority. The selected user port is revalidated by R10 on Start.
-    const std::vector<RuntimeHostInterface> interfaces =
-        runtime_.enumerateLocalInterfaces();
+    const std::vector<RuntimeHostInterface>& interfaces =
+        runtimeStatus.product.eligibleLanInterfaces;
     for (const RuntimeHostInterface& interface : interfaces)
     {
         for (const std::string& address : interface.localAddresses)
@@ -135,15 +121,25 @@ HostStatus HostControl::status() const
         }
     }
 
-    // A stale or unavailable runtime snapshot cannot prove a bound endpoint
-    // or client presence. Keep pending and connected clients distinct: an
-    // R2 authentication attempt is not a visible, admitted R3 desktop.
-    const bool activeStage = sharingStage || isPendingStage(runtimeStatus.stage);
-    if (view.controlAvailable && activeStage && !terminalHostSession)
+    view.recommendedInterfaceId =
+        toQString(runtimeStatus.product.recommendedEndpoint.interfaceId);
+    view.recommendedAddress =
+        toQString(runtimeStatus.product.recommendedEndpoint.address);
+    view.recommendedPort = runtimeStatus.product.recommendedEndpoint.port;
+    view.clientCount = runtimeStatus.product.clientCount;
+
+    if (view.controlAvailable && productMayHost && !terminalHostSession)
     {
-        view.lanAddress = toQString(runtimeStatus.boundEndpoint);
+        view.lanAddress = toQString(runtimeStatus.product.boundEndpoint);
         for (const RuntimeHostClient& client : runtimeStatus.activeClients)
         {
+            if (!std::ranges::any_of(
+                    runtimeStatus.product.activeClientIds,
+                    [id = client.opaqueId](std::uint64_t candidate) {
+                        return candidate == id;
+                    }))
+                continue;
+
             const QString displayName = client.peerAddress.empty()
                 ? QStringLiteral("Client %1").arg(client.opaqueId)
                 : toQString(client.peerAddress);
@@ -196,8 +192,8 @@ HostStatus HostControl::status() const
     if (runtimeStatus.stage == RuntimeHostStage::Revoked ||
         runtimeStatus.lastError == RuntimeHostError::AccessRevoked)
         view.revoked.push_back(QStringLiteral("Sharing access revoked"));
-    if (runtimeStatus.lastError != RuntimeHostError::None)
-        view.failure = toQString(runtimeHostErrorMessage(runtimeStatus.lastError));
+    if (!runtimeStatus.product.lastErrorMessage.empty())
+        view.failure = toQString(runtimeStatus.product.lastErrorMessage);
     return view;
 }
 
@@ -224,9 +220,11 @@ bool HostControl::start(const HostRequest& request)
     if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
         hasTerminalHostSessionError(snapshot.lastError) ||
         snapshot.stage == RuntimeHostStage::Revoked ||
-        !snapshot.credentialsConfigured || !snapshot.hostOwnerAuthorized ||
-        !snapshot.tlsIdentityReady ||
-        isSharingStage(snapshot.stage) || isPendingStage(snapshot.stage) ||
+        !snapshot.product.credentialCapabilities.existingOsAccount ||
+        !snapshot.product.credentialsConfigured ||
+        !snapshot.product.ownerAuthorized ||
+        !snapshot.product.tlsIdentityReady ||
+        runtimeProductStateMayHost(snapshot.product.state) ||
         request.interfaceId.isEmpty() || request.interfaceAddress.isEmpty())
         return false;
 
@@ -236,7 +234,7 @@ bool HostControl::start(const HostRequest& request)
     // This pure preflight reduces duplicate UI/runtime selector policy; the
     // live R10 owner must still re-enumerate and prove its actual R1 bind.
     if (!assessRuntimeSelectedLanEndpoint(
-             options, runtime_.enumerateLocalInterfaces()).succeeded() ||
+             options, snapshot.product.eligibleLanInterfaces).succeeded() ||
         !runtime_.configure(options).succeeded())
         return false;
     return runtime_.startSharing().succeeded();
@@ -252,10 +250,11 @@ bool HostControl::disconnectClient(const std::uint64_t opaqueClientId)
     if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
         hasTerminalHostSessionError(snapshot.lastError) ||
         snapshot.stage == RuntimeHostStage::Revoked ||
-        (!isSharingStage(snapshot.stage) && !isPendingStage(snapshot.stage)) ||
-        !std::ranges::any_of(snapshot.activeClients,
-            [opaqueClientId](const RuntimeHostClient& client) {
-                return client.opaqueId == opaqueClientId;
+        !runtimeProductStateMayHost(snapshot.product.state) ||
+        !std::ranges::any_of(
+            snapshot.product.activeClientIds,
+            [opaqueClientId](std::uint64_t clientId) {
+                return clientId == opaqueClientId;
             }))
         return false;
 

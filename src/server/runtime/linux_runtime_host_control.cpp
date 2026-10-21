@@ -544,6 +544,8 @@ LinuxRuntimeHostControl::enumerateLocalInterfaces() const
 RuntimeHostStatus LinuxRuntimeHostControl::status() const
 {
     RuntimeHostStatus snapshot;
+    snapshot.product.lastErrorMessage =
+        std::string(runtimeHostErrorMessage(snapshot.lastError));
     if (!onOwnerThread())
         return snapshot;
     snapshot.stage = stage_;
@@ -642,6 +644,45 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     // Graphics readiness is an R3/RDPGFX fact. Native readiness above is
     // projected only from the one live R2-selected X11 owner; neither grants
     // authority and neither implies that a frame has completed delivery.
+
+    snapshot.product.controlAvailable = true;
+    snapshot.product.eligibleLanInterfaces = enumerateLocalInterfaces();
+    const std::uint16_t recommendedPort =
+        selectionConfigured_ ? selection_.port : 3389U;
+    snapshot.product.recommendedEndpoint =
+        recommendRuntimePrivateLanEndpoint(
+            snapshot.product.eligibleLanInterfaces, recommendedPort);
+    snapshot.product.boundEndpoint = snapshot.boundEndpoint;
+    snapshot.product.clientCount = snapshot.activeClients.size();
+    snapshot.product.activeClientIds.reserve(snapshot.activeClients.size());
+    for (const RuntimeHostClient& client : snapshot.activeClients)
+    {
+        if (client.opaqueId != 0U)
+            snapshot.product.activeClientIds.emplace_back(client.opaqueId);
+    }
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    snapshot.product.credentialCapabilities.existingOsAccount =
+        securityConfiguration_ != nullptr && tlsContext_ != nullptr &&
+        admissionConfiguration_ != nullptr && licensingContext_ != nullptr;
+#endif
+    snapshot.product.credentialCapabilities.standalonePassword =
+        kStandalonePasswordProductCapabilityApproved;
+    snapshot.product.credentialsConfigured = snapshot.credentialsConfigured;
+    snapshot.product.ownerAuthorized = snapshot.hostOwnerAuthorized;
+    snapshot.product.ownerPermission = snapshot.ownerGrant;
+    snapshot.product.tlsIdentityReady = snapshot.tlsIdentityReady;
+    if (snapshot.tlsIdentity.fingerprintAvailable)
+    {
+        snapshot.product.tlsFingerprint =
+            snapshot.tlsIdentity.certificateSha256;
+        snapshot.product.tlsFingerprintAvailable = true;
+    }
+    snapshot.product.state = runtimeProductStateFor(
+        snapshot.stage, snapshot.lastError, snapshot.nativeDesktopReady);
+    snapshot.product.lastErrorMessage =
+        snapshot.lastError == RuntimeHostError::None
+        ? std::string{}
+        : std::string(runtimeHostErrorMessage(snapshot.lastError));
     return snapshot;
 }
 

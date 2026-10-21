@@ -6,6 +6,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <cstddef>
 #include <cstdint>
 
 namespace rdp::gui
@@ -33,9 +34,13 @@ struct HostStatus
     // A single R10 status observation, never a second Qt session owner.
     rdp_server::server::runtime::RuntimeHostStage stage{
         rdp_server::server::runtime::RuntimeHostStage::Stopped};
+    rdp_server::server::runtime::RuntimeProductHostState productState{
+        rdp_server::server::runtime::RuntimeProductHostState::Error};
     bool listenerReady{};
     bool controlAvailable{};
     bool credentialsConfigured{};
+    rdp_server::server::runtime::RuntimeCredentialCapabilities
+        credentialCapabilities{};
     bool desktopAuthorized{};
     // Exact R2/R10 read-only grant observation. This is presentation state,
     // never an authorization capability or a copy of requested GUI intent.
@@ -54,7 +59,14 @@ struct HostStatus
         rdp_server::server::runtime::RuntimeClipboardState::Unavailable};
     QString desktop;
     QVector<LanInterfaceChoice> approvedLanInterfaces;
+    QString recommendedInterfaceId;
+    QString recommendedAddress;
+    std::uint16_t recommendedPort{3389U};
     QVector<ActiveClientChoice> activeClients;
+    std::size_t clientCount{};
+    rdp_server::server::runtime::RuntimeTlsCertificateFingerprint
+        tlsFingerprint{};
+    bool tlsFingerprintAvailable{};
     QString lanAddress;
     QString failure;
     QStringList clients;

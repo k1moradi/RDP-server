@@ -1,3 +1,42 @@
+## R10 consumes the landed R7 dashboard through one product status (2026-10-21)
+
+Starting exact-main parent:
+`618674855b34b0655e1ace34bf8adb3846b9c9b4`.
+
+The previous Track B dependencies are resolved: R7 published the one-page
+dashboard/tray, R7 repaired the direct Windows launcher toggle linkage, and R8
+bound dormant clipboard lifetime to the actual close/Quit paths. Source review
+then found the remaining R10/R7 ownership gap: the dashboard still derived host
+lifecycle from low-level stage/listener/graphics/native observations and chose
+its automatic IPv4 endpoint itself.
+
+This increment moves those decisions behind R10's authoritative product
+snapshot. R7 consumes only the product state for Start/Stop/tray/close
+lifecycle, consumes R10's exact recommended stable-interface/address pair for
+the automatic endpoint, and consumes product active-client IDs/count,
+credential capabilities, owner-permission observation, TLS fingerprint and
+redacted error text. Manual Advanced interface override remains available, but
+R10 revalidates it transactionally before Start.
+
+Dedicated ordinary regressions are
+`runtime.host-control-product-status-projection`,
+`runtime.linux-host-control-product-status-projection`, and
+`gui.offscreen-r10-product-status-authority`. The GUI case deliberately
+contradicts legacy ClientConnected/listener/native fields with product Stopped,
+then contradicts legacy Stopped with product Connected, proving R7 follows only
+R10 product lifecycle and recommendation.
+
+Track A remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; no FIRST behavior is changed.
+Track C remains blocked on real Windows App/`mstsc.exe` standalone
+interoperability before the product capability can turn on. Track D CLEAN
+Windows and Track E authorized Windows/macOS native-owner composition remain
+independent.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Publication-SHA hosted CI: **PENDING**. No listener, physical
+desktop, input, clipboard or credential exchange was activated.
+
 ## R8 tray dependency resolved; FIRST still blocks activation (2026-10-21)
 
 R7's actual one-page dashboard and tray lifecycle have now landed on shared

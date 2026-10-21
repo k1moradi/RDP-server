@@ -1,3 +1,24 @@
+## R10 product-status/dashboard reconciliation authoring receipt (2026-10-21)
+
+Starting exact-main parent:
+`618674855b34b0655e1ace34bf8adb3846b9c9b4`.
+
+Dependency review found R7's one-page dashboard, Windows toggle linkage and R8
+tray-lifetime binding landed, clearing the prior Track B dependencies. The
+remaining source gap was ownership: R7 still derived lifecycle and its automatic
+address from lower-level runtime observations. This increment adds the R10
+product snapshot, migrates the dashboard lifecycle/automatic
+endpoint/client/capability/error projection to that snapshot, and adds portable,
+Linux-owner and contradictory-GUI CTests.
+
+No R1/R2/R3/R4/R5 wire/native behavior is changed. The frozen FIRST candidate
+remains `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. StandalonePassword remains
+product-disabled pending the real Windows App/`mstsc.exe` acceptance gate.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Hosted publication-SHA CI: **PENDING**. Live listener/desktop
+activation: **NOT RUN**.
+
 ## R8 real tray lifecycle binding after R7 dashboard landing (2026-10-21)
 
 Starting exact-main parent: `872b4abc93d90c8721e899ff8cb8fe01a7aa4e81`.

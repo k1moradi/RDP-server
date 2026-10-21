@@ -1,3 +1,23 @@
+## R10 authoritative product-status regressions (2026-10-21)
+
+`runtime.host-control-product-status-projection` pins the portable eight-state
+product vocabulary, Start/Stop toggle semantics, deterministic R10 private-LAN
+recommendation and deny-only Error projection. It also pins the standalone
+product capability gate false until live Microsoft-client interoperability.
+
+`runtime.linux-host-control-product-status-projection` exercises the concrete
+Linux owner without opening a listener: product state remains Stopped while
+owner consent is absent, the eligible-interface snapshot and recommendation
+agree, clients/bound endpoint are empty, and unprovisioned credential
+capabilities fail closed.
+
+`gui.offscreen-r10-product-status-authority` deliberately supplies
+contradictory legacy lifecycle flags. Product Stopped must keep the switch Off
+and select R10's recommended endpoint even when old fields claim
+ClientConnected; product Connected/Stopping/Error must then drive the dashboard
+when old fields claim Stopped. This prevents R7 from rebuilding a second
+lifecycle state machine.
+
 ## R8 tray lifecycle source binding (2026-10-21)
 
 Once R7's one-page/tray implementation exists, the ordinary dormant R8

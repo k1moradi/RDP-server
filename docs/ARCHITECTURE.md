@@ -1,3 +1,27 @@
+## R10 product status is the sole R7 lifecycle and automatic-endpoint boundary (2026-10-21)
+
+R7's one-page dashboard, Windows toggle linkage and tray lifetime are now
+landed. R10 therefore publishes one `RuntimeProductHostStatus` that owns the
+product lifecycle vocabulary: `Stopped`, `Starting`, `Listening`,
+`Authenticating`, `DesktopInitializing`, `Connected`, `Stopping`, and
+`Error`. R7 may render those values but must not reconstruct lifecycle from
+listener, Share, Graphics, native-desktop or command-intent flags.
+
+The same snapshot owns the deterministic automatic private-LAN recommendation,
+the eligible Advanced override list, actual bound endpoint, active-client
+count/opaque IDs, ExistingOsAccount/StandalonePassword capability bits,
+configured-credential state, current owner permission observation, current TLS
+fingerprint/ready state and fixed redacted last-error text. Recommendation
+prefers eligible IPv4, then IPv6, with stable interface/address tie-breaking;
+`configure()` and R1 still re-enumerate/revalidate the exact selection before
+binding.
+
+The standalone selector remains production-composed internally, but
+`kStandalonePasswordProductCapabilityApproved` remains false until the real
+unmodified Windows App/Windows 11 `mstsc.exe` acceptance receipt exists.
+Keeping the capability false prevents the landed dashboard from constructing or
+selecting a Session Password path prematurely.
+
 ## R7 single-page product projection and tray ownership (2026-10-21)
 
 `DesktopWindow` is one presentation surface over the existing

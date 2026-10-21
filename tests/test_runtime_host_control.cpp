@@ -26,6 +26,15 @@ int main(int argumentCount, char** argumentValues)
         assert(state.clipboardState == RuntimeClipboardState::Unavailable);
         assert(state.boundEndpoint.empty() && state.activeClients.empty());
         assert(state.lastError == RuntimeHostError::ControlUnavailable);
+        assert(state.product.state == RuntimeProductState::Error);
+        assert(!state.product.recommendedEndpoint.valid());
+        assert(state.product.boundEndpoint.empty());
+        assert(state.product.clientCount == 0U);
+        assert(state.product.activeClientIds.empty());
+        assert(!state.product.credentialCapabilities.existingOsAccount);
+        assert(!state.product.credentialCapabilities.standalonePassword);
+        assert(!state.product.tlsFingerprintAvailable);
+        assert(state.product.lastErrorMessage == "Host control unavailable");
         assert(host.enumerateLocalInterfaces().empty());
 
         const RuntimeHostOptions untrusted{
@@ -109,6 +118,22 @@ int main(int argumentCount, char** argumentValues)
             "eth-stable", "192.168.2.21", 3389U, true, false};
         assert(assessRuntimeSelectedLanEndpoint(
                    permitted, interfaces).succeeded());
+        const auto recommended =
+            recommendRuntimePrivateLanEndpoint(interfaces);
+        assert(recommended.valid());
+        assert(recommended.interfaceId == "eth-stable");
+        assert(recommended.address == "192.168.2.21");
+        assert(recommended.port == 3389U);
+        const std::vector<RuntimeHostInterface> mixedInterfaces{
+            {"z-ipv6", "IPv6", {"fd00::20"}, false, true},
+            {"b-ipv4", "IPv4 B", {"192.168.2.22"}, false, true},
+            {"a-ipv4", "IPv4 A", {"10.0.0.7"}, false, true}};
+        const auto deterministic =
+            recommendRuntimePrivateLanEndpoint(mixedInterfaces, 3390U);
+        assert(deterministic.valid());
+        assert(deterministic.interfaceId == "a-ipv4");
+        assert(deterministic.address == "10.0.0.7");
+        assert(deterministic.port == 3390U);
         // A matching preference never grants the absent R2 lease or a bind.
         assert(!host.configure(permitted).succeeded());
         assert(!host.startSharing().succeeded());

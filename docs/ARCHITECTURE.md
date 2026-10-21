@@ -1,3 +1,28 @@
+## R10 authoritative product status boundary for the one-page UX (2026-10-21)
+
+R10 now exposes one read-only `RuntimeProductHostStatus` beside the legacy
+diagnostic fields. New product UI must consume its lifecycle directly:
+`Stopped`, `Starting`, `Listening`, `Authenticating`,
+`DesktopInitializing`, `Connected`, `Stopping`, or `Error`. The Linux
+owner derives that product state from its existing single serialized lifetime;
+R7 must not rebuild a second lifecycle from listener, Share, Graphics or native
+booleans.
+
+The same snapshot carries a deterministic non-authorizing recommended private
+LAN endpoint (stable interface ID + address + port), actual bound endpoint,
+active client count/opaque IDs, credential capabilities, the R2 owner-grant
+observation, the current R1 certificate SHA-256 observation and fixed redacted
+human-readable error text. Recommendation prefers eligible private IPv4 for
+client usability, then IPv6, with stable identity/address tie-breaking; R1
+still re-enumerates and validates the exact bind candidate during Start.
+
+Existing-OS-account capability is reported only by a provisioned Linux runtime.
+StandalonePassword remains false at the product boundary even though the
+internal per-connection selector is composed: it may become selectable only
+after the required unmodified Windows App/`mstsc.exe` production-path
+interoperability receipt. Legacy fields remain temporarily for current tests and
+R7 migration; they are diagnostic compatibility state, not a second authority.
+
 ## R2 standalone authentication acceptance diagnostics (2026-10-21)
 
 The standalone path keeps the existing single-owner composition. R10 selects

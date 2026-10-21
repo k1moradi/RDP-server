@@ -642,6 +642,44 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     // Graphics readiness is an R3/RDPGFX fact. Native readiness above is
     // projected only from the one live R2-selected X11 owner; neither grants
     // authority and neither implies that a frame has completed delivery.
+
+    // R10 owns this product projection. R7 must not reconstruct lifecycle from
+    // the legacy stage/boolean diagnostics above.
+    snapshot.product.state = runtimeProductStateFor(
+        snapshot.stage, snapshot.lastError, snapshot.nativeDesktopReady);
+    const std::uint16_t recommendedPort =
+        selectionConfigured_ ? selection_.port : 3389U;
+    snapshot.product.recommendedEndpoint =
+        recommendRuntimePrivateLanEndpoint(
+            enumerateLocalInterfaces(), recommendedPort);
+    snapshot.product.boundEndpoint = snapshot.boundEndpoint;
+    snapshot.product.clientCount = snapshot.activeClients.size();
+    snapshot.product.activeClientIds.reserve(snapshot.activeClients.size());
+    for (const RuntimeHostClient& client : snapshot.activeClients)
+    {
+        if (client.opaqueId != 0U)
+            snapshot.product.activeClientIds.emplace_back(client.opaqueId);
+    }
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    snapshot.product.credentialCapabilities.existingOsAccount =
+        securityConfiguration_ != nullptr &&
+        tlsContext_ != nullptr &&
+        admissionConfiguration_ != nullptr &&
+        licensingContext_ != nullptr;
+#endif
+    // The internal standalone selector is production-composed but deliberately
+    // not a product capability until real Microsoft-client interoperability.
+    snapshot.product.credentialCapabilities.standalonePassword = false;
+    snapshot.product.ownerPermission = snapshot.ownerGrant;
+    if (snapshot.tlsIdentity.fingerprintAvailable)
+    {
+        snapshot.product.tlsFingerprint =
+            snapshot.tlsIdentity.certificateSha256;
+        snapshot.product.tlsFingerprintAvailable = true;
+    }
+    if (snapshot.lastError != RuntimeHostError::None)
+        snapshot.product.lastErrorMessage =
+            std::string(runtimeHostErrorMessage(snapshot.lastError));
     return snapshot;
 }
 

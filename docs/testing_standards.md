@@ -1,3 +1,19 @@
+## R10 product status projection regression (2026-10-21)
+
+The ordinary host-control denial tests must pin the product-level snapshot
+without opening a listener. `UnavailableRuntimeHostControl` reports product
+`Error`, no recommendation/client/capability/fingerprint and the fixed
+"Host control unavailable" message. The Linux deny-only controller reports
+product `Stopped`, mirrors the deterministic recommended endpoint returned by
+the shared recommendation helper, has no clients/capabilities when
+unprovisioned, and preserves the current owner-permission error text.
+
+The recommendation helper is pure policy: accept only an endpoint that passes
+the existing R10 LAN-selection preflight, prefer IPv4 over IPv6, and use stable
+interface identity/address ordering so source enumeration order cannot change
+the recommendation. These tests are not R1 bind evidence, R2 admission,
+Microsoft-client interoperability or FIRST acceptance.
+
 ## R2 standalone-password Microsoft-client acceptance run sheet (2026-10-21)
 
 The next positive R2 milestone is a real unmodified Windows App or Windows 11

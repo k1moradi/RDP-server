@@ -1,3 +1,34 @@
+## R10 product-level lifecycle/status seam for R7 (2026-10-21)
+
+Starting shared-main parent:
+`02f1df7685672c2c087f601a3810ff4a21a33de1`.
+
+Dependency recheck against the split project graph found Track A intentionally
+frozen at `8f2667b9...` pending the owner-authorized physical trace. Current
+R7 product source is still the multi-page `QStackedWidget` wizard, so the
+one-page dashboard/tray/automatic-address implementation has not landed.
+R2 standalone authentication is already production-composed internally, and
+current main has redacted live-acceptance failure staging, but real Windows
+App/`mstsc.exe` interoperability is still required before the password
+capability can be public. R5/R6 native Windows/macOS owner composition is also
+not present yet.
+
+R10 can nevertheless remove one Track B blocker independently. The runtime
+status now contains one authoritative product snapshot with exactly the agreed
+lifecycle vocabulary plus recommended private-LAN endpoint, bound endpoint,
+client count/opaque IDs, credential capabilities, owner-permission observation,
+TLS fingerprint and fixed redacted error text. The recommendation is
+deterministic and non-authorizing; Start still revalidates the native interface,
+R2 authority, TLS identity and R1 bind transaction.
+
+No frozen FIRST behavior is changed. No listener, desktop, credential exchange,
+clipboard or input is activated by this increment. StandalonePassword remains
+reported unavailable to product UI until the live Microsoft-client gate passes.
+The next R10 Track C step is the common platform-native desktop-owner boundary;
+that remains dependent on a reviewed shape that can consume Linux X11 and the
+forthcoming R5 macOS/R6 Windows owners without moving transport/RDP/R2/R3/R4
+logic into platform implementations.
+
 ## R2 standalone Microsoft-client acceptance diagnostics prepared (2026-10-21)
 
 Starting shared-main parent: `738d65d67356781046102fed50aed38372ddde24`.

@@ -49,6 +49,28 @@ int main(int argc, char** argv)
         assert(!control.status().hostOwnerAuthorized);
         assert(!control.status().tlsIdentityReady);
         assert(!control.status().nativeDesktopReady);
+        const auto initialProduct = control.status().product;
+        assert(initialProduct.state == RuntimeProductState::Stopped);
+        assert(!initialProduct.credentialCapabilities.existingOsAccount);
+        assert(!initialProduct.credentialCapabilities.standalonePassword);
+        assert(initialProduct.clientCount == 0U);
+        assert(initialProduct.activeClientIds.empty());
+        assert(initialProduct.lastErrorMessage ==
+               "Host-owner permission required");
+        const auto currentInterfaces = control.enumerateLocalInterfaces();
+        const auto expectedRecommendation =
+            recommendRuntimePrivateLanEndpoint(currentInterfaces);
+        assert(initialProduct.recommendedEndpoint.valid() ==
+               expectedRecommendation.valid());
+        if (expectedRecommendation.valid())
+        {
+            assert(initialProduct.recommendedEndpoint.interfaceId ==
+                   expectedRecommendation.interfaceId);
+            assert(initialProduct.recommendedEndpoint.address ==
+                   expectedRecommendation.address);
+            assert(initialProduct.recommendedEndpoint.port ==
+                   expectedRecommendation.port);
+        }
         assert(control.startSharing().error ==
                RuntimeHostError::InvalidConfiguration);
         assert(control.requestHostPermissionSetup().error ==
@@ -242,6 +264,9 @@ int main(int argc, char** argv)
         assert(control.revokeSharing().succeeded());
         assert(control.status().stage == RuntimeHostStage::Revoked);
         assert(control.status().lastError == RuntimeHostError::AccessRevoked);
+        assert(control.status().product.state == RuntimeProductState::Error);
+        assert(control.status().product.lastErrorMessage ==
+               "Sharing access revoked");
         assert(!control.status().listenerAvailable);
         assert(control.startSharing().error == RuntimeHostError::AccessRevoked);
         assert(control.stopSharing().succeeded());

@@ -15,7 +15,8 @@ file(READ "${RDP_LINUX_CONNECTION_HEADER}" connection_header)
 file(READ "${RDP_GUI_WINDOW_SOURCE}" gui_window_source)
 
 foreach(required IN ITEMS
-        "ConfiguredAuthenticationMode::StandalonePassword"
+        "enum class ConfiguredAuthenticationMode"
+        "StandalonePassword,"
         "standaloneCredentialGeneration_"
         "buildAuthenticationSelection")
     string(FIND "${host_header}" "${required}" position)

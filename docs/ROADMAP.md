@@ -1,3 +1,32 @@
+## R10 HostControl selector source-contract correction after exact-head CI (2026-10-21)
+
+Exact-main SHA `6875e7f462458d2a7da0bef0dbf1058a4301726f` landed the production
+HostControl standalone-authentication selector, but hosted primary run
+`39558058582` found one ordinary Ubuntu full-CTest failure:
+`runtime.linux-host-control-standalone-authentication-selector`. The run
+completed 839/840 tests successfully; SERVER-TEST preview then failed only
+because it requires the Ubuntu protocol job. Windows, macOS, Linux production
+security, GUI, sanitizer, documentation and workflow-structure jobs passed.
+
+The failing source-composition check searched the HostControl header for the
+qualified use spelling `ConfiguredAuthenticationMode::StandalonePassword`.
+The enum declaration correctly contains `StandalonePassword,` and the
+qualified spelling belongs to implementation use sites, where the same test
+already requires the standalone branch and selection assignment. This is a
+test-contract defect, not a production authentication or admission defect.
+
+Corrective scope is deliberately test-only plus canonical documentation:
+the header assertion now requires the enum declaration and unqualified
+enumerator spelling while retaining the existing qualified implementation
+checks. No R1/R2/R3/R4/R5/R7/R8/R10 runtime behavior changes.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Corrective publication-SHA hosted CI: **PENDING**. FIRST REAL
+DESKTOP remains gated on an all-green exact-main SHA plus explicit owner
+authorization for visible desktop + mouse + keyboard + Stop. R4 remains
+blocked on that FIRST live trace; no codec, frame-ID or ACK-policy change is
+authorized by this CI failure.
+
 ## R10 product authentication selector consumes standalone generation (2026-10-20)
 
 Starting exact-main parent: `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.

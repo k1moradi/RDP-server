@@ -1,3 +1,35 @@
+## R10 HostControl selector source-contract CI correction receipt (2026-10-21)
+
+Starting exact-main parent:
+`6875e7f462458d2a7da0bef0dbf1058a4301726f`.
+
+Primary hosted run `39558058582` compiled the new production standalone
+selector and passed every ordinary hosted lane except Ubuntu full CTest.
+Ubuntu reported exactly one failure out of 840:
+`runtime.linux-host-control-standalone-authentication-selector`. The failing
+CMake script searched the header enum declaration for
+`ConfiguredAuthenticationMode::StandalonePassword`, even though C++ enum
+declarations contain the unqualified enumerator `StandalonePassword,`.
+The production `.cpp` already contains the qualified use and the same test
+separately checks that implementation path.
+
+The correction changes no production C++. It requires
+`enum class ConfiguredAuthenticationMode` and `StandalonePassword,` in the
+header while preserving the existing implementation checks for the qualified
+standalone branch, exact credential generation visitor, random NTLM challenge,
+current FILETIME, explicit five-argument connection handoff and principal-free
+R2 admission.
+
+SERVER-TEST preview failure on the same run is downstream-only:
+`SERVER_TEST_PROTOCOL_RESULT: failure`. The clean Windows portable-GUI job is
+independent and remained queued.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Corrective exact-publication-SHA hosted CI: **PENDING**. No
+listener, credential exchange, X11 desktop, input or Microsoft client was
+activated. FIRST and therefore R4 live diagnosis remain blocked on the
+all-green exact-main plus explicit owner-authorized live acceptance gate.
+
 ## R10 HostControl standalone selector authoring receipt (2026-10-20)
 
 Starting exact-main parent:

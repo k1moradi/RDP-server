@@ -1,3 +1,13 @@
+## Source-composition checks distinguish declarations from qualified uses (2026-10-21)
+
+When a source-composition CTest validates an enum declaration, assert the
+declaration spelling in the declaring file: the enum type and the unqualified
+enumerator token. Do not require a qualified use such as `Type::Value` inside
+the declaration itself. If the architectural contract also requires that
+enumerator to drive production behavior, assert the qualified spelling
+separately in the implementation/use-site scope. This keeps structural tests
+fail-closed without manufacturing false failures from valid C++ syntax.
+
 ## R10 HostControl standalone selector regression (2026-10-20)
 
 `runtime.linux-host-control-standalone-authentication-selector` is the dedicated

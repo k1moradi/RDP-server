@@ -3352,17 +3352,6 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-first-run-authorization-revocation PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security" TIMEOUT 30)
-    add_test(NAME gui.offscreen-close-revokes-pending-host
-        COMMAND test_desktop_gui_offline close)
-    set_tests_properties(gui.offscreen-close-revokes-pending-host PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;security" TIMEOUT 30)
-    # A live/pending window close must require explicit host-owner Stop.
-    add_test(NAME gui.offscreen-close-requires-explicit-owner-stop
-        COMMAND test_desktop_gui_offline close-consent)
-    set_tests_properties(gui.offscreen-close-requires-explicit-owner-stop
-        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
     # Window hiding is presentation-only; a future tray hide must not Stop
     # the one active R10/clipboard lifetime.
     add_test(NAME gui.offscreen-hide-preserves-active-sharing
@@ -3370,6 +3359,26 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-hide-preserves-active-sharing
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;clipboard;lifecycle" TIMEOUT 30)
+    # R7 product dashboard: one page, automatic private address, no
+    # wizard/navigation or capability-gated password/clipboard controls.
+    add_test(NAME gui.offscreen-dashboard-single-page-defaults
+        COMMAND test_desktop_gui_offline dashboard)
+    set_tests_properties(gui.offscreen-dashboard-single-page-defaults
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;dashboard" TIMEOUT 30)
+    # Start/Stop intent never outranks the runtime's authoritative lifecycle.
+    add_test(NAME gui.offscreen-authoritative-sharing-toggle
+        COMMAND test_desktop_gui_offline toggle-authority)
+    set_tests_properties(gui.offscreen-authoritative-sharing-toggle
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;runtime;lifecycle" TIMEOUT 30)
+    # Closing while active hides only presentation; explicit Quit enters
+    # Stop/Revoke first and cannot complete before authoritative retirement.
+    add_test(NAME gui.offscreen-tray-close-hide-and-explicit-quit
+        COMMAND test_desktop_gui_offline tray-lifecycle)
+    set_tests_properties(gui.offscreen-tray-close-hide-and-explicit-quit
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;tray;lifecycle" TIMEOUT 30)
     add_test(NAME gui.offscreen-r10-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
     set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES

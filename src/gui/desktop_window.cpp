@@ -1,57 +1,62 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "desktop_window.h"
+
 #include "server/security/console_identity_policy.h"
+#include "toggle_switch.h"
+
 #if defined(Q_OS_LINUX)
 #include "linux_prerequisites.h"
 #endif
+
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QFont>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QMessageBox>
+#include <QMenu>
 #include <QPushButton>
-#include <QSpinBox>
 #include <QSignalBlocker>
-#include <QStackedWidget>
+#include <QSpinBox>
+#include <QStyle>
+#include <QSystemTrayIcon>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QVariant>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
-namespace rdp::gui {
-namespace {
-QLabel* label(const QString& message) {
+
+namespace rdp::gui
+{
+namespace
+{
+
+QLabel* label(const QString& message, QWidget* parent = nullptr)
+{
     // Set the format before assigning runtime text. Constructing QLabel with
     // that text would first invoke AutoText's HTML detection/parsing.
-    auto* result = new QLabel();
+    auto* result = new QLabel(parent);
     result->setTextFormat(Qt::PlainText);
     result->setText(message);
     result->setWordWrap(true);
     return result;
 }
 
-QString clipboardStatusText(
-    const rdp_server::server::runtime::RuntimeClipboardState state)
+QLabel* heading(const QString& message, QWidget* parent)
 {
-    using rdp_server::server::runtime::RuntimeClipboardState;
-    switch (state) {
-    case RuntimeClipboardState::Unavailable:
-        return "Clipboard unavailable: no current authenticated CLIPRDR session.";
-    case RuntimeClipboardState::Enabled:
-        return "Clipboard enabled for the current authenticated session.";
-    case RuntimeClipboardState::Retired:
-        return "Clipboard retired: reconnect and reauthorization are required.";
-    case RuntimeClipboardState::Denied:
-        return "Clipboard denied by current session policy.";
-    }
-    return "Clipboard unavailable: invalid session state.";
+    auto* result = label(message, parent);
+    QFont headingFont = result->font();
+    headingFont.setBold(true);
+    result->setFont(headingFont);
+    return result;
 }
 
 QString ownerPermissionStatusText(const HostStatus& status)
@@ -59,11 +64,10 @@ QString ownerPermissionStatusText(const HostStatus& status)
     using rdp_server::server::runtime::RuntimeOwnerGrantState;
     using namespace rdp_server::server::security;
 
-    switch (status.ownerGrant.state) {
-    case RuntimeOwnerGrantState::Active: {
-        // R2's descriptive lease observation is not fresh native authority.
-        // Never present an active grant as current unless authorizes(view)
-        // independently succeeded in the same R10 status snapshot.
+    switch (status.ownerGrant.state)
+    {
+    case RuntimeOwnerGrantState::Active:
+    {
         if (!status.desktopAuthorized)
             break;
 
@@ -73,113 +77,116 @@ QString ownerPermissionStatusText(const HostStatus& status)
             (permissions & ~kConsoleAllowedPermissions) != 0U)
         {
             return QStringLiteral(
-                "Local owner permission is current, but effective permission "
+                "Local sharing permission is current, but its effective "
                 "scope is unavailable.");
         }
 
-        QString scope = QStringLiteral("view");
+        QString scope = QStringLiteral("screen");
         if ((permissions & kConsoleInputPermission) != 0U)
-            scope += QStringLiteral(", input");
+            scope += QStringLiteral(", keyboard/mouse");
         if ((permissions & kConsoleClipboardPermission) != 0U)
             scope += QStringLiteral(", clipboard");
 
         const std::uint64_t remainingMilliseconds =
             status.ownerGrant.remainingMilliseconds;
         QString remaining;
-        if (remainingMilliseconds < 1000U) {
+        if (remainingMilliseconds < 1000U)
+        {
             remaining = QStringLiteral("<1 sec");
-        } else {
+        }
+        else
+        {
             const std::uint64_t totalSeconds = remainingMilliseconds / 1000U;
             const std::uint64_t minutes = totalSeconds / 60U;
             const std::uint64_t seconds = totalSeconds % 60U;
             remaining = minutes == 0U
-                ? QStringLiteral("%1 sec").arg(static_cast<qulonglong>(seconds))
+                ? QStringLiteral("%1 sec").arg(
+                      static_cast<qulonglong>(seconds))
                 : QStringLiteral("%1 min %2 sec")
-                    .arg(static_cast<qulonglong>(minutes))
-                    .arg(static_cast<qulonglong>(seconds));
+                      .arg(static_cast<qulonglong>(minutes))
+                      .arg(static_cast<qulonglong>(seconds));
         }
 
         return QStringLiteral(
-            "Local owner permission is current. Effective scope: %1. "
-            "Remaining lifetime: %2.")
+                   "Local sharing permission is current. Scope: %1. "
+                   "Remaining: %2.")
             .arg(scope, remaining);
     }
     case RuntimeOwnerGrantState::Expired:
         return QStringLiteral(
-            "Local owner permission expired; request fresh permission. "
-            "Effective permissions are no longer active.");
+            "Local sharing permission expired. Allow sharing again before "
+            "starting.");
     case RuntimeOwnerGrantState::Unavailable:
         break;
     }
 
     return status.desktopAuthorized
         ? QStringLiteral(
-            "Local owner permission is current, but R2 grant observation is "
-            "unavailable.")
+              "Local sharing permission is current; detailed lifetime "
+              "information is unavailable.")
         : QStringLiteral(
-            "Local owner permission is not established; Start remains blocked.");
+              "Local sharing permission is not established.");
 }
 
-// Only R1/R10 can supply this value-only certificate observation. Never
-// interpret a fingerprint as client trust, permission or listener ownership.
 QString tlsIdentityStatusText(const HostStatus& status)
 {
     using rdp_server::server::runtime::RuntimeTlsIdentityState;
+
     const auto& identity = status.tlsIdentity;
-    if (!status.controlAvailable || identity.state == RuntimeTlsIdentityState::Unavailable)
+    if (!status.controlAvailable ||
+        identity.state == RuntimeTlsIdentityState::Unavailable)
+    {
         return QStringLiteral(
-            "TLS identity unavailable. SHA-256 fingerprint not confirmed; "
-            "no client trust is inferred.");
+            "TLS fingerprint unavailable. Client trust is not implied.");
+    }
 
     QString explanation;
-    switch (identity.state) {
+    switch (identity.state)
+    {
     case RuntimeTlsIdentityState::Unavailable:
-        return QStringLiteral("TLS identity unavailable.");
+        return QStringLiteral("TLS fingerprint unavailable.");
     case RuntimeTlsIdentityState::ConfiguredUnbound:
         explanation = QStringLiteral(
-            "TLS certificate configured, but no bound LAN listener is confirmed.");
+            "TLS certificate configured; no bound LAN listener is confirmed.");
         break;
     case RuntimeTlsIdentityState::BoundAndMatched:
         explanation = status.listenerReady && !status.lanAddress.isEmpty() &&
                       identity.fingerprintAvailable
-            ? QStringLiteral("TLS certificate matches R10-reported bound LAN endpoint: ") +
+            ? QStringLiteral("TLS certificate matches the active LAN endpoint: ") +
                   status.lanAddress
             : QStringLiteral(
-                "TLS certificate binding unconfirmed: current listener or endpoint "
-                "evidence is missing.");
+                  "TLS certificate binding is not yet confirmed for the "
+                  "active endpoint.");
         break;
     case RuntimeTlsIdentityState::CertificateMismatch:
         explanation = QStringLiteral(
-            "TLS certificate does not match the selected bound LAN endpoint; "
-            "do not connect.");
+            "TLS certificate does not match the selected LAN endpoint.");
         break;
     case RuntimeTlsIdentityState::InterfaceUnavailable:
         explanation = QStringLiteral(
-            "Selected LAN interface unavailable; TLS endpoint identity unconfirmed.");
+            "Selected LAN interface is unavailable; TLS identity is "
+            "unconfirmed.");
         break;
     case RuntimeTlsIdentityState::InvalidEndpoint:
         explanation = QStringLiteral(
-            "Invalid LAN endpoint; TLS certificate binding unconfirmed.");
+            "Selected LAN endpoint is invalid; TLS identity is unconfirmed.");
         break;
     }
 
-    // The 32-byte digest is non-secret R1 evidence. Derive the fixed bound
-    // from R1's typed observation, not from this runtime object expression.
-    // Qt copies the fully populated stack buffer before it leaves this scope;
-    // neither Qt nor the GUI computes or retains a certificate fingerprint.
-    if (identity.fingerprintAvailable) {
+    if (identity.fingerprintAvailable)
+    {
         using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
         constexpr std::size_t certificateSha256Size =
             std::tuple_size_v<RuntimeTlsCertificateFingerprint>;
-        static_assert(certificateSha256Size == 32U,
-                      "R1 TLS certificate fingerprint must remain SHA-256");
+        static_assert(certificateSha256Size == 32U);
         constexpr std::size_t fingerprintCharacterCount =
             certificateSha256Size * 3U - 1U;
         static_assert(fingerprintCharacterCount == 95U);
 
         constexpr char hexDigits[] = "0123456789ABCDEF";
         std::array<char, fingerprintCharacterCount> fingerprint{};
-        for (std::size_t index = 0; index < certificateSha256Size; ++index) {
+        for (std::size_t index = 0; index < certificateSha256Size; ++index)
+        {
             const auto byte = identity.certificateSha256[index];
             const std::size_t offset = index * 3U;
             fingerprint[offset] = hexDigits[byte >> 4U];
@@ -187,74 +194,74 @@ QString tlsIdentityStatusText(const HostStatus& status)
             if (index + 1U < certificateSha256Size)
                 fingerprint[offset + 2U] = ':';
         }
-        explanation += QStringLiteral("\nConfigured certificate SHA-256: ") +
-            QString::fromLatin1(fingerprint.data(),
-                                static_cast<qsizetype>(fingerprint.size()));
-    } else {
-        explanation += QStringLiteral("\nCertificate SHA-256: unavailable.");
+        explanation += QStringLiteral("\nSHA-256: ") +
+            QString::fromLatin1(
+                fingerprint.data(),
+                static_cast<qsizetype>(fingerprint.size()));
     }
+    else
+    {
+        explanation += QStringLiteral("\nSHA-256: unavailable.");
+    }
+
     explanation += QStringLiteral(
-        "\nClient trust: unknown; no client trust is inferred. "
-        "Verify independently and recheck the fingerprint after certificate rotation.");
+        "\nClient trust: unknown. Verify the fingerprint independently.");
     return explanation;
 }
 
-// R10 stages are presentation evidence, never a new GUI state machine.
 QString hostLifecycleText(const HostStatus& state)
 {
     using rdp_server::server::runtime::RuntimeHostStage;
-    if (!state.controlAvailable)
-        return QStringLiteral("Host control unavailable; listener and clients unconfirmed.");
 
-    switch (state.stage) {
+    if (!state.controlAvailable)
+        return QStringLiteral("Hosting control is unavailable.");
+
+    switch (state.stage)
+    {
     case RuntimeHostStage::Stopped:
-        return QStringLiteral("Stopped; no active listener confirmed.");
+        return QStringLiteral("Stopped.");
     case RuntimeHostStage::PackageInstalled:
-        return QStringLiteral("Installed; sharing not started.");
+        return QStringLiteral("Installed; sharing is stopped.");
     case RuntimeHostStage::CredentialsConfigured:
-        return QStringLiteral("OS credentials configured; listener not ready.");
+        return QStringLiteral("Access configured; sharing is stopped.");
     case RuntimeHostStage::ListenerAvailable:
-        if (!state.listenerReady)
-            return QStringLiteral("Listener readiness unconfirmed.");
-        return state.clientDisconnected
-            ? QStringLiteral(
-                "Client disconnected; listening for another desktop connection.")
-            : QStringLiteral("Listening; waiting for desktop connection.");
+        return state.listenerReady
+            ? (state.clientDisconnected
+                   ? QStringLiteral(
+                         "Listening; the previous device disconnected.")
+                   : QStringLiteral("Listening for a remote device."))
+            : QStringLiteral("Starting the LAN listener.");
     case RuntimeHostStage::ClientAuthenticating:
-        return QStringLiteral("Client authenticating; desktop not yet visible.");
+        return QStringLiteral("A remote device is authenticating.");
     case RuntimeHostStage::ShareActivated:
         if (state.nativeDesktopInitializing && state.graphicsReady)
-            return QStringLiteral(
-                "Native desktop initializing; desktop not yet visible.");
+            return QStringLiteral("Preparing the local desktop.");
         if (state.graphicsReady)
             return state.nativeDesktopReady
-                ? QStringLiteral(
-                    "Graphics ready; native desktop ready, visibility not yet confirmed.")
-                : QStringLiteral(
-                    "Graphics ready; native desktop not yet initialized.");
-        return QStringLiteral("Share activated; graphics not yet ready.");
+                ? QStringLiteral("Desktop ready; waiting for visibility.")
+                : QStringLiteral("Graphics ready; preparing the local desktop.");
+        return QStringLiteral("Remote session activated; preparing graphics.");
     case RuntimeHostStage::DesktopVisible:
         return state.nativeDesktopReady
-            ? QStringLiteral("Desktop visible; native desktop ready.")
-            : QStringLiteral(
-                "Desktop visibility unconfirmed; native desktop is not ready.");
+            ? QStringLiteral("Desktop is visible remotely.")
+            : QStringLiteral("Desktop visibility is not yet confirmed.");
     case RuntimeHostStage::ClientConnected:
         return state.nativeDesktopReady && !state.clients.isEmpty()
-            ? QStringLiteral("Client connected; desktop visible.")
-            : QStringLiteral(
-                "Client-connected stage; desktop visibility unconfirmed.");
+            ? QStringLiteral("Remote device connected.")
+            : QStringLiteral("Connection established; desktop is not yet confirmed.");
     case RuntimeHostStage::Revoked:
-        return QStringLiteral("Sharing revoked/stopped.");
+        return QStringLiteral("Sharing stopped.");
     }
-    return QStringLiteral("Unrecognized R10 hosting stage.");
+
+    return QStringLiteral("Unknown hosting state.");
 }
 
-// R2 may suppress visible Share on stale authorization before the R10 owner
-// retires the raw stage. Never treat that diagnostic as Stop or close proof.
 [[nodiscard]] bool mayStillBeHosting(const HostStatus& state) noexcept
 {
     using rdp_server::server::runtime::RuntimeHostStage;
-    switch (state.stage) {
+
+    switch (state.stage)
+    {
     case RuntimeHostStage::ListenerAvailable:
     case RuntimeHostStage::ClientAuthenticating:
     case RuntimeHostStage::ShareActivated:
@@ -267,302 +274,543 @@ QString hostLifecycleText(const HostStatus& state)
     case RuntimeHostStage::Revoked:
         return state.sharing || state.startPending;
     }
-    return true; // Unknown future stages must fail closed.
+
+    return true;
 }
+
+QString platformUnavailableText(const HostStatus& status)
+{
+    if (status.controlAvailable)
+        return {};
+
+#if defined(Q_OS_MACOS)
+    return QStringLiteral(
+        "Remote hosting is not available on macOS in this build yet.");
+#elif defined(Q_OS_WIN)
+    return QStringLiteral(
+        "Remote hosting is not available on Windows in this build yet.");
+#elif defined(Q_OS_LINUX)
+    return QStringLiteral(
+        "Remote hosting is not available in this Linux build or configuration.");
+#else
+    return QStringLiteral(
+        "Remote hosting is not available on this platform in this build.");
+#endif
 }
+
+QString formatEndpoint(const QString& address, const int port)
+{
+    if (address.isEmpty())
+        return {};
+    if (address.contains(':') && !address.startsWith('['))
+        return QStringLiteral("[%1]:%2").arg(address).arg(port);
+    return QStringLiteral("%1:%2").arg(address).arg(port);
+}
+
+} // namespace
+
 DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
-    : QWidget(parent), host_(host), pages_(new QStackedWidget(this)),
-      desktops_(new QComboBox(this)), interfaces_(new QComboBox(this)),
+    : QWidget(parent),
+      host_(host),
+      sharingToggle_(new ToggleSwitchWidget(this)),
+      interfaces_(new QComboBox(this)),
       clientSelection_(new QComboBox(this)),
       port_(new QSpinBox(this)),
       allowRemoteInput_(new QCheckBox(
-          "Allow remote keyboard and pointer input", this)),
-      allowClipboard_(new QCheckBox("Allow clipboard redirection", this)),
+          QStringLiteral("Allow keyboard/mouse"), this)),
       permissionLifetimeMinutes_(new QSpinBox(this)),
-      configureOsAccount_(new QPushButton("Use Existing OS Account", this)),
-      requestHostPermission_(new QPushButton("Request Local Owner Permission", this)),
-      start_(new QPushButton("Start Sharing", this)),
-      stop_(new QPushButton("Stop Sharing / Revoke", this)),
-      disconnect_(new QPushButton("Disconnect Selected Client", this)),
-      copy_(new QPushButton("Copy LAN Address", this)),
-      desktopStatus_(label({})), credentialStatus_(label({})),
-      permissionStatus_(label({})), clipboardStatus_(label({})),
-      selectedInterfaceStatus_(label({})), endpointStatus_(label({})),
-      errorStatus_(label({})), tlsIdentityStatus_(label({})),
-      hostLifecycleStatus_(label({})), status_(label({})), activity_(label({})) {
-    setWindowTitle("RDP-server - LAN desktop sharing");
-    setMinimumSize(600, 440);
-    auto* root = new QVBoxLayout(this);
-    root->addWidget(pages_);
-    auto page = [this](const QString& heading) {
-        auto* widget = new QWidget(this);
-        auto* layout = new QVBoxLayout(widget);
-        layout->addWidget(label(heading));
-        pages_->addWidget(widget);
-        return layout;
-    };
-    auto* welcome = page("Welcome: Share an existing logged-in desktop on your LAN");
-    welcome->addWidget(label("No cloud account or internet required. Before sharing, "
-        "R2 compatible OS authentication, R10 host runtime, an authorized desktop, "
-        "TLS identity and screen/input access must all be available."));
-    welcome->addWidget(label("Opening this application never starts a listener, capture or permissions prompt."));
-    welcome->addStretch();
-    auto* desktop = page("Choose an authorized logged-in desktop");
-    desktops_->setObjectName("desktopSelection");
-    desktops_->addItem("No admitted desktop (R2 authorization pending)");
-    desktop->addWidget(desktops_);
-    desktop->addWidget(desktopStatus_);
-    desktop->addWidget(label("Desktop selection cannot grant R2 admission. Failed authorization remains blocked."));
-    desktop->addStretch();
-    auto* credentials = page("Credentials: OS-backed RDP/NLA authentication");
-    credentials->addWidget(label("OS-backed credentials require an R2 compatible provider. "
-        "Independent application passwords are unsupported until R2 proves interoperable NLA. "
-        "This GUI does not collect or store an application password."));
-    configureOsAccount_->setObjectName("configureOsAccount");
-    credentials->addWidget(configureOsAccount_);
+      configureOsAccount_(new QPushButton(
+          QStringLiteral("Use Existing OS Account"), this)),
+      requestHostPermission_(new QPushButton(
+          QStringLiteral("Allow Sharing on This Computer"), this)),
+      disconnect_(new QPushButton(QStringLiteral("Disconnect"), this)),
+      copy_(new QPushButton(QStringLiteral("Copy"), this)),
+      advancedToggle_(new QPushButton(QStringLiteral("Advanced ▸"), this)),
+      advancedPanel_(new QWidget(this)),
+      serverStateTitle_(heading(QStringLiteral("RDP Server — Stopped"), this)),
+      platformStatus_(label({}, this)),
+      addressStatus_(label({}, this)),
+      credentialStatus_(label({}, this)),
+      permissionStatus_(label({}, this)),
+      selectedInterfaceStatus_(label({}, this)),
+      errorStatus_(label({}, this)),
+      tlsIdentityStatus_(label({}, this)),
+      hostLifecycleStatus_(label({}, this)),
+      status_(label({}, this)),
+      activity_(label({}, this)),
+      authenticationModeStatus_(label(
+          QStringLiteral("Authentication mode: Existing OS Account"), this)),
+      trayIcon_(new QSystemTrayIcon(this)),
+      trayMenu_(new QMenu(this)),
+      trayOpen_(new QAction(QStringLiteral("Open"), trayMenu_)),
+      trayCopy_(new QAction(QStringLiteral("Copy Address"), trayMenu_)),
+      traySharing_(new QAction(QStringLiteral("Start Sharing"), trayMenu_)),
+      trayClients_(new QAction(QStringLiteral("No connected devices"), trayMenu_)),
+      trayQuit_(new QAction(QStringLiteral("Quit"), trayMenu_))
+{
+    setWindowTitle(QStringLiteral("RDP Server"));
+    setMinimumSize(560, 520);
+
+    serverStateTitle_->setObjectName("serverStateTitle");
+    platformStatus_->setObjectName("platformSupportStatus");
+    addressStatus_->setObjectName("connectionAddress");
     credentialStatus_->setObjectName("credentialStatus");
-    credentials->addWidget(credentialStatus_);
-    auto* unsupportedApplicationPassword =
-        new QPushButton("Set Application Password — Unsupported", this);
-    unsupportedApplicationPassword->setObjectName(
-        "setApplicationPasswordUnsupported");
-    unsupportedApplicationPassword->setEnabled(false);
-    credentials->addWidget(unsupportedApplicationPassword);
-    credentials->addStretch();
-    auto* network = page("LAN interface and listening port");
+    permissionStatus_->setObjectName("permissionStatus");
+    selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
+    errorStatus_->setObjectName("hostErrorExplanation");
+    tlsIdentityStatus_->setObjectName("tlsIdentityStatus");
+    hostLifecycleStatus_->setObjectName("hostLifecycleStatus");
+    status_->setObjectName("sharingReadinessStatus");
+    activity_->setObjectName("clientStatus");
+    authenticationModeStatus_->setObjectName("authenticationModeStatus");
+
+    sharingToggle_->setObjectName("sharingToggle");
+    sharingToggle_->setAccessibleName(QStringLiteral("Start or stop sharing"));
+    configureOsAccount_->setObjectName("configureOsAccount");
+    requestHostPermission_->setObjectName("requestHostPermission");
+    allowRemoteInput_->setObjectName("allowRemoteInput");
+    copy_->setObjectName("copyLanAddress");
+    clientSelection_->setObjectName("activeClientSelection");
+    disconnect_->setObjectName("disconnectClient");
+    advancedToggle_->setObjectName("advancedDisclosure");
+    advancedPanel_->setObjectName("advancedPanel");
     interfaces_->setObjectName("lanInterface");
-    interfaces_->addItem("No R10-validated LAN interface available", QString());
+    port_->setObjectName("sharingPort");
+    permissionLifetimeMinutes_->setObjectName("ownerPermissionLifetimeMinutes");
+
+    trayIcon_->setObjectName("systemTrayIcon");
+    trayOpen_->setObjectName("trayOpen");
+    trayCopy_->setObjectName("trayCopyAddress");
+    traySharing_->setObjectName("traySharing");
+    trayClients_->setObjectName("trayConnectedClients");
+    trayQuit_->setObjectName("trayQuit");
+    trayClients_->setEnabled(false);
+
+    auto* root = new QVBoxLayout(this);
+    root->addWidget(serverStateTitle_);
+    root->addWidget(platformStatus_);
+
+    root->addWidget(heading(QStringLiteral("This computer"), this));
+    auto* addressRow = new QHBoxLayout();
+    addressRow->addWidget(addressStatus_, 1);
+    addressRow->addWidget(copy_);
+    root->addLayout(addressRow);
+
+    root->addWidget(heading(QStringLiteral("Access"), this));
+    root->addWidget(credentialStatus_);
+    root->addWidget(configureOsAccount_);
+    root->addWidget(permissionStatus_);
+    root->addWidget(requestHostPermission_);
+
+    root->addWidget(heading(QStringLiteral("Sharing"), this));
+    auto* sharingRow = new QHBoxLayout();
+    sharingRow->addWidget(sharingToggle_);
+    sharingRow->addWidget(status_, 1);
+    root->addLayout(sharingRow);
+    allowRemoteInput_->setChecked(true);
+    root->addWidget(allowRemoteInput_);
+
+    root->addWidget(heading(QStringLiteral("Connected devices"), this));
+    auto* clientRow = new QHBoxLayout();
+    clientSelection_->addItem(QStringLiteral("No connected devices"), QVariant());
+    clientRow->addWidget(clientSelection_, 1);
+    clientRow->addWidget(disconnect_);
+    root->addLayout(clientRow);
+    root->addWidget(activity_);
+
+    root->addWidget(advancedToggle_);
+
+    auto* advancedLayout = new QVBoxLayout(advancedPanel_);
+    auto* advancedForm = new QFormLayout();
+    interfaces_->addItem(QStringLiteral("No private LAN interface available"),
+                         QString());
     port_->setRange(1, 65535);
     port_->setValue(3389);
-    auto* form = new QFormLayout();
-    form->addRow("Interface", interfaces_);
-    form->addRow("Port", port_);
-    network->addLayout(form);
-    selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
-    network->addWidget(selectedInterfaceStatus_);
-    network->addWidget(label("R10 must validate and bind the selected private LAN interface. "
-        "No wildcard/public listener is selected by the GUI."));
-    network->addStretch();
-    auto* permissions = page("Platform security prerequisites");
-    permissions->addWidget(label("Firewall: authorize inbound RDP on the trusted LAN interface only. "
-        "TLS: clients must verify the host identity/fingerprint; a certificate is not automatically trusted."));
-    tlsIdentityStatus_->setObjectName("tlsIdentityStatus");
-    permissions->addWidget(tlsIdentityStatus_);
-    permissions->addWidget(label("Linux X11 logged-in seat, Windows interactive desktop, and macOS Screen "
-        "Recording/Accessibility/Input Monitoring are platform-dependent. macOS TCC consent is requested "
-        "later by the real native owner, never as authentication."));
+    permissionLifetimeMinutes_->setRange(1, 60);
+    permissionLifetimeMinutes_->setValue(15);
+    permissionLifetimeMinutes_->setSuffix(QStringLiteral(" min"));
+    advancedForm->addRow(QStringLiteral("Interface override"), interfaces_);
+    advancedForm->addRow(QStringLiteral("Port"), port_);
+    advancedForm->addRow(
+        QStringLiteral("Permission lifetime"), permissionLifetimeMinutes_);
+    advancedLayout->addLayout(advancedForm);
+    advancedLayout->addWidget(authenticationModeStatus_);
+    advancedLayout->addWidget(tlsIdentityStatus_);
+    advancedLayout->addWidget(selectedInterfaceStatus_);
+    advancedLayout->addWidget(hostLifecycleStatus_);
+    advancedLayout->addWidget(errorStatus_);
+
 #if defined(Q_OS_LINUX)
-    // R5: display read-only native seat/X11 prerequisites without creating
-    // an R2 selection, listener, X11 capture, logind watcher or input owner.
     auto* linuxPrerequisites = label(
-        "Linux X11 prerequisites not yet inspected; no native admission.");
+        QStringLiteral(
+            "Linux X11 prerequisites not yet inspected; no desktop access "
+            "is implied."),
+        advancedPanel_);
     linuxPrerequisites->setObjectName("linuxPrerequisiteStatus");
-    permissions->addWidget(linuxPrerequisites);
-    auto* refreshLinux = new QPushButton("Refresh Linux X11 prerequisites", this);
+    advancedLayout->addWidget(linuxPrerequisites);
+    auto* refreshLinux =
+        new QPushButton(QStringLiteral("Refresh Linux X11 prerequisites"),
+                        advancedPanel_);
     refreshLinux->setObjectName("refreshLinuxPrerequisites");
-    permissions->addWidget(refreshLinux);
+    advancedLayout->addWidget(refreshLinux);
     connect(refreshLinux, &QPushButton::clicked, this, [linuxPrerequisites] {
         requestLinuxPrerequisites(linuxPrerequisites);
     });
-    // Probe asynchronously only after the window event loop starts. Launch
-    // remains unprivileged and does not start sharing or capture pixels.
     QTimer::singleShot(0, linuxPrerequisites, [linuxPrerequisites] {
         requestLinuxPrerequisites(linuxPrerequisites);
     });
 #endif
-    permissions->addWidget(label(
-        "M1 local consent trusts this GUI click and the current desktop-user "
-        "session. Malicious same-user processes and X11 clients capable of "
-        "synthetic input are outside the M1 threat model."));
-    allowRemoteInput_->setObjectName("allowRemoteInput");
-    allowRemoteInput_->setChecked(true);
-    permissions->addWidget(allowRemoteInput_);
-    allowClipboard_->setObjectName("allowClipboard");
-    allowClipboard_->setChecked(true);
-    permissions->addWidget(allowClipboard_);
-    permissionLifetimeMinutes_->setObjectName("ownerPermissionLifetimeMinutes");
-    permissionLifetimeMinutes_->setRange(1, 60);
-    permissionLifetimeMinutes_->setValue(15);
-    permissionLifetimeMinutes_->setSuffix(" min");
-    auto* ownerPermissionForm = new QFormLayout();
-    ownerPermissionForm->addRow(
-        "Owner permission lifetime", permissionLifetimeMinutes_);
-    permissions->addLayout(ownerPermissionForm);
-    requestHostPermission_->setObjectName("requestHostPermission");
-    permissions->addWidget(requestHostPermission_);
-    permissionStatus_->setObjectName("permissionStatus");
-    permissions->addWidget(permissionStatus_);
-    permissions->addStretch();
-    auto* sharing = page("Sharing and connection status");
-    start_->setObjectName("startSharing");
-    stop_->setObjectName("stopSharing");
-    auto* actions = new QHBoxLayout();
-    actions->addWidget(start_);
-    actions->addWidget(stop_);
-    sharing->addLayout(actions);
-    clipboardStatus_->setObjectName("clipboardStatus");
-    sharing->addWidget(clipboardStatus_);
-    hostLifecycleStatus_->setObjectName("hostLifecycleStatus");
-    sharing->addWidget(hostLifecycleStatus_);
-    status_->setObjectName("sharingReadinessStatus");
-    sharing->addWidget(status_);
-    endpointStatus_->setObjectName("boundLanEndpoint");
-    sharing->addWidget(endpointStatus_);
-    errorStatus_->setObjectName("hostErrorExplanation");
-    sharing->addWidget(errorStatus_);
-    copy_->setObjectName("copyLanAddress");
-    sharing->addWidget(copy_);
-    clientSelection_->setObjectName("activeClientSelection");
-    clientSelection_->addItem("Select an active client", QVariant());
-    disconnect_->setObjectName("disconnectClient");
-    auto* clientActions = new QHBoxLayout();
-    clientActions->addWidget(clientSelection_);
-    clientActions->addWidget(disconnect_);
-    sharing->addLayout(clientActions);
-    activity_->setObjectName("clientStatus");
-    sharing->addWidget(activity_);
-    sharing->addStretch();
-    auto* navigation = new QHBoxLayout();
-    auto* back = new QPushButton("Back", this);
-    auto* next = new QPushButton("Next", this);
-    back->setObjectName("backPage");
-    next->setObjectName("nextPage");
-    navigation->addWidget(back);
-    navigation->addWidget(next);
-    root->addLayout(navigation);
-    connect(back, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() - 1); });
-    connect(next, &QPushButton::clicked, this, [this] { changePage(pages_->currentIndex() + 1); });
+
+    root->addWidget(advancedPanel_);
+    root->addStretch();
+    setAdvancedVisible(false);
+
+    trayMenu_->addAction(trayOpen_);
+    trayMenu_->addAction(trayCopy_);
+    trayMenu_->addAction(traySharing_);
+    trayMenu_->addAction(trayClients_);
+    trayMenu_->addSeparator();
+    trayMenu_->addAction(trayQuit_);
+    trayIcon_->setContextMenu(trayMenu_);
+    trayIcon_->setToolTip(QStringLiteral("RDP Server"));
+    trayIcon_->setIcon(
+        QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
+    if (QSystemTrayIcon::isSystemTrayAvailable())
+        trayIcon_->show();
+
+    connect(advancedToggle_, &QPushButton::clicked, this, [this] {
+        setAdvancedVisible(advancedPanel_->isHidden());
+    });
     connect(configureOsAccount_, &QPushButton::clicked, this, [this] {
-        (void)host_.requestExistingOsAccount();
-        refresh(); // Only a later R10 snapshot may report configured state.
+        userFacingError_.clear();
+        if (!host_.requestExistingOsAccount())
+            userFacingError_ =
+                QStringLiteral("Existing OS Account access could not be configured.");
+        refresh();
     });
     connect(requestHostPermission_, &QPushButton::clicked, this, [this] {
         rdp_server::server::runtime::RuntimeHostPermissionRequest request;
         request.allowInput = allowRemoteInput_->isChecked();
-        request.allowClipboard = allowClipboard_->isChecked();
+        // Clipboard stays outside the product UI until production activation
+        // is explicitly approved by the owning runtime milestone.
+        request.allowClipboard = false;
         request.requestedLifetimeMilliseconds =
             static_cast<std::uint64_t>(permissionLifetimeMinutes_->value()) *
             60'000U;
-        (void)host_.requestHostPermission(request);
-        refresh(); // A request never fabricates desktop authorization.
-    });
-    connect(start_, &QPushButton::clicked, this, [this] {
-        const auto snapshot = host_.status();
-        if (snapshot.sharing || snapshot.startPending || !blockedReason(snapshot).isEmpty()) return;
-        const HostRequest request{interfaces_->currentData(Qt::UserRole + 1).toString(),
-            interfaces_->currentData().toString(),
-            static_cast<std::uint16_t>(port_->value())};
-        (void)host_.start(request); // Never use return value as active-sharing proof.
+        userFacingError_.clear();
+        if (!host_.requestHostPermission(request))
+            userFacingError_ =
+                QStringLiteral("Local sharing permission could not be requested.");
         refresh();
     });
-    connect(stop_, &QPushButton::clicked, this, [this] {
-        const auto snapshot = host_.status();
-        if (!mayStillBeHosting(snapshot)) return;
-        host_.stopAndRevoke();
-        refresh();
+    connect(sharingToggle_, &ToggleSwitchWidget::clicked,
+            this, [this](const bool requestedOn) {
+        const HostStatus snapshot = host_.status();
+        {
+            const QSignalBlocker blocked(sharingToggle_);
+            sharingToggle_->setChecked(mayStillBeHosting(snapshot));
+        }
+        if (requestedOn)
+            requestStart();
+        else
+            requestStop();
     });
     connect(disconnect_, &QPushButton::clicked, this, [this] {
-        const auto snapshot = host_.status();
+        const HostStatus snapshot = host_.status();
         const QVariant selectedClient = clientSelection_->currentData();
         if (!snapshot.controlAvailable ||
             (!snapshot.sharing && !snapshot.startPending) ||
             !selectedClient.isValid())
             return;
+
         bool validId = false;
         const auto selectedId = selectedClient.toULongLong(&validId);
         if (!validId || selectedId == 0 ||
-            !std::ranges::any_of(snapshot.activeClients,
+            !std::ranges::any_of(
+                snapshot.activeClients,
                 [selectedId](const ActiveClientChoice& client) {
                     return client.opaqueId == selectedId;
                 }))
             return;
-        (void)host_.disconnectClient(static_cast<std::uint64_t>(selectedId));
-        refresh(); // R10 status, not the click, confirms disconnect.
+
+        userFacingError_.clear();
+        if (!host_.disconnectClient(static_cast<std::uint64_t>(selectedId)))
+            userFacingError_ =
+                QStringLiteral("The selected device could not be disconnected.");
+        refresh();
     });
     connect(copy_, &QPushButton::clicked, this, [this] {
-        const auto state = host_.status();
-        if (state.sharing && !state.lanAddress.isEmpty())
-            QApplication::clipboard()->setText(state.lanAddress);
+        const QString address = displayedAddress(host_.status());
+        if (!address.isEmpty())
+            QApplication::clipboard()->setText(address);
     });
-    connect(interfaces_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
-    connect(clientSelection_, &QComboBox::currentIndexChanged, this, [this](int) { refresh(); });
+    connect(interfaces_, &QComboBox::currentIndexChanged,
+            this, [this](int) { refresh(); });
+    connect(port_, &QSpinBox::valueChanged, this, [this](int) { refresh(); });
+    connect(clientSelection_, &QComboBox::currentIndexChanged,
+            this, [this](int) { refresh(); });
+
+    connect(trayOpen_, &QAction::triggered, this, [this] {
+        showNormal();
+        raise();
+        activateWindow();
+    });
+    connect(trayCopy_, &QAction::triggered, this, [this] {
+        const QString address = displayedAddress(host_.status());
+        if (!address.isEmpty())
+            QApplication::clipboard()->setText(address);
+    });
+    connect(traySharing_, &QAction::triggered, this, [this] {
+        if (mayStillBeHosting(host_.status()))
+            requestStop();
+        else
+            requestStart();
+    });
+    connect(trayQuit_, &QAction::triggered, this, [this] {
+        requestQuit();
+    });
+    connect(trayIcon_, &QSystemTrayIcon::activated, this,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+        if (reason == QSystemTrayIcon::Trigger ||
+            reason == QSystemTrayIcon::DoubleClick)
+        {
+            showNormal();
+            raise();
+            activateWindow();
+        }
+    });
+
     refresh();
 }
-void DesktopWindow::changePage(int index) {
-    if (index >= 0 && index < pages_->count()) pages_->setCurrentIndex(index);
+
+void DesktopWindow::setAdvancedVisible(const bool visible)
+{
+    advancedPanel_->setVisible(visible);
+    advancedToggle_->setText(
+        visible ? QStringLiteral("Advanced ▾")
+                : QStringLiteral("Advanced ▸"));
 }
-QString DesktopWindow::blockedReason() const {
+
+QString DesktopWindow::blockedReason() const
+{
     return blockedReason(host_.status());
 }
-QString DesktopWindow::blockedReason(const HostStatus& state) const {
-    if (!state.controlAvailable) return "R10 host control unavailable";
-    if (!state.credentialsConfigured) return "OS-backed credentials are not configured";
-    if (!state.desktopAuthorized || state.desktop.isEmpty()
-        || desktops_->currentData().toString() != state.desktop)
-        return "Logged-in desktop not R2-authorized";
-    if (!state.tlsReady) return "TLS identity unavailable";
+
+QString DesktopWindow::blockedReason(const HostStatus& state) const
+{
+    if (!state.controlAvailable)
+        return QStringLiteral("Remote hosting is unavailable in this build");
+    if (!state.credentialsConfigured)
+        return QStringLiteral("Existing OS Account access is not configured");
+    if (!state.desktopAuthorized || state.desktop.isEmpty())
+        return QStringLiteral("Local sharing permission is not established");
+    if (!state.tlsReady)
+        return QStringLiteral("TLS identity is not ready");
+
     const QString selectedInterface = interfaces_->currentData().toString();
     const QString selectedInterfaceId =
         interfaces_->currentData(Qt::UserRole + 1).toString();
     if (selectedInterface.isEmpty() || selectedInterfaceId.isEmpty() ||
-        !std::ranges::any_of(state.approvedLanInterfaces,
+        !std::ranges::any_of(
+            state.approvedLanInterfaces,
             [&](const LanInterfaceChoice& candidate) {
                 return candidate.stableId == selectedInterfaceId &&
                        candidate.address == selectedInterface;
             }))
-        return "R10-approved LAN interface not selected";
+    {
+        return QStringLiteral("No private LAN interface is available");
+    }
+
     return {};
 }
-bool DesktopWindow::canStart() const {
-    const auto state = host_.status();
-    return !state.sharing && !state.startPending && blockedReason(state).isEmpty();
+
+bool DesktopWindow::canStart() const
+{
+    const HostStatus state = host_.status();
+    return !mayStillBeHosting(state) && blockedReason(state).isEmpty();
 }
-void DesktopWindow::refresh() {
-    const auto snapshot = host_.status();
+
+HostRequest DesktopWindow::currentHostRequest() const
+{
+    return HostRequest{
+        interfaces_->currentData(Qt::UserRole + 1).toString(),
+        interfaces_->currentData().toString(),
+        static_cast<std::uint16_t>(port_->value())};
+}
+
+QString DesktopWindow::displayedAddress(const HostStatus& snapshot) const
+{
+    if (!snapshot.lanAddress.isEmpty())
+        return snapshot.lanAddress;
+    return formatEndpoint(interfaces_->currentData().toString(), port_->value());
+}
+
+void DesktopWindow::requestStart()
+{
+    const HostStatus snapshot = host_.status();
+    if (mayStillBeHosting(snapshot))
+    {
+        refresh();
+        return;
+    }
+
+    const QString denial = blockedReason(snapshot);
+    if (!denial.isEmpty())
+    {
+        startRequested_ = false;
+        userFacingError_ = denial;
+        refresh();
+        return;
+    }
+
+    userFacingError_.clear();
+    stopRequested_ = false;
+    startRequested_ = host_.start(currentHostRequest());
+    if (!startRequested_)
+        userFacingError_ = QStringLiteral("Sharing could not be started.");
+    refresh();
+}
+
+void DesktopWindow::requestStop()
+{
+    const HostStatus snapshot = host_.status();
+    if (!mayStillBeHosting(snapshot))
+    {
+        stopRequested_ = false;
+        refresh();
+        return;
+    }
+
+    userFacingError_.clear();
+    startRequested_ = false;
+    stopRequested_ = true;
+    host_.stopAndRevoke();
+    refresh();
+}
+
+void DesktopWindow::requestQuit()
+{
+    quitRequested_ = true;
+    startRequested_ = false;
+    stopRequested_ = true;
+    userFacingError_.clear();
+
+    // Explicit Quit always enters the runtime's Stop/Revoke path first.
+    host_.stopAndRevoke();
+    refresh();
+
+    if (!mayStillBeHosting(host_.status()))
+        QApplication::quit();
+}
+
+void DesktopWindow::updateTray(
+    const HostStatus& snapshot, const QString& address)
+{
+    trayCopy_->setEnabled(!address.isEmpty());
+    traySharing_->setText(
+        mayStillBeHosting(snapshot)
+            ? (stopRequested_ ? QStringLiteral("Stopping…")
+                              : QStringLiteral("Stop Sharing"))
+            : (startRequested_ ? QStringLiteral("Starting…")
+                               : QStringLiteral("Start Sharing")));
+    traySharing_->setEnabled(
+        mayStillBeHosting(snapshot) || canStart());
+
+    if (!snapshot.clients.isEmpty())
+    {
+        trayClients_->setText(
+            snapshot.clients.size() == 1
+                ? QStringLiteral("1 connected device")
+                : QStringLiteral("%1 connected devices")
+                      .arg(snapshot.clients.size()));
+    }
+    else if (!snapshot.pendingClients.isEmpty())
+    {
+        trayClients_->setText(
+            QStringLiteral("%1 device connecting")
+                .arg(snapshot.pendingClients.size()));
+    }
+    else
+    {
+        trayClients_->setText(QStringLiteral("No connected devices"));
+    }
+
+    trayIcon_->setToolTip(
+        address.isEmpty()
+            ? serverStateTitle_->text()
+            : serverStateTitle_->text() + QStringLiteral(" — ") + address);
+}
+
+void DesktopWindow::refresh()
+{
+    const HostStatus snapshot = host_.status();
     const QString previousInterface = interfaces_->currentData().toString();
     const QString previousInterfaceId =
         interfaces_->currentData(Qt::UserRole + 1).toString();
     const QVariant previousClientId = clientSelection_->currentData();
-    // A refreshed R10/R2 snapshot invalidates removed interface/session choices.
-    {
-        const QSignalBlocker blocked(desktops_);
-        desktops_->clear();
-        desktops_->addItem("No admitted desktop", QString());
-        if (snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()) {
-            desktops_->addItem(snapshot.desktop, snapshot.desktop);
-            desktops_->setCurrentIndex(1);
-        }
-    }
+
     {
         const QSignalBlocker blocked(interfaces_);
         interfaces_->clear();
-        interfaces_->addItem("Select R10-approved LAN interface", QString());
-        for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces) {
+        interfaces_->addItem(
+            QStringLiteral("No private LAN interface available"), QString());
+
+        for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces)
+        {
             if (choice.address.isEmpty() || choice.stableId.isEmpty())
                 continue;
             const QString name = choice.displayName.isEmpty()
-                ? choice.address : choice.displayName + " (" + choice.address + ")";
+                ? choice.address
+                : choice.displayName + QStringLiteral(" (") +
+                      choice.address + QStringLiteral(")");
             interfaces_->addItem(name, choice.address);
-            interfaces_->setItemData(interfaces_->count() - 1,
-                                     choice.stableId, Qt::UserRole + 1);
+            interfaces_->setItemData(
+                interfaces_->count() - 1,
+                choice.stableId, Qt::UserRole + 1);
         }
-        for (int index = 1; index < interfaces_->count(); ++index) {
+
+        int selectedIndex = 0;
+        for (int index = 1; index < interfaces_->count(); ++index)
+        {
             if (interfaces_->itemData(index).toString() == previousInterface &&
-                interfaces_->itemData(index, Qt::UserRole + 1).toString() ==
-                    previousInterfaceId) {
-                interfaces_->setCurrentIndex(index);
+                interfaces_->itemData(
+                    index, Qt::UserRole + 1).toString() == previousInterfaceId)
+            {
+                selectedIndex = index;
                 break;
             }
         }
+
+        // Prefer a private IPv4 address for the product default, then fall
+        // back to the first runtime-approved private address. Manual Advanced
+        // overrides remain sticky while that exact interface/address survives.
+        if (selectedIndex == 0)
+        {
+            for (int index = 1; index < interfaces_->count(); ++index)
+            {
+                if (!interfaces_->itemData(index).toString().contains(':'))
+                {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+            if (selectedIndex == 0 && interfaces_->count() > 1)
+                selectedIndex = 1;
+        }
+        interfaces_->setCurrentIndex(selectedIndex);
     }
+
     {
         const QSignalBlocker blocked(clientSelection_);
         clientSelection_->clear();
-        clientSelection_->addItem("Select an active client", QVariant());
-        for (const ActiveClientChoice& client : snapshot.activeClients) {
+        clientSelection_->addItem(
+            QStringLiteral("No connected devices"), QVariant());
+        for (const ActiveClientChoice& client : snapshot.activeClients)
+        {
             if (client.opaqueId == 0)
                 continue;
-            const QVariant opaqueId = QVariant::fromValue<qulonglong>(client.opaqueId);
+            const QVariant opaqueId =
+                QVariant::fromValue<qulonglong>(client.opaqueId);
             if (clientSelection_->findData(opaqueId) < 0)
                 clientSelection_->addItem(client.displayName, opaqueId);
         }
@@ -570,103 +818,150 @@ void DesktopWindow::refresh() {
         if (index > 0)
             clientSelection_->setCurrentIndex(index);
     }
-    selectedInterfaceStatus_->setText(interfaces_->currentIndex() > 0
-        ? "Selected R10 LAN interface: " + interfaces_->currentText()
-            + "; stable ID: "
-            + interfaces_->currentData(Qt::UserRole + 1).toString()
-            + "; address: " + interfaces_->currentData().toString()
-        : "No R10-approved LAN interface selected.");
-    endpointStatus_->setText(snapshot.lanAddress.isEmpty()
-        ? "Bound LAN endpoint: not reported by R10; no listener is implied."
-        : "R10-reported bound LAN endpoint: " + snapshot.lanAddress);
-    errorStatus_->setText(snapshot.failure.isEmpty()
-        ? "R10 host error: none reported."
-        : "R10 host error: " + snapshot.failure);
-    tlsIdentityStatus_->setText(tlsIdentityStatusText(snapshot));
-    desktopStatus_->setText(snapshot.desktopAuthorized && !snapshot.desktop.isEmpty()
-        ? "R2-authorized desktop reported: " + snapshot.desktop
-        : "Authorization unavailable: " + (snapshot.failure.isEmpty()
-            ? "No authenticated host-owner admission" : snapshot.failure));
-    credentialStatus_->setText(snapshot.credentialsConfigured
-        ? "Permitted credentials: existing OS-account access policy. "
-          "The RDP client must still authenticate with that OS account."
-        : "Permitted credentials unavailable: configure existing OS-account access. "
-          "Independent application passwords remain unsupported for NLA.");
-    permissionStatus_->setText(ownerPermissionStatusText(snapshot));
-    configureOsAccount_->setEnabled(
-        snapshot.controlAvailable && !snapshot.sharing && !snapshot.startPending);
-    const bool permissionRequestEnabled =
-        snapshot.controlAvailable && snapshot.credentialsConfigured &&
-        !snapshot.sharing && !snapshot.startPending;
-    allowRemoteInput_->setEnabled(permissionRequestEnabled);
-    allowClipboard_->setEnabled(permissionRequestEnabled);
-    permissionLifetimeMinutes_->setEnabled(permissionRequestEnabled);
-    requestHostPermission_->setEnabled(permissionRequestEnabled);
-    const QString denial = blockedReason(snapshot);
-    clipboardStatus_->setText(clipboardStatusText(snapshot.clipboardState));
-    hostLifecycleStatus_->setText(hostLifecycleText(snapshot));
-    start_->setEnabled(!snapshot.sharing && !snapshot.startPending && denial.isEmpty());
-    stop_->setEnabled(mayStillBeHosting(snapshot));
-    clientSelection_->setEnabled(snapshot.controlAvailable &&
-        (snapshot.sharing || snapshot.startPending) &&
-        !snapshot.activeClients.isEmpty());
-    disconnect_->setEnabled(clientSelection_->isEnabled() &&
-        clientSelection_->currentIndex() > 0);
-    copy_->setEnabled(snapshot.sharing && !snapshot.lanAddress.isEmpty());
-    status_->setText(!snapshot.controlAvailable
-        ? "R10 control unavailable; hosting retirement unconfirmed."
-        : (snapshot.sharing
-            ? (snapshot.lanAddress.isEmpty()
-                ? "R10 reports sharing; LAN address unavailable."
-                : "R10 sharing address: " + snapshot.lanAddress)
-            : (snapshot.startPending ? "R10 start pending; sharing not confirmed."
-                : (snapshot.failure.isEmpty() && denial.isEmpty()
-                    ? "Ready to share. Confirm the selected LAN interface and click Start Sharing."
-                    : "Not ready to share. " +
-                        (snapshot.failure.isEmpty() ? denial : snapshot.failure)))));
-    activity_->setText("Connected clients: " + (snapshot.clients.isEmpty() ? "None" : snapshot.clients.join(", "))
-        + "\nAuthenticating / desktop pending: " +
-            (snapshot.pendingClients.isEmpty() ? "None" : snapshot.pendingClients.join(", "))
-        + "\nAuthentication failures: " + (snapshot.authenticationFailures.isEmpty()
-            ? "None" : snapshot.authenticationFailures.join(", "))
-        + "\nDisconnected: " + (snapshot.disconnected.isEmpty() ? "None" : snapshot.disconnected.join(", "))
-        + "\nLocked/revoked: " + (snapshot.revoked.isEmpty() ? "None" : snapshot.revoked.join(", ")));
-}
-void DesktopWindow::closeEvent(QCloseEvent* event) {
-    const auto state = host_.status();
-    if (mayStillBeHosting(state)) {
-        // A window close is not permission to hide unattended sharing or
-        // silently Stop. Only an explicit user choice may request R10 retirement.
-        QMessageBox confirmation(this);
-        confirmation.setWindowTitle("Stop remote desktop sharing?");
-        confirmation.setIcon(QMessageBox::Warning);
-        confirmation.setTextFormat(Qt::PlainText);
-        confirmation.setText(
-            "The sharing window cannot be hidden while a session is active. "
-            "Stop sharing and revoke access before closing, or keep the window open.");
-        auto* stopAndClose = confirmation.addButton(
-            "Stop Sharing and Close", QMessageBox::AcceptRole);
-        stopAndClose->setObjectName("confirmStopSharingAndClose");
-        auto* keepOpen = confirmation.addButton(
-            "Keep Window Open", QMessageBox::RejectRole);
-        keepOpen->setObjectName("keepSharingWindowOpen");
-        confirmation.setDefaultButton(keepOpen);
-        confirmation.exec();
-        if (confirmation.clickedButton() != stopAndClose) {
-            event->ignore();
-            return;
-        }
 
-        // R10 alone retires active ownership. A successful command is not
-        // retirement proof; keep the GUI visible until its status confirms it.
-        host_.stopAndRevoke();
-        const auto after = host_.status();
-        if (!after.controlAvailable || mayStillBeHosting(after)) {
-            refresh();
-            event->ignore(); // Never orphan unconfirmed active sharing.
-            return;
-        }
+    if (mayStillBeHosting(snapshot))
+        startRequested_ = false;
+    else
+        stopRequested_ = false;
+    if (!snapshot.failure.isEmpty() || !snapshot.controlAvailable)
+        startRequested_ = false;
+
+    const bool authoritativeOn = mayStillBeHosting(snapshot);
+    {
+        const QSignalBlocker blocked(sharingToggle_);
+        sharingToggle_->setChecked(authoritativeOn);
     }
+
+    if (stopRequested_ && authoritativeOn)
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopping…"));
+    else if (authoritativeOn &&
+             (snapshot.listenerReady || snapshot.sharing))
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Sharing"));
+    else if (authoritativeOn || startRequested_ || snapshot.startPending)
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Starting…"));
+    else
+        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopped"));
+
+    const QString platformMessage = platformUnavailableText(snapshot);
+    platformStatus_->setText(platformMessage);
+    platformStatus_->setVisible(!platformMessage.isEmpty());
+
+    const QString address = displayedAddress(snapshot);
+    addressStatus_->setText(
+        address.isEmpty()
+            ? QStringLiteral("No private LAN address available")
+            : address);
+    copy_->setEnabled(!address.isEmpty());
+
+    credentialStatus_->setText(
+        snapshot.credentialsConfigured
+            ? QStringLiteral(
+                  "Existing OS Account mode is configured. Remote clients "
+                  "must sign in with that account.")
+            : QStringLiteral(
+                  "Existing OS Account mode. Configure access before sharing."));
+    configureOsAccount_->setEnabled(
+        snapshot.controlAvailable && !authoritativeOn && !startRequested_);
+
+    permissionStatus_->setText(ownerPermissionStatusText(snapshot));
+    requestHostPermission_->setEnabled(
+        snapshot.controlAvailable && snapshot.credentialsConfigured &&
+        !authoritativeOn && !startRequested_);
+    allowRemoteInput_->setEnabled(
+        snapshot.controlAvailable && !authoritativeOn && !startRequested_);
+    permissionLifetimeMinutes_->setEnabled(
+        snapshot.controlAvailable && snapshot.credentialsConfigured &&
+        !authoritativeOn && !startRequested_);
+
+    const QString denial = blockedReason(snapshot);
+    sharingToggle_->setEnabled(
+        authoritativeOn || (!startRequested_ && denial.isEmpty()));
+
+    if (stopRequested_ && authoritativeOn)
+    {
+        status_->setText(QStringLiteral("Stopping sharing…"));
+    }
+    else if (authoritativeOn &&
+             (snapshot.listenerReady || snapshot.sharing))
+    {
+        status_->setText(QStringLiteral("Sharing is on."));
+    }
+    else if (authoritativeOn || startRequested_ || snapshot.startPending)
+    {
+        status_->setText(QStringLiteral("Starting sharing…"));
+    }
+    else if (snapshot.failure.isEmpty() && denial.isEmpty())
+    {
+        status_->setText(QStringLiteral("Ready to share."));
+    }
+    else
+    {
+        status_->setText(
+            QStringLiteral("Not ready: ") +
+            (snapshot.failure.isEmpty() ? denial : snapshot.failure));
+    }
+
+    selectedInterfaceStatus_->setText(
+        interfaces_->currentIndex() > 0
+            ? QStringLiteral("Interface: ") + interfaces_->currentText()
+            : QStringLiteral("Interface: unavailable"));
+    tlsIdentityStatus_->setText(tlsIdentityStatusText(snapshot));
+    hostLifecycleStatus_->setText(hostLifecycleText(snapshot));
+    errorStatus_->setText(
+        !userFacingError_.isEmpty()
+            ? QStringLiteral("Last action: ") + userFacingError_
+            : (snapshot.failure.isEmpty()
+                   ? QStringLiteral("Diagnostics: no host error reported.")
+                   : QStringLiteral("Diagnostics: ") + snapshot.failure));
+
+    const bool clientActionsEnabled =
+        snapshot.controlAvailable &&
+        (snapshot.sharing || snapshot.startPending) &&
+        !snapshot.activeClients.isEmpty();
+    clientSelection_->setEnabled(clientActionsEnabled);
+    disconnect_->setEnabled(
+        clientActionsEnabled && clientSelection_->currentIndex() > 0);
+
+    if (!snapshot.clients.isEmpty())
+    {
+        activity_->setText(
+            QStringLiteral("Connected: ") + snapshot.clients.join(", "));
+    }
+    else if (!snapshot.pendingClients.isEmpty())
+    {
+        activity_->setText(
+            QStringLiteral("Connecting: ") +
+            snapshot.pendingClients.join(", "));
+    }
+    else if (!snapshot.authenticationFailures.isEmpty())
+    {
+        activity_->setText(
+            QStringLiteral("No connected devices. ") +
+            snapshot.authenticationFailures.join(", "));
+    }
+    else
+    {
+        activity_->setText(QStringLiteral("No connected devices"));
+    }
+
+    updateTray(snapshot, address);
+
+    if (quitRequested_ && !authoritativeOn)
+        QApplication::quit();
+}
+
+void DesktopWindow::closeEvent(QCloseEvent* event)
+{
+    if (mayStillBeHosting(host_.status()))
+    {
+        // Closing presentation while sharing is not Stop authority. Keep the
+        // one runtime owner alive and make it reachable from the tray/menu bar.
+        hide();
+        event->ignore();
+        return;
+    }
+
     QWidget::closeEvent(event);
 }
-}
+
+} // namespace rdp::gui

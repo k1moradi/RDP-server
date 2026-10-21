@@ -1,3 +1,33 @@
+## R7 single-page dashboard, authoritative toggle and tray regressions (2026-10-21)
+
+Register the product UI regressions under every build with
+`RDP_SERVER_BUILD_DESKTOP_GUI=ON` and run them with
+`QT_QPA_PLATFORM=offscreen`; they must not open a listener or native desktop.
+
+- `gui.offscreen-dashboard-single-page-defaults` requires no
+  `QStackedWidget`, Back/Next navigation, password/confirmation fields or
+  clipboard control; it requires automatic runtime-approved address
+  presentation, collapsed Advanced disclosure, Existing OS Account mode, and
+  no user-facing R1/R2/R10 road labels.
+- `gui.offscreen-authoritative-sharing-toggle` proves a successful Start
+  command cannot check the switch before runtime status advances, a confirmed
+  listener/hosting stage checks it, and an unretired Stop keeps it checked with
+  Stopping presentation until authoritative retirement.
+- `gui.offscreen-tray-close-hide-and-explicit-quit` requires Open, Copy
+  Address, Start/Stop, client summary and Quit actions; window close during
+  hosting must hide with zero Stop/Revoke calls, while Quit must issue both and
+  remain nonterminal if the fake runtime refuses retirement.
+
+Keep `gui.offscreen-hide-preserves-active-sharing` as the independent R8
+lifetime assertion. The older close-before-Stop behavior is retired because it
+conflicts with the product requirement that active sharing survives ordinary
+window close. CI exact-one pins must follow the new tray-lifecycle behavior
+name rather than preserving a stale semantic test name.
+
+These tests are presentation/lifecycle evidence only. They do not prove
+physical owner consent, Microsoft-client password interoperability, clipboard
+activation, native Windows/macOS hosting or Linux FIRST acceptance.
+
 ## R2 standalone-password Microsoft-client acceptance run sheet (2026-10-21)
 
 The next positive R2 milestone is a real unmodified Windows App or Windows 11

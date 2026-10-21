@@ -2004,19 +2004,418 @@ jobs:
           ctest --test-dir build -C Release --timeout 30 \
             -R "$client_stage_selection" --output-on-failure
 
-      # Merged R7 GUI consent is a new exact-one offline Qt requirement;
-      # Start/Stop authority still belongs only to a future concrete R10.
-      - name: Pin R7 explicit GUI Stop-before-close Qt CTest
+      # R7 tray lifecycle is an exact-one offline Qt requirement: window close
+      # hides active sharing, while explicit Quit enters Stop/Revoke first.
+      - name: Pin R7 tray close-hide and explicit-Quit Qt CTest
         shell: bash
         run: |
           set -euo pipefail
-          selector='^gui[.]offscreen-close-requires-explicit-owner-stop$'
+          selector='^gui[.]offscreen-tray-close-hide-and-explicit-quit
+      # R7 typed lifecycle/terminal-session projection must remain exact-one.
+      - name: Pin R7 lifecycle and terminal-close Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-r10-lifecycle-and-terminal-close-denials$'
           selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$selected_tests"
-          grep -Fq ': gui.offscreen-close-requires-explicit-owner-stop' <<< "$selected_tests"
+          grep -Fq ': gui.offscreen-r10-lifecycle-and-terminal-close-denials' <<< "$selected_tests"
           selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_count" -ne 1 ]]; then
-            printf 'R9 GUI close consent registry mismatch: expected 1, found %s\n' \
+            printf 'R9 R7 lifecycle registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # R7 unsupported independent-password mode must expose no secret inputs.
+      - name: Pin R7 non-collecting unsupported-password Qt CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^gui[.]offscreen-independent-password-workflow-unavailable$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-independent-password-workflow-unavailable' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 unsupported-password registry mismatch: expected 1, found %s\n' "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
+      # Pair R10's production stable-interface/address predicate with R7's
+      # Qt chooser on the same AppleClang/Qt Release packaging runner.
+      # Fixtures are offline and cannot authorize R1/R2 or open sockets.
+      - name: Run R10 R7 shared LAN endpoint selection denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release \
+            --target test_runtime_host_control test_desktop_gui_offline --parallel 2
+          lan_endpoint_selection='^(runtime[.]host-control-selected-lan-interface-denials|gui[.]offscreen-r10-selected-lan-endpoint-preflight-denials)$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$lan_endpoint_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'runtime.host-control-selected-lan-interface-denials' <<< "$selected_tests"
+          grep -Fq 'gui.offscreen-r10-selected-lan-endpoint-preflight-denials' <<< "$selected_tests"
+          readonly lan_endpoint_expected_test_count=2
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$lan_endpoint_expected_test_count" ]]; then
+            printf 'R9 R10/R7 LAN registry mismatch: expected %s tests, found %s\n' \
+              "$lan_endpoint_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$lan_endpoint_selection" --output-on-failure
+
+      # Run the production GUI constructor-order security guard on the
+      # same hosted AppleClang/Qt build that packages and opens the actual
+      # extracted .app. Offscreen widget end-state checks cannot expose
+      # transient QLabel AutoText parsing during construction.
+      - name: Run R7 runtime PlainText constructor-order source guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          gui_plain_text_source_selection='^gui[.]runtime-label-plain-before-text-assignment$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$gui_plain_text_source_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'gui.runtime-label-plain-before-text-assignment' <<< "$selected_tests"
+          readonly gui_plain_text_source_expected_test_count=1
+          selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_test_count" -ne "$gui_plain_text_source_expected_test_count" ]]; then
+            printf 'R9 R7 Qt PlainText source registry mismatch: expected %s test, found %s\n' \
+              "$gui_plain_text_source_expected_test_count" "$selected_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$gui_plain_text_source_selection" --output-on-failure
+
+      - name: Package and verify real macOS Qt app closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          qt_prefix="$(brew --prefix qt)"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-portable-gui-$version-macos-arm64-$short_sha.zip"
+          python3 packaging/macos/gui_bundle.py \
+            --app build/rdp-server-desktop.app \
+            --macdeployqt "$qt_prefix/bin/macdeployqt" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --minimum-macos 13.0 \
+            --output "$archive"
+          outer_sha="$(shasum -a 256 "$archive" | awk '{print $1}')"
+          test -n "$outer_sha"
+          grep -Fqx "$outer_sha  $(basename "$archive")" "$archive.sha256"
+          python3 scripts/verify_portable_gui.py \
+            --archive "$archive" \
+            --git-sha "$GITHUB_SHA" \
+            --outer-sha256 "$outer_sha"
+
+          extracted="build/Extracted macOS PORTABLE GUI"
+          rm -rf "$extracted"
+          mkdir -p "$extracted"
+          ditto -x -k "$archive" "$extracted"
+          app="$extracted/rdp-server-desktop.app"
+          test -x "$app/Contents/MacOS/rdp-server-desktop"
+          test -f "$app/Contents/PlugIns/platforms/libqcocoa.dylib"
+          for framework in QtCore QtGui QtWidgets; do
+            test -d "$app/Contents/Frameworks/$framework.framework"
+          done
+
+          report="build/macos-gui-otool.txt"
+          : > "$report"
+          while IFS= read -r binary; do
+            if file "$binary" | grep -q 'Mach-O'; then
+              printf '\n== %s ==\n' "$binary" >> "$report"
+              otool -L "$binary" >> "$report"
+            fi
+          done < <(find "$app/Contents" -type f -print)
+          test -s "$report"
+          if grep -E '/opt/homebrew|/usr/local|/Users/runner|/Users/runneradmin' "$report"; then
+            echo "Extracted macOS GUI retains nonportable build-host dependency" >&2
+            exit 1
+          fi
+
+          # Verify the *extracted* archive, not only the pre-ZIP staging tree.
+          # Ad-hoc signing is development-only; it grants no Gatekeeper trust.
+          codesign --verify --deep --strict "$app"
+          signature_report="$(codesign -dv "$app" 2>&1)"
+          printf '%s\n' "$signature_report"
+          grep -F 'Signature=adhoc' <<< "$signature_report"
+          if grep -Eq '^Authority=Developer ID|^TeamIdentifier=[A-Z0-9]+' <<< "$signature_report"; then
+            echo "Preview unexpectedly reports a production signing identity" >&2
+            exit 1
+          fi
+      - name: Launch extracted Cocoa app normally without opening TCP listeners
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/smoke_macos_gui_open.py \
+            --app "build/Extracted macOS PORTABLE GUI/rdp-server-desktop.app"
+
+      # CI ad-hoc preview signing is not Developer ID signing or notarization.
+      # Publish only after extracted Cocoa launch, signature and Mach-O audits pass.
+      - name: Upload verified macOS arm64 PORTABLE-GUI archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-portable-gui-macos-arm64
+          path: |
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip
+            build/rdp-server-portable-gui-*-macos-arm64-*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  r7-macos-session-sanitizers:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify GCC sanitizer toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v gcc
+          command -v g++
+          gcc --version
+          g++ --version
+      - name: Configure R7 session-watch tests with ASan and UBSan
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=OFF \
+            -DCMAKE_C_COMPILER=gcc \
+            -DCMAKE_CXX_COMPILER=g++ \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all" \
+            "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
+      - name: Compile R7 session-watch test targets
+        run: |
+          cmake --build build --config Debug --parallel 2 --target \
+            test_macos_desktop_session_guard test_macos_input_controller \
+            test_macos_capture_pixel_buffer
+      - name: Run R7 macOS session-watch CTests with sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          desktop_session_selection='^macos\.desktop-session-'
+          desktop_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$desktop_session_selection")"
+          printf '%s\n' "$desktop_session_tests"
+          for required_test in \
+            macos.desktop-session-lifecycle \
+            macos.desktop-session-validation-denials \
+            macos.desktop-session-revocation-reentry \
+            macos.desktop-session-switch-away-back-revocation \
+            macos.desktop-session-mid-operation-epoch-change \
+            macos.desktop-session-watch-registration-retirement \
+            macos.desktop-session-watch-retirement-callback-race \
+            macos.desktop-session-watch-partial-install-retirement \
+            macos.desktop-session-watch-destructor-retirement \
+            macos.desktop-session-watch-unavailable-denial; do
+            grep -Fq "$required_test" <<< "$desktop_session_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$desktop_session_selection" --output-on-failure
+
+          input_session_selection='^macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)$'
+          input_session_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$input_session_selection")"
+          printf '%s\n' "$input_session_tests"
+          readonly input_session_expected_test_count=2
+          input_session_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$input_session_tests")"
+          if [[ "$input_session_test_count" -ne "$input_session_expected_test_count" ]]; then
+            printf 'R7 input sanitizer registry mismatch: expected %s tests, found %s\n' \
+              "$input_session_expected_test_count" "$input_session_test_count" >&2
+            exit 1
+          fi
+          grep -Fq 'macos.input-controller-session-watch-revocation' <<< "$input_session_tests"
+          grep -Fq 'macos.input-controller-authority-retirement-no-native-post' <<< "$input_session_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$input_session_selection" --output-on-failure
+
+          cursor_publication_selection='^macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R "$cursor_publication_selection")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'macos.cursor-session-watch-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-topology-publication-revocation' <<< "$selected_tests"
+          grep -Fq 'macos.cursor-geometry-generation-publication-denials' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$cursor_publication_selection" --output-on-failure
+
+  documentation-policy:
+    needs: ci-workflow-structure
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check documentation for every implementation commit
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+
+  publish-protocol-prerelease:
+    # Deploy ONLY tested protocol-library artifacts, never a server.
+    # An authorized protocol-vX.Y.Z tag triggers publication automatically.
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/protocol-v')
+    needs: [ci-workflow-structure, protocol, documentation-policy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify main ancestry and exact project version
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main
+          version=$(sed -nE 's/^project\(RDP_server VERSION ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' CMakeLists.txt)
+          test -n "$version"
+          test "$GITHUB_REF_NAME" = "protocol-v$version"
+      - name: Download all verified platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: protocol-package-*
+          merge-multiple: true
+          path: build/release-artifacts
+      - name: Verify three archives and digests were received
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find build/release-artifacts -maxdepth 1 -name 'rdp-server-protocol-*.zip' | wc -l)" -eq 3
+          test "$(find build/release-artifacts -maxdepth 1 -name 'SHA256SUMS-*.txt' | wc -l)" -eq 3
+          cd build/release-artifacts
+          for checksums in SHA256SUMS-*.txt; do
+            # Digests were generated from the CI build/ directory.
+            sed 's@  @  @' "$checksums" | sha256sum --check --status
+          done
+      - name: Publish development-only GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$GITHUB_REF_NAME" \
+            build/release-artifacts/rdp-server-protocol-*.zip \
+            build/release-artifacts/SHA256SUMS-*.txt \
+            --prerelease \
+            --title "RDP C++23 protocol SDK $GITHUB_REF_NAME" \
+            --notes "Development-only protocol static-library packages. NOT a deployable or authenticated RDP desktop server; no daemon or service is included."
+
+  # R5/R7/R9: distinct offline GUI ZIP; never starts the RDP server.
+  # Xvfb proves Qt/XCB startup only, never authenticates a physical seat0.
+  r5-linux-gui-zip:
+    needs: ci-workflow-structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt6 XCB and offline ZIP validation tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            qt6-base-dev qt6-qpa-plugins libssl-dev libsystemd-dev pkg-config \
+            xvfb xauth unzip python3
+      - name: R5 offline GUI packaging negative tests
+        run: |
+          set -euo pipefail
+          python3 tests/test_linux_gui_preflight.py
+          python3 tests/test_linux_gui_bundle.py
+      - name: Build R7 GUI and run native read-only R5 preflight CTest
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON -DRDP_SERVER_BUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
+          cmake --build build --config Release \
+            --target rdp-server-desktop test_linux_gui_prerequisites \
+              test_desktop_gui_offline --parallel 2
+          ctest --test-dir build -C Release \
+            -R '^gui[.]linux-readonly-seat0-prerequisite-denials$' \
+            --output-on-failure
+          tls_selector='^gui[.]offscreen-tls-fingerprint-rotation-and-denials$'
+          selected_tls_tests="$(ctest --test-dir build -C Release -N -R "$tls_selector")"
+          printf '%s\n' "$selected_tls_tests"
+          grep -Fq ': gui.offscreen-tls-fingerprint-rotation-and-denials' <<< "$selected_tls_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tls_tests")" -eq 1
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$tls_selector" --output-on-failure
+      - name: Package, extract and inspect actual Qt/XCB closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          printf 'Qt XCB plugin: %s\n' "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-gui-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-gui-SHA256SUMS.txt
+          unzip -q "$archive" -d build/gui-extracted
+          test -x build/gui-extracted/bin/rdp-server-desktop
+          test -x build/gui-extracted/run-gui.sh
+          test -x "build/gui-extracted/RDP Server.desktop"
+          export LD_LIBRARY_PATH="$PWD/build/gui-extracted/lib"
+          ldd build/gui-extracted/bin/rdp-server-desktop \
+            | tee build/gui-extracted/elf-dependencies.txt
+          ldd build/gui-extracted/plugins/platforms/libqxcb.so \
+            | tee build/gui-extracted/plugin-dependencies.txt
+          if grep -Fq 'not found' build/gui-extracted/*dependencies.txt; then
+            echo "GUI ZIP contains unresolved native dependencies" >&2
+            exit 1
+          fi
+          (
+            cd build/gui-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../gui-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../gui-smoke.log
+              echo "Extracted Qt GUI failed startup/idle smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload Linux GUI preview ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-gui-linux
+          path: |
+            build/rdp-server-gui-*.zip
+            build/rdp-server-gui-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-tray-close-hide-and-explicit-quit' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 GUI tray lifecycle registry mismatch: expected 1, found %s\n' \
               "$selected_count" >&2
             exit 1
           fi

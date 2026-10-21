@@ -1,3 +1,35 @@
+## R7 single-page product projection and tray ownership (2026-10-21)
+
+`DesktopWindow` is one presentation surface over the existing
+`RuntimeHostControl`; it does not add a connection/session owner. The
+imported `ToggleSwitchWidget` carries user intent only. Its checked state is
+re-derived from the runtime lifecycle on every refresh: a Start click cannot
+make it On, and a Stop click cannot make it Off. Short-lived
+`startRequested_` / `stopRequested_` flags affect only
+Starting/Stopping presentation and never satisfy `canStart()`, authorize a
+listener, admit a client or bypass fresh owner checks.
+
+The default endpoint is selected only from
+`HostStatus::approvedLanInterfaces`, which already reflects the shared
+runtime LAN predicate. R7 prefers the first approved IPv4 address for product
+readability, falls back to the first approved address, and preserves a manual
+Advanced override only while the exact stable interface ID + address pair
+survives refresh. The displayed pre-Start endpoint is descriptive
+`address:port`; once the runtime reports a bound endpoint, that value takes
+precedence. Copying either value grants no bind or trust authority.
+
+Window visibility is not host lifetime. Close while the raw runtime stage may
+still host calls `hide()` and ignores the close event. Tray/menu-bar Open
+restores presentation. Explicit tray Quit invokes the same Stop/Revoke command
+path first and exits only after a later status observation no longer reports a
+hosting stage. This preserves R8/R5/R3/R2/R1 ownership across hide/restore and
+uses the existing terminal retirement ordering for Quit.
+
+Session-password widgets remain structurally absent until the standalone
+Microsoft-client gate passes. Clipboard is likewise absent from the product
+surface while production activation is false; the R7 owner-permission request
+therefore asks only for view plus optional keyboard/mouse.
+
 ## R2 standalone authentication acceptance diagnostics (2026-10-21)
 
 The standalone path keeps the existing single-owner composition. R10 selects

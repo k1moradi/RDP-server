@@ -1,3 +1,40 @@
+## R7 one-page dashboard + tray authoring receipt (2026-10-21)
+
+Starting parent: `02f1df7685672c2c087f601a3810ff4a21a33de1`.
+
+Source inspection confirms the candidate removes the stacked wizard and
+Back/Next controls from `DesktopWindow`, uses the imported
+`ToggleSwitchWidget` as the sole visible Start/Stop control, auto-selects a
+runtime-approved private address, keeps manual interface + port under Advanced,
+and exposes no Session Password or clipboard control. Normal product strings in
+the dashboard contain no R1/R2/R10 road terminology.
+
+The candidate also adds one `QSystemTrayIcon`/menu surface with Open, Copy
+Address, Start/Stop, connected-device summary and Quit. Close while hosting
+hides without retirement; Quit always calls Stop/Revoke first and status refresh
+must confirm retirement before application exit. Windows offline package smoke
+is updated to validate the shared toggle/single-page surface instead of retired
+Start/Stop pushbuttons.
+
+New cross-platform offscreen registrations:
+`gui.offscreen-dashboard-single-page-defaults`,
+`gui.offscreen-authoritative-sharing-toggle`, and
+`gui.offscreen-tray-close-hide-and-explicit-quit`.
+The macOS exact-one workflow selector is updated from the obsolete
+close-before-Stop contract to the new tray lifecycle.
+
+Source-only checks in this connector environment: **PASS** for candidate blob
+presence, balanced braces/parentheses, wizard absence, toggle inclusion, tray
+action wiring, clipboard/password gating, CTest registration and workflow
+selector replacement. Canonical owner-local configure/build/full CTest:
+**NOT RUN** because this environment has no project checkout/toolchain.
+Hosted publication-SHA CI: **PENDING**. No live host operation was performed.
+
+Capability gates remain truthful: real Windows App/`mstsc.exe` standalone
+password acceptance is **NOT RUN**, so password inputs remain absent; Linux
+FIRST physical acceptance is **NOT RUN**, so production clipboard activation
+remains false.
+
 ## R2 standalone diagnostic test-scope correction (2026-10-21)
 
 Starting exact-main parent: `cf81961b162a70b40cf3929cc6dffab7d128930f`.

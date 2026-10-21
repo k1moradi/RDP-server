@@ -1,3 +1,58 @@
+## R7 one-page dashboard, authoritative toggle and tray lifecycle (2026-10-21)
+
+Starting shared-main parent: `02f1df7685672c2c087f601a3810ff4a21a33de1`.
+
+Track B is no longer blocked by the toggle documentation defect or tray-lifetime
+ownership. The desktop UI now replaces the six-page wizard with one dashboard:
+**RDP Server — Stopped/Starting/Sharing/Stopping**, automatic private-LAN
+address + Copy, capability-gated Access, Sharing with the imported
+`ToggleSwitchWidget` and keyboard/mouse consent, concise connected-device
+status + Disconnect, and a collapsed Advanced disclosure for interface
+override, port, TLS fingerprint, permission lifetime, authentication mode and
+diagnostics.
+
+The toggle never owns host truth. Start intent leaves the switch Off until the
+runtime reports a hosting/listener stage; Stop/Revoke intent keeps it On until
+the runtime confirms retirement. A rejected action snaps back to the observed
+state and presents a human-readable error. Automatic interface choice consumes
+only the existing runtime-approved private address list, preferring IPv4 while
+preserving an exact surviving manual Advanced override.
+
+Tray/menu-bar actions are Open, Copy Address, Start/Stop, connected-device
+summary and Quit. Closing the window during a pending/active host hides
+presentation only and makes zero Stop/Revoke calls. Explicit Quit always enters
+Stop/Revoke first and cannot finish while the runtime still reports a hosting
+stage. The R8 clipboard owner therefore survives hide/restore but remains
+terminally ordered through the existing common retirement path.
+
+Product capability gates are unchanged. No Session Password/confirmation field
+is constructed because real unmodified Windows App/Windows 11 `mstsc.exe`
+standalone-password interoperability is still NOT RUN. Clipboard has no product
+control and owner-consent requests force it false while
+`kLinuxProductionClipboardActivationApproved` remains false; FIRST Linux
+visible-desktop + mouse + keyboard + Stop must pass before a later Unicode-text
+activation change.
+
+New ordinary cross-platform Qt offscreen CTests are
+`gui.offscreen-dashboard-single-page-defaults`,
+`gui.offscreen-authoritative-sharing-toggle`, and
+`gui.offscreen-tray-close-hide-and-explicit-quit`. The existing R8
+`gui.offscreen-hide-preserves-active-sharing` remains complementary.
+The macOS packaging lane's former Stop-before-close exact-one pin is replaced by
+the tray close-hide/explicit-Quit behavior.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this
+connector-only environment. Source-contract inspection: **PASS** for wizard
+removal, toggle/tray wiring, password/clipboard gating and test registration.
+Publication-SHA hosted CI: **PENDING**. No listener, desktop, input, clipboard
+or credential prompt was activated.
+
+**Next gate:** product-main exact-SHA ordinary hosted CI. Track A FIRST remains
+frozen independently at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`;
+Track C still requires real Microsoft-client standalone-password PASS before
+R7 may expose Username + Session Password; Track D CLEAN Windows and Track E
+native Windows/macOS hosting remain independent.
+
 ## R2 standalone Microsoft-client acceptance diagnostics prepared (2026-10-21)
 
 Starting shared-main parent: `738d65d67356781046102fed50aed38372ddde24`.

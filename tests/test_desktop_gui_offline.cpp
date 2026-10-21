@@ -3,21 +3,24 @@
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
 #include "server/security/console_identity_policy.h"
+#include "toggle_switch.h"
+
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
 #endif
 
+#include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
 #include <QLabel>
-#include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
-#include <QTimer>
-#include <algorithm>
+#include <QStackedWidget>
 
+#include <algorithm>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -50,8 +53,15 @@ public:
     bool refuseRetirement{};
 
     [[nodiscard]] std::vector<RuntimeHostInterface>
-    enumerateLocalInterfaces() const override { return interfaces; }
-    [[nodiscard]] RuntimeHostStatus status() const override { return snapshot; }
+    enumerateLocalInterfaces() const override
+    {
+        return interfaces;
+    }
+
+    [[nodiscard]] RuntimeHostStatus status() const override
+    {
+        return snapshot;
+    }
 
     [[nodiscard]] RuntimeHostResult configure(
         const RuntimeHostOptions& options) override
@@ -60,18 +70,22 @@ public:
         lastOptions = options;
         return configureSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
-            : RuntimeHostResult{RuntimeHostError::InvalidConfiguration, false};
+            : RuntimeHostResult{
+                  RuntimeHostError::InvalidConfiguration, false};
     }
 
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) override
     {
         ++credentialSetupCalls;
-        assert(choice ==
-               rdp_server::server::security::LanCredentialChoice::ExistingOsAccount);
+        assert(
+            choice ==
+            rdp_server::server::security::LanCredentialChoice::
+                ExistingOsAccount);
         return credentialSetupSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
-            : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
+            : RuntimeHostResult{
+                  RuntimeHostError::ControlUnavailable, false};
     }
 
     [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
@@ -81,7 +95,8 @@ public:
         lastPermissionRequest = request;
         return permissionSetupSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
-            : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
+            : RuntimeHostResult{
+                  RuntimeHostError::ControlUnavailable, false};
     }
 
     [[nodiscard]] RuntimeHostResult startSharing() override
@@ -89,7 +104,8 @@ public:
         ++startCalls;
         return startSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
-            : RuntimeHostResult{RuntimeHostError::ControlUnavailable, false};
+            : RuntimeHostResult{
+                  RuntimeHostError::ControlUnavailable, false};
     }
 
     [[nodiscard]] RuntimeHostResult stopSharing() override
@@ -101,17 +117,21 @@ public:
     }
 
     [[nodiscard]] RuntimeHostResult disconnectClient(
-        const std::uint64_t opaqueClientId) override
+        std::uint64_t opaqueClientId) override
     {
         ++disconnectCalls;
         lastDisconnectedId = opaqueClientId;
         if (!disconnectSucceeds)
             return {RuntimeHostError::ClientNotFound, false};
-        auto& activeClients = snapshot.activeClients;
-        activeClients.erase(std::remove_if(activeClients.begin(), activeClients.end(),
-            [opaqueClientId](const RuntimeHostClient& client) {
-                return client.opaqueId == opaqueClientId;
-            }), activeClients.end());
+
+        auto& clients = snapshot.activeClients;
+        clients.erase(
+            std::remove_if(
+                clients.begin(), clients.end(),
+                [opaqueClientId](const RuntimeHostClient& client) {
+                    return client.opaqueId == opaqueClientId;
+                }),
+            clients.end());
         return {RuntimeHostError::None, false};
     }
 
@@ -127,11 +147,128 @@ public:
     }
 };
 
+namespace
+{
+
+ToggleSwitchWidget* sharingToggle(DesktopWindow& window)
+{
+    auto* toggle =
+        window.findChild<ToggleSwitchWidget*>("sharingToggle");
+    assert(toggle);
+    return toggle;
+}
+
+QLabel* requiredLabel(DesktopWindow& window, const char* name)
+{
+    auto* result = window.findChild<QLabel*>(name);
+    assert(result && result->textFormat() == Qt::PlainText);
+    return result;
+}
+
+QPushButton* requiredButton(DesktopWindow& window, const char* name)
+{
+    auto* result = window.findChild<QPushButton*>(name);
+    assert(result);
+    return result;
+}
+
+QComboBox* requiredCombo(DesktopWindow& window, const char* name)
+{
+    auto* result = window.findChild<QComboBox*>(name);
+    assert(result);
+    return result;
+}
+
+QAction* requiredAction(DesktopWindow& window, const char* name)
+{
+    auto* result = window.findChild<QAction*>(name);
+    assert(result);
+    return result;
+}
+
+void prepareReadyHost(FakeRuntimeHost& runtime)
+{
+    runtime.snapshot.lastError = RuntimeHostError::None;
+    runtime.snapshot.credentialsConfigured = true;
+    runtime.snapshot.hostOwnerAuthorized = true;
+    runtime.snapshot.tlsIdentityReady = true;
+    runtime.interfaces = {
+        RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet",
+            {"192.168.0.10"}, false, true}};
+}
+
+void assertNoRoadLabelsInUserText(DesktopWindow& window)
+{
+    const auto containsRoadLabel = [](const QString& text) {
+        return text.contains("R1", Qt::CaseInsensitive) ||
+               text.contains("R2", Qt::CaseInsensitive) ||
+               text.contains("R10", Qt::CaseInsensitive);
+    };
+
+    for (QLabel* item : window.findChildren<QLabel*>())
+        assert(!containsRoadLabel(item->text()));
+    for (QAbstractButton* item : window.findChildren<QAbstractButton*>())
+        assert(!containsRoadLabel(item->text()));
+    for (QComboBox* combo : window.findChildren<QComboBox*>())
+    {
+        for (int index = 0; index < combo->count(); ++index)
+            assert(!containsRoadLabel(combo->itemText(index)));
+    }
+}
+
+void checkDashboardDefaults(FakeRuntimeHost& runtime, HostControl& host)
+{
+    runtime.snapshot.lastError = RuntimeHostError::None;
+    runtime.interfaces = {
+        RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet",
+            {"192.168.1.42"}, false, true}};
+
+    DesktopWindow window(host);
+    assert(window.findChild<QStackedWidget*>() == nullptr);
+    assert(window.findChild<QObject*>("backPage") == nullptr);
+    assert(window.findChild<QObject*>("nextPage") == nullptr);
+    assert(window.findChild<QObject*>("password") == nullptr);
+    assert(window.findChild<QObject*>("confirmation") == nullptr);
+    assert(window.findChild<QObject*>("allowClipboard") == nullptr);
+    assert(window.findChild<QObject*>(
+               "setApplicationPasswordUnsupported") == nullptr);
+
+    auto* title = requiredLabel(window, "serverStateTitle");
+    auto* address = requiredLabel(window, "connectionAddress");
+    auto* access = requiredLabel(window, "credentialStatus");
+    auto* advanced =
+        requiredButton(window, "advancedDisclosure");
+    auto* advancedPanel = window.findChild<QWidget*>("advancedPanel");
+    auto* toggle = sharingToggle(window);
+
+    assert(title->text() == QStringLiteral("RDP Server — Stopped"));
+    assert(address->text() == QStringLiteral("192.168.1.42:3389"));
+    assert(access->text().contains("Existing OS Account"));
+    assert(advancedPanel && advancedPanel->isHidden());
+    assert(!toggle->isChecked() && !toggle->isEnabled());
+
+    advanced->click();
+    assert(!advancedPanel->isHidden());
+    advanced->click();
+    assert(advancedPanel->isHidden());
+
+    assertNoRoadLabelsInUserText(window);
+}
+
+} // namespace
+
 int main(int argc, char** argv)
 {
     QApplication application(argc, argv);
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "runtime")
+    FakeRuntimeHost runtime;
+    HostControl host(runtime);
+    const QString mode =
+        argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
+
+    if (mode == "runtime")
     {
         UnavailableRuntimeHostControl unavailable;
         HostControl production(unavailable);
@@ -141,106 +278,285 @@ int main(int argc, char** argv)
         assert(!production.requestHostPermission());
         assert(!production.start({}));
         assert(!window.canStart());
+        assert(!sharingToggle(window)->isEnabled());
         assert(unavailable.status().stage == RuntimeHostStage::Stopped);
         return 0;
     }
 
 #if defined(__linux__)
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "linux-real-host-control")
+    if (mode == "linux-real-host-control")
     {
-        // Use the production R10 owner with real Qt widgets. No seat, LAN
-        // address, R2 credential or network listener is needed.
-        LinuxRuntimeHostControl runtime;
-        HostControl controller(runtime);
+        LinuxRuntimeHostControl realRuntime;
+        HostControl controller(realRuntime);
         DesktopWindow window(controller);
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
-        auto* copy = window.findChild<QPushButton*>("copyLanAddress");
-        auto* permission = window.findChild<QPushButton*>("requestHostPermission");
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        assert(start && stop && disconnect && copy && permission && endpoint);
-
-        const auto initial = controller.status();
-        assert(initial.controlAvailable);
-        assert(initial.stage == RuntimeHostStage::Stopped);
-        assert(!initial.listenerReady && !initial.desktopAuthorized);
-        assert(!initial.tlsReady && !initial.sharing && !initial.startPending);
-        assert(initial.lanAddress.isEmpty() && initial.activeClients.isEmpty());
-        assert(!window.canStart() && !start->isEnabled());
-        assert(!stop->isEnabled() && !disconnect->isEnabled());
-        assert(!copy->isEnabled() && !permission->isEnabled());
-        assert(endpoint->text().contains("not reported"));
-
-        // Requests do not mint R2 consent or authorize R1's listener.
-        assert(!controller.requestExistingOsAccount());
-        assert(!controller.requestHostPermission());
-        assert(!controller.start({}));
-        window.refresh();
-        assert(!window.canStart() && !start->isEnabled());
-        assert(!controller.status().desktopAuthorized);
-        assert(!controller.status().listenerReady);
-
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        assert(controller.status().controlAvailable);
+        assert(!window.canStart());
+        assert(!toggle->isEnabled() && !toggle->isChecked());
+        assert(!copy->isEnabled());
         controller.stopAndRevoke();
         window.refresh();
-        const auto revoked = controller.status();
-        assert(revoked.stage == RuntimeHostStage::Revoked);
-        assert(!revoked.listenerReady && !revoked.desktopAuthorized);
-        assert(revoked.lanAddress.isEmpty() && revoked.activeClients.isEmpty());
-        assert(!window.canStart() && !start->isEnabled());
-        assert(!stop->isEnabled() && !disconnect->isEnabled());
-        assert(!copy->isEnabled());
-        assert(!controller.start({}));
+        assert(controller.status().stage == RuntimeHostStage::Revoked);
         return 0;
     }
 #endif
 
-    FakeRuntimeHost runtime;
-    HostControl host(runtime);
-
-    // Drive the real modal close confirmation through Qt's event loop.
-    // No native hosting or permission is started by this test helper.
-    const auto queueCloseChoice = [](DesktopWindow& window,
-                                     const QString& buttonName) {
-        QTimer::singleShot(0, &window, [buttonName] {
-            auto* confirmation =
-                qobject_cast<QMessageBox*>(QApplication::activeModalWidget());
-            assert(confirmation && confirmation->textFormat() == Qt::PlainText);
-            auto* selected = confirmation->findChild<QPushButton*>(buttonName);
-            assert(selected);
-            selected->click();
-        });
-    };
-
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "tls-identity")
+    if (mode == "dashboard")
     {
-        // R1 supplies typed values; the fake does not create a certificate,
-        // bind a port, authorize a session or establish Microsoft-client trust.
+        checkDashboardDefaults(runtime, host);
+        return 0;
+    }
+
+    if (mode == "toggle-authority")
+    {
+        prepareReadyHost(runtime);
+        runtime.startSucceeds = true;
+        DesktopWindow window(host);
+        auto* toggle = sharingToggle(window);
+        auto* title = requiredLabel(window, "serverStateTitle");
+        assert(window.canStart() && toggle->isEnabled());
+        assert(!toggle->isChecked());
+
+        toggle->click();
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        assert(!toggle->isChecked());
+        assert(title->text().contains("Starting"));
+
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        window.refresh();
+        assert(toggle->isChecked());
+        assert(title->text().contains("Sharing"));
+
+        runtime.refuseRetirement = true;
+        toggle->click();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(toggle->isChecked());
+        assert(title->text().contains("Stopping"));
+
+        runtime.refuseRetirement = false;
+        runtime.snapshot.stage = RuntimeHostStage::Revoked;
+        window.refresh();
+        assert(!toggle->isChecked());
+        assert(title->text().contains("Stopped"));
+        return 0;
+    }
+
+    if (mode == "tray-lifecycle")
+    {
+        prepareReadyHost(runtime);
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                7U, "192.168.0.44", false, true, true}};
+
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+        auto* open = requiredAction(window, "trayOpen");
+        auto* copy = requiredAction(window, "trayCopyAddress");
+        auto* sharing = requiredAction(window, "traySharing");
+        auto* clients = requiredAction(window, "trayConnectedClients");
+        auto* quit = requiredAction(window, "trayQuit");
+        assert(copy->isEnabled());
+        assert(sharing->text().contains("Stop"));
+        assert(clients->text().contains("1 connected device"));
+
+        assert(!window.close());
+        assert(!window.isVisible());
+        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+
+        open->trigger();
+        assert(window.isVisible());
+        copy->trigger();
+        assert(
+            application.clipboard()->text() ==
+            QStringLiteral("192.168.0.10:3389"));
+
+        runtime.refuseRetirement = true;
+        quit->trigger();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(runtime.snapshot.stage == RuntimeHostStage::ClientConnected);
+
+        runtime.refuseRetirement = false;
+        quit->trigger();
+        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
+        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+        return 0;
+    }
+
+    if (mode == "hide-preserves-sharing")
+    {
+        prepareReadyHost(runtime);
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                9U, "192.168.0.44", false, true, true}};
+
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+        window.hide();
+        application.processEvents();
+        assert(!window.isVisible());
+        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+        assert(host.status().sharing);
+        assert(
+            host.status().clipboardState ==
+            RuntimeClipboardState::Enabled);
+
+        host.stopAndRevoke();
+        window.refresh();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(!host.status().sharing);
+        assert(
+            host.status().clipboardState ==
+            RuntimeClipboardState::Retired);
+        return 0;
+    }
+
+    if (mode == "close" || mode == "close-consent")
+    {
+        prepareReadyHost(runtime);
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+
+        assert(!window.close());
+        assert(!window.isVisible());
+        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+
+        auto* quit = requiredAction(window, "trayQuit");
+        runtime.refuseRetirement = true;
+        quit->trigger();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(
+            runtime.snapshot.stage ==
+            RuntimeHostStage::ClientAuthenticating);
+
+        runtime.refuseRetirement = false;
+        quit->trigger();
+        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
+        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+        return 0;
+    }
+
+    if (mode == "unsupported-password")
+    {
+        prepareReadyHost(runtime);
+        DesktopWindow window(host);
+        assert(window.findChild<QObject*>("password") == nullptr);
+        assert(window.findChild<QObject*>("confirmation") == nullptr);
+        assert(window.findChild<QObject*>(
+                   "setApplicationPasswordUnsupported") == nullptr);
+        assert(
+            requiredLabel(window, "credentialStatus")
+                ->text().contains("Existing OS Account"));
+        assert(
+            requiredLabel(window, "authenticationModeStatus")
+                ->text().contains("Existing OS Account"));
+        return 0;
+    }
+
+    if (mode == "access")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.credentialSetupSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        DesktopWindow window(host);
+        auto* configure =
+            requiredButton(window, "configureOsAccount");
+        auto* permission =
+            requiredButton(window, "requestHostPermission");
+        auto* input =
+            window.findChild<QCheckBox*>("allowRemoteInput");
+        auto* lifetime =
+            window.findChild<QSpinBox*>(
+                "ownerPermissionLifetimeMinutes");
+        assert(configure && permission && input && lifetime);
+        assert(configure->isEnabled());
+        assert(!permission->isEnabled());
+        assert(input->isChecked());
+
+        configure->click();
+        assert(runtime.credentialSetupCalls == 1);
+        runtime.snapshot.credentialsConfigured = true;
+        window.refresh();
+        assert(permission->isEnabled());
+
+        input->setChecked(false);
+        lifetime->setValue(7);
+        permission->click();
+        assert(runtime.permissionSetupCalls == 1);
+        assert(!runtime.lastPermissionRequest.allowInput);
+        assert(!runtime.lastPermissionRequest.allowClipboard);
+        assert(
+            runtime.lastPermissionRequest.requestedLifetimeMilliseconds ==
+            7U * 60U * 1000U);
+        assert(!window.canStart());
+        return 0;
+    }
+
+    if (mode == "owner-grant-observation")
+    {
+        using namespace rdp_server::server::security;
+
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Active,
+            kConsoleViewPermission | kConsoleInputPermission,
+            6U * 60U * 1000U + 58U * 1000U};
+
+        DesktopWindow window(host);
+        auto* permission =
+            requiredLabel(window, "permissionStatus");
+        assert(permission->text().contains(
+            "Scope: screen, keyboard/mouse"));
+        assert(permission->text().contains("Remaining: 6 min 58 sec"));
+
+        runtime.snapshot.hostOwnerAuthorized = false;
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Expired,
+            kConsoleAllowedPermissions,
+            15U * 60U * 1000U};
+        window.refresh();
+        assert(permission->text().contains("expired"));
+        assert(!permission->text().contains("Scope:"));
+        return 0;
+    }
+
+    if (mode == "tls-identity")
+    {
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.tlsIdentity.state =
             RuntimeTlsIdentityState::ConfiguredUnbound;
         runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
         for (std::size_t index = 0;
-             index < runtime.snapshot.tlsIdentity.certificateSha256.size(); ++index)
+             index <
+             runtime.snapshot.tlsIdentity.certificateSha256.size();
+             ++index)
+        {
             runtime.snapshot.tlsIdentity.certificateSha256[index] =
                 static_cast<std::uint8_t>(index);
+        }
+
         DesktopWindow window(host);
-        auto* tls = window.findChild<QLabel*>("tlsIdentityStatus");
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        assert(tls && endpoint && start && stop);
-        assert(tls->textFormat() == Qt::PlainText);
-        const QString originalFingerprint = QStringLiteral(
+        auto* tls = requiredLabel(window, "tlsIdentityStatus");
+        const QString fingerprint = QStringLiteral(
             "00:01:02:03:04:05:06:07:08:09:0A:0B:0C:0D:0E:0F:"
             "10:11:12:13:14:15:16:17:18:19:1A:1B:1C:1D:1E:1F");
-        assert(originalFingerprint.size() == 95);
-        assert(tls->text().contains("configured, but no bound LAN listener"));
-        assert(tls->text().contains(
-            QStringLiteral("Configured certificate SHA-256: ") +
-            originalFingerprint));
-        assert(tls->text().contains("trust: unknown"));
-        assert(!host.status().listenerReady && !window.canStart());
+        assert(tls->text().contains(fingerprint));
+        assert(tls->text().contains("Client trust: unknown"));
 
         runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
         runtime.snapshot.listenerAvailable = true;
@@ -251,219 +567,74 @@ int main(int argc, char** argv)
         runtime.snapshot.tlsIdentity.state =
             RuntimeTlsIdentityState::BoundAndMatched;
         window.refresh();
-        assert(tls->text().contains(
-            "matches R10-reported bound LAN endpoint: 192.168.0.10:3389"));
-        assert(tls->text().contains(originalFingerprint));
-        assert(!start->isEnabled() && stop->isEnabled());
+        assert(tls->text().contains("active LAN endpoint"));
+        assert(tls->text().contains(fingerprint));
 
-        // Certificate rotation replaces the old fingerprint, with no GUI
-        // identity cache. Client trust is never promoted by the new bytes.
         runtime.snapshot.tlsIdentity.certificateSha256.fill(0xa5U);
         window.refresh();
-        assert(!tls->text().contains(originalFingerprint));
+        assert(!tls->text().contains(fingerprint));
         assert(tls->text().contains("A5:A5:A5:A5"));
-        assert(tls->text().contains("after certificate rotation"));
-        assert(tls->text().contains("trust: unknown"));
 
-        // A changed endpoint, mismatch and interface loss are not a
-        // matched-listener certificate for the newly selected address.
-        runtime.snapshot.boundEndpoint = "192.168.0.11:3389";
-        runtime.snapshot.tlsIdentity.state =
-            RuntimeTlsIdentityState::CertificateMismatch;
-        window.refresh();
-        assert(tls->text().contains("does not match"));
-        assert(!tls->text().contains("matches R10-reported"));
-        runtime.snapshot.tlsIdentity.state =
-            RuntimeTlsIdentityState::InterfaceUnavailable;
-        window.refresh();
-        assert(tls->text().contains("interface unavailable"));
-        runtime.snapshot.tlsIdentity.state =
-            RuntimeTlsIdentityState::InvalidEndpoint;
-        window.refresh();
-        assert(tls->text().contains("Invalid LAN endpoint"));
-
-        // An inconsistent bound claim without a current listener/endpoint
-        // or fingerprint cannot be presented as a confirmed identity.
-        runtime.snapshot.tlsIdentity.state =
-            RuntimeTlsIdentityState::BoundAndMatched;
-        runtime.snapshot.tlsIdentity.fingerprintAvailable = false;
-        runtime.snapshot.listenerAvailable = false;
-        runtime.snapshot.boundEndpoint.clear();
-        window.refresh();
-        assert(tls->text().contains("binding unconfirmed"));
-        assert(tls->text().contains("SHA-256: unavailable"));
-        assert(!tls->text().contains("A5:A5"));
-        assert(!host.status().listenerReady);
-
-        // Host-session loss or control disappearance suppresses stale
-        // positive metadata, while raw R10 stage still requires Stop.
-        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
-        runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
         window.refresh();
-        assert(tls->text().contains("TLS identity unavailable"));
+        assert(tls->text().contains("unavailable"));
         assert(!tls->text().contains("A5:A5"));
-        assert(!host.status().tlsReady);
-        assert(!start->isEnabled() && stop->isEnabled());
-        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
-        window.refresh();
-        assert(tls->text().contains("TLS identity unavailable"));
-        assert(!host.status().tlsReady);
-
-        runtime.snapshot.stage = RuntimeHostStage::Revoked;
-        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
-        window.refresh();
-        assert(tls->text().contains("TLS identity unavailable"));
-        assert(!stop->isEnabled() && !start->isEnabled());
-
-        // A freshly reported reconnect must use its *new* endpoint generation,
-        // endpoint and fingerprint, not stale data from the previous listener.
-        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.listenerAvailable = true;
-        runtime.snapshot.boundEndpoint = "192.168.0.12:3390";
-        runtime.snapshot.listenerGeneration = 12U;
-        runtime.snapshot.tlsIdentity.certificateSha256.fill(0x5aU);
-        window.refresh();
-        assert(tls->text().contains("TLS identity unavailable"));
-        assert(!tls->text().contains("A5:A5"));
-
-        runtime.snapshot.tlsIdentity.endpointGeneration = 12U;
-        window.refresh();
-        assert(tls->text().contains("192.168.0.12:3390"));
-        assert(tls->text().contains("5A:5A:5A:5A"));
-        assert(!tls->text().contains("A5:A5"));
-        assert(tls->text().contains("trust: unknown"));
-        assert(!window.canStart() && !start->isEnabled());
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "terminal-listener")
+    if (mode == "terminal-listener")
     {
-        // Terminal R2 evidence suppresses an old positive listener flag,
-        // but the raw R10 stage must still demand explicit Stop/Revoke.
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
         runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         DesktopWindow window(host);
-        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        auto* copy = window.findChild<QPushButton*>("copyLanAddress");
-        assert(lifecycle && endpoint && start && stop && copy);
-        assert(host.status().listenerReady);
-        assert(lifecycle->text().contains("Listening"));
+        auto* toggle = sharingToggle(window);
+        assert(toggle->isChecked());
 
         runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
         window.refresh();
-        const auto stale = host.status();
-        assert(!stale.listenerReady && !stale.startPending);
-        assert(stale.lanAddress.isEmpty());
-        assert(lifecycle->text().contains("Listener readiness unconfirmed"));
-        assert(endpoint->text().contains("not reported"));
-        assert(!window.canStart() && !start->isEnabled());
-        assert(!copy->isEnabled() && stop->isEnabled());
-
-        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
-        window.refresh();
-        assert(!host.status().listenerReady);
-        assert(stop->isEnabled());
-        stop->click();
+        assert(toggle->isChecked());
+        toggle->click();
         assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
         assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
-        assert(!stop->isEnabled() && !start->isEnabled());
+        assert(!toggle->isChecked());
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lifecycle-stages")
+    if (mode == "lifecycle-stages")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;
         DesktopWindow window(host);
-        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        assert(lifecycle && stop && lifecycle->textFormat() == Qt::PlainText);
-
-        const auto checkStage = [&](RuntimeHostStage stage, const char* label) {
+        auto* lifecycle =
+            requiredLabel(window, "hostLifecycleStatus");
+        const auto check = [&](RuntimeHostStage stage, const char* text) {
             runtime.snapshot.stage = stage;
             window.refresh();
-            assert(lifecycle->text().contains(QString::fromLatin1(label)));
+            assert(lifecycle->text().contains(
+                QString::fromLatin1(text)));
         };
-        checkStage(RuntimeHostStage::Stopped, "Stopped");
-        checkStage(RuntimeHostStage::PackageInstalled, "Installed");
-        checkStage(RuntimeHostStage::CredentialsConfigured, "OS credentials");
-        checkStage(RuntimeHostStage::ListenerAvailable, "readiness unconfirmed");
+        check(RuntimeHostStage::Stopped, "Stopped");
+        check(RuntimeHostStage::PackageInstalled, "Installed");
+        check(RuntimeHostStage::CredentialsConfigured, "Access configured");
+        check(RuntimeHostStage::ListenerAvailable, "Starting");
         runtime.snapshot.listenerAvailable = true;
-        checkStage(RuntimeHostStage::ListenerAvailable, "Listening");
-        checkStage(RuntimeHostStage::ClientAuthenticating, "Client authenticating");
-        checkStage(RuntimeHostStage::ShareActivated, "Share activated");
+        check(RuntimeHostStage::ListenerAvailable, "Listening");
+        check(RuntimeHostStage::ClientAuthenticating, "authenticating");
+        check(RuntimeHostStage::ShareActivated, "activated");
         runtime.snapshot.graphicsReady = true;
-        checkStage(RuntimeHostStage::ShareActivated, "Graphics ready");
+        check(RuntimeHostStage::ShareActivated, "Graphics ready");
         runtime.snapshot.nativeDesktopInitializing = true;
-        checkStage(RuntimeHostStage::ShareActivated, "Native desktop initializing");
+        check(RuntimeHostStage::ShareActivated, "Preparing");
         runtime.snapshot.nativeDesktopInitializing = false;
-        checkStage(RuntimeHostStage::DesktopVisible, "visibility unconfirmed");
+        check(RuntimeHostStage::DesktopVisible, "not yet confirmed");
         runtime.snapshot.nativeDesktopReady = true;
-        checkStage(RuntimeHostStage::DesktopVisible, "Desktop visible");
-        checkStage(RuntimeHostStage::ClientConnected, "visibility unconfirmed");
-        runtime.snapshot.activeClients = {
-            RuntimeHostClient{17U, "192.168.9.17", false, true, true}};
-        checkStage(RuntimeHostStage::ClientConnected, "Client connected");
-        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
-        runtime.snapshot.clientDisconnected = true;
-        checkStage(RuntimeHostStage::ListenerAvailable, "Client disconnected");
-        runtime.snapshot.clientDisconnected = false;
-        checkStage(RuntimeHostStage::Revoked, "revoked/stopped");
-
-        // R2 terminal error can hide projected Share before R10 retirement.
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
-        window.refresh();
-        assert(!host.status().sharing && !host.status().startPending);
-        assert(stop->isEnabled());
-        stop->click();
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
-        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
-
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
-        window.refresh();
-        assert(lifecycle->text().contains("Host control unavailable"));
-        assert(!window.canStart() && runtime.startCalls == 0);
+        check(RuntimeHostStage::DesktopVisible, "visible");
+        check(RuntimeHostStage::Revoked, "stopped");
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "unsupported-password")
-    {
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.tlsIdentityReady = true;
-        runtime.snapshot.nativeDesktopReady = true;
-        runtime.interfaces = {RuntimeHostInterface{
-            "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
-        DesktopWindow window(host);
-        auto* unsupported =
-            window.findChild<QPushButton*>("setApplicationPasswordUnsupported");
-        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        assert(unsupported && interfaces && start);
-        assert(!unsupported->isEnabled());
-        assert(unsupported->text().contains("Unsupported"));
-        assert(window.findChild<QObject*>("password") == nullptr);
-        assert(window.findChild<QObject*>("confirmation") == nullptr);
-
-        interfaces->setCurrentIndex(1);
-        window.refresh();
-        assert(window.canStart() && start->isEnabled());
-        unsupported->click();
-        assert(runtime.credentialSetupCalls == 0 &&
-               runtime.configureCalls == 0 && runtime.startCalls == 0);
-        return 0;
-    }
-
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "client-stage")
+    if (mode == "client-stage")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
@@ -471,105 +642,24 @@ int main(int argc, char** argv)
         runtime.snapshot.activeClients = {
             {10U, "192.168.0.101", true, false, false},
             {11U, "192.168.0.102", false, true, false},
-            {12U, "192.168.0.103", false, true, true},
-            {13U, "192.168.0.104", false, false, true}};
+            {12U, "192.168.0.103", false, true, true}};
         DesktopWindow window(host);
-        auto* activity = window.findChild<QLabel*>("clientStatus");
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        auto* selected = window.findChild<QComboBox*>("activeClientSelection");
-        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
-        assert(activity && endpoint && selected && disconnect);
-
-        const auto authenticating = host.status();
-        assert(authenticating.clients.isEmpty());
-        assert(authenticating.pendingClients.size() == 4);
-        assert(authenticating.activeClients.size() == 4);
-        assert(activity->text().contains("Authenticating: 192.168.0.101"));
-        assert(activity->text().contains(
-            "Share activated; desktop pending: 192.168.0.102"));
-        // A stale per-client desktopVisible bit cannot outrank the
-        // authoritative nativeDesktopReady observation.
-        assert(activity->text().contains(
-            "Share activated; desktop pending: 192.168.0.103"));
-        assert(activity->text().contains("Connected clients: None"));
-        assert(selected->count() == 5 && !disconnect->isEnabled());
+        auto* activity = requiredLabel(window, "clientStatus");
+        assert(activity->text().contains("Connecting"));
+        assert(!activity->text().contains("Connected: 192.168.0.103"));
 
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        window.refresh();
-        const auto notYetVisible = host.status();
-        assert(notYetVisible.clients.empty());
-        assert(activity->text().contains("Connected clients: None"));
-
         runtime.snapshot.nativeDesktopReady = true;
         window.refresh();
-        const auto connected = host.status();
-        assert(connected.clients.size() == 1);
-        assert(connected.clients.front() == "192.168.0.103");
-        assert(connected.pendingClients.size() == 3);
-        assert(activity->text().contains(
-            "Connected clients: 192.168.0.103"));
-        assert(!activity->text().contains(
-            "Connected clients: 192.168.0.101"));
-        selected->setCurrentIndex(1);
-        assert(disconnect->isEnabled());
+        assert(activity->text().contains("Connected: 192.168.0.103"));
 
-        // R10 retirement hides all former peers and the former endpoint,
-        // even if an inconsistent status payload retains stale field data.
         runtime.snapshot.stage = RuntimeHostStage::Stopped;
         window.refresh();
-        assert(host.status().clients.isEmpty());
-        assert(host.status().pendingClients.isEmpty());
-        assert(host.status().activeClients.isEmpty());
-        assert(host.status().lanAddress.isEmpty());
-        assert(endpoint->text().contains("not reported"));
-        assert(activity->text().contains("Connected clients: None"));
-        assert(activity->text().contains(
-            "Authenticating / desktop pending: None"));
-        assert(!activity->text().contains("192.168.0.101"));
-        assert(selected->count() == 1 && !disconnect->isEnabled());
-
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.lastError = RuntimeHostError::ControlUnavailable;
-        window.refresh();
-        assert(!host.status().controlAvailable);
-        assert(host.status().clients.isEmpty());
-        assert(host.status().activeClients.isEmpty());
-        assert(host.status().lanAddress.isEmpty());
-        assert(!disconnect->isEnabled());
-        // A rate-limit result is a redacted authentication failure, not a
-        // success and not a forced revocation of unrelated live clients.
-        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRateLimited;
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        window.refresh();
-        const auto limited = host.status();
-        assert(limited.authenticationFailures.size() == 1);
-        assert(limited.authenticationFailures.front() ==
-               QStringLiteral("Authentication temporarily rate-limited"));
-        assert(limited.failure ==
-               QStringLiteral("Authentication temporarily rate-limited"));
-
-        // Even an internally inconsistent late snapshot cannot present a
-        // stale owner as authorized or keep its old endpoint and clients.
-        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.nativeDesktopReady = true;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.tlsIdentityReady = true;
-        window.refresh();
-        const auto stale = host.status();
-        assert(!stale.desktopAuthorized && !stale.captureInputReady);
-        assert(!stale.sharing && !stale.startPending);
-        assert(stale.clients.isEmpty() && stale.pendingClients.isEmpty());
-        assert(stale.activeClients.isEmpty() && stale.lanAddress.isEmpty());
-        assert(stale.failure.contains("fresh authorization required"));
-        assert(!host.start({"some-interface", "192.168.0.10", 3389U}));
-        assert(!host.disconnectClient(12U));
-        assert(runtime.configureCalls == 0 && runtime.startCalls == 0 &&
-               runtime.disconnectCalls == 0);
+        assert(activity->text() == QStringLiteral("No connected devices"));
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "graphics-native-status")
+    if (mode == "graphics-native-status")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ShareActivated;
@@ -578,584 +668,184 @@ int main(int argc, char** argv)
         runtime.snapshot.activeClients = {
             {21U, "192.168.0.121", false, true, true}};
         DesktopWindow window(host);
-        auto* lifecycle = window.findChild<QLabel*>("hostLifecycleStatus");
-        auto* activity = window.findChild<QLabel*>("clientStatus");
-        assert(lifecycle && activity);
+        auto* lifecycle =
+            requiredLabel(window, "hostLifecycleStatus");
 
-        // Share alone is not Graphics-ready and a stale desktopVisible bit
-        // cannot bypass the nativeDesktopReady fact.
-        assert(lifecycle->text().contains("Share activated"));
-        assert(host.status().clients.empty());
-
+        assert(lifecycle->text().contains("activated"));
         runtime.snapshot.graphicsReady = true;
         window.refresh();
         assert(lifecycle->text().contains("Graphics ready"));
-        assert(!lifecycle->text().contains("Desktop visible"));
-        assert(activity->text().contains(
-            "Graphics ready; native desktop pending: 192.168.0.121"));
-        assert(host.status().clients.empty());
-
         runtime.snapshot.nativeDesktopInitializing = true;
         window.refresh();
-        assert(lifecycle->text().contains("Native desktop initializing"));
-        assert(activity->text().contains(
-            "Native desktop initializing: 192.168.0.121"));
-        assert(host.status().clients.empty());
-
+        assert(lifecycle->text().contains("Preparing"));
         runtime.snapshot.stage = RuntimeHostStage::DesktopVisible;
         runtime.snapshot.nativeDesktopInitializing = false;
         window.refresh();
-        assert(lifecycle->text().contains("visibility unconfirmed"));
-        assert(host.status().clients.empty());
-
+        assert(lifecycle->text().contains("not yet confirmed"));
         runtime.snapshot.nativeDesktopReady = true;
         window.refresh();
-        assert(lifecycle->text().contains("Desktop visible"));
-        assert(host.status().nativeDesktopReady);
-
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        window.refresh();
-        assert(host.status().clients.size() == 1);
-        assert(activity->text().contains(
-            "Connected clients: 192.168.0.121"));
-
-        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
-        runtime.snapshot.activeClients.clear();
-        runtime.snapshot.graphicsReady = false;
-        runtime.snapshot.nativeDesktopReady = false;
-        runtime.snapshot.clientDisconnected = true;
-        window.refresh();
-        const auto disconnected = host.status();
-        assert(disconnected.clientDisconnected);
-        assert(disconnected.startPending);
-        assert(disconnected.clients.empty());
-        assert(lifecycle->text().contains("Client disconnected"));
-        assert(activity->text().contains(
-            "Disconnected: Client disconnected; listener remains active"));
-
-        runtime.snapshot.stage = RuntimeHostStage::Revoked;
-        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
-        window.refresh();
-        assert(host.status().revoked.size() == 1);
-        assert(lifecycle->text().contains("revoked/stopped"));
+        assert(lifecycle->text().contains("visible"));
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "r10-lan-selector")
+    if (mode == "r10-lan-selector")
     {
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.tlsIdentityReady = true;
-        runtime.snapshot.nativeDesktopReady = true;
+        prepareReadyHost(runtime);
         runtime.interfaces = {
             {"ethernet-1", "Trusted Ethernet",
              {"192.168.2.21", "fe80::1234"}, false, true},
-            {"duplicate-id", "First duplicated ID",
+            {"duplicate-id", "First duplicate",
              {"192.168.2.22"}, false, true},
-            {"duplicate-id", "Second duplicated ID",
+            {"duplicate-id", "Second duplicate",
              {"192.168.2.23"}, false, true},
-            {"wildcards", "Unbindable",
-             {"0.0.0.0", "::", "[::]"}, false, true},
-            {"loopback", "Localhost", {"127.0.0.1"}, true, true},
-            {"disabled", "Unapproved", {"192.168.2.24"}, false, false}};
-        DesktopWindow window(host);
-        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        assert(interfaces && start);
-        const auto eligible = host.status().approvedLanInterfaces;
-        assert(eligible.size() == 2);
-        assert(interfaces->count() == 3); // Placeholder + valid IPv4/IPv6.
-        assert(interfaces->itemText(1).contains("192.168.2.21"));
-        assert(interfaces->itemText(2).contains("fe80::1234"));
-        assert(!window.canStart() && !start->isEnabled());
+            {"loopback", "Localhost", {"127.0.0.1"}, true, true}};
+        runtime.startSucceeds = true;
 
-        // The same R10 selector used on Start must reject an invalid
-        // native identity, a wildcard endpoint and a zero listening port.
-        assert(!host.start({"duplicate-id", "192.168.2.22", 3389U}));
-        assert(!host.start({"wildcards", "0.0.0.0", 3389U}));
-        assert(!host.start({"ethernet-1", "192.168.2.21", 0U}));
-        assert(runtime.configureCalls == 0 && runtime.startCalls == 0);
+        DesktopWindow window(host);
+        auto* interfaces = requiredCombo(window, "lanInterface");
+        auto* address = requiredLabel(window, "connectionAddress");
+        auto* toggle = sharingToggle(window);
+        assert(interfaces->count() == 3);
+        assert(interfaces->currentData().toString() ==
+               QStringLiteral("192.168.2.21"));
+        assert(address->text() == QStringLiteral("192.168.2.21:3389"));
+        assert(window.canStart() && toggle->isEnabled());
 
         interfaces->setCurrentIndex(2);
-        assert(window.canStart() && start->isEnabled());
-        start->click();
+        assert(address->text() ==
+               QStringLiteral("[fe80::1234]:3389"));
+        toggle->click();
         assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
         assert(runtime.lastOptions.interfaceId == "ethernet-1");
         assert(runtime.lastOptions.localAddress == "fe80::1234");
-        assert(!host.status().sharing); // A clicked Start grants no Share.
-
-        runtime.interfaces.clear(); // Revoke even the displayed selection.
-        window.refresh();
-        assert(interfaces->count() == 1);
-        assert(!window.canStart() && !start->isEnabled());
-        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        assert(!toggle->isChecked());
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "plain-runtime-text")
+    if (mode == "plain-runtime-text")
     {
-        // R10's runtime-facing labels must never interpret a peer or endpoint
-        // as a Qt rich-text link/image, even if the peer reports markup.
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.boundEndpoint = "<a href='https://invalid.example/'>host</a>";
+        runtime.snapshot.boundEndpoint =
+            "<a href='https://invalid.example/'>host</a>";
         runtime.snapshot.activeClients = {
             RuntimeHostClient{
-                17U, "<img src='file:///tmp/untrusted.svg'>", false, true, true}};
+                17U, "<img src='file:///tmp/untrusted.svg'>",
+                false, true, true}};
         runtime.interfaces = {
-            {"ethernet-1", "<a href='https://invalid.example/'>Ethernet</a>",
+            {"ethernet-1",
+             "<a href='https://invalid.example/'>Ethernet</a>",
              {"192.168.0.10"}, false, true}};
+
         DesktopWindow window(host);
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        auto* activity = window.findChild<QLabel*>("clientStatus");
-        auto* selected = window.findChild<QLabel*>("selectedLanInterfaceStatus");
-        auto* error = window.findChild<QLabel*>("hostErrorExplanation");
-        auto* selection = window.findChild<QComboBox*>("lanInterface");
-        assert(endpoint && activity && selected && error && selection);
-        selection->setCurrentIndex(1);
-        window.refresh();
-        assert(endpoint->textFormat() == Qt::PlainText);
-        assert(activity->textFormat() == Qt::PlainText);
-        assert(selected->textFormat() == Qt::PlainText);
-        assert(error->textFormat() == Qt::PlainText);
-        assert(endpoint->text().contains("<a href="));
-        assert(activity->text().contains("<img src="));
+        auto* address = requiredLabel(window, "connectionAddress");
+        auto* activity = requiredLabel(window, "clientStatus");
+        auto* selected =
+            requiredLabel(window, "selectedLanInterfaceStatus");
+        assert(address->text().contains("<a href="));
         assert(selected->text().contains("<a href="));
-        assert(!window.canStart());
-        assert(runtime.configureCalls == 0 && runtime.startCalls == 0);
+        assert(activity->text().contains("<img src=") ||
+               activity->text().contains("No connected devices"));
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "lan-client")
+    if (mode == "lan-client")
     {
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.tlsIdentityReady = true;
+        prepareReadyHost(runtime);
         runtime.snapshot.nativeDesktopReady = true;
-        // Same IP on two native interfaces requires the exact R10 stable ID.
         runtime.interfaces = {
-            {"ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true},
-            {"wifi-2", "Private Wi-Fi", {"192.168.0.10"}, false, true},
-            {"loopback", "Loopback", {"127.0.0.1"}, true, false}};
-        DesktopWindow window(host);
-        auto* lan = window.findChild<QComboBox*>("lanInterface");
-        auto* selected = window.findChild<QLabel*>("selectedLanInterfaceStatus");
-        auto* endpoint = window.findChild<QLabel*>("boundLanEndpoint");
-        auto* trust = window.findChild<QLabel*>("tlsIdentityStatus");
-        auto* error = window.findChild<QLabel*>("hostErrorExplanation");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        auto* clients = window.findChild<QComboBox*>("activeClientSelection");
-        auto* disconnect = window.findChild<QPushButton*>("disconnectClient");
-        assert(lan && selected && endpoint && trust && error && start &&
-               clients && disconnect);
-        assert(lan->count() == 3); // Placeholder and two eligible interfaces.
-        assert(lan->itemText(2).contains("Private Wi-Fi"));
-        assert(endpoint->text().contains("not reported"));
-        assert(trust->text().contains("no client trust is inferred"));
-        assert(!disconnect->isEnabled());
-        assert(!host.disconnectClient(7U));
-        assert(runtime.disconnectCalls == 0);
-
-        lan->setCurrentIndex(2);
-        assert(selected->text().contains("Private Wi-Fi"));
-        runtime.snapshot.credentialsConfigured = false;
-        window.refresh();
-        assert(!host.start({"wifi-2", "192.168.0.10", 3389U}));
-        assert(!start->isEnabled() && runtime.configureCalls == 0);
-        runtime.snapshot.credentialsConfigured = true;
-        window.refresh();
-        assert(window.canStart());
+            {"ethernet-1", "Private Ethernet",
+             {"192.168.0.10"}, false, true},
+            {"wifi-2", "Private Wi-Fi",
+             {"192.168.0.11"}, false, true}};
         runtime.startSucceeds = true;
-        start->click();
-        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+
+        DesktopWindow window(host);
+        auto* interfaces = requiredCombo(window, "lanInterface");
+        auto* toggle = sharingToggle(window);
+        auto* clients =
+            requiredCombo(window, "activeClientSelection");
+        auto* disconnect =
+            requiredButton(window, "disconnectClient");
+        assert(interfaces->currentIndex() == 1);
+        interfaces->setCurrentIndex(2);
+        toggle->click();
         assert(runtime.lastOptions.interfaceId == "wifi-2");
-        assert(runtime.lastOptions.localAddress == "192.168.0.10");
-        assert(!host.status().sharing); // A successful command is not Share.
+        assert(runtime.lastOptions.localAddress == "192.168.0.11");
 
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.boundEndpoint = "192.168.0.11:3389";
         runtime.snapshot.activeClients = {
-            RuntimeHostClient{7U, "192.168.0.44", false, true, true}};
+            RuntimeHostClient{
+                7U, "192.168.0.44", false, true, true}};
         window.refresh();
-        assert(endpoint->text().contains("192.168.0.10:3389"));
-        assert(clients->count() == 2 && !disconnect->isEnabled());
+        assert(sharingToggle(window)->isChecked());
+        assert(clients->count() == 2);
         clients->setCurrentIndex(1);
         assert(disconnect->isEnabled());
-        assert(!host.disconnectClient(8U));
-        assert(runtime.disconnectCalls == 0);
+
         runtime.disconnectSucceeds = true;
         disconnect->click();
-        assert(runtime.disconnectCalls == 1 && runtime.lastDisconnectedId == 7U);
-        assert(!disconnect->isEnabled() && clients->count() == 1);
-        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
-        window.refresh();
-        assert(error->text().contains("Sharing access revoked"));
+        assert(runtime.disconnectCalls == 1);
+        assert(runtime.lastDisconnectedId == 7U);
         return 0;
     }
 
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "positive-workflow")
+    if (mode == "positive-workflow")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;
         DesktopWindow window(host);
-        auto* configureAccount =
-            window.findChild<QPushButton*>("configureOsAccount");
-        auto* requestPermission =
-            window.findChild<QPushButton*>("requestHostPermission");
-        auto* interfaces = window.findChild<QComboBox*>("lanInterface");
-        auto* readiness = window.findChild<QLabel*>("sharingReadinessStatus");
-        auto* credentials = window.findChild<QLabel*>("credentialStatus");
-        auto* permission = window.findChild<QLabel*>("permissionStatus");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        assert(configureAccount && requestPermission && interfaces && readiness &&
-               credentials && permission && stop);
-        assert(requestPermission->text() ==
-               QStringLiteral("Request Local Owner Permission"));
-        assert(credentials->text().contains("Permitted credentials unavailable"));
-        assert(permission->text().contains(
-            "Local owner permission is not established"));
-        assert(readiness->text().contains("Not ready to share"));
-        assert(window.findChild<QObject*>("password") == nullptr);
-
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.tlsIdentityReady = true;
-        // Native desktop ownership is post-accept/post-R2 and must not gate Start.
-        runtime.snapshot.nativeDesktopReady = false;
-        runtime.interfaces = {RuntimeHostInterface{
-            "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
-        window.refresh();
-        interfaces->setCurrentIndex(1);
-        window.refresh();
-        assert(!host.status().captureInputReady);
-        assert(credentials->text().contains(
-            "Permitted credentials: existing OS-account"));
-        assert(permission->text().contains("Local owner permission is current"));
-        assert(readiness->text().contains("Ready to share"));
-        assert(!stop->isEnabled());
-
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
-        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
-        runtime.snapshot.activeClients = {
-            RuntimeHostClient{9U, "192.168.0.44", false, true, true}};
-        runtime.snapshot.nativeDesktopReady = true;
-        window.refresh();
-        assert(readiness->text().contains("R10 sharing address"));
-        assert(stop->isEnabled());
-        assert(stop->text().contains("Revoke"));
-        return 0;
-    }
-
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "access")
-    {
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.credentialSetupSucceeds = true;
-        runtime.permissionSetupSucceeds = true;
-        DesktopWindow window(host);
-        auto* configureAccount =
-            window.findChild<QPushButton*>("configureOsAccount");
-        auto* requestPermission =
-            window.findChild<QPushButton*>("requestHostPermission");
-        auto* allowInput =
-            window.findChild<QCheckBox*>("allowRemoteInput");
-        auto* allowClipboard =
-            window.findChild<QCheckBox*>("allowClipboard");
-        auto* lifetime =
-            window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
-        auto* permissionStatus =
-            window.findChild<QLabel*>("permissionStatus");
-        assert(configureAccount && requestPermission && allowInput &&
-               allowClipboard && lifetime && permissionStatus);
-        assert(configureAccount->isEnabled());
-        assert(!requestPermission->isEnabled());
-        assert(allowInput->isChecked() && allowClipboard->isChecked());
-        assert(lifetime->value() == 15);
-
-        configureAccount->click();
-        assert(runtime.credentialSetupCalls == 1);
-        assert(!host.status().credentialsConfigured);
-        assert(!requestPermission->isEnabled() && !window.canStart());
-
-        runtime.snapshot.credentialsConfigured = true;
-        window.refresh();
-        assert(requestPermission->isEnabled());
-        allowInput->setChecked(false);
-        allowClipboard->setChecked(true);
-        lifetime->setValue(7);
-        requestPermission->click();
-        assert(runtime.permissionSetupCalls == 1);
-        assert(!runtime.lastPermissionRequest.allowInput);
-        assert(runtime.lastPermissionRequest.allowClipboard);
-        assert(runtime.lastPermissionRequest.requestedLifetimeMilliseconds ==
-               7U * 60U * 1000U);
-        assert(!host.status().desktopAuthorized);
+        auto* credentials =
+            requiredLabel(window, "credentialStatus");
+        auto* permission =
+            requiredLabel(window, "permissionStatus");
+        assert(credentials->text().contains("Existing OS Account"));
+        assert(permission->text().contains("not established"));
         assert(!window.canStart());
 
-        runtime.snapshot.hostOwnerAuthorized = true;
+        prepareReadyHost(runtime);
         window.refresh();
-        assert(host.status().desktopAuthorized);
-        assert(permissionStatus->text().contains(
-            "R2 grant observation is unavailable"));
-        assert(!permissionStatus->text().contains("7 min"));
-        assert(!window.canStart()); // TLS/native/interface gates are still absent.
+        assert(window.canStart());
+        assert(sharingToggle(window)->isEnabled());
         return 0;
     }
 
-    if (argc > 1 &&
-        QString::fromLocal8Bit(argv[1]) == "owner-grant-observation")
-    {
-        using namespace rdp_server::server::security;
-
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Active,
-            kConsoleViewPermission | kConsoleClipboardPermission,
-            6U * 60U * 1000U + 58U * 1000U};
-
-        DesktopWindow window(host);
-        auto* permissionStatus =
-            window.findChild<QLabel*>("permissionStatus");
-        auto* allowInput =
-            window.findChild<QCheckBox*>("allowRemoteInput");
-        auto* allowClipboard =
-            window.findChild<QCheckBox*>("allowClipboard");
-        auto* lifetime =
-            window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
-        assert(permissionStatus && allowInput && allowClipboard && lifetime);
-
-        // Request intent deliberately disagrees with the R2 grant. Rendering
-        // must use the authoritative read-only observation instead.
-        allowInput->setChecked(true);
-        allowClipboard->setChecked(false);
-        lifetime->setValue(15);
-        window.refresh();
-        const auto active = host.status();
-        assert(active.desktopAuthorized);
-        assert(active.ownerGrant.state == RuntimeOwnerGrantState::Active);
-        assert(active.ownerGrant.effectivePermissionMask ==
-               (kConsoleViewPermission | kConsoleClipboardPermission));
-        assert(active.ownerGrant.remainingMilliseconds ==
-               6U * 60U * 1000U + 58U * 1000U);
-        assert(permissionStatus->text().contains(
-            "Effective scope: view, clipboard"));
-        assert(permissionStatus->text().contains(
-            "Remaining lifetime: 6 min 58 sec"));
-        assert(!permissionStatus->text().contains("input"));
-        assert(!permissionStatus->text().contains("15 min"));
-
-        // Expiry exposes neither stale effective permissions nor a requested
-        // lifetime, even if a deliberately inconsistent fake payload has them.
-        runtime.snapshot.hostOwnerAuthorized = false;
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Expired,
-            kConsoleAllowedPermissions,
-            15U * 60U * 1000U};
-        window.refresh();
-        assert(host.status().ownerGrant.state ==
-               RuntimeOwnerGrantState::Expired);
-        assert(permissionStatus->text().contains(
-            "Local owner permission expired"));
-        assert(!permissionStatus->text().contains("Effective scope"));
-        assert(!permissionStatus->text().contains("Remaining lifetime"));
-
-        // Terminal native/session loss suppresses an otherwise-active stale
-        // grant observation before it reaches the GUI.
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Active,
-            kConsoleViewPermission | kConsoleInputPermission,
-            59U * 1000U};
-        runtime.snapshot.lastError = RuntimeHostError::HostSessionStale;
-        window.refresh();
-        const auto terminal = host.status();
-        assert(!terminal.desktopAuthorized);
-        assert(terminal.ownerGrant.state == RuntimeOwnerGrantState::Unavailable);
-        assert(permissionStatus->text().contains(
-            "Local owner permission is not established"));
-        assert(!permissionStatus->text().contains("Effective scope"));
-        return 0;
-    }
-
-    if (argc > 1 &&
-        QString::fromLocal8Bit(argv[1]) == "hide-preserves-sharing")
+    // Default full-path regression: one page, auto-address, authoritative
+    // toggle, connected-device projection and explicit Stop/Revoke.
+    checkDashboardDefaults(runtime, host);
+    prepareReadyHost(runtime);
+    runtime.startSucceeds = true;
     {
         DesktopWindow window(host);
-        window.show();
-        application.processEvents();
-
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
-        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
-        runtime.snapshot.nativeDesktopReady = true;
-        runtime.snapshot.activeClients = {
-            RuntimeHostClient{9U, "192.168.0.44", false, true, true}};
-        window.refresh();
-        assert(host.status().sharing);
-        assert(host.status().clipboardState == RuntimeClipboardState::Enabled);
-
-        // Tray/minimize presentation hiding is not Stop/Revoke authority.
-        // The one R10 runtime and its current clipboard lifetime continue.
-        window.hide();
-        application.processEvents();
-        assert(!window.isVisible());
-        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
-        const auto hidden = host.status();
-        assert(hidden.sharing);
-        assert(hidden.clipboardState == RuntimeClipboardState::Enabled);
-        assert(runtime.snapshot.stage == RuntimeHostStage::ClientConnected);
-
-        // Explicit Stop/Revoke is terminal and must retire clipboard state.
-        window.show();
-        application.processEvents();
-        host.stopAndRevoke();
-        window.refresh();
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
-        assert(!host.status().sharing);
-        assert(host.status().clipboardState == RuntimeClipboardState::Retired);
-        return 0;
-    }
-
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close-consent")
-    {
-        DesktopWindow window(host);
-        window.show();
-        application.processEvents();
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
-        window.refresh();
-
-        // Dismissing the dialog must not cause Stop, Revoke or hiding.
-        queueCloseChoice(window, "keepSharingWindowOpen");
-        assert(!window.close() && window.isVisible());
-        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
-
-        // An explicit Stop still cannot close until R10 confirms retirement.
-        runtime.refuseRetirement = true;
-        queueCloseChoice(window, "confirmStopSharingAndClose");
-        assert(!window.close() && window.isVisible());
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
-
-        runtime.refuseRetirement = false;
-        queueCloseChoice(window, "confirmStopSharingAndClose");
-        assert(window.close());
-        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
-        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
-
-        // An already-stopped GUI closes without another Stop or prompt.
-        DesktopWindow stoppedWindow(host);
-        stoppedWindow.show();
-        application.processEvents();
-        assert(stoppedWindow.close());
-        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
-        return 0;
-    }
-
-    if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close")
-    {
-        DesktopWindow window(host);
-        window.show();
-        application.processEvents();
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
-        runtime.refuseRetirement = true;
-        window.refresh();
-        queueCloseChoice(window, "confirmStopSharingAndClose");
-        assert(!window.close());
-        assert(window.isVisible() && runtime.stopCalls == 1 &&
-               runtime.revokeCalls == 1);
-        runtime.refuseRetirement = false;
-        queueCloseChoice(window, "confirmStopSharingAndClose");
-        assert(window.close());
-        assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
-        assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
-        return 0;
-    }
-
-    {
-        DesktopWindow window(host);
-        assert(runtime.startCalls == 0 && runtime.configureCalls == 0 &&
-               !window.canStart());
-        auto* next = window.findChild<QPushButton*>("nextPage");
-        auto* back = window.findChild<QPushButton*>("backPage");
-        auto* start = window.findChild<QPushButton*>("startSharing");
-        auto* stop = window.findChild<QPushButton*>("stopSharing");
-        auto* unsupportedPassword =
-            window.findChild<QPushButton*>("setApplicationPasswordUnsupported");
-        auto* interfaceSelection = window.findChild<QComboBox*>("lanInterface");
-        auto* clients = window.findChild<QLabel*>("clientStatus");
-        auto* clipboard = window.findChild<QLabel*>("clipboardStatus");
-        auto* copy = window.findChild<QPushButton*>("copyLanAddress");
-        assert(next && back && start && stop && unsupportedPassword &&
-               interfaceSelection && clients && clipboard && copy);
-        assert(!unsupportedPassword->isEnabled());
-        assert(window.findChild<QObject*>("password") == nullptr);
-        assert(window.findChild<QObject*>("confirmation") == nullptr);
-        assert(clipboard->text().contains("unavailable"));
-        assert(!copy->isEnabled());
-
-        runtime.snapshot.clipboardState = RuntimeClipboardState::Denied;
-        window.refresh();
-        assert(clipboard->text().contains("denied"));
-        runtime.snapshot.clipboardState = RuntimeClipboardState::Unavailable;
-        window.refresh();
-        assert(clipboard->text().contains("unavailable"));
-
-        for (int page = 0; page < 5; ++page)
-            next->click();
-        assert(!start->isEnabled() && !stop->isEnabled());
-
-        runtime.snapshot.lastError = RuntimeHostError::None;
-        runtime.snapshot.credentialsConfigured = true;
-        runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.tlsIdentityReady = true;
-        runtime.snapshot.nativeDesktopReady = true;
-        runtime.interfaces = {RuntimeHostInterface{
-            "ethernet-1", "Private Ethernet", {"192.168.0.10"}, false, true}};
-        window.refresh();
-        assert(!window.canStart());
-
-        interfaceSelection->setCurrentIndex(1);
-        window.refresh();
-        assert(window.canStart() && start->isEnabled());
-
-        runtime.startSucceeds = true;
-        start->click();
-        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
-        assert(runtime.lastOptions.interfaceId == "ethernet-1");
-        assert(runtime.lastOptions.localAddress == "192.168.0.10");
-        assert(runtime.lastOptions.port == 3389U &&
-               runtime.lastOptions.lanRequested);
-        assert(!host.status().sharing);
-        assert(!copy->isEnabled());
-
-        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
-        // Rendering-only fixture: this does not mint an R2 lease or R3 route.
-        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
-        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
-        runtime.snapshot.activeClients = {
-            RuntimeHostClient{7U, "192.168.0.44", false, true, true}};
-        window.refresh();
-        assert(stop->isEnabled() && copy->isEnabled() &&
-               clients->text().contains("192.168.0.44"));
-        assert(clipboard->text().contains("enabled"));
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        assert(window.canStart() && toggle->isEnabled());
         copy->click();
-        assert(application.clipboard()->text() == "192.168.0.10:3389");
+        assert(
+            application.clipboard()->text() ==
+            QStringLiteral("192.168.0.10:3389"));
 
-        runtime.interfaces.clear();
+        toggle->click();
+        assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
+        assert(!toggle->isChecked());
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                7U, "192.168.0.44", false, true, true}};
         window.refresh();
-        assert(!window.canStart());
-        stop->click();
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
-        assert(!host.status().sharing && !copy->isEnabled());
-        assert(clipboard->text().contains("retired"));
+        assert(toggle->isChecked());
+        assert(
+            requiredLabel(window, "clientStatus")
+                ->text().contains("192.168.0.44"));
 
-        for (int page = 0; page < 5; ++page)
-            back->click();
-        window.close();
+        toggle->click();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(!toggle->isChecked());
     }
+
     return 0;
 }

@@ -1,3 +1,18 @@
+## R7 PlainText source guards must test behavior, not parentless spelling (2026-10-21)
+
+The `gui.runtime-label-plain-before-text-assignment` source regression protects
+against transient Qt AutoText parsing of runtime-controlled status strings.
+Its invariant is: construct an empty shared label, select
+`Qt::PlainText`, then assign runtime text. Supplying a QObject parent while
+constructing that empty label is safe and must not make the test depend on the
+literal `new QLabel()` spelling.
+
+The checker therefore scopes itself to the shared `label()` helper, rejects a
+QLabel constructor containing the runtime `message`, and verifies the
+relative order of empty parent-aware construction, PlainText selection and
+runtime assignment. Keep the runtime/offscreen property tests as complementary
+coverage; they cannot by themselves detect a transient pre-PlainText parse.
+
 ## R2 Track E native authorization synthetic construction/replay tests (2026-10-21)
 
 The portable `test_native_desktop_authorization` suite exercises the R2

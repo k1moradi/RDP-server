@@ -1,3 +1,34 @@
+## R7 PlainText source-guard constructor correction (2026-10-21)
+
+Starting shared-main parent:
+`8a4d7f3529487fbbcf42ee0ddfa7e3276d63c806`.
+
+R7 qualification on exact ancestor `88674a0b33f65986abd9fab5076f19542b945f63`
+cleared the Qt toggle compile defect and the authoritative-toggle behavior
+suite, then macOS portable-GUI job `119552004955` exposed the next ordinary
+source-policy blocker:
+`gui.runtime-label-plain-before-text-assignment` failed even though
+`DesktopWindow` already constructs an empty `QLabel(parent)`, selects
+`Qt::PlainText`, and only then assigns runtime text. The checker still
+required the obsolete exact spelling `new QLabel()`.
+
+The source guard now inspects the shared `label()` helper, permits the
+parent-aware empty constructor, rejects any QLabel constructor that consumes
+the runtime `message`, and requires source order
+empty construction -> `setTextFormat(Qt::PlainText)` -> `setText(message)`.
+Production GUI behavior is unchanged. This preserves the original security
+property while avoiding a false failure caused solely by QObject parenting.
+
+The concurrent R2 native-authorization commit at this parent is preserved
+unchanged. Canonical owner-local configure/build/full CTest: **NOT RUN** in
+this connector environment. Exact-publication-SHA Windows CLANG64 + macOS
+portable GUI + Linux GUI qualification: **PENDING**. No listener,
+authentication, native desktop, input or clipboard operation was performed.
+
+**Next gate:** exact-publication-SHA three-platform GUI PASS, then continue
+R7 product polish without enabling Session Password before the Microsoft-client
+standalone-authentication proof.
+
 ## R2 Track E Windows/macOS native authorization capability seams (2026-10-21)
 
 Starting shared-main parent: `88674a0b33f65986abd9fab5076f19542b945f63`.

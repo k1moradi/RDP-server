@@ -1,3 +1,23 @@
+## R7 macOS PlainText guard false-failure receipt (2026-10-21)
+
+Exact ancestor `88674a0b33f65986abd9fab5076f19542b945f63`, primary
+run `39695568186`, macOS portable-GUI job `119552004955`: real app build
+**PASS**, portable integrity **PASS**, 20-test shared Qt offscreen behavior
+suite **PASS** (including authoritative sharing toggle), TLS/client-stage/tray/
+lifecycle/unsupported-password pins **PASS**, and R10/R7 LAN endpoint denials
+**PASS**. The next source-only pin
+`gui.runtime-label-plain-before-text-assignment` **FAIL** because its checker
+expected `new QLabel()`; current production source safely uses
+`new QLabel(parent)` followed by `setTextFormat(Qt::PlainText)` before
+`setText(message)`.
+
+The corrective publication changes only that source checker and documentation:
+it accepts empty parent-aware construction while continuing to reject runtime
+text in the constructor and reordered PlainText assignment. Production UI and
+HostControl are unchanged. Canonical owner-local full CTest: **NOT RUN**.
+Replacement exact-SHA hosted Windows CLANG64 + macOS portable GUI + Linux GUI:
+**PENDING**. Live operation: **NOT RUN**.
+
 ## R2 Track E Windows/macOS native authorization seams (2026-10-21)
 
 Starting shared-main parent:

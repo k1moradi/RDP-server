@@ -89,6 +89,9 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         "Get-NetFirewallProfile", "TermService", "fDenyTSConnections", "PortNumber",
         "Get-NetTCPConnection", "Get-NetUDPEndpoint", "smoke_windows_portable_gui.ps1",
         "offline-unsupported-password-test", "QT_PLUGIN_PATH", "System32", "Start-Process",
+        "manual-owner-native", "self-hosted-clean-runner", "RuntimeInformation",
+        "acceptance_label", "os_architecture", "no_process_tcp_udp_before_start",
+        "R9 CLEAN receipt SHA-256:",
     ):
         if required not in verifier:
             raise AssertionError(f"Consumer security guard absent: {required}")

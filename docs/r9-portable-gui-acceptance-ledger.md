@@ -1,3 +1,35 @@
+## R9 manual CLEAN route and split qualification ledgers (2026-10-21)
+
+Authoring shared-main base: `32627968bce27b5f3bab3b2fdc8b48433bf502e0`. This publication creates a new exact product-main SHA, so its ordinary hosted qualification starts from zero; no PASS is inherited from any parent.
+
+| Ledger | Exact candidate/evidence | R9 rule |
+|---|---|---|
+| **FIRST Linux acceptance** | `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` | **FROZEN**. Product-main UX/password/native-host/portability commits must not move it. Physical owner-authorized visible desktop + mouse + keyboard + Stop remains **NOT RUN**. |
+| **Product-main qualification** | this R9 publication SHA | Require every ordinary hosted lane green on this exact SHA, including Windows CLANG64. The `389de5a...` typed Qt lookup failure and `1fc5829c...` stale fake-product assertion are retained as real predecessor failures; do not weaken coverage to hide them. CLEAN is separate. |
+| **CLEAN Windows** | exact producer ZIP + ZIP sidecar + `rdp-server-clean-windows-receipt-v1` | The dedicated clean runner or a verifier-accepted owner-native receipt may satisfy CLEAN. Manual evidence is labeled **MANUAL CLEAN PASS**, never automated CI PASS. |
+
+### Current M1 owner-authority correction
+
+Older dated statements below that positive Linux owner authorization is structurally unavailable are superseded. Current `CurrentOwnerSharingAuthority::requestConsent()` can return `Granted` for fresh valid physical `seat0`, unlocked, local-owner evidence; `authorizes()` freshly revalidates scope, lifetime and native evidence. R2 additionally fences platform-native authorization to the exact grant/revocation epoch. Offline positive tests are source/state-machine evidence only; physical FIRST remains **NOT RUN**.
+
+### Formal manual CLEAN receipt
+
+Run the existing exact-SHA clean script against the unchanged exact producer ZIP and sidecar on a genuinely clean x86-64 Windows desktop user:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\clean_windows_portable_gui.ps1 -Archive <exact.zip> -ExactGitSha <40-hex-sha> -Receipt .\clean-receipt.json
+```
+
+Receipt v1 records the exact source SHA, ZIP SHA-256, machine/Windows architecture, interactive non-admin/Explorer status, clean parent and isolated child PATH/environment checks, launch/close/relaunch, hidden offline tests, no process TCP/UDP sockets before Start, and firewall/service/TermService/RDP-policy+port invariance. The script writes `clean-receipt.json.sha256` over the exact receipt bytes.
+
+Verify offline with the unchanged ZIP, ZIP sidecar, receipt and receipt sidecar:
+
+```text
+python scripts/verify_clean_windows_receipt.py --receipt clean-receipt.json --archive <exact.zip> --exact-git-sha <40-hex-sha>
+```
+
+The verifier recomputes both hashes, enforces strict two-space sidecars and the complete v1 schema/check set, rejects duplicate JSON keys, and preserves provenance as **MANUAL CLEAN PASS** or **SELF-HOSTED CLEAN PASS**. Authoring-only isolated verifier regression: **PASS 8/8**. Real manual CLEAN execution: **NOT RUN**.
+
 ## R9 split qualification ledgers and R7 toggle co-change repair (2026-10-21)
 
 PM policy separates Linux FIRST acceptance from moving product-main
@@ -49,9 +81,7 @@ synchronous R4 frame borrowing precede the frame-publication pending state.
 No production code, authority decision, protocol ownership, or release policy
 is changed.
 
-**START remains blocked** independently by R2 trusted-owner authority:
-`CurrentOwnerSharingAuthority::requestConsent()` still reports
-`TrustedOwnerProofUnavailable` and positive authorization remains false.
+**Historical note:** that 2026-10-19 state is superseded by current M1 positive grants from fresh valid physical seat0/unlocked same-UID evidence. Physical FIRST remains NOT RUN.
 **CLEAN remains blocked** operationally because no interactive non-admin
 `r9-clean-windows-gui` receipt exists; the exact Windows candidate must not
 be promoted to a public PORTABLE-GUI until that consumer runs successfully.
@@ -81,9 +111,7 @@ resize remains blocked on R10 scheduler wiring: current
 DELETE/CREATE/MAP write kinds, while the R2 broker exposes
 `beginR3PersonalDesktopGraphicsSurfaceReconfiguration(...)`, but the runtime
 loop still has no production call that observes fresh native geometry and
-starts that reconfiguration. Positive GUI LAN Start remains separately blocked
-because R2's `CurrentOwnerSharingAuthority::requestConsent()` returns
-`TrustedOwnerProofUnavailable` and `authorizes()` remains false.
+starts that reconfiguration. At that historical SHA the positive path was structurally blocked. Current M1 can grant/revalidate valid physical owner evidence; physical FIRST remains NOT RUN.
 
 R9's remaining release blocker is still operational, not source-level: no
 qualifying interactive non-admin runner/receipt exists for

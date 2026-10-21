@@ -522,6 +522,11 @@ add_test(NAME packaging.windows-portable-gui-clean-release-structure-denials
         "${PROJECT_SOURCE_DIR}/tests/test_r9_clean_windows_gate.py")
 set_tests_properties(packaging.windows-portable-gui-clean-release-structure-denials
     PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
+add_test(NAME packaging.windows-portable-gui-manual-clean-receipt-verifier-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_r9_manual_clean_windows_receipt.py")
+set_tests_properties(packaging.windows-portable-gui-manual-clean-receipt-verifier-denials
+    PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
 
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)

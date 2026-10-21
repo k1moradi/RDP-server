@@ -32,6 +32,22 @@ foreach ($directory in @('C:\msys64', 'C:\Qt', 'C:\Program Files\LLVM')) {
     if (Test-Path -LiteralPath $directory) { throw 'Runner contains forbidden toolchain installation' }
 }
 
+$osArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+$processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+if ($osArchitecture -cne 'X64') {
+    throw 'Clean Windows evidence must come from an x86-64 OS'
+}
+$evidenceOrigin = if ($env:GITHUB_ACTIONS -ceq 'true') {
+    'self-hosted-clean-runner'
+} else {
+    'manual-owner-native'
+}
+$acceptanceLabel = if ($evidenceOrigin -ceq 'manual-owner-native') {
+    'MANUAL CLEAN PASS'
+} else {
+    'SELF-HOSTED CLEAN PASS'
+}
+
 # The exact producer archive is structurally bounded and inspected before
 # extraction. No ZIP rewriting, dependency deployment, or copying DLLs.
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -200,11 +216,24 @@ foreach ($name in $namesToRestore) {
 }
 $windows = [Environment]::GetFolderPath('Windows')
 if (!$windows) { throw 'Windows root unavailable' }
-$env:PATH = "$windows\System32;$windows;$windows\System32\Wbem"
+$isolatedChildPath = "$windows\System32;$windows;$windows\System32\Wbem"
+$env:PATH = $isolatedChildPath
 foreach ($name in $namesToRestore) {
     [Environment]::SetEnvironmentVariable($name,$null,'Process')
 }
 $env:QT_QPA_PLATFORM = 'windows'
+if ($env:PATH -cne $isolatedChildPath) {
+    throw 'GUI child PATH was not isolated to Windows system directories'
+}
+foreach ($name in $namesToRestore) {
+    if ($name -ne 'QT_QPA_PLATFORM' -and
+        [Environment]::GetEnvironmentVariable($name,'Process')) {
+        throw "GUI inherited developer environment override: $name"
+    }
+}
+if ($env:QT_QPA_PLATFORM -cne 'windows') {
+    throw 'Qt platform selection was not pinned to the native Windows plugin'
+}
 try {
     # This real GUI smoke runs hidden tests, first window, ordinary close,
     # relaunch and second close, plus per-process TCP/UDP socket assertions.
@@ -231,18 +260,52 @@ finally {
 if ((Get-WindowsSafetyState) -cne $before) {
     throw 'GUI changed firewall/TermService/RDP policy/service registration'
 }
-New-Item -ItemType Directory -Path (Split-Path -Parent $Receipt) -Force | Out-Null
+$receiptParent = Split-Path -Parent $Receipt
+if ($receiptParent) {
+    New-Item -ItemType Directory -Path $receiptParent -Force | Out-Null
+}
 [ordered]@{
+    schema = 'rdp-server-clean-windows-receipt-v1'
     status = 'PASS'
     gate = 'clean-windows-portable-gui'
+    evidence_origin = $evidenceOrigin
+    acceptance_label = $acceptanceLabel
     exact_git_sha = $ExactGitSha
     archive = $archiveName
     archive_sha256 = $outerDigest
+    machine = [Environment]::MachineName
     windows_version = [Environment]::OSVersion.VersionString
+    os_architecture = $osArchitecture
+    process_architecture = $processArchitecture
+    session_id = $sessionId
     non_admin_interactive = $true
-    checks = @('outer-and-inner-sha256','notices-and-manifest','windows-plugin-load',
-               'first-window-close-relaunch','hidden-self-tests','unicode-spaces',
-               'no-tcp-udp','firewall-unchanged','termservice-unchanged',
-               'no-install-or-elevation','system-only-child-path')
-} | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $Receipt -Encoding UTF8
+    explorer_session = $true
+    clean_path = [ordered]@{
+        initial_development_entries_absent = $true
+        forbidden_toolchain_directories_absent = $true
+        child_windows_system_only = $true
+        developer_environment_cleared = $true
+    }
+    checks = [ordered]@{
+        archive_outer_sidecar_match = $true
+        archive_internal_hashes_match = $true
+        manifest_and_notices_present = $true
+        windows_platform_plugin_present = $true
+        launch_close_relaunch = $true
+        offline_hidden_self_tests = $true
+        unicode_space_extraction = $true
+        no_process_tcp_udp_before_start = $true
+        firewall_rules_profiles_unchanged = $true
+        services_unchanged = $true
+        termservice_unchanged = $true
+        rdp_policy_port_unchanged = $true
+        no_install_or_elevation = $true
+    }
+} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Receipt -Encoding UTF8
+$receiptPath = (Resolve-Path -LiteralPath $Receipt).Path
+$receiptName = Split-Path -Leaf $receiptPath
+$receiptDigest = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+Set-Content -LiteralPath ($receiptPath + '.sha256') -Value "$receiptDigest  $receiptName" -Encoding ascii
+Write-Host "R9 CLEAN evidence classification: $acceptanceLabel"
+Write-Host "R9 CLEAN receipt SHA-256: $receiptDigest"
 Write-Host 'R9 clean Windows portable GUI acceptance PASS'

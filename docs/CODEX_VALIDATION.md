@@ -1,3 +1,19 @@
+## R2 standalone diagnostic test-scope correction (2026-10-21)
+
+Starting exact-main parent: `cf81961b162a70b40cf3929cc6dffab7d128930f`.
+
+Post-publication source review found one test-only name-lookup defect before the
+hosted Linux compile completed: the new standalone admission assertion used
+`ConsoleEvidenceAuthenticationKind` unqualified while the fixture's anonymous
+namespace imported `ConsoleEvidenceRequest` but not that enum. This correction
+adds the matching `using` declaration only. Production R2 code, failure-stage
+classification, no-GSS-fallback behavior, acceptance criteria and the live
+NOT-RUN status are unchanged.
+
+Canonical owner-local build/CTest remains **NOT RUN** in this connector
+environment. The corrective exact publication SHA must qualify independently
+in hosted CI.
+
 ## R2 standalone Microsoft-client acceptance-diagnostics authoring receipt (2026-10-21)
 
 Starting shared-main parent: `738d65d67356781046102fed50aed38372ddde24`.

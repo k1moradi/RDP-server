@@ -129,6 +129,7 @@ using rdp_server::server::transport::RdpSlowPathInputEvent;
 using rdp_server::server::transport::RdpSlowPathInputEventSink;
 using rdp_server::server::security::ConsolePolicyMatch;
 using rdp_server::server::security::ConsoleEvidenceRequest;
+using rdp_server::server::security::ConsoleEvidenceAuthenticationKind;
 using rdp_server::server::security::ConsoleIdentityRuleInput;
 using rdp_server::server::security::CredSspServerReplyField;
 using rdp_server::server::security::GssapiSpnegoAcceptor;

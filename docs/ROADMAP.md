@@ -1,3 +1,11 @@
+## R9 current qualification and owner-authority documentation correction (2026-10-21)
+
+Exact R9 product-main candidate: `62bdcc81d6616e9430e0eaf47ea6be4cb2446d3b`. Structure Actions `39695998459` is **PASS**; the primary exact-SHA workflow is pending/queued at this documentation receipt. Qualification requires every ordinary hosted lane green and does not include the separate CLEAN evidence gate.
+
+FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. Dated sections that describe Linux positive owner authorization as structurally impossible are superseded: current M1 `CurrentOwnerSharingAuthority` can issue a bounded grant from fresh valid physical seat0/unlocked same-UID evidence, and R2 now fences platform-native authorization to the exact owner grant/revocation epoch. This source capability is not a physical FIRST receipt; the owner-authorized live run remains **NOT RUN**.
+
+R9's manual CLEAN route is documented canonically in `docs/r9-portable-gui-acceptance-ledger.md`; manual evidence is **MANUAL CLEAN PASS**, never automated CI PASS.
+
 ## R7 PlainText source-guard constructor correction (2026-10-21)
 
 Starting shared-main parent:
@@ -2052,12 +2060,7 @@ the validated R4 SPS/PPS/IDR reset invariant.
 
 The GitHub primary workflow remains administratively open only because the
 separate R9 clean-Windows interactive consumer job is queued; that operational
-portable-GUI gate is not R4 offline acceptance evidence. The remaining R4 live
-acceptance blocker is R2 positive owner authority: production still returns
-`TrustedOwnerProofUnavailable`, `authorizes()` is false, and Linux
-`startSharing()` returns `HostConsentRequired`. Therefore physical seat0
-Windows App/mstsc visible-frame/FRAME_ACK/resize acceptance remains
-**BLOCKED / NOT RUN**, and no post-remap AVC420 runtime enablement is authorized.
+portable-GUI gate is not R4 offline acceptance evidence. That dated R4 receipt predates current M1 positive owner grants. Current source can grant and freshly reauthorize valid physical seat0/unlocked same-UID evidence. Physical Windows App/mstsc visible-frame/FRAME_ACK/resize acceptance itself remains **NOT RUN**, and no post-remap AVC420 runtime enablement is authorized.
 
 ## R5 typed RandR-to-R3 handoff guard (2026-10-19)
 
@@ -2123,10 +2126,7 @@ DELETE/CREATE/MAP wire/ACK behavior remains R3's production-backed
 
 Local owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in
 this GitHub-connector environment. Exact publication-SHA hosted CI: **PENDING**.
-Positive GUI LAN Start remains independently **BLOCKED** because R2 still has no
-trusted physical-owner consent + authoritative unlock provider on the supported
-portable X11 target. Physical Windows App/mstsc resize acceptance is **NOT RUN**
-and still requires explicit owner approval.
+The dated structural owner-authority blocker is superseded by current M1. Positive GUI LAN Start still requires valid current physical seat0/unlocked evidence and explicit owner authorization; physical Windows App/mstsc resize acceptance remains **NOT RUN**.
 
 ## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
 
@@ -2275,12 +2275,7 @@ session or require lock-triggered closure; polkit user authentication neither
 attests desktop unlock nor preserves ZIP-only deployment for an
 application-specific installed action. Qt/X11 intent is not trusted evidence.
 
-Keep `CurrentOwnerSharingAuthority::requestConsent()` at
-`TrustedOwnerProofUnavailable`, keep `authorizes()` false and keep Start
-denied. Do not add a synthetic positive lease/test or a new deny-only
-abstraction. Lock/unknown remains revocation; unlock never revives authority.
-A future Wayland/compositor-mediated portal design or installed native policy
-mode needs separate acceptance.
+**Superseded current-state correction (2026-10-21):** this deny-only directive no longer describes M1. `CurrentOwnerSharingAuthority::requestConsent()` accepts fresh valid physical seat0/unlocked same-UID evidence, issues a bounded grant, and `authorizes()` freshly revalidates it. Lock/unknown, expiry, logout, user switch, session replacement and native-authority loss still revoke. Offline positive fixtures are not physical FIRST evidence.
 
 **R10 handoff once a qualifying provider exists:** R2 alone creates one opaque
 move-only/noncopyable `OwnerSharingLease` bound to exact native owner
@@ -2384,7 +2379,7 @@ contracts and the R2/R10 native-host blockers are unchanged.
 
 Source parent `571f77a7c862c95a0e60ef58882e26f2bced8186`. The useful PR #23 changes are replayed onto current shared main after merged R4 duplicate-frame-ID fix #27. Before any X11 framebuffer borrow, the production post-Share scheduler now consumes R2-gated R3 frame-publication readiness: Ready proceeds to separately reauthorized frame start; DeferredForFrameAcknowledge reschedules without capture, frame-ID increment or disconnect; Rejected retires native state and the connection. R4 remains the sole ACK-window owner. Pending Graphics TLS WANT_READ/WANT_WRITE now receives a bounded positive poll quantum even after capture expiry while native/logind/socket readiness, Stop and authorization remain preemptive.
 
-`RDP_SERVER_BUILD_DESKTOP_GUI` defaults ON and requested GUI builds still require Qt. Intentionally Qt-free protocol, production-security and sanitizer CI explicitly pass OFF; the Qt-provisioned CLANG64 application lane asserts that the unspecified option resolves ON. Dedicated CTests are `runtime.linux-connection-stalled-graphics-tls-write-bounded-poll` and `runtime.linux-connection-graphics-credit-preflight-denials`. Source reconciliation PASS; local build/full CTest NOT RUN in this connector environment; exact integrated-SHA hosted CI PENDING. Positive GUI LAN Start remains BLOCKED on a genuine R2 trusted-owner consent/unlocked-state provider. R3 PR #24/native resize remains separate.
+`RDP_SERVER_BUILD_DESKTOP_GUI` defaults ON and requested GUI builds still require Qt. Intentionally Qt-free protocol, production-security and sanitizer CI explicitly pass OFF; the Qt-provisioned CLANG64 application lane asserts that the unspecified option resolves ON. Dedicated CTests are `runtime.linux-connection-stalled-graphics-tls-write-bounded-poll` and `runtime.linux-connection-graphics-credit-preflight-denials`. Source reconciliation PASS; local build/full CTest NOT RUN in this connector environment; exact integrated-SHA hosted CI PENDING. Positive GUI LAN Start has the current M1 grant path, but owner-native physical FIRST remains **NOT RUN** and still requires valid current seat0/unlocked evidence plus explicit owner authorization. R3 PR #24/native resize remains separate.
 
 ## R6/R9 clean-Windows verifier corruption repair and exact artifact audit (2026-10-19)
 

@@ -1,3 +1,9 @@
+## R9 manual CLEAN evidence classification and M1 owner-authority note (2026-10-21)
+
+Manual CLEAN must execute the same `clean_windows_portable_gui.ps1` path as the dedicated clean consumer and must pass `verify_clean_windows_receipt.py`; it is recorded as **MANUAL CLEAN PASS**, not automated CI. The verifier is ordinary offline CTest coverage and does not perform a live Windows acceptance run.
+
+Current M1 source includes positive fresh-seat0/unlocked owner-grant behavior. Synthetic positive tests prove only source/state-machine construction; they do not replace physical FIRST.
+
 ## R7 PlainText source guards must test behavior, not parentless spelling (2026-10-21)
 
 The `gui.runtime-label-plain-before-text-assignment` source regression protects
@@ -990,10 +996,7 @@ requested duration without converting well-formed GUI intent into positive
 authority. Verify invalid scope, missing view, unknown permission bits,
 zero/oversized duration and epoch invalidation for each Stop/lock-unknown/
 logout/switch/session replacement/credential change/native-auth-loss event.
-The real Linux admission broker must reject missing or non-authorizing
-R2 host authority at issuance and revalidation. A positive test is
-**BLOCKED** until a reviewed native trust provider exists and is actually
-verified; never substitute a fake `LockedHint` or GUI bool.
+The real Linux admission broker must reject missing or non-authorizing R2 host authority at issuance and revalidation. **Current M1 correction:** positive fresh-seat0/unlocked grant behavior is now covered and source can issue bounded grants from valid physical evidence. Offline fake evidence remains state-machine evidence only; never substitute it, a fake `LockedHint`, or a GUI bool for physical FIRST.
 
 ## R5 replacement-X11-owner capture epoch anti-ABA (2026-10-19)
 

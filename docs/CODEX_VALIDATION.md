@@ -1,3 +1,9 @@
+## R9 current qualification and M1 owner-authority correction (2026-10-21)
+
+Exact R9 candidate `62bdcc81d6616e9430e0eaf47ea6be4cb2446d3b`: structure guard `39695998459` **PASS**; primary exact-SHA ordinary-hosted qualification is pending at this receipt. No predecessor PASS is inherited. FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
+Current M1 source can issue positive bounded owner grants from fresh valid physical seat0/unlocked same-UID evidence and can bind native authorization to the exact grant/revocation epoch. Older deny-only claims are historical only. Physical FIRST remains **NOT RUN**.
+
 ## R7 macOS PlainText guard false-failure receipt (2026-10-21)
 
 Exact ancestor `88674a0b33f65986abd9fab5076f19542b945f63`, primary
@@ -1533,12 +1539,7 @@ the validated R4 SPS/PPS/IDR reset invariant.
 
 The GitHub primary workflow remains administratively open only because the
 separate R9 clean-Windows interactive consumer job is queued; that operational
-portable-GUI gate is not R4 offline acceptance evidence. The remaining R4 live
-acceptance blocker is R2 positive owner authority: production still returns
-`TrustedOwnerProofUnavailable`, `authorizes()` is false, and Linux
-`startSharing()` returns `HostConsentRequired`. Therefore physical seat0
-Windows App/mstsc visible-frame/FRAME_ACK/resize acceptance remains
-**BLOCKED / NOT RUN**, and no post-remap AVC420 runtime enablement is authorized.
+portable-GUI gate is not R4 offline acceptance evidence. That dated validation predates current M1 positive grants. Current source can grant/revalidate fresh valid physical seat0/unlocked same-UID evidence. Physical Windows App/mstsc visible-frame/FRAME_ACK/resize remains **NOT RUN**, and no post-remap AVC420 runtime enablement is authorized.
 
 ## R5 typed RandR-to-R3 handoff guard (2026-10-19)
 
@@ -1604,10 +1605,7 @@ DELETE/CREATE/MAP wire/ACK behavior remains R3's production-backed
 
 Local owner `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in
 this GitHub-connector environment. Exact publication-SHA hosted CI: **PENDING**.
-Positive GUI LAN Start remains independently **BLOCKED** because R2 still has no
-trusted physical-owner consent + authoritative unlock provider on the supported
-portable X11 target. Physical Windows App/mstsc resize acceptance is **NOT RUN**
-and still requires explicit owner approval.
+The dated structural owner-authority blocker is superseded by current M1. Positive GUI LAN Start still requires valid physical seat0/unlocked evidence and explicit owner authorization; physical Windows App/mstsc resize acceptance remains **NOT RUN**.
 
 ## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
 

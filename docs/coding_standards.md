@@ -1,3 +1,29 @@
+## R5 macOS native desktop operations stay inside the R2 visitor (2026-10-21)
+
+Do not expose a macOS native desktop constructor from UID, display ID, geometry
+generation, TCC state or any other scalar/evidence tuple. Production
+ScreenCaptureKit and Quartz callbacks remain private to
+`MacNativeDesktopOwner`, and that aggregate may obtain them only while being
+constructed inside a fresh `MacNativeDesktopAuthorization::visit()`.
+
+Every protected R5 operation must execute synchronously inside the exact R2
+authorization-generation visitor with the minimum required scope: View for
+capture service/frame borrow and View+Input for Quartz dispatch. Do not sample
+R2 from ScreenCaptureKit's asynchronous callback queue; copy at most one newest
+frame into bounded aggregate-owned storage and re-enter R2 only when the
+owner-thread consumer borrows it.
+
+Treat display/session/TCC changes as terminal retirement. On upstream authority
+loss, call `MacInputController::retireWithoutNativeInput()` before destroying
+native children; never synthesize key/button releases into an identity or
+desktop that may have changed. Reconnect means fresh R2 authorization plus a
+fresh one-shot aggregate.
+
+Until a reviewed multi-display compositor/multi-stream policy exists, reject a
+layout whose virtual pixel size differs from the selected ScreenCaptureKit
+display. Capture pixels and input coordinates must never silently refer to
+different desktop spaces.
+
 ## R2 Windows/macOS native grants require identity + evidence + owner epoch (2026-10-21)
 
 ## R6 Windows aggregate consumes R2 authority; native evidence never substitutes (2026-10-21)

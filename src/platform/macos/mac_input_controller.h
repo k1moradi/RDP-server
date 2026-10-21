@@ -12,6 +12,8 @@
 
 namespace rdp::macos {
 
+class MacNativeDesktopOwner;
+
 inline constexpr std::int32_t kMacInputScrollUnitsPerStep = 120;
 inline constexpr std::int32_t kMaximumMacInputScrollSteps = 16;
 inline constexpr std::size_t kMaximumMacNativeInputBatch = 517;
@@ -131,6 +133,16 @@ public:
     }
 
 private:
+    friend class MacNativeDesktopOwner;
+
+#if defined(__APPLE__)
+    // The production Quartz route is obtainable only by the aggregate owner
+    // while that owner is being constructed inside a fresh R2 authorization
+    // visit. Accessibility trust or a scalar generation alone is insufficient.
+    [[nodiscard]] static MacInputCallbacks
+    nativeCallbacksForAuthorizedOwner() noexcept;
+#endif
+
     static constexpr std::size_t kScanCodeSlots = 512;
     static constexpr std::size_t kButtonCount = 5;
     static_assert(kScanCodeSlots + kButtonCount == kMaximumMacNativeInputBatch);
@@ -181,8 +193,9 @@ private:
 [[nodiscard]] MacInputPermissionStatus queryNativeMacInputPermissionStatus() noexcept;
 #endif
 
-// The Quartz event-posting callback is deliberately not exposed. A future
-// concrete R2/R3-authorized macOS route must own the capability that makes
-// native input posting callable; a generation number alone is insufficient.
+// The Quartz event-posting callback remains private. Only the R2-authorized
+// MacNativeDesktopOwner friend can obtain it while composing the single native
+// owner; a UID, Accessibility/TCC observation or generation scalar alone is
+// insufficient to make native input posting callable.
 
 } // namespace rdp::macos

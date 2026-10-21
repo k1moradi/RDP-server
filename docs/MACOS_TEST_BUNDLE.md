@@ -3,8 +3,10 @@
 This deliberately installs the **protocol SDK only**. No runnable native macOS
 RDP server, AppKit application, listener, ScreenCaptureKit provider or Quartz
 injector is shipped. It must never be advertised as an interactive server or a
-universal binary. R2 authenticated-UID lease, R10 AppKit session-watch owner
-and R3 Graphics DATA/input composition remain BLOCKED.
+universal binary. The source tree now contains R2's authenticated native
+authorization seam and R5's authorization-bound native desktop aggregate, but
+neither changes this artifact: R10 product composition, R3 DATA/input delivery
+and owner-authorized live acceptance remain separate gates.
 
 ## Relationship to R9 SERVER-TEST previews
 

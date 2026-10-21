@@ -1108,6 +1108,7 @@ if(APPLE)
         src/platform/macos/mac_input_controller.cpp
         src/platform/macos/mac_input_controller.mm
         src/platform/macos/mac_desktop_session_guard.cpp
+        src/platform/macos/mac_native_desktop_owner.cpp
         src/platform/macos/screen_capture_stream.cpp
         src/platform/macos/screen_capture_stream.mm)
     set_source_files_properties(
@@ -1122,6 +1123,8 @@ if(APPLE)
     target_compile_features(rdp-server-macos-capture PUBLIC cxx_std_23)
     target_include_directories(rdp-server-macos-capture PUBLIC
         "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(rdp-server-macos-capture PRIVATE
+        rdp-server-native-desktop-authorization)
     target_link_libraries(rdp-server-macos-capture PUBLIC
         "${RDP_SERVER_COREVIDEO_FRAMEWORK}"
         "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}"

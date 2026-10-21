@@ -1,3 +1,27 @@
+## R5 macOS authorized native desktop aggregate review (2026-10-21)
+
+Starting shared-main parent: `6b99b2abdd599cc3e8d249b013927050ee8dd78f`.
+
+Scope: one Apple-only R5 aggregate over the existing display/session/TCC,
+ScreenCaptureKit, framebuffer and Quartz primitives; real R2 authorization
+visitor at construction/service/borrow/input; one bounded latest-frame mailbox;
+private native capture/input factories; three dedicated offline CTests; no
+protocol loop and no Linux FIRST change.
+
+Connector source review: **PASS** for absence of a UID/display-only positive
+constructor, exact R2 generation/scope use on every protected synchronous
+operation, no R2 call from the ScreenCaptureKit callback queue, bounded
+framebuffer copy with exact sequence borrow, View-only input denial, fresh
+session/TCC checks, terminal display/session/R2 retirement, and
+authority-loss input retirement without synthetic releases. The current
+single-display-only check intentionally rejects a wider virtual desktop.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** because this
+connector session has no owner macOS checkout/toolchain. Exact-publication-SHA
+hosted macOS CI: **PENDING**. Live Screen Recording, Accessibility/Quartz input,
+visible-desktop capture, listener, Stop/reconnect and resize acceptance:
+**NOT RUN**.
+
 ## R9 current qualification and M1 owner-authority correction (2026-10-21)
 
 ## R6 P0 Track D/E authoring record: manual CLEAN fallback + R2-gated Windows owner (2026-10-21)

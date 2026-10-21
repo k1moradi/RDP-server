@@ -1,3 +1,19 @@
+## R5 macOS authorized aggregate build boundary (2026-10-21)
+
+On Apple builds, `rdp-server-macos-capture` now also compiles
+`mac_native_desktop_owner.cpp` and privately links the noninstalled
+`rdp-server-native-desktop-authorization` core. The aggregate reuses the
+existing CoreGraphics/AppKit/ApplicationServices/CoreMedia/CoreVideo and
+ScreenCaptureKit framework linkage; it adds no transport, GUI or protocol
+dependency.
+
+The production ScreenCaptureKit backend and Quartz posting callback remain
+Objective-C++ implementation details reachable only through private friend
+methods of the aggregate. The public source-level owner still requires a live
+R2 authorization object and exact generation; no SDK-installed UID/display/TCC
+constructor is introduced. This build composition alone does not enable the
+portable macOS test bundle, start a listener or claim native-host acceptance.
+
 ## R2 portable native-authorization core build boundary (2026-10-21)
 
 `rdp-server-native-desktop-authorization` is a noninstalled C++23 static

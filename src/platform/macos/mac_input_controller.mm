@@ -183,4 +183,8 @@ MacInputPermissionStatus queryNativeMacInputPermissionStatus() noexcept {
         : MacInputPermissionStatus::NotTrusted;
 }
 
+MacInputCallbacks MacInputController::nativeCallbacksForAuthorizedOwner() noexcept {
+    return dormantMacQuartzInputCallbacks();
+}
+
 } // namespace rdp::macos

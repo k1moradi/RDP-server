@@ -2547,9 +2547,9 @@ if(APPLE)
 endif()
 
 # The ScreenCaptureKit lifecycle CTests use the production C++ state owner with
-# an injected backend and synthetic CoreVideo buffers. The public header exposes
-# no native backend/factory before real R2/R3 macOS authorization; ordinary
-# tests never enumerate SCShareableContent, start SCStream, or request TCC.
+# an injected backend and synthetic CoreVideo buffers. The production native
+# factory remains private to the R2-authorized aggregate owner; ordinary tests
+# never enumerate SCShareableContent, start SCStream, or request TCC.
 if(APPLE)
     add_executable(test_macos_capture_stream test_macos_capture_stream.cpp)
     target_include_directories(test_macos_capture_stream PRIVATE
@@ -2587,6 +2587,36 @@ if(APPLE)
             COMMAND test_macos_capture_stream "${case_name}")
         set_tests_properties("macos.capture-${case_name}" PROPERTIES
             LABELS "macos;capture;graphics;x264;security;offline;native")
+    endforeach()
+endif()
+
+# R5 macOS aggregate owner: real R2 authorization state with injected display,
+# GUI-session, TCC, capture and input seams. These tests never enumerate a live
+# desktop, start ScreenCaptureKit or post Quartz events.
+if(APPLE)
+    add_executable(test_macos_native_desktop_owner
+        test_macos_native_desktop_owner.cpp)
+    target_include_directories(test_macos_native_desktop_owner PRIVATE
+        "${PROJECT_SOURCE_DIR}/src")
+    target_link_libraries(test_macos_native_desktop_owner PRIVATE
+        rdp-server-macos-capture
+        rdp-server-native-desktop-authorization)
+    if(MSVC)
+        target_compile_options(test_macos_native_desktop_owner PRIVATE
+            /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_macos_native_desktop_owner PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    foreach(case_name IN ITEMS
+            fail-closed-construction
+            frame-input-lifecycle
+            display-session-retirement)
+        add_test(NAME "macos.native-desktop-owner-${case_name}"
+            COMMAND test_macos_native_desktop_owner "${case_name}")
+        set_tests_properties(
+            "macos.native-desktop-owner-${case_name}" PROPERTIES
+            LABELS "macos;desktop;capture;input;security;offline;native")
     endforeach()
 endif()
 

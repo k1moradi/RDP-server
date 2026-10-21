@@ -1,3 +1,28 @@
+## R5 macOS aggregate CTests use real R2 authority and injected native seams (2026-10-21)
+
+The dedicated Apple-only aggregate tests are
+`macos.native-desktop-owner-fail-closed-construction`,
+`macos.native-desktop-owner-frame-input-lifecycle`, and
+`macos.native-desktop-owner-display-session-retirement`. They must construct
+the real `MacNativeDesktopAuthorization` with the real owner-consent state
+machine, but use synthetic authenticated identity/native-session evidence and
+injected display/session/TCC/capture/input callbacks. Ordinary CTest must not
+enumerate a logged-in display, request Screen Recording/Accessibility
+permission, start ScreenCaptureKit or post Quartz input.
+
+Fail-closed construction covers missing R2 binding, bounded framebuffer
+rejection, absence of a UID/display-only constructor and View-only capture with
+no input route. Lifecycle coverage advances the one-shot capture owner, copies
+a padded CoreVideo BGRA frame into the tight bounded mailbox, borrows only the
+exact sequence, verifies stale frame selection does not destroy a still-current
+R2 grant, dispatches input under View+Input, then replaces R2 native-session
+evidence and proves terminal retirement without a synthetic modifier release.
+
+Display/session retirement coverage independently fires the injected topology
+and GUI-session watchers and requires terminal aggregate retirement. These
+tests are source/lifecycle evidence only; they are not owner macOS TCC,
+ScreenCaptureKit, visible-desktop or Quartz-input acceptance.
+
 ## R9 manual CLEAN evidence classification and M1 owner-authority note (2026-10-21)
 
 ## R6/R9 manual clean-Windows receipt and native-owner denial gate (2026-10-21)

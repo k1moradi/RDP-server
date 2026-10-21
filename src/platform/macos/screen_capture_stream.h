@@ -15,6 +15,8 @@
 
 namespace rdp::macos {
 
+class MacNativeDesktopOwner;
+
 struct MacScreenCaptureBinding {
     std::uint32_t displayId{};
     std::size_t widthPixels{};
@@ -200,9 +202,9 @@ public:
     ~MacScreenCaptureStream() noexcept;
 
     // Deterministic production state-machine seam used by permission-free
-    // CTests. The repository intentionally exposes no native ScreenCaptureKit
-    // backend/factory until a concrete R2/R3 macOS authorization capability
-    // exists; callers cannot turn a display binding or TCC grant into capture.
+    // CTests. The native ScreenCaptureKit factory remains private to the
+    // R2-authorized aggregate owner; ordinary callers cannot turn a display
+    // binding or TCC grant into capture.
     [[nodiscard]] static std::expected<std::unique_ptr<MacScreenCaptureStream>,
                                        MacScreenCaptureError>
     createForTesting(MacScreenCaptureBinding binding,
@@ -221,6 +223,19 @@ public:
     [[nodiscard]] std::uint64_t generation() const noexcept;
 
 private:
+    friend class MacNativeDesktopOwner;
+
+#if defined(__APPLE__)
+    // Production ScreenCaptureKit construction is deliberately private to the
+    // aggregate native owner, which invokes it only inside an R2 authorization
+    // visit after fresh session/topology/TCC validation.
+    [[nodiscard]] static std::expected<std::unique_ptr<MacScreenCaptureStream>,
+                                       MacScreenCaptureError>
+    createNativeForAuthorizedOwner(
+        MacScreenCaptureBinding binding,
+        std::shared_ptr<MacCaptureFrameConsumer> consumer) noexcept;
+#endif
+
     MacScreenCaptureStream(MacScreenCaptureBinding binding,
                            std::shared_ptr<MacCaptureFrameConsumer> consumer,
                            std::unique_ptr<detail::MacScreenCaptureBackend> backend);

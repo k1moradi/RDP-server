@@ -1,3 +1,40 @@
+## R5 macOS native desktop owner is one R2-visited aggregate (2026-10-21)
+
+`MacNativeDesktopOwner` composes the existing macOS display/session/TCC,
+ScreenCaptureKit and Quartz primitives into one R5 lifetime without adding a
+transport or protocol scheduler. R10 may call only bounded owner-thread
+operations: service one native lifecycle step, synchronously borrow one exact
+latest frame, dispatch one input event, or revoke. Capture callbacks only copy
+pixels into a bounded latest-frame mailbox and never call R2/R3/R4/R10.
+
+The aggregate borrows a const `MacNativeDesktopAuthorization` whose lifetime is
+owned above R5. Construction and every protected operation enter
+`visit(expectedGeneration, requiredPermissions,...)`; R2 therefore
+revalidates authenticated UID, native console/audit/SecuritySession evidence,
+owner-consent epoch and authorization generation both before and after R5's
+synchronous operation. R5 caches the generation/UID only as identity/freshness
+fences and never treats them as authority.
+
+View scope owns Screen Recording readiness, native session generation, display
+watch/geometry, one ScreenCaptureKit stream and a bounded framebuffer mailbox.
+View+Input additionally owns one `MacInputController` whose production Quartz
+callback is private friend-only state. Fresh Accessibility trust is sampled by
+the existing session guard before each input operation. The ScreenCaptureKit
+native backend is likewise private friend-only state; no public display/TCC
+factory exists.
+
+Native display/session notifications are revocation facts, not admission.
+Topology change, lock/logout/user/session replacement, R2 loss, TCC loss or
+native failure terminally retires the owner. Authority-loss teardown discards
+held input without native releases, retires framebuffer publication, closes
+capture/guard, invalidates geometry, and then removes session/display watches.
+A replacement requires a fresh R2 generation and a new aggregate.
+
+One-display capture is currently an explicit safety boundary: the selected
+display's pixel size must equal the validated virtual desktop pixel size.
+Multi-display layouts fail construction rather than allowing capture and input
+coordinate spaces to diverge.
+
 ## R2 Track E Windows/macOS native authorization boundary (2026-10-21)
 
 ## R6 Windows native desktop aggregate consumes the R2 authorization owner (2026-10-21)

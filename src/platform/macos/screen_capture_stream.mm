@@ -8,6 +8,7 @@
 #include <dispatch/dispatch.h>
 
 #include <memory>
+#include <new>
 #include <mutex>
 #include <utility>
 
@@ -430,3 +431,20 @@ private:
 } // namespace
 
 } // namespace rdp::macos::detail
+
+namespace rdp::macos {
+
+std::expected<std::unique_ptr<MacScreenCaptureStream>, MacScreenCaptureError>
+MacScreenCaptureStream::createNativeForAuthorizedOwner(
+    MacScreenCaptureBinding binding,
+    std::shared_ptr<MacCaptureFrameConsumer> consumer) noexcept {
+    try {
+        return createForTesting(
+            std::move(binding), std::move(consumer),
+            std::make_unique<detail::ScreenCaptureKitBackend>());
+    } catch (const std::bad_alloc&) {
+        return std::unexpected(MacScreenCaptureError::SetupFailed);
+    }
+}
+
+} // namespace rdp::macos

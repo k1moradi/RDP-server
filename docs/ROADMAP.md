@@ -1,3 +1,61 @@
+## R5 macOS authorized native desktop aggregate (2026-10-21)
+
+Starting shared-main parent: `6b99b2abdd599cc3e8d249b013927050ee8dd78f`.
+
+R2 Track E landed while this work was in progress, so R5 now consumes the real
+`MacNativeDesktopAuthorization` rather than leaving a placeholder seam. The
+new Apple-only `MacNativeDesktopOwner` is the single native desktop lifetime
+R10 may own. Positive construction, bounded service, framebuffer borrow and
+input dispatch all execute inside the exact expected R2 authorization-generation
+visitor; UID, display ID, geometry/session generations, TCC state and owner
+consent scalars cannot construct or operate the owner by themselves.
+
+The aggregate owns one process-scoped display reconfiguration watch, one native
+GUI-session change watch, one admitted R2 generation, one validated display
+geometry generation, one `MacDesktopSessionGuard`, one one-shot
+ScreenCaptureKit stream, and at most one Quartz input controller. View-only R2
+authorization constructs capture without an input route. View+Input additionally
+requires fresh Accessibility trust before construction and again at each input
+operation. Screen Recording readiness is checked before capture construction and
+on every service/borrow lifetime check through the existing guard.
+
+ScreenCaptureKit's private serial callback never enters R2 or protocol state.
+It copies only the newest complete BGRA frame into one reusable bounded mailbox,
+stripping native row padding. R10 receives synchronous service/borrow/revoke
+operations; there is no worker/server/protocol loop. A borrow names the exact
+latest frame sequence and runs under a fresh R2 View visit. The current native
+composition intentionally refuses multi-display virtual layouts because one
+ScreenCaptureKit stream publishes one display while input uses virtual-desktop
+coordinates; this fails closed until a compositor/multi-stream policy is owned.
+
+Display changes, lock/logout/user/session replacement, TCC loss, capture
+failure, geometry/session fence loss, or R2 authorization replacement retire
+the aggregate terminally. Authority-loss teardown calls
+`retireWithoutNativeInput()` before native children disappear, so held
+modifiers/buttons are discarded rather than released into a replacement
+desktop. Fresh authorization and a fresh aggregate are required to reconnect.
+
+The production ScreenCaptureKit backend and Quartz posting callbacks remain
+private friend-only seams of `MacNativeDesktopOwner`; no UID/display-only or
+TCC-only constructor was added. Dedicated ordinary Apple CTests are
+`macos.native-desktop-owner-fail-closed-construction`,
+`macos.native-desktop-owner-frame-input-lifecycle`, and
+`macos.native-desktop-owner-display-session-retirement`. They use the real
+R2 authorization state machine with synthetic native evidence and injected
+macOS side-effect seams; they never enumerate a live display, request TCC,
+start ScreenCaptureKit or post Quartz events.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted macOS CI: **PENDING**. Live Screen
+Recording, Accessibility/Quartz input, listener and remote-client operation:
+**NOT RUN**.
+
+Linux FIRST remains separate and frozen at `8f2667b9…`; this macOS composition
+does not move or requalify that SHA. Its owner-authorized physical sequence
+(native desktop ready -> framebuffer -> visible desktop -> mouse -> clicks ->
+keyboard -> modifier retirement -> Stop -> reconnect -> one resize) remains
+waiting for explicit owner authorization.
+
 ## R9 current qualification and owner-authority documentation correction (2026-10-21)
 
 ## R6 P0 manual CLEAN evidence and R2-gated Windows native owner (2026-10-21)

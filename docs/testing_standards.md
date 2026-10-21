@@ -1,3 +1,16 @@
+## R10 Qt fake product-capability projection (2026-10-21)
+
+The shared `FakeRuntimeHost` used by ordinary offscreen dashboard tests must
+derive every product fact needed to emulate its legacy available HostControl,
+including `credentialCapabilities.existingOsAccount`. Otherwise capability-
+gated controls become disabled before tests can exercise the existing typed
+credential request seam, producing a fixture failure rather than a product
+denial.
+
+Contradictory product-authority cases must opt out with
+`deriveProductStatusFromLegacy = false` and set their product snapshot
+explicitly. Never weaken production capability gates to satisfy a fake runtime.
+
 ## R10 authoritative product-status regressions (2026-10-21)
 
 `runtime.host-control-product-status-projection` pins the portable eight-state

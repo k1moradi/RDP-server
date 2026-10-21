@@ -1,3 +1,29 @@
+## R10 Qt fake capability projection correction (2026-10-21)
+
+Starting exact-main parent:
+`f60b5db5b756b63f275189e858c2c22a414c1ab2`.
+
+R7 resolved the two production Qt compile failures from
+`9e4ae33d06a028e6a3f377eaf374c5f2fcd63fd7`. Re-reading the ordinary Qt
+fixtures before that corrective CI reached execution found one independent
+test-harness mismatch introduced by the R10 product-status boundary:
+`FakeRuntimeHost::status()` derived product control availability,
+credentials, owner state and TLS state from its legacy snapshot but left
+`credentialCapabilities.existingOsAccount` false. Existing access-flow tests
+therefore see an unavailable product capability and cannot click
+`Use Existing OS Account`, even though the fake is explicitly emulating the
+available HostControl surface.
+
+The fixture now derives ExistingOsAccount capability from its emulated
+`controlAvailable` value. Tests that need an explicit contradictory product
+snapshot already set `deriveProductStatusFromLegacy = false` and remain
+independent. No production source, capability gate, authentication behavior or
+StandalonePassword status changes.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Corrective exact-SHA hosted CI: **PENDING**. No live operation was
+performed.
+
 ## R7/R10 exact-head dashboard compile correction (2026-10-21)
 
 Exact-main `9e4ae33d06a028e6a3f377eaf374c5f2fcd63fd7` cleared the earlier Track B ownership gap by making

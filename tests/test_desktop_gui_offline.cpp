@@ -67,6 +67,10 @@ public:
 
         result.product.controlAvailable =
             result.lastError != RuntimeHostError::ControlUnavailable;
+        // This generic fake represents the previously available typed host
+        // surface; production capability truth still comes only from R10.
+        result.product.credentialCapabilities.existingOsAccount =
+            result.product.controlAvailable;
         result.product.eligibleLanInterfaces = interfaces;
         result.product.recommendedEndpoint =
             recommendRuntimePrivateLanEndpoint(interfaces);

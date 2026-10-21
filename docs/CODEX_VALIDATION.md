@@ -1,3 +1,21 @@
+## R10 Qt fake capability follow-up authoring receipt (2026-10-21)
+
+Starting parent: `f60b5db5b756b63f275189e858c2c22a414c1ab2`.
+
+The R7 compile correction already removes the stale production
+`startRequested_` and `sharingStage` references. Source review of the next
+ordinary Qt execution path found a test-only mismatch: the generic fake host
+projects `controlAvailable=true` but leaves the new ExistingOsAccount product
+capability false, while `gui.offscreen-r2-os-account-request-status-gate`
+expects the available fake to expose and invoke that request surface.
+
+The fake now derives ExistingOsAccount capability from its emulated control
+availability. Production R10 capability reporting and the false
+StandalonePassword product gate are unchanged.
+
+Canonical owner-local build/full CTest: **NOT RUN**. Corrective hosted CI:
+**PENDING**. Live listener/desktop/authentication: **NOT RUN**.
+
 ## R7/R10 dashboard compile-failure correction receipt (2026-10-21)
 
 Starting parent: `9e4ae33d06a028e6a3f377eaf374c5f2fcd63fd7`.

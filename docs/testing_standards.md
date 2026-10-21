@@ -1,3 +1,23 @@
+## R7 non-metaobject toggle lookup regression (2026-10-21)
+
+The imported `ToggleSwitchWidget` is a `QAbstractButton` presentation widget
+with no signals, properties or slots of its own and therefore no `Q_OBJECT`
+macro. Qt object-name discovery in hidden launcher checks and test fixtures
+must use a meta-object-bearing Qt base type, currently `QAbstractButton*`,
+rather than `findChild<ToggleSwitchWidget*>()`. Validate `isCheckable()`,
+`isEnabled()` and `isChecked()` through that base API. Direct production
+ownership pointers may remain concretely typed because they do not invoke Qt
+meta-object lookup.
+
+`gui.toggle-object-name-base-lookup-source-contract` is the ordinary
+platform-independent regression. It pins the no-`Q_OBJECT` imported widget,
+rejects concrete typed `findChild` use in the Windows packaged launcher and
+the shared offscreen fixture, requires object-name lookup through
+`QAbstractButton`, and requires a checkability assertion. Do not introduce
+AUTOMOC merely to satisfy a test/hidden-check lookup. If the widget later gains
+a genuine signal/property requirement, revise this contract deliberately with
+that product change rather than silently weakening the guard.
+
 ## R10 Qt fake product-capability projection (2026-10-21)
 
 The shared `FakeRuntimeHost` used by ordinary offscreen dashboard tests must

@@ -19,6 +19,18 @@ add_test(NAME windows.gui-dashboard-toggle-linkage-source-contract
 set_tests_properties(windows.gui-dashboard-toggle-linkage-source-contract
     PROPERTIES LABELS "windows;gui;policy;offline")
 
+# R7's imported switch intentionally has no Q_OBJECT macro. Object-name lookup
+# in hidden launch checks and fixtures must therefore use a Qt meta-object base
+# class rather than making the presentation widget depend on AUTOMOC.
+add_test(NAME gui.toggle-object-name-base-lookup-source-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_TOGGLE_HEADER=${PROJECT_SOURCE_DIR}/src/gui/toggle_switch.h"
+        "-DRDP_WINDOWS_GUI_SOURCE=${PROJECT_SOURCE_DIR}/src/windows/windows_gui_main.cpp"
+        "-DRDP_GUI_TEST_SOURCE=${PROJECT_SOURCE_DIR}/tests/test_desktop_gui_offline.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_toggle_lookup_contract.cmake")
+set_tests_properties(gui.toggle-object-name-base-lookup-source-contract
+    PROPERTIES LABELS "gui;windows;macos;policy;build;offline")
+
 # R7/R10 dashboard integration must consume the authoritative product lifecycle
 # without retaining removed GUI command-intent flags or the retired raw-stage
 # sharing helper. This source contract is platform-independent and catches

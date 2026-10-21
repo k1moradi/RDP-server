@@ -1,3 +1,22 @@
+## R7 Qt toggle lookup exact-parent failure receipt (2026-10-21)
+
+Exact parent `389de5a55e1b4cf5b4effc466699f54fce532d5c`, primary Actions run
+`39616846521`: Windows CLANG64 job `119280142450` **FAIL** at the Debug and
+Release full-build steps with Qt's
+`No Q_OBJECT in the class passed to QObject::findChild` static assertion from
+`src/windows/windows_gui_main.cpp:29`. macOS portable-GUI job
+`119280142267` builds the real app and passes package-integrity CTests, then
+**FAILS** compiling `test_desktop_gui_offline.cpp:204` with the same static
+assertion. Linux GUI ZIP at that parent is **PASS**, but mixed job outcomes do
+not qualify product-main.
+
+The corrective source uses `QAbstractButton*` object-name lookup at both
+hidden/test sites, retains the imported no-`Q_OBJECT` widget, and adds
+`gui.toggle-object-name-base-lookup-source-contract` to prevent regression.
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Corrective publication-SHA Windows CLANG64 + macOS portable GUI +
+Linux GUI qualification: **PENDING**. Live host/client operation: **NOT RUN**.
+
 ## R10 Qt fake capability follow-up authoring receipt (2026-10-21)
 
 Starting parent: `f60b5db5b756b63f275189e858c2c22a414c1ab2`.

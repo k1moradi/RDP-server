@@ -1,3 +1,18 @@
+## R7 Qt findChild type must own a meta-object (2026-10-21)
+
+Qt 6.11+ statically requires the concrete type supplied to
+`QObject::findChild<T*>()` to have `Q_OBJECT`. A custom widget can validly
+inherit `QAbstractButton` without declaring its own meta-object when it adds
+no signals, slots or properties. For object-name-only discovery of such a
+widget, query through the nearest suitable Qt base class that already owns a
+meta-object and consume only that base API. Do not add `Q_OBJECT` or enable
+AUTOMOC solely to make a test or hidden launcher lookup compile.
+
+Keep direct construction/ownership concretely typed where useful; this rule is
+only about meta-object discovery. The R7 sharing-toggle checks therefore use
+`QAbstractButton*` by object name and validate checkability/enabled/checked
+state without casting back to the imported concrete widget.
+
 ## R2 standalone interoperability diagnostics are redacted and fail-only (2026-10-21)
 
 For the standalone Microsoft-client gate, report the first terminal R2 boundary

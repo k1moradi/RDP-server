@@ -1,3 +1,45 @@
+## R7 Qt base-class toggle lookup correction (2026-10-21)
+
+Starting exact-main parent:
+`389de5a55e1b4cf5b4effc466699f54fce532d5c`.
+
+The parent's primary Actions run `39616846521` exposed one cross-platform
+Qt 6.11 compile defect in the already-landed dashboard. Windows CLANG64 job
+`119280142450` failed in both Debug and Release while compiling
+`src/windows/windows_gui_main.cpp`; macOS portable-GUI job
+`119280142267` independently failed while compiling
+`tests/test_desktop_gui_offline.cpp`. Both instantiate
+`QObject::findChild<ToggleSwitchWidget*>()`, and Qt rejects that concrete
+lookup because the imported 3DImageMaster `ToggleSwitchWidget` deliberately
+has no `Q_OBJECT` macro. The parent's Linux GUI ZIP job passed, but that does
+not qualify a replacement SHA.
+
+The correction keeps the widget free of meta-object/AUTOMOC machinery and
+changes only hidden launcher/test discovery of object name `sharingToggle` to
+`QAbstractButton*`. Both call sites validate `isCheckable()` through the
+base API before exercising enabled/checked state. Production
+`DesktopWindow::sharingToggle_` remains a direct typed pointer and toggle
+behavior is unchanged.
+
+Dedicated ordinary regression
+`gui.toggle-object-name-base-lookup-source-contract` runs without a GUI and
+rejects concrete `findChild<ToggleSwitchWidget*>()` in both affected source
+surfaces, rejects an accidental `Q_OBJECT` workaround, requires the
+`QAbstractButton` object-name lookup, and requires base-API checkability
+validation. The existing Windows linkage source contract remains complementary.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. This publication requires its own exact-SHA hosted **PASS** from
+`r6-windows-clang23`, `r7-macos-portable-gui`, and `r5-linux-gui-zip`;
+no result is inherited from `389de5a55e1b`. No listener,
+credential exchange, native desktop, input, clipboard or host activation was
+performed.
+
+**Next gate:** exact-publication-SHA three-platform GUI qualification. Session
+Password remains capability-gated behind real unmodified Windows App/Windows 11
+`mstsc.exe` standalone authentication proof. FIRST, CLEAN Windows, and
+positive Windows/macOS native hosting remain independent gates.
+
 ## R10 Qt fake capability projection correction (2026-10-21)
 
 Starting exact-main parent:

@@ -3,7 +3,6 @@
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
 #include "server/security/console_identity_policy.h"
-#include "toggle_switch.h"
 
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
@@ -198,11 +197,11 @@ public:
 namespace
 {
 
-ToggleSwitchWidget* sharingToggle(DesktopWindow& window)
+QAbstractButton* sharingToggle(DesktopWindow& window)
 {
     auto* toggle =
-        window.findChild<ToggleSwitchWidget*>("sharingToggle");
-    assert(toggle);
+        window.findChild<QAbstractButton*>("sharingToggle");
+    assert(toggle && toggle->isCheckable());
     return toggle;
 }
 

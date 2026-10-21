@@ -4,8 +4,7 @@
 #include "desktop_window.h"
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
-#include "toggle_switch.h"
-
+#include <QAbstractButton>
 #include <QApplication>
 #include <QByteArray>
 #include <QStackedWidget>
@@ -26,12 +25,13 @@ namespace
         return 2;
 
     auto* sharingToggle =
-        window.findChild<rdp::gui::ToggleSwitchWidget*>("sharingToggle");
+        window.findChild<QAbstractButton*>("sharingToggle");
     auto* passwordField = window.findChild<QWidget*>("password");
     auto* confirmationField = window.findChild<QWidget*>("confirmation");
     auto* wizard = window.findChild<QStackedWidget*>();
-    if (!sharingToggle || passwordField || confirmationField || wizard ||
-        sharingToggle->isEnabled() || sharingToggle->isChecked() ||
+    if (!sharingToggle || !sharingToggle->isCheckable() || passwordField ||
+        confirmationField || wizard || sharingToggle->isEnabled() ||
+        sharingToggle->isChecked() ||
         window.blockedReason().isEmpty())
         return 3;
 

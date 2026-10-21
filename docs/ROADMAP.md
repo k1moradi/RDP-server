@@ -1,3 +1,15 @@
+## R7 full workflow restoration after selector-authoring corruption (2026-10-21)
+
+The first selector repair commit still produced an invalid primary workflow.
+A full compare against last known-good parent
+`02f1df7685672c2c087f601a3810ff4a21a33de1` shows the dashboard publication
+had unintentionally expanded the workflow by hundreds of lines around the
+replaced selector block. This correction restores the entire known-good
+workflow and reapplies only the intended tray exact-one selector change.
+
+No production C++, CTest registration, dashboard behavior or capability gate
+changes in this correction. Corrective hosted CI: **PENDING**.
+
 ## R7 workflow selector syntax repair after dashboard publication (2026-10-21)
 
 Exact dashboard publication SHA `966ab8101ff0f2c8c09bb4e669298a0192ddc3f8` failed before CI jobs were created

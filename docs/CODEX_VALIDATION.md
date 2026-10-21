@@ -1,3 +1,15 @@
+## R7 full-workflow restoration receipt (2026-10-21)
+
+The prior selector-only repair was insufficient because the dashboard workflow
+edit had changed 423 workflow lines relative to the known-good parent. The
+workflow is now reconstructed from exact known-good
+`02f1df7685672c2c087f601a3810ff4a21a33de1` and applies only the intended
+close-hide/explicit-Quit selector replacement. Line count remains unchanged
+from the known-good workflow and the old/new selector occurrences are both
+exactly two.
+
+No C++ or test source changes. Hosted corrective CI: **PENDING**.
+
 ## R7 dashboard workflow-selector correction receipt (2026-10-21)
 
 Dashboard SHA `966ab8101ff0f2c8c09bb4e669298a0192ddc3f8` did not reach build/test execution: GitHub rejected

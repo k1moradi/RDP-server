@@ -1,3 +1,17 @@
+## R7 workflow selector syntax repair after dashboard publication (2026-10-21)
+
+Exact dashboard publication SHA `966ab8101ff0f2c8c09bb4e669298a0192ddc3f8` failed before CI jobs were created
+because the edited macOS exact-one selector block in
+`.github/workflows/ci.yml` was truncated immediately after the tray-lifecycle
+regular expression. This is a workflow-authoring defect only; no C++ source,
+dashboard behavior, capability gate or test expectation is changed.
+
+The correction restores the complete
+`gui.offscreen-tray-close-hide-and-explicit-quit` selector block, including
+exact-one enumeration and execution. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Corrective publication-SHA hosted CI:
+**PENDING**.
+
 ## R7 one-page dashboard, authoritative toggle and tray lifecycle (2026-10-21)
 
 Starting shared-main parent: `02f1df7685672c2c087f601a3810ff4a21a33de1`.

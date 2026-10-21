@@ -2010,7 +2010,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^gui[.]offscreen-tray-close-hide-and-explicit-quit
+          selector='^gui[.]offscreen-tray-close-hide-and-explicit-quit$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': gui.offscreen-tray-close-hide-and-explicit-quit' <<< "$selected_tests"
+          selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
+          if [[ "$selected_count" -ne 1 ]]; then
+            printf 'R9 GUI tray lifecycle registry mismatch: expected 1, found %s\n' \
+              "$selected_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$selector" --output-on-failure
+
       # R7 typed lifecycle/terminal-session projection must remain exact-one.
       - name: Pin R7 lifecycle and terminal-close Qt CTest
         shell: bash

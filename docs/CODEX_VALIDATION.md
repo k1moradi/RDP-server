@@ -1,3 +1,16 @@
+## R7 dashboard workflow-selector correction receipt (2026-10-21)
+
+Dashboard SHA `966ab8101ff0f2c8c09bb4e669298a0192ddc3f8` did not reach build/test execution: GitHub rejected
+the primary workflow after the new tray exact-one block was truncated at its
+selector line. Source/tree inspection identified the malformed block and the
+correction restores its complete shell body without changing product C++ or
+CTest registration.
+
+Corrective source inspection: **PASS** for a complete quoted selector,
+exact-one registry check and terminal CTest invocation. Canonical owner-local
+build/full CTest remains **NOT RUN** in this connector environment. Corrective
+hosted CI: **PENDING**.
+
 ## R7 one-page dashboard + tray authoring receipt (2026-10-21)
 
 Starting parent: `02f1df7685672c2c087f601a3810ff4a21a33de1`.

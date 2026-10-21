@@ -1,3 +1,26 @@
+## R8 hide/nonterminal and terminal clipboard lifetime regressions (2026-10-21)
+
+`gui.offscreen-hide-preserves-active-sharing` is a presentation-only Qt
+regression. With an authoritative active R10 snapshot and clipboard state, it
+hides the window and requires zero Stop/Revoke calls while sharing and
+clipboard status remain active; a later explicit Stop/Revoke must retire the
+projected clipboard state. The test performs no listener, native clipboard or
+desktop action.
+
+`runtime.linux-host-control-dormant-unicode-clipboard-composition` additionally
+pins the terminal/reconnect source contract: each replacement native desktop
+constructs a fresh prepared R8 owner; Stop/Revoke order owner authority -> R8/R5
+-> accepted connection -> listener; HostControl destruction/quit enters the
+same retirement helper; X11 disconnect clears ownership/paste/INCR state; and
+R8/R3 bridge retirement clears route plus queued outbound/TLS-receipt identity.
+The existing stale-positive-receipt and stale-INCR executable tests remain the
+behavioral component evidence.
+
+These regressions do not satisfy the live activation gate. Production
+activation remains literal false and the only prepared presentation scope is
+Unicode text. FIRST visible desktop + mouse + keyboard + Stop must pass first;
+plain-text clipboard activation is a later, separate milestone.
+
 ## Source-composition checks distinguish declarations from qualified uses (2026-10-21)
 
 When a source-composition CTest validates an enum declaration, assert the

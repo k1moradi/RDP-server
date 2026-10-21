@@ -1,3 +1,23 @@
+## R8 tray hiding is presentation-only; terminal commands own retirement (2026-10-21)
+
+Do not couple Qt visibility to R8 lifetime. A hide/minimize/tray-hide operation
+must not call Stop/Revoke or retire the current clipboard while R10 continues
+sharing. Clipboard lifetime follows the accepted-client/native owner, not the
+visibility of `DesktopWindow`.
+
+Stop, Revoke and process Quit must enter the common R10 retirement path so R8
+selection/paste/INCR plus bridge receipt state dies before R5, the accepted
+connection and the listener. Client disconnect must retire the same R8/R5
+state before the accepted connection while permitting a fresh replacement
+client. Reconnect must allocate a new `LinuxHostNativeDesktopState` and
+prepare a new `LinuxPreparedClipboardOwner` from that replacement's exact R2
+admission/session generations; never carry an adapter, bridge, pending write or
+native selection across the boundary.
+
+Keep `kLinuxProductionClipboardActivationApproved = false` until the recorded
+FIRST visible-desktop + mouse + keyboard + Stop pass. The first later activation
+remains Unicode text only. Images and files are separate later milestones.
+
 ## R10 HostControl must never default a selected standalone client to GSS (2026-10-20)
 
 Treat the HostControl credential mode as part of the accepted-connection

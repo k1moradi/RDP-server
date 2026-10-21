@@ -286,6 +286,8 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
+            "-DRDP_X11_CLIPBOARD_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_clipboard_adapter.cpp"
+            "-DRDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE=${PROJECT_SOURCE_DIR}/src/server/clipboard/r3_clipboard_transfer_bridge.cpp"
             "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_clipboard_dormant_composition.cmake")
     set_tests_properties(
@@ -3361,6 +3363,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-close-requires-explicit-owner-stop
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
+    # Window hiding is presentation-only; a future tray hide must not Stop
+    # the one active R10/clipboard lifetime.
+    add_test(NAME gui.offscreen-hide-preserves-active-sharing
+        COMMAND test_desktop_gui_offline hide-preserves-sharing)
+    set_tests_properties(gui.offscreen-hide-preserves-active-sharing
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;clipboard;lifecycle" TIMEOUT 30)
     add_test(NAME gui.offscreen-r10-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
     set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES

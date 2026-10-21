@@ -979,6 +979,46 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (argc > 1 &&
+        QString::fromLocal8Bit(argv[1]) == "hide-preserves-sharing")
+    {
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{9U, "192.168.0.44", false, true, true}};
+        window.refresh();
+        assert(host.status().sharing);
+        assert(host.status().clipboardState == RuntimeClipboardState::Enabled);
+
+        // Tray/minimize presentation hiding is not Stop/Revoke authority.
+        // The one R10 runtime and its current clipboard lifetime continue.
+        window.hide();
+        application.processEvents();
+        assert(!window.isVisible());
+        assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+        const auto hidden = host.status();
+        assert(hidden.sharing);
+        assert(hidden.clipboardState == RuntimeClipboardState::Enabled);
+        assert(runtime.snapshot.stage == RuntimeHostStage::ClientConnected);
+
+        // Explicit Stop/Revoke is terminal and must retire clipboard state.
+        window.show();
+        application.processEvents();
+        host.stopAndRevoke();
+        window.refresh();
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(!host.status().sharing);
+        assert(host.status().clipboardState == RuntimeClipboardState::Retired);
+        return 0;
+    }
+
     if (argc > 1 && QString::fromLocal8Bit(argv[1]) == "close-consent")
     {
         DesktopWindow window(host);

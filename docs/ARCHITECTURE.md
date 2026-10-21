@@ -1,3 +1,44 @@
+## R8 tray-hide and terminal clipboard lifetime audit (2026-10-21)
+
+R8 remains dormant behind the literal
+`kLinuxProductionClipboardActivationApproved = false` gate. This audit does
+not activate CLIPRDR and does not own the R7 tray/dashboard redesign. The
+prepared production surface remains
+`X11ClipboardAdapter::PresentationScope::UnicodeTextOnly`; images and files
+stay outside the composed production path.
+
+A presentation-only window hide is not host-authority loss. While R10 still
+reports a pending or active sharing lifetime, hiding/restoring the Qt window
+must leave the same `LinuxRuntimeHostControl`, accepted client, R5 native
+desktop and `LinuxPreparedClipboardOwner` alive. A tray action may therefore
+hide/restore presentation without calling Stop or Revoke.
+
+Terminal ownership remains explicit. Stop and Revoke enter
+`retireStoppedRuntime()`; process Quit/destruction falls back to that same
+helper. Owner authority is invalidated first, then `retireNativeDesktop()`
+retires R8 selection/paste/INCR and bridge state before R5, then the accepted
+R3/R2/R1 aggregate is revoked and the listener closes. Per-client disconnect
+uses `retireAcceptedClient()`, which performs the same R8/R5-before-connection
+ordering while leaving an authorized listener available for a replacement
+client.
+
+A replacement accepted client cannot reuse the prior R8 object: native
+initialization allocates a fresh `LinuxHostNativeDesktopState`, prepares its
+clipboard owner from the replacement R2 admission/session generations, and
+installs it only after preparation succeeds. Numeric
+`RemoteTransfer::generation()` is deliberately session-local rather than a
+cross-connection identity. Within a retained bridge, source/receipt identities
+remain monotonic across route retirement; across reconnect the entire old R8
+owner is destroyed, so no callback has a live old target.
+
+`X11ClipboardAdapter::disconnect()` releases CLIPBOARD ownership, cancels
+pending paste and INCR work, destroys the owner window and clears publication
+state. `R3ClipboardTransferBridge::retireR3ChannelState()` clears route and
+queued outbound/TLS-receipt identity before retiring `RemoteTransfer`.
+Together with the existing stale-positive-receipt and stale-INCR component
+tests, this prevents retired selection/INCR/TLS work from entering the
+replacement lifetime.
+
 ## R10 HostControl authentication selection is explicit per accepted client (2026-10-20)
 
 The Linux GUI HostControl owns one configured authentication mode in addition to

@@ -1,3 +1,37 @@
+## R8 tray-hide / terminal clipboard lifecycle authoring receipt (2026-10-21)
+
+Starting shared-main parent: `28200675093df6266346bc424809ddb6e3dd908c`.
+
+Source audit of the dormant GUI/CLI clipboard composition confirms the one R8
+owner already has the required terminal ordering: adapter disconnect before
+bridge retirement, R8 before R5, and native state before the accepted
+R3/R2/R1 aggregate. X11 disconnect explicitly releases selection ownership,
+cancels pending paste/INCR state and clears the owner window. Bridge retirement
+zeros route identity and clears outbound write/receipt state. Accepted-client
+replacement constructs a new native/R8 owner from fresh R2
+admission/session generations; the previous owner is destroyed before the old
+connection is revoked.
+
+This increment adds the ordinary offscreen regression
+`gui.offscreen-hide-preserves-active-sharing`, proving a presentation-only
+window hide makes zero Stop/Revoke calls and leaves the active clipboard
+projection intact until explicit Stop/Revoke. The existing dormant composition
+source guard is tightened for fresh reconnect ownership, Stop/Revoke/Quit
+ordering, X11 selection/INCR clearing and R8/R3 outbound receipt clearing. No
+tray/dashboard production code is changed by R8.
+
+`kLinuxProductionClipboardActivationApproved` remains literal **false** and
+the prepared scope remains `PresentationScope::UnicodeTextOnly`. No PNG,
+FileContents, completed-file or directory-transfer production entry point is
+added. Canonical owner-local configure/build/full CTest: **NOT RUN** in this
+connector environment. Publication-SHA hosted CI: **PENDING**. No listener,
+desktop, input, clipboard claim, credential prompt or client was activated.
+
+FIRST remains the prerequisite: owner-authorized visible desktop + mouse +
+keyboard + Stop on the frozen Linux acceptance candidate. Only after that pass
+may a separate milestone enable and test Unicode plain-text clipboard; images
+and files remain later.
+
 ## R10 HostControl selector source-contract CI correction receipt (2026-10-21)
 
 Starting exact-main parent:

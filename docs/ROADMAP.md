@@ -1,3 +1,24 @@
+## R8 clipboard lifecycle audit for the one-page/tray transition (2026-10-21)
+
+R8 remains **blocked from production activation until FIRST**. The production
+gate stays `kLinuxProductionClipboardActivationApproved = false`; the prepared
+surface is Unicode text only, with image/file paths still excluded.
+
+The tray transition must treat window hiding as presentation only: hiding or
+restoring the dashboard must not retire the accepted client, R5 desktop or R8
+clipboard owner while sharing continues. Stop/Revoke/Quit remain terminal and
+must retire R8 selection/paste/INCR plus bridge receipt state before R5, the
+accepted connection and listener. Client disconnect/reconnect must destroy the
+old R8 owner and prepare a new one from the replacement R2
+admission/session generations.
+
+Offline coverage now includes a hide-preserves-sharing GUI regression plus
+stronger dormant-composition guards for terminal ordering, fresh replacement
+ownership, X11 state clearing and stale TLS receipt retirement. These are
+preparation only and do not move Track A. After owner-authorized FIRST visible
+desktop + mouse + keyboard + Stop passes, enable/test Unicode plain text in a
+separate milestone. Images/files remain later.
+
 ## R7 toggle import documentation-policy repair and R9 split qualification (2026-10-21)
 
 Exact parent `82feaad284dda584d203d877f6239abf44a246e3` imports R7's shared

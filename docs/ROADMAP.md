@@ -1,3 +1,39 @@
+## R7 authoritative-toggle fake retirement correction (2026-10-21)
+
+Starting exact-main parent:
+`1fc5829c169cbfe338b043135deb89b6c7153f28`.
+
+The parent's Qt meta-object compile correction is effective: primary Actions
+run `39695111475` builds the Windows CLANG64 Debug Qt graph and the real
+macOS app/test binary without the former `findChild<ToggleSwitchWidget*>()`
+static assertion. The macOS portable-GUI lane then reaches the real 20-test
+offscreen suite and passes 19/20. Its sole failure is
+`gui.offscreen-authoritative-sharing-toggle` at the final retirement
+assertion: the test's deliberate refused-retirement branch sets
+`deriveProductStatusFromLegacy=false` and authoritative product state
+`Stopping`, but the later fixture transition changed only legacy
+`snapshot.stage` to `Revoked`. R10 product authority therefore correctly
+kept the toggle On from the stale explicit product snapshot.
+
+The correction is test-only: when the fixture leaves the deliberate
+contradictory/refused-product case and emulates runtime-confirmed retirement,
+it explicitly restores `deriveProductStatusFromLegacy=true` before setting
+the legacy stage to `Revoked`. Production `DesktopWindow`, HostControl,
+toggle semantics, credential gates and native hosting are unchanged. The
+existing `gui.offscreen-authoritative-sharing-toggle` behavior test remains
+strict: intent never owns the switch, refused retirement stays On/Stopping,
+and only authoritative retirement turns it Off.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. The replacement publication requires its own exact-SHA hosted
+Windows CLANG64 + macOS portable GUI + Linux GUI **PASS**; no PASS is inherited
+from `1fc5829c169c`. Live listener, authentication, desktop,
+input and clipboard operation: **NOT RUN**.
+
+**Next gate:** three-platform GUI qualification on the replacement SHA, then
+retain the already-landed one-page dashboard contract. Session Password remains
+absent until real Microsoft-client standalone-authentication capability lands.
+
 ## R7 Qt base-class toggle lookup correction (2026-10-21)
 
 Starting exact-main parent:

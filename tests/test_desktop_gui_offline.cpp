@@ -385,6 +385,11 @@ int main(int argc, char** argv)
         assert(title->text().contains("Stopping"));
 
         runtime.refuseRetirement = false;
+        // The refusal case above deliberately switched this fake to an
+        // explicit authoritative Stopping product snapshot. Restore the
+        // ordinary legacy-derived fake before emulating runtime-confirmed
+        // retirement; otherwise stale Stopping remains authoritative.
+        runtime.deriveProductStatusFromLegacy = true;
         runtime.snapshot.stage = RuntimeHostStage::Revoked;
         window.refresh();
         assert(!toggle->isChecked());

@@ -1,3 +1,20 @@
+## R7 fake product authority must be restored explicitly after contradiction (2026-10-21)
+
+Qt tests that set `deriveProductStatusFromLegacy=false` are deliberately
+asserting that R10's explicit product snapshot overrides contradictory legacy
+stage/listener/native fields. When such a test later returns to the generic
+legacy-derived fake path, it must explicitly set
+`deriveProductStatusFromLegacy=true` before changing legacy fields. Mutating
+`snapshot.stage` alone while explicit product authority remains selected is
+not a runtime transition and must not be used to make a toggle assertion pass.
+
+`gui.offscreen-authoritative-sharing-toggle` pins both halves: a refused
+Stop keeps authoritative product state `Stopping` and the switch On; a later
+runtime-confirmed retirement is emulated only after restoring the fixture's
+normal derivation mode, then the authoritative state becomes Stopped and the
+switch turns Off. Do not weaken production product-state ownership to repair a
+fixture.
+
 ## R7 non-metaobject toggle lookup regression (2026-10-21)
 
 The imported `ToggleSwitchWidget` is a `QAbstractButton` presentation widget

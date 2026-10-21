@@ -1,3 +1,23 @@
+## R7 macOS authoritative-toggle fixture failure receipt (2026-10-21)
+
+Exact parent `1fc5829c169cbfe338b043135deb89b6c7153f28`, primary run `39695111475`, macOS
+portable-GUI job `119550511191`: real app compilation **PASS**, package
+integrity/framework-alias CTests **PASS**, and the shared Qt offscreen binary
+compiles **PASS**. The 20-test GUI suite reaches execution and records
+**19 PASS / 1 FAIL**. The only failure is
+`gui.offscreen-authoritative-sharing-toggle` at
+`test_desktop_gui_offline.cpp:390`: expected Off after the fixture manually
+set legacy stage `Revoked`, while the fake still had
+`deriveProductStatusFromLegacy=false` and authoritative product state
+`Stopping` from the preceding refused-retirement case.
+
+This confirms the original Qt `findChild` compile blocker is cleared on
+macOS. The corrective change restores the fake's normal product derivation
+before emulating confirmed retirement; production code is unchanged.
+Canonical owner-local full CTest: **NOT RUN**. Replacement exact-SHA hosted
+Windows CLANG64 + macOS portable GUI + Linux GUI: **PENDING**. Live operation:
+**NOT RUN**.
+
 ## R7 Qt toggle lookup exact-parent failure receipt (2026-10-21)
 
 Exact parent `389de5a55e1b4cf5b4effc466699f54fce532d5c`, primary Actions run

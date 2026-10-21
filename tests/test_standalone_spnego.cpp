@@ -444,6 +444,8 @@ int main(int argc, char **argv)
                    type3, credential, reply).status ==
                StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
         assert(fallback.stage() == StandaloneSpnegoStage::Failed);
+        assert(fallback.failureStage() ==
+               StandaloneSpnegoFailureStage::Mic);
 
         StandaloneSpnegoNtlmAcceptor tampered;
         assert(configure(tampered));
@@ -464,6 +466,23 @@ int main(int argc, char **argv)
                    tamperedType3, credential, reply).status ==
                StandaloneSpnegoStatus::CredentialRejected);
         assert(tampered.stage() == StandaloneSpnegoStage::Failed);
+        assert(tampered.failureStage() ==
+               StandaloneSpnegoFailureStage::Mic);
+
+        StandaloneSpnegoNtlmAcceptor wrongPassword;
+        assert(configure(wrongPassword));
+        const auto ntlmFirst = initialToken(
+            {Bytes(kNtlmOid.begin(), kNtlmOid.end())}, negotiate);
+        assert(wrongPassword.acceptInitialToken(ntlmFirst, reply));
+        EphemeralNtlmV2Credential wrongCredential;
+        std::array<char16_t, 8> wrongPasswordBytes{
+            u'P',u'a',u's',u's',u'w',u'0',u'r',u'd'};
+        assert(wrongCredential.configure(u"User", wrongPasswordBytes));
+        assert(wrongPassword.acceptContinuationToken(
+                   type3, wrongCredential, reply).status ==
+               StandaloneSpnegoStatus::CredentialRejected);
+        assert(wrongPassword.failureStage() ==
+               StandaloneSpnegoFailureStage::NtlmNegotiation);
 
         StandaloneSpnegoNtlmAcceptor malformed;
         assert(configure(malformed));
@@ -475,6 +494,8 @@ int main(int argc, char **argv)
                    duplicate, reply).status ==
                StandaloneSpnegoStatus::InvalidToken);
         assert(malformed.stage() == StandaloneSpnegoStage::Failed);
+        assert(malformed.failureStage() ==
+               StandaloneSpnegoFailureStage::Spnego);
         return 0;
     }
 

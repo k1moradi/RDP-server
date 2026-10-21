@@ -1,3 +1,36 @@
+## R2 standalone Microsoft-client acceptance-diagnostics authoring receipt (2026-10-21)
+
+Starting shared-main parent: `738d65d67356781046102fed50aed38372ddde24`.
+
+The production selector was audited end to end before this change. R10 selects
+StandalonePassword explicitly, revalidates the exact credential generation,
+creates a fresh challenge/current FILETIME and constructs the five-argument
+`LinuxRuntimeConnection`. That constructor leaves GSS unconfigured for
+standalone mode, processes CredSSP only through the exact owner-bound TSRequest
+reader/writer, binds the standalone authenticated-principal proof only after
+`CredentialsVerified`, and requests principal-free standalone native
+admission. No OS-account fallback path was found.
+
+The missing acceptance evidence was failure localization: the runtime exposed
+only coarse CredSSP `Failed`. This increment adds redacted enum-only
+classification for NTLM negotiation, MIC, SIGN/SEAL, SPNEGO, pubKeyAuth,
+authInfo and admission, plus a single fail-only fixed-string runtime diagnostic
+that explicitly states OS/GSS fallback is disabled. Existing denial fixtures
+are extended to pin NTLM-vs-MIC-vs-SPNEGO, protected-message-vs-channel-binding,
+authInfo, and early-admission classifications. The runtime selector test also
+requires StandalonePassword selected while `gssStage()` remains
+`Unconfigured`.
+
+No password entry surface, authentication abstraction, second broker/listener,
+or ExistingOsAccount behavior is added. Canonical owner-local
+configure/build/full CTest is **NOT RUN** in this connector environment.
+Hosted exact-publication-SHA CI is required after publication. Real Windows
+App/Windows 11 `mstsc.exe` standalone authentication is **NOT RUN** because
+this session did not include explicit authorization to activate the live
+listener/physical desktop. The prepared live procedure requires a freshly
+entered mutable password, exact credential generation/TLS provenance,
+standalone proof, fresh owner authorization and the normal native lease.
+
 ## R8 tray-hide / terminal clipboard lifecycle authoring receipt (2026-10-21)
 
 Starting shared-main parent: `28200675093df6266346bc424809ddb6e3dd908c`.

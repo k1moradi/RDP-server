@@ -782,8 +782,39 @@ void testPubKeyAuthTamperRevokes()
            StandaloneCredSspFrameStatus::Rejected);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::Failed);
+    assert(acceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::SignSeal);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+
+    // Preserve valid SIGN/SEAL while substituting the CredSSP nonce. The
+    // protected payload decrypts, but its channel binding no longer matches.
+    MemoryTlsPair bindingTls;
+    TsRequestFrameReader bindingReader;
+    TsRequestTlsReplyWriter bindingWriter;
+    EphemeralNtlmV2Credential bindingCredential;
+    configureServerCredential(bindingCredential);
+    StandaloneCredSspNtlmAcceptor bindingAcceptor;
+    prepareInitialNegotiation(
+        bindingAcceptor, bindingCredential,
+        bindingTls, bindingReader, bindingWriter);
+    NtlmV2SecurityContext bindingClientSecurity;
+    configureClientMirror(bindingClientSecurity);
+    const auto signedNonce = nonce();
+    const auto signedBinding = protectClientBinding(
+        bindingTls, bindingClientSecurity, signedNonce);
+    auto substitutedNonce = signedNonce;
+    substitutedNonce[0] ^= 0x01U;
+    const auto bindingRequest = combinedFinalRequest(
+        continuationSpnego(kMicrosoftAuthenticateMessage),
+        signedBinding, substitutedNonce);
+    bindingTls.sendClient(bindingRequest);
+    bindingTls.readServerFrame(bindingReader);
+    assert(bindingAcceptor.processCompleteFrame(
+               bindingReader, bindingWriter, bindingCredential) ==
+           StandaloneCredSspFrameStatus::Rejected);
+    assert(bindingAcceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::PubKeyAuth);
 }
 
 void testAuthInfoExactCredentialMatch()
@@ -896,6 +927,8 @@ void testAuthInfoCredentialMismatchRevokes()
                StandaloneCredSspFrameStatus::Rejected);
         assert(acceptor.stage() ==
                StandaloneCredSspStage::Failed);
+        assert(acceptor.failureStage() ==
+               StandaloneAuthenticationFailureStage::AuthInfo);
         assert(reader.status() == TsRequestFrameStatus::Closed);
         assert(writer.status() == TsRequestTlsWriteStatus::Closed);
     };
@@ -934,6 +967,8 @@ void testAuthInfoTamperRevokes()
            StandaloneCredSspFrameStatus::Rejected);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::Failed);
+    assert(acceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::SignSeal);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }
@@ -962,6 +997,8 @@ void testManualFrameProvenanceDenial()
            StandaloneCredSspFrameStatus::Rejected);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::Failed);
+    assert(acceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::Spnego);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }

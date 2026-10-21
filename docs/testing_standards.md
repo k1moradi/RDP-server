@@ -1,3 +1,55 @@
+## R2 standalone-password Microsoft-client acceptance run sheet (2026-10-21)
+
+The next positive R2 milestone is a real unmodified Windows App or Windows 11
+`mstsc.exe` connection through the production R10 accepted-socket path.
+Ordinary CI remains offline and cannot claim this result.
+
+Before the client connects, record the exact source SHA and client build. Use a
+controlled test username and enter a new session password only into mutable
+owner-local memory; never place it in source, config, command-line arguments,
+environment variables, CMake cache or logs. Feed that buffer once to
+`configureStandaloneApplicationPassword(...)`, verify the returned
+observation is configured with a nonzero exact generation, and verify the input
+buffer has been scrubbed. Do not expose a Qt password field for this run.
+
+Obtain fresh owner authorization through the normal R10
+`requestHostPermissionSetup()` path, then Start on the selected private-LAN
+interface. On accept, require the same standalone credential generation, a
+fresh per-connection challenge/current FILETIME, HYBRID selection, the exact R1
+TLS object and selected-certificate fingerprint, and owner-derived TSRequest
+frames. After authInfo, require
+`StandalonePasswordAuthenticatedPrincipalProof` to bind the exact connection
+and generation, then use the normal principal-free
+`ConsoleEvidenceAuthenticationKind::StandalonePassword` request and ordinary
+NSS/logind physical seat/session lease. Kerberos principal must be empty.
+
+No-fallback evidence is mandatory: the acceptance snapshot must report
+StandalonePassword selected, `gssStage()` must remain
+`SpnegoStage::Unconfigured`, and any terminal standalone failure must emit at
+most the fixed fail-only line
+`stage=<bucket>; os-gss-fallback=disabled`. Never infer no-fallback merely
+from a successful client prompt.
+
+Classify the first failure as exactly one of these R2 buckets:
+`ntlm-negotiation` (NTLMSSP framing/proof), `mic` (NTLM transcript or
+mechListMIC), `sign-seal` (NTLM protected-message integrity/confidentiality),
+`spnego` (SPNEGO DER/mechanism exchange), `pubkeyauth` (CredSSP TLS channel
+binding), `authinfo` (final delegated TSPasswordCreds equivalence), or
+`admission` (authenticated proof/native broker handoff). R1 TLS/preauth
+diagnostics remain separate transport evidence.
+
+PASS requires CredentialsVerified, standalone proof binding, a fresh owner
+grant, a genuine physical-session admission lease, then the normal downstream
+MCS/licensing/Share path with a clean disconnect/Stop. Wrong password, stale
+credential generation, TLS provenance mismatch, owner-grant loss or native
+session replacement must fail closed without GSS retry. Record only bounded
+stages, generations, TLS fingerprint and client/source versions; never retain
+credentials or authentication wire data.
+
+This live run is **NOT RUN** until the owner explicitly authorizes the exact
+physical test. The diagnostic changes themselves are covered by existing
+offline SPNEGO/CredSSP/standalone-selector CTests.
+
 ## R8 hide/nonterminal and terminal clipboard lifetime regressions (2026-10-21)
 
 `gui.offscreen-hide-preserves-active-sharing` is a presentation-only Qt

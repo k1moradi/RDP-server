@@ -1,3 +1,40 @@
+## R2 standalone Microsoft-client acceptance diagnostics prepared (2026-10-21)
+
+Starting shared-main parent: `738d65d67356781046102fed50aed38372ddde24`.
+
+The next R2 gate remains one real unmodified Windows App or Windows 11
+`mstsc.exe` authentication through R10's production accepted-socket path.
+This increment adds only the redacted evidence needed to diagnose that run; it
+does **not** enable the public Session Password UI, add another authentication
+owner, or change ExistingOsAccount.
+
+Standalone failure evidence is now classified at the existing owners as
+`ntlm-negotiation`, `mic`, `sign-seal`, `spnego`, `pubkeyauth`,
+`authinfo`, or `admission`. The production connection emits only one
+fail-only stage line and states `os-gss-fallback=disabled`; it never logs
+tokens, responses, keys, delegated credentials, usernames or passwords. The
+bounded acceptance snapshot also records that StandalonePassword was selected.
+Offline selector coverage requires the GSS acceptor to remain
+`Unconfigured` and an early standalone admission denial to remain classified
+as standalone `admission`, proving there is no retry through OS-account/GSS.
+
+The owner-authorized acceptance configuration is intentionally non-product:
+use a bounded test username plus a password freshly entered into mutable memory,
+call the existing internal
+`configureStandaloneApplicationPassword(...)` seam, record only its exact
+nonzero credential generation, and let the existing R10 selector generate the
+per-connection random NTLM challenge/current FILETIME. The password must never
+enter source, config, argv, environment or logs. R1's exact established TLS
+owner/fingerprint, the owner-bound CredSSP frames, the standalone authenticated
+principal proof, a fresh current-owner grant, and the normal NSS/logind
+physical-session lease remain mandatory. A local owner harness may prepare that
+one call for the physical run, but it is not a product capability and must not
+be committed as a password switch.
+
+Real Windows App/`mstsc.exe` interoperability is **NOT RUN** in this
+connector session because no explicit live owner authorization was supplied.
+R7 must keep password controls absent until that physical gate passes.
+
 ## R8 clipboard lifecycle audit for the one-page/tray transition (2026-10-21)
 
 R8 remains **blocked from production activation until FIRST**. The production

@@ -1,3 +1,25 @@
+## R2 standalone interoperability diagnostics are redacted and fail-only (2026-10-21)
+
+For the standalone Microsoft-client gate, report the first terminal R2 boundary
+only: NTLM negotiation, MIC, SIGN/SEAL, SPNEGO, pubKeyAuth, authInfo or
+admission. Keep that value as a bounded enum/scalar; never retain or log
+TSRequest/NTLM bytes, responses, session keys, delegated credentials, usernames,
+passwords, native identities or authorization objects.
+
+When `StandalonePassword` is selected, a failure log may state the fixed stage
+and that OS/GSS fallback is disabled. It must be fail-only. Do not initialize,
+retry or consult the GSS acceptor from the standalone path merely to improve
+diagnostics. Offline tests must continue to assert the GSS stage is
+`Unconfigured` for the selected standalone connection.
+
+Do not solve the physical acceptance password-entry problem by adding a public
+or hidden product switch, config key, argv/environment secret, or Qt field.
+Until an unmodified Windows App or Windows 11 `mstsc.exe` succeeds, the only
+permitted preparation is an owner-local non-product harness that freshly fills
+mutable password memory and immediately calls the existing internal
+generation-fenced credential seam. No such harness or password value is
+product capability evidence.
+
 ## R8 tray hiding is presentation-only; terminal commands own retirement (2026-10-21)
 
 Do not couple Qt visibility to R8 lifetime. A hide/minimize/tray-hide operation

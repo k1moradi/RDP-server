@@ -3617,7 +3617,24 @@ void testStandaloneAuthenticationSelectorDenials(
     assert(standalone.ready());
     assert(standalone.gssStage() == SpnegoStage::Unconfigured);
     assert(!standalone.hasAdmissionLease());
-    standalone.revoke();
+    auto standaloneDiagnostics = standalone.acceptanceDiagnostics();
+    assert(standaloneDiagnostics.standalonePasswordSelected);
+    assert(standaloneDiagnostics.standaloneAuthenticationFailureStage ==
+           rdp_server::server::security::
+               StandaloneAuthenticationFailureStage::None);
+
+    // Standalone selection must fail as standalone admission when presented
+    // before CredSSP verification; it must never retry the GSS acceptor.
+    const ConsoleEvidenceRequest prematureAdmission{
+        {}, "alice", "seat0", ":0", kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    assert(!standalone.issueAdmission(prematureAdmission));
+    assert(standalone.gssStage() == SpnegoStage::Unconfigured);
+    standaloneDiagnostics = standalone.acceptanceDiagnostics();
+    assert(standaloneDiagnostics.standalonePasswordSelected);
+    assert(standaloneDiagnostics.standaloneAuthenticationFailureStage ==
+           rdp_server::server::security::
+               StandaloneAuthenticationFailureStage::Admission);
     assert(!standalone.ready());
     assert(::close(clientDescriptor) == 0);
 

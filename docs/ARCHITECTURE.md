@@ -1,3 +1,26 @@
+## R2 standalone authentication acceptance diagnostics (2026-10-21)
+
+The standalone path keeps the existing single-owner composition. R10 selects
+`LinuxRuntimeAuthenticationMode::StandalonePassword` with one exact
+`StandalonePasswordCredentialOwner` generation; the connection does not
+configure or drive the GSS acceptor. All CredSSP TSRequests still arrive through
+the exact R1 `OwnedPreauthTcpConnection`, and only
+`StandalonePasswordAuthenticatedPrincipalProof` can bridge verified
+standalone credentials into the shared R2 admission broker.
+
+For Microsoft-client acceptance, the mechanism owners retain one redacted
+terminal failure classification only. SPNEGO distinguishes generic SPNEGO
+framing/mechanism failures, NTLM negotiation/proof failure, and MIC failure.
+CredSSP adds SIGN/SEAL, pubKeyAuth channel-binding, and authInfo credential
+failure. The runtime adds the final admission boundary. These are diagnostic
+scalars, not authority; they contain no wire token, response, key, password,
+principal, session identity or capability.
+
+A successful path leaves the failure classification at `None`, binds the
+standalone proof only after owner-bound `CredentialsVerified`, and enters the
+same fresh owner-consent + NSS/logind broker/lease used by the rest of the
+PersonalDesktop runtime. ExistingOsAccount remains unchanged and independent.
+
 ## R8 tray-hide and terminal clipboard lifetime audit (2026-10-21)
 
 R8 remains dormant behind the literal

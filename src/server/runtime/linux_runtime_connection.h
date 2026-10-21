@@ -413,6 +413,11 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     int negotiatedTlsProtocolVersion{};
     LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    bool standalonePasswordSelected{};
+    rdp_server::server::security::StandaloneAuthenticationFailureStage
+        standaloneAuthenticationFailureStage{
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::None};
     rdp_server::server::transport::McsSessionPhase mcsPhase{
         rdp_server::server::transport::McsSessionPhase::Closed};
     bool shareActivated{};
@@ -1098,6 +1103,9 @@ private:
     }
     [[nodiscard]] LinuxCredSspStepResult
         advanceStandaloneCredSsp() noexcept;
+    void recordStandaloneAuthenticationFailure(
+        rdp_server::server::security::StandaloneAuthenticationFailureStage
+            failureStage) noexcept;
     [[nodiscard]] bool postAdmissionMcsPolicyMatches(
         const RuntimeDeploymentPolicy &deploymentPolicy) const noexcept;
     // Membership-only R3 inspection; call only after fresh R2 admission
@@ -1170,6 +1178,10 @@ private:
     bool nativeChangeRegistrationUnregistered_{};
     LinuxRuntimeCredSspDiagnosticTransition credSspDiagnosticTransition_{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    rdp_server::server::security::StandaloneAuthenticationFailureStage
+        standaloneAuthenticationFailureStage_{
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::None};
     RuntimeTlsCertificateFingerprint negotiatedCertificateSha256_{};
     bool negotiatedCertificateFingerprintAvailable_{};
     std::uint32_t negotiatedSecurityProtocol_{};

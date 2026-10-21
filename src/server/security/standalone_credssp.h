@@ -32,6 +32,20 @@ enum class StandaloneCredSspFrameStatus : std::uint8_t
     Rejected,
 };
 
+// Redacted R2 acceptance boundary. Admission is recorded by the composed
+// runtime after CredSSP has produced CredentialsVerified.
+enum class StandaloneAuthenticationFailureStage : std::uint8_t
+{
+    None,
+    NtlmNegotiation,
+    Mic,
+    SignSeal,
+    Spnego,
+    PubKeyAuth,
+    AuthInfo,
+    Admission,
+};
+
 // Connection-scoped, noncopyable CredSSP wrapper for the standalone
 // application-password NTLM mechanism.
 //
@@ -96,6 +110,11 @@ public:
         return stage_;
     }
 
+    [[nodiscard]] StandaloneAuthenticationFailureStage failureStage() const noexcept
+    {
+        return failureStage_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -144,6 +163,8 @@ private:
     CredSspTlsCertificateFingerprint pinnedCertificate_{};
     std::uint32_t negotiatedVersion_{};
     StandaloneCredSspStage stage_{StandaloneCredSspStage::Unconfigured};
+    StandaloneAuthenticationFailureStage failureStage_{
+        StandaloneAuthenticationFailureStage::None};
 };
 
 

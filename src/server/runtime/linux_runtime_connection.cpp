@@ -5,6 +5,7 @@
 #include <array>
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
 #include <limits>
 #include <utility>
 
@@ -14,6 +15,30 @@
 
 namespace rdp_server::server::runtime
 {
+namespace
+{
+
+[[nodiscard]] constexpr const char *standaloneFailureStageName(
+    rdp_server::server::security::StandaloneAuthenticationFailureStage
+        stage) noexcept
+{
+    using Stage = rdp_server::server::security::
+        StandaloneAuthenticationFailureStage;
+    switch (stage)
+    {
+    case Stage::None: return "none";
+    case Stage::NtlmNegotiation: return "ntlm-negotiation";
+    case Stage::Mic: return "mic";
+    case Stage::SignSeal: return "sign-seal";
+    case Stage::Spnego: return "spnego";
+    case Stage::PubKeyAuth: return "pubkeyauth";
+    case Stage::AuthInfo: return "authinfo";
+    case Stage::Admission: return "admission";
+    }
+    return "admission";
+}
+
+} // namespace
 
 LinuxRuntimeMcsTpktFrameResult
 LinuxRuntimeMcsTpktFrameReader::reject(
@@ -234,6 +259,11 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedSecurityProtocol = negotiatedSecurityProtocol_;
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
+    snapshot.standalonePasswordSelected =
+        authenticationMode_ ==
+        LinuxRuntimeAuthenticationMode::StandalonePassword;
+    snapshot.standaloneAuthenticationFailureStage =
+        standaloneAuthenticationFailureStage_;
     snapshot.mcsPhase = session_.phase();
     snapshot.shareActivated =
         snapshot.mcsPhase ==
@@ -750,6 +780,28 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
     return result;
 }
 
+void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
+    rdp_server::server::security::StandaloneAuthenticationFailureStage
+        failureStage) noexcept
+{
+    using Stage = rdp_server::server::security::
+        StandaloneAuthenticationFailureStage;
+    if (authenticationMode_ !=
+            LinuxRuntimeAuthenticationMode::StandalonePassword ||
+        failureStage == Stage::None ||
+        standaloneAuthenticationFailureStage_ != Stage::None)
+    {
+        return;
+    }
+
+    standaloneAuthenticationFailureStage_ = failureStage;
+    std::fprintf(
+        stderr,
+        "rdp-server: standalone authentication failed: stage=%s; "
+        "os-gss-fallback=disabled\n",
+        standaloneFailureStageName(failureStage));
+}
+
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept
 {
     using FrameStatus =
@@ -762,6 +814,16 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
 
     auto fail = [&](Step status, std::size_t bytesRead = 0U,
                     std::size_t bytesWritten = 0U) noexcept {
+        auto failureStage = standaloneCredSspAcceptor_.failureStage();
+        if (failureStage ==
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::None)
+        {
+            failureStage =
+                rdp_server::server::security::
+                    StandaloneAuthenticationFailureStage::Admission;
+        }
+        recordStandaloneAuthenticationFailure(failureStage);
         credSspFrameReader_.close();
         credSspReplyWriter_.close();
         if (principalProof_ != nullptr)
@@ -999,6 +1061,13 @@ bool LinuxRuntimeConnection::issueAdmission(
         proof == nullptr || !mechanismReady ||
         request.authenticationKind != expectedAuthenticationKind)
     {
+        if (authenticationMode_ ==
+            LinuxRuntimeAuthenticationMode::StandalonePassword)
+        {
+            recordStandaloneAuthenticationFailure(
+                rdp_server::server::security::
+                    StandaloneAuthenticationFailureStage::Admission);
+        }
         revoke();
         return false;
     }
@@ -1006,6 +1075,13 @@ bool LinuxRuntimeConnection::issueAdmission(
     auto issued = broker_->issue(*proof, connection_, request);
     if (!issued)
     {
+        if (authenticationMode_ ==
+            LinuxRuntimeAuthenticationMode::StandalonePassword)
+        {
+            recordStandaloneAuthenticationFailure(
+                rdp_server::server::security::
+                    StandaloneAuthenticationFailureStage::Admission);
+        }
         revoke();
         return false;
     }

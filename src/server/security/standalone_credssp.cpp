@@ -70,6 +70,23 @@ void matchStandalonePasswordFields(
            provenance->serverSelectedProtocol == kRdpProtocolHybrid;
 }
 
+[[nodiscard]] constexpr StandaloneAuthenticationFailureStage
+mapSpnegoFailureStage(StandaloneSpnegoFailureStage stage) noexcept
+{
+    switch (stage)
+    {
+    case StandaloneSpnegoFailureStage::None:
+        return StandaloneAuthenticationFailureStage::None;
+    case StandaloneSpnegoFailureStage::Spnego:
+        return StandaloneAuthenticationFailureStage::Spnego;
+    case StandaloneSpnegoFailureStage::NtlmNegotiation:
+        return StandaloneAuthenticationFailureStage::NtlmNegotiation;
+    case StandaloneSpnegoFailureStage::Mic:
+        return StandaloneAuthenticationFailureStage::Mic;
+    }
+    return StandaloneAuthenticationFailureStage::Spnego;
+}
+
 } // namespace
 
 StandaloneCredSspNtlmAcceptor::~StandaloneCredSspNtlmAcceptor()
@@ -83,9 +100,12 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     if (stage_ != StandaloneCredSspStage::Unconfigured ||
         !mechanism_.configureChallenge(configuration))
     {
+        failureStage_ =
+            StandaloneAuthenticationFailureStage::NtlmNegotiation;
         stage_ = StandaloneCredSspStage::Failed;
         return false;
     }
+    failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
 }
@@ -101,6 +121,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     boundConnection_ = nullptr;
     negotiatedVersion_ = 0;
     stage_ = StandaloneCredSspStage::Unconfigured;
+    failureStage_ = StandaloneAuthenticationFailureStage::None;
 }
 
 bool StandaloneCredSspNtlmAcceptor::matchesPinnedTls(
@@ -196,6 +217,27 @@ StandaloneCredSspFrameStatus StandaloneCredSspNtlmAcceptor::reject(
     TsRequestFrameReader &reader,
     TsRequestTlsReplyWriter &writer) noexcept
 {
+    if (failureStage_ == StandaloneAuthenticationFailureStage::None)
+    {
+        switch (stage_)
+        {
+        case StandaloneCredSspStage::AwaitInitialNego:
+        case StandaloneCredSspStage::NegoContinue:
+            failureStage_ = StandaloneAuthenticationFailureStage::Spnego;
+            break;
+        case StandaloneCredSspStage::AwaitBinding:
+            failureStage_ = StandaloneAuthenticationFailureStage::PubKeyAuth;
+            break;
+        case StandaloneCredSspStage::ServerBindingReplyQueued:
+            failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
+            break;
+        case StandaloneCredSspStage::Unconfigured:
+        case StandaloneCredSspStage::CredentialsVerified:
+        case StandaloneCredSspStage::Failed:
+            failureStage_ = StandaloneAuthenticationFailureStage::Admission;
+            break;
+        }
+    }
     reader.close();
     writer.close();
     mechanism_.reset();
@@ -217,6 +259,7 @@ StandaloneCredSspNtlmAcceptor::processBinding(
     const TsRequestResult &request,
     bool combinedFinal) noexcept
 {
+    failureStage_ = StandaloneAuthenticationFailureStage::PubKeyAuth;
     const bool permitted = combinedFinal
         ? request && request.value.finalNegoAndBindingOnly()
         : bindingOnlyRequest(request);
@@ -242,6 +285,7 @@ StandaloneCredSspNtlmAcceptor::processBinding(
         protectedBinding.subspan(kNtlmMessageSignatureBytes);
 
     CredSspHash clientHash{};
+    failureStage_ = StandaloneAuthenticationFailureStage::SignSeal;
     if (mechanism_.unwrapClientMessage(
             clientCiphertext,
             clientSignature,
@@ -250,6 +294,7 @@ StandaloneCredSspNtlmAcceptor::processBinding(
         OPENSSL_cleanse(clientHash.data(), clientHash.size());
         return reject(reader, writer);
     }
+    failureStage_ = StandaloneAuthenticationFailureStage::PubKeyAuth;
 
     const SSL *sourceTls = reader.completedFrameServerTls();
     const bool clientBindingMatches =
@@ -273,10 +318,15 @@ StandaloneCredSspNtlmAcceptor::processBinding(
             CredSspBindingDirection::ServerToClient,
             request.value.clientNonce,
             serverHash);
-    const auto wrapResult = serverHashReady
-        ? mechanism_.wrapServerMessage(
-              serverHash, serverCiphertext, serverSignature)
-        : NtlmMessageSecurityResult::CryptoFailure;
+    if (!serverHashReady)
+    {
+        OPENSSL_cleanse(serverHash.data(), serverHash.size());
+        return reject(reader, writer);
+    }
+
+    failureStage_ = StandaloneAuthenticationFailureStage::SignSeal;
+    const auto wrapResult = mechanism_.wrapServerMessage(
+        serverHash, serverCiphertext, serverSignature);
     OPENSSL_cleanse(serverHash.data(), serverHash.size());
     if (wrapResult != NtlmMessageSecurityResult::Processed)
     {
@@ -286,6 +336,7 @@ StandaloneCredSspNtlmAcceptor::processBinding(
             serverSignature.data(), serverSignature.size());
         return reject(reader, writer);
     }
+    failureStage_ = StandaloneAuthenticationFailureStage::PubKeyAuth;
 
     std::copy(
         serverSignature.begin(), serverSignature.end(),
@@ -309,6 +360,7 @@ StandaloneCredSspNtlmAcceptor::processBinding(
     if (!queued || !reader.releaseFrame())
         return reject(reader, writer);
 
+    failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::ServerBindingReplyQueued;
     return StandaloneCredSspFrameStatus::BindingReplyQueued;
 }
@@ -320,6 +372,7 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     const TsRequestResult &request,
     const EphemeralNtlmV2Credential &credential) noexcept
 {
+    failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
     if (!request || !request.value.finalAuthInfoOnly() ||
         request.value.version != negotiatedVersion_ ||
         mechanism_.stage() != StandaloneSpnegoStage::MechanismVerified ||
@@ -350,12 +403,14 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
             ciphertext.size());
     SensitiveBytesGuard plaintextGuard{plaintext};
 
+    failureStage_ = StandaloneAuthenticationFailureStage::SignSeal;
     if (mechanism_.unwrapClientMessage(
             ciphertext, signature, plaintext) !=
         NtlmMessageSecurityResult::Processed)
     {
         return reject(reader, writer);
     }
+    failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
 
     StandalonePasswordMatchContext match{
         &credential, false};
@@ -377,6 +432,7 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     mechanism_.reset();
     reader.close();
     writer.close();
+    failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::CredentialsVerified;
     return StandaloneCredSspFrameStatus::CredentialsVerified;
 }
@@ -422,6 +478,14 @@ StandaloneCredSspNtlmAcceptor::processNego(
         step.bytesWritten == 0 ||
         step.bytesWritten > mechanismReply.size())
     {
+        failureStage_ = mapSpnegoFailureStage(
+            mechanism_.failureStage());
+        if (failureStage_ ==
+            StandaloneAuthenticationFailureStage::None)
+        {
+            failureStage_ =
+                StandaloneAuthenticationFailureStage::Spnego;
+        }
         OPENSSL_cleanse(
             mechanismReply.data(), mechanismReply.size());
         return reject(reader, writer);
@@ -461,6 +525,7 @@ StandaloneCredSspNtlmAcceptor::processNego(
     if (!queued || !reader.releaseFrame())
         return reject(reader, writer);
 
+    failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = step.status ==
             StandaloneSpnegoStatus::MechanismVerified
         ? StandaloneCredSspStage::AwaitBinding

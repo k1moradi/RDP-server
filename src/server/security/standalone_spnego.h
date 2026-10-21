@@ -35,6 +35,16 @@ enum class StandaloneSpnegoStatus : std::uint8_t
     OutputTooSmall,
 };
 
+// Redacted failure boundary for real Microsoft-client acceptance. This carries
+// no token, response, session key, username or password material.
+enum class StandaloneSpnegoFailureStage : std::uint8_t
+{
+    None,
+    Spnego,
+    NtlmNegotiation,
+    Mic,
+};
+
 struct StandaloneSpnegoStep final
 {
     StandaloneSpnegoStatus status{StandaloneSpnegoStatus::InvalidToken};
@@ -108,6 +118,11 @@ public:
         return stage_;
     }
 
+    [[nodiscard]] StandaloneSpnegoFailureStage failureStage() const noexcept
+    {
+        return failureStage_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -141,6 +156,8 @@ private:
     bool ntlmWasFirstMechanism_{};
     NtlmV2SecurityContext securityContext_{};
     StandaloneSpnegoStage stage_{StandaloneSpnegoStage::Unconfigured};
+    StandaloneSpnegoFailureStage failureStage_{
+        StandaloneSpnegoFailureStage::None};
 };
 
 } // namespace rdp_server::server::security

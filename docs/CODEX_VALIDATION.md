@@ -1,3 +1,24 @@
+## R7 Windows dashboard toggle linkage validation receipt (2026-10-21)
+
+Starting parent: `8443b7c79804aa1c5bc6e4eef2f40eab6be57097`.
+
+Source review found that the one-page dashboard made `DesktopWindow` depend on
+the out-of-line `ToggleSwitchWidget` implementation while the separate
+`rdp-server-windows-gui` target still listed only
+`windows_gui_main.cpp`, `desktop_window.cpp`, and `host_control.cpp`.
+That target now also compiles `src/gui/toggle_switch.cpp`.
+
+Dedicated ordinary CTest:
+`windows.gui-dashboard-toggle-linkage-source-contract`. It reads the root
+CMake file offline and fails unless the direct Windows GUI target contains the
+launcher, window, host-control, and toggle implementation sources in the same
+target block.
+
+Connector-side source inspection: **PASS** for the missing-source diagnosis and
+the corrected source list. Canonical owner-local configure/build/full CTest:
+**NOT RUN**. Exact publication-SHA hosted CI: **PENDING**. No live listener,
+desktop, credentials, input, clipboard, or client was activated.
+
 ## R7 full-workflow restoration receipt (2026-10-21)
 
 The prior selector-only repair was insufficient because the dashboard workflow

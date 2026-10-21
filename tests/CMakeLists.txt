@@ -9,6 +9,16 @@ add_test(NAME project.local-checkout-path-comparison
 set_tests_properties(project.local-checkout-path-comparison PROPERTIES
     LABELS "policy;build")
 
+# R7 Windows launcher uses DesktopWindow directly instead of the shared
+# desktop-ui archive, so every out-of-line widget implementation used by the
+# dashboard must be present in this target's source list.
+add_test(NAME windows.gui-dashboard-toggle-linkage-source-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_windows_gui_toggle_linkage.cmake")
+set_tests_properties(windows.gui-dashboard-toggle-linkage-source-contract
+    PROPERTIES LABELS "windows;gui;policy;offline")
+
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
 add_executable(test_standalone_credential_policy

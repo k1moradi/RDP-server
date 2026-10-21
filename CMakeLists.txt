@@ -1120,7 +1120,8 @@ if(WIN32)
         add_executable(rdp-server-windows-gui WIN32
             src/windows/windows_gui_main.cpp
             src/gui/desktop_window.cpp
-            src/gui/host_control.cpp)
+            src/gui/host_control.cpp
+            src/gui/toggle_switch.cpp)
         target_include_directories(rdp-server-windows-gui PRIVATE
             "${PROJECT_SOURCE_DIR}/src"
             "${PROJECT_SOURCE_DIR}/src/gui")

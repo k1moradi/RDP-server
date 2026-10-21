@@ -1,3 +1,29 @@
+## R7 Windows dashboard toggle linkage correction (2026-10-21)
+
+Dependency recheck after the one-page dashboard landed found one Windows-only
+linkage gap: `rdp-server-windows-gui` compiles `DesktopWindow` directly, and
+that window now instantiates the imported `ToggleSwitchWidget`, but the
+Windows launcher target did not compile `src/gui/toggle_switch.cpp`. The
+shared desktop-ui target already had the source, so this defect was specific to
+the R6 Windows launcher/package path.
+
+This correction adds the existing toggle implementation to that target and
+registers the platform-independent offline source-contract CTest
+`windows.gui-dashboard-toggle-linkage-source-contract` so the direct launcher
+cannot silently drop an out-of-line dashboard widget again. It does not change
+toggle semantics, host ownership, password capability, clipboard activation,
+FIRST acceptance, or native Windows/macOS hosting.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this
+connector-only environment. Exact publication-SHA hosted CI is required, with
+the Windows portable-GUI build now expected to reach the dashboard linker
+instead of failing on unresolved `ToggleSwitchWidget` symbols.
+
+**Next gate:** product-main exact-SHA ordinary hosted CI. Track C still waits
+for real Microsoft-client standalone-password PASS before Session Password UI;
+R8 clipboard activation still waits for FIRST; Track A FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
 ## R7 full workflow restoration after selector-authoring corruption (2026-10-21)
 
 The first selector repair commit still produced an invalid primary workflow.

@@ -1,5 +1,39 @@
 ## R9 current qualification and M1 owner-authority correction (2026-10-21)
 
+## R6 P0 Track D/E authoring record: manual CLEAN fallback + R2-gated Windows owner (2026-10-21)
+
+**Base main:** `860ae5a15eae0e69f0529b38e1541bbd1be652b2`. The atomic publication commit contains production,
+CTest/workflow and documentation changes together.
+
+Source/ownership inspection **PASS**:
+- the existing clean Windows verifier still checks outer/internal SHA-256,
+  exact manifest/source, expected files, non-admin Explorer session, absent
+  development PATH/install roots, real first window + ordinary close +
+  relaunch, no per-process TCP/UDP and exact read-only firewall/service/
+  TermService/RDP-policy state equality;
+- PASS receipt format 2 additionally records OS/user/session/effective
+  administrator-token state, exact verifier/smoke hashes, required-file/window
+  observations and before/after state hashes, then writes a SHA-256 receipt
+  sidecar; the self-hosted workflow uploads both;
+- `WindowsNativeDesktopOwner` consumes R2's real
+  `WindowsNativeDesktopAuthorization` and expected generation at
+  open/service/input/cursor boundaries. The owner calls R2 `visit()` with
+  exact View/Input permission, so WTS/SID/LUID/logon evidence cannot authorize
+  independently;
+- positive native composition remains explicitly false pending R10. The real
+  SendInput callback is private to the aggregate, and
+  `windows.native-owner-r2-grant-and-lifetime-denials` uses only an unbound
+  real R2 authorization object, preserving the existing 59-case
+  geometry/capture/cursor/input selector.
+
+Execution evidence at authoring: native Windows C++ configure/build/full CTest,
+PowerShell parser execution, manual clean-machine GUI run, dedicated self-hosted
+CLEAN run and exact-publication-SHA Actions are **NOT RUN / PENDING** in this
+connector environment. No Windows OS setting was mutated and no live desktop,
+input, listener or service was activated. R10 positive Windows HostControl
+composition remains the next Track E gate; a real R9-verified receipt is the
+next Track D gate.
+
 Exact R9 candidate `62bdcc81d6616e9430e0eaf47ea6be4cb2446d3b`: structure guard `39695998459` **PASS**; primary exact-SHA ordinary-hosted qualification is pending at this receipt. No predecessor PASS is inherited. FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
 
 Current M1 source can issue positive bounded owner grants from fresh valid physical seat0/unlocked same-UID evidence and can bind native authorization to the exact grant/revocation epoch. Older deny-only claims are historical only. Physical FIRST remains **NOT RUN**.

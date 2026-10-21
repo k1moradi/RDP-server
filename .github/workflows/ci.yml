@@ -1902,7 +1902,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: r9-clean-windows-receipt-${{ github.sha }}
-          path: build/clean-windows-receipt.json
+          path: |
+            build/clean-windows-receipt.json
+            build/clean-windows-receipt.json.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Upload verified public Windows x86_64 PORTABLE-GUI ZIP

@@ -13,6 +13,8 @@
 namespace rdp_server::windows
 {
 
+class WindowsNativeDesktopOwner;
+
 inline constexpr std::int32_t kMaximumWindowsInputWheelDelta = 16 * 120;
 inline constexpr std::size_t kMaximumWindowsNativeInputBatch = 517;
 
@@ -131,6 +133,14 @@ public:
     [[nodiscard]] bool closed() const noexcept { return closed_; }
 
 private:
+    friend class WindowsNativeDesktopOwner;
+
+#ifdef _WIN32
+    // Real SendInput is a private capability of the one R6 aggregate owner.
+    // Native evidence/generation values alone cannot obtain this callback.
+    [[nodiscard]] static WindowsInputCallbacks windowsNativeCallbacks() noexcept;
+#endif
+
     static constexpr std::size_t kScanCodeSlots = 512;
     static constexpr std::size_t kButtonCount = 5;
     static_assert(kScanCodeSlots + kButtonCount ==
@@ -167,8 +177,9 @@ private:
     bool closed_{};
 };
 
-// The Win32 SendInput translation is deliberately NOT exposed here. A future
-// R2/R3-authorized Windows input route must own the capability that makes the
-// native bridge callable; generation numbers alone are revocation facts.
+// The Win32 SendInput translation is deliberately NOT public. Only the one
+// WindowsNativeDesktopOwner can obtain it after fresh R2 authorization; R3
+// input authority remains an additional upstream per-event gate. Generation
+// numbers alone are revocation facts.
 
 } // namespace rdp_server::windows

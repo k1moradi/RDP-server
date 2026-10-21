@@ -1,5 +1,22 @@
 # Windows SERVER-TEST bundle
 
+## R6 aggregate Windows native-owner boundary (2026-10-21)
+
+The native Windows graph now exposes one future R10 composition type,
+`WindowsNativeDesktopOwner`. It consumes R2's real const
+`WindowsNativeDesktopAuthorization` plus the expected authorization
+generation at open/service/input boundaries. Positive native activation remains
+false until R10 composes the live owner; candidate WTS/SID/LUID/logon evidence,
+geometry and DXGI state cannot authorize construction. The Win32 SendInput
+bridge is private to this aggregate owner.
+
+`windows.native-owner-r2-grant-and-lifetime-denials` is an offline
+compile/lifetime sentinel only. It uses an unbound real R2 authorization
+object, creates no fake positive grant and performs no live WTS, DXGI, cursor
+or SendInput operation. Positive Windows hosting therefore remains gated by
+real R2 client authentication plus R10 composition and does not change the
+bundle's existing Start-denial behavior.
+
 The Windows artifact is a **startup-disabled test bundle**, not an accepted
 native RDP server. It may be installed and verified before Windows admission is
 implemented, but its Start action deliberately fails closed.

@@ -1,5 +1,29 @@
 ## R9 manual CLEAN route and split qualification ledgers (2026-10-21)
 
+## Official manual CLEAN fallback when the dedicated runner is unavailable (2026-10-21)
+
+R9 may accept a manual clean-machine record in place of the queued
+`r9-clean-windows-gui` job only when it is produced by the exact source
+verifier against the unchanged producer ZIP. On an ordinary interactive
+non-admin Windows machine run exactly:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\clean_windows_portable_gui.ps1 -Archive .\rdp-server-portable-gui-<version>-windows-x86_64-<sha12>.zip -ExactGitSha <40-lowercase-source-sha> -Receipt .\clean-windows-receipt.json
+```
+
+The output pair is `clean-windows-receipt.json` and
+`clean-windows-receipt.json.sha256`. R9 must independently verify the
+sidecar hash, `status=PASS`, gate, format version 2, exact source SHA,
+archive name/hash, exact-source verifier/smoke hashes, non-admin interactive
+session, development-path/install-root absence, required-file/window-close/
+relaunch observations, and equal before/after system-state hashes. The receipt
+does not authorize native hosting or replace R2/R10. A record copied from a
+different ZIP/source, missing its sidecar, or produced on a
+provisioned/elevated machine is invalid.
+
+No such manual receipt was executed while authoring this rule. CLEAN therefore
+remains **NOT RUN / BLOCKED** until R9 verifies a real exact-candidate record.
+
 Authoring shared-main base: `32627968bce27b5f3bab3b2fdc8b48433bf502e0`. This publication creates a new exact product-main SHA, so its ordinary hosted qualification starts from zero; no PASS is inherited from any parent.
 
 | Ledger | Exact candidate/evidence | R9 rule |

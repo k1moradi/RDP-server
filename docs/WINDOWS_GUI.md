@@ -1,5 +1,26 @@
 ## R6 Windows GUI producer re-enabled after R9 headless overreach (2026-10-19)
 
+## R6/R9 manual clean-machine receipt fallback (2026-10-21)
+
+When the dedicated self-hosted clean runner is unavailable, the owner may run
+the **same exact-source verifier** on an ordinary interactive non-admin Windows
+machine. Place the unchanged producer ZIP and adjacent `.sha256` together
+and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\clean_windows_portable_gui.ps1 -Archive .\rdp-server-portable-gui-<version>-windows-x86_64-<sha12>.zip -ExactGitSha <40-lowercase-source-sha> -Receipt .\clean-windows-receipt.json
+```
+
+A successful run produces `clean-windows-receipt.json` and
+`clean-windows-receipt.json.sha256`. Receipt format 2 records the exact
+archive/source and verifier/smoke hashes, OS/user/session/effective elevation
+state, absence of MSYS2/Qt/LLVM/development paths, expected payload files,
+first window + ordinary close + relaunch, and equal before/after native
+firewall/service/TermService/RDP-policy snapshot hashes. The verifier launches
+the GUI under a Windows-system-only child PATH and requires no administrator
+rights. R9 must independently verify this evidence against the producer before
+CLEAN can advance. This source change itself is **NOT** a clean-machine PASS.
+
 Current-main parent `1d5ff7597e5382b178fb0afa668db93849de778c` inherited R9 commit
 `9e4222cfe909ad3aabee6d0bb0a99142f0354877`, which changed both
 `r6-windows-clang23` Debug and Release producer configures to

@@ -1,5 +1,30 @@
 ## R9 manual CLEAN evidence classification and M1 owner-authority note (2026-10-21)
 
+## R6/R9 manual clean-Windows receipt and native-owner denial gate (2026-10-21)
+
+The exact `clean_windows_portable_gui.ps1` invocation is an official manual
+fallback for CLEAN when the dedicated `r9-clean-windows-gui` runner is
+unavailable. A PASS must emit JSON receipt format 2 plus a SHA-256 sidecar.
+The receipt binds exact source/ZIP/verifier/smoke hashes and records Windows
+build, user/session/effective administrator-token state, clean development
+PATH/install roots, required-file verification, first-window ordinary
+close/relaunch and equal before/after firewall/service/TermService/RDP-policy
+snapshot hashes. R9 must verify the unchanged candidate and receipt sidecar
+before counting manual evidence; source inspection or hosted/provisioned
+Windows CI is not a CLEAN PASS.
+
+The aggregate native-owner CTest
+`windows.native-owner-r2-grant-and-lifetime-denials` is negative-only. It
+uses the real `WindowsNativeDesktopAuthorization` object in an unbound state,
+pins open/bounded-service/input signatures to an expected R2 authorization
+generation, proves WTS candidate evidence cannot construct the owner, and
+checks inert noncopyable/nonmovable retirement. It must not manufacture a
+positive authenticated identity, owner grant, live WTS/DXGI desktop, cursor
+read or SendInput. The established
+`^windows\.(geometry|capture|cursor|input)-` selector remains exactly 59
+cases; the new `windows.native-owner-` category is intentionally separate
+until positive R10 composition exists.
+
 Manual CLEAN must execute the same `clean_windows_portable_gui.ps1` path as the dedicated clean consumer and must pass `verify_clean_windows_receipt.py`; it is recorded as **MANUAL CLEAN PASS**, not automated CI. The verifier is ordinary offline CTest coverage and does not perform a live Windows acceptance run.
 
 Current M1 source includes positive fresh-seat0/unlocked owner-grant behavior. Synthetic positive tests prove only source/state-machine construction; they do not replace physical FIRST.

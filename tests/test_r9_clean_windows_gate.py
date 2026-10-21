@@ -73,6 +73,7 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         "name: rdp-server-portable-gui-windows-x86_64",
         "actions/upload-artifact@v4",
         "r9-clean-windows-receipt-" + SHA_EXPR,
+        "build/clean-windows-receipt.json.sha256",
     ):
         if required not in job:
             raise AssertionError(f"Missing release prerequisite: {required}")
@@ -89,9 +90,14 @@ def require_release_gate(workflow: str, verifier: str) -> None:
         "Get-NetFirewallProfile", "TermService", "fDenyTSConnections", "PortNumber",
         "Get-NetTCPConnection", "Get-NetUDPEndpoint", "smoke_windows_portable_gui.ps1",
         "offline-unsupported-password-test", "QT_PLUGIN_PATH", "System32", "Start-Process",
-        "manual-owner-native", "self-hosted-clean-runner", "RuntimeInformation",
-        "acceptance_label", "os_architecture", "no_process_tcp_udp_before_start",
-        "R9 CLEAN receipt SHA-256:",
+        "receipt_format_version = 2", "evidence_path = 'manual-or-self-hosted-clean-windows'",
+        "verifier_script_sha256 = $scriptDigest", "smoke_script_sha256 = $smokeScriptDigest",
+        "administrator_token_active = $false", "interactive_explorer_session = $true",
+        "process_path_clean = $true", "forbidden_directories_absent = $true",
+        "first_window_observed = $true", "ordinary_close_observed = $true",
+        "relaunch_observed = $true", "system_state_before_sha256 = $beforeDigest",
+        "system_state_after_sha256 = $afterDigest", "system_state_unchanged = $true",
+        "receipt-sha256", "$receiptSidecar = \"$receiptPath.sha256\"",
     ):
         if required not in verifier:
             raise AssertionError(f"Consumer security guard absent: {required}")

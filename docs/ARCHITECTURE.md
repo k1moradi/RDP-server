@@ -1,5 +1,38 @@
 ## R2 Track E Windows/macOS native authorization boundary (2026-10-21)
 
+## R6 Windows native desktop aggregate consumes the R2 authorization owner (2026-10-21)
+
+`WindowsNativeDesktopOwner` is the single future Windows native-desktop
+lifetime borrowed by R10. It is a bounded composition surface, not a scheduler:
+R10 may call `serviceOnce` from its existing serialized HostControl tick,
+but R6 owns no socket, polling/server loop, worker thread or GUI. Its private
+state is shaped to own the canonical desktop layout, WTS generation guard,
+DXGI duplication/capture graph, cursor reader and SendInput controller while
+borrowing the longer-lived R2 `WindowsNativeDesktopAuthorization`.
+
+Every public protected boundary names the expected R2 authorization generation.
+`open` and capture/cursor service require View; input requires Input. The
+owner calls R2's synchronous `visit()`, which revalidates authenticated SID,
+fresh physical WTS/LUID/logon evidence and current-owner grant/revocation epoch
+before and after the callback. Therefore a matching SID, WTS number, LUID,
+layout, DXGI output or generation scalar can never construct or refresh native
+authority independently.
+
+This increment intentionally stops after that authorization/composition seam:
+even a successful R2 visit returns `nativeCompositionUnavailable` from
+`open` until R10 wires the one Windows lifetime and positive activation is
+explicitly approved. The real Win32 SendInput adapter is private to
+`WindowsInputController` and friend-accessible only by
+`WindowsNativeDesktopOwner`; it is not invoked merely because an R2 visit
+succeeds.
+
+On future authority loss, R2/R3 routing must be revoked first. The aggregate
+then closes the WTS generation guard, discards held input through
+`retireWithoutNativeInput()` so no cleanup event reaches a revoked desktop,
+and retires the DXGI child/parent graph at the serialized safe point.
+TermService, Windows RDP policy, firewall state, Session 0 and service
+installation remain outside this architecture.
+
 Windows/macOS now have one narrow R2 authorization shape that sits above the
 existing read-only native evidence adapters. A platform grant can exist only
 while an R2 authenticated-identity proof matches the exact native identity,

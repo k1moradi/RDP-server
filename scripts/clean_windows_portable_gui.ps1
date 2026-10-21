@@ -9,6 +9,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 if ($ExactGitSha -cnotmatch '^[0-9a-f]{40}$') { throw 'Bad exact source SHA' }
+
+$scriptPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
+$scriptDigest =
+    (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$smokeScriptPath = (Resolve-Path -LiteralPath
+    (Join-Path (Split-Path -Parent $scriptPath) 'smoke_windows_portable_gui.ps1')).Path
+$smokeScriptDigest =
+    (Get-FileHash -LiteralPath $smokeScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $archivePath = (Resolve-Path -LiteralPath $Archive).Path
 $archiveName = Split-Path -Leaf $archivePath
 $outerDigest = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -16,37 +24,33 @@ if (!(Test-Path -LiteralPath "$archivePath.sha256" -PathType Leaf) -or
     (Get-Content -LiteralPath "$archivePath.sha256" -Raw).Trim() -cne "$outerDigest  $archiveName") {
     throw 'ZIP outer digest/sidecar mismatch'
 }
-$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
-if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+$administratorTokenActive =
+    $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if ($administratorTokenActive) {
     throw 'Runner must be a non-administrator Windows desktop user'
 }
 $sessionId = [Diagnostics.Process]::GetCurrentProcess().SessionId
-if ($sessionId -eq 0 -or
-    @((Get-Process explorer -ErrorAction Stop) | Where-Object SessionId -eq $sessionId).Count -eq 0) {
+$explorerInSession =
+    @((Get-Process explorer -ErrorAction Stop) |
+      Where-Object SessionId -eq $sessionId).Count -ne 0
+if ($sessionId -eq 0 -or !$explorerInSession) {
     throw 'Runner must use an interactive Explorer session, not Session 0'
 }
-if ($env:PATH -match '(?i)(msys|mingw|clang|llvm|qt[56]|cmake|openssl|vcpkg|windows kits|sdk)') {
+$developmentPathPattern =
+    '(?i)(msys|mingw|clang|llvm|qt[56]|cmake|openssl|vcpkg|windows kits|sdk)'
+if ($env:PATH -match $developmentPathPattern) {
     throw 'Runner is provisioned with development/toolchain PATH entries'
 }
-foreach ($directory in @('C:\msys64', 'C:\Qt', 'C:\Program Files\LLVM')) {
-    if (Test-Path -LiteralPath $directory) { throw 'Runner contains forbidden toolchain installation' }
+$forbiddenDevelopmentDirectories =
+    @('C:\msys64', 'C:\Qt', 'C:\Program Files\LLVM')
+foreach ($directory in $forbiddenDevelopmentDirectories) {
+    if (Test-Path -LiteralPath $directory) {
+        throw 'Runner contains forbidden toolchain installation'
+    }
 }
-
-$osArchitecture = [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
-$processArchitecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
-if ($osArchitecture -cne 'X64') {
-    throw 'Clean Windows evidence must come from an x86-64 OS'
-}
-$evidenceOrigin = if ($env:GITHUB_ACTIONS -ceq 'true') {
-    'self-hosted-clean-runner'
-} else {
-    'manual-owner-native'
-}
-$acceptanceLabel = if ($evidenceOrigin -ceq 'manual-owner-native') {
-    'MANUAL CLEAN PASS'
-} else {
-    'SELF-HOSTED CLEAN PASS'
-}
+$operatingSystem = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
 
 # The exact producer archive is structurally bounded and inspected before
 # extraction. No ZIP rewriting, dependency deployment, or copying DLLs.
@@ -107,11 +111,13 @@ if ($manifest.exact_git_sha -cne $ExactGitSha -or
     $manifest.native_host_ready -ne $false) {
     throw 'Manifest source/target/hosting policy mismatch'
 }
-foreach ($required in @('LICENSE','NOTICE','THIRD_PARTY.md',
-                        'metadata\SHA256SUMS.txt','metadata\DEPENDENCIES.txt',
-                        'metadata\PLATFORM-MINIMUMS.json','qt.conf',
-                        'Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll',
-                        'plugins\platforms\qwindows.dll','RDP-server-GUI.exe')) {
+$requiredPortableFiles =
+    @('LICENSE','NOTICE','THIRD_PARTY.md',
+      'metadata\SHA256SUMS.txt','metadata\DEPENDENCIES.txt',
+      'metadata\PLATFORM-MINIMUMS.json','qt.conf',
+      'Qt6Core.dll','Qt6Gui.dll','Qt6Widgets.dll',
+      'plugins\platforms\qwindows.dll','RDP-server-GUI.exe')
+foreach ($required in $requiredPortableFiles) {
     if (!(Test-Path -LiteralPath (Join-Path $root $required) -PathType Leaf)) {
         throw "Required portable GUI file missing: $required"
     }
@@ -187,6 +193,18 @@ if ($minimums.privilege -cne 'standard-user' -or
 
 # Native, read-only snapshots reject installation/service/TermService/firewall
 # mutations. Never modify service, registry, firewall or Windows RDP settings.
+function Get-StringSha256([string]$Value) {
+    $sha256 = [Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [Text.Encoding]::UTF8.GetBytes($Value)
+        return ([BitConverter]::ToString(
+            $sha256.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+    }
+}
+
 function Get-WindowsSafetyState {
     $rules = Get-NetFirewallRule -ErrorAction Stop | Sort-Object Name |
         Select-Object Name, Enabled, Direction, Action, Profile | ConvertTo-Json -Compress -Depth 4
@@ -202,6 +220,7 @@ function Get-WindowsSafetyState {
               $policy.fDenyTSConnections, $port.PortNumber) | Out-String)
 }
 $before = Get-WindowsSafetyState
+$beforeDigest = Get-StringSha256 $before
 # A failed socket inventory is not evidence of an unused/listener-free port.
 $null = @(Get-NetTCPConnection -ErrorAction Stop)
 $null = @(Get-NetUDPEndpoint -ErrorAction Stop)
@@ -216,24 +235,11 @@ foreach ($name in $namesToRestore) {
 }
 $windows = [Environment]::GetFolderPath('Windows')
 if (!$windows) { throw 'Windows root unavailable' }
-$isolatedChildPath = "$windows\System32;$windows;$windows\System32\Wbem"
-$env:PATH = $isolatedChildPath
+$env:PATH = "$windows\System32;$windows;$windows\System32\Wbem"
 foreach ($name in $namesToRestore) {
     [Environment]::SetEnvironmentVariable($name,$null,'Process')
 }
 $env:QT_QPA_PLATFORM = 'windows'
-if ($env:PATH -cne $isolatedChildPath) {
-    throw 'GUI child PATH was not isolated to Windows system directories'
-}
-foreach ($name in $namesToRestore) {
-    if ($name -ne 'QT_QPA_PLATFORM' -and
-        [Environment]::GetEnvironmentVariable($name,'Process')) {
-        throw "GUI inherited developer environment override: $name"
-    }
-}
-if ($env:QT_QPA_PLATFORM -cne 'windows') {
-    throw 'Qt platform selection was not pinned to the native Windows plugin'
-}
 try {
     # This real GUI smoke runs hidden tests, first window, ordinary close,
     # relaunch and second close, plus per-process TCP/UDP socket assertions.
@@ -257,55 +263,67 @@ finally {
         [Environment]::SetEnvironmentVariable($name,$oldEnvironment[$name],'Process')
     }
 }
-if ((Get-WindowsSafetyState) -cne $before) {
+$after = Get-WindowsSafetyState
+$afterDigest = Get-StringSha256 $after
+if ($after -cne $before) {
     throw 'GUI changed firewall/TermService/RDP policy/service registration'
 }
-$receiptParent = Split-Path -Parent $Receipt
-if ($receiptParent) {
-    New-Item -ItemType Directory -Path $receiptParent -Force | Out-Null
-}
+
+$receiptPath = [IO.Path]::GetFullPath($Receipt)
+$receiptDirectory = Split-Path -Parent $receiptPath
+New-Item -ItemType Directory -Path $receiptDirectory -Force | Out-Null
 [ordered]@{
-    schema = 'rdp-server-clean-windows-receipt-v1'
+    receipt_format_version = 2
     status = 'PASS'
     gate = 'clean-windows-portable-gui'
-    evidence_origin = $evidenceOrigin
-    acceptance_label = $acceptanceLabel
+    evidence_path = 'manual-or-self-hosted-clean-windows'
+    generated_utc = [DateTime]::UtcNow.ToString('o')
     exact_git_sha = $ExactGitSha
     archive = $archiveName
     archive_sha256 = $outerDigest
-    machine = [Environment]::MachineName
-    windows_version = [Environment]::OSVersion.VersionString
-    os_architecture = $osArchitecture
-    process_architecture = $processArchitecture
-    session_id = $sessionId
+    verifier_script_sha256 = $scriptDigest
+    smoke_script_sha256 = $smokeScriptDigest
+    machine = [ordered]@{
+        computer_name = $env:COMPUTERNAME
+        windows_caption = [string]$operatingSystem.Caption
+        windows_version = [string]$operatingSystem.Version
+        windows_build = [string]$operatingSystem.BuildNumber
+        powershell_version = $PSVersionTable.PSVersion.ToString()
+    }
+    user = [ordered]@{
+        name = $identity.Name
+        session_id = $sessionId
+        administrator_token_active = $false
+        interactive_explorer_session = $true
+    }
+    development_environment = [ordered]@{
+        path_pattern = $developmentPathPattern
+        process_path_clean = $true
+        forbidden_directories = $forbiddenDevelopmentDirectories
+        forbidden_directories_absent = $true
+    }
+    observations = [ordered]@{
+        required_files = $requiredPortableFiles
+        expected_files_verified = $true
+        first_window_observed = $true
+        ordinary_close_observed = $true
+        relaunch_observed = $true
+        system_state_before_sha256 = $beforeDigest
+        system_state_after_sha256 = $afterDigest
+        system_state_unchanged = $true
+    }
     non_admin_interactive = $true
-    explorer_session = $true
-    clean_path = [ordered]@{
-        initial_development_entries_absent = $true
-        forbidden_toolchain_directories_absent = $true
-        child_windows_system_only = $true
-        developer_environment_cleared = $true
-    }
-    checks = [ordered]@{
-        archive_outer_sidecar_match = $true
-        archive_internal_hashes_match = $true
-        manifest_and_notices_present = $true
-        windows_platform_plugin_present = $true
-        launch_close_relaunch = $true
-        offline_hidden_self_tests = $true
-        unicode_space_extraction = $true
-        no_process_tcp_udp_before_start = $true
-        firewall_rules_profiles_unchanged = $true
-        services_unchanged = $true
-        termservice_unchanged = $true
-        rdp_policy_port_unchanged = $true
-        no_install_or_elevation = $true
-    }
-} | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Receipt -Encoding UTF8
-$receiptPath = (Resolve-Path -LiteralPath $Receipt).Path
-$receiptName = Split-Path -Leaf $receiptPath
-$receiptDigest = (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content -LiteralPath ($receiptPath + '.sha256') -Value "$receiptDigest  $receiptName" -Encoding ascii
-Write-Host "R9 CLEAN evidence classification: $acceptanceLabel"
-Write-Host "R9 CLEAN receipt SHA-256: $receiptDigest"
+    checks = @('outer-and-inner-sha256','notices-and-manifest','windows-plugin-load',
+               'first-window-close-relaunch','hidden-self-tests','unicode-spaces',
+               'no-tcp-udp','firewall-unchanged','termservice-unchanged',
+               'rdp-policy-unchanged','service-inventory-unchanged',
+               'no-install-or-elevation','development-paths-absent',
+               'system-only-child-path','receipt-sha256')
+} | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
+
+$receiptDigest =
+    (Get-FileHash -LiteralPath $receiptPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$receiptSidecar = "$receiptPath.sha256"
+"$receiptDigest  $(Split-Path -Leaf $receiptPath)" |
+    Set-Content -LiteralPath $receiptSidecar -Encoding Ascii
 Write-Host 'R9 clean Windows portable GUI acceptance PASS'

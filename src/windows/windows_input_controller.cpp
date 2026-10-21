@@ -494,12 +494,13 @@ std::size_t sendNativeInput(
     return static_cast<std::size_t>(
         ::SendInput(requested, native.data(), static_cast<int>(sizeof(INPUT))));
 }
-[[maybe_unused]] WindowsInputCallbacks dormantWindowsSendInputCallbacks() noexcept
+} // namespace
+
+WindowsInputCallbacks WindowsInputController::windowsNativeCallbacks() noexcept
 {
     static int callbackContext{};
     return {&callbackContext, &sendNativeInput};
 }
-} // namespace
 #endif
 
 } // namespace rdp_server::windows

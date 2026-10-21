@@ -62,6 +62,7 @@ void windowsDxgiPointerShapeGenerationDenials();
 void windowsInputSendInputLifecycle();
 void windowsInputSendInputRevocationDenials();
 void windowsInputAuthorityRetirementNoNativePost();
+void windowsNativeDesktopOwnerAuthorizationBoundaryDenials();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsRdpConflictTermServiceActiveDenial();
@@ -1023,6 +1024,10 @@ int main(int argc, char **argv)
     else if (behavior == "sendinput-authority-retirement-no-native-post")
     {
         windowsInputAuthorityRetirementNoNativePost();
+    }
+    else if (behavior == "native-owner-r2-grant-and-lifetime-denials")
+    {
+        windowsNativeDesktopOwnerAuthorizationBoundaryDenials();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

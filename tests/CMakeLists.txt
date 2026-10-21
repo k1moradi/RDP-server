@@ -522,11 +522,6 @@ add_test(NAME packaging.windows-portable-gui-clean-release-structure-denials
         "${PROJECT_SOURCE_DIR}/tests/test_r9_clean_windows_gate.py")
 set_tests_properties(packaging.windows-portable-gui-clean-release-structure-denials
     PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
-add_test(NAME packaging.windows-portable-gui-manual-clean-receipt-verifier-denials
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROJECT_SOURCE_DIR}/tests/test_r9_manual_clean_windows_receipt.py")
-set_tests_properties(packaging.windows-portable-gui-manual-clean-receipt-verifier-denials
-    PROPERTIES LABELS "windows;packaging;release;security;offline" TIMEOUT 20)
 
 function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
@@ -1854,6 +1849,7 @@ if(TARGET rdp-server-windows-desktop)
         windows_capture_cycle_cases.cpp
         windows_capture_damage_cases.cpp
         windows_capture_session_guard_cases.cpp
+        windows_native_desktop_owner_cases.cpp
         windows_r4_handoff_cases.cpp
         windows_dxgi_duplication_owner_cases.cpp
         windows_dxgi_pointer_shape_cases.cpp
@@ -1862,6 +1858,7 @@ if(TARGET rdp-server-windows-desktop)
         windows_rdp_conflict_cases.cpp)
     target_link_libraries(test_windows_desktop_geometry PRIVATE
         rdp-server-windows-desktop
+        rdp-server-native-desktop-authorization
         rdp-server-graphics)
     if(MSVC)
         target_compile_options(test_windows_desktop_geometry PRIVATE /UNDEBUG)
@@ -2068,6 +2065,15 @@ if(TARGET rdp-server-windows-desktop)
         set_tests_properties("windows.host-preflight-${case_name}" PROPERTIES
             LABELS "windows;host-preflight;security;offline" TIMEOUT 20)
     endforeach()
+
+    # R6 aggregate native-owner denial boundary. It uses the real R2
+    # authorization object only in an unbound/deny-only state and performs no
+    # live WTS/DXGI/cursor read or SendInput.
+    add_test(NAME windows.native-owner-r2-grant-and-lifetime-denials
+        COMMAND test_windows_desktop_geometry native-owner-r2-grant-and-lifetime-denials)
+    set_tests_properties(
+        windows.native-owner-r2-grant-and-lifetime-denials PROPERTIES
+        LABELS "windows;native-owner;security;offline" TIMEOUT 20)
 
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.

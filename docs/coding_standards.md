@@ -1,5 +1,26 @@
 ## R2 Windows/macOS native grants require identity + evidence + owner epoch (2026-10-21)
 
+## R6 Windows aggregate consumes R2 authority; native evidence never substitutes (2026-10-21)
+
+Keep the real Win32 `SendInput` callback private to
+`WindowsNativeDesktopOwner`; do not re-expose a general native-input callback
+helper. Positive owner construction and every protected capture/cursor/input
+operation must name the expected
+`WindowsNativeDesktopAuthorization::authorizationGeneration()` and re-enter
+the const R2 `visit()` surface with the exact required View/Input permission.
+A matching SID, WTS session number, LSA LUID/logon time, active-console state,
+desktop layout, DXGI output or generation scalar is observation/revocation
+evidence only and must never create or refresh authority. R3 Share/input
+authority remains an additional runtime gate.
+
+R10 owns the serialized scheduler and at most one aggregate Windows native
+owner. `WindowsNativeDesktopOwner::serviceOnce` is a bounded unit of native
+work, never permission to add another listener, server loop or worker. On
+R2/R3 authority loss retire routing first, close the native guard, discard held
+input with `retireWithoutNativeInput()`, then retire DXGI children/COM state.
+Do not synthesize cleanup SendInput after authority loss and do not add
+TermService, firewall, RDP-policy, Session-0 or service-management behavior.
+
 Native platform evidence is never authentication and never authority. The R2
 Windows/macOS authorization objects may bind only after an authenticated
 identity proof matches a fresh native observation and

@@ -1,5 +1,51 @@
 ## R9 current qualification and owner-authority documentation correction (2026-10-21)
 
+## R6 P0 manual CLEAN evidence and R2-gated Windows native owner (2026-10-21)
+
+Authored from shared-main parent `860ae5a15eae0e69f0529b38e1541bbd1be652b2`; the publication SHA is the atomic
+main commit containing this section.
+
+**Track D — official manual CLEAN fallback.** The existing
+`scripts/clean_windows_portable_gui.ps1` remains the single clean-machine
+acceptance command. A PASS now records exact ZIP/source/verifier/smoke hashes,
+Windows build, user/session/effective administrator-token state, explicit
+development-PATH/install-root absence, expected-file verification, first
+window/ordinary close/relaunch observations and before/after native system-state
+SHA-256 values. It emits `<receipt>.json` plus
+`<receipt>.json.sha256`; the self-hosted R9 job uploads both. When
+`r9-clean-windows-gui` is unavailable, the same exact-source verifier on an
+ordinary interactive non-admin Windows machine is an official manual evidence
+path. R9 must independently match the receipt+sidecar to the unchanged producer
+ZIP/source before CLEAN can advance. No manual/self-hosted receipt was executed
+while authoring this increment, so CLEAN remains **NOT RUN / BLOCKED** pending
+real evidence.
+
+**Track E — one Windows native owner, real R2 gate.** R2's
+`WindowsNativeDesktopAuthorization` is now consumed directly by the new
+noncopyable `WindowsNativeDesktopOwner`. `open`, bounded
+`serviceOnce`, input and cursor entry points require the expected R2
+authorization generation and re-enter R2's synchronous visitor for View/Input
+permission. SID/WTS/LUID/logon observations remain inside R2's revalidated
+evidence chain and cannot construct the owner. The real Win32 `SendInput`
+callback is private to this aggregate owner rather than a free/dormant adapter.
+The aggregate is shaped around the existing WTS guard, DXGI owner/cycle,
+geometry, cursor and input lifetimes and gives R10 one bounded native-owner
+contract, never a second listener/thread/server loop.
+
+Positive native state remains deliberately disabled
+(`kWindowsNativeDesktopPositiveActivationApproved == false`) until R10
+composes the one serialized Windows HostControl lifetime and a real
+authenticated Windows client/provider qualifies the R2 grant path. Dedicated
+`windows.native-owner-r2-grant-and-lifetime-denials` uses the real R2
+authorization object only in an unbound deny-only state; it fabricates no
+positive grant and performs no live WTS/DXGI/cursor/SendInput operation.
+
+Authoring evidence: source/ownership review **PASS**. Native Windows C++ build
+and CTest, PowerShell parser execution, clean-machine GUI execution and
+exact-publication-SHA hosted CI are **NOT RUN / PENDING** in this connector
+environment. No TermService, Windows RDP policy, firewall, Session 0, service
+installation, listener, live capture or host input was modified/activated.
+
 Exact R9 product-main candidate: `62bdcc81d6616e9430e0eaf47ea6be4cb2446d3b`. Structure Actions `39695998459` is **PASS**; the primary exact-SHA workflow is pending/queued at this documentation receipt. Qualification requires every ordinary hosted lane green and does not include the separate CLEAN evidence gate.
 
 FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. Dated sections that describe Linux positive owner authorization as structurally impossible are superseded: current M1 `CurrentOwnerSharingAuthority` can issue a bounded grant from fresh valid physical seat0/unlocked same-UID evidence, and R2 now fences platform-native authorization to the exact owner grant/revocation epoch. This source capability is not a physical FIRST receipt; the owner-authorized live run remains **NOT RUN**.

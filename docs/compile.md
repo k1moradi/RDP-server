@@ -1,3 +1,19 @@
+## R2 portable native-authorization core build boundary (2026-10-21)
+
+`rdp-server-native-desktop-authorization` is a noninstalled C++23 static
+target built on every platform so the common generation/owner-epoch rules can
+receive ordinary synthetic CTest coverage. It links no WTS/LSA, Security,
+CoreFoundation, TCC, capture or input API. The existing Windows and macOS
+native-session evidence targets remain platform-only read-only adapters and are
+not pulled into the installed protocol SDK.
+
+The authorization header is excluded from SDK installation alongside
+`current_owner_sharing_authority.h` and the platform evidence headers.
+Building the core therefore exposes no public hosting API. Native runtime
+composition must explicitly link the R2 core plus the matching platform reader
+and authenticated-identity implementation; target availability alone is never
+authorization.
+
 ## R8 dormant clipboard linkage for Linux HostControl (2026-10-20)
 
 When Linux runtime security, the R5 X11 desktop, X11 clipboard adapter and R8/R3

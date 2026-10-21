@@ -381,6 +381,34 @@ foreach(owner_consent_case IN ITEMS
         LABELS "security;r2-owner-consent;offline" TIMEOUT 15)
 endforeach()
 
+# R2 Track E Windows/macOS native authorization capability. These synthetic
+# fixtures use fake authenticated identity + fake native evidence + the real
+# CurrentOwnerSharingAuthority state machine. They never call WTS/LSA, Security,
+# TCC, capture, input or a listener and cannot create a production admission.
+add_executable(test_native_desktop_authorization
+    test_native_desktop_authorization.cpp)
+target_link_libraries(test_native_desktop_authorization PRIVATE
+    rdp-server-native-desktop-authorization)
+if(MSVC)
+    target_compile_options(test_native_desktop_authorization PRIVATE
+        /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(test_native_desktop_authorization PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(native_authorization_case IN ITEMS
+        windows-positive-construction
+        windows-stale-denials
+        macos-positive-construction
+        macos-stale-denials)
+    add_test(NAME "security.native-authorization-${native_authorization_case}"
+        COMMAND test_native_desktop_authorization
+            "${native_authorization_case}")
+    set_tests_properties(
+        "security.native-authorization-${native_authorization_case}" PROPERTIES
+        LABELS "security;r2-native-authorization;offline" TIMEOUT 15)
+endforeach()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test

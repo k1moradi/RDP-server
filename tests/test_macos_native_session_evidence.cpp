@@ -26,6 +26,7 @@ int main()
     }
 
     assert(status == MacNativeSessionEvidenceStatus::Observed);
+    assert(!evidence.consoleUserName().empty());
     assert(evidence.consoleUserId != 0);
     assert(evidence.auditUserId == evidence.consoleUserId);
     assert(evidence.auditSessionId != 0);
@@ -36,6 +37,11 @@ int main()
     assert(evidence.matchesAuthenticatedUserId(evidence.consoleUserId));
 
     auto replay = evidence;
+    replay.consoleUser[0] =
+        replay.consoleUser[0] == 'x' ? 'y' : 'x';
+    assert(!evidence.sameNativeSession(replay));
+
+    replay = evidence;
     ++replay.auditSessionId;
     assert(!evidence.sameNativeSession(replay));
 

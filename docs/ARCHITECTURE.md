@@ -1,3 +1,29 @@
+## R2 Track E Windows/macOS native authorization boundary (2026-10-21)
+
+Windows/macOS now have one narrow R2 authorization shape that sits above the
+existing read-only native evidence adapters. A platform grant can exist only
+while an R2 authenticated-identity proof matches the exact native identity,
+`CurrentOwnerSharingAuthority` authorizes the requested View/View+Input scope
+at the same grant+revocation epoch, and the native session remains unchanged.
+Evidence, SID/UID values, permission bits and generation scalars are never
+capabilities by themselves.
+
+Windows pins SID, physical local WTS session ID, LSA authentication LUID,
+logon time/type, authentication generation, authorization generation and owner
+epoch. macOS pins authenticated UID, console-user name/UID, audit UID/session,
+SecuritySession ID/attributes plus the same generations/owner epoch. The
+noncopyable synchronous visitor rechecks all three authorities—authenticated
+identity, owner grant and native evidence—before and after downstream native
+construction/use. A caller also supplies the expected R2 authorization
+generation, preventing an old R5/R6 native owner from following a replacement
+grant.
+
+This layer deliberately does not implement a Windows/macOS credential
+mechanism and does not enable public hosting. Track C's standalone
+NTLMv2/SPNEGO/CredSSP owner remains unchanged and must still pass a real
+unmodified Microsoft-client run before Session Password can become a product
+capability.
+
 ## R10 product status is the sole R7 lifecycle and automatic-endpoint boundary (2026-10-21)
 
 R7's one-page dashboard, Windows toggle linkage and tray lifetime are now

@@ -311,6 +311,26 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND BUILD_TESTING AND
     endif()
 endif()
 
+# R2 cross-platform native authorization core. This target contains no native
+# session reader and is not installed/exported. Positive construction requires
+# an authenticated-identity proof, a fresh evidence source and the exact
+# CurrentOwnerSharingAuthority grant epoch; evidence alone cannot mint access.
+add_library(rdp-server-native-desktop-authorization STATIC
+    src/server/security/native_desktop_authorization.cpp)
+target_compile_features(
+    rdp-server-native-desktop-authorization PUBLIC cxx_std_23)
+target_include_directories(
+    rdp-server-native-desktop-authorization PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+if(MSVC)
+    target_compile_options(
+        rdp-server-native-desktop-authorization PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        rdp-server-native-desktop-authorization PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R2 Windows native-session evidence is a read-only, noninstalled adapter.
 # It does not authenticate a client or mint a lease: a future R2 SSPI/CredSSP
 # provider must supply the authenticated SID privately before this evidence can
@@ -1232,6 +1252,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "x11" EXCLUDE
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
     PATTERN "current_owner_sharing_authority.h" EXCLUDE
+    PATTERN "native_desktop_authorization.h" EXCLUDE
     PATTERN "standalone_ntlmv2.h" EXCLUDE
     PATTERN "standalone_ntlmssp.h" EXCLUDE
     PATTERN "standalone_spnego.h" EXCLUDE

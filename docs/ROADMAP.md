@@ -1,3 +1,55 @@
+## R2 Track E Windows/macOS native authorization capability seams (2026-10-21)
+
+Starting shared-main parent: `88674a0b33f65986abd9fab5076f19542b945f63`.
+
+Track E now has a narrow R2-owned authorization lifetime for both Windows and
+macOS without waiting for Track C's public Microsoft-client proof. Native
+evidence remains non-authorizing. A positive bind requires three independent
+facts at the same time: an R2 authenticated-identity proof, a fresh platform
+native-session observation, and the exact active
+`CurrentOwnerSharingAuthority` grant/revocation epoch for View or View+Input.
+The owner authority now exposes only a scalar grant+revocation epoch fence;
+that scalar cannot authorize by itself, and replacing consent invalidates an
+older native grant even if no explicit revoke occurred.
+
+Windows binds the authenticated SID to the exact local active physical WTS
+session, WTS session ID, LSA authentication LUID, logon time/type, requested
+View/Input scope, authenticated-identity generation, R2 authorization
+generation and owner epoch. macOS binds authenticated UID to the bounded
+console-user name, console UID, audit UID/session ID, SecuritySession
+ID/attributes, requested scope, authentication generation, R2 authorization
+generation and owner epoch. The macOS evidence reader now retains the bounded
+UTF-8 console-user name it already obtains from
+`SCDynamicStoreCopyConsoleUser`, so replacement of that native identity is
+part of the exact session fence.
+
+`WindowsNativeDesktopAuthorizationView` and
+`MacNativeDesktopAuthorizationView` are noncopyable/nonmovable synchronous
+visitor views. R10/R5/R6 may receive only the const authorization surface:
+every visit names the expected R2 authorization generation and revalidates the
+authenticated proof, owner grant epoch and fresh native evidence both before
+and after the callback. SID/UID/session/LUID/logon/audit/SecuritySession,
+authentication-generation, authorization-generation and owner
+grant/revocation replacement therefore fail closed. A failed visitor or
+current-authority mismatch retires the platform grant.
+
+Dedicated ordinary offline CTests are
+`security.native-authorization-windows-positive-construction`,
+`security.native-authorization-windows-stale-denials`,
+`security.native-authorization-macos-positive-construction`, and
+`security.native-authorization-macos-stale-denials`. They use synthetic
+authenticated identities/native evidence plus the real owner-consent state
+machine; they do not call WTS/LSA, Security/TCC, capture, input or any listener.
+
+This does **not** enable public Windows/macOS hosting or manufacture a
+credential proof. Track C is unchanged: Session Password remains false until
+an unmodified Windows App or Windows 11 `mstsc.exe` proves the exact
+standalone credential generation -> TLS provenance -> CredentialsVerified ->
+authenticated-principal proof -> fresh owner authority -> physical native
+admission path, with OS/GSS fallback disabled. The owner-authorized live run is
+still **NOT RUN**. Canonical owner-local build/full CTest is **NOT RUN** in
+this connector environment; exact-publication-SHA hosted CI is **PENDING**.
+
 ## R7 authoritative-toggle fake retirement correction (2026-10-21)
 
 Starting exact-main parent:

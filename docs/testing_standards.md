@@ -1,3 +1,30 @@
+## R2 Track E native authorization synthetic construction/replay tests (2026-10-21)
+
+The portable `test_native_desktop_authorization` suite exercises the R2
+Windows/macOS grant core without native side effects. Positive construction
+uses a fake authenticated identity and fake native evidence only in combination
+with the real `CurrentOwnerSharingAuthority` state machine. This is synthetic
+capability-state coverage, not proof of a real credential, WTS/LSA login,
+SecuritySession, TCC state, desktop capture or input.
+
+The Windows stale-denial case must cover wrong authenticated SID, unavailable
+evidence, reused/replaced WTS session ID, either half of the authentication
+LUID, logon time/type, authenticated-identity generation, stale R2
+authorization generation, owner-consent replacement, explicit owner
+revocation, evidence loss, and a session replacement during the visitor. The
+macOS case must cover wrong authenticated UID, console-user/console-UID
+replacement, audit UID/session replacement, SecuritySession ID/attribute
+replacement, authenticated-identity generation, stale R2 authorization
+generation, owner-consent replacement, explicit revocation, evidence loss and
+replacement during the visitor. View-only grants must deny Input; Input-only
+or Clipboard-bearing bind requests must be rejected.
+
+These four CTests are ordinary cross-platform offline tests and deliberately
+do not use the platform evidence reader implementations. Platform-native reader
+CTest coverage remains separate and read-only. None of these tests changes the
+Track C Microsoft-client gate or permits R5/R6/R10 to claim public native
+hosting.
+
 ## R7 fake product authority must be restored explicitly after contradiction (2026-10-21)
 
 Qt tests that set `deriveProductStatusFromLegacy=false` are deliberately

@@ -1,3 +1,30 @@
+## R2 Windows/macOS native grants require identity + evidence + owner epoch (2026-10-21)
+
+Native platform evidence is never authentication and never authority. The R2
+Windows/macOS authorization objects may bind only after an authenticated
+identity proof matches a fresh native observation and
+`CurrentOwnerSharingAuthority::authorizationEpoch()` freshly authorizes the
+requested scope. Positive native scope is limited to View or View+Input;
+Clipboard and any unknown bit are rejected.
+
+Bind and every synchronous visit must pin the authenticated-identity
+generation, a monotonically increasing R2 authorization generation, and the
+exact owner grant + revocation epoch. Replacing owner consent must invalidate
+the old platform grant even when the revocation counter itself did not change.
+A visit must require the caller's expected R2 generation, then re-read native
+evidence and revalidate identity/owner state before and after its callback.
+Generation mismatch is a denial without destroying a newer current grant;
+identity, native-session or owner-epoch loss is terminal for the bound grant.
+
+Windows binds exact SID bytes, local physical WTS session ID, LSA
+authentication LUID, logon time/type and requested permissions. macOS binds
+authenticated UID, bounded console-user UTF-8 name, console/audit UID, audit
+session ID, SecuritySession ID/attributes and requested permissions. Downstream
+R10/R5/R6 code receives only const noncopyable visitor views and may copy
+generation/session selectors only for freshness; those scalars never recreate
+authorization. Keep bind/revoke/visit serialized on the R2/R10 owner thread.
+Native evidence readers remain read-only and platform-specific.
+
 ## R7 Qt findChild type must own a meta-object (2026-10-21)
 
 Qt 6.11+ statically requires the concrete type supplied to

@@ -7,6 +7,8 @@
 #include <bsm/audit.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <array>
 #include <limits>
 
 namespace rdp_server::server::security
@@ -16,6 +18,7 @@ bool MacNativeSessionEvidence::matchesAuthenticatedUserId(
     std::uint32_t authenticatedUserId) const noexcept
 {
     return authenticatedUserId != 0 &&
+           !consoleUserName().empty() &&
            consoleUserId == authenticatedUserId &&
            auditUserId == authenticatedUserId &&
            auditSessionId != 0 &&
@@ -25,7 +28,9 @@ bool MacNativeSessionEvidence::matchesAuthenticatedUserId(
 bool MacNativeSessionEvidence::sameNativeSession(
     const MacNativeSessionEvidence &other) const noexcept
 {
-    return consoleUserId != 0 &&
+    return !consoleUserName().empty() &&
+           consoleUserName() == other.consoleUserName() &&
+           consoleUserId != 0 &&
            consoleUserId == other.consoleUserId &&
            auditUserId == other.auditUserId &&
            auditSessionId == other.auditSessionId &&
@@ -47,7 +52,24 @@ MacNativeSessionEvidenceReader::readCurrent(
     {
         return MacNativeSessionEvidenceStatus::Unavailable;
     }
+
+    std::array<char, kMaximumMacNativeConsoleUserBytes + 1>
+        consoleUserName{};
+    const bool copiedConsoleUser = ::CFStringGetCString(
+        consoleUser, consoleUserName.data(),
+        static_cast<CFIndex>(consoleUserName.size()),
+        kCFStringEncodingUTF8);
     ::CFRelease(consoleUser);
+    const auto consoleUserTerminator = std::find(
+        consoleUserName.begin(), consoleUserName.end(), '\0');
+    if (!copiedConsoleUser ||
+        consoleUserTerminator == consoleUserName.begin() ||
+        consoleUserTerminator == consoleUserName.end())
+    {
+        return MacNativeSessionEvidenceStatus::Unavailable;
+    }
+    const std::size_t consoleUserBytes = static_cast<std::size_t>(
+        consoleUserTerminator - consoleUserName.begin());
 
     const uid_t effectiveUserId = ::geteuid();
     if (consoleUserId == 0 ||
@@ -83,6 +105,9 @@ MacNativeSessionEvidenceReader::readCurrent(
         return MacNativeSessionEvidenceStatus::Unavailable;
     }
 
+    std::copy_n(
+        consoleUserName.begin(), consoleUserBytes, evidence.consoleUser.begin());
+    evidence.consoleUserBytes = consoleUserBytes;
     evidence.consoleUserId =
         static_cast<std::uint32_t>(consoleUserId);
     evidence.auditUserId =

@@ -63,6 +63,20 @@ struct OwnerSharingGrantObservation final
     std::uint64_t remainingMilliseconds{};
 };
 
+// Exact scalar fence used only while composing an already-authorized native
+// capability. Neither generation is authorization by itself. A replacement
+// consent grant changes grantGeneration even when no explicit revocation was
+// published, preventing an old native binding from following a new grant.
+struct OwnerSharingAuthorizationEpoch final
+{
+    std::uint64_t grantGeneration{};
+    std::uint64_t revocationGeneration{};
+
+    [[nodiscard]] friend constexpr bool operator==(
+        const OwnerSharingAuthorizationEpoch &,
+        const OwnerSharingAuthorizationEpoch &) noexcept = default;
+};
+
 // M1 deliberately limits one explicit local consent grant to at most one hour.
 // The GUI may request a shorter owner-selected interval.
 inline constexpr std::uint64_t
@@ -209,6 +223,47 @@ public:
         observation.remainingMilliseconds =
             grant_.deadlineMonotonicMilliseconds - *now;
         return observation;
+    }
+
+    // R2-only scalar fence for platform-native capability composition. The
+    // returned epoch is useful only after this method has freshly authorized
+    // the requested permission scope. Callers must still use authorizesAtEpoch()
+    // immediately around every protected synchronous native visit.
+    [[nodiscard]] std::optional<OwnerSharingAuthorizationEpoch>
+    authorizationEpoch(std::uint32_t requiredPermissions) const noexcept
+    {
+        if (!authorizes(requiredPermissions))
+            return std::nullopt;
+
+        const std::uint64_t currentRevocation = revocationGeneration();
+        if (grant_.leaseGeneration == 0 ||
+            grant_.revocationGeneration != currentRevocation)
+        {
+            return std::nullopt;
+        }
+        return OwnerSharingAuthorizationEpoch{
+            grant_.leaseGeneration, currentRevocation};
+    }
+
+    [[nodiscard]] bool authorizesAtEpoch(
+        std::uint32_t requiredPermissions,
+        const OwnerSharingAuthorizationEpoch &expectedEpoch) const noexcept
+    {
+        if (expectedEpoch.grantGeneration == 0 ||
+            expectedEpoch.revocationGeneration == 0 ||
+            grant_.leaseGeneration != expectedEpoch.grantGeneration ||
+            grant_.revocationGeneration != expectedEpoch.revocationGeneration ||
+            revocationGeneration() != expectedEpoch.revocationGeneration)
+        {
+            return false;
+        }
+        if (!authorizes(requiredPermissions))
+            return false;
+
+        return grant_.leaseGeneration == expectedEpoch.grantGeneration &&
+               grant_.revocationGeneration ==
+                   expectedEpoch.revocationGeneration &&
+               revocationGeneration() == expectedEpoch.revocationGeneration;
     }
 
     void revoke(OwnerConsentRevocationReason /* reason */) noexcept

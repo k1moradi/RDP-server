@@ -1,3 +1,22 @@
+## R2 Track E Windows/macOS native authorization seams (2026-10-21)
+
+Starting shared-main parent:
+`88674a0b33f65986abd9fab5076f19542b945f63`.
+
+Scope: noninstalled R2 native authorization core; exact owner grant/revocation
+epoch fencing; Windows SID/WTS/LUID/logon binding; macOS authenticated
+UID/console-user/audit/SecuritySession binding; synchronous noncopyable
+visitors; four ordinary synthetic construction/stale-denial CTests; no Track C
+wire/protocol change and no public native-host activation.
+
+Connector source review: **PASS** for fail-closed permission scope, before/after
+visitor revalidation, stale R2 generation denial without destroying a newer
+grant, terminal identity/native/owner mismatch, SDK exclusion and platform
+reader separation. Canonical owner-local configure/build/full CTest:
+**NOT RUN** because this connector session has no owner checkout/toolchain.
+Exact-publication-SHA hosted CI: **PENDING**. No live WTS/LSA, Security/TCC,
+desktop capture, input, listener or Microsoft-client operation was performed.
+
 ## R7 macOS authoritative-toggle fixture failure receipt (2026-10-21)
 
 Exact parent `1fc5829c169cbfe338b043135deb89b6c7153f28`, primary run `39695111475`, macOS

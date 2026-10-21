@@ -37,14 +37,31 @@ struct WindowsNativeSessionEvidence final
         const WindowsNativeSessionEvidence &other) const noexcept;
 };
 
+// Read-only evidence source. Injection exists for deterministic R2 authorization
+// tests only; a production native grant is composed with the concrete reader.
+class WindowsNativeSessionEvidenceSource
+{
+public:
+    virtual ~WindowsNativeSessionEvidenceSource() = default;
+    WindowsNativeSessionEvidenceSource() = default;
+    WindowsNativeSessionEvidenceSource(
+        const WindowsNativeSessionEvidenceSource &) = delete;
+    WindowsNativeSessionEvidenceSource &operator=(
+        const WindowsNativeSessionEvidenceSource &) = delete;
+
+    [[nodiscard]] virtual WindowsNativeSessionEvidenceStatus readCurrent(
+        WindowsNativeSessionEvidence &evidence) const noexcept = 0;
+};
+
 // Least-privilege personal-desktop adapter. The process itself must run in the
 // user's physical interactive WTS session. Service Session 0 is unavailable;
 // a future LocalSystem/WTSQueryUserToken design requires separate review.
 class WindowsNativeSessionEvidenceReader final
+    : public WindowsNativeSessionEvidenceSource
 {
 public:
     [[nodiscard]] WindowsNativeSessionEvidenceStatus readCurrent(
-        WindowsNativeSessionEvidence &evidence) const noexcept;
+        WindowsNativeSessionEvidence &evidence) const noexcept override;
 };
 
 } // namespace rdp_server::server::security

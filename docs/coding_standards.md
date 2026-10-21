@@ -1,3 +1,25 @@
+## R10 HostControl must never default a selected standalone client to GSS (2026-10-20)
+
+Treat the HostControl credential mode as part of the accepted-connection
+security provenance. Existing-OS-account and standalone modes must map
+explicitly to `LinuxRuntimeAuthenticationSelection`; do not call the default
+four-argument `LinuxRuntimeConnection` constructor after a product mode has
+been selected.
+
+For standalone mode, capture one exact credential generation when the
+service-lifetime password is configured. Before listener readiness and again
+before accepted-client construction, require that exact generation and a
+successful synchronous credential visitor. Generate a fresh cryptographically
+random NTLM ServerChallenge per connection and a current FILETIME; never reuse a
+fixed challenge across clients. Selection/challenge failure is terminal for the
+current host runtime and must not fall back to OS-account authentication.
+
+Use the same selected mode when requesting R2 native evidence. Standalone must
+request the principal-free standalone identity kind; ExistingOsAccount keeps
+the Kerberos-principal request. Keep the public
+`IndependentApplicationPassword` UI unavailable until the explicit production
+selector has succeeded with an unmodified Microsoft client.
+
 ## R8 GUI/CLI prepared clipboard owner stays single-owner (2026-10-20)
 
 Do not duplicate the prepared Linux clipboard composition between CLI and Qt.

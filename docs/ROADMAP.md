@@ -1,3 +1,48 @@
+## R10 product authentication selector consumes standalone generation (2026-10-20)
+
+Starting exact-main parent: `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
+Current-source inspection found one real R10 gap despite the landed R2 selector:
+`LinuxRuntimeConnection` already accepted
+`LinuxRuntimeAuthenticationSelection`, but
+`LinuxRuntimeHostControl::acceptClientOnce()` still called the four-argument
+constructor and therefore always selected `ExistingOsAccount`.
+
+R10 now records one explicit configured authentication mode. Existing-OS-account
+setup selects the Kerberos path. Internal standalone-password preparation
+captures the exact current `StandalonePasswordCredentialOwner` generation and
+requires a successful synchronous visitor before it can become service-ready.
+The public `IndependentApplicationPassword` choice is still rejected and still
+cleans/revokes any alternate standalone credential.
+
+For each accepted standalone connection, R10 rechecks that captured generation,
+performs another exact-generation synchronous visit, creates a fresh
+cryptographically random NTLM ServerChallenge with OpenSSL `RAND_bytes`, binds
+a current Windows FILETIME plus bounded non-secret TargetInfo names, and passes
+the resulting selection to the five-argument `LinuxRuntimeConnection`
+constructor. Failure retires owner authority/client state/listener instead of
+falling back to OS-account authentication. The two R2 admission-request sites
+also use the selected authentication kind, so standalone admission remains
+principal-free and cannot accidentally request the Kerberos identity path.
+
+Dedicated offline source-composition CTest:
+`runtime.linux-host-control-standalone-authentication-selector`. It requires
+the exact-generation visitor, challenge construction, explicit five-argument
+connection handoff, standalone admission kind and absence of the old default
+constructor in the accepted-client slice; it also keeps the public Qt password
+inputs absent.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No listener,
+credential exchange, native desktop or Microsoft client was activated.
+
+**Dependency result:** P1 selector composition is no longer blocked by R2P/R10X.
+Real unmodified Windows App/`mstsc.exe` standalone-password acceptance is still
+required before exposing `IndependentApplicationPassword` in the public GUI.
+FIRST OS-account acceptance remains separately gated on one all-green exact-main
+SHA plus explicit owner authorization for visible desktop + mouse + keyboard +
+Stop.
+
 ## R7 cross-platform offscreen lifecycle assertion reconciliation (2026-10-20)
 
 Starting exact-main parent: `d0f404a0b6080baa813b8f8ab7419c9d93954ddc`.

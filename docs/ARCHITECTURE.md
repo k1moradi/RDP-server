@@ -1,3 +1,27 @@
+## R10 HostControl authentication selection is explicit per accepted client (2026-10-20)
+
+The Linux GUI HostControl owns one configured authentication mode in addition to
+the already-single R2 owner authority. Existing-OS-account mode maps to
+`LinuxRuntimeAuthenticationMode::ExistingOsAccount`. The internal standalone
+preparation path maps to `StandalonePassword` only while the exact captured
+`StandalonePasswordCredentialOwner` generation remains current and a
+synchronous visitor succeeds.
+
+Standalone connection construction is fail-closed. Immediately before moving
+the accepted socket into the sole `LinuxRuntimeConnection`, R10 revalidates
+the credential generation, visits it synchronously, generates a fresh random
+8-byte NTLM ServerChallenge, supplies current FILETIME and bounded TargetInfo
+names, and passes the explicit `LinuxRuntimeAuthenticationSelection`.
+Selection failure revokes the host runtime; it never retries through GSS.
+
+The same configured mode selects the R2
+`ConsoleEvidenceAuthenticationKind` used at initial admission and later
+Demand Active feature preparation. Standalone therefore carries an empty
+Kerberos principal through the existing admission snapshot while the common
+R2 broker/lease remains the sole native-session and protected-operation
+authority. Public Qt still exposes no standalone password field or confirmation
+field pending real Microsoft-client acceptance.
+
 ## R8 shared dormant GUI/CLI clipboard owner after R10X (2026-10-20)
 
 Linux has exactly one reusable prepared clipboard composition class,

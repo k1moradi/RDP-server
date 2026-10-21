@@ -5,6 +5,7 @@
 #include "linux_runtime_security.h"
 #include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
+#include <openssl/rand.h>
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 #include "x11/x11_desktop_resources.h"
@@ -58,6 +59,43 @@ struct LinuxHostNativeDesktopState final
 
 namespace
 {
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+inline constexpr std::u16string_view kStandaloneNtlmDomainName{u"RDP"};
+inline constexpr std::u16string_view kStandaloneNtlmComputerName{u"RDP-SERVER"};
+inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
+    116444736000000000ULL};
+
+[[nodiscard]] bool validateStandaloneCredentialVisit(
+    const rdp_server::server::security::EphemeralNtlmV2Credential& credential,
+    void* rawContext) noexcept
+{
+    auto* valid = static_cast<bool*>(rawContext);
+    if (valid == nullptr || !credential.configured())
+        return false;
+    *valid = true;
+    return true;
+}
+
+[[nodiscard]] std::uint64_t currentWindowsFileTime() noexcept
+{
+    const auto nanosecondsSinceUnixEpoch =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    if (nanosecondsSinceUnixEpoch <= 0)
+        return 0U;
+
+    const std::uint64_t ticksSinceUnixEpoch =
+        static_cast<std::uint64_t>(nanosecondsSinceUnixEpoch) / 100U;
+    if (ticksSinceUnixEpoch >
+        (std::numeric_limits<std::uint64_t>::max)() -
+            kWindowsFileTimeUnixEpochOffset)
+    {
+        return 0U;
+    }
+    return kWindowsFileTimeUnixEpochOffset + ticksSinceUnixEpoch;
+}
+#endif
+
 // Mirror R1's private-LAN selection filter; R1 remains the bind authority.
 [[nodiscard]] bool isEligibleAddress(const sockaddr* address) noexcept
 {
@@ -351,6 +389,74 @@ RuntimeHostResult LinuxRuntimeHostControl::deny(RuntimeHostError error) noexcept
     return {error, false};
 }
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+bool LinuxRuntimeHostControl::selectedStandaloneCredentialReady() const noexcept
+{
+    if (authenticationMode_ != ConfiguredAuthenticationMode::StandalonePassword ||
+        standaloneCredentialGeneration_ == 0U)
+    {
+        return false;
+    }
+
+    const auto observation = standalonePasswordCredential_.observation();
+    if (!observation.configured ||
+        observation.generation != standaloneCredentialGeneration_)
+    {
+        return false;
+    }
+
+    bool visited = false;
+    return standalonePasswordCredential_.visit(
+               standaloneCredentialGeneration_,
+               &validateStandaloneCredentialVisit, &visited) &&
+           visited;
+}
+
+bool LinuxRuntimeHostControl::buildAuthenticationSelection(
+    LinuxRuntimeAuthenticationSelection& selection) const noexcept
+{
+    selection = {};
+    switch (authenticationMode_)
+    {
+    case ConfiguredAuthenticationMode::ExistingOsAccount:
+        selection.mode = LinuxRuntimeAuthenticationMode::ExistingOsAccount;
+        return true;
+
+    case ConfiguredAuthenticationMode::StandalonePassword:
+    {
+        if (!selectedStandaloneCredentialReady())
+            return false;
+
+        selection.mode = LinuxRuntimeAuthenticationMode::StandalonePassword;
+        selection.standaloneCredentialOwner = &standalonePasswordCredential_;
+        selection.standaloneCredentialGeneration =
+            standaloneCredentialGeneration_;
+        selection.standaloneChallenge.netbiosDomainName =
+            kStandaloneNtlmDomainName;
+        selection.standaloneChallenge.netbiosComputerName =
+            kStandaloneNtlmComputerName;
+        selection.standaloneChallenge.timestampFileTime =
+            currentWindowsFileTime();
+        if (selection.standaloneChallenge.timestampFileTime == 0U)
+            return false;
+
+        auto& challenge = selection.standaloneChallenge.serverChallenge;
+        if (RAND_bytes(
+                challenge.data(), static_cast<int>(challenge.size())) != 1 ||
+            std::all_of(
+                challenge.begin(), challenge.end(),
+                [](std::uint8_t value) { return value == 0U; }))
+        {
+            return false;
+        }
+        return true;
+    }
+
+    case ConfiguredAuthenticationMode::Unconfigured:
+        return false;
+    }
+    return false;
+}
+
 bool LinuxRuntimeHostControl::serviceCredentialsReady() const noexcept
 {
     if (securityConfiguration_ == nullptr ||
@@ -359,11 +465,29 @@ bool LinuxRuntimeHostControl::serviceCredentialsReady() const noexcept
         licensingContext_ == nullptr ||
         !licensingContext_->configured())
         return false;
+
+    using Kind =
+        rdp_server::server::security::ConsoleEvidenceAuthenticationKind;
+    Kind authenticationKind{};
+    switch (authenticationMode_)
+    {
+    case ConfiguredAuthenticationMode::ExistingOsAccount:
+        authenticationKind = Kind::KerberosPrincipal;
+        break;
+    case ConfiguredAuthenticationMode::StandalonePassword:
+        if (!selectedStandaloneCredentialReady())
+            return false;
+        authenticationKind = Kind::StandalonePassword;
+        break;
+    case ConfiguredAuthenticationMode::Unconfigured:
+        return false;
+    }
+
     const auto* policy = securityConfiguration_->policy();
     return policy != nullptr && policy->size() != 0U &&
            policy->generation() != 0U &&
            admissionConfiguration_->request(
-               *securityConfiguration_).has_value();
+               *securityConfiguration_, authenticationKind).has_value();
 }
 #endif
 
@@ -563,26 +687,53 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
-    // Credential replacement invalidates prior owner approval even though this
-    // prototype is still hidden from the product credential selector.
+    // Credential replacement invalidates prior owner approval. The public GUI
+    // still has no password surface; this selects only R10's internal product
+    // authentication path for a later explicitly authorized acceptance run.
     ownerSharingAuthority_.revoke(
         OwnerConsentRevocationReason::CredentialChange);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+    standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
 
-    const bool configured =
-        standalonePasswordCredential_.configure(username, password);
-    if (!configured)
+    if (!standalonePasswordCredential_.configure(username, password))
     {
         lastError_ = RuntimeHostError::CredentialNotConfigured;
         return false;
     }
 
-    // Do not project product readiness. Only the future same-owner accepted
-    // socket service may consume this generation after standalone CredSSP and
-    // fresh current-owner authorization both succeed.
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    const auto observation = standalonePasswordCredential_.observation();
+    if (!observation.configured || observation.generation == 0U)
+    {
+        standalonePasswordCredential_.revoke();
+        lastError_ = RuntimeHostError::CredentialNotConfigured;
+        return false;
+    }
+
+    authenticationMode_ = ConfiguredAuthenticationMode::StandalonePassword;
+    standaloneCredentialGeneration_ = observation.generation;
+    credentialsConfigured_ = true;
+    if (!selectedStandaloneCredentialReady())
+    {
+        authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+        standaloneCredentialGeneration_ = 0U;
+        credentialsConfigured_ = false;
+        standalonePasswordCredential_.revoke();
+        lastError_ = RuntimeHostError::CredentialNotConfigured;
+        return false;
+    }
+
+    // Provisioned controllers may now reach the normal owner-consent/Start
+    // gates. Unprovisioned offline controllers remain visibly stopped.
+    stage_ = serviceCredentialsReady()
+        ? RuntimeHostStage::CredentialsConfigured
+        : RuntimeHostStage::Stopped;
+#else
     stage_ = RuntimeHostStage::Stopped;
+#endif
     lastError_ = RuntimeHostError::None;
     return true;
 }
@@ -619,6 +770,8 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
         OwnerConsentRevocationReason::CredentialChange);
     standalonePasswordCredential_.revoke();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+    standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
     const auto decision = assessLanCredentialChoice(choice);
@@ -630,8 +783,13 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     if (securityConfiguration_ == nullptr ||
         !securityConfiguration_->configured())
         return deny(RuntimeHostError::CredentialProviderUnavailable);
+
+    authenticationMode_ = ConfiguredAuthenticationMode::ExistingOsAccount;
     if (!serviceCredentialsReady())
+    {
+        authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
         return deny(RuntimeHostError::CredentialNotConfigured);
+    }
     credentialsConfigured_ = true;
     stage_ = RuntimeHostStage::CredentialsConfigured;
     lastError_ = RuntimeHostError::None;
@@ -1268,9 +1426,20 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
         return {lastError_, false};
     }
 
+    LinuxRuntimeAuthenticationSelection authenticationSelection{};
+    if (!buildAuthenticationSelection(authenticationSelection))
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                CredentialChange);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::CredentialNotConfigured;
+        return {lastError_, false};
+    }
+
     auto connection = std::make_unique<LinuxRuntimeConnection>(
         *securityConfiguration_, std::move(accepted.connection),
-        &authAttempts_, &ownerSharingAuthority_);
+        &authAttempts_, &ownerSharingAuthority_, authenticationSelection);
     if (!connection->ready())
     {
         lastError_ = RuntimeHostError::AuthenticationRejected;
@@ -1316,6 +1485,34 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
         retireAcceptedClient(error);
         return RuntimeHostResult{error, false};
     };
+    const auto admissionRequest = [this]() noexcept
+        -> std::optional<
+            rdp_server::server::security::ConsoleEvidenceRequest> {
+        if (securityConfiguration_ == nullptr ||
+            admissionConfiguration_ == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        using Kind =
+            rdp_server::server::security::ConsoleEvidenceAuthenticationKind;
+        Kind authenticationKind{};
+        switch (authenticationMode_)
+        {
+        case ConfiguredAuthenticationMode::ExistingOsAccount:
+            authenticationKind = Kind::KerberosPrincipal;
+            break;
+        case ConfiguredAuthenticationMode::StandalonePassword:
+            if (!selectedStandaloneCredentialReady())
+                return std::nullopt;
+            authenticationKind = Kind::StandalonePassword;
+            break;
+        case ConfiguredAuthenticationMode::Unconfigured:
+            return std::nullopt;
+        }
+        return admissionConfiguration_->request(
+            *securityConfiguration_, authenticationKind);
+    };
 
     switch (acceptedClientPhase_)
     {
@@ -1338,8 +1535,7 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
             return pollAcceptedClientReadiness();
         case Step::CredentialsVerified:
         {
-            const auto request =
-                admissionConfiguration_->request(*securityConfiguration_);
+            const auto request = admissionRequest();
             if (!request)
                 return hostSessionStale();
             if (!acceptedClient_->issueAdmission(*request))
@@ -1609,8 +1805,7 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
             return pollAcceptedClientReadiness();
         case Step::Delivered:
         {
-            const auto request =
-                admissionConfiguration_->request(*securityConfiguration_);
+            const auto request = admissionRequest();
             if (!request)
                 return hostSessionStale();
 
@@ -1769,6 +1964,13 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     ownerSharingAuthority_.revoke(reason);
     standalonePasswordCredential_.revoke();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (authenticationMode_ ==
+        ConfiguredAuthenticationMode::StandalonePassword)
+    {
+        authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+        standaloneCredentialGeneration_ = 0U;
+        credentialsConfigured_ = false;
+    }
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
     retireNativeDesktop();
 #endif
@@ -1822,6 +2024,8 @@ RuntimeHostResult LinuxRuntimeHostControl::revokeSharing()
     selection_ = {};
     selectionConfigured_ = false;
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+    standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
     stage_ = RuntimeHostStage::Revoked;

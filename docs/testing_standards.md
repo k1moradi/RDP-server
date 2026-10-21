@@ -1,3 +1,24 @@
+## R10 HostControl standalone selector regression (2026-10-20)
+
+`runtime.linux-host-control-standalone-authentication-selector` is the dedicated
+offline composition gate for the product selector. It must prove the R10
+HostControl owns an explicit standalone mode, pins and synchronously visits the
+exact credential generation, constructs a fresh random NTLM challenge/current
+FILETIME, hands the explicit selection to the five-argument
+`LinuxRuntimeConnection` constructor, and selects principal-free standalone
+R2 admission. The accepted-client source slice must not contain the old default
+four-argument constructor.
+
+This source-composition gate complements, rather than replaces,
+`runtime.linux-connection-standalone-authentication-selector-denials`, which
+already exercises the lower-level production constructor and stale-generation /
+invalid-challenge denials. Public Qt password QObject inputs must remain absent.
+
+Neither test is Microsoft-client interoperability evidence. Enabling
+`IndependentApplicationPassword` still requires an explicitly authorized
+unmodified Windows App or `mstsc.exe` run through the real accepted socket,
+TLS/CredSSP, R2 native admission and clean disconnect/Stop lifetime.
+
 ## R7 offscreen assertions track authoritative lifecycle wording (2026-10-20)
 
 Qt behavior tests must distinguish presentation wording from authority. For a

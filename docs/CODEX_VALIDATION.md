@@ -1,3 +1,33 @@
+## R10 HostControl standalone selector authoring receipt (2026-10-20)
+
+Starting exact-main parent:
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
+Source audit found the lower-level R2/R10 connection selector was present, but
+the production GUI HostControl still constructed every accepted
+`LinuxRuntimeConnection` through its default ExistingOsAccount constructor.
+This was the unresolved P1 integration boundary.
+
+The authored correction adds one R10 configured authentication mode, captures
+the exact standalone credential generation, requires synchronous
+`StandalonePasswordCredentialOwner::visit` validation, creates a fresh
+OpenSSL-random NTLM ServerChallenge plus current FILETIME per accepted
+standalone client, and supplies the explicit selection to the existing
+five-argument connection constructor. R2 admission requests now use the same
+selected authentication kind; standalone never falls back to the Kerberos
+request.
+
+New dedicated offline source-composition CTest:
+`runtime.linux-host-control-standalone-authentication-selector`. The public
+Qt password surface remains absent and
+`IndependentApplicationPassword` remains unsupported.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Publication-SHA hosted CI: **PENDING**. No listener, credential
+exchange, X11 desktop, input or Microsoft client was activated. FIRST remains
+separately blocked on an all-green exact-main SHA and explicit owner
+authorization.
+
 ## R7 cross-platform GUI assertion correction receipt (2026-10-20)
 
 At exact SHA `d0f404a0b6080baa813b8f8ab7419c9d93954ddc`, macOS PORTABLE-GUI job

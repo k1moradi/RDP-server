@@ -208,10 +208,10 @@ target_include_directories(rdp-server-protocol PUBLIC
 target_link_libraries(rdp-server-protocol PUBLIC
     OpenSSL::Crypto OpenSSL::SSL)
 
-# R2 first-party standalone NTLMv2/CredSSP password prototype. It is
-# intentionally noninstalled and not yet linked into the GUI/admission path:
-# KAT-verified proof/session-key derivation is necessary but not sufficient for
-# NTLMSSP/SPNEGO/CredSSP interoperability.
+# R2 first-party standalone NTLMv2/CredSSP password implementation. It is
+# intentionally noninstalled; the Linux runtime may select it per accepted
+# connection through R10, while the public GUI password surface remains gated
+# on real unmodified Microsoft-client interoperability.
 add_library(rdp-server-standalone-ntlmv2 STATIC
     src/server/security/standalone_ntlmv2.cpp
     src/server/security/standalone_ntlmssp.cpp

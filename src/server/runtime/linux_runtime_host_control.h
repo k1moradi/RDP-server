@@ -22,6 +22,7 @@ namespace rdp_server::server::runtime
 class LinuxRuntimeSecurityConfiguration;
 class LinuxRuntimeAdmissionConfiguration;
 class LinuxRuntimeConnection;
+struct LinuxRuntimeAuthenticationSelection;
 class RuntimeLicensingContext;
 class RuntimeServerTlsContext;
 #endif
@@ -70,9 +71,9 @@ public:
         rdp_server::server::security::LanCredentialChoice choice) override;
 
     // Internal R2P service-lifetime preparation seam. It consumes/scrubs the
-    // mutable password and retains only the bounded username/NT hash. This does
-    // not enable the product IndependentApplicationPassword choice or make the
-    // generic RuntimeHostStatus credentialsConfigured flag positive.
+    // mutable password and retains only the bounded username/NT hash. A valid
+    // configuration selects the standalone mode for this R10 owner, but the
+    // public GUI still exposes no IndependentApplicationPassword action.
     [[nodiscard]] bool configureStandaloneApplicationPassword(
         std::u16string_view username,
         std::span<char16_t> password) noexcept;
@@ -121,6 +122,16 @@ private:
         GraphicsReady,
     };
 
+    enum class ConfiguredAuthenticationMode : std::uint8_t
+    {
+        Unconfigured,
+        ExistingOsAccount,
+        StandalonePassword,
+    };
+
+    [[nodiscard]] bool selectedStandaloneCredentialReady() const noexcept;
+    [[nodiscard]] bool buildAuthenticationSelection(
+        LinuxRuntimeAuthenticationSelection& selection) const noexcept;
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
     [[nodiscard]] RuntimeHostResult acceptClientOnce(
         std::chrono::steady_clock::time_point now) noexcept;
@@ -163,6 +174,9 @@ private:
     bool acceptedClientReadable_{};
     bool acceptedClientWritable_{};
     bool clientDisconnected_{};
+    ConfiguredAuthenticationMode authenticationMode_{
+        ConfiguredAuthenticationMode::Unconfigured};
+    std::uint64_t standaloneCredentialGeneration_{};
     bool credentialsConfigured_{};
 #endif
     // Production-native evidence owns all borrowed views. It must outlive
@@ -171,9 +185,9 @@ private:
         ownerEvidence_{};
     rdp_server::server::security::CurrentOwnerSharingAuthority
         ownerSharingAuthority_{ownerEvidence_};
-    // R2P service credential is memory-only and generation-fenced. Product UI
-    // remains fail-closed until real Microsoft-client interoperability accepts
-    // this path and R10 consumes it in the sole accepted-socket service owner.
+    // R2P service credential is memory-only and generation-fenced. R10 may
+    // consume its exact selected generation in the sole accepted-socket owner;
+    // the public GUI remains fail-closed until Microsoft-client acceptance.
     rdp_server::server::security::StandalonePasswordCredentialOwner
         standalonePasswordCredential_{};
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.

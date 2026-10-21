@@ -1176,7 +1176,8 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
     add_library(rdp-server-desktop-ui STATIC
         src/gui/desktop_window.cpp
-        src/gui/host_control.cpp)
+        src/gui/host_control.cpp
+        src/gui/toggle_switch.cpp)
     target_include_directories(rdp-server-desktop-ui PUBLIC
         "${PROJECT_SOURCE_DIR}/src"
         "${PROJECT_SOURCE_DIR}/src/gui")

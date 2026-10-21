@@ -1,3 +1,32 @@
+## R9 split qualification ledgers and R7 toggle co-change repair (2026-10-21)
+
+PM policy separates Linux FIRST acceptance from moving product-main
+qualification. These ledgers are independent and must not silently advance each
+other.
+
+| Ledger | Exact candidate | Hosted ordinary CI | Independent/manual gates | R9 disposition |
+|---|---|---|---|---|
+| FIRST Linux acceptance | `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` | PASS: ordinary hosted jobs, including documentation policy, are green | Owner-authorized R1 transport, R3 protocol, R4 frame/ACK, R5 X11 capture/input and R7 GUI lifecycle remain NOT RUN | **FROZEN** at this SHA; later password/UX work must not move it |
+| Product-main qualification | moving `main`; parent `82feaad284dda584d203d877f6239abf44a246e3` is disqualified by missing Markdown co-change | Parent ordinary jobs are green except `documentation-policy`; this repair's replacement exact SHA is PENDING | CLEAN Windows remains separate; real Windows App/`mstsc.exe` password interoperability and later native-host gates remain independent | Require replacement exact-SHA ordinary hosted PASS before qualification |
+
+The R7 toggle import is present in the desktop GUI build through
+`CMakeLists.txt`, but the parent implementation commit omitted Markdown. This
+section plus the canonical ROADMAP entry is the permitted documentation-only
+repair for that actual policy failure; it does not change acceptance goals.
+
+Product-main R9 guard inventory, to be enforced without weakening existing
+tests: one-page dashboard replaces the wizard; the shared toggle source is in
+every applicable GUI build; default user-facing dashboard text contains no
+R1/R2/R10 road labels; password controls are absent until the capability is
+enabled by real interoperability evidence; tray/menu-bar Start/Stop/exit
+lifecycle is covered; automatic address presentation is covered; and every
+current source/CMake/test/workflow change has a Markdown co-change. CLEAN
+Windows may advance only from a clean non-admin exact-artifact execution or a
+matching signed/hashed manual acceptance record, never from hosted Windows CI.
+
+Do not create documentation-only churn while a qualifying run is active unless
+repairing a concrete policy failure.
+
 ## R9 post-R10 resize integration guard repair (2026-10-19)
 
 Exact main `f894dd23fdfd3598335fd85f1269fc7ae36ae17c` lands R10's authenticated native RandR resize

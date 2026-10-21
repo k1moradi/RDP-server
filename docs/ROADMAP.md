@@ -1,3 +1,40 @@
+## R7 toggle import documentation-policy repair and R9 split qualification (2026-10-21)
+
+Exact parent `82feaad284dda584d203d877f6239abf44a246e3` imports R7's shared
+`ToggleSwitchWidget` and adds `src/gui/toggle_switch.cpp` to the
+`rdp-server-desktop-ui` CMake source list. Its ordinary hosted build,
+protocol, native/package, sanitizer and workflow-structure jobs are green, but
+`documentation-policy` fails with
+`Missing Markdown co-change: 82feaad284dda584d203d877f6239abf44a246e3` because that implementation
+commit changed `src/` / `CMakeLists.txt` without Markdown. CLEAN Windows is
+a separate queued consumer and is not evidence for or against this policy
+failure.
+
+This is the narrow canonical co-change repair for that actual policy failure.
+It changes documentation only; it does not alter the imported toggle, product
+behavior, tests, acceptance criteria or the frozen Linux FIRST candidate. The
+repair's exact publication SHA must pass ordinary hosted CI before it qualifies
+as product-main. Do not inherit PASS from the parent.
+
+R9 now keeps qualification split. **FIRST Linux acceptance is frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`**: its ordinary hosted matrix,
+including documentation policy, is green. Owner-authorized physical acceptance
+remains NOT RUN for R1 transport trace, R3 protocol trace, R4 frame/ACK trace,
+R5 X11 capture/input and R7 GUI lifecycle; later password/UX commits do not move
+this candidate. **Product-main qualification** follows moving `main` for
+password/UX/portability and requires its own exact-SHA ordinary hosted PASS.
+CLEAN Windows remains independent and requires a qualifying clean non-admin
+execution or a signed/hashed manual acceptance record; hosted Windows CI cannot
+imply CLEAN.
+
+After this process blocker is cleared, product-main R9 guards must cover the
+one-page dashboard replacing the wizard, toggle source inclusion, absence of
+user-facing R1/R2/R10 terminology in the default dashboard, password controls
+remaining absent until capability enablement, tray/menu-bar lifecycle,
+automatic address presentation, and source + Markdown co-change. Do not add
+unrelated documentation-only churn while an exact-SHA qualifying run is in
+progress.
+
 ## R10 HostControl selector source-contract correction after exact-head CI (2026-10-21)
 
 Exact-main SHA `6875e7f462458d2a7da0bef0dbf1058a4301726f` landed the production

@@ -37,3 +37,18 @@ are `config.h`, `x264_config.h`, and `README.rdp-server.md`.
 `rdp-server-x264` is linked privately by the noninstalled
 `rdp-server-graphics` target. It is not linked by, installed with, or
 exported through `rdp-server-protocol` / `RDPServer::protocol`.
+
+
+## 3DImageMaster Qt toggle import (R7)
+
+Exact source commit `82feaad284dda584d203d877f6239abf44a246e3` imports
+`src/gui/toggle_switch.h` and `src/gui/toggle_switch.cpp` as an
+owner-authorized adaptation from the project owner's
+`k1moradi/3DImageMaster` project. The imported files carry this repository's
+`GPL-3.0-or-later` SPDX identifier and are maintained locally as the single
+Qt toggle implementation used by the desktop UI.
+
+RDP-server does not link to or require 3DImageMaster at runtime. This
+provenance entry is the canonical Markdown co-change that was missing from the
+toggle-import commit; it changes documentation only and does not alter the
+widget or its behavior.

@@ -1,3 +1,22 @@
+## R8 tray dependency resolved; FIRST still blocks activation (2026-10-21)
+
+R7's actual one-page dashboard and tray lifecycle have now landed on shared
+`main`, resolving R8's earlier inability to audit the production hide/Quit
+paths. R8 now pins the real implementation: active window close hides
+presentation without Stop/Revoke, explicit Quit enters Stop/Revoke before
+application exit, and product consent keeps clipboard false while the R8
+activation gate is disabled. The tray lifecycle fixture also verifies that
+clipboard projection survives close/hide and refused retirement, then becomes
+Retired only after successful explicit Quit.
+
+This resolves the Track B dependency for the R8 lifecycle audit, but **does not
+resolve the Track A activation gate**. FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`, and owner-authorized visible
+desktop + mouse + keyboard + Stop is still NOT RUN. Therefore
+`kLinuxProductionClipboardActivationApproved` remains false. After FIRST
+passes, activate/test Unicode text in a separate milestone; images/files remain
+later.
+
 ## R7 Windows dashboard toggle linkage correction (2026-10-21)
 
 Dependency recheck after the one-page dashboard landed found one Windows-only

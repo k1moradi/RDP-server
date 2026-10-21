@@ -295,6 +295,7 @@ if(TARGET rdp-server-linux-host-control)
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+            "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
             "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
             "-DRDP_X11_CLIPBOARD_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_clipboard_adapter.cpp"
             "-DRDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE=${PROJECT_SOURCE_DIR}/src/server/clipboard/r3_clipboard_transfer_bridge.cpp"

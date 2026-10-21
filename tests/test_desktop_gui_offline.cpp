@@ -349,6 +349,7 @@ int main(int argc, char** argv)
         prepareReadyHost(runtime);
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
         runtime.snapshot.nativeDesktopReady = true;
         runtime.snapshot.activeClients = {
             RuntimeHostClient{
@@ -369,6 +370,9 @@ int main(int argc, char** argv)
         assert(!window.close());
         assert(!window.isVisible());
         assert(runtime.stopCalls == 0 && runtime.revokeCalls == 0);
+        assert(
+            host.status().clipboardState ==
+            RuntimeClipboardState::Enabled);
 
         open->trigger();
         assert(window.isVisible());
@@ -381,11 +385,17 @@ int main(int argc, char** argv)
         quit->trigger();
         assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
         assert(runtime.snapshot.stage == RuntimeHostStage::ClientConnected);
+        assert(
+            host.status().clipboardState ==
+            RuntimeClipboardState::Enabled);
 
         runtime.refuseRetirement = false;
         quit->trigger();
         assert(runtime.stopCalls == 2 && runtime.revokeCalls == 2);
         assert(runtime.snapshot.stage == RuntimeHostStage::Revoked);
+        assert(
+            host.status().clipboardState ==
+            RuntimeClipboardState::Retired);
         return 0;
     }
 

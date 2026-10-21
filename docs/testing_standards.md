@@ -1,3 +1,15 @@
+## R8 tray lifecycle source binding (2026-10-21)
+
+Once R7's one-page/tray implementation exists, the ordinary dormant R8
+composition guard must inspect that production GUI source in addition to the
+runtime owners. It must require active-window close to hide/ignore without
+calling Stop/Revoke, require tray Quit to call Stop/Revoke before application
+exit, and require product permission requests to keep clipboard disabled while
+the activation gate is false. The offscreen tray fixture must project clipboard
+Enabled across hide and refused retirement and Retired only after successful
+explicit Quit. None of these offline assertions satisfy FIRST or authorize live
+clipboard activation.
+
 ## R7 single-page dashboard, authoritative toggle and tray regressions (2026-10-21)
 
 Register the product UI regressions under every build with

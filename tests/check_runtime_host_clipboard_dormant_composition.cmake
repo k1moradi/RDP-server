@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 foreach(required_var IN ITEMS
         RDP_LINUX_HOST_CONTROL_SOURCE
         RDP_RUNTIME_ENTRYPOINT_SOURCE
+        RDP_DESKTOP_WINDOW_SOURCE
         RDP_LINUX_PREPARED_CLIPBOARD_HEADER
         RDP_X11_CLIPBOARD_SOURCE
         RDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE
@@ -15,6 +16,7 @@ endforeach()
 
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
 file(READ "${RDP_RUNTIME_ENTRYPOINT_SOURCE}" runtime_source)
+file(READ "${RDP_DESKTOP_WINDOW_SOURCE}" desktop_window_source)
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
 file(READ "${RDP_X11_CLIPBOARD_SOURCE}" x11_clipboard_source)
 file(READ "${RDP_R8_R3_CLIPBOARD_BRIDGE_SOURCE}" bridge_source)
@@ -190,6 +192,58 @@ string(FIND "${destructor_source}" "retireStoppedRuntime(" quit_retire)
 if(quit_retire LESS 0)
     message(FATAL_ERROR
         "process Quit/destruction must enter the common clipboard-first teardown")
+endif()
+
+
+# Bind R8 lifetime to the production R7 tray semantics now that the dashboard
+# has landed. Window close is presentation-only while hosting; explicit Quit
+# must enter Stop/Revoke before application exit, and product consent must keep
+# clipboard disabled until the R8 activation gate is approved.
+string(FIND "${desktop_window_source}"
+    "void DesktopWindow::requestQuit()" tray_quit_begin)
+string(FIND "${desktop_window_source}"
+    "void DesktopWindow::updateTray(" tray_quit_end)
+if(tray_quit_begin LESS 0 OR tray_quit_end LESS_EQUAL tray_quit_begin)
+    message(FATAL_ERROR "unable to isolate R7 tray Quit path")
+endif()
+math(EXPR tray_quit_length "${tray_quit_end} - ${tray_quit_begin}")
+string(SUBSTRING "${desktop_window_source}" ${tray_quit_begin}
+    ${tray_quit_length} tray_quit_source)
+string(FIND "${tray_quit_source}" "host_.stopAndRevoke()" tray_stop)
+string(FIND "${tray_quit_source}" "QApplication::quit()" tray_exit)
+if(tray_stop LESS 0 OR tray_exit LESS 0 OR NOT tray_stop LESS tray_exit)
+    message(FATAL_ERROR
+        "tray Quit must enter Stop/Revoke before application exit")
+endif()
+
+string(FIND "${desktop_window_source}"
+    "void DesktopWindow::closeEvent(QCloseEvent* event)" tray_close_begin)
+if(tray_close_begin LESS 0)
+    message(FATAL_ERROR "unable to isolate R7 tray close/hide path")
+endif()
+string(SUBSTRING "${desktop_window_source}" ${tray_close_begin}
+    -1 tray_close_source)
+foreach(required_text IN ITEMS
+        "if (mayStillBeHosting(host_.status()))"
+        "hide()"
+        "event->ignore()")
+    string(FIND "${tray_close_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "active window close must remain presentation-only: ${required_text}")
+    endif()
+endforeach()
+string(FIND "${tray_close_source}" "host_.stopAndRevoke()" close_stop)
+if(NOT close_stop EQUAL -1)
+    message(FATAL_ERROR
+        "active window close must not retire the R8 clipboard owner")
+endif()
+
+string(FIND "${desktop_window_source}"
+    "request.allowClipboard = false" product_clipboard_disabled)
+if(product_clipboard_disabled LESS 0)
+    message(FATAL_ERROR
+        "R7 product consent must keep clipboard disabled before R8 activation")
 endif()
 
 # X11 selection/paste/INCR state is dead before the borrowed R5 XCB owner.

@@ -1,3 +1,31 @@
+## R8 real tray lifecycle binding after R7 dashboard landing (2026-10-21)
+
+Starting exact-main parent: `872b4abc93d90c8721e899ff8cb8fe01a7aa4e81`.
+
+R7's production one-page dashboard and tray/menu-bar lifecycle are now present,
+so R8 can complete the previously deferred tray-specific source audit without
+activating clipboard. The production close path checks
+`mayStillBeHosting(...)`, hides the window and ignores the close event; it
+does not call Stop/Revoke. Explicit tray Quit enters `host_.stopAndRevoke()`
+before any immediate `QApplication::quit()`, and the later refresh exits only
+after the authoritative hosting projection is clear. Product owner-consent
+requests still force `allowClipboard = false`.
+
+R8's dormant-composition CTest now reads the real R7
+`desktop_window.cpp` and pins those close/Quit/consent properties. The
+existing tray lifecycle Qt fixture now also projects clipboard as Enabled:
+close/hide and a refused terminal retirement must preserve that state, while a
+successful explicit Quit must project Retired.
+
+This is still preparation only. The literal
+`kLinuxProductionClipboardActivationApproved = false` and
+`PresentationScope::UnicodeTextOnly` remain unchanged. FIRST Linux
+owner-authorized visible desktop + mouse + keyboard + Stop is still **NOT RUN**,
+so no production clipboard activation is permitted. Images/files remain later.
+No live listener, desktop, input or clipboard action was performed. Canonical
+owner-local build/full CTest is **NOT RUN** in this connector environment;
+exact-publication-SHA hosted CI is required.
+
 ## R7 Windows dashboard toggle linkage validation receipt (2026-10-21)
 
 Starting parent: `8443b7c79804aa1c5bc6e4eef2f40eab6be57097`.

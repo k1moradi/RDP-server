@@ -143,7 +143,8 @@ HostStatus HostControl::status() const
             const QString displayName = client.peerAddress.empty()
                 ? QStringLiteral("Client %1").arg(client.opaqueId)
                 : toQString(client.peerAddress);
-            if (view.nativeDesktopReady && sharingStage &&
+            if (view.nativeDesktopReady &&
+                view.productState == RuntimeProductHostState::Connected &&
                 client.shareActivated && client.desktopVisible &&
                 !client.authenticating)
             {

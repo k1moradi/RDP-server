@@ -628,7 +628,6 @@ void DesktopWindow::requestStart()
     const QString denial = blockedReason(snapshot);
     if (!denial.isEmpty())
     {
-        startRequested_ = false;
         userFacingError_ = denial;
         refresh();
         return;

@@ -1,3 +1,30 @@
+## R7/R10 exact-head dashboard compile correction (2026-10-21)
+
+Exact-main `9e4ae33d06a028e6a3f377eaf374c5f2fcd63fd7` cleared the earlier Track B ownership gap by making
+R10's product snapshot authoritative, but its hosted run
+`39614558320` exposed two mechanical merge leftovers before the GUI package
+could qualify. Linux GUI compilation failed because `DesktopWindow::requestStart`
+still assigned removed member `startRequested_`; Windows Clang 23 also found
+that error plus a removed `sharingStage` name in `HostControl` client
+projection.
+
+This correction removes the stale command-intent assignment and gates the
+connected-device projection directly on
+`RuntimeProductHostState::Connected`. The new ordinary source-contract CTest
+`gui.r10-product-status-integration-source-contract` rejects either retired
+GUI intent flags or the retired raw-stage sharing helper and requires the
+connected-client path to consume authoritative product state.
+
+No capability gate changes. Track C still requires real Windows App/`mstsc.exe`
+standalone-password interoperability before Session Password UI. R8 production
+clipboard activation still requires FIRST. Track A remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; Track D CLEAN Windows and
+Track E native Windows/macOS hosting remain independent.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. The failing hosted compiler evidence above is real; the correction
+requires a new exact-publication-SHA hosted PASS.
+
 ## R10 consumes the landed R7 dashboard through one product status (2026-10-21)
 
 Starting exact-main parent:

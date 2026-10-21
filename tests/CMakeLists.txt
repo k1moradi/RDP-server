@@ -19,6 +19,18 @@ add_test(NAME windows.gui-dashboard-toggle-linkage-source-contract
 set_tests_properties(windows.gui-dashboard-toggle-linkage-source-contract
     PROPERTIES LABELS "windows;gui;policy;offline")
 
+# R7/R10 dashboard integration must consume the authoritative product lifecycle
+# without retaining removed GUI command-intent flags or the retired raw-stage
+# sharing helper. This source contract is platform-independent and catches
+# cross-platform compile regressions before packaging lanes diverge.
+add_test(NAME gui.r10-product-status-integration-source-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+        "-DRDP_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_product_status_integration.cmake")
+set_tests_properties(gui.r10-product-status-integration-source-contract
+    PROPERTIES LABELS "gui;r10-host-control;policy;offline")
+
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
 add_executable(test_standalone_credential_policy

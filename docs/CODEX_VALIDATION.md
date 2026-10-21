@@ -1,3 +1,23 @@
+## R7/R10 dashboard compile-failure correction receipt (2026-10-21)
+
+Starting parent: `9e4ae33d06a028e6a3f377eaf374c5f2fcd63fd7`.
+
+Hosted run `39614558320` reached actual Qt compilation. The Linux GUI ZIP lane
+failed at `src/gui/desktop_window.cpp:631` because the R10 reconciliation
+removed `startRequested_` from the class but left one denial-path assignment.
+The Windows Clang 23 lane independently reproduced that error and also failed at
+`src/gui/host_control.cpp:146` because the old `sharingStage` local had been
+removed while one client-projection condition still referenced it.
+
+The correction removes the obsolete GUI assignment and uses
+`RuntimeProductHostState::Connected` for the client projection, preserving
+R10 as the lifecycle authority. Dedicated offline CTest:
+`gui.r10-product-status-integration-source-contract`.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN**. No listener,
+desktop, input, clipboard or credential exchange was activated. New exact-SHA
+hosted CI is required before product-main qualification.
+
 ## R10 product-status/dashboard reconciliation authoring receipt (2026-10-21)
 
 Starting exact-main parent:

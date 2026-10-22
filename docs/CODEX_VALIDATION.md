@@ -1,3 +1,30 @@
+## R6 P1 cross-platform preferred-LAN contract — 2026-10-22
+
+Starting exact-main parent: `33676c5e0ffc5b831ecbf393ee89174342d245ce`.
+
+Source review found R10's existing recommendation helper could fall back to
+lexicographic stable-ID/address ordering after its IPv4 preference. R1's new
+authority fence correctly keeps recommendation separate from bind authority;
+R6 now supplies the missing portable ranking-data contract without changing
+that fence.
+
+The new shared candidate contract carries stable interface identity, address,
+explicit IPv4/IPv6 family, private-LAN eligibility, preferred/default-route
+ownership and optional metric; the recommendation result also exposes whether
+selection is ambiguous. Added
+`runtime.host-control-cross-platform-lan-recommendation-contract` to prove
+Windows-style opaque identities and Linux-shaped identities follow the same
+rules, route ownership and comparable metrics drive selection, and names or
+address family cannot break ties. The legacy interface-only projection invents
+no route information and therefore reports multiple distinct choices as
+ambiguous.
+
+Connector/source inspection: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. No native routing
+API, socket, listener, R2 grant, Windows native owner or SendInput path was
+activated. Windows positive native-host gating is unchanged, R1's fresh bind
+revalidation remains intact, and CLEAN Windows remains separate R9 evidence.
+
 ## R1 route-aware recommendation bind-authority guard — 2026-10-22
 
 Starting exact-main parent: `e9b576298ee07665f12197c1641ceca2dda0824c`.

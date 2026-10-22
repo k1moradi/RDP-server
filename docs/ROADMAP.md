@@ -1,3 +1,43 @@
+## R6 P1 cross-platform preferred-LAN recommendation contract (2026-10-22)
+
+Starting exact-main parent: `33676c5e0ffc5b831ecbf393ee89174342d245ce`.
+
+R6 reviewed R10's preferred-LAN helper after R1 landed the independent
+recommendation-to-bind authority fence. The existing shared helper preferred
+IPv4 and then used lexicographic stable-interface/address ordering, which could
+accidentally make Linux-shaped identities such as `eth0#...` or
+`wlan0#...` part of portable selection policy.
+
+The shared runtime contract now defines platform recommendation facts
+semantically: opaque stable interface identity, address, explicit IPv4/IPv6
+family, private-LAN eligibility, preferred/default-route ownership, optional
+route metric/priority, and an explicit ambiguity result. Preferred-route
+ownership outranks non-preferred routes; a lower metric ranks routes only when
+every remaining contender has a metric. Equal or incomparable distinct
+endpoints are reported ambiguous rather than being broken by interface name,
+address text or address family. The current interface-only compatibility path
+supplies no invented route facts, so multiple distinct endpoints remain
+ambiguous until R10's platform collector supplies them.
+
+Dedicated ordinary CTest:
+`runtime.host-control-cross-platform-lan-recommendation-contract`. It is
+platform-neutral/offline and proves a Windows-style opaque identity can carry
+the same semantic facts as Linux, IPv4 and IPv6 are explicit, route
+ownership/metric drive selection, missing metrics are conservative, and
+`eth0`/`wlan0` ordering never resolves a tie. R1's
+`runtime.r1-bind-revalidates-recommended-endpoint` remains unchanged and
+continues to prove recommendation metadata is not bind authority.
+
+This is recommendation/presentation policy only. It opens no socket, starts no
+listener, reads no native routing API, grants no R2 authority, and does not
+change `kWindowsNativeDesktopPositiveActivationApproved` or any Windows
+native-host activation path. CLEAN Windows remains a separate R9 acceptance
+track.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
 ## R1 GUI Round 2 endpoint-recommendation authority fence (2026-10-22)
 
 Starting exact-main parent: `e9b576298ee07665f12197c1641ceca2dda0824c`.

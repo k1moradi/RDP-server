@@ -343,6 +343,7 @@ endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
         host-control-windows-rpc-interface-macro-compatibility
+        host-control-cross-platform-lan-recommendation-contract
         host-control-product-status-projection
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials

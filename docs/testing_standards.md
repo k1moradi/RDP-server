@@ -1,3 +1,22 @@
+## Cross-platform preferred-LAN recommendation contract (2026-10-22)
+
+Keep `runtime.host-control-cross-platform-lan-recommendation-contract` in the
+ordinary full CTest set on every platform. The fixture is pure/offline: it must
+not enumerate real adapters, inspect a route table, open a socket or activate a
+native host.
+
+The test must cover opaque stable interface identity, explicit IPv4 and IPv6,
+private-LAN eligibility, preferred/default-route ownership, optional route
+metric and ambiguity. A preferred-route candidate must beat a non-preferred
+candidate regardless of identity spelling; comparable lower metrics may rank
+routes; equal, cross-family or metric-incomparable distinct endpoints must
+remain ambiguous in either input order. Interface names such as `eth0`,
+`wlan0` or `en0` must never be portable tie breakers.
+
+This recommendation test complements, and does not replace,
+`runtime.r1-bind-revalidates-recommended-endpoint`: R1 still independently
+proves that recommendation metadata cannot bypass fresh native bind checks.
+
 ## R1 route-aware endpoint recommendation boundary (2026-10-22)
 
 Keep `runtime.host-control-route-aware-recommendation-non-authority` in the

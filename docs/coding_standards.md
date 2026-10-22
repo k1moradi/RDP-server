@@ -1,3 +1,24 @@
+## Cross-platform preferred-LAN recommendation semantics (2026-10-22)
+
+Keep preferred-LAN recommendation inputs semantic and platform-neutral.
+A platform collector supplies an opaque stable interface identity, numeric
+address, explicit IPv4/IPv6 family, private-LAN eligibility, whether the route
+is preferred/default, and route metric/priority when the platform can provide
+one. Native interface names, friendly labels and API structure layouts stay
+inside the platform adapter.
+
+Never rank candidates by strings such as `eth0`, `wlan0`, `en0`, adapter
+friendly names, stable-ID lexical order or address lexical order. Preferred
+route ownership is meaningful cross-platform evidence. Compare route metrics
+only when every remaining contender exposes one; otherwise distinct contenders
+are ambiguous. Address family is explicit metadata, not a portable tie breaker.
+
+Windows may later derive these facts from its native interface/routing APIs and
+Linux/macOS from their own native sources, but those API-specific records must
+not leak into `runtime_host_control.h`. Recommendation never authorizes a
+bind, R2 admission or native desktop activation; R1 must still revalidate the
+exact selected interface/address at Start.
+
 ## Authentication kind is part of the R2 native-authorization proof (2026-10-22)
 
 Do not make local SID/UID equality a universal native-desktop admission rule.

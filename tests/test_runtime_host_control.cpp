@@ -188,6 +188,93 @@ int main(int argumentCount, char** argumentValues)
         assert(host.status().boundEndpoint.empty());
         return 0;
     }
+    if (testCase == "host-control-cross-platform-lan-recommendation-contract")
+    {
+        using Family = RuntimeHostAddressFamily;
+
+        const std::vector<RuntimeHostLanEndpointCandidate> windowsStyle{
+            {"adapter-guid:42", "192.168.50.10", Family::Ipv4,
+             true, true, 25U},
+            {"eth0", "10.0.0.8", Family::Ipv4,
+             true, false, 1U}};
+        const auto defaultRoute =
+            recommendRuntimePrivateLanEndpoint(windowsStyle, 3389U);
+        assert(defaultRoute.valid());
+        assert(!defaultRoute.ambiguous);
+        assert(defaultRoute.interfaceId == "adapter-guid:42");
+        assert(defaultRoute.address == "192.168.50.10");
+        assert(defaultRoute.family == Family::Ipv4);
+        assert(defaultRoute.privateLanEligible);
+        assert(defaultRoute.preferredRoute);
+        assert(defaultRoute.routeMetric.has_value());
+        assert(*defaultRoute.routeMetric == 25U);
+
+        // Metric, not an interface/display name, ranks comparable routes.
+        const std::vector<RuntimeHostLanEndpointCandidate> metrics{
+            {"wlan0", "192.168.1.20", Family::Ipv4, true, true, 5U},
+            {"eth0", "192.168.1.10", Family::Ipv4, true, true, 50U}};
+        const auto lowerMetric =
+            recommendRuntimePrivateLanEndpoint(metrics);
+        assert(lowerMetric.valid());
+        assert(lowerMetric.interfaceId == "wlan0");
+        assert(lowerMetric.routeMetric.has_value());
+        assert(*lowerMetric.routeMetric == 5U);
+
+        // Equal route evidence is ambiguous in either input order. Never use
+        // eth0/wlan0/en0 or address text as a portable tie breaker.
+        const std::vector<RuntimeHostLanEndpointCandidate> ambiguousA{
+            {"eth0", "192.168.2.10", Family::Ipv4, true, true, 10U},
+            {"wlan0", "192.168.2.20", Family::Ipv4, true, true, 10U}};
+        const std::vector<RuntimeHostLanEndpointCandidate> ambiguousB{
+            ambiguousA[1], ambiguousA[0]};
+        for (const auto* candidates : {&ambiguousA, &ambiguousB})
+        {
+            const auto ambiguous =
+                recommendRuntimePrivateLanEndpoint(*candidates);
+            assert(!ambiguous.valid());
+            assert(ambiguous.ambiguous);
+            assert(ambiguous.interfaceId.empty());
+            assert(ambiguous.address.empty());
+        }
+
+        // Address family is explicit metadata, not a portable preference.
+        const std::vector<RuntimeHostLanEndpointCandidate> familyTie{
+            {"platform-v4", "192.168.3.10", Family::Ipv4,
+             true, true, 12U},
+            {"platform-v6", "fd00::10", Family::Ipv6,
+             true, true, 12U}};
+        const auto familyAmbiguity =
+            recommendRuntimePrivateLanEndpoint(familyTie);
+        assert(!familyAmbiguity.valid());
+        assert(familyAmbiguity.ambiguous);
+
+        // A missing metric is valid platform evidence, but it cannot silently
+        // outrank a different endpoint whose metric happens to be available.
+        const std::vector<RuntimeHostLanEndpointCandidate> incomparable{
+            {"platform-a", "10.1.0.4", Family::Ipv4, true, true, 7U},
+            {"platform-b", "10.1.0.5", Family::Ipv4, true, true, {}}};
+        const auto incomparableResult =
+            recommendRuntimePrivateLanEndpoint(incomparable);
+        assert(!incomparableResult.valid());
+        assert(incomparableResult.ambiguous);
+
+        const std::vector<RuntimeHostLanEndpointCandidate> ipv6Only{{
+            "opaque-interface-6", "fd12:3456::9", Family::Ipv6,
+            true, true, {}}};
+        const auto ipv6 = recommendRuntimePrivateLanEndpoint(ipv6Only);
+        assert(ipv6.valid());
+        assert(ipv6.family == Family::Ipv6);
+        assert(!ipv6.routeMetric.has_value());
+
+        const std::vector<RuntimeHostLanEndpointCandidate> denied{{
+            "opaque-interface", "192.168.77.8", Family::Ipv4,
+            false, true, 2U}};
+        const auto deniedResult =
+            recommendRuntimePrivateLanEndpoint(denied);
+        assert(!deniedResult.valid());
+        assert(!deniedResult.ambiguous);
+        return 0;
+    }
     if (testCase == "host-control-product-status-projection")
     {
         const std::vector<RuntimeHostInterface> interfaces{
@@ -196,9 +283,12 @@ int main(int argumentCount, char** argumentValues)
             {"a-ipv4", "IPv4 A", {"10.0.0.7"}, false, true}};
         const auto recommended =
             recommendRuntimePrivateLanEndpoint(interfaces, 3390U);
-        assert(recommended.valid());
-        assert(recommended.interfaceId == "a-ipv4");
-        assert(recommended.address == "10.0.0.7");
+        // Interface-only inventory has no route ownership or metric. R10 must
+        // not turn Linux-shaped stable IDs into a hidden tie-break policy.
+        assert(!recommended.valid());
+        assert(recommended.ambiguous);
+        assert(recommended.interfaceId.empty());
+        assert(recommended.address.empty());
         assert(recommended.port == 3390U);
 
         assert(runtimeProductStateFor(

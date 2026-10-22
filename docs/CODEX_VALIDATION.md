@@ -1,3 +1,18 @@
+## R10 post-publication Linux product-status wording correction — 2026-10-22
+
+Starting exact-main parent: `48e5ea20aec4e0f197e0a5155c58f12652512201`.
+
+Immediate exact-SHA source audit found one pre-existing R2 wording assertion in
+`linux-host-control-product-status-projection` still expected
+`Host-owner permission required`, while R2
+`5d8572a6e9a0bfa2f9efdd5e2a2e5faf9f6ef9dd` changed the product error text
+to `Sharing permission required`. Production behavior is unchanged; this
+correction aligns the ordinary Linux regression with the already-landed R2
+product vocabulary. The R10 route-aware implementation is unchanged.
+
+Connector/source review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**.
+
 ## R10 P0 Linux route-aware LAN recommendation — 2026-10-22
 
 Starting exact-main parent: `bf8e96b1885242ce634b8d6b712eb8293fa34382`.

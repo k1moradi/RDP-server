@@ -82,7 +82,7 @@ int main(int argc, char** argv)
         assert(status.product.activeClientIds.empty());
         assert(status.product.boundEndpoint.empty());
         assert(status.product.lastErrorMessage ==
-               "Host-owner permission required");
+               "Sharing permission required");
 
         const auto& recommended = status.product.recommendedEndpoint;
         if (recommended.valid())

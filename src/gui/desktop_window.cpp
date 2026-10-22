@@ -421,14 +421,12 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
 
 #if defined(Q_OS_LINUX)
     auto* linuxPrerequisites = label(
-        QStringLiteral(
-            "Linux X11 prerequisites not yet inspected; no desktop access "
-            "is implied."),
+        formatLinuxPrerequisites(LinuxDesktopPrerequisiteProjection{}),
         advancedPanel_);
     linuxPrerequisites->setObjectName("linuxPrerequisiteStatus");
     advancedLayout->addWidget(linuxPrerequisites);
     auto* refreshLinux =
-        new QPushButton(QStringLiteral("Refresh Linux X11 prerequisites"),
+        new QPushButton(QStringLiteral("Refresh Linux desktop"),
                         advancedPanel_);
     refreshLinux->setObjectName("refreshLinuxPrerequisites");
     advancedLayout->addWidget(refreshLinux);

@@ -22,8 +22,6 @@ constexpr int kLogindTimeoutMilliseconds = 1500;
 constexpr qsizetype kMaximumSessionTextLength = 64;
 constexpr qsizetype kMaximumLogindReplyBytes = 4096;
 
-// Reject terminal-control, path, whitespace and argument-like characters
-// before using an environment-derived logind session identifier.
 [[nodiscard]] bool safeSessionId(QStringView sessionId) noexcept
 {
     if (sessionId.isEmpty() || sessionId.size() > kMaximumSessionTextLength ||
@@ -45,7 +43,7 @@ constexpr qsizetype kMaximumLogindReplyBytes = 4096;
 [[nodiscard]] QString missingX11Libraries()
 {
     // Loading these libraries checks only client runtime prerequisites. It
-    // never connects to the X server, reads pixels, or grants XTEST input.
+    // never connects to the X server, reads pixels or enables native input.
     static constexpr std::array<const char*, 11> libraryNames{{
         "libX11.so.6", "libXext.so.6", "libXrandr.so.2",
         "libXtst.so.6", "libxcb.so.1", "libxcb-shm.so.0",
@@ -74,6 +72,67 @@ constexpr qsizetype kMaximumLogindReplyBytes = 4096;
     }
     return {};
 }
+
+[[nodiscard]] LinuxPrerequisiteState projectedState(
+    const bool evidenceComplete, const bool value) noexcept
+{
+    if (!evidenceComplete)
+        return LinuxPrerequisiteState::Unknown;
+    return value ? LinuxPrerequisiteState::Yes : LinuxPrerequisiteState::No;
+}
+
+[[nodiscard]] QString prerequisiteStateText(
+    const LinuxPrerequisiteState state)
+{
+    switch (state)
+    {
+    case LinuxPrerequisiteState::Unknown:
+        return QStringLiteral("Unknown");
+    case LinuxPrerequisiteState::No:
+        return QStringLiteral("No");
+    case LinuxPrerequisiteState::Yes:
+        return QStringLiteral("Yes");
+    }
+    return QStringLiteral("Unknown");
+}
+
+[[nodiscard]] QString inputSupportText(const LinuxInputSupport support)
+{
+    switch (support)
+    {
+    case LinuxInputSupport::Unknown:
+        return QStringLiteral("Unknown");
+    case LinuxInputSupport::Unavailable:
+        return QStringLiteral("Unavailable");
+    case LinuxInputSupport::Available:
+        return QStringLiteral("Available");
+    }
+    return QStringLiteral("Unknown");
+}
+
+[[nodiscard]] bool isX11(const QString& sessionType) noexcept
+{
+    return sessionType.compare(QStringLiteral("x11"), Qt::CaseInsensitive) == 0;
+}
+
+[[nodiscard]] QString displaySessionType(const QString& sessionType)
+{
+    if (sessionType.isEmpty())
+        return QStringLiteral("Unknown");
+    if (isX11(sessionType))
+        return QStringLiteral("X11");
+    if (sessionType.compare(
+            QStringLiteral("wayland"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("Wayland");
+    return sessionType;
+}
+
+[[nodiscard]] bool missingXcbInputLibraries(
+    const QString& missingLibraries) noexcept
+{
+    return missingLibraries.contains(QStringLiteral("libxcb.so.1")) ||
+           missingLibraries.contains(QStringLiteral("libxcb-xtest.so.0"));
+}
 } // namespace
 
 LinuxPrerequisiteObservation assessLinuxPrerequisites(
@@ -85,22 +144,20 @@ LinuxPrerequisiteObservation assessLinuxPrerequisites(
     const bool validSessionId = safeSessionId(sessionId);
     result.processUid = processUid;
     result.sessionId = validSessionId ? sessionId.toString() : QString();
-    result.sessionUserId =
-        property(logindProperties, QStringView{u"User"});
+    result.sessionUserId = property(logindProperties, QStringView{u"User"});
     result.seat = property(logindProperties, QStringView{u"Seat"});
     result.sessionType = property(logindProperties, QStringView{u"Type"});
     result.active = property(logindProperties, QStringView{u"Active"});
     result.remote = property(logindProperties, QStringView{u"Remote"});
     result.state = property(logindProperties, QStringView{u"State"});
-    result.lockedHint =
-        property(logindProperties, QStringView{u"LockedHint"});
+    result.lockedHint = property(logindProperties, QStringView{u"LockedHint"});
     result.displayName = displayName.left(kMaximumSessionTextLength).toString();
+    result.sessionDisplayName =
+        property(logindProperties, QStringView{u"Display"});
     result.missingLibraries = missingLibraries.toString();
 
-    // A matching logind observation is still NOT an authenticated R2
-    // desktop selection. DISPLAY can be configured or point at Xvfb.
-    // LockedHint is recorded below only as advisory evidence; it is never
-    // treated as a positive unlock or physical-presence attestation.
+    // A matching observation is still only read-only prerequisite evidence.
+    // DISPLAY can be configured or point at Xvfb; no native owner is created.
     const QString processUidText =
         QString::number(static_cast<qulonglong>(processUid));
     result.activePhysicalX11Seat0 =
@@ -112,66 +169,103 @@ LinuxPrerequisiteObservation assessLinuxPrerequisites(
         result.active == QStringLiteral("yes") &&
         result.remote == QStringLiteral("no") &&
         result.state == QStringLiteral("active") &&
-        property(logindProperties, QStringView{u"Display"}) == displayName;
+        result.sessionDisplayName == displayName;
     return result;
 }
 
-QString formatLinuxPrerequisites(
+LinuxDesktopPrerequisiteProjection projectLinuxPrerequisites(
     const LinuxPrerequisiteObservation& observation)
 {
-    const QString session = observation.sessionId.isEmpty()
-        ? QStringLiteral("unverified")
-        : observation.sessionId;
-    const QString display = observation.displayName.isEmpty()
-        ? QStringLiteral("not set")
+    LinuxDesktopPrerequisiteProjection projection;
+    projection.sessionType = displaySessionType(observation.sessionType);
+    projection.display = observation.displayName.isEmpty()
+        ? QStringLiteral("Unknown")
         : observation.displayName;
-    const QString nativeStatus = observation.activePhysicalX11Seat0
-        ? QStringLiteral("seat0 X11 candidate observed; R2 authorization still required")
-        : QStringLiteral("no matching active physical seat0 X11 observation");
-    const QString libraryStatus = observation.missingLibraries.isEmpty()
-        ? QStringLiteral("X11/XShm/RandR/XTEST client libraries located")
-        : QStringLiteral("missing runtime libraries: ") +
-          observation.missingLibraries;
-    const auto evidence = [](const QString& value) {
-        return value.isEmpty() ? QStringLiteral("unavailable") : value;
-    };
-    return QStringLiteral("Linux graphical prerequisites (read-only):\n")
-        + nativeStatus
-        + QStringLiteral("\nCurrent process UID: ")
-        + QString::number(static_cast<qulonglong>(observation.processUid))
-        + QStringLiteral("\nCurrent process session: ") + session
-        + QStringLiteral("\nlogind session UID: ")
-        + evidence(observation.sessionUserId)
-        + QStringLiteral("\nlogind Seat: ") + evidence(observation.seat)
-        + QStringLiteral("\nlogind Type: ") + evidence(observation.sessionType)
-        + QStringLiteral("\nlogind Active: ") + evidence(observation.active)
-        + QStringLiteral("\nlogind Remote: ") + evidence(observation.remote)
-        + QStringLiteral("\nlogind State: ") + evidence(observation.state)
-        + QStringLiteral("\nlogind LockedHint (advisory only): ")
-        + evidence(observation.lockedHint)
-        + QStringLiteral("\nDISPLAY: ") + display
-        + QStringLiteral("\n") + libraryStatus
-        + QStringLiteral("\nR2 authenticated desktop: see host authorization above")
-        + QStringLiteral("\nR2 admission/session generation: unavailable to preflight")
-        + QStringLiteral("\nR5 capture geometry/generation: unavailable until the R2-selected X11 owner exists")
-        + QStringLiteral("\nAfter-login automatic launch: not installed or enabled by this ZIP")
-        + QStringLiteral("\nNo login-screen sharing before a local graphical login.");
+
+    const QString processUidText =
+        QString::number(static_cast<qulonglong>(observation.processUid));
+    const bool activeEvidenceComplete =
+        observation.processUid != 0U && !observation.sessionId.isEmpty() &&
+        !observation.sessionUserId.isEmpty() && !observation.active.isEmpty() &&
+        !observation.remote.isEmpty() && !observation.state.isEmpty();
+    const bool activeLocalSession =
+        observation.sessionUserId == processUidText &&
+        observation.active == QStringLiteral("yes") &&
+        observation.remote == QStringLiteral("no") &&
+        observation.state == QStringLiteral("active");
+    projection.activeLocalSession =
+        projectedState(activeEvidenceComplete, activeLocalSession);
+
+    if (observation.lockedHint == QStringLiteral("no"))
+        projection.unlocked = LinuxPrerequisiteState::Yes;
+    else if (observation.lockedHint == QStringLiteral("yes"))
+        projection.unlocked = LinuxPrerequisiteState::No;
+
+    const bool physicalEvidenceComplete =
+        activeEvidenceComplete && !observation.seat.isEmpty() &&
+        !observation.sessionType.isEmpty() &&
+        !observation.displayName.isEmpty() &&
+        !observation.sessionDisplayName.isEmpty();
+    projection.physicalSession = projectedState(
+        physicalEvidenceComplete, observation.activePhysicalX11Seat0);
+
+    if (observation.sessionType.isEmpty())
+    {
+        projection.inputSupport = LinuxInputSupport::Unknown;
+    }
+    else if (!isX11(observation.sessionType) ||
+             observation.displayName.isEmpty() ||
+             missingXcbInputLibraries(observation.missingLibraries))
+    {
+        projection.inputSupport = LinuxInputSupport::Unavailable;
+    }
+    else
+    {
+        // "Available" means the read-only client-side XCB/XTEST runtime
+        // prerequisites are present. This probe does not connect to the X
+        // server to test or enable the extension.
+        projection.inputSupport = LinuxInputSupport::Available;
+    }
+
+    return projection;
+}
+
+QString formatLinuxPrerequisites(
+    const LinuxDesktopPrerequisiteProjection& projection)
+{
+    const QString sessionType = projection.sessionType.isEmpty()
+        ? QStringLiteral("Unknown")
+        : projection.sessionType;
+    const QString display = projection.display.isEmpty()
+        ? QStringLiteral("Unknown")
+        : projection.display;
+    return QStringLiteral("Linux desktop\nSession type: ") + sessionType
+        + QStringLiteral("\nDisplay: ") + display
+        + QStringLiteral("\nActive local session: ")
+        + prerequisiteStateText(projection.activeLocalSession)
+        + QStringLiteral("\nUnlocked: ")
+        + prerequisiteStateText(projection.unlocked)
+        + QStringLiteral("\nPhysical session: ")
+        + prerequisiteStateText(projection.physicalSession)
+        + QStringLiteral("\nInput support: ")
+        + inputSupportText(projection.inputSupport);
 }
 
 void requestLinuxPrerequisites(QLabel* statusLabel)
 {
     if (!statusLabel)
         return;
-
-    // One outstanding read-only query per view: an old reply cannot race a
-    // new refresh or overwrite a replacement session's observation.
     if (statusLabel->findChild<QProcess*>() != nullptr)
         return;
+
     statusLabel->setTextFormat(Qt::PlainText);
-    statusLabel->setText(QStringLiteral("Checking Linux graphical prerequisites (read-only)..."));
-    const QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
-    const QString sessionId = environment.value(QStringLiteral("XDG_SESSION_ID"));
-    const QString sessionType = environment.value(QStringLiteral("XDG_SESSION_TYPE"));
+    statusLabel->setText(QStringLiteral("Checking Linux desktop status..."));
+    const QProcessEnvironment environment =
+        QProcessEnvironment::systemEnvironment();
+    const QString sessionId =
+        environment.value(QStringLiteral("XDG_SESSION_ID"));
+    const QString sessionType =
+        environment.value(QStringLiteral("XDG_SESSION_TYPE"));
     const QString display = environment.value(QStringLiteral("DISPLAY"));
     const QString missingLibraries = missingX11Libraries();
     const std::uint64_t processUid =
@@ -182,7 +276,8 @@ void requestLinuxPrerequisites(QLabel* statusLabel)
         const auto observation = assessLinuxPrerequisites(
             processUid, sessionId, sessionType, display, logindProperties,
             missingLibraries);
-        statusLabel->setText(formatLinuxPrerequisites(observation));
+        statusLabel->setText(formatLinuxPrerequisites(
+            projectLinuxPrerequisites(observation)));
     };
 
     if (!safeSessionId(sessionId))

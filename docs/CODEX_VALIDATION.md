@@ -1,3 +1,32 @@
+## R5 P1 Linux Advanced prerequisite projection — 2026-10-22
+
+Starting exact-main parent: `083bc0d0237a25eb1becfcfaa63b6ddc8ebec780`.
+
+Source review found the existing Linux prerequisite probe already confined to
+environment reads, runtime-library loading and bounded
+`loginctl show-session`; it has no XCB connection/capture/input construction,
+listener bind, or permission/consent request. This change preserves that
+boundary and adds `LinuxDesktopPrerequisiteProjection` with the six compact
+R7-facing fields plus dedicated
+`gui.linux-readonly-prerequisite-structured-projection` coverage. The new
+`gui.linux-prerequisite-probe-readonly-boundary` source guard rejects native
+capture/input/listener/permission APIs.
+
+For the reported `QColorSpace attempted constructed from invalid primaries`
+warning, an exact previously hosted Linux GUI ZIP from Actions run
+`39783278573` was extracted and launched under Xvfb for five seconds without
+Start/sharing. It remained alive to timeout and emitted no warning, so the
+warning is **NOT REPRODUCED** in that independent GUI-only environment. Source
+inspection shows R5 native desktop construction happens only after an accepted
+client reaches GraphicsReady. No color conversion was added to the capture
+path. An owner-environment warning that occurs before Start/native capture
+belongs to R7/R9 Qt/package/display-startup classification.
+
+Connector/source inspection: **PASS**. Independent Xvfb GUI startup:
+**PASS / warning NOT REPRODUCED**. Canonical owner-local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. No live desktop,
+capture, input, listener or permission request was performed.
+
 ## R6 P1 cross-platform preferred-LAN contract — 2026-10-22
 
 Starting exact-main parent: `33676c5e0ffc5b831ecbf393ee89174342d245ce`.

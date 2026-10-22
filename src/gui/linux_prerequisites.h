@@ -10,8 +10,8 @@ class QLabel;
 
 namespace rdp::gui
 {
-// Read-only desktop diagnostics, never a native R2 admission capability.
-// The parser accepts injected logind text for negative offline testing.
+// Read-only desktop observations. These are presentation evidence only and
+// never create native desktop authority.
 struct LinuxPrerequisiteObservation final
 {
     bool activePhysicalX11Seat0{};
@@ -25,7 +25,34 @@ struct LinuxPrerequisiteObservation final
     QString state;
     QString lockedHint;
     QString displayName;
+    QString sessionDisplayName;
     QString missingLibraries;
+};
+
+enum class LinuxPrerequisiteState : std::uint8_t
+{
+    Unknown,
+    No,
+    Yes,
+};
+
+enum class LinuxInputSupport : std::uint8_t
+{
+    Unknown,
+    Unavailable,
+    Available,
+};
+
+// Compact read-only projection for the product UI. Field names and values are
+// intentionally user-facing rather than implementation diagnostics.
+struct LinuxDesktopPrerequisiteProjection final
+{
+    QString sessionType;
+    QString display;
+    LinuxPrerequisiteState activeLocalSession{LinuxPrerequisiteState::Unknown};
+    LinuxPrerequisiteState unlocked{LinuxPrerequisiteState::Unknown};
+    LinuxPrerequisiteState physicalSession{LinuxPrerequisiteState::Unknown};
+    LinuxInputSupport inputSupport{LinuxInputSupport::Unknown};
 };
 
 [[nodiscard]] LinuxPrerequisiteObservation assessLinuxPrerequisites(
@@ -33,11 +60,15 @@ struct LinuxPrerequisiteObservation final
     QStringView displayName, QStringView logindProperties,
     QStringView missingLibraries);
 
-[[nodiscard]] QString formatLinuxPrerequisites(
+[[nodiscard]] LinuxDesktopPrerequisiteProjection projectLinuxPrerequisites(
     const LinuxPrerequisiteObservation& observation);
 
+[[nodiscard]] QString formatLinuxPrerequisites(
+    const LinuxDesktopPrerequisiteProjection& projection);
+
 // Async, non-authorizing status query. Uses only the current GUI process's
-// session environment and a bounded read-only loginctl show-session call.
-// Caller owns statusLabel; no process, descriptor, or observation escapes it.
+// session environment, client-runtime library presence and a bounded read-only
+// loginctl show-session call. It never starts capture, injects input, opens a
+// listener or requests sharing permission.
 void requestLinuxPrerequisites(QLabel* statusLabel);
 } // namespace rdp::gui

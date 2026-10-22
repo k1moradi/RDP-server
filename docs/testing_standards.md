@@ -1,3 +1,22 @@
+## R5 compact Linux prerequisite projection regression (2026-10-22)
+
+Keep `gui.linux-readonly-prerequisite-structured-projection` in the ordinary
+Linux GUI CTest set. With fully injected observation text it must render exactly
+the six compact fields used by Advanced, normalize X11/Wayland presentation,
+cover Yes/No/Unknown local-session/lock/physical states, and distinguish
+XCB/XTEST client-runtime availability without opening an X connection.
+User-visible output must not contain roadmap names, UID/generation,
+authorization, logind, capture or XTEST implementation terminology.
+
+Retain `gui.linux-readonly-seat0-prerequisite-denials` for malformed/stale
+candidate evidence and
+`gui.linux-prerequisite-probe-readonly-boundary` as a source-policy guard.
+The latter must require the environment/library/loginctl observation primitives
+and reject XCB connection/native desktop/input/capture, listener Start and
+permission/consent calls. All three tests are offline and may not start
+capture, inject input, open a listener, authenticate a peer or request
+permission.
+
 ## Cross-platform preferred-LAN recommendation contract (2026-10-22)
 
 Keep `runtime.host-control-cross-platform-lan-recommendation-contract` in the

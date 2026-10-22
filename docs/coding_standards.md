@@ -1,3 +1,17 @@
+## Linux prerequisite projection stays read-only and product-facing (2026-10-22)
+
+R5's Linux GUI prerequisite probe may expose only compact product-facing
+session/runtime facts. Keep Session type, Display, Active local session,
+Unlocked, Physical session and Input support separate from raw diagnostic
+evidence, and do not expose roadmap names, authorization generations, local UID
+internals or capture implementation details in user-visible text.
+
+The probe is observation only: environment reads, client-library presence and a
+bounded `loginctl show-session` query are allowed. It must not connect to the
+X server, construct native desktop/capture/input owners, synthesize input, bind
+a listener, or request/mint sharing permission. A positive prerequisite field
+never creates authority.
+
 ## Cross-platform preferred-LAN recommendation semantics (2026-10-22)
 
 Keep preferred-LAN recommendation inputs semantic and platform-neutral.

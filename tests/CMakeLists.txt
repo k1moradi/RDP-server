@@ -3857,8 +3857,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RDP_SERVER_BUILD_DESKTOP_GUI)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     add_test(NAME gui.linux-readonly-seat0-prerequisite-denials
         COMMAND test_linux_gui_prerequisites)
+    add_test(NAME gui.linux-readonly-prerequisite-structured-projection
+        COMMAND test_linux_gui_prerequisites structured-projection)
+    add_test(NAME gui.linux-prerequisite-probe-readonly-boundary
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_LINUX_PREREQUISITE_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/linux_prerequisites.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_linux_gui_prerequisite_readonly.cmake")
     set_tests_properties(
-        gui.linux-readonly-seat0-prerequisite-denials PROPERTIES
+        gui.linux-readonly-seat0-prerequisite-denials
+        gui.linux-readonly-prerequisite-structured-projection
+        gui.linux-prerequisite-probe-readonly-boundary PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;linux;native-preflight;security;offline" TIMEOUT 20)
 endif()

@@ -1,3 +1,42 @@
+## R5 P1 compact Linux prerequisite projection for Advanced (2026-10-22)
+
+Starting exact-main parent: `083bc0d0237a25eb1becfcfaa63b6ddc8ebec780`.
+
+R5 now projects the existing read-only Linux prerequisite observation into six
+product-facing fields for R7's Advanced surface: Session type, Display, Active
+local session, Unlocked, Physical session and Input support. The projection uses
+Yes/No/Unknown-style states and intentionally omits implementation road names,
+UID/generation internals, authorization language and capture details. The
+current disclosure renders the same compact projection so R7 can move it into
+its separate Advanced tab without carrying forward the former diagnostic
+paragraph.
+
+The probe boundary remains read-only. It samples `XDG_SESSION_ID`,
+`XDG_SESSION_TYPE` and `DISPLAY`, checks client runtime-library presence
+with `QLibrary`, and executes only bounded `loginctl show-session` reads.
+It does not open an XCB desktop connection, start capture, inject input,
+bind/listen on a socket, or request sharing permission/consent. "Input support:
+Available" means the client-side XCB/XTEST runtime prerequisites are present;
+it does not test or enable the server-side XTEST extension and creates no
+authority. A source-policy CTest pins this no-side-effect boundary.
+
+Qt color-space investigation: the exact hosted Linux GUI artifact
+`rdp-server-gui-linux` from Actions run `39783278573` (source
+`e4d1006548e0ea5bf0a10282bef262a0c2b970b5`) was launched independently
+under Xvfb for five seconds without Start/sharing. The process remained alive
+until timeout and emitted no `QColorSpace` / `invalid primaries` warning in
+this environment. Source inspection also confirms native X11 desktop
+construction occurs only after an accepted client reaches GraphicsReady, not at
+GUI launch. No capture color-space conversion is added. If the warning is
+reproduced on an idle GUI launch in the owner environment, classification
+belongs to R7/R9's Qt/package/display startup path rather than R5 capture.
+
+Connector/source review: **PASS**. Independent extracted-GUI Xvfb startup
+probe: **PASS / warning NOT REPRODUCED**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
+**PENDING**. No live desktop, listener, native capture, input or permission
+request was exercised.
+
 ## R6 P1 cross-platform preferred-LAN recommendation contract (2026-10-22)
 
 Starting exact-main parent: `33676c5e0ffc5b831ecbf393ee89174342d245ce`.

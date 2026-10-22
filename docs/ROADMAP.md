@@ -1,3 +1,29 @@
+## R9 focused GUI workflow parse correction — 2026-10-22
+
+Starting exact-main parent: `c9f3960f4a6ea7054dce51b0778f89942f1347a3`.
+
+The first R5 focused-inventory commit and its immediate correction both failed
+before ordinary CI could run. Exact-parent structure run `39819887336`, job
+`119968061074`, reports the same YAML parse failure at lines 2478-2479.
+Inspection confirms `c9f3960f` still contains the concatenated
+`r5_prerequisite_selector` / `tls_selector` line and duplicated shell text
+under the artifact-upload mapping.
+
+R9 reconstructs `r5-linux-gui-zip` from the last parse-valid workflow at
+`f2c5cd9e54cf727aa84292e3253c78a62e04babf` and applies only the intended
+R5 delta: enumerate exactly the denial, structured-projection and read-only
+probe-boundary CTests, assert all three names/count, and execute that selector
+before the pre-existing TLS and five-test GUI Round 2 selectors. The repaired
+job has exactly one package step, one upload step, one R5 selector, one Round 2
+selector and one `r9-gui-round2-acceptance` aggregate. No production source,
+runtime authority, endpoint policy or GUI behavior changes.
+
+Last parse-valid parent `f2c5cd9e`: Linux GUI lane **PASS**, including all
+five GUI Round 2 focused tests. Bad `c9f3960f` structure: **FAIL**.
+Connector reconstruction checks: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN**. Replacement exact-SHA hosted CI:
+**PENDING**. CLEAN Windows remains separate and does not gate GUI Round 2.
+
 ## R5 focused prerequisite workflow syntax correction — 2026-10-22
 
 Starting exact-main parent: `fe469076fd39d0b172a0da461b443601a7a36ad8`.

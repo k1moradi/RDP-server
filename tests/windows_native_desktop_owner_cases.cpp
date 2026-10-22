@@ -102,11 +102,13 @@ public:
 class OwnerAuthorityFixture final
 {
 public:
-    OwnerAuthorityFixture() : authority(evidence)
+    explicit OwnerAuthorityFixture(
+        std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleInputPermission)
+        : authority(evidence)
     {
         evidence.session.observedAtMonotonicMilliseconds = *evidence.now;
-        const OwnerSharingIntent intent{
-            kConsoleViewPermission | kConsoleInputPermission, 60'000U};
+        const OwnerSharingIntent intent{permissions, 60'000U};
         assert(authority.requestConsent(intent) ==
                OwnerConsentRequestResult::Granted);
     }
@@ -319,6 +321,60 @@ void windowsNativeDesktopOwnerAuthorizedOfflineLifecycle()
     assert(!desktop.ready());
     assert(input.commands==1);
     assert(dxgi.releases!=0);
+#else
+    assert(false);
+#endif
+}
+
+void windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle()
+{
+#if defined(_WIN32)
+    OwnerAuthorityFixture ownerAuthority{kConsoleViewPermission};
+    PositiveWindowsIdentity identity;
+    PositiveWindowsEvidence evidence;
+    WindowsNativeDesktopAuthorization authorization{
+        identity, evidence, ownerAuthority.authority};
+    assert(authorization.bindAuthenticatedIdentity(kConsoleViewPermission) ==
+           NativeDesktopAuthorizationBindResult::Bound);
+    const std::uint64_t generation =
+        authorization.authorizationGeneration();
+    assert(generation != 0);
+
+    FakeSessionSource session;
+    FakeDxgiBackend dxgi;
+    FakeCaptureBackend capture;
+    FakeCursorBackend cursor;
+    WindowsNativeDesktopTestConfiguration configuration{};
+    configuration.layout = singleDisplayLayout();
+    configuration.target = {1234U, {0, 0, 2, 2}};
+    configuration.sessionReader = session.callbacks();
+    configuration.dxgiCallbacks = dxgi.callbacks();
+    configuration.captureCallbacks = capture.callbacks();
+    configuration.cursorReader = cursor.callbacks();
+
+    WindowsNativeDesktopOwner desktop;
+    assert(desktop.openForTesting(
+               authorization, generation, configuration) ==
+           WindowsNativeDesktopOpenResult::ready);
+    assert(desktop.ready());
+
+    FrameSink sink{generation};
+    assert(desktop.serviceOnce(
+               authorization, generation, sink.consumer()) ==
+           WindowsNativeDesktopServiceResult::frameConsumed);
+    assert(sink.frames == 1);
+
+    WindowsCursorSnapshot snapshot{};
+    assert(desktop.readCursorSnapshot(
+               authorization, generation, snapshot) ==
+           WindowsCursorReadResult::ready);
+
+    ownerAuthority.authority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(desktop.serviceOnce(
+               authorization, generation, sink.consumer()) ==
+           WindowsNativeDesktopServiceResult::authorizationRequired);
+    assert(!desktop.ready());
+    assert(dxgi.releases != 0);
 #else
     assert(false);
 #endif

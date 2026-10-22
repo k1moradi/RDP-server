@@ -64,6 +64,7 @@ void windowsInputSendInputRevocationDenials();
 void windowsInputAuthorityRetirementNoNativePost();
 void windowsNativeDesktopOwnerAuthorizationBoundaryDenials();
 void windowsNativeDesktopOwnerAuthorizedOfflineLifecycle();
+void windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsRdpConflictTermServiceActiveDenial();
@@ -249,6 +250,33 @@ void dxgiMetadataDenials()
     constexpr std::array<WindowsDxgiRectangle,
                          kMaximumWindowsDxgiDamageRectangles + 1> tooMany{};
     rejects(dimensions, {}, tooMany, output);
+}
+
+void singleMonitorNativeTargetSelection()
+{
+    WindowsSingleMonitorDesktopTarget target{};
+    constexpr std::array valid{
+        WindowsNativeMonitorSnapshot{1234U, {-100, -200, 200, 400}}};
+    assert(makeWindowsSingleMonitorDesktopTarget(valid, target));
+    assert(target.monitor == 1234U);
+    assert(target.layout.monitorCount == 1);
+    assert((target.layout.virtualBounds == Rectangle{-100, -200, 200, 400}));
+    assert((target.layout.monitors[0] == Rectangle{-100, -200, 200, 400}));
+
+    const auto unchanged = target;
+    constexpr std::array zeroIdentity{
+        WindowsNativeMonitorSnapshot{0U, {0, 0, 100, 100}}};
+    constexpr std::array invalidBounds{
+        WindowsNativeMonitorSnapshot{77U, {0, 0, 0, 100}}};
+    constexpr std::array multiple{
+        WindowsNativeMonitorSnapshot{1U, {0, 0, 100, 100}},
+        WindowsNativeMonitorSnapshot{2U, {100, 0, 100, 100}}};
+    assert(!makeWindowsSingleMonitorDesktopTarget({}, target));
+    assert(!makeWindowsSingleMonitorDesktopTarget(zeroIdentity, target));
+    assert(!makeWindowsSingleMonitorDesktopTarget(invalidBounds, target));
+    assert(!makeWindowsSingleMonitorDesktopTarget(multiple, target));
+    assert(target.layout == unchanged.layout);
+    assert(target.monitor == unchanged.monitor);
 }
 
 void negativeOriginAndMonitorGaps()
@@ -801,7 +829,11 @@ int main(int argc, char **argv)
         return 2;
     }
     const std::string_view behavior{argv[1]};
-    if (behavior == "negative-origin-and-monitor-gaps")
+    if (behavior == "single-monitor-native-target-selection")
+    {
+        singleMonitorNativeTargetSelection();
+    }
+    else if (behavior == "negative-origin-and-monitor-gaps")
     {
         negativeOriginAndMonitorGaps();
     }
@@ -1033,6 +1065,10 @@ int main(int argc, char **argv)
     else if (behavior == "native-owner-r2-authorized-offline-lifecycle")
     {
         windowsNativeDesktopOwnerAuthorizedOfflineLifecycle();
+    }
+    else if (behavior == "native-owner-r2-authorized-view-only-offline-lifecycle")
+    {
+        windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

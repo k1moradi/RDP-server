@@ -1900,6 +1900,7 @@ if(TARGET rdp-server-windows-desktop)
         target_compile_options(test_windows_desktop_geometry PRIVATE -UNDEBUG)
     endif()
     foreach(case_name IN ITEMS
+            single-monitor-native-target-selection
             negative-origin-and-monitor-gaps
             invalid-layout-rejections
             order-stable-reconfiguration
@@ -2112,9 +2113,15 @@ if(TARGET rdp-server-windows-desktop)
     add_test(NAME windows.native-owner-r2-authorized-offline-lifecycle
         COMMAND test_windows_desktop_geometry
             native-owner-r2-authorized-offline-lifecycle)
+    add_test(NAME windows.native-owner-r2-authorized-view-only-offline-lifecycle
+        COMMAND test_windows_desktop_geometry
+            native-owner-r2-authorized-view-only-offline-lifecycle)
     set_tests_properties(
-        windows.native-owner-r2-authorized-offline-lifecycle PROPERTIES
-        LABELS "windows;native-owner;security;offline" TIMEOUT 20)
+        windows.native-owner-r2-authorized-offline-lifecycle
+        windows.native-owner-r2-authorized-view-only-offline-lifecycle
+        PROPERTIES
+            LABELS "windows;native-owner;security;offline"
+            TIMEOUT 20)
 
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.

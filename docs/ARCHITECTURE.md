@@ -1,3 +1,25 @@
+## R6 Windows production target construction is compiled but gated (2026-10-22)
+
+The Windows native aggregate now has the same separation used by the other
+platform owners: R2 supplies authority, R10 owns the sole outer runtime
+lifetime, and R6 owns only the native desktop children. A production target is
+sampled as one `HMONITOR` plus its bounds in the same synchronous
+`EnumDisplayMonitors` pass. The current implementation intentionally rejects
+multi-monitor desktops because one DXGI duplication owner publishes one output;
+R6 must not infer monitor identity from geometry alone.
+
+When the final activation gate is eventually enabled, construction runs inside
+`WindowsNativeDesktopAuthorization::visit()`, creates the existing WTS
+revocation guard, opens the matching DXGI output, attaches the capture cycle,
+uses the read-only cursor adapter, and creates the private SendInput controller
+only when the exact R2 permission mask includes Input. The owner pins
+authentication generation, authorization generation, permission mask and WTS
+session and requires them to match on every protected callback.
+
+The production activation literal remains false. Therefore the compiled native
+construction cannot currently be reached from R10, and no startup or ordinary
+CTest path enumerates/captures a live desktop or posts input.
+
 ## R10 production process owns the shared platform-native seam (2026-10-22)
 
 On Windows and macOS the production `rdp-server` process now links

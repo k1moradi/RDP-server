@@ -80,6 +80,8 @@ struct WideRectangle
 struct MonitorEnumerator
 {
     std::array<PortableRectangle, kMaximumWindowsDesktopMonitors> monitors{};
+    std::array<WindowsNativeMonitorSnapshot, kMaximumWindowsDesktopMonitors>
+        nativeMonitors{};
     std::size_t count{};
     bool failed{};
 };
@@ -117,14 +119,41 @@ BOOL CALLBACK enumerateMonitor(HMONITOR nativeMonitor, HDC, LPRECT,
         return FALSE;
     }
 
-    enumerator.monitors[enumerator.count++] = {
+    const PortableRectangle rectangle{
         bounds.left, bounds.top, static_cast<std::uint32_t>(width),
         static_cast<std::uint32_t>(height)};
+    enumerator.monitors[enumerator.count] = rectangle;
+    enumerator.nativeMonitors[enumerator.count] = {
+        reinterpret_cast<std::uintptr_t>(nativeMonitor), rectangle};
+    ++enumerator.count;
     return TRUE;
 }
 #endif
 
 } // namespace
+
+bool makeWindowsSingleMonitorDesktopTarget(
+    std::span<const WindowsNativeMonitorSnapshot> nativeMonitors,
+    WindowsSingleMonitorDesktopTarget &output) noexcept
+{
+    if (nativeMonitors.size() != 1 || nativeMonitors.front().monitor == 0)
+        return false;
+
+    WindowsDesktopLayout layout{};
+    const PortableRectangle bounds = nativeMonitors.front().bounds;
+    if (!makeWindowsDesktopLayout(std::span{&bounds, 1U}, layout) ||
+        layout.monitorCount != 1 || layout.virtualBounds != bounds ||
+        layout.monitors[0] != bounds)
+    {
+        return false;
+    }
+
+    WindowsSingleMonitorDesktopTarget candidate{};
+    candidate.layout = layout;
+    candidate.monitor = nativeMonitors.front().monitor;
+    output = candidate;
+    return true;
+}
 
 bool makeWindowsDesktopLayout(std::span<const PortableRectangle> nativeMonitorBounds,
                               WindowsDesktopLayout &output) noexcept
@@ -245,6 +274,27 @@ bool readWindowsDesktopLayout(WindowsDesktopLayout &output) noexcept
     return makeWindowsDesktopLayout(
         std::span<const PortableRectangle>(enumerator.monitors.data(),
                                    enumerator.count),
+        output);
+#else
+    (void)output;
+    return false;
+#endif
+}
+
+bool readWindowsSingleMonitorDesktopTarget(
+    WindowsSingleMonitorDesktopTarget &output) noexcept
+{
+#ifdef _WIN32
+    MonitorEnumerator enumerator{};
+    if (!EnumDisplayMonitors(nullptr, nullptr, enumerateMonitor,
+                             reinterpret_cast<LPARAM>(&enumerator)) ||
+        enumerator.failed)
+    {
+        return false;
+    }
+    return makeWindowsSingleMonitorDesktopTarget(
+        std::span<const WindowsNativeMonitorSnapshot>{
+            enumerator.nativeMonitors.data(), enumerator.count},
         output);
 #else
     (void)output;

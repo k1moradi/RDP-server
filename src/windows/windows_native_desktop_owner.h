@@ -13,9 +13,10 @@
 namespace rdp_server::windows
 {
 
-// R2's native authorization and R10's one-owner composition seams have landed.
-// Production Windows activation still requires a qualified authenticated-identity
-// provider and a reviewed native construction path. Keep that final gate closed.
+// R2's accepted-SSPI identity proof and R10's one-owner production seam have
+// landed. The real native construction path is compiled below, but activation
+// stays closed until an accepted Windows client binds that proof end-to-end and
+// the live path is explicitly qualified.
 inline constexpr bool kWindowsNativeDesktopPositiveActivationApproved = false;
 
 enum class WindowsNativeDesktopOpenResult : std::uint8_t
@@ -101,13 +102,25 @@ private:
     struct State;
 #if defined(_WIN32)
     struct InitializationVisitContext;
+    [[nodiscard]] WindowsNativeDesktopOpenResult initializeNativeAuthorized(
+        const rdp_server::server::security::WindowsNativeDesktopAuthorization
+            &authorization,
+        const rdp_server::server::security::WindowsNativeDesktopAuthorizationView
+            &authorizationView) noexcept;
     [[nodiscard]] WindowsNativeDesktopOpenResult initializeForTestingAuthorized(
         const rdp_server::server::security::WindowsNativeDesktopAuthorization
             &authorization,
         const rdp_server::server::security::WindowsNativeDesktopAuthorizationView
             &authorizationView,
         WindowsNativeDesktopTestConfiguration &&configuration) noexcept;
-    static bool initializeForTestingVisit(
+    [[nodiscard]] WindowsNativeDesktopOpenResult initializeAuthorized(
+        const rdp_server::server::security::WindowsNativeDesktopAuthorization
+            &authorization,
+        const rdp_server::server::security::WindowsNativeDesktopAuthorizationView
+            &authorizationView,
+        WindowsNativeDesktopTestConfiguration &&configuration,
+        bool requireInjectedCapture) noexcept;
+    static bool initializeAuthorizationVisit(
         const rdp_server::server::security::WindowsNativeDesktopAuthorizationView
             &authorizationView,
         void *context) noexcept;

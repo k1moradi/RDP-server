@@ -50,6 +50,26 @@ struct WindowsDesktopLayout
                            const WindowsDesktopLayout &) = default;
 };
 
+// Native monitor identity is a borrowed HMONITOR encoded without ownership.
+// The identity and rectangle must come from the same synchronous enumeration.
+struct WindowsNativeMonitorSnapshot
+{
+    std::uintptr_t monitor{};
+    PortableRectangle bounds{};
+};
+
+struct WindowsSingleMonitorDesktopTarget
+{
+    WindowsDesktopLayout layout{};
+    std::uintptr_t monitor{};
+};
+
+// R6 currently owns one DXGI duplication output. Keep that constraint explicit
+// so a rectangle alone can never be substituted for HMONITOR identity.
+[[nodiscard]] bool makeWindowsSingleMonitorDesktopTarget(
+    std::span<const WindowsNativeMonitorSnapshot> nativeMonitors,
+    WindowsSingleMonitorDesktopTarget &output) noexcept;
+
 // Validates all monitor rectangles, sorts them into a stable order, computes
 // their bounding virtual desktop, and leaves output unchanged on failure. The display
 // snapshot is not an OS-access permission, and does not outlive layout changes.
@@ -72,5 +92,8 @@ struct WindowsDesktopLayout
 // Returns false and does not modify output on API/geometry failures.
 [[nodiscard]] bool readWindowsDesktopLayout(
     WindowsDesktopLayout &output) noexcept;
+
+[[nodiscard]] bool readWindowsSingleMonitorDesktopTarget(
+    WindowsSingleMonitorDesktopTarget &output) noexcept;
 
 } // namespace rdp_server::windows

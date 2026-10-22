@@ -1,3 +1,43 @@
+## R6 production Windows native-target construction after R2/R10 handoff (2026-10-22)
+
+Starting exact-main parent: `385128846d2b214ffc16d5759b62ed6e36ef27f0`.
+
+Two dependency-graph blockers cleared on shared `main`: R2
+`ded4f348d6a108c9363feae4479d5993da0e5b40` now owns
+`WindowsSspiAuthenticatedIdentityProof` from an already-accepted SSPI
+security context, and R10 `385128846d2b214ffc16d5759b62ed6e36ef27f0` now links exactly one inactive
+`RuntimePlatformNativeDesktop` into the production Windows/macOS runtime.
+
+R6 therefore advances the next source boundary without enabling hosting. The
+Windows geometry adapter now preserves the real `HMONITOR` identity and bounds
+from one synchronous enumeration and refuses zero-identity, invalid or
+multi-monitor snapshots. This deliberately matches the current one-DXGI-output
+aggregate instead of inventing a monitor identity from a rectangle.
+
+`WindowsNativeDesktopOwner` now contains the compiled production construction
+path for the existing WTS generation guard, DXGI duplication/capture cycle,
+cursor reader and optional private `SendInput` controller. Construction remains
+inside the exact R2 View visitor and pins authentication generation,
+authorization generation, permission mask and WTS session before native child
+ownership. View-only grants construct no input controller. The existing
+`kWindowsNativeDesktopPositiveActivationApproved` literal remains **false**,
+so ordinary production `open()` still returns
+`nativeCompositionUnavailable` before any live monitor/WTS/DXGI/cursor/input
+operation.
+
+New ordinary Windows CTests are
+`windows.geometry-single-monitor-native-target-selection` and
+`windows.native-owner-r2-authorized-view-only-offline-lifecycle`. They use
+pure/synthetic native inputs only. Canonical owner-local Windows build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. Live accepted SSPI/CredSSP client, WTS/DXGI/cursor/SendInput and
+CLEAN execution remain **NOT RUN**.
+
+**Next gate:** R10/R2 must bind the landed SSPI proof and
+`WindowsNativeDesktopAuthorization` from the actual accepted Windows client
+lifetime, then an explicitly authorized real-client run must qualify this
+native path before R6 flips the production activation literal.
+
 ## R10 production Windows/macOS platform lifetime linkage (2026-10-22)
 
 Starting exact-main parent: `ded4f348d6a108c9363feae4479d5993da0e5b40`.

@@ -1,3 +1,20 @@
+## R6 production Windows native-target source handoff (2026-10-22)
+
+Starting exact-main parent: `385128846d2b214ffc16d5759b62ed6e36ef27f0`.
+
+Dependency inspection found R2's accepted-SSPI identity proof and R10's single
+production platform-native owner both landed, so R6 continued. This increment
+preserves HMONITOR identity with single-display geometry, compiles the real
+WTS/DXGI/cursor/optional-SendInput construction behind the existing false
+activation literal, strengthens pinned authorization fields, and adds
+view-only aggregate coverage.
+
+Source review: **PASS** for one-owner composition, R2 visitor confinement,
+single-output target identity, optional input capability and no-post retirement.
+Canonical owner-local Windows configure/build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. Live accepted SSPI/CredSSP,
+desktop capture/input and CLEAN evidence: **NOT RUN**.
+
 ## R10 production platform-native process owner — 2026-10-22
 
 Source parent: `ded4f348d6a108c9363feae4479d5993da0e5b40`.

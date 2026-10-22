@@ -39,17 +39,22 @@ using rdp_server::server::security::kConsoleViewPermission;
 }
 
 #if defined(_WIN32)
-[[nodiscard]] bool validTestingConfiguration(
-    const WindowsNativeDesktopTestConfiguration &configuration) noexcept
+[[nodiscard]] bool validAuthorizedConfiguration(
+    const WindowsNativeDesktopTestConfiguration &configuration,
+    std::uint32_t permissionMask,
+    bool requireInjectedCapture) noexcept
 {
     if (configuration.layout.monitorCount != 1 ||
         configuration.target.monitor == 0 ||
         configuration.layout.virtualBounds != configuration.target.expectedBounds ||
         configuration.layout.monitors[0] != configuration.target.expectedBounds ||
         configuration.sessionReader.read == nullptr ||
-        configuration.cursorReader.read == nullptr ||
-        configuration.inputCallbacks.context == nullptr ||
-        configuration.inputCallbacks.send == nullptr)
+        configuration.cursorReader.read == nullptr)
+        return false;
+
+    if ((permissionMask & kConsoleInputPermission) != 0 &&
+        (configuration.inputCallbacks.context == nullptr ||
+         configuration.inputCallbacks.send == nullptr))
         return false;
 
     WindowsDesktopLayout validated{};
@@ -69,6 +74,9 @@ using rdp_server::server::security::kConsoleViewPermission;
         dxgi.release == nullptr)
         return false;
 
+    if (!requireInjectedCapture)
+        return true;
+
     const auto &capture = configuration.captureCallbacks;
     return capture.frame.context != nullptr &&
            capture.frame.acquire != nullptr &&
@@ -83,7 +91,9 @@ using rdp_server::server::security::kConsoleViewPermission;
 struct WindowsNativeDesktopOwner::State final
 {
     const WindowsNativeDesktopAuthorization *authorization{};
+    std::uint64_t authenticationGeneration{};
     std::uint64_t authorizationGeneration{};
+    std::uint32_t permissionMask{};
     std::uint32_t targetSessionId{};
     WindowsDesktopLayout layout{};
     std::unique_ptr<WindowsCaptureSessionGenerationGuard> sessionGuard{};
@@ -126,6 +136,7 @@ struct WindowsNativeDesktopOwner::InitializationVisitContext final
     WindowsNativeDesktopOwner *owner{};
     const WindowsNativeDesktopAuthorization *authorization{};
     WindowsNativeDesktopTestConfiguration *configuration{};
+    bool nativeConstruction{};
     WindowsNativeDesktopOpenResult result{
         WindowsNativeDesktopOpenResult::nativeCompositionUnavailable};
     bool callbackReached{};
@@ -176,8 +187,26 @@ WindowsNativeDesktopOpenResult WindowsNativeDesktopOwner::open(
             kConsoleViewPermission))
         return WindowsNativeDesktopOpenResult::authorizationDenied;
 
-    static_assert(!kWindowsNativeDesktopPositiveActivationApproved);
+    if (!kWindowsNativeDesktopPositiveActivationApproved)
+        return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
+
+#if defined(_WIN32)
+    InitializationVisitContext context{
+        this, &authorization, nullptr, true,
+        WindowsNativeDesktopOpenResult::nativeCompositionUnavailable, false};
+    const bool authorized = authorization.visit(
+        expectedAuthorizationGeneration, kConsoleViewPermission,
+        &WindowsNativeDesktopOwner::initializeAuthorizationVisit, &context);
+    if (!authorized || !context.callbackReached)
+    {
+        if (state_ != nullptr)
+            retireAfterAuthorizationLoss();
+        return WindowsNativeDesktopOpenResult::authorizationDenied;
+    }
+    return context.result;
+#else
     return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
+#endif
 }
 
 #if defined(_WIN32)
@@ -194,11 +223,11 @@ WindowsNativeDesktopOpenResult WindowsNativeDesktopOwner::openForTesting(
         return WindowsNativeDesktopOpenResult::authorizationDenied;
 
     InitializationVisitContext context{
-        this, &authorization, &configuration,
+        this, &authorization, &configuration, false,
         WindowsNativeDesktopOpenResult::nativeCompositionUnavailable, false};
     const bool authorized = authorization.visit(
         expectedAuthorizationGeneration, kConsoleViewPermission,
-        &WindowsNativeDesktopOwner::initializeForTestingVisit, &context);
+        &WindowsNativeDesktopOwner::initializeAuthorizationVisit, &context);
     if (!authorized || !context.callbackReached)
     {
         if (state_ != nullptr)
@@ -208,19 +237,51 @@ WindowsNativeDesktopOpenResult WindowsNativeDesktopOwner::openForTesting(
     return context.result;
 }
 
-bool WindowsNativeDesktopOwner::initializeForTestingVisit(
+bool WindowsNativeDesktopOwner::initializeAuthorizationVisit(
     const WindowsNativeDesktopAuthorizationView &authorizationView,
     void *contextValue) noexcept
 {
     auto &context = *static_cast<InitializationVisitContext *>(contextValue);
     context.callbackReached = true;
-    if (context.owner == nullptr || context.authorization == nullptr ||
-        context.configuration == nullptr)
+    if (context.owner == nullptr || context.authorization == nullptr)
         return true;
+
+    if (context.nativeConstruction)
+    {
+        context.result = context.owner->initializeNativeAuthorized(
+            *context.authorization, authorizationView);
+        return true;
+    }
+    if (context.configuration == nullptr)
+        return true;
+
     context.result = context.owner->initializeForTestingAuthorized(
         *context.authorization, authorizationView,
         std::move(*context.configuration));
     return true;
+}
+
+WindowsNativeDesktopOpenResult
+WindowsNativeDesktopOwner::initializeNativeAuthorized(
+    const WindowsNativeDesktopAuthorization &authorization,
+    const WindowsNativeDesktopAuthorizationView &authorizationView) noexcept
+{
+    WindowsSingleMonitorDesktopTarget target{};
+    if (!readWindowsSingleMonitorDesktopTarget(target))
+        return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
+
+    WindowsNativeDesktopTestConfiguration configuration{};
+    configuration.layout = target.layout;
+    configuration.target = {target.monitor, target.layout.monitors[0]};
+    configuration.sessionReader = windowsCaptureSessionReadCallbacks();
+    configuration.dxgiCallbacks = windowsNativeDxgiDuplicationCallbacks();
+    configuration.cursorReader = windowsCursorReadCallbacks();
+    if ((authorizationView.permissionMask() & kConsoleInputPermission) != 0)
+        configuration.inputCallbacks =
+            WindowsInputController::windowsNativeCallbacks();
+
+    return initializeAuthorized(
+        authorization, authorizationView, std::move(configuration), false);
 }
 
 WindowsNativeDesktopOpenResult
@@ -229,16 +290,35 @@ WindowsNativeDesktopOwner::initializeForTestingAuthorized(
     const WindowsNativeDesktopAuthorizationView &authorizationView,
     WindowsNativeDesktopTestConfiguration &&configuration) noexcept
 {
-    if (state_ != nullptr || authorizationView.authorizationGeneration() == 0 ||
+    return initializeAuthorized(
+        authorization, authorizationView, std::move(configuration), true);
+}
+
+WindowsNativeDesktopOpenResult
+WindowsNativeDesktopOwner::initializeAuthorized(
+    const WindowsNativeDesktopAuthorization &authorization,
+    const WindowsNativeDesktopAuthorizationView &authorizationView,
+    WindowsNativeDesktopTestConfiguration &&configuration,
+    bool requireInjectedCapture) noexcept
+{
+    if (state_ != nullptr || authorizationView.authenticationGeneration() == 0 ||
+        authorizationView.authorizationGeneration() == 0 ||
         authorizationView.wtsSessionId() == 0 ||
-        !validTestingConfiguration(configuration))
+        (authorizationView.permissionMask() & kConsoleViewPermission) == 0 ||
+        !validAuthorizedConfiguration(
+            configuration, authorizationView.permissionMask(),
+            requireInjectedCapture))
         return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
 
     auto candidate = std::unique_ptr<State>{new (std::nothrow) State{}};
     if (candidate == nullptr)
         return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
     candidate->authorization = &authorization;
-    candidate->authorizationGeneration = authorizationView.authorizationGeneration();
+    candidate->authenticationGeneration =
+        authorizationView.authenticationGeneration();
+    candidate->authorizationGeneration =
+        authorizationView.authorizationGeneration();
+    candidate->permissionMask = authorizationView.permissionMask();
     candidate->targetSessionId = authorizationView.wtsSessionId();
     candidate->layout = configuration.layout;
     candidate->cursorReader = configuration.cursorReader;
@@ -285,14 +365,17 @@ WindowsNativeDesktopOwner::initializeForTestingAuthorized(
     if (!attached)
         return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
 
-    candidate->inputController =
-        std::unique_ptr<WindowsInputController>{
-            new (std::nothrow) WindowsInputController(
-                candidate->layout, configuration.inputCallbacks,
-                candidate->sessionGuard->reader(), pinned)};
-    if (candidate->inputController == nullptr ||
-        candidate->inputController->closed())
-        return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
+    if ((candidate->permissionMask & kConsoleInputPermission) != 0)
+    {
+        candidate->inputController =
+            std::unique_ptr<WindowsInputController>{
+                new (std::nothrow) WindowsInputController(
+                    candidate->layout, configuration.inputCallbacks,
+                    candidate->sessionGuard->reader(), pinned)};
+        if (candidate->inputController == nullptr ||
+            candidate->inputController->closed())
+            return WindowsNativeDesktopOpenResult::nativeCompositionUnavailable;
+    }
 
     state_ = std::move(candidate);
     return ready() ? WindowsNativeDesktopOpenResult::ready
@@ -305,10 +388,14 @@ bool WindowsNativeDesktopOwner::authorizationViewMatches(
     std::uint32_t requiredPermissions) const noexcept
 {
     return state_ != nullptr &&
+           state_->authenticationGeneration != 0 &&
+           state_->authenticationGeneration ==
+               authorizationView.authenticationGeneration() &&
            state_->authorizationGeneration ==
                authorizationView.authorizationGeneration() &&
+           state_->permissionMask == authorizationView.permissionMask() &&
            state_->targetSessionId == authorizationView.wtsSessionId() &&
-           (authorizationView.permissionMask() & requiredPermissions) ==
+           (state_->permissionMask & requiredPermissions) ==
                requiredPermissions;
 }
 
@@ -581,14 +668,17 @@ bool WindowsNativeDesktopOwner::ready() const noexcept
 {
     return !retired_ && state_ != nullptr &&
            state_->authorization != nullptr &&
+           state_->authenticationGeneration != 0 &&
            state_->authorizationGeneration != 0 &&
+           (state_->permissionMask & kConsoleViewPermission) != 0 &&
            state_->targetSessionId != 0 &&
            state_->sessionGuard != nullptr &&
            !state_->sessionGuard->closed() &&
            state_->duplicationOwner != nullptr &&
            state_->duplicationOwner->ready() &&
-           state_->inputController != nullptr &&
-           !state_->inputController->closed() &&
+           ((state_->permissionMask & kConsoleInputPermission) == 0 ||
+            (state_->inputController != nullptr &&
+             !state_->inputController->closed())) &&
            state_->cursorReader.read != nullptr &&
            state_->pinnedGeneration.session != 0 &&
            state_->pinnedGeneration.device != 0;

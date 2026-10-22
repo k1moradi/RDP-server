@@ -75,10 +75,21 @@ New production-backed offscreen regression:
 Source review: **PASS** for no new password/clipboard surface, no concrete
 `findChild<ToggleSwitchWidget*>()`, unchanged Copy/tray behavior and no live
 side effects. Canonical owner-local build/full CTest: **NOT RUN** in this
-connector environment. Publication-SHA hosted CI: **PENDING**.
+connector environment.
+
+Exact publication SHA
+`d252b9800ffaac489dddcd871f799881b2e1442b`, Actions run
+`39739386577`: macOS portable GUI job `119692686513` **PASS**, Linux GUI
+ZIP job `119692686622` **PASS**, and Windows CLANG64 job
+`119692686640` **PASS**. The R7 post-green dashboard increment is therefore
+qualified on the required same SHA. The separately queued R9 CLEAN Windows job
+is outside this R7 GUI gate.
 
 Standalone Session Password remains **BLOCKED / NOT ENABLED** pending the real
-Microsoft-client proof; the product capability constant remains false.
+Microsoft-client proof; the product capability constant remains false. R2/R10/R6
+have advanced Windows identity/native composition, but current R6 production
+activation is still fail-closed and none of those source seams constitute the
+required standalone Windows App/`mstsc.exe` password acceptance receipt.
 
 ## R6 authorized Windows aggregate after R10 seam (2026-10-21)
 

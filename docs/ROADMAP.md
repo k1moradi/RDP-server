@@ -144,11 +144,20 @@ No host authority, listener, authentication, native desktop, input, clipboard
 or wire behavior changes.
 
 Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
-environment. Publication-SHA hosted CI: **PENDING** after direct-main
-publication. Session Password remains capability-gated and absent:
+environment. Exact publication SHA
+`d252b9800ffaac489dddcd871f799881b2e1442b`, primary Actions run
+`39739386577`: `r7-macos-portable-gui` job `119692686513` **PASS**,
+`r5-linux-gui-zip` job `119692686622` **PASS**, and
+`r6-windows-clang23` job `119692686640` **PASS**. This qualifies the R7
+dashboard polish on the required same SHA; the separately queued R9 CLEAN
+Windows job is not part of this R7 GUI gate.
+
+Session Password remains capability-gated and absent:
 `kStandalonePasswordProductCapabilityApproved` is still literal **false**,
 and no unmodified Windows App/Windows 11 `mstsc.exe` standalone-password
-acceptance receipt exists.
+acceptance receipt exists. The next R7 product change is therefore **BLOCKED**
+on that real Microsoft-client acceptance proof, not on dashboard source or
+hosted GUI qualification.
 
 ## R6 authorized Windows aggregate after R10 composition (2026-10-21)
 

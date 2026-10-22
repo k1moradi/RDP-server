@@ -64,10 +64,10 @@ class WindowsPeClosureTests(unittest.TestCase):
                 self.root,
                 lambda _path: (
                     "KERNEL32.dll", "AUTHZ.dll", "d3d9.dll",
-                    "ncrypt.dll",
+                    "ncrypt.dll", "MSCMS.dll",
                     "api-ms-win-core-synch-l1-2-0.dll",
                     "ext-ms-win-ntuser-window-l1-1-0.dll")),
-            (1, 6))
+            (1, 7))
 
     def test_objdump_import_parser_is_bounded_to_dll_name_records(self):
         output = (

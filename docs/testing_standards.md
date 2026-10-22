@@ -6072,7 +6072,7 @@ guarded so this intake continues reading rather than triggering a write.
 
 ## Windows PE closure distinguishes OS DLLs from redistributable runtime (2026-10-18)
 
-The extracted portable-GUI PE verifier may exempt only documented Windows OS/API-set imports. Observed imports AUTHZ.dll, d3d9.dll and ncrypt.dll are system-provided and must not be copied from System32 into the archive. Toolchain, Qt, ICU, compression, font/image and GLib DLLs remain application closure and must be bundled; never broaden the system allowlist to hide a missing redistributable dependency.
+The extracted portable-GUI PE verifier may exempt only documented Windows OS/API-set imports. Observed imports AUTHZ.dll, d3d9.dll, ncrypt.dll and mscms.dll are system-provided and must not be copied from System32 into the archive. Microsoft Win32 ICM requirements identify Mscms.dll as the Windows Color Management implementation, so Qt's qwindows.dll may depend on it as an OS component. Toolchain, Qt, ICU, compression, font/image and GLib DLLs remain application closure and must be bundled; never broaden the system allowlist to hide a missing redistributable dependency.
 
 ## macOS deployment-tool symlinks resolve before execution (R7, 2026-10-18)
 

@@ -1,3 +1,31 @@
+## R9 Windows PE closure correction for documented MSCMS system import (2026-10-21)
+
+Exact candidate `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`, primary Actions run
+`39727607434`, is **REJECTED** despite every completed ordinary lane except
+R6 packaging being green. The mandatory `r6-windows-clang23` job
+`119655064357` passed Debug and Release CLANG64 compilation/full CTest, the
+R10 private-fixture preflights, and the unsupported-password GUI CTest, then
+failed recursive PE closure because current Qt `plugins/platforms/qwindows.dll`
+imports `mscms.dll`.
+
+This is an OS-system dependency classification correction, not a coverage
+waiver. Microsoft Win32 ICM documentation lists `Mscms.dll` as the DLL for
+the Windows color-management APIs. R9 adds only that exact DLL name to the
+existing finite system allowlist and extends the portable PE-closure regression
+to require it to be accepted while non-system runtimes remain rejected. The
+recursive `llvm-objdump` closure scan, application-local dependency
+requirements, Windows CLANG64 build/CTest and extracted-GUI smoke remain
+unchanged.
+
+Shared-main advanced to R6 parent `4de56b15a2a28294086db71dba1b8bf0ee8ea9f7` while the failed run was
+completing; that R6 commit does not modify the PE verifier. This R9 publication
+therefore rebases the narrow correction on current main and creates a new exact
+product-main candidate requiring a fresh complete ordinary-hosted PASS. Linux
+FIRST remains independently frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. CLEAN remains **NOT RUN**;
+manual owner-native evidence, when verifier-accepted, is labeled
+**MANUAL CLEAN PASS**, never automated CI PASS.
+
 ## R9 exact parser-extent correction and current qualification candidate (2026-10-21)
 
 Exact product-main parent `25415342b0f190241988ba0895855faebc1d7a00`, primary Actions run

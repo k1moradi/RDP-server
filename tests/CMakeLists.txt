@@ -2703,6 +2703,7 @@ if(APPLE)
             fail-closed-construction
             frame-input-lifecycle
             input-permission-retirement
+            standalone-authenticated-session-lifecycle
             display-session-retirement)
         add_test(NAME "macos.native-desktop-owner-${case_name}"
             COMMAND test_macos_native_desktop_owner "${case_name}")

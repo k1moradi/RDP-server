@@ -1,3 +1,40 @@
+## R5 standalone-authenticated macOS owner after R2/R10 handoff (2026-10-22)
+
+Starting exact-main parent: `8295828812fce0ebaf6921937a853ef3f367181a`.
+
+Both authorization/attachment blockers that previously stopped R5 have now
+cleared. R2 `752d4e26c71f9e4dc6b2103bfaca55794de49995` plus correction
+`1191ef2ef8b1f153da1b75818b4ad013a7dab51e` generalized native
+authorization around `NativeDesktopAuthenticatedSessionProof`; standalone
+sessions no longer need or fabricate a macOS UID identity. R10
+`153acb54da2497863f891305a526f1253da3f2d0` added
+`attachAuthenticatedSession()`, and
+`8295828812fce0ebaf6921937a853ef3f367181a` completed its macOS native-session
+evidence static-link closure.
+
+R5 adds
+`macos.native-desktop-owner-standalone-authenticated-session-lifecycle`.
+The Apple-only injected test uses a StandalonePassword proof with no UID matcher
+and proves positive View-only and View+Input owner construction, plus terminal
+retirement on authenticated-session generation replacement, owner Stop and
+native audit-session replacement. Held input is not synthetically released
+after authority loss. No live TCC, ScreenCaptureKit, Quartz input, listener or
+client is exercised.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Remaining positive-production blocker:** the dependency graph's required
+local-owner grant still lacks a Windows/macOS production evidence provider.
+`CurrentOwnerSharingAuthority` has only Linux production
+`ConsoleOsEvidenceSource` composition; macOS must not fabricate Linux
+seat/display/UID facts from native-session evidence. Until another agent lands
+that trusted current-local-owner consent source, R10 cannot obtain the real
+grant needed for positive standalone attachment. Physical ScreenCaptureKit /
+Quartz acceptance, Stop/reconnect/resize and the one-page Session Password flow
+remain **NOT RUN / BLOCKED**. No separate network/protocol server is added.
+
 ## R10 platform native-evidence link closure correction (2026-10-22)
 
 Starting exact-main parent: `153acb54da2497863f891305a526f1253da3f2d0`.

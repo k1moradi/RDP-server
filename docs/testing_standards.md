@@ -1,3 +1,21 @@
+## R5 standalone-authenticated macOS owner regression (2026-10-22)
+
+Keep `macos.native-desktop-owner-standalone-authenticated-session-lifecycle`
+in the ordinary Apple full CTest set. It must construct the real
+`MacNativeDesktopAuthorization` with a
+`NativeDesktopAuthenticatedSessionProof` whose authentication kind is
+`StandalonePassword` and which deliberately implements no macOS UID matcher.
+Successful R5 owner construction therefore proves the console UID is consumed
+only as fresh native target evidence, not as the remote standalone identity.
+
+The same test must cover View-only versus View+Input scope and terminally
+retire the aggregate when the standalone authentication generation changes,
+the local owner grant is revoked, or fresh `MacNativeSessionEvidence` changes.
+If input was held before authorization loss, no synthetic Quartz release may be
+posted. The fixture remains fully injected/offline: it must not enumerate a live
+display, request TCC, start ScreenCaptureKit, post Quartz input, open a listener
+or authenticate a real client.
+
 ## R2 P0 standalone native-authorization regression boundary (2026-10-22)
 
 Keep the existing Track E OS-account mismatch cases unchanged: Windows

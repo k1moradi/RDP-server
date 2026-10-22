@@ -100,20 +100,54 @@ public:
     std::uint64_t generation{12U};
 };
 
+class FakeStandaloneAuthenticatedSession final
+    : public NativeDesktopAuthenticatedSessionProof {
+public:
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept override {
+        return NativeDesktopAuthenticationKind::StandalonePassword;
+    }
+
+    [[nodiscard]] std::uint64_t authenticationGeneration()
+        const noexcept override {
+        return generation;
+    }
+
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept override {
+        return valid && generation != 0U;
+    }
+
+    // Deliberately keep the base class's deny-only macOS UID matcher. The
+    // standalone application's username is not a local OS-account identity.
+    std::uint64_t generation{23U};
+    bool valid{true};
+};
+
 class SecurityFixture final {
 public:
     explicit SecurityFixture(
         const std::uint32_t permissions =
             kConsoleViewPermission | kConsoleInputPermission,
-        const bool bind = true)
+        const bool bind = true,
+        const NativeDesktopAuthenticationKind authenticationKind =
+            NativeDesktopAuthenticationKind::ExistingOsAccount)
         : ownerAuthority(ownerEvidence),
-          authorization(authenticatedIdentity, nativeEvidence, ownerAuthority) {
+          authorization(
+              authenticationKind ==
+                      NativeDesktopAuthenticationKind::StandalonePassword
+                  ? static_cast<NativeDesktopAuthenticatedSessionProof&>(
+                        standaloneSession)
+                  : static_cast<NativeDesktopAuthenticatedSessionProof&>(
+                        authenticatedIdentity),
+              nativeEvidence,
+              ownerAuthority) {
         ownerEvidence.session.observedAtMonotonicMilliseconds = *ownerEvidence.now;
         assert(ownerAuthority.requestConsent(
                    OwnerSharingIntent{permissions, 60'000U}) ==
                OwnerConsentRequestResult::Granted);
         if (bind) {
-            assert(authorization.bindAuthenticatedIdentity(permissions) ==
+            assert(authorization.bindAuthenticatedSession(permissions) ==
                    NativeDesktopAuthorizationBindResult::Bound);
         }
     }
@@ -122,6 +156,7 @@ public:
     CurrentOwnerSharingAuthority ownerAuthority;
     FakeMacEvidenceSource nativeEvidence{};
     FakeMacAuthenticatedIdentity authenticatedIdentity{};
+    FakeStandaloneAuthenticatedSession standaloneSession{};
     MacNativeDesktopAuthorization authorization;
 };
 
@@ -403,10 +438,12 @@ makeOwner(
     const std::uint32_t permissions =
         kConsoleViewPermission | kConsoleInputPermission,
     const bool bindAuthorization = true,
-    const std::size_t maximumFramebufferBytes = 64U) {
+    const std::size_t maximumFramebufferBytes = 64U,
+    const NativeDesktopAuthenticationKind authenticationKind =
+        NativeDesktopAuthenticationKind::ExistingOsAccount) {
     OwnerFixture fixture;
     fixture.security = std::make_unique<SecurityFixture>(
-        permissions, bindAuthorization);
+        permissions, bindAuthorization, authenticationKind);
     fixture.watch = std::make_unique<WatchFixture>();
     fixture.desktop = std::make_unique<DesktopFixture>();
     fixture.captureState = std::make_shared<FakeCaptureBackendState>();
@@ -557,6 +594,83 @@ void testInputPermissionRetirement() {
     assert(fixture.watch->displayRemoveCalls == 1U);
 }
 
+void testStandaloneAuthenticatedSessionLifecycle() {
+    constexpr auto standaloneKind =
+        NativeDesktopAuthenticationKind::StandalonePassword;
+
+    {
+        auto viewOnly = makeOwner(
+            kConsoleViewPermission, true, 64U, standaloneKind);
+        assert(viewOnly);
+        OwnerFixture fixture = std::move(*viewOnly);
+        advanceReady(fixture);
+        assert(!fixture.owner->serviceOnce().inputReady);
+
+        const MacInputEvent keyDown = MacKeyInput{0x3BU, 0x1DU, false, true};
+        assert(!fixture.owner->handleInput(keyDown));
+        assert(fixture.owner->state() == MacNativeDesktopOwnerState::Ready);
+        assert(fixture.desktop->nativeInputCommands == 0U);
+    }
+
+    {
+        auto created = makeOwner(
+            kConsoleViewPermission | kConsoleInputPermission,
+            true, 64U, standaloneKind);
+        assert(created);
+        OwnerFixture fixture = std::move(*created);
+        advanceReady(fixture);
+        assert(fixture.owner->serviceOnce().inputReady);
+
+        // Successful construction with the deny-only base UID matcher proves
+        // the console UID is native target evidence, not remote authentication.
+        assert(fixture.security->standaloneSession.generation != 0U);
+
+        const MacInputEvent keyDown = MacKeyInput{0x3BU, 0x1DU, false, true};
+        assert(fixture.owner->handleInput(keyDown));
+        assert(fixture.desktop->nativeInputCommands == 1U);
+
+        // A replacement authenticated standalone connection invalidates R2.
+        // R5 must retire without posting a synthetic native key release.
+        ++fixture.security->standaloneSession.generation;
+        const auto observation = fixture.owner->serviceOnce();
+        assert(observation.state == MacNativeDesktopOwnerState::Revoked);
+        assert(fixture.security->authorization.authorizationGeneration() == 0U);
+        assert(fixture.desktop->nativeInputCommands == 1U);
+        assert(fixture.captureState->closeCalls == 1U);
+    }
+
+    {
+        auto created = makeOwner(
+            kConsoleViewPermission | kConsoleInputPermission,
+            true, 64U, standaloneKind);
+        assert(created);
+        OwnerFixture fixture = std::move(*created);
+        advanceReady(fixture);
+
+        fixture.security->ownerAuthority.revoke(
+            OwnerConsentRevocationReason::Stop);
+        const auto observation = fixture.owner->serviceOnce();
+        assert(observation.state == MacNativeDesktopOwnerState::Revoked);
+        assert(fixture.security->authorization.authorizationGeneration() == 0U);
+        assert(fixture.captureState->closeCalls == 1U);
+    }
+
+    {
+        auto created = makeOwner(
+            kConsoleViewPermission | kConsoleInputPermission,
+            true, 64U, standaloneKind);
+        assert(created);
+        OwnerFixture fixture = std::move(*created);
+        advanceReady(fixture);
+
+        ++fixture.security->nativeEvidence.evidence.auditSessionId;
+        const auto observation = fixture.owner->serviceOnce();
+        assert(observation.state == MacNativeDesktopOwnerState::Revoked);
+        assert(fixture.security->authorization.authorizationGeneration() == 0U);
+        assert(fixture.captureState->closeCalls == 1U);
+    }
+}
+
 void testDisplayAndSessionRetirement() {
     {
         auto created = makeOwner();
@@ -591,6 +705,8 @@ int main(int argc, char** argv) {
         testFrameInputAndAuthorizationRetirement();
     } else if (selected == "input-permission-retirement") {
         testInputPermissionRetirement();
+    } else if (selected == "standalone-authenticated-session-lifecycle") {
+        testStandaloneAuthenticatedSessionLifecycle();
     } else if (selected == "display-session-retirement") {
         testDisplayAndSessionRetirement();
     } else {

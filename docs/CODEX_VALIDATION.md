@@ -1,3 +1,31 @@
+## R5 standalone-authenticated macOS owner coverage — 2026-10-22
+
+Starting exact-main parent: `8295828812fce0ebaf6921937a853ef3f367181a`.
+
+Dependency recheck: **R2 AND R10 RESOLVED** for the R5 authorization/attach
+seams, including the platform native-session evidence link closure. Standalone
+native authorization now uses the exact portable authenticated-session proof
+without OS-account mapping, and R10's `attachAuthenticatedSession()` reuses
+the sole R5 aggregate.
+
+This increment adds the Apple-only behavior regression
+`macos.native-desktop-owner-standalone-authenticated-session-lifecycle`.
+Its standalone proof intentionally provides no macOS UID matcher; successful
+construction demonstrates that no raw UID authentication path is required.
+The test also covers View-only/Input-enabled scope and retirement on proof
+generation, local-owner grant, and native-session changes with no synthetic
+input release.
+
+Connector/source inspection: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Live
+ScreenCaptureKit/Quartz/TCC and real accepted-client attachment remain
+**NOT RUN**.
+
+The next positive-production dependency is outside R5: a trusted Windows/macOS
+current-local-owner evidence provider for `CurrentOwnerSharingAuthority`.
+Without it, the required local owner grant cannot be issued in production and
+R10's new attachment path remains fail-closed.
+
 ## R10 platform evidence static-link correction — 2026-10-22
 
 Starting exact-main parent: `153acb54da2497863f891305a526f1253da3f2d0`.

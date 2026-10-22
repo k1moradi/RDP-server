@@ -448,7 +448,7 @@ bool WindowsNativeDesktopAuthorization::visit(
     }
 
     const WindowsNativeDesktopAuthorizationView authorization{
-        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_
+        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_,
         activeAuthorizationGeneration_, ownerAuthorizationEpoch_};
     if (!visitor(authorization, context) || !revalidatesCurrentGrant())
     {
@@ -630,7 +630,7 @@ bool MacNativeDesktopAuthorization::visit(
     }
 
     const MacNativeDesktopAuthorizationView authorization{
-        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_
+        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_,
         activeAuthorizationGeneration_, ownerAuthorizationEpoch_};
     if (!visitor(authorization, context) || !revalidatesCurrentGrant())
     {

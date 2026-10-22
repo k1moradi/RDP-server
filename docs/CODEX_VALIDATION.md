@@ -1,3 +1,14 @@
+## R2 P0 initializer punctuation correction — 2026-10-22
+
+Starting exact-main parent: `752d4e26c71f9e4dc6b2103bfaca55794de49995`.
+
+Post-publication unified-diff review found the two new authorization-view
+constructor calls missing a comma after `authenticationGeneration_`.
+Correction is limited to those two call sites; source-policy behavior and tests
+are unchanged. The prior structure-only workflow passed but is not compile
+evidence. Local build/full CTest: **NOT RUN**; replacement exact-SHA hosted CI:
+**PENDING**.
+
 ## R2 P0 portable native authorization redesign — 2026-10-22
 
 Starting exact-main parent: `1e5727ba6af13865d00d7f75a3bede7bb3bacf56`.

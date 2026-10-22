@@ -1,3 +1,19 @@
+## R2 P0 authorization-view initializer correction (2026-10-22)
+
+Starting exact-main parent: `752d4e26c71f9e4dc6b2103bfaca55794de49995`.
+
+Immediate post-publication diff inspection found a narrow C++ syntax defect in
+the new Windows/macOS authorization-view aggregate construction: the inserted
+`authenticationKind_` field left the following
+`authenticationGeneration_` argument without its separating comma in both
+platform call sites. This correction restores only those two commas. No
+authentication policy, proof generation, owner authority, native evidence,
+permission or downstream lifetime changes.
+
+The prior exact-SHA structure guard passed because it does not compile C++.
+Canonical local build/full CTest remains **NOT RUN** in this connector
+environment. Fresh exact-publication-SHA hosted CI is **PENDING**.
+
 ## R2 P0 portable authenticated-session native authorization (2026-10-22)
 
 Starting exact-main parent: `1e5727ba6af13865d00d7f75a3bede7bb3bacf56`.

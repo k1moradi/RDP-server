@@ -1,3 +1,19 @@
+## R5/R7 focused-workflow restoration — 2026-10-22
+
+Starting exact-main parent: `455ad29bf8998ea673cabc065a8f5e02d6e512c3`.
+
+Post-publication diff review found the source repair was intact but the attempted
+focused-selector extension malformed the shell/YAML regex and duplicated job
+text. No replacement workflow jobs were created. This correction restores the
+exact parse-valid workflow bytes from `8e25aad15215cf2d2b8fbdbfc5cb3cb5b4708202`; the new
+`gui.round2-refresh-tray-function-boundary` remains an ordinary full-CTest
+source regression, while the existing focused R5/Round 2 job still compiles the
+same GUI production source before running its six behavior/policy cases.
+
+Source repair: **PRESERVED**. Bad workflow SHA: **FAIL before jobs**.
+Immutable workflow restoration review: **PASS**. Canonical owner-local
+build/full CTest: **NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**.
+
 ## R5/R7 shared GUI compile correction — 2026-10-22
 
 Starting exact-main parent: `8e25aad15215cf2d2b8fbdbfc5cb3cb5b4708202`.
@@ -12,8 +28,9 @@ confirmed R7's final presentation rewrite accidentally deleted the
 
 The correction restores the prior tray-only helper and distinct refresh owner,
 then reapplies only the intended R7 presentation deltas. New
-`gui.round2-refresh-tray-function-boundary` source regression is registered
-and added to the focused Round 2 selector, which now requires seven tests.
+`gui.round2-refresh-tray-function-boundary` source regression is registered in
+ordinary full CTest. The existing six-test focused Round 2 selector is restored
+unchanged; its GUI build step already exercises the compile boundary.
 
 Parent compile failure: **REPRODUCED**. Connector/source correction review:
 **PASS**. Canonical owner-local build/full CTest: **NOT RUN**.

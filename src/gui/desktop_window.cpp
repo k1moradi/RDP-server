@@ -333,6 +333,16 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     activity_->setObjectName("clientStatus");
     authenticationModeStatus_->setObjectName("authenticationModeStatus");
 
+    QFont addressFont = addressStatus_->font();
+    addressFont.setBold(true);
+    const auto addressPointSize = addressFont.pointSizeF();
+    if (addressPointSize > 0.0)
+        addressFont.setPointSizeF(addressPointSize + 2.0);
+    addressStatus_->setFont(addressFont);
+    addressStatus_->setTextInteractionFlags(
+        Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    addressStatus_->setAccessibleName(QStringLiteral("Remote Desktop address"));
+
     sharingToggle_->setObjectName("sharingToggle");
     sharingToggle_->setAccessibleName(QStringLiteral("Start or stop sharing"));
     configureOsAccount_->setObjectName("configureOsAccount");
@@ -834,6 +844,14 @@ void DesktopWindow::refresh()
     const QString platformMessage = platformUnavailableText(snapshot);
     platformStatus_->setText(platformMessage);
     platformStatus_->setVisible(!platformMessage.isEmpty());
+
+    // Keep unsupported builds quiet on the default dashboard: the platform
+    // banner is the single user-facing explanation, while Advanced retains
+    // diagnostics for troubleshooting.
+    const bool showHostingDetails = snapshot.controlAvailable;
+    credentialStatus_->setVisible(showHostingDetails);
+    permissionStatus_->setVisible(showHostingDetails);
+    status_->setVisible(showHostingDetails);
 
     const QString address = displayedAddress(snapshot);
     addressStatus_->setText(

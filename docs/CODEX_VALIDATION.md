@@ -1,3 +1,30 @@
+## R7 post-green dashboard presentation polish review (2026-10-22)
+
+Starting shared-main parent: `19bae944fc58fdfeb122e993db195cfb7778e652`.
+
+Gate evidence: exact SHA
+`daed9252d14daadcf413012d27148ea38254b585`, Actions run
+`39728991286`, has **PASS** for Windows CLANG64, macOS portable GUI, and
+Linux GUI ZIP, so R7's requested post-green product-polish phase is unblocked.
+
+Reviewed change scope: no wizard/toggle/runtime ownership changes; the existing
+R10-recommended endpoint remains authoritative. The address presentation is
+promoted through font emphasis plus mouse/keyboard text selection and an
+accessible name. Unsupported runtime control retains exactly one concise
+default-page platform explanation; redundant credential/permission/readiness
+status labels are hidden only while control is unavailable and are restored
+when control is available. Advanced diagnostics remain collapsed by default.
+
+New production-backed offscreen regression:
+`gui.offscreen-recommended-address-prominence-and-unavailable-summary`.
+Source review: **PASS** for no new password/clipboard surface, no concrete
+`findChild<ToggleSwitchWidget*>()`, unchanged Copy/tray behavior and no live
+side effects. Canonical owner-local build/full CTest: **NOT RUN** in this
+connector environment. Publication-SHA hosted CI: **PENDING**.
+
+Standalone Session Password remains **BLOCKED / NOT ENABLED** pending the real
+Microsoft-client proof; the product capability constant remains false.
+
 ## R6 authorized Windows aggregate after R10 seam (2026-10-21)
 
 Starting exact-main parent: `d1858ca06dbf8a794d38deb756d1919c353ca2a1`.

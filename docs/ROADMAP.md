@@ -1,3 +1,42 @@
+## R7 post-qualification dashboard address/unavailable-state polish (2026-10-22)
+
+Starting shared-main parent: `19bae944fc58fdfeb122e993db195cfb7778e652`.
+
+R7's prior exact-SHA qualification gate is now cleared on
+`daed9252d14daadcf413012d27148ea38254b585`, primary Actions run
+`39728991286`: `r6-windows-clang23` **PASS**,
+`r7-macos-portable-gui` **PASS**, and `r5-linux-gui-zip` **PASS**.
+The R9 Windows PowerShell parser is also **PASS** there, and the prior
+`qwindows.dll -> mscms.dll` PE-closure blocker is classified by that exact
+R9 candidate. The separately queued CLEAN-machine job is an R9 release-evidence
+gate, not R7's three-platform GUI qualification gate.
+
+Post-green source review found two presentation gaps without any runtime
+ownership gap. The R10-recommended LAN endpoint was correct but visually
+indistinguishable from ordinary status prose, and an unsupported build repeated
+the same hosting denial through the platform banner plus Access/permission/
+Sharing status lines on the default page.
+
+This increment keeps the one-page dashboard and imported Q_OBJECT-free toggle
+unchanged, makes the recommended connection address bold, slightly larger,
+mouse/keyboard selectable and explicitly named for accessibility, and keeps the
+existing Copy action. When runtime control is unavailable, the platform banner
+is now the single default-page explanation; redundant credential, permission
+and sharing-readiness prose is hidden while Advanced remains available for
+diagnostics. Supported builds restore those status lines normally.
+
+Dedicated ordinary offscreen CTest:
+`gui.offscreen-recommended-address-prominence-and-unavailable-summary`.
+No host authority, listener, authentication, native desktop, input, clipboard
+or wire behavior changes.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Publication-SHA hosted CI: **PENDING** after direct-main
+publication. Session Password remains capability-gated and absent:
+`kStandalonePasswordProductCapabilityApproved` is still literal **false**,
+and no unmodified Windows App/Windows 11 `mstsc.exe` standalone-password
+acceptance receipt exists.
+
 ## R6 authorized Windows aggregate after R10 composition (2026-10-21)
 
 Starting exact-main parent: `d1858ca06dbf8a794d38deb756d1919c353ca2a1`.

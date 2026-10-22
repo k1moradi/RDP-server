@@ -3538,6 +3538,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-dashboard-single-page-defaults
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;dashboard" TIMEOUT 30)
+    # R7 post-qualification polish: the R10-recommended address is the primary
+    # selectable connection value, and unsupported builds show one concise
+    # default-page explanation instead of repeating the same denial.
+    add_test(NAME gui.offscreen-recommended-address-prominence-and-unavailable-summary
+        COMMAND test_desktop_gui_offline dashboard-polish)
+    set_tests_properties(
+        gui.offscreen-recommended-address-prominence-and-unavailable-summary
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;dashboard;accessibility" TIMEOUT 30)
     # Start/Stop intent never outranks the runtime's authoritative lifecycle.
     add_test(NAME gui.offscreen-authoritative-sharing-toggle
         COMMAND test_desktop_gui_offline toggle-authority)

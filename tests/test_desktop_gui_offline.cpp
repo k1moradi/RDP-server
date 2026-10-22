@@ -14,6 +14,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QFont>
 #include <QLabel>
 #include <QPushButton>
 #include <QSpinBox>
@@ -305,6 +306,50 @@ void checkDashboardDefaults(FakeRuntimeHost& runtime, HostControl& host)
     assertNoRoadLabelsInUserText(window);
 }
 
+void checkDashboardPresentationPolish()
+{
+    FakeRuntimeHost runtime;
+    runtime.snapshot.lastError = RuntimeHostError::None;
+    runtime.interfaces = {
+        RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet",
+            {"192.168.1.42"}, false, true}};
+    HostControl host(runtime);
+    DesktopWindow window(host);
+
+    auto* address = requiredLabel(window, "connectionAddress");
+    assert(address->text() == QStringLiteral("192.168.1.42:3389"));
+    const QFont addressFont = address->font();
+    assert(addressFont.bold());
+    const auto basePointSize = window.font().pointSizeF();
+    if (basePointSize > 0.0)
+        assert(addressFont.pointSizeF() > basePointSize);
+    const auto interaction = address->textInteractionFlags();
+    assert(interaction.testFlag(Qt::TextSelectableByMouse));
+    assert(interaction.testFlag(Qt::TextSelectableByKeyboard));
+    assert(address->accessibleName() ==
+           QStringLiteral("Remote Desktop address"));
+
+    UnavailableRuntimeHostControl unavailableRuntime;
+    HostControl unavailableHost(unavailableRuntime);
+    DesktopWindow unavailableWindow(unavailableHost);
+    auto* platform = requiredLabel(
+        unavailableWindow, "platformSupportStatus");
+    auto* credential = requiredLabel(
+        unavailableWindow, "credentialStatus");
+    auto* permission = requiredLabel(
+        unavailableWindow, "permissionStatus");
+    auto* readiness = requiredLabel(
+        unavailableWindow, "sharingReadinessStatus");
+
+    assert(!platform->isHidden());
+    assert(platform->text().startsWith(
+        QStringLiteral("Remote hosting is not available")));
+    assert(credential->isHidden());
+    assert(permission->isHidden());
+    assert(readiness->isHidden());
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -353,6 +398,12 @@ int main(int argc, char** argv)
     if (mode == "dashboard")
     {
         checkDashboardDefaults(runtime, host);
+        return 0;
+    }
+
+    if (mode == "dashboard-polish")
+    {
+        checkDashboardPresentationPolish();
         return 0;
     }
 

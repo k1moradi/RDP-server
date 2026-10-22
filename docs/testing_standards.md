@@ -1,3 +1,16 @@
+## R6 Windows sanitizer selector cardinality tracks required cases (2026-10-22)
+
+The mandatory CLANG64 sanitizer preflight selects
+`^windows\.(geometry|capture|cursor|input)-`. When R6 intentionally adds a
+new case inside that namespace, update both the explicit required-name list and
+the exact cardinality assertion in the same change. Do not preserve a stale
+count by excluding the new test or weakening the selector.
+
+Current required cardinality is 60 and includes
+`windows.geometry-single-monitor-native-target-selection`. The preflight
+count is a coverage invariant; failure of the count must occur before sanitizer
+execution rather than silently running an incomplete subset.
+
 ## Windows RPC macro compatibility for shared HostControl
 
 Keep `runtime.host-control-windows-rpc-interface-macro-compatibility` in the

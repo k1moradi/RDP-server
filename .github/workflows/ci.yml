@@ -462,6 +462,7 @@ jobs:
           selected_tests="$(ctest --test-dir build --build-config Debug -N             -R '^windows\.(geometry|capture|cursor|input)-')"
           printf '%s\n' "$selected_tests"
           for required_test in \
+            windows.geometry-single-monitor-native-target-selection \
             windows.capture-session-change-duplication-owner-retirement \
             windows.capture-session-change-duplication-release-order \
             windows.capture-session-change-duplication-callback-retirement \
@@ -473,7 +474,7 @@ jobs:
             grep -Fq "$required_test" <<< "$selected_tests"
           done
           test "$(awk '/Test #[0-9]+: windows[.](geometry|capture|cursor|input)-/ { ++count } END { print count + 0 }' \
-            <<< "$selected_tests")" -eq 59
+            <<< "$selected_tests")" -eq 60
           ctest --test-dir build --build-config Debug --timeout 20             -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Build Debug CLANG64 test graph
         id: r9_clang_debug_build

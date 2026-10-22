@@ -1,3 +1,24 @@
+## R9 qualification continuation after R6 Windows test-set growth (2026-10-22)
+
+The Win32/RPC macro blocker is resolved on shared main: ordinary Windows/MSVC
+now passes on exact SHA `befc9577ea7403c159f2dce720649ca0c3e985c6`. R9 continued qualification and
+found one remaining R9-owned gate defect in the mandatory CLANG64 job rather
+than a product/runtime failure.
+
+R6's gated native-target work added
+`windows.geometry-single-monitor-native-target-selection`, increasing the
+sanitizer selector
+`^windows\.(geometry|capture|cursor|input)-` from 59 to 60 cases. The
+workflow still asserted 59, so it aborted before sanitizer execution even
+though the CLANG64 build, 750 ordinary CTests, package structure, extracted GUI
+smoke and recursive PE closure had already passed.
+
+R9 now explicitly requires the new test and pins the selector to 60. No
+coverage is removed or narrowed. The replacement exact SHA requires fresh
+ordinary-hosted qualification. FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; CLEAN remains independently
+**NOT RUN** pending real clean-Windows evidence.
+
 ## R1/R10 Windows HostControl RPC-macro portability correction (2026-10-22)
 
 Starting exact-main parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`.

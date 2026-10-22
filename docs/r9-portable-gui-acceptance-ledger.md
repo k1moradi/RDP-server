@@ -1,3 +1,27 @@
+## R9 Windows sanitizer selector cardinality correction after R6 target-selection test (2026-10-22)
+
+Exact product-main candidate `befc9577ea7403c159f2dce720649ca0c3e985c6`, primary Actions run
+`39748272928`, is **REJECTED** for qualification because mandatory
+`r6-windows-clang23` job `119722473795` fails in the sanitizer preflight.
+The ordinary Windows/MSVC lane passes, the CLANG64 full Debug/Release build and
+all 750 ordinary CTests pass, the extracted portable GUI smoke passes, and PE
+closure passes. The failing preflight enumerates **60** tests under
+`^windows\.(geometry|capture|cursor|input)-` but still asserts the historical
+cardinality **59**, so sanitizer execution never begins.
+
+R6 intentionally added
+`windows.geometry-single-monitor-native-target-selection` with its gated
+native-target construction. R9 therefore updates the qualification invariant to
+require that exact new test by name and to require cardinality 60. No test is
+removed, no selector is narrowed, and no Windows/MSVC, CLANG64, sanitizer,
+packaging, PE-closure, CLEAN or runtime coverage is weakened.
+
+This publication creates a replacement exact product-main candidate requiring a
+fresh complete ordinary-hosted PASS. Linux FIRST remains independently frozen
+at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. CLEAN remains **NOT RUN**
+pending a real clean-Windows receipt; verifier-accepted owner-native evidence is
+**MANUAL CLEAN PASS**, never automated CI PASS.
+
 ## R9 Windows PE closure correction for documented MSCMS system import (2026-10-21)
 
 Exact candidate `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`, primary Actions run

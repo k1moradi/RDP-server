@@ -1,3 +1,21 @@
+## R9 R6 sanitizer preflight count correction — 2026-10-22
+
+Candidate `befc9577ea7403c159f2dce720649ca0c3e985c6`, Actions `39748272928`: **REJECTED** only at
+mandatory `r6-windows-clang23` job `119722473795`. Full CLANG64
+Debug/Release build, all 750 ordinary CTests, portable-GUI smoke and recursive
+PE closure pass. The later sanitizer preflight lists 60
+`windows.(geometry|capture|cursor|input)-` tests but still requires exactly
+59, so the shell exits before running the sanitizer CTests.
+
+The new 60th case is R6's intentional
+`windows.geometry-single-monitor-native-target-selection`. R9 updates the
+preflight to require that exact test explicitly and changes the cardinality
+assertion to 60. Coverage is strengthened, not waived. Replacement exact-SHA
+hosted qualification is **PENDING** and must pass every ordinary hosted lane,
+including Windows CLANG64. FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; real CLEAN remains
+**NOT RUN**.
+
 ## R1 HostControl Windows RPC macro compile correction — 2026-10-22
 
 Publication parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`. Exact-head Windows Actions run

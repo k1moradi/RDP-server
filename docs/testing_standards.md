@@ -1,3 +1,13 @@
+## QTabWidget runtime structure assertions (2026-10-22)
+
+Do not assert that a Qt widget tree containing an approved `QTabWidget` has no
+`QStackedWidget`: Qt uses an internal stack to implement tab pages. Keep the
+source-policy test responsible for rejecting application-created wizard or
+stacked-page navigation. Runtime structure tests should instead require the one
+approved tab container and ensure any discovered stack remains contained by
+that tab widget, so Qt implementation detail is not mistaken for product
+navigation architecture.
+
 ## R1 concrete route-aware recommendation authority test (2026-10-22)
 
 Now that R10 exposes `RuntimeHostLanEndpointCandidate`,

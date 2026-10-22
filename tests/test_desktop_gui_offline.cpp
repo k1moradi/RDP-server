@@ -300,7 +300,6 @@ void checkRound2TabsAndMainSimplicity(
             {"192.168.1.42"}, false, true}};
 
     DesktopWindow window(host);
-    assert(window.findChild<QStackedWidget*>() == nullptr);
     assert(window.findChild<QObject*>("backPage") == nullptr);
     assert(window.findChild<QObject*>("nextPage") == nullptr);
     assert(window.findChild<QObject*>("password") == nullptr);
@@ -322,6 +321,13 @@ void checkRound2TabsAndMainSimplicity(
     assert(tabs->tabText(0) == QStringLiteral("Main"));
     assert(tabs->tabText(1) == QStringLiteral("Advanced"));
     assert(tabs->currentIndex() == 0);
+
+    // QTabWidget implements its pages with an internal QStackedWidget.
+    // The source contract rejects application-created wizard/stacked-page
+    // navigation; at runtime any stack must therefore remain inside the one
+    // approved tab container rather than act as a competing top-level flow.
+    for (QStackedWidget* stack : window.findChildren<QStackedWidget*>())
+        assert(tabs->isAncestorOf(stack));
 
     auto* mainTab = window.findChild<QWidget*>("mainTab");
     auto* advancedTab = window.findChild<QWidget*>("advancedTab");

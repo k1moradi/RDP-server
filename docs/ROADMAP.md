@@ -1,3 +1,33 @@
+## R6/R9 Round 2 Qt tab internal-stack CI correction (2026-10-22)
+
+Starting exact-main parent: `146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1`.
+
+Replacement workflow run `39818077328` cleared the stale helper-call compile
+boundary, then the Linux GUI Round 2 gate reached behavior execution and failed
+only `gui.offscreen-round2-tabs-and-main-simplicity`. The fixture asserted
+that the widget tree contained no `QStackedWidget`, but Qt implements
+`QTabWidget` with an internal `QStackedWidget`. The dedicated source
+contract already rejects application-owned retired wizard/stacked-page
+navigation, so the runtime assertion was testing a Qt implementation detail
+rather than product architecture.
+
+The correction is test-only: the blanket absence assertion is replaced with a
+containment assertion requiring every runtime `QStackedWidget` to remain
+inside the one approved `settingsTabs` container. This preserves the
+single-tabbed-flow intent without rejecting Qt's private implementation.
+
+The same current-head run already passed
+`runtime.host-control-gui-round2-endpoint-recommendation` and
+`gui.offscreen-round2-endpoint-refresh-fail-closed`, so no R6 portable LAN
+ranking or R10 route collector change is justified. R1's concrete
+recommendation/bind authority fence at parent `146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1` is preserved.
+Windows native-host activation gates are unchanged, and CLEAN Windows remains a
+separate R9 track.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
 ## R1 concrete R10 route-aware API authority review (2026-10-22)
 
 Starting exact-main parent: `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9`.

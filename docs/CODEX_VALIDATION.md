@@ -1,3 +1,24 @@
+## R6/R9 QTabWidget internal-stack test correction — 2026-10-22
+
+Starting exact-main parent: `146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1`.
+
+Hosted run `39818077328` compiled the corrected Round 2 fixture and reached
+the focused Linux GUI tests. The route-aware portable recommendation and
+fail-closed endpoint refresh tests passed; the remaining focused failure was
+`gui.offscreen-round2-tabs-and-main-simplicity` at
+`window.findChild<QStackedWidget*>() == nullptr`.
+
+That assertion is invalid for the intended product UI because Qt's
+`QTabWidget` owns an internal `QStackedWidget`. The test now permits only
+stacks contained by the single approved tab widget. The existing
+`gui.round2-tab-source-contract` continues to reject application-created
+wizard/stacked-page source, so coverage is not weakened.
+
+Connector/source inspection: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**. No production GUI,
+portable recommendation, R1 bind, R2 authority, Windows native-host or CLEAN
+behavior changed.
+
 ## R1 concrete route-aware recommendation authority receipt — 2026-10-22
 
 Starting exact-main parent: `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9`.

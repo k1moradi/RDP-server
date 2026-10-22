@@ -66,7 +66,7 @@ enum class RuntimeHostError : std::uint8_t
     case RuntimeHostError::UnsupportedIndependentPasswordNla:
         return "Independent application password is unsupported by RDP NLA";
     case RuntimeHostError::CredentialProviderUnavailable: return "OS credential provider unavailable";
-    case RuntimeHostError::HostConsentRequired: return "Host-owner permission required";
+    case RuntimeHostError::HostConsentRequired: return "Sharing permission required";
     case RuntimeHostError::InterfaceUnavailable: return "Selected local interface unavailable";
     case RuntimeHostError::ListenerPolicyDenied: return "Listener denied by network policy";
     case RuntimeHostError::PortUnavailable: return "Requested port unavailable";
@@ -372,6 +372,30 @@ struct RuntimeOwnerGrantObservation final
     std::uint64_t remainingMilliseconds{};
 };
 
+// Product-only permission projection. It carries no R2 enum, native identity,
+// permission bitmask or clipboard capability into R7.
+enum class RuntimeSharingPermissionDenial : std::uint8_t
+{
+    None,
+    PermissionRequired,
+    PermissionExpired,
+    ComputerLocked,
+    LoggedInDesktopChanged,
+    PermissionRevoked,
+    Unavailable,
+};
+
+struct RuntimeSharingPermissionStatus final
+{
+    bool canRequest{};
+    bool activeGrant{};
+    bool viewAllowed{};
+    bool inputAllowed{};
+    std::uint64_t remainingMilliseconds{};
+    RuntimeSharingPermissionDenial denial{
+        RuntimeSharingPermissionDenial::Unavailable};
+};
+
 enum class RuntimeProductHostState : std::uint8_t
 {
     Stopped,
@@ -499,7 +523,7 @@ struct RuntimeProductHostStatus final
     RuntimeCredentialCapabilities credentialCapabilities{};
     bool credentialsConfigured{};
     bool ownerAuthorized{};
-    RuntimeOwnerGrantObservation ownerPermission{};
+    RuntimeSharingPermissionStatus sharingPermission{};
     bool tlsIdentityReady{};
     RuntimeTlsCertificateFingerprint tlsFingerprint{};
     bool tlsFingerprintAvailable{};

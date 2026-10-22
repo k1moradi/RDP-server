@@ -41,3 +41,24 @@ if(product_lifecycle_position EQUAL -1)
     message(FATAL_ERROR
         "Dashboard host lifetime is not projected from authoritative product state")
 endif()
+
+# Sharing-permission presentation consumes only R10 product facts.
+foreach(forbidden_permission_token IN ITEMS
+        RuntimeOwnerGrantState
+        kConsoleViewPermission
+        kConsoleInputPermission
+        kConsoleClipboardPermission)
+    string(FIND "${desktop_window_source}"
+        "${forbidden_permission_token}" permission_token_position)
+    if(NOT permission_token_position EQUAL -1)
+        message(FATAL_ERROR
+            "Dashboard interprets raw sharing-permission token: ${forbidden_permission_token}")
+    endif()
+endforeach()
+
+string(FIND "${desktop_window_source}"
+    "RuntimeSharingPermissionDenial" product_permission_position)
+if(product_permission_position EQUAL -1)
+    message(FATAL_ERROR
+        "Dashboard does not consume R10 sharing-permission product facts")
+endif()

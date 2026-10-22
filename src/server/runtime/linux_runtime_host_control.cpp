@@ -96,6 +96,60 @@ inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
 }
 #endif
 
+[[nodiscard]] RuntimeSharingPermissionStatus sharingPermissionStatus(
+    const rdp_server::server::security::OwnerSharingPermissionObservation&
+        observation) noexcept
+{
+    using rdp_server::server::security::OwnerSharingReadOnlyDenial;
+    using namespace rdp_server::server::security;
+
+    RuntimeSharingPermissionStatus result{};
+    result.canRequest = observation.canRequest;
+
+    const bool validScope =
+        observation.activeGrant &&
+        (observation.effectivePermissionMask & kConsoleViewPermission) != 0U &&
+        (observation.effectivePermissionMask & ~kConsoleAllowedPermissions) == 0U;
+    if (validScope)
+    {
+        result.activeGrant = true;
+        result.viewAllowed = true;
+        result.inputAllowed =
+            (observation.effectivePermissionMask &
+             kConsoleInputPermission) != 0U;
+        result.remainingMilliseconds = observation.remainingMilliseconds;
+        result.denial = RuntimeSharingPermissionDenial::None;
+        return result;
+    }
+
+    switch (observation.denial)
+    {
+    case OwnerSharingReadOnlyDenial::None:
+        result.denial = RuntimeSharingPermissionDenial::Unavailable;
+        break;
+    case OwnerSharingReadOnlyDenial::PermissionRequired:
+        result.denial = RuntimeSharingPermissionDenial::PermissionRequired;
+        break;
+    case OwnerSharingReadOnlyDenial::PermissionExpired:
+        result.denial = RuntimeSharingPermissionDenial::PermissionExpired;
+        break;
+    case OwnerSharingReadOnlyDenial::ComputerLocked:
+        result.denial = RuntimeSharingPermissionDenial::ComputerLocked;
+        break;
+    case OwnerSharingReadOnlyDenial::LoggedInDesktopChanged:
+        result.denial =
+            RuntimeSharingPermissionDenial::LoggedInDesktopChanged;
+        break;
+    case OwnerSharingReadOnlyDenial::PermissionRevoked:
+        result.denial = RuntimeSharingPermissionDenial::PermissionRevoked;
+        break;
+    case OwnerSharingReadOnlyDenial::EvidenceUnavailable:
+        result.denial = RuntimeSharingPermissionDenial::Unavailable;
+        break;
+    }
+    return result;
+}
+
 // Mirror R1's private-LAN selection filter; R1 remains the bind authority.
 [[nodiscard]] bool isEligibleAddress(const sockaddr* address) noexcept
 {
@@ -583,6 +637,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.hostOwnerAuthorized =
         ownerSharingAuthority_.authorizes(
             rdp_server::server::security::kConsoleViewPermission);
+    const auto ownerPermission =
+        ownerSharingAuthority_.permissionObservation();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured =
         credentialsConfigured_ && serviceCredentialsReady();
@@ -669,7 +725,10 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         kStandalonePasswordProductCapabilityApproved;
     snapshot.product.credentialsConfigured = snapshot.credentialsConfigured;
     snapshot.product.ownerAuthorized = snapshot.hostOwnerAuthorized;
-    snapshot.product.ownerPermission = snapshot.ownerGrant;
+    snapshot.product.sharingPermission =
+        sharingPermissionStatus(ownerPermission);
+    if (snapshot.stage == RuntimeHostStage::Revoked)
+        snapshot.product.sharingPermission.canRequest = false;
     snapshot.product.tlsIdentityReady = snapshot.tlsIdentityReady;
     if (snapshot.tlsIdentity.fingerprintAvailable)
     {

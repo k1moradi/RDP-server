@@ -1,3 +1,19 @@
+## Product permission status must be projected above R2 (2026-10-22)
+
+Do not make Qt decode owner-consent enums, native-session evidence or
+`kConsole*Permission` bitmasks. R2 owns fresh evidence validation and may
+expose a read-only non-authorizing observation; R10 translates it once into
+redacted product facts: requestability, active View/Input scope, remaining
+lifetime and a bounded denial category. GUI text and button state consume only
+that R10 product projection.
+
+A status observation never substitutes for
+`CurrentOwnerSharingAuthority::authorizes()`, never refreshes/revokes a grant,
+and never turns a cached GUI Boolean into authority. Keep lock, desktop
+replacement, expiry and explicit revocation fail-closed. Dormant clipboard
+capability must not be added to the product permission projection before its
+separate activation gate.
+
 ## Linux prerequisite projection stays read-only and product-facing (2026-10-22)
 
 R5's Linux GUI prerequisite probe may expose only compact product-facing

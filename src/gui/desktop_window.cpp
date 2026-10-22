@@ -61,71 +61,42 @@ QLabel* heading(const QString& message, QWidget* parent)
 
 QString ownerPermissionStatusText(const HostStatus& status)
 {
-    using rdp_server::server::runtime::RuntimeOwnerGrantState;
-    using namespace rdp_server::server::security;
+    using Denial =
+        rdp_server::server::runtime::RuntimeSharingPermissionDenial;
 
-    switch (status.ownerGrant.state)
+    const auto& permission = status.sharingPermission;
+    if (permission.activeGrant && permission.viewAllowed)
     {
-    case RuntimeOwnerGrantState::Active:
-    {
-        if (!status.desktopAuthorized)
-            break;
-
-        const std::uint32_t permissions =
-            status.ownerGrant.effectivePermissionMask;
-        if ((permissions & kConsoleViewPermission) == 0U ||
-            (permissions & ~kConsoleAllowedPermissions) != 0U)
-        {
-            return QStringLiteral(
-                "Local sharing permission is current, but its effective "
-                "scope is unavailable.");
-        }
-
-        QString scope = QStringLiteral("screen");
-        if ((permissions & kConsoleInputPermission) != 0U)
-            scope += QStringLiteral(", keyboard/mouse");
-        // Clipboard is still a dormant runtime capability. Keep Main limited
-        // to the product-visible screen/input scope until FIRST authorizes a
-        // later clipboard activation milestone.
-        const std::uint64_t remainingMilliseconds =
-            status.ownerGrant.remainingMilliseconds;
-        QString remaining;
-        if (remainingMilliseconds < 1000U)
-        {
-            remaining = QStringLiteral("<1 sec");
-        }
-        else
-        {
-            const std::uint64_t totalSeconds = remainingMilliseconds / 1000U;
-            const std::uint64_t minutes = totalSeconds / 60U;
-            const std::uint64_t seconds = totalSeconds % 60U;
-            remaining = minutes == 0U
-                ? QStringLiteral("%1 sec").arg(
-                      static_cast<qulonglong>(seconds))
-                : QStringLiteral("%1 min %2 sec")
-                      .arg(static_cast<qulonglong>(minutes))
-                      .arg(static_cast<qulonglong>(seconds));
-        }
-
-        return QStringLiteral(
-                   "Local sharing permission is current. Scope: %1. "
-                   "Remaining: %2.")
-            .arg(scope, remaining);
-    }
-    case RuntimeOwnerGrantState::Expired:
-        return QStringLiteral(
-            "Local sharing permission expired. Allow sharing again before "
-            "starting.");
-    case RuntimeOwnerGrantState::Unavailable:
-        break;
+        const QString lifetime =
+            permission.remainingMilliseconds < 60'000U
+                ? QStringLiteral("less than 1 min")
+                : QStringLiteral("%1 min").arg(
+                      static_cast<qulonglong>(
+                          permission.remainingMilliseconds / 60'000U));
+        const QString scope = permission.inputAllowed
+            ? QStringLiteral("screen and keyboard/mouse")
+            : QStringLiteral("screen only");
+        return QStringLiteral("Sharing allowed for %1 — %2")
+            .arg(lifetime, scope);
     }
 
-    return status.desktopAuthorized
-        ? QStringLiteral(
-              "Local sharing permission is current; detailed lifetime "
-              "information is unavailable.")
-        : QStringLiteral(
-              "Local sharing permission is not established.");
+    switch (permission.denial)
+    {
+    case Denial::None:
+    case Denial::PermissionRequired:
+        return QStringLiteral("Sharing permission required");
+    case Denial::PermissionExpired:
+        return QStringLiteral("Permission expired");
+    case Denial::ComputerLocked:
+        return QStringLiteral("Computer is locked");
+    case Denial::LoggedInDesktopChanged:
+        return QStringLiteral("Logged-in desktop changed");
+    case Denial::PermissionRevoked:
+        return QStringLiteral("Sharing permission revoked");
+    case Denial::Unavailable:
+        return QStringLiteral("Sharing permission unavailable");
+    }
+    return QStringLiteral("Sharing permission unavailable");
 }
 
 QString tlsIdentityStatusText(const HostStatus& status)
@@ -582,7 +553,7 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
     if (!state.credentialsConfigured)
         return QStringLiteral("Existing OS Account access is not configured");
     if (!state.desktopAuthorized || state.desktop.isEmpty())
-        return QStringLiteral("Local sharing permission is not established");
+        return ownerPermissionStatusText(state);
     if (!state.tlsReady)
         return QStringLiteral("TLS identity is not ready");
 
@@ -876,11 +847,14 @@ void DesktopWindow::refresh()
     permissionStatus_->setText(ownerPermissionStatusText(snapshot));
     requestHostPermission_->setEnabled(
         snapshot.controlAvailable && snapshot.credentialsConfigured &&
+        snapshot.sharingPermission.canRequest &&
         !mayStillBeHosting(snapshot));
     allowRemoteInput_->setEnabled(
-        snapshot.controlAvailable && !mayStillBeHosting(snapshot));
+        snapshot.controlAvailable && snapshot.sharingPermission.canRequest &&
+        !mayStillBeHosting(snapshot));
     permissionLifetimeMinutes_->setEnabled(
         snapshot.controlAvailable && snapshot.credentialsConfigured &&
+        snapshot.sharingPermission.canRequest &&
         !mayStillBeHosting(snapshot));
 
     const QString denial = blockedReason(snapshot);

@@ -71,6 +71,13 @@ int main(int argc, char** argv)
         assert(!status.product.credentialCapabilities.standalonePassword);
         assert(!status.product.credentialsConfigured);
         assert(!status.product.ownerAuthorized);
+        assert(!status.product.sharingPermission.canRequest);
+        assert(!status.product.sharingPermission.activeGrant);
+        assert(!status.product.sharingPermission.viewAllowed);
+        assert(!status.product.sharingPermission.inputAllowed);
+        assert(status.product.sharingPermission.remainingMilliseconds == 0U);
+        assert(status.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
         assert(status.product.clientCount == 0U);
         assert(status.product.activeClientIds.empty());
         assert(status.product.boundEndpoint.empty());
@@ -88,6 +95,28 @@ int main(int argc, char** argv)
                    expected.address);
             assert(status.product.recommendedEndpoint.port == expected.port);
         }
+        return 0;
+    }
+
+    if (testCase ==
+        "linux-host-control-sharing-permission-product-projection")
+    {
+        auto status = control.status();
+        assert(status.product.controlAvailable);
+        assert(!status.product.sharingPermission.canRequest);
+        assert(!status.product.sharingPermission.activeGrant);
+        assert(status.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
+
+        assert(control.requestHostPermissionSetup().error ==
+               RuntimeHostError::HostConsentRequired);
+        status = control.status();
+        assert(!status.product.sharingPermission.canRequest);
+        assert(!status.product.sharingPermission.activeGrant);
+        assert(status.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
+        assert(status.product.lastErrorMessage ==
+               "Sharing permission required");
         return 0;
     }
 

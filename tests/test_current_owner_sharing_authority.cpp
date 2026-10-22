@@ -127,6 +127,72 @@ int main(int argc, char **argv)
         assert(revoked.remainingMilliseconds == 0U);
         return 0;
     }
+    if (testCase == "owner-consent-read-only-product-facts")
+    {
+        FakeOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+
+        auto observation = authority.permissionObservation();
+        assert(observation.canRequest);
+        assert(!observation.activeGrant);
+        assert(observation.denial ==
+               OwnerSharingReadOnlyDenial::PermissionRequired);
+
+        constexpr std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleInputPermission |
+            kConsoleClipboardPermission;
+        grant(authority, 15U * 60U * 1000U, permissions);
+        evidence.now = 61'000U;
+        observation = authority.permissionObservation();
+        assert(observation.canRequest);
+        assert(observation.activeGrant);
+        assert(observation.effectivePermissionMask == permissions);
+        assert(observation.remainingMilliseconds ==
+               14U * 60U * 1000U);
+        assert(observation.denial == OwnerSharingReadOnlyDenial::None);
+
+        const std::uint64_t beforeReadOnlyDenials =
+            authority.revocationGeneration();
+        evidence.session.lockState = ConsoleDesktopLockState::Locked;
+        observation = authority.permissionObservation();
+        assert(!observation.canRequest);
+        assert(!observation.activeGrant);
+        assert(observation.denial ==
+               OwnerSharingReadOnlyDenial::ComputerLocked);
+        assert(authority.revocationGeneration() == beforeReadOnlyDenials);
+
+        evidence.session.lockState = ConsoleDesktopLockState::Unlocked;
+        evidence.session.sessionId = "session-2";
+        ++evidence.session.sessionGeneration;
+        observation = authority.permissionObservation();
+        assert(observation.canRequest);
+        assert(!observation.activeGrant);
+        assert(observation.denial ==
+               OwnerSharingReadOnlyDenial::LoggedInDesktopChanged);
+        assert(authority.revocationGeneration() == beforeReadOnlyDenials);
+
+        evidence.session.sessionId = "session-1";
+        --evidence.session.sessionGeneration;
+        evidence.now = 901'000U;
+        observation = authority.permissionObservation();
+        assert(observation.canRequest);
+        assert(!observation.activeGrant);
+        assert(observation.denial ==
+               OwnerSharingReadOnlyDenial::PermissionExpired);
+        assert(authority.revocationGeneration() == beforeReadOnlyDenials);
+
+        evidence.now = 61'000U;
+        grant(authority, 15U * 60U * 1000U, permissions);
+        authority.revoke(OwnerConsentRevocationReason::Stop);
+        observation = authority.permissionObservation();
+        assert(observation.canRequest);
+        assert(!observation.activeGrant);
+        assert(observation.denial ==
+               OwnerSharingReadOnlyDenial::PermissionRevoked);
+        assert(observation.effectivePermissionMask == 0U);
+        assert(observation.remainingMilliseconds == 0U);
+        return 0;
+    }
     if (testCase == "owner-consent-invalid-native-evidence-denials")
     {
         CurrentOwnerSharingAuthority unavailable;

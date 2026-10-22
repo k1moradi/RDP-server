@@ -252,6 +252,7 @@ if(TARGET rdp-server-linux-host-control)
     foreach(host_control_case IN ITEMS
             linux-host-control-no-consent-start-denials
             linux-host-control-product-status-projection
+            linux-host-control-sharing-permission-product-projection
             linux-host-control-revalidated-interface-denials
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
@@ -387,6 +388,7 @@ foreach(owner_consent_case IN ITEMS
         owner-consent-positive-seat0-unlocked-grant
         owner-consent-expiry-revokes
         owner-consent-read-only-grant-observation
+        owner-consent-read-only-product-facts
         owner-consent-invalid-native-evidence-denials
         owner-consent-stop-lock-logout-switch-replacement-revocations
         owner-consent-credential-expiry-native-loss-revocations)
@@ -3695,6 +3697,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r2-owner-grant-observation PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
+    add_test(NAME gui.offscreen-sharing-permission-product-language
+        COMMAND test_desktop_gui_offline permission-product-language)
+    set_tests_properties(gui.offscreen-sharing-permission-product-language
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;runtime;consent" TIMEOUT 30)
 
     add_test(NAME gui.offscreen-positive-owner-workflow-presentation
         COMMAND test_desktop_gui_offline positive-workflow)

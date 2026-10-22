@@ -2,7 +2,6 @@
 #include "desktop_window.h"
 #include "host_control.h"
 #include "server/runtime/runtime_host_control.h"
-#include "server/security/console_identity_policy.h"
 
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
@@ -85,7 +84,28 @@ public:
         result.product.credentialsConfigured =
             result.credentialsConfigured;
         result.product.ownerAuthorized = result.hostOwnerAuthorized;
-        result.product.ownerPermission = result.ownerGrant;
+        if (result.product.controlAvailable &&
+            !result.product.sharingPermission.activeGrant &&
+            result.product.sharingPermission.denial ==
+                RuntimeSharingPermissionDenial::Unavailable)
+        {
+            result.product.sharingPermission.canRequest = true;
+            result.product.sharingPermission.denial =
+                RuntimeSharingPermissionDenial::PermissionRequired;
+        }
+        if (result.stage == RuntimeHostStage::Revoked ||
+            result.lastError == RuntimeHostError::AccessRevoked)
+        {
+            result.product.sharingPermission = {
+                false, false, false, false, 0U,
+                RuntimeSharingPermissionDenial::PermissionRevoked};
+        }
+        else if (result.lastError == RuntimeHostError::HostSessionStale)
+        {
+            result.product.sharingPermission = {
+                false, false, false, false, 0U,
+                RuntimeSharingPermissionDenial::LoggedInDesktopChanged};
+        }
         result.product.tlsIdentityReady = result.tlsIdentityReady;
         if (result.tlsIdentity.fingerprintAvailable)
         {
@@ -241,6 +261,9 @@ void prepareReadyHost(FakeRuntimeHost& runtime)
     runtime.snapshot.hostOwnerAuthorized = true;
     runtime.snapshot.tlsIdentityReady = true;
     runtime.snapshot.product.credentialCapabilities.existingOsAccount = true;
+    runtime.snapshot.product.sharingPermission = {
+        true, true, true, true, 15U * 60U * 1000U,
+        RuntimeSharingPermissionDenial::None};
     runtime.interfaces = {
         RuntimeHostInterface{
             "ethernet-1", "Private Ethernet",
@@ -626,44 +649,89 @@ int main(int argc, char** argv)
 
     if (mode == "owner-grant-observation")
     {
-        using namespace rdp_server::server::security;
-
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.credentialsConfigured = true;
         runtime.snapshot.hostOwnerAuthorized = true;
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Active,
-            kConsoleViewPermission | kConsoleInputPermission,
-            6U * 60U * 1000U + 58U * 1000U};
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true,
+            6U * 60U * 1000U + 58U * 1000U,
+            RuntimeSharingPermissionDenial::None};
 
         DesktopWindow window(host);
         auto* permission =
             requiredLabel(window, "permissionStatus");
+        assert(permission->text().startsWith(
+            QStringLiteral("Sharing allowed for 6 min")));
         assert(permission->text().contains(
-            "Scope: screen, keyboard/mouse"));
-        assert(permission->text().contains("Remaining: 6 min 58 sec"));
-
-        // Even if an internal/runtime observation includes the dormant
-        // clipboard permission, Main must not surface clipboard presentation
-        // before the separate FIRST-gated activation milestone.
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Active,
-            kConsoleAllowedPermissions,
-            6U * 60U * 1000U + 58U * 1000U};
-        window.refresh();
-        assert(permission->text().contains(
-            "Scope: screen, keyboard/mouse"));
+            QStringLiteral("screen and keyboard/mouse")));
         assert(!permission->text().contains(
-            "clipboard", Qt::CaseInsensitive));
+            QStringLiteral("clipboard"), Qt::CaseInsensitive));
 
         runtime.snapshot.hostOwnerAuthorized = false;
-        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
-            RuntimeOwnerGrantState::Expired,
-            kConsoleAllowedPermissions,
-            15U * 60U * 1000U};
+        runtime.snapshot.product.sharingPermission = {
+            true, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::PermissionExpired};
         window.refresh();
-        assert(permission->text().contains("expired"));
-        assert(!permission->text().contains("Scope:"));
+        assert(permission->text() == QStringLiteral("Permission expired"));
+        return 0;
+    }
+
+    if (mode == "permission-product-language")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.deriveProductStatusFromLegacy = false;
+        runtime.snapshot.product.controlAvailable = true;
+        runtime.snapshot.product.state = RuntimeProductHostState::Stopped;
+        runtime.snapshot.product.credentialsConfigured = true;
+        runtime.snapshot.product.credentialCapabilities.existingOsAccount = true;
+
+        DesktopWindow window(host);
+        auto* permission = requiredLabel(window, "permissionStatus");
+        auto* request = requiredButton(window, "requestHostPermission");
+
+        runtime.snapshot.product.sharingPermission = {
+            true, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::PermissionRequired};
+        window.refresh();
+        assert(permission->text() ==
+               QStringLiteral("Sharing permission required"));
+        assert(request->isEnabled());
+
+        runtime.snapshot.product.sharingPermission = {
+            false, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::ComputerLocked};
+        window.refresh();
+        assert(permission->text() == QStringLiteral("Computer is locked"));
+        assert(!request->isEnabled());
+
+        runtime.snapshot.product.sharingPermission = {
+            true, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::LoggedInDesktopChanged};
+        window.refresh();
+        assert(permission->text() ==
+               QStringLiteral("Logged-in desktop changed"));
+        assert(request->isEnabled());
+
+        runtime.snapshot.product.sharingPermission = {
+            true, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::PermissionRevoked};
+        window.refresh();
+        assert(permission->text() ==
+               QStringLiteral("Sharing permission revoked"));
+        assert(request->isEnabled());
+
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.ownerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, false,
+            14U * 60U * 1000U + 59U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        window.refresh();
+        assert(permission->text().startsWith(
+            QStringLiteral("Sharing allowed for 14 min")));
+        assert(permission->text().contains(QStringLiteral("screen only")));
+        assertNoRoadLabelsInUserText(window);
         return 0;
     }
 
@@ -1000,7 +1068,8 @@ int main(int argc, char** argv)
         auto* permission =
             requiredLabel(window, "permissionStatus");
         assert(credentials->text().contains("Existing OS Account"));
-        assert(permission->text().contains("not established"));
+        assert(permission->text() ==
+               QStringLiteral("Sharing permission required"));
         assert(!window.canStart());
 
         prepareReadyHost(runtime);

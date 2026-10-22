@@ -42,9 +42,10 @@ struct HostStatus
     rdp_server::server::runtime::RuntimeCredentialCapabilities
         credentialCapabilities{};
     bool desktopAuthorized{};
-    // Exact R2/R10 read-only grant observation. This is presentation state,
-    // never an authorization capability or a copy of requested GUI intent.
-    rdp_server::server::runtime::RuntimeOwnerGrantObservation ownerGrant{};
+    // Redacted R10 product facts only. Qt does not interpret R2 grant enums,
+    // permission masks, native-session identities or revocation state.
+    rdp_server::server::runtime::RuntimeSharingPermissionStatus
+        sharingPermission{};
     bool tlsReady{};
     // Exact read-only R10 observation, with Unknown client trust.
     rdp_server::server::runtime::RuntimeTlsIdentityStatus tlsIdentity{};

@@ -63,10 +63,11 @@ While `kLinuxProductionClipboardActivationApproved` is false, the default/Main
 dashboard must expose no clipboard control and must not turn an internal
 clipboard permission bit into Main-page product status. Keep
 `gui.offscreen-dashboard-single-page-defaults` requiring no
-`allowClipboard` or clipboard-named dashboard descendant. Keep
-`gui.offscreen-r2-owner-grant-observation` injecting the full allowed
-permission mask and requiring the Main owner-permission summary to show only
-screen and keyboard/mouse scope.
+`allowClipboard` or clipboard-named dashboard descendant. Keep `security.owner-consent-read-only-product-facts` injecting the full
+allowed permission mask, including the dormant clipboard bit, below the product
+boundary. Keep `gui.offscreen-r2-owner-grant-observation` consuming only the
+R10 View/Input product projection and requiring Main to show screen and
+keyboard/mouse scope with no clipboard field.
 
 If pre-activation clipboard diagnostics are added later, they belong under
 collapsed Advanced, are read-only, and must not mutate permission or activation
@@ -671,14 +672,15 @@ an exact R1-owned connection transcript. Failure must retire the connection-
 scoped CredSSP state. This is a negative production-provenance test and cannot
 claim Microsoft-client interoperability or native admission.
 
-## R7 authoritative R2 grant / R10X status projection regression (2026-10-20)
+## R7 authoritative owner-permission product projection regression (2026-10-20)
 
 `gui.offscreen-r2-owner-grant-observation` must prove that Qt renders effective
-owner-grant scope and remaining lifetime only from R2's typed
-`RuntimeOwnerGrantObservation`. Deliberately make request controls disagree
-with the observed grant and require the observation to win. An expired grant
-must expose no effective scope/lifetime, and terminal host-session loss must
-suppress an otherwise-active stale observation.
+View/Input scope and remaining lifetime only from R10's
+`RuntimeSharingPermissionStatus`. Qt must not decode
+`RuntimeOwnerGrantState`, R2 permission bits or native-session evidence.
+Deliberately make request controls disagree with the product observation and
+require the observation to win. Expired, locked, desktop-changed and revoked
+states expose no effective scope/lifetime.
 
 The existing `gui.offscreen-r10-graphics-native-desktop-projection` remains
 the R7 presentation gate for the now-landed R10X facts: Graphics readiness

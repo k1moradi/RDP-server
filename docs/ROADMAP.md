@@ -1,3 +1,44 @@
+## R2 P1 Linux sharing-permission product projection (2026-10-22)
+
+Starting exact-main parent: `e8527f660b832edfede2f2f901db6c6c15804c36`.
+
+GUI Round 2 is Linux-only. Windows/macOS current-owner evidence remains a later
+platform task and is not a dependency for this increment.
+`CurrentOwnerSharingAuthority` grant issuance and protected-operation
+authorization rules are unchanged.
+
+R2 adds one read-only, non-authorizing permission observation using the same
+trusted Linux console evidence and validation rules as consent issuance. It
+reports requestability, active-grant scope/lifetime and only redacted denial
+categories for required/expired/locked/desktop-changed/revoked/unavailable
+states. Observation cannot mint, refresh or revoke authority.
+
+Linux R10 maps that observation once into
+`RuntimeSharingPermissionStatus`: `canRequest`, `activeGrant`, View/Input
+booleans, remaining milliseconds and a bounded
+`RuntimeSharingPermissionDenial`. The product projection contains no native
+identity, raw R2 enum, permission mask or clipboard field. R7 consumes only
+those facts and can present “Sharing permission required”, “Sharing allowed for
+14 min”, “Permission expired”, “Computer is locked”, “Logged-in desktop
+changed”, and “Sharing permission revoked”.
+
+Dedicated ordinary offline regressions:
+`security.owner-consent-read-only-product-facts`,
+`runtime.linux-host-control-sharing-permission-product-projection`, and
+`gui.offscreen-sharing-permission-product-language`. The product source
+contract also rejects raw owner-grant state/permission-bit decoding in Main.
+Session Password remains capability-gated false, and the concurrent R8
+dormant-clipboard Main-page boundary is preserved structurally.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. No listener, live desktop, credential exchange, clipboard or
+native input was activated.
+
+Next Linux GUI gate: hosted Qt/product qualification and owner Linux/X11
+validation. Windows/macOS owner-consent architecture and physical acceptance
+remain separate later gates.
+
 ## R5 P1 compact Linux prerequisite projection for Advanced (2026-10-22)
 
 Starting exact-main parent: `083bc0d0237a25eb1becfcfaa63b6ddc8ebec780`.

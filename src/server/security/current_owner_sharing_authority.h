@@ -63,6 +63,30 @@ struct OwnerSharingGrantObservation final
     std::uint64_t remainingMilliseconds{};
 };
 
+// Read-only, redacted R2 observation for product projection. This samples the
+// same trusted evidence as consent issuance but can never mint, refresh or
+// revoke authority. R10 translates it once into GUI-facing product facts.
+enum class OwnerSharingReadOnlyDenial : std::uint8_t
+{
+    None,
+    PermissionRequired,
+    PermissionExpired,
+    ComputerLocked,
+    LoggedInDesktopChanged,
+    PermissionRevoked,
+    EvidenceUnavailable,
+};
+
+struct OwnerSharingPermissionObservation final
+{
+    bool canRequest{};
+    bool activeGrant{};
+    std::uint32_t effectivePermissionMask{};
+    std::uint64_t remainingMilliseconds{};
+    OwnerSharingReadOnlyDenial denial{
+        OwnerSharingReadOnlyDenial::EvidenceUnavailable};
+};
+
 // Exact scalar fence used only while composing an already-authorized native
 // capability. Neither generation is authorization by itself. A replacement
 // consent grant changes grantGeneration even when no explicit revocation was
@@ -222,6 +246,83 @@ public:
         observation.effectivePermissionMask = grant_.permissions;
         observation.remainingMilliseconds =
             grant_.deadlineMonotonicMilliseconds - *now;
+        return observation;
+    }
+
+    // Product/status observation only. An active grant is reported only while
+    // fresh native evidence still matches the exact grant fingerprint and
+    // lifetime. This method never changes the revocation generation.
+    [[nodiscard]] OwnerSharingPermissionObservation
+    permissionObservation() const noexcept
+    {
+        OwnerSharingPermissionObservation observation{};
+        if (evidenceSource_ == nullptr)
+            return observation;
+
+        const ConsoleSessionObservation session =
+            evidenceSource_->readActiveConsole();
+        const std::optional<std::uint64_t> now =
+            evidenceSource_->readMonotonicMilliseconds();
+        const OwnerConsentRequestResult requestState =
+            validateObservation(session, now);
+        observation.canRequest =
+            requestState == OwnerConsentRequestResult::Granted;
+
+        if (grant_.leaseGeneration == 0)
+        {
+            if (requestState ==
+                OwnerConsentRequestResult::LockStateNotUnlocked)
+            {
+                observation.denial =
+                    session.lockState == ConsoleDesktopLockState::Locked
+                        ? OwnerSharingReadOnlyDenial::ComputerLocked
+                        : OwnerSharingReadOnlyDenial::EvidenceUnavailable;
+            }
+            else if (requestState ==
+                     OwnerConsentRequestResult::Granted)
+            {
+                observation.denial =
+                    OwnerSharingReadOnlyDenial::PermissionRequired;
+            }
+            return observation;
+        }
+
+        if (now.has_value() &&
+            *now >= grant_.deadlineMonotonicMilliseconds)
+        {
+            observation.denial =
+                OwnerSharingReadOnlyDenial::PermissionExpired;
+            return observation;
+        }
+        if (requestState ==
+            OwnerConsentRequestResult::LockStateNotUnlocked)
+        {
+            observation.denial =
+                session.lockState == ConsoleDesktopLockState::Locked
+                    ? OwnerSharingReadOnlyDenial::ComputerLocked
+                    : OwnerSharingReadOnlyDenial::EvidenceUnavailable;
+            return observation;
+        }
+        if (requestState != OwnerConsentRequestResult::Granted ||
+            !now.has_value() ||
+            !observationMatchesGrant(session, *now))
+        {
+            observation.denial =
+                OwnerSharingReadOnlyDenial::LoggedInDesktopChanged;
+            return observation;
+        }
+        if (grant_.revocationGeneration != revocationGeneration())
+        {
+            observation.denial =
+                OwnerSharingReadOnlyDenial::PermissionRevoked;
+            return observation;
+        }
+
+        observation.activeGrant = true;
+        observation.effectivePermissionMask = grant_.permissions;
+        observation.remainingMilliseconds =
+            grant_.deadlineMonotonicMilliseconds - *now;
+        observation.denial = OwnerSharingReadOnlyDenial::None;
         return observation;
     }
 

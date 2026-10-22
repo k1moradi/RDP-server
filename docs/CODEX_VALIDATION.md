@@ -1,3 +1,29 @@
+## R2 P1 Linux GUI sharing-permission product facts — 2026-10-22
+
+Starting exact-main parent: `e8527f660b832edfede2f2f901db6c6c15804c36`.
+
+Scope is limited to Linux R2/R10/R7 status projection. No Windows/macOS
+owner-consent provider, Session Password capability, listener activation or
+native side effect is added.
+
+Validation contract:
+- R2 read-only observation distinguishes permission required, active grant,
+  expiry, lock, logged-in desktop replacement and explicit revocation without
+  mutating authority.
+- R10 publishes only requestability, active-grant View/Input booleans,
+  remaining lifetime and a redacted product denial category; clipboard is not
+  a product permission field.
+- R7 contains no `RuntimeOwnerGrantState` or `kConsole*Permission` decoding
+  in its Main-tab source and uses concise product language.
+- Dedicated ordinary CTests are
+  `security.owner-consent-read-only-product-facts`,
+  `runtime.linux-host-control-sharing-permission-product-projection`, and
+  `gui.offscreen-sharing-permission-product-language`.
+
+Connector/source inspection: **PASS**. Canonical local configure/build/full
+CTest: **NOT RUN** because this connector environment has no owner checkout.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R5 P1 Linux Advanced prerequisite projection — 2026-10-22
 
 Starting exact-main parent: `083bc0d0237a25eb1becfcfaa63b6ddc8ebec780`.

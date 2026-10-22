@@ -63,7 +63,7 @@ int main(int argumentCount, char** argumentValues)
                    RuntimeHostError::UnsupportedIndependentPasswordNla) ==
                "Independent application password is unsupported by RDP NLA");
         assert(runtimeHostErrorMessage(RuntimeHostError::HostConsentRequired) ==
-               "Host-owner permission required");
+               "Sharing permission required");
         assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRejected) ==
                "Client authentication rejected");
         assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRateLimited) ==
@@ -331,6 +331,14 @@ int main(int argumentCount, char** argumentValues)
         assert(unavailableStatus.product.state ==
                RuntimeProductHostState::Error);
         assert(!unavailableStatus.product.controlAvailable);
+        assert(!unavailableStatus.product.sharingPermission.canRequest);
+        assert(!unavailableStatus.product.sharingPermission.activeGrant);
+        assert(!unavailableStatus.product.sharingPermission.viewAllowed);
+        assert(!unavailableStatus.product.sharingPermission.inputAllowed);
+        assert(unavailableStatus.product.sharingPermission.remainingMilliseconds ==
+               0U);
+        assert(unavailableStatus.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
         assert(unavailableStatus.product.lastErrorMessage ==
                "Host control unavailable");
         return 0;

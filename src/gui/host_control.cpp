@@ -58,11 +58,8 @@ HostStatus HostControl::status() const
         runtimeStatus.product.credentialCapabilities;
     view.desktopAuthorized =
         runtimeStatus.product.ownerAuthorized && !terminalHostSession;
-    // Preserve only the current R2/R10 read-only observation. The GUI never
-    // synthesizes granted scope/lifetime from its request controls, and an
-    // unavailable/terminal host cannot publish stale effective grant facts.
-    if (view.controlAvailable && !terminalHostSession)
-        view.ownerGrant = runtimeStatus.product.ownerPermission;
+    // R10 has already reduced owner consent to product language facts.
+    view.sharingPermission = runtimeStatus.product.sharingPermission;
     // Terminal ownership loss and unavailable control invalidate stale TLS
     // observations. A configured certificate is not permission to listen.
     const bool tlsObservationCurrent =

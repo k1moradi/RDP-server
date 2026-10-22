@@ -1,3 +1,27 @@
+## R1 route-aware recommendation bind-authority guard — 2026-10-22
+
+Starting exact-main parent: `e9b576298ee07665f12197c1641ceca2dda0824c`.
+
+Source review: **PASS**. Current R10 recommendation returns only an
+interface/address/port presentation tuple; the proposed route-aware ranking API
+has not yet been published on `main`, so no unpublished field or ranking
+policy is assumed. R1's reviewed contract is that route/default-route and
+physical/VPN/bridge/virtual evidence may rank recommendations only.
+
+Added ordinary offline regressions:
+`runtime.host-control-route-aware-recommendation-non-authority` and
+`runtime.r1-bind-revalidates-recommended-endpoint`. Together with the
+strengthened `transport.lan-listener-native-bind-denials` coverage, they pin
+fresh Start-time interface/address revalidation, exact stable/native interface
+identity, interface up/presence, private-LAN-only address policy, wildcard and
+public denial, and post-bind interface continuity. A recommendation itself
+cannot create a listener or change R1 validation.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. No listener, client, TLS/CredSSP,
+desktop, input or transport-fault activity was performed. Physical FIRST remains
+a separate owner-authorized gate and does not block GUI Round 2.
+
 ## R8 GUI Round 2 dormant-clipboard hygiene — 2026-10-22
 
 Starting exact-main parent: `9212b3cd7c3ad80ea44744c786b6f1b2cbee8f78`.

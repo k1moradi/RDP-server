@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cstdint>
 #include <string_view>
+#include <vector>
 
 using namespace rdp_server::server::runtime;
 using rdp_server::server::security::LanCredentialChoice;
@@ -95,6 +96,96 @@ int main(int argumentCount, char** argumentValues)
         assert(recommended.valid());
         assert(recommended.interfaceId == "rpc-safe");
         assert(recommended.address == "192.168.50.10");
+        return 0;
+    }
+    if (testCase == "host-control-route-aware-recommendation-non-authority")
+    {
+        const std::vector<RuntimeHostInterface> recommendationSnapshot{
+            {"eth-main#2", "Ethernet", {"192.168.1.5"}, false, true},
+            {"tun-vpn#8", "VPN", {"10.180.105.86"}, false, true},
+            {"br-lab#9", "Bridge", {"172.20.0.1"}, false, true}};
+
+        const auto optionsFor =
+            [](const RuntimeHostRecommendedEndpoint& recommendation) {
+                return RuntimeHostOptions{
+                    recommendation.interfaceId,
+                    recommendation.address,
+                    recommendation.port,
+                    true,
+                    false};
+            };
+
+        // This is the tuple a route-aware R10 ranker may prefer because the
+        // physical Ethernet adapter owns the default LAN route. R1 consumes
+        // only the exact interface/address/port tuple, never the ranking fact.
+        RuntimeHostRecommendedEndpoint physicalRecommendation;
+        physicalRecommendation.interfaceId = "eth-main#2";
+        physicalRecommendation.address = "192.168.1.5";
+        physicalRecommendation.port = 3389U;
+        const RuntimeHostOptions physicalSelection =
+            optionsFor(physicalRecommendation);
+        assert(assessRuntimeSelectedLanEndpoint(
+                   physicalSelection, recommendationSnapshot).succeeded());
+
+        // VPN/bridge candidates receive exactly the same bind preflight. Their
+        // recommendation rank is not authority and grants no bypass.
+        RuntimeHostRecommendedEndpoint vpnRecommendation;
+        vpnRecommendation.interfaceId = "tun-vpn#8";
+        vpnRecommendation.address = "10.180.105.86";
+        vpnRecommendation.port = 3389U;
+        assert(assessRuntimeSelectedLanEndpoint(
+                   optionsFor(vpnRecommendation),
+                   recommendationSnapshot).succeeded());
+
+        RuntimeHostRecommendedEndpoint bridgeRecommendation;
+        bridgeRecommendation.interfaceId = "br-lab#9";
+        bridgeRecommendation.address = "172.20.0.1";
+        bridgeRecommendation.port = 3389U;
+        assert(assessRuntimeSelectedLanEndpoint(
+                   optionsFor(bridgeRecommendation),
+                   recommendationSnapshot).succeeded());
+
+        // A stale recommendation is rechecked against the current snapshot.
+        auto interfaceRemoved = recommendationSnapshot;
+        interfaceRemoved.erase(interfaceRemoved.begin());
+        assert(assessRuntimeSelectedLanEndpoint(
+                   physicalSelection, interfaceRemoved).error ==
+               RuntimeHostError::InterfaceUnavailable);
+
+        auto addressReplaced = recommendationSnapshot;
+        addressReplaced.front().localAddresses = {"192.168.1.6"};
+        assert(assessRuntimeSelectedLanEndpoint(
+                   physicalSelection, addressReplaced).error ==
+               RuntimeHostError::InterfaceUnavailable);
+
+        auto identityReplaced = recommendationSnapshot;
+        identityReplaced.front().stableId = "eth-main#3";
+        assert(assessRuntimeSelectedLanEndpoint(
+                   physicalSelection, identityReplaced).error ==
+               RuntimeHostError::InterfaceUnavailable);
+
+        auto wildcard = physicalSelection;
+        wildcard.localAddress = "0.0.0.0";
+        assert(assessRuntimeSelectedLanEndpoint(
+                   wildcard, recommendationSnapshot).error ==
+               RuntimeHostError::InvalidConfiguration);
+        wildcard.localAddress = "::";
+        assert(assessRuntimeSelectedLanEndpoint(
+                   wildcard, recommendationSnapshot).error ==
+               RuntimeHostError::InvalidConfiguration);
+
+        const std::vector<RuntimeHostInterface> publicSnapshot{{
+            "eth-public#5", "Public", {"8.8.8.8"}, false, false}};
+        const RuntimeHostOptions publicSelection{
+            "eth-public#5", "8.8.8.8", 3389U, true, false};
+        assert(assessRuntimeSelectedLanEndpoint(
+                   publicSelection, publicSnapshot).error ==
+               RuntimeHostError::InterfaceUnavailable);
+
+        // A recommendation never promotes the deny-only host into a listener.
+        assert(!host.configure(physicalSelection).succeeded());
+        assert(!host.startSharing().succeeded());
+        assert(host.status().boundEndpoint.empty());
         return 0;
     }
     if (testCase == "host-control-product-status-projection")

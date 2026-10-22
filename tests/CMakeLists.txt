@@ -344,6 +344,7 @@ foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
         host-control-windows-rpc-interface-macro-compatibility
         host-control-product-status-projection
+        host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials
         host-control-credential-setup-denials
         host-control-selected-lan-interface-denials
@@ -353,6 +354,18 @@ foreach(host_control_case IN ITEMS
     set_tests_properties("runtime.${host_control_case}" PROPERTIES
         LABELS "runtime;security;host-control;offline")
 endforeach()
+
+# R1 remains the actual bind/security authority when R10 changes endpoint
+# recommendation ranking. This source contract is fully offline: it opens no
+# socket and requires no FIRST/native environment.
+add_test(NAME runtime.r1-bind-revalidates-recommended-endpoint
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_RUNTIME_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_host_control.h"
+        "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        "-DRDP_LAN_LISTENER_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/lan_listener.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_r1_recommendation_bind_authority.cmake")
+set_tests_properties(runtime.r1-bind-revalidates-recommended-endpoint
+    PROPERTIES LABELS "runtime;security;r1-transport;r10-host-control;offline")
 
 # R2 M1 host consent is one noncopyable positive authority owned by R10.
 # Deterministic injected evidence tests the capability state machine only;

@@ -1,3 +1,40 @@
+## R1 GUI Round 2 endpoint-recommendation authority fence (2026-10-22)
+
+Starting exact-main parent: `e9b576298ee07665f12197c1641ceca2dda0824c`.
+
+GUI Round 2 changes R10's automatic LAN endpoint recommendation, but R1 remains
+the bind/security authority. The concrete route-aware R10 API is not yet
+published on `main` or in a repository issue at this review point, so R1 does
+not guess or own its ranking fields. The reviewed stable boundary is
+`RuntimeHostRecommendedEndpoint` -> `RuntimeHostOptions`: default-route,
+physical/virtual, VPN or bridge ranking evidence is recommendation-only and
+must never become listener authority.
+
+This increment adds
+`runtime.host-control-route-aware-recommendation-non-authority`, which treats
+a default-route physical `192.168.1.5` recommendation as a normal exact
+selection, proves VPN/bridge RFC1918 alternatives receive the same preflight,
+and proves interface removal, interface-identity replacement, address
+replacement, wildcard selection and non-LAN/public selection fail closed.
+The existing production-backed LAN-listener test is strengthened with
+VPN/bridge-shaped private addresses on a missing interface.
+
+A new ordinary offline source contract,
+`runtime.r1-bind-revalidates-recommended-endpoint`, pins the production Start
+transaction to fresh interface enumeration and stable-ID resolution before
+calling R1, while `openLanListener()` must independently enforce private-LAN
+address policy, exact current interface/address membership and up-state before
+`bind()`, then recheck interface identity after the bind. Route recommendation
+code is forbidden from the Start authority transaction.
+
+No TLS, CredSSP, accepted-socket ownership, transport behavior or FIRST
+procedure changes. Connector source review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. GUI Round 2 is **NOT BLOCKED** on
+physical FIRST. Physical R1 acceptance remains separately **BLOCKED / NOT RUN**
+at frozen Track A `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` pending explicit
+owner authorization.
+
 ## R8 GUI Round 2 dormant-clipboard presentation hygiene (2026-10-22)
 
 Starting exact-main parent: `9212b3cd7c3ad80ea44744c786b6f1b2cbee8f78`.

@@ -116,6 +116,11 @@ struct RuntimeHostOptions
 
 struct RuntimeHostRecommendedEndpoint final
 {
+    // Recommendation-only presentation tuple. R10 may rank candidates using
+    // route/default-route or physical/virtual adapter evidence, but none of
+    // that ranking evidence is R1 bind authority. Start must revalidate the
+    // exact stable interface ID and numeric address against current native
+    // state before opening the listener.
     std::string interfaceId;
     std::string address;
     std::uint16_t port{};
@@ -164,6 +169,10 @@ struct RuntimeHostRecommendedEndpoint final
         : RuntimeHostResult{RuntimeHostError::InterfaceUnavailable, false};
 }
 
+// Candidate ordering is presentation policy only. A future route-aware R10
+// implementation may prefer a default-route physical LAN over VPN, bridge or
+// virtual candidates, but the returned tuple remains untrusted until Start
+// repeats current-interface validation and R1 opens the exact native endpoint.
 [[nodiscard]] inline RuntimeHostRecommendedEndpoint
 recommendRuntimePrivateLanEndpoint(
     const std::vector<RuntimeHostInterface>& interfaces,

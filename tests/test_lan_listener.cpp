@@ -32,6 +32,16 @@ int main() {
     assert(missing.error == LanListenerError::InterfaceUnavailable);
     assert(!missing.listener.valid());
     assert(missing.listener.generation() == 0U);
+    // Recommendation ranking never relaxes exact native membership. A VPN- or
+    // bridge-shaped RFC1918 address is still denied when that exact interface
+    // is not currently present/up with the exact address.
+    for (const char *address : {"10.180.105.86", "172.20.0.1"}) {
+        auto alternative =
+            openLanListener({"rdp-definitely-missing", address, 3389});
+        assert(alternative.error == LanListenerError::InterfaceUnavailable);
+        assert(!alternative.listener.valid());
+        assert(alternative.listener.generation() == 0U);
+    }
     auto zeroPort = openLanListener({"eth0", "192.168.1.5", 0});
     assert(zeroPort.error == LanListenerError::InvalidSelection);
     assert(lanListenerErrorMessage(LanListenerError::InterfaceUnavailable) ==

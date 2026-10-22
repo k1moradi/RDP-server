@@ -1,3 +1,24 @@
+## R1 route-aware endpoint recommendation boundary (2026-10-22)
+
+Keep `runtime.host-control-route-aware-recommendation-non-authority` in the
+ordinary portable registry. A default-route physical LAN recommendation must be
+valid only as an exact interface/address/port selection; VPN, bridge or virtual
+alternatives receive the same checks and gain no authority from recommendation
+rank. Rechecking the tuple against a replacement interface snapshot must reject
+interface removal, stable-identity replacement and address replacement.
+Wildcard and non-LAN/public selections remain fail-closed.
+
+Keep `runtime.r1-bind-revalidates-recommended-endpoint` as an ordinary
+offline source-contract CTest. It must isolate the production
+`LinuxRuntimeHostControl::startSharing()` transaction and require fresh
+interface enumeration plus stable-ID resolution before the R1 listener open.
+It must isolate `openLanListener()` and require private-LAN policy, exact
+current native interface/address membership and platform up-state before
+`bind()`, followed by the existing post-bind `interfaceStillMatches()`
+check. Recommendation/ranking code must not enter the Start authority
+transaction. This source guard is architecture evidence only and must never be
+reported as physical FIRST acceptance.
+
 ## R8 GUI Round 2 dormant-clipboard presentation boundary (2026-10-22)
 
 While `kLinuxProductionClipboardActivationApproved` is false, the default/Main

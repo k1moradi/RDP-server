@@ -1,3 +1,31 @@
+## R5 P1 focused Linux prerequisite qualification closure — 2026-10-22
+
+Starting exact-main parent: `f2c5cd9e54cf727aa84292e3253c78a62e04babf`.
+
+Dependency recheck found R7/R9's separate Advanced tab **RESOLVED** and the
+shared Round 2 fixture regressions corrected by
+`5a18d8ef2e89917c17aebe62a03fe32ec40c36c9` and this parent's
+`f2c5cd9e54cf727aa84292e3253c78a62e04babf`. Exact-parent Actions run
+`39818499559` now has `r5-linux-gui-zip` **PASS**, including the Round 2
+Main/Advanced tests and QColor warning classification.
+
+That successful focused lane still selected only the older
+`gui.linux-readonly-seat0-prerequisite-denials` CTest even though R5's P1
+commit registered two additional ordinary contracts:
+`gui.linux-readonly-prerequisite-structured-projection` and
+`gui.linux-prerequisite-probe-readonly-boundary`. The focused R5 lane now
+enumerates exactly all three tests, asserts their names/count before execution,
+and runs them together. This is qualification-only; Linux prerequisite
+production code, authority, capture, input, listener and permission behavior are
+unchanged.
+
+Parent R5 Linux GUI lane: **PASS**. Parent Round 2 focused tests: **PASS**.
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** here. Replacement exact-SHA hosted CI: **PENDING**. The
+broader Windows/macOS positive native-host path remains independently blocked on
+a trusted current-local-owner evidence provider for
+`CurrentOwnerSharingAuthority`.
+
 ## R6/R9 Round 2 Qt tab internal-stack CI correction (2026-10-22)
 
 Starting exact-main parent: `146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1`.

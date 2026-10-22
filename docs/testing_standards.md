@@ -1,3 +1,15 @@
+## Focused R5 Linux prerequisite CI inventory (2026-10-22)
+
+The `r5-linux-gui-zip` hosted lane must enumerate and execute exactly these
+three R5 read-only prerequisite CTests before packaging:
+`gui.linux-readonly-seat0-prerequisite-denials`,
+`gui.linux-readonly-prerequisite-structured-projection`, and
+`gui.linux-prerequisite-probe-readonly-boundary`. Assert the selected names
+and count before execution so a rename, dropped registration or selector drift
+cannot silently reduce qualification. These remain ordinary offline CTests and
+must not open an X connection, start capture, inject input, open a listener or
+request permission.
+
 ## QTabWidget runtime structure assertions (2026-10-22)
 
 Do not assert that a Qt widget tree containing an approved `QTabWidget` has no

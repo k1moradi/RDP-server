@@ -1,3 +1,24 @@
+## R5 P1 focused prerequisite CI closure — 2026-10-22
+
+Starting exact-main parent: `f2c5cd9e54cf727aa84292e3253c78a62e04babf`.
+
+Exact-parent Actions run `39818499559`, job `119963243150`
+(`r5-linux-gui-zip`) is **PASS** after the concurrent R9/R6 Round 2 fixture
+corrections. Its focused Round 2 group also passed all five selected tests,
+including `gui.offscreen-round2-tabs-and-main-simplicity` and
+`gui.round2-qcolor-warning-classification`.
+
+Inspection found the lane still executed only the legacy R5 denial test even
+though `tests/CMakeLists.txt` registers the P1 structured projection and
+read-only source-boundary tests. This CI-only correction replaces that single
+selector with an exact three-test inventory, verifies all three names/count,
+then executes them with a 20-second timeout. No production source or runtime
+authority changes.
+
+Parent R5 lane: **PASS**. Parent Round 2 focused tests: **PASS**.
+Connector/source review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**.
+
 ## R6/R9 QTabWidget internal-stack test correction — 2026-10-22
 
 Starting exact-main parent: `146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1`.

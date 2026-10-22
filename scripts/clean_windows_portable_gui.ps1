@@ -13,8 +13,10 @@ if ($ExactGitSha -cnotmatch '^[0-9a-f]{40}$') { throw 'Bad exact source SHA' }
 $scriptPath = (Resolve-Path -LiteralPath $PSCommandPath).Path
 $scriptDigest =
     (Get-FileHash -LiteralPath $scriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
-$smokeScriptPath = (Resolve-Path -LiteralPath
-    (Join-Path (Split-Path -Parent $scriptPath) 'smoke_windows_portable_gui.ps1')).Path
+$scriptDirectory = Split-Path -Parent $scriptPath
+$smokeScriptCandidate =
+    Join-Path $scriptDirectory 'smoke_windows_portable_gui.ps1'
+$smokeScriptPath = (Resolve-Path -LiteralPath $smokeScriptCandidate).Path
 $smokeScriptDigest =
     (Get-FileHash -LiteralPath $smokeScriptPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $archivePath = (Resolve-Path -LiteralPath $Archive).Path

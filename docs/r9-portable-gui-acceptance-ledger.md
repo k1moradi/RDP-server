@@ -1,3 +1,30 @@
+## R9 exact parser-extent correction and current qualification candidate (2026-10-21)
+
+Exact product-main parent `25415342b0f190241988ba0895855faebc1d7a00`, primary Actions run
+`39727420489`, is **REJECTED** for qualification because ordinary hosted
+`r9-windows-powershell-parser` job `119654435275` fails on
+`scripts/clean_windows_portable_gui.ps1` at source lines 16-17. The hosted
+PowerShell 5.1 parser reports a missing closing parenthesis before the nested
+`Join-Path` expression and then treats that nested opening/closing parenthesis
+as unexpected tokens. This is the same defect independently surfaced by the
+ordinary Windows clean-release structure test; Windows coverage is not weakened.
+
+The correction replaces only that multi-line compound command expression with
+explicit intermediate `scriptDirectory` and `smokeScriptCandidate` variables,
+then resolves the same exact smoke-script path. Receipt contents, exact-source
+and ZIP hashing, non-admin/Explorer checks, clean PATH/install-root checks,
+launch/ordinary-close/relaunch, socket observations, and
+firewall/service/TermService/RDP-policy invariance are unchanged.
+
+This publication creates a new exact product-main candidate. It must earn a
+fresh PASS across every ordinary hosted lane, including Windows CLANG64; no
+result is inherited from `25415342b0f190241988ba0895855faebc1d7a00` or any predecessor. Linux FIRST remains
+independently frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. CLEAN remains **NOT RUN**
+until an exact-candidate self-hosted receipt or an offline-verifier-accepted
+owner-native receipt exists. Owner-native evidence is **MANUAL CLEAN PASS**,
+never automated CI PASS.
+
 ## R9 hosted parser diagnostic after b15f64d rejection (2026-10-21)
 
 Exact candidate `b15f64d35e5a12dcd83026e2abdc0b4dd1f22397`, primary Actions run
@@ -123,7 +150,7 @@ Authoring shared-main base: `32627968bce27b5f3bab3b2fdc8b48433bf502e0`. This pub
 |---|---|---|
 | **FIRST Linux acceptance** | `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` | **FROZEN**. Product-main UX/password/native-host/portability commits must not move it. Physical owner-authorized visible desktop + mouse + keyboard + Stop remains **NOT RUN**. |
 | **Product-main qualification** | this R9 publication SHA | Require every ordinary hosted lane green on this exact SHA, including Windows CLANG64. The `389de5a...` typed Qt lookup failure and `1fc5829c...` stale fake-product assertion are retained as real predecessor failures; do not weaken coverage to hide them. CLEAN is separate. |
-| **CLEAN Windows** | exact producer ZIP + ZIP sidecar + `rdp-server-clean-windows-receipt-v1` | The dedicated clean runner or a verifier-accepted owner-native receipt may satisfy CLEAN. Manual evidence is labeled **MANUAL CLEAN PASS**, never automated CI PASS. |
+| **CLEAN Windows** | exact producer ZIP + ZIP sidecar + receipt format 2 JSON + SHA-256 sidecar | The dedicated clean runner or a verifier-accepted owner-native receipt may satisfy CLEAN. Manual evidence is labeled **MANUAL CLEAN PASS**, never automated CI PASS. |
 
 ### Current M1 owner-authority correction
 
@@ -137,7 +164,7 @@ Run the existing exact-SHA clean script against the unchanged exact producer ZIP
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\clean_windows_portable_gui.ps1 -Archive <exact.zip> -ExactGitSha <40-hex-sha> -Receipt .\clean-receipt.json
 ```
 
-Receipt v1 records the exact source SHA, ZIP SHA-256, machine/Windows architecture, interactive non-admin/Explorer status, clean parent and isolated child PATH/environment checks, launch/close/relaunch, hidden offline tests, no process TCP/UDP sockets before Start, and firewall/service/TermService/RDP-policy+port invariance. The script writes `clean-receipt.json.sha256` over the exact receipt bytes.
+Receipt format 2 records the exact source SHA, ZIP SHA-256, machine/Windows architecture, interactive non-admin/Explorer status, clean parent and isolated child PATH/environment checks, launch/close/relaunch, hidden offline tests, no process TCP/UDP sockets before Start, and firewall/service/TermService/RDP-policy+port invariance. The script writes `clean-receipt.json.sha256` over the exact receipt bytes.
 
 Verify offline with the unchanged ZIP, ZIP sidecar, receipt and receipt sidecar:
 
@@ -145,7 +172,7 @@ Verify offline with the unchanged ZIP, ZIP sidecar, receipt and receipt sidecar:
 python scripts/verify_clean_windows_receipt.py --receipt clean-receipt.json --archive <exact.zip> --exact-git-sha <40-hex-sha>
 ```
 
-The verifier recomputes both hashes, enforces strict two-space sidecars and the complete v1 schema/check set, rejects duplicate JSON keys, and preserves provenance as **MANUAL CLEAN PASS** or **SELF-HOSTED CLEAN PASS**. Authoring-only isolated verifier regression: **PASS 8/8**. Real manual CLEAN execution: **NOT RUN**.
+The verifier recomputes both hashes, enforces strict two-space sidecars and the complete format-2 schema/check set, rejects duplicate JSON keys, and preserves provenance as **MANUAL CLEAN PASS** or **SELF-HOSTED CLEAN PASS**. Authoring-only isolated verifier regression: **PASS 8/8**. Real manual CLEAN execution: **NOT RUN**.
 
 ## R9 split qualification ledgers and R7 toggle co-change repair (2026-10-21)
 

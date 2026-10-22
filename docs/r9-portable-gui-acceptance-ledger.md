@@ -1,3 +1,18 @@
+## R9 hosted parser diagnostic after b15f64d rejection (2026-10-21)
+
+Exact candidate `b15f64d35e5a12dcd83026e2abdc0b4dd1f22397`, primary Actions run
+`39726139498`, is **REJECTED** because ordinary hosted
+`r9-windows-powershell-parser` still fails with the same three PowerShell 5.1
+syntax errors. The prior compatibility edit therefore does not qualify
+product-main.
+
+The parser gate now includes source extent line/column/text in its failure
+message so the next correction is based on the exact hosted PowerShell 5.1
+diagnostic rather than another syntax guess. This changes diagnostics only: it
+does not weaken parsing, Windows CLANG64, CLEAN, FIRST, or any product/runtime
+gate. FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
 ## R9 exact-SHA rejection and Windows PowerShell 5.1 compatibility repair (2026-10-21)
 
 Exact product-main candidate `e68c3a18955eb4d00579ec8a467dd1e78c03bc7b`, primary Actions run

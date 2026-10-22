@@ -1863,7 +1863,15 @@ jobs:
           [void][System.Management.Automation.Language.Parser]::ParseFile(
               $scriptPath, [ref]$tokens, [ref]$parseErrors)
           if (@($parseErrors).Count -ne 0) {
-              $details = @($parseErrors | ForEach-Object { $_.Message }) -join [Environment]::NewLine
+              $details = @($parseErrors | ForEach-Object {
+                '{0}:{1}-{2}:{3}: {4} [extent={5}]' -f
+                  $_.Extent.StartLineNumber,
+                  $_.Extent.StartColumnNumber,
+                  $_.Extent.EndLineNumber,
+                  $_.Extent.EndColumnNumber,
+                  $_.Message,
+                  $_.Extent.Text
+              }) -join [Environment]::NewLine
               throw ('clean_windows_portable_gui.ps1 parser regression:' + [Environment]::NewLine + $details)
           }
 

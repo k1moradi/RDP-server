@@ -534,6 +534,29 @@ void testFrameInputAndAuthorizationRetirement() {
     assert(fixture.captureState->closeCalls == 1U);
 }
 
+void testInputPermissionRetirement() {
+    auto created = makeOwner();
+    assert(created);
+    OwnerFixture fixture = std::move(*created);
+    advanceReady(fixture);
+    assert(fixture.owner->serviceOnce().inputReady);
+
+    // Hold one key so permission loss also proves authority-loss retirement
+    // never posts a synthetic release into a desktop whose TCC state changed.
+    const MacInputEvent keyDown = MacKeyInput{0x3BU, 0x1DU, false, true};
+    assert(fixture.owner->handleInput(keyDown));
+    assert(fixture.desktop->nativeInputCommands == 1U);
+
+    fixture.desktop->inputPermission = MacInputPermissionStatus::NotTrusted;
+    const auto observation = fixture.owner->serviceOnce();
+    assert(observation.state == MacNativeDesktopOwnerState::Revoked);
+    assert(!observation.inputReady);
+    assert(fixture.desktop->nativeInputCommands == 1U);
+    assert(fixture.captureState->closeCalls == 1U);
+    assert(fixture.watch->sessionRemoveCalls == 1U);
+    assert(fixture.watch->displayRemoveCalls == 1U);
+}
+
 void testDisplayAndSessionRetirement() {
     {
         auto created = makeOwner();
@@ -566,6 +589,8 @@ int main(int argc, char** argv) {
         testFailClosedConstruction();
     } else if (selected == "frame-input-lifecycle") {
         testFrameInputAndAuthorizationRetirement();
+    } else if (selected == "input-permission-retirement") {
+        testInputPermissionRetirement();
     } else if (selected == "display-session-retirement") {
         testDisplayAndSessionRetirement();
     } else {

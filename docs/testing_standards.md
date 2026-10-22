@@ -1,3 +1,18 @@
+## R5 macOS input privacy readiness regressions (2026-10-21)
+
+Keep `macos.native-input-permission-readiness-contract` in ordinary full
+CTest on every platform. It source-pins the production native query to both
+`AXIsProcessTrustedWithOptions(nullptr)` and
+`CGPreflightListenEventAccess()`, requires their conjunction, and rejects
+`CGRequestListenEventAccess` or an Accessibility prompt option.
+
+On Apple, also run
+`macos.native-desktop-owner-input-permission-retirement` against the real R2
+authorization state machine with injected TCC/input callbacks. After one held
+key, changing the injected input permission to NotTrusted must terminally
+retire capture/session/display ownership without posting a synthetic release.
+Neither test requests live TCC permission or posts Quartz events.
+
 ## R5 framebuffer row-size compile regression stays in ordinary CTest (2026-10-21)
 
 `macos.native-desktop-owner-framebuffer-row-size-bounds` is a portable
@@ -31,7 +46,8 @@ substitute for FIRST or native-host acceptance.
 
 The dedicated Apple-only aggregate tests are
 `macos.native-desktop-owner-fail-closed-construction`,
-`macos.native-desktop-owner-frame-input-lifecycle`, and
+`macos.native-desktop-owner-frame-input-lifecycle`,
+`macos.native-desktop-owner-input-permission-retirement`, and
 `macos.native-desktop-owner-display-session-retirement`. They must construct
 the real `MacNativeDesktopAuthorization` with the real owner-consent state
 machine, but use synthetic authenticated identity/native-session evidence and

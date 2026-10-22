@@ -1,3 +1,33 @@
+## R5 macOS native input permission readiness receipt (2026-10-21)
+
+Starting shared-main parent: `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`.
+
+Dependency state: R2 macOS native authorization and R10 platform-native
+composition are present. R5 row-size corrective SHA `25415342` has hosted
+focused macOS native lifecycle **PASS**, and the macOS protocol lane passed
+Debug/Release compilation and lifecycle/protocol CTests through Release
+testing before packaging. R9's separate clean-Windows parser failure is fixed
+on the starting parent and its parser job is **PASS**.
+
+Source review found the remaining assigned R5 gap: native Quartz input
+readiness sampled Accessibility only. Production
+`queryNativeMacInputPermissionStatus()` now requires both the non-prompting
+Accessibility query `AXIsProcessTrustedWithOptions(nullptr)` and
+`CGPreflightListenEventAccess()` for Input Monitoring. It calls no permission
+request API. Existing owner construction/service/input paths therefore inherit
+the combined fail-closed gate without adding another scheduler or authority.
+
+New regressions:
+`macos.native-input-permission-readiness-contract` pins both preflight
+observations and forbids `CGRequestListenEventAccess`; Apple-only
+`macos.native-desktop-owner-input-permission-retirement` injects permission
+loss with a held key and proves terminal capture/watch retirement with no
+synthetic native release.
+
+Connector source inspection: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Live TCC,
+ScreenCaptureKit, Quartz input, listener/client and Linux FIRST: **NOT RUN**.
+
 ## R5 macOS compile failure and row-size correction receipt (2026-10-21)
 
 Exact parent `419e5d8ab0f81e7d717170bcd67c9b98a6799a03`, Actions

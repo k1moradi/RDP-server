@@ -1,3 +1,12 @@
+## R5 macOS input readiness adds no new framework dependency (2026-10-21)
+
+The combined Accessibility/Input Monitoring readiness check remains inside
+`rdp-server-macos-capture`. It uses the already-linked ApplicationServices
+and CoreGraphics frameworks; no new library, daemon, entitlement helper,
+background service or SDK export is added. The Input Monitoring path is a
+read-only CoreGraphics preflight and never invokes a request API during build
+or ordinary CTest.
+
 ## R10 noninstalled Windows/macOS platform-native composition target (2026-10-21)
 
 `rdp-server-runtime-platform-native-desktop` is built only on Windows or

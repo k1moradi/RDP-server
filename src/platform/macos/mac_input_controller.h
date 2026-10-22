@@ -187,9 +187,10 @@ private:
 };
 
 #if defined(__APPLE__)
-// Read-only Accessibility trust query. Passing no options never requests a
-// prompt. This is OS permission evidence only and never substitutes for R2/R3
-// authentication/session authorization.
+// Read-only Accessibility + Input Monitoring readiness query. Accessibility
+// uses a null options dictionary and Input Monitoring uses the CoreGraphics
+// preflight probe; neither requests a prompt. This is OS permission evidence
+// only and never substitutes for R2/R3 authentication/session authorization.
 [[nodiscard]] MacInputPermissionStatus queryNativeMacInputPermissionStatus() noexcept;
 #endif
 

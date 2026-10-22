@@ -1,3 +1,17 @@
+## macOS native input readiness requires both non-prompting privacy gates (2026-10-21)
+
+Treat Accessibility trust and Input Monitoring readiness as one fail-closed
+native-input precondition for the R5 Quartz route. Production checks must use
+`AXIsProcessTrustedWithOptions(nullptr)` plus
+`CGPreflightListenEventAccess()`; do not call prompt/request APIs from native
+owner construction, service or input dispatch. The combined observation is
+revocation evidence only: R2 View+Input authorization remains mandatory and
+TCC booleans never create authority.
+
+Recheck this combined readiness through the existing serialized session guard.
+If either observation is lost, terminally retire the aggregate and discard
+held input with no native cleanup posts into the changed desktop.
+
 ## Normalize bounded pixel dimensions before size_t overflow guards (2026-10-21)
 
 When a fixed-width framebuffer dimension participates in `size_t` allocation

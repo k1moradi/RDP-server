@@ -2601,6 +2601,14 @@ set_tests_properties(
     macos.native-desktop-owner-framebuffer-row-size-bounds PROPERTIES
     LABELS "macos;desktop;capture;security;policy;offline;native")
 
+add_test(NAME macos.native-input-permission-readiness-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_MAC_INPUT_CONTROLLER_SOURCE=${PROJECT_SOURCE_DIR}/src/platform/macos/mac_input_controller.mm"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_macos_native_input_permission_readiness.cmake")
+set_tests_properties(
+    macos.native-input-permission-readiness-contract PROPERTIES
+    LABELS "macos;desktop;input;security;policy;offline;native")
+
 if(APPLE)
     add_executable(test_macos_native_desktop_owner
         test_macos_native_desktop_owner.cpp)
@@ -2619,6 +2627,7 @@ if(APPLE)
     foreach(case_name IN ITEMS
             fail-closed-construction
             frame-input-lifecycle
+            input-permission-retirement
             display-session-retirement)
         add_test(NAME "macos.native-desktop-owner-${case_name}"
             COMMAND test_macos_native_desktop_owner "${case_name}")

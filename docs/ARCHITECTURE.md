@@ -41,8 +41,9 @@ fences and never treats them as authority.
 View scope owns Screen Recording readiness, native session generation, display
 watch/geometry, one ScreenCaptureKit stream and a bounded framebuffer mailbox.
 View+Input additionally owns one `MacInputController` whose production Quartz
-callback is private friend-only state. Fresh Accessibility trust is sampled by
-the existing session guard before each input operation. The ScreenCaptureKit
+callback is private friend-only state. Fresh Accessibility trust and Input
+Monitoring readiness are sampled together, without prompting, by the existing
+session guard before construction/lifetime checks and each input operation. The ScreenCaptureKit
 native backend is likewise private friend-only state; no public display/TCC
 factory exists.
 

@@ -178,7 +178,9 @@ std::size_t postQuartzInput(
 } // namespace
 
 MacInputPermissionStatus queryNativeMacInputPermissionStatus() noexcept {
-    return AXIsProcessTrustedWithOptions(nullptr)
+    const bool accessibilityTrusted = AXIsProcessTrustedWithOptions(nullptr);
+    const bool inputMonitoringTrusted = CGPreflightListenEventAccess();
+    return accessibilityTrusted && inputMonitoringTrusted
         ? MacInputPermissionStatus::Trusted
         : MacInputPermissionStatus::NotTrusted;
 }

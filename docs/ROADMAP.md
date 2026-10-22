@@ -1,3 +1,40 @@
+## R5 macOS Accessibility + Input Monitoring readiness closure (2026-10-21)
+
+Current parent: `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`.
+
+Dependency review confirms the R2 macOS native-authorization capability and
+R10 `RuntimePlatformNativeDesktop` composition seam are now on `main`.
+The prior R5 row-size correction at `25415342` also passes the focused
+hosted `r7-macos-native-lifecycle` job, and its macOS protocol lane has
+passed Debug/Release compile plus protocol/lifecycle CTests through Release
+testing. R9's unrelated PowerShell parser blocker was independently corrected
+by `02f039fd`, whose dedicated parser job is now PASS.
+
+Continuing R5 against the original dependency graph exposed one remaining
+owner-local requirement gap: the production Quartz route treated Accessibility
+trust alone as native input readiness even though the assigned macOS contract
+requires Accessibility and Input Monitoring readiness. The native input
+permission query now fails closed unless both
+`AXIsProcessTrustedWithOptions(nullptr)` and the non-prompting
+`CGPreflightListenEventAccess()` preflight succeed. No request/prompt API is
+called. The same combined readiness is rechecked by the existing session guard
+during construction, service lifetime checks and each Quartz input operation.
+
+Dedicated regressions are
+`macos.native-input-permission-readiness-contract`, which pins both
+non-prompting probes and forbids the Input Monitoring request API, and
+`macos.native-desktop-owner-input-permission-retirement`, which injects
+permission loss after a held key and requires terminal aggregate retirement
+without a synthetic key release.
+
+This removes the remaining R5 source-scope gap from the dependency graph.
+Hosted exact-publication-SHA qualification for this increment is **PENDING**.
+Live Screen Recording, Accessibility/Input Monitoring grants,
+ScreenCaptureKit pixels, visible desktop, Quartz mouse/keyboard, Stop,
+reconnect and resize remain **NOT RUN** because they require explicit owner
+authorization and a physical logged-in macOS desktop. Linux FIRST remains
+frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
 ## R5 macOS row-size compile correction after R10 composition (2026-10-21)
 
 Current parent: `419e5d8ab0f81e7d717170bcd67c9b98a6799a03`.
@@ -83,8 +120,9 @@ GUI-session change watch, one admitted R2 generation, one validated display
 geometry generation, one `MacDesktopSessionGuard`, one one-shot
 ScreenCaptureKit stream, and at most one Quartz input controller. View-only R2
 authorization constructs capture without an input route. View+Input additionally
-requires fresh Accessibility trust before construction and again at each input
-operation. Screen Recording readiness is checked before capture construction and
+requires fresh Accessibility trust and Input Monitoring readiness before
+construction and again at each input operation. Screen Recording readiness is
+checked before capture construction and
 on every service/borrow lifetime check through the existing guard.
 
 ScreenCaptureKit's private serial callback never enters R2 or protocol state.

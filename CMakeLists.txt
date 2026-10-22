@@ -357,6 +357,31 @@ if(WIN32)
     endif()
 endif()
 
+# R2 Windows authenticated identity extracted only from an accepted SSPI
+# security context. It owns the QuerySecurityContextToken handle and exposes
+# only the noninstalled WindowsAuthenticatedIdentityProof boundary.
+if(WIN32)
+    add_library(rdp-server-windows-authenticated-identity STATIC
+        src/server/security/windows_authenticated_identity.cpp)
+    target_compile_features(
+        rdp-server-windows-authenticated-identity PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-windows-authenticated-identity PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-windows-authenticated-identity
+        PUBLIC rdp-server-native-desktop-authorization
+        PRIVATE advapi32 secur32)
+    if(MSVC)
+        target_compile_options(
+            rdp-server-windows-authenticated-identity PRIVATE /W4 /WX)
+    else()
+        target_compile_options(
+            rdp-server-windows-authenticated-identity PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 # R6 native monitor geometry is a separate, noninstalled Windows adapter:
 # it does not pull user32/Win32 headers into the portable protocol archive.
 if(WIN32)
@@ -1303,6 +1328,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "r3_clipboard_transfer_bridge.h" EXCLUDE
     PATTERN "linux_pam_password_verifier.h" EXCLUDE
     PATTERN "windows_native_session_evidence.h" EXCLUDE
+    PATTERN "windows_authenticated_identity.h" EXCLUDE
     PATTERN "macos_native_session_evidence.h" EXCLUDE)
 install(EXPORT RDPServerProtocolTargets
     FILE RDPServerProtocolTargets.cmake

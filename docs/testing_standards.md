@@ -1,3 +1,16 @@
+## R2 Windows SSPI identity-provider regression boundary (2026-10-22)
+
+The production `WindowsSspiAuthenticatedIdentityProof` may bind only from an
+already-accepted SSPI security context via `QuerySecurityContextToken`. Tests
+must not expose a production caller-supplied SID/token bind path. The Windows
+provider regressions must prove invalid-context denial, bounded TokenUser SID
+extraction, nonzero monotonic generation, exact SID matching, revoke, failed
+replacement invalidation and no copy/move ownership. A private test friend may
+transfer the current process token solely to exercise the token/SID lifecycle;
+that synthetic path is never evidence of remote CredSSP authentication or a
+native authorization grant. Positive Windows hosting still requires real
+accepted-client identity + fresh WTS/LSA evidence + owner authority.
+
 ## R5 macOS input privacy readiness regressions (2026-10-21)
 
 Keep `macos.native-input-permission-readiness-contract` in ordinary full

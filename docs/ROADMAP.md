@@ -1,3 +1,43 @@
+## R2 Windows SSPI authenticated-identity proof (2026-10-22)
+
+Starting exact-main parent: `e938723cb83f1aca293178d803b0bd6f7d961726`.
+
+R10's platform-native lifetime and R6's authorized Windows aggregate are now
+on `main`, resolving the dependency that previously made a production Windows
+identity owner premature. R2 now provides a concrete noninstalled
+`WindowsSspiAuthenticatedIdentityProof`: its only production bind entry takes
+an already-accepted SSPI security context and obtains the authenticated token
+through `QuerySecurityContextToken`. It owns that token with RAII, copies only
+the bounded binary SID, exposes the existing generation + SID-match proof
+interface, and closes/zeros the identity on replacement, revoke or destruction.
+No caller-supplied SID, WTS session, LUID, username, password or GUI state can
+bind this proof.
+
+The provider deliberately does not create or accept an SSPI/CredSSP context and
+does not turn on Windows hosting. R2 still combines this authenticated SID with
+the separate fresh physical WTS/LSA evidence and exact owner grant epoch before
+`WindowsNativeDesktopAuthorization` can bind. R6 therefore must continue to
+keep `kWindowsNativeDesktopPositiveActivationApproved == false` until its
+production native-target construction is wired to a genuinely accepted context
+and qualified with a real client.
+
+Windows-only ordinary CTests are
+`security.windows-authenticated-identity-sspi-context-denials` and
+`security.windows-authenticated-identity-process-token-generation-lifecycle`.
+The positive offline case reaches token/SID extraction only through a private
+test friend using the current process token; that path is not a production bind
+and cannot claim remote authentication. Exact-publication-SHA hosted Windows
+build/CTest is **PENDING**. Real Windows CredSSP/SSPI acceptance and native
+WTS/DXGI/input operation remain **NOT RUN**.
+
+**Next dependency:** R6 may now consume this proof from the eventual accepted
+Windows CredSSP/SSPI owner and wire its production native-target construction.
+The parallel macOS production blocker remains the missing concrete R2
+`MacAuthenticatedIdentityProof` plus R10 entry-point integration. Track C's
+standalone Microsoft-client acceptance remains independently blocked on the
+owner-authorized physical run; this increment does not enable Session Password
+or add any GSS/OS-account fallback.
+
 ## R7 post-qualification dashboard address/unavailable-state polish (2026-10-22)
 
 Starting shared-main parent: `19bae944fc58fdfeb122e993db195cfb7778e652`.

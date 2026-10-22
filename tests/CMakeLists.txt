@@ -1845,6 +1845,35 @@ if(TARGET rdp-server-windows-native-session-evidence)
         LABELS "security;native-admission;windows;offline")
 endif()
 
+# R2 accepted-SSPI authenticated identity proof. The positive offline case
+# adopts only the current process token through a private test friend to test
+# bounded SID extraction and generation/revocation; production can bind only
+# through QuerySecurityContextToken on an accepted SSPI context.
+if(TARGET rdp-server-windows-authenticated-identity)
+    add_executable(test_windows_authenticated_identity
+        test_windows_authenticated_identity.cpp)
+    target_link_libraries(test_windows_authenticated_identity PRIVATE
+        rdp-server-windows-authenticated-identity)
+    if(MSVC)
+        target_compile_options(
+            test_windows_authenticated_identity PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(
+            test_windows_authenticated_identity PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    foreach(case_name IN ITEMS
+            sspi-context-denials
+            process-token-generation-lifecycle)
+        add_test(NAME "security.windows-authenticated-identity-${case_name}"
+            COMMAND test_windows_authenticated_identity "${case_name}")
+        set_tests_properties(
+            "security.windows-authenticated-identity-${case_name}" PROPERTIES
+            LABELS "security;r2-native-authorization;windows;sspi;offline"
+            TIMEOUT 15)
+    endforeach()
+endif()
+
 # R6 fixture-only checks: do not enumerate a real desktop, capture pixels,
 # or inject input during an ordinary Windows CTest run.
 if(TARGET rdp-server-windows-desktop)

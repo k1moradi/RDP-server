@@ -1,3 +1,19 @@
+## R2 Windows SSPI authenticated-identity proof — 2026-10-22
+
+Source parent: `e938723cb83f1aca293178d803b0bd6f7d961726`. Added a Windows-only, noninstalled production
+`WindowsSspiAuthenticatedIdentityProof` whose production bind path is
+`QuerySecurityContextToken(acceptedContext)` only. The proof owns the returned
+token handle, retains only a bounded SID plus monotonic authentication
+generation, and invalidates the active generation on replacement/revoke.
+Native WTS/LSA evidence remains separate and non-authorizing.
+
+Added two centrally registered Windows CTests covering invalid SSPI contexts and
+positive process-token SID extraction/generation/revocation through a private
+test-only friend. The latter is explicitly not remote-authentication evidence.
+Canonical owner-local Windows build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No live SSPI/CredSSP
+client, WTS/DXGI capture or SendInput operation was performed.
+
 ## R7 post-green dashboard presentation polish review (2026-10-22)
 
 Starting shared-main parent: `19bae944fc58fdfeb122e993db195cfb7778e652`.

@@ -460,7 +460,11 @@ void windowsNativeDesktopOwnerStandaloneAuthenticatedSessionLifecycle()
                WindowsNativeDesktopServiceResult::frameConsumed);
         assert(!desktop.handleInput(
             authorization, generation, WindowsKeyInput{0x1e, false, true}));
-        assert(desktop.ready());
+        // Requesting Input through a View-only grant is fail-closed. The
+        // Windows owner retires rather than retaining a native lifetime that
+        // was just asked to exceed its R2 permission scope.
+        assert(!desktop.ready());
+        assert(dxgi.releases != 0U);
     }
 
     {

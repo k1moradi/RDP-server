@@ -1,3 +1,33 @@
+## R6 standalone Windows owner CI expectation correction (2026-10-22)
+
+Starting exact-main parent: `3fcdc393a8cbc9bf060be98201a8ba514885961c`.
+
+Exact-head hosted CI exposed one test-contract mistake in the new R6 standalone
+owner regression. Run 39786382898 built the Windows graph successfully, but both
+Windows full CTest jobs failed only
+`windows.native-owner-standalone-authenticated-session-lifecycle` at the
+View-only branch: the test expected `desktop.ready()` after deliberately
+requesting Input permission.
+
+The production owner is stricter. `WindowsNativeDesktopOwner::handleInput()`
+asks R2 for `kConsoleInputPermission`; a View-only authorization cannot satisfy
+that visit, so R6 retires the native owner fail-closed. This is the intended
+security behavior and still guarantees that SendInput is never enabled without
+Input permission. The correction changes only the regression expectation to
+require denial plus owner retirement and native-resource release. Production
+authorization/owner code is unchanged.
+
+Hosted evidence on parent `3fcdc393a8cbc9bf060be98201a8ba514885961c`: Windows compile **PASS**; full
+Debug/Release CTest **FAIL** at that single assertion; Ubuntu/macOS and R2
+security jobs **PASS**. Connector/source review of this correction: **PASS**.
+Canonical owner-local configure/build/full CTest: **NOT RUN** here.
+Replacement exact-publication-SHA hosted CI: **PENDING**.
+
+The positive-production blocker is unchanged: Windows still lacks a trusted
+current-local-owner evidence provider for `CurrentOwnerSharingAuthority`.
+The R6 positive activation literal remains false; physical Windows native
+acceptance and the real CLEAN receipt remain **BLOCKED / NOT RUN**.
+
 ## R6 standalone-authenticated Windows owner after R2/R10 handoff (2026-10-22)
 
 Starting exact-main parent: `806346e3672020af7faef5b9ed2af715f3674e85`.

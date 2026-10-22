@@ -1,3 +1,25 @@
+## R6 standalone Windows View-only fail-closed correction — 2026-10-22
+
+Starting exact-main parent: `3fcdc393a8cbc9bf060be98201a8ba514885961c`.
+
+Hosted run 39786382898 compiled both Windows configurations, then failed only
+`windows.native-owner-standalone-authenticated-session-lifecycle` because the
+new test expected a View-only owner to remain ready after an Input request.
+Source inspection confirms `handleInput()` requires
+`kConsoleInputPermission`; a failed authorization visit intentionally retires
+the Windows native owner.
+
+This correction keeps that production behavior and updates the test to assert
+Input denial, terminal owner retirement and DXGI-resource release. No
+production code, capability gate or native side-effect behavior changes.
+
+Parent evidence: Windows compile **PASS**; Windows full Debug/Release CTest
+**FAIL** at the stale assertion; Ubuntu/macOS and R2 security jobs **PASS**.
+Connector/source inspection of the correction: **PASS**. Canonical owner-local
+build/full CTest: **NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**.
+The missing Windows current-local-owner evidence provider remains the next
+production blocker.
+
 ## R6 standalone-authenticated Windows owner coverage — 2026-10-22
 
 Starting exact-main parent: `806346e3672020af7faef5b9ed2af715f3674e85`.

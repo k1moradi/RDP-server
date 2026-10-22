@@ -8,11 +8,14 @@ ordinary Windows full CTest set. It must construct the real
 matcher. Successful R6 owner construction therefore proves the WTS/native SID
 is fresh local target evidence, not the remote standalone identity.
 
-The same test must cover View-only versus View+Input scope and terminally retire
-the aggregate when the standalone authentication generation changes, the local
-owner grant is revoked, or fresh `WindowsNativeSessionEvidence` changes. If
-input was delivered before authorization loss, no synthetic native input may be
-posted afterward. The fixture remains fully injected/offline: it must not read
+The same test must cover View-only versus View+Input scope. An Input request
+through a View-only grant must be denied and must retire the Windows owner
+fail-closed; it must never create or reach a native input controller. The test
+must also terminally retire the aggregate when the standalone authentication
+generation changes, the local owner grant is revoked, or fresh
+`WindowsNativeSessionEvidence` changes. If input was delivered before
+authorization loss, no synthetic native input may be posted afterward. The
+fixture remains fully injected/offline: it must not read
 live WTS/LSA state, enumerate DXGI, sample a live cursor, call SendInput, open a
 listener or authenticate a real client.
 

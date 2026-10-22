@@ -1,3 +1,24 @@
+## R2/R9 Linux sharing-permission focused CI qualification — 2026-10-22
+
+Starting exact-main parent: `666aaf11d345e6ef5f81ad1f6c74c92777fdb046`.
+
+Current source already registers
+`gui.offscreen-sharing-permission-product-language`; exact-parent macOS
+portable-GUI execution reports that case **PASS**. Exact-parent Linux
+`r5-linux-gui-zip`, both R2 production-runtime-security configurations,
+Ubuntu protocol and documentation policy are also **PASS**. The audit found
+only that the Linux focused Round 2 selector enumerated six other cases and did
+not select this R2 product-language regression.
+
+The workflow now adds that existing CTest to the required selector/list and
+changes the exact focused count from six to seven. No test semantics or
+production authority code changes. This is an offline qualification correction
+only; it cannot mint consent or satisfy physical Linux/X11 acceptance.
+
+Connector/source transformation review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**.
+
 ## R5/R7 focused-workflow restoration — 2026-10-22
 
 Starting exact-main parent: `455ad29bf8998ea673cabc065a8f5e02d6e512c3`.

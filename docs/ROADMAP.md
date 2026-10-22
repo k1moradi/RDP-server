@@ -1,3 +1,35 @@
+## R2/R9 Linux sharing-permission focused qualification — 2026-10-22
+
+Starting exact-main parent: `666aaf11d345e6ef5f81ad1f6c74c92777fdb046`.
+
+Dependency recheck: the shared R7 GUI compile regression and the malformed
+focused-workflow edit are **RESOLVED** on this parent. Exact-parent Actions run
+`39823711878` has `r5-linux-gui-zip` **PASS**, both R2 Linux
+production-runtime-security jobs **PASS**, Ubuntu protocol **PASS**, macOS
+portable GUI **PASS**, and documentation policy **PASS**. The macOS offscreen
+suite also executes `gui.offscreen-sharing-permission-product-language` and
+reports it **PASS**.
+
+The remaining R2 P1 qualification gap is Linux-focused CI inventory, not
+production behavior: `gui.offscreen-sharing-permission-product-language` is
+already an ordinary registered CTest but was omitted from
+`r5-linux-gui-zip`'s Round 2 selector. The focused selector now requires that
+existing test and raises its exact inventory from six to seven cases. This
+proves the Linux GUI lane itself exercises the requested sharing-permission
+product wording and button-state projection before packaging.
+
+No production source, `CurrentOwnerSharingAuthority`, R10 product semantics,
+Windows/macOS owner-consent architecture, Session Password capability, listener,
+native desktop, clipboard or input behavior changes.
+
+Connector/source transformation review: **PASS**. Exact-parent hosted evidence
+above: **PASS** for the already-running producers. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** replacement exact-SHA `r5-linux-gui-zip` and
+`r9-gui-round2-acceptance` PASS.
+
 ## R5/R7 focused-workflow restoration — 2026-10-22
 
 Starting exact-main parent: `455ad29bf8998ea673cabc065a8f5e02d6e512c3`.

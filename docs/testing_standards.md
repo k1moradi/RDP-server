@@ -1,3 +1,21 @@
+## Linux Round 2 sharing-permission focused qualification (2026-10-22)
+
+The `r5-linux-gui-zip` Round 2 selector must enumerate and execute exactly
+seven offline cases before packaging:
+`gui.offscreen-round2-tabs-and-main-simplicity`,
+`gui.offscreen-round2-endpoint-refresh-fail-closed`,
+`gui.offscreen-round2-advanced-groups-scrollable`,
+`gui.offscreen-sharing-permission-product-language`,
+`gui.round2-tab-source-contract`,
+`gui.round2-qcolor-warning-classification`, and
+`runtime.host-control-gui-round2-endpoint-recommendation`.
+
+Keep the exact-name and count assertions so focused Linux GUI qualification
+cannot silently omit R2's product-facing permission language while broader
+platform CTest still passes it. These tests remain offline and do not request
+or grant sharing permission, open a listener, attach a native desktop or enable
+Session Password.
+
 ## Round 2 tray/refresh ownership regression (2026-10-22)
 
 Keep `gui.round2-refresh-tray-function-boundary` in ordinary full CTest. `DesktopWindow::updateTray()` owns tray

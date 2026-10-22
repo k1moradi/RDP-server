@@ -1,3 +1,28 @@
+## R2/R9 Round 2 offscreen helper rename correction — 2026-10-22
+
+Starting exact-main parent: `f23db4174b1b983faef94fcad9785d024b932841`.
+
+Exact-head workflow run `39816283512` reached the shared Qt fixture on
+Linux, macOS and Windows and all three GUI producers failed at compile before
+behavior execution: `tests/test_desktop_gui_offline.cpp:1176` still called
+`checkDashboardDefaults`, while R9 `bf8e96b1885242ce634b8d6b712eb8293fa34382`
+had renamed that helper to `checkRound2TabsAndMainSimplicity`. R2 P1's Linux
+permission projection was not the failing boundary; Ubuntu protocol and both R2
+Linux production-security configurations passed on the same workflow.
+
+The correction updates only the stale default-fixture call to the already
+existing Round 2 helper. Production code, R2 authority, R10 product facts,
+Session Password gating, Windows/macOS owner-consent architecture and live
+native behavior are unchanged. The existing
+`gui.offscreen-first-run-authorization-revocation` plus the Round 2 offscreen
+tests remain the behavior coverage; no duplicate CTest is added for a test-only
+symbol rename.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Replacement exact-SHA hosted
+CI: **PENDING**. Next gate is the R9 `r9-gui-round2-acceptance` aggregate;
+physical Linux FIRST remains a separate owner-authorized gate.
+
 ## R10 post-publication Linux product-status wording correction — 2026-10-22
 
 Starting exact-main parent: `48e5ea20aec4e0f197e0a5155c58f12652512201`.

@@ -1173,7 +1173,7 @@ int main(int argc, char** argv)
 
     // Default full-path regression: one page, auto-address, authoritative
     // toggle, connected-device projection and explicit Stop/Revoke.
-    checkDashboardDefaults(runtime, host);
+    checkRound2TabsAndMainSimplicity(runtime, host);
     prepareReadyHost(runtime);
     runtime.startSucceeds = true;
     {

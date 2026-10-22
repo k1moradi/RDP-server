@@ -1,3 +1,24 @@
+## R1 standalone terminal provenance correction (2026-10-22)
+
+Starting exact-main parent: `1191ef2ef8b1f153da1b75818b4ad013a7dab51e`.
+
+Exact-SHA Ubuntu protocol CI exposed the already-registered
+`runtime.linux-connection-standalone-authentication-provenance-generation`
+regression at its post-`revoke()` assertion. The initial selected generation
+was correct; terminal teardown then zeroed `standaloneCredentialGeneration_`,
+contradicting R1's own bounded diagnostic contract.
+
+The fix retains that non-secret correlation scalar after terminal teardown.
+Authorization remains impossible because the exact credential-owner pointer and
+principal-proof pointer are cleared, the R1 connection is cancelled, the
+standalone CredSSP owner is reset and `provisioned_` becomes false. All active
+authentication paths already require the live owner pointer in addition to the
+generation.
+
+No listener, credential, native desktop or input behavior changes. The existing
+production-backed CTest remains the regression. Fresh exact-SHA hosted CI is
+**PENDING**.
+
 ## R2 P0 authorization-view initializer correction (2026-10-22)
 
 Starting exact-main parent: `752d4e26c71f9e4dc6b2103bfaca55794de49995`.

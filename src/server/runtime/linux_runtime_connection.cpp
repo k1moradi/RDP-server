@@ -4350,7 +4350,9 @@ void LinuxRuntimeConnection::revoke() noexcept
     connection_.cancel();
     principalProof_ = nullptr;
     standaloneCredentialOwner_ = nullptr;
-    standaloneCredentialGeneration_ = 0U;
+    // Preserve the non-secret generation only for terminal acceptance
+    // diagnostics. With the owner/proof cleared, R1 cancelled and provisioned_
+    // retired below, this scalar cannot authorize or resume authentication.
     standaloneReplyPending_ = false;
     standaloneBindingReplyPending_ = false;
     provisioned_ = false;

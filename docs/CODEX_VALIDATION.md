@@ -1,3 +1,20 @@
+## R1 standalone teardown diagnostic fix — 2026-10-22
+
+Starting exact-main parent: `1191ef2ef8b1f153da1b75818b4ad013a7dab51e`.
+
+Run 39782268947 reached 857 Ubuntu protocol tests; the R2 P0 standalone native
+authorization tests both passed. The only Ubuntu failure was
+`runtime.linux-connection-standalone-authentication-provenance-generation` at
+the post-`revoke()` assertion. Source inspection showed
+`LinuxRuntimeConnection::revoke()` zeroed the pinned non-secret standalone
+credential generation despite R1's diagnostic requirement to retain it through
+terminal classification.
+
+Correction keeps only that scalar. Credential-owner/proof pointers, transport,
+CredSSP state and `provisioned_` are still retired, so the retained value is
+diagnostic correlation only and cannot authorize work. Fresh exact-SHA hosted
+CI: **PENDING**.
+
 ## R2 P0 initializer punctuation correction — 2026-10-22
 
 Starting exact-main parent: `752d4e26c71f9e4dc6b2103bfaca55794de49995`.

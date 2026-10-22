@@ -1,3 +1,27 @@
+## R10 Linux route-aware LAN recommendation regressions (2026-10-22)
+
+Keep `runtime.linux-host-control-route-aware-lan-recommendation` in the
+ordinary Linux full CTest set. It must inject route observations into the same
+production ranking seam rather than depend on the CI host's live route table.
+Cover: default physical LAN `192.168.1.5` over VPN `10.180.105.86`; VPN
+winning when its default-route metric is lower; equal metrics becoming
+ambiguous; sole eligible dual-stack interface fallback; IPv4/IPv6 default-route
+metric ordering; no-route multi-interface ambiguity; and denial of a stale
+recommended tuple after the preferred interface disappears.
+
+Keep the existing
+`runtime.r1-bind-revalidates-recommended-endpoint` source/behavior guard:
+recommendation never authorizes binding and Start must freshly validate the exact
+stable interface/address before listener ownership can begin.
+
+R9's existing `gui.offscreen-round2-endpoint-refresh-fail-closed` must consume
+the R10 recommendation source. An ambiguous refresh clears the previous
+automatic choice, disables Copy/Start for the automatic endpoint and shows no
+arbitrary private address; Advanced manual selection remains available. Tests
+must perform no external network request. Production may read
+`/proc/net/route` and `/proc/net/ipv6_route` as kernel state and must not
+name-filter VPN, Docker or bridge interfaces.
+
 ## R9 GUI Round 2 acceptance contract (2026-10-22)
 
 GUI Round 2 is qualified independently of CLEAN Windows. Keep

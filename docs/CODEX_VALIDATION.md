@@ -1,3 +1,36 @@
+## R10 P0 Linux route-aware LAN recommendation — 2026-10-22
+
+Starting exact-main parent: `bf8e96b1885242ce634b8d6b712eb8293fa34382`.
+
+Dependency recheck: R1's recommendation/bind fence is **RESOLVED** by
+`33676c5e0ffc5b831ecbf393ee89174342d245ce`; R6's non-lexical portable
+recommendation model is **RESOLVED** by
+`083bc0d0237a25eb1becfcfaa63b6ddc8ebec780`; R9's GUI Round 2 fresh
+recommendation consumption is **RESOLVED** by
+`bf8e96b1885242ce634b8d6b712eb8293fa34382`. R10 adds the missing Linux
+kernel route collector, explicit recommendation source, sole-interface fallback
+and source-aware R7 projection.
+
+Linux production reads only `/proc/net/route` and
+`/proc/net/ipv6_route`; no socket/connectivity/DNS/external request is used.
+Default-route ownership and metric rank eligible private endpoints, with no
+adapter-name classification. No trustworthy winner produces no automatic
+endpoint. Existing Start-time fresh interface enumeration, native stable-ID
+resolution, R1 private-LAN/exact-bind checks, TLS binding and authorization are
+unchanged.
+
+New ordinary test:
+`runtime.linux-host-control-route-aware-lan-recommendation`. Existing
+`runtime.host-control-gui-round2-endpoint-recommendation`,
+`runtime.r1-bind-revalidates-recommended-endpoint`, and
+`gui.offscreen-round2-endpoint-refresh-fail-closed` are updated/retained as
+the portable policy, bind-authority and R7 fail-closed gates.
+
+Connector/source authoring review: **PASS**. Canonical owner-local build/full
+CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. External
+network access, live bind/client, physical FIRST and Windows/macOS owner-consent
+activation: **NOT RUN**.
+
 ## R9 GUI Round 2 acceptance authoring receipt — 2026-10-22
 
 Starting exact-main parent: `5d8572a6e9a0bfa2f9efdd5e2a2e5faf9f6ef9dd`.

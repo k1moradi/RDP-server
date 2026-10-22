@@ -8,6 +8,7 @@
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <span>
@@ -39,6 +40,21 @@ struct LinuxNativeLanInterfaceIdentity
 };
 [[nodiscard]] std::optional<LinuxNativeLanInterfaceIdentity>
 resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept;
+
+struct LinuxRuntimeDefaultRoutePreference final
+{
+    std::string interfaceId;
+    RuntimeHostAddressFamily family{RuntimeHostAddressFamily::Unspecified};
+    std::uint32_t metric{};
+};
+
+// Recommendation-only production seam. It opens no socket and confers no R1
+// bind authority; tests inject route facts here without reading host routing.
+[[nodiscard]] RuntimeHostRecommendedEndpoint
+recommendLinuxPrivateLanEndpoint(
+    const std::vector<RuntimeHostInterface>& interfaces,
+    std::span<const LinuxRuntimeDefaultRoutePreference> defaultRoutes,
+    std::uint16_t port = 3389U);
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.

@@ -84,16 +84,28 @@ int main(int argc, char** argv)
         assert(status.product.lastErrorMessage ==
                "Host-owner permission required");
 
-        const auto expected = recommendRuntimePrivateLanEndpoint(
-            status.product.eligibleLanInterfaces);
-        assert(status.product.recommendedEndpoint.valid() == expected.valid());
-        if (expected.valid())
+        const auto& recommended = status.product.recommendedEndpoint;
+        if (recommended.valid())
         {
-            assert(status.product.recommendedEndpoint.interfaceId ==
-                   expected.interfaceId);
-            assert(status.product.recommendedEndpoint.address ==
-                   expected.address);
-            assert(status.product.recommendedEndpoint.port == expected.port);
+            assert(recommended.source ==
+                       RuntimeHostRecommendationSource::PreferredRoute ||
+                   recommended.source ==
+                       RuntimeHostRecommendationSource::SoleEligibleInterface);
+            const RuntimeHostOptions selection{
+                recommended.interfaceId, recommended.address,
+                recommended.port, true, false};
+            assert(assessRuntimeSelectedLanEndpoint(
+                       selection,
+                       status.product.eligibleLanInterfaces).succeeded());
+        }
+        else
+        {
+            assert(recommended.interfaceId.empty());
+            assert(recommended.address.empty());
+            assert(recommended.source ==
+                       RuntimeHostRecommendationSource::Ambiguous ||
+                   recommended.source ==
+                       RuntimeHostRecommendationSource::Unavailable);
         }
         return 0;
     }
@@ -117,6 +129,109 @@ int main(int argc, char** argv)
                RuntimeSharingPermissionDenial::Unavailable);
         assert(status.product.lastErrorMessage ==
                "Sharing permission required");
+        return 0;
+    }
+
+    if (testCase == "linux-host-control-route-aware-lan-recommendation")
+    {
+        using Family = RuntimeHostAddressFamily;
+        using Source = RuntimeHostRecommendationSource;
+        const std::vector<RuntimeHostInterface> interfaces{
+            {"physical#2", "Physical LAN", {"192.168.1.5"}, false, true},
+            {"vpn#7", "VPN", {"10.180.105.86"}, false, true}};
+
+        {
+            const std::vector<LinuxRuntimeDefaultRoutePreference> routes{
+                {"physical#2", Family::Ipv4, 100U},
+                {"vpn#7", Family::Ipv4, 600U}};
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(interfaces, routes);
+            assert(recommended.valid());
+            assert(recommended.interfaceId == "physical#2");
+            assert(recommended.address == "192.168.1.5");
+            assert(recommended.source == Source::PreferredRoute);
+            assert(recommended.routeMetric == 100U);
+        }
+
+        {
+            const std::vector<LinuxRuntimeDefaultRoutePreference> routes{
+                {"physical#2", Family::Ipv4, 100U},
+                {"vpn#7", Family::Ipv4, 25U}};
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(interfaces, routes);
+            assert(recommended.valid());
+            assert(recommended.interfaceId == "vpn#7");
+            assert(recommended.address == "10.180.105.86");
+            assert(recommended.source == Source::PreferredRoute);
+            assert(recommended.routeMetric == 25U);
+        }
+
+        {
+            const std::vector<LinuxRuntimeDefaultRoutePreference> routes{
+                {"physical#2", Family::Ipv4, 100U},
+                {"vpn#7", Family::Ipv4, 100U}};
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(interfaces, routes);
+            assert(!recommended.valid());
+            assert(recommended.ambiguous);
+            assert(recommended.source == Source::Ambiguous);
+        }
+
+        {
+            const std::vector<RuntimeHostInterface> sole{{
+                "wifi#4", "Wi-Fi",
+                {"fd12:3456::5", "192.168.50.5"}, false, true}};
+            const std::vector<LinuxRuntimeDefaultRoutePreference> noRoutes;
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(sole, noRoutes, 3390U);
+            assert(recommended.valid());
+            assert(recommended.interfaceId == "wifi#4");
+            assert(recommended.address == "192.168.50.5");
+            assert(recommended.port == 3390U);
+            assert(recommended.source == Source::SoleEligibleInterface);
+        }
+
+        {
+            const std::vector<RuntimeHostInterface> mixedFamily{
+                {"ipv4#3", "IPv4 LAN", {"192.168.70.3"}, false, true},
+                {"ipv6#8", "IPv6 LAN", {"fd70::8"}, false, true}};
+            const std::vector<LinuxRuntimeDefaultRoutePreference> routes{
+                {"ipv4#3", Family::Ipv4, 200U},
+                {"ipv6#8", Family::Ipv6, 20U}};
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(mixedFamily, routes);
+            assert(recommended.valid());
+            assert(recommended.interfaceId == "ipv6#8");
+            assert(recommended.address == "fd70::8");
+            assert(recommended.family == Family::Ipv6);
+            assert(recommended.source == Source::PreferredRoute);
+        }
+
+        {
+            const std::vector<LinuxRuntimeDefaultRoutePreference> noRoutes;
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(interfaces, noRoutes);
+            assert(!recommended.valid());
+            assert(recommended.ambiguous);
+            assert(recommended.source == Source::Ambiguous);
+        }
+
+        {
+            const std::vector<LinuxRuntimeDefaultRoutePreference> routes{
+                {"physical#2", Family::Ipv4, 10U},
+                {"vpn#7", Family::Ipv4, 100U}};
+            const auto recommended =
+                recommendLinuxPrivateLanEndpoint(interfaces, routes);
+            assert(recommended.valid());
+            const RuntimeHostOptions staleSelection{
+                recommended.interfaceId, recommended.address,
+                recommended.port, true, false};
+            const std::vector<RuntimeHostInterface> afterRemoval{
+                {"vpn#7", "VPN", {"10.180.105.86"}, false, true}};
+            assert(assessRuntimeSelectedLanEndpoint(
+                       staleSelection, afterRemoval).error ==
+                   RuntimeHostError::InterfaceUnavailable);
+        }
         return 0;
     }
 

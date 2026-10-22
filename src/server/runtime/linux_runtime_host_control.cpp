@@ -22,10 +22,13 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <system_error>
 #include <utility>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -173,6 +176,120 @@ inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
                (bytes[0] == 0xfeU && (bytes[1] & 0xc0U) == 0x80U);
     }
     return false;
+}
+
+[[nodiscard]] std::optional<std::uint32_t> parseRouteNumber(
+    const std::string_view text, const int base) noexcept
+{
+    if (text.empty())
+        return std::nullopt;
+    std::uint32_t value{};
+    const auto [end, error] =
+        std::from_chars(text.data(), text.data() + text.size(), value, base);
+    if (error != std::errc{} || end != text.data() + text.size())
+        return std::nullopt;
+    return value;
+}
+
+void appendLinuxDefaultRoute(
+    std::vector<LinuxRuntimeDefaultRoutePreference>& routes,
+    const std::string& interfaceName,
+    const RuntimeHostAddressFamily family,
+    const std::uint32_t metric)
+{
+    if (interfaceName.empty())
+        return;
+    const unsigned int index = ::if_nametoindex(interfaceName.c_str());
+    if (index == 0U)
+        return;
+
+    const std::string stableId =
+        interfaceName + "#" + std::to_string(index);
+    if (std::ranges::any_of(
+            routes,
+            [&](const LinuxRuntimeDefaultRoutePreference& route) {
+                return route.interfaceId == stableId &&
+                       route.family == family &&
+                       route.metric == metric;
+            }))
+        return;
+    routes.push_back({stableId, family, metric});
+}
+
+[[nodiscard]] std::vector<LinuxRuntimeDefaultRoutePreference>
+readLinuxDefaultRoutePreferences()
+{
+    // Read-only kernel routing snapshots. No network socket, connectivity
+    // probe, DNS lookup or external request occurs here.
+    constexpr std::uint32_t kRouteFlagUp = 0x1U;
+    constexpr std::uint32_t kRouteFlagReject = 0x200U;
+    std::vector<LinuxRuntimeDefaultRoutePreference> routes;
+
+    {
+        std::ifstream input("/proc/net/route");
+        std::string line;
+        (void)std::getline(input, line);
+        while (std::getline(input, line))
+        {
+            std::istringstream row(line);
+            std::string interfaceName;
+            std::string destination;
+            std::string gateway;
+            std::string flagsText;
+            std::string refCount;
+            std::string useCount;
+            std::string metricText;
+            std::string mask;
+            if (!(row >> interfaceName >> destination >> gateway >> flagsText >>
+                  refCount >> useCount >> metricText >> mask))
+                continue;
+            if (destination != "00000000" || mask != "00000000")
+                continue;
+            const auto flags = parseRouteNumber(flagsText, 16);
+            const auto metric = parseRouteNumber(metricText, 10);
+            if (!flags || !metric || (*flags & kRouteFlagUp) == 0U ||
+                (*flags & kRouteFlagReject) != 0U)
+                continue;
+            appendLinuxDefaultRoute(
+                routes, interfaceName, RuntimeHostAddressFamily::Ipv4,
+                *metric);
+        }
+    }
+
+    {
+        std::ifstream input("/proc/net/ipv6_route");
+        std::string line;
+        while (std::getline(input, line))
+        {
+            std::istringstream row(line);
+            std::string destination;
+            std::string destinationPrefixLength;
+            std::string source;
+            std::string sourcePrefixLength;
+            std::string nextHop;
+            std::string metricText;
+            std::string refCount;
+            std::string useCount;
+            std::string flagsText;
+            std::string interfaceName;
+            if (!(row >> destination >> destinationPrefixLength >>
+                  source >> sourcePrefixLength >> nextHop >> metricText >>
+                  refCount >> useCount >> flagsText >> interfaceName))
+                continue;
+            if (destination != "00000000000000000000000000000000" ||
+                destinationPrefixLength != "00")
+                continue;
+            const auto flags = parseRouteNumber(flagsText, 16);
+            const auto metric = parseRouteNumber(metricText, 16);
+            if (!flags || !metric || (*flags & kRouteFlagUp) == 0U ||
+                (*flags & kRouteFlagReject) != 0U)
+                continue;
+            appendLinuxDefaultRoute(
+                routes, interfaceName, RuntimeHostAddressFamily::Ipv6,
+                *metric);
+        }
+    }
+    return routes;
 }
 
 [[nodiscard]] std::string endpointText(
@@ -376,6 +493,47 @@ struct LinuxHostFramePublicationContext final
 }
 #endif
 } // namespace
+
+RuntimeHostRecommendedEndpoint recommendLinuxPrivateLanEndpoint(
+    const std::vector<RuntimeHostInterface>& interfaces,
+    const std::span<const LinuxRuntimeDefaultRoutePreference> defaultRoutes,
+    const std::uint16_t port)
+{
+    std::vector<RuntimeHostLanEndpointCandidate> candidates;
+    for (const RuntimeHostInterface& runtimeInterface : interfaces)
+    {
+        for (const std::string& address : runtimeInterface.localAddresses)
+        {
+            const RuntimeHostOptions selection{
+                runtimeInterface.stableId, address, port, true, false};
+            if (!assessRuntimeSelectedLanEndpoint(
+                    selection, interfaces).succeeded())
+                continue;
+
+            RuntimeHostLanEndpointCandidate candidate;
+            candidate.interfaceId = runtimeInterface.stableId;
+            candidate.address = address;
+            candidate.family = address.find(':') == std::string::npos
+                ? RuntimeHostAddressFamily::Ipv4
+                : RuntimeHostAddressFamily::Ipv6;
+            candidate.privateLanEligible = true;
+
+            for (const LinuxRuntimeDefaultRoutePreference& route :
+                 defaultRoutes)
+            {
+                if (route.interfaceId != candidate.interfaceId ||
+                    route.family != candidate.family)
+                    continue;
+                candidate.preferredRoute = true;
+                if (!candidate.routeMetric.has_value() ||
+                    route.metric < *candidate.routeMetric)
+                    candidate.routeMetric = route.metric;
+            }
+            candidates.emplace_back(std::move(candidate));
+        }
+    }
+    return recommendRuntimePrivateLanEndpoint(candidates, port);
+}
 
 std::optional<LinuxNativeLanInterfaceIdentity>
 resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept
@@ -705,9 +863,12 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.product.eligibleLanInterfaces = enumerateLocalInterfaces();
     const std::uint16_t recommendedPort =
         selectionConfigured_ ? selection_.port : 3389U;
+    const std::vector<LinuxRuntimeDefaultRoutePreference> defaultRoutes =
+        readLinuxDefaultRoutePreferences();
     snapshot.product.recommendedEndpoint =
-        recommendRuntimePrivateLanEndpoint(
-            snapshot.product.eligibleLanInterfaces, recommendedPort);
+        recommendLinuxPrivateLanEndpoint(
+            snapshot.product.eligibleLanInterfaces, defaultRoutes,
+            recommendedPort);
     snapshot.product.boundEndpoint = snapshot.boundEndpoint;
     snapshot.product.clientCount = snapshot.activeClients.size();
     snapshot.product.activeClientIds.reserve(snapshot.activeClients.size());

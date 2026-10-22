@@ -1,3 +1,53 @@
+## R10 P0 route-aware Linux LAN recommendation and product model — 2026-10-22
+
+Starting exact-main parent: `bf8e96b1885242ce634b8d6b712eb8293fa34382`.
+
+The dependency recheck found two concurrent prerequisites already landed: R1
+`33676c5e0ffc5b831ecbf393ee89174342d245ce` keeps recommendation separate
+from bind authority and revalidates a selected tuple at Start, while R6
+`083bc0d0237a25eb1becfcfaa63b6ddc8ebec780` removed lexical
+interface/address tie-breaking from the portable recommendation contract. R9
+`bf8e96b1885242ce634b8d6b712eb8293fa34382` already makes GUI Round 2
+follow fresh R10 recommendations and clear stale automatic selections. This R10
+increment completes the missing Linux production routing composition.
+
+Linux status reads only `/proc/net/route` and
+`/proc/net/ipv6_route`, maps native interface names to the same current
+`name#ifindex` identity used by interface enumeration, and supplies
+default-route ownership plus kernel metric to the portable ranker. It opens no
+network socket and performs no Internet/connectivity/DNS probe. VPN, Docker,
+bridge and similar interfaces are never rejected by name; an eligible interface
+wins when routing state makes it the preferred/default route. Comparable
+multiple defaults use the lower metric. With no trustworthy route winner,
+exactly one eligible private interface may fall back to
+`SoleEligibleInterface`; otherwise status is `Ambiguous` or
+`Unavailable` and contains no automatic endpoint.
+
+`RuntimeHostRecommendedEndpoint` now reports
+`PreferredRoute`, `SoleEligibleInterface`, `Ambiguous`, or
+`Unavailable`. R7 copies and consumes this product fact; it auto-selects only
+the first two. Ambiguous status advertises no arbitrary “computer address” and
+directs the owner to an exact Advanced interface choice. Manual override remains
+available. Existing fresh Start re-enumeration, stable native-ID resolution,
+private-LAN validation, TLS identity binding, R2 authorization and R1 listener
+ownership are unchanged.
+
+The new ordinary Linux regression
+`runtime.linux-host-control-route-aware-lan-recommendation` covers
+`192.168.1.5` as the selected/default LAN over VPN `10.180.105.86`, VPN
+winning when its default metric is genuinely lower, metric ties, sole eligible
+dual-stack fallback, IPv4/IPv6 default-route metric ordering, ambiguous
+multi-interface state, and preferred-interface disappearance. Existing
+`runtime.r1-bind-revalidates-recommended-endpoint` remains the independent
+Start/bind authority fence, and R9's existing Round 2 offscreen refresh test now
+pins the explicit ambiguous product state.
+
+Connector source/transformation inspection: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. No live listener/client, external
+network request, physical FIRST action, or Windows/macOS owner-consent
+activation was performed.
+
 ## R9 P0 GUI Round 2 acceptance gate (2026-10-22)
 
 Starting exact-main parent: `5d8572a6e9a0bfa2f9efdd5e2a2e5faf9f6ef9dd`.

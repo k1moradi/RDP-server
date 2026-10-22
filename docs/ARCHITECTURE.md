@@ -1,3 +1,32 @@
+## Route-aware product LAN recommendation (2026-10-22)
+
+R10's recommended endpoint is presentation policy, never listener authority.
+The portable candidate model carries opaque stable interface identity, address
+family, private-LAN eligibility, preferred/default-route ownership and optional
+route metric. The result additionally carries exactly one recommendation source:
+`PreferredRoute`, `SoleEligibleInterface`, `Ambiguous`, or
+`Unavailable`.
+
+On Linux the platform adapter obtains default-route facts from the read-only
+kernel procfs routing snapshots. Route interface names are converted through
+`if_nametoindex()` to the same current `name#ifindex` identity used by
+`enumerateLocalInterfaces()`. No interface-name heuristic is permitted: VPN,
+bridge, container and physical adapters remain equal candidates until routing
+facts select one. Preferred/default-route candidates outrank non-preferred
+ones; comparable defaults use the lower kernel metric. Equal or otherwise
+non-unique winners are ambiguous. Without a default-route winner, exactly one
+eligible private interface may be used; IPv4-before-IPv6 is only a presentation
+choice within that sole interface, never a cross-interface tie-break.
+
+R7 consumes R10's source and endpoint and performs no route ranking. It may
+automatically select only `PreferredRoute` or `SoleEligibleInterface`.
+Ambiguous/unavailable states expose no automatic endpoint; Advanced may submit
+an exact manual interface/address pair. Every automatic or manual tuple remains
+untrusted until the existing Start transaction freshly enumerates the
+interface/address, resolves the current native identity, revalidates private-LAN
+policy and lets R1 own the exact bind. TLS identity, authorization and listener
+ownership are unchanged.
+
 ## R10 authenticated-session to single native-owner composition (2026-10-22)
 
 `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` is the R10

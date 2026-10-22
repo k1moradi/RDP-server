@@ -396,7 +396,8 @@ void checkRound2RecommendationRefreshFailClosed()
         {"vpn-virtual", "VPN", {"10.180.105.86"}, false, true}};
     runtime.snapshot.product.recommendedEndpoint = {
         "lan-default", "192.168.1.5", 3389U,
-        RuntimeHostAddressFamily::Ipv4, true, true, {}, false};
+        RuntimeHostAddressFamily::Ipv4, true, true, {}, false,
+        RuntimeHostRecommendationSource::PreferredRoute};
 
     HostControl host(runtime);
     DesktopWindow window(host);
@@ -409,9 +410,12 @@ void checkRound2RecommendationRefreshFailClosed()
            QStringLiteral("192.168.1.5"));
 
     runtime.snapshot.product.recommendedEndpoint = {};
+    runtime.snapshot.product.recommendedEndpoint.ambiguous = true;
+    runtime.snapshot.product.recommendedEndpoint.source =
+        RuntimeHostRecommendationSource::Ambiguous;
     window.refresh();
-    assert(address->text() ==
-           QStringLiteral("No private LAN address available"));
+    assert(address->text().contains(
+        QStringLiteral("Multiple private LAN interfaces")));
     assert(!copy->isEnabled());
     assert(interfaceOverride->currentIndex() == 0);
 }
@@ -991,8 +995,10 @@ int main(int argc, char** argv)
         product.state = RuntimeProductHostState::Stopped;
         product.controlAvailable = true;
         product.eligibleLanInterfaces = runtime.interfaces;
-        product.recommendedEndpoint =
-            {"wifi-2", "192.168.50.20", 3389U};
+        product.recommendedEndpoint = {
+            "wifi-2", "192.168.50.20", 3389U,
+            RuntimeHostAddressFamily::Ipv4, true, true, 10U, false,
+            RuntimeHostRecommendationSource::PreferredRoute};
         product.credentialCapabilities.existingOsAccount = true;
         product.credentialsConfigured = true;
         product.ownerAuthorized = true;
@@ -1061,14 +1067,10 @@ int main(int argc, char** argv)
         auto* address = requiredLabel(window, "connectionAddress");
         auto* toggle = sharingToggle(window);
         assert(interfaces->count() == 3);
-        assert(interfaces->currentIndex() == 0);
-        assert(address->text() ==
-               QStringLiteral("No private LAN address available"));
-        assert(!window.canStart() && !toggle->isEnabled());
-
-        interfaces->setCurrentIndex(1);
+        assert(interfaces->currentIndex() == 1);
         assert(address->text() == QStringLiteral("192.168.2.21:3389"));
         assert(window.canStart() && toggle->isEnabled());
+
         interfaces->setCurrentIndex(2);
         assert(address->text() ==
                QStringLiteral("[fe80::1234]:3389"));

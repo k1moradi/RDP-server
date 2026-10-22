@@ -123,6 +123,8 @@ HostStatus HostControl::status() const
     view.recommendedAddress =
         toQString(runtimeStatus.product.recommendedEndpoint.address);
     view.recommendedPort = runtimeStatus.product.recommendedEndpoint.port;
+    view.recommendationSource =
+        runtimeStatus.product.recommendedEndpoint.source;
     view.clientCount = runtimeStatus.product.clientCount;
 
     if (view.controlAvailable && productMayHost && !terminalHostSession)

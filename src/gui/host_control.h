@@ -63,6 +63,9 @@ struct HostStatus
     QString recommendedInterfaceId;
     QString recommendedAddress;
     std::uint16_t recommendedPort{3389U};
+    rdp_server::server::runtime::RuntimeHostRecommendationSource
+        recommendationSource{
+            rdp_server::server::runtime::RuntimeHostRecommendationSource::Unavailable};
     QVector<ActiveClientChoice> activeClients;
     std::size_t clientCount{};
     rdp_server::server::runtime::RuntimeTlsCertificateFingerprint

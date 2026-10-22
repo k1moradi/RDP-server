@@ -40,6 +40,16 @@ namespace rdp::gui
 namespace
 {
 
+[[nodiscard]] constexpr bool hasAutomaticLanRecommendation(
+    const rdp_server::server::runtime::RuntimeHostRecommendationSource source)
+    noexcept
+{
+    using Source =
+        rdp_server::server::runtime::RuntimeHostRecommendationSource;
+    return source == Source::PreferredRoute ||
+           source == Source::SoleEligibleInterface;
+}
+
 QLabel* label(const QString& message, QWidget* parent = nullptr)
 {
     // Set the format before assigning runtime text. Constructing QLabel with
@@ -564,7 +574,12 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
                        candidate.address == selectedInterface;
             }))
     {
-        return QStringLiteral("No private LAN interface is available");
+        return state.recommendationSource ==
+                       rdp_server::server::runtime::
+                           RuntimeHostRecommendationSource::Ambiguous
+            ? QStringLiteral(
+                  "Choose a private LAN interface in Advanced")
+            : QStringLiteral("No private LAN interface is available");
     }
 
     return {};
@@ -708,7 +723,12 @@ void DesktopWindow::refresh()
         const QSignalBlocker blocked(interfaces_);
         interfaces_->clear();
         interfaces_->addItem(
-            QStringLiteral("No private LAN interface available"), QString());
+            snapshot.recommendationSource ==
+                    rdp_server::server::runtime::
+                        RuntimeHostRecommendationSource::Ambiguous
+                ? QStringLiteral("Choose a private LAN interface")
+                : QStringLiteral("No private LAN interface available"),
+            QString());
 
         for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces)
         {
@@ -754,6 +774,7 @@ void DesktopWindow::refresh()
         // recommendation unless the user made an Advanced override that still
         // names the exact current stable interface/address pair.
         if (!manualInterfaceOverride_ &&
+            hasAutomaticLanRecommendation(snapshot.recommendationSource) &&
             !snapshot.recommendedInterfaceId.isEmpty() &&
             !snapshot.recommendedAddress.isEmpty())
         {
@@ -834,10 +855,22 @@ void DesktopWindow::refresh()
     status_->setVisible(showHostingDetails);
 
     const QString address = displayedAddress(snapshot);
-    addressStatus_->setText(
-        address.isEmpty()
-            ? QStringLiteral("No private LAN address available")
-            : address);
+    if (!address.isEmpty())
+    {
+        addressStatus_->setText(address);
+    }
+    else if (snapshot.recommendationSource ==
+             rdp_server::server::runtime::
+                 RuntimeHostRecommendationSource::Ambiguous)
+    {
+        addressStatus_->setText(QStringLiteral(
+            "Multiple private LAN interfaces — choose one in Advanced"));
+    }
+    else
+    {
+        addressStatus_->setText(
+            QStringLiteral("No private LAN address available"));
+    }
     copy_->setEnabled(!address.isEmpty());
 
     credentialStatus_->setText(

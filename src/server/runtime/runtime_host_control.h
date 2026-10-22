@@ -122,6 +122,14 @@ enum class RuntimeHostAddressFamily : std::uint8_t
     Ipv6,
 };
 
+enum class RuntimeHostRecommendationSource : std::uint8_t
+{
+    PreferredRoute,
+    SoleEligibleInterface,
+    Ambiguous,
+    Unavailable,
+};
+
 // Platform-neutral input to R10's preferred-LAN recommendation policy.
 // interfaceId is an opaque stable identity. Native/display names such as
 // eth0, wlan0, en0 or a Windows adapter label are never ranking policy.
@@ -158,6 +166,8 @@ struct RuntimeHostRecommendedEndpoint final
     bool preferredRoute{};
     std::optional<std::uint32_t> routeMetric{};
     bool ambiguous{};
+    RuntimeHostRecommendationSource source{
+        RuntimeHostRecommendationSource::Unavailable};
 
     [[nodiscard]] bool valid() const noexcept
     {
@@ -241,69 +251,120 @@ recommendRuntimePrivateLanEndpoint(
     if (eligible.empty())
         return recommended;
 
+    const auto ambiguous = [&recommended]() {
+        recommended.ambiguous = true;
+        recommended.source = RuntimeHostRecommendationSource::Ambiguous;
+        return recommended;
+    };
+    const auto selectedResult =
+        [&recommended](const RuntimeHostLanEndpointCandidate* selected,
+                       const RuntimeHostRecommendationSource source) {
+            recommended.interfaceId = selected->interfaceId;
+            recommended.address = selected->address;
+            recommended.family = selected->family;
+            recommended.privateLanEligible = selected->privateLanEligible;
+            recommended.preferredRoute = selected->preferredRoute;
+            recommended.routeMetric = selected->routeMetric;
+            recommended.source = source;
+            return recommended;
+        };
+
     const bool hasPreferredRoute = std::ranges::any_of(
         eligible,
         [](const RuntimeHostLanEndpointCandidate* candidate) {
             return candidate->preferredRoute;
         });
 
-    std::vector<const RuntimeHostLanEndpointCandidate*> contenders;
-    contenders.reserve(eligible.size());
+    if (hasPreferredRoute)
+    {
+        std::vector<const RuntimeHostLanEndpointCandidate*> contenders;
+        contenders.reserve(eligible.size());
+        for (const RuntimeHostLanEndpointCandidate* candidate : eligible)
+        {
+            if (candidate->preferredRoute)
+                contenders.push_back(candidate);
+        }
+
+        const bool allMetricsAvailable = std::ranges::all_of(
+            contenders,
+            [](const RuntimeHostLanEndpointCandidate* candidate) {
+                return candidate->routeMetric.has_value();
+            });
+        if (allMetricsAvailable && contenders.size() > 1U)
+        {
+            const auto best = std::min_element(
+                contenders.begin(), contenders.end(),
+                [](const RuntimeHostLanEndpointCandidate* left,
+                   const RuntimeHostLanEndpointCandidate* right) {
+                    return *left->routeMetric < *right->routeMetric;
+                });
+            const std::uint32_t bestMetric = *(*best)->routeMetric;
+            std::erase_if(
+                contenders,
+                [bestMetric](const RuntimeHostLanEndpointCandidate* candidate) {
+                    return *candidate->routeMetric != bestMetric;
+                });
+        }
+
+        const RuntimeHostLanEndpointCandidate* selected = contenders.front();
+        if (std::ranges::any_of(
+                contenders,
+                [selected](const RuntimeHostLanEndpointCandidate* candidate) {
+                    return !sameRuntimeLanEndpointIdentity(*selected, *candidate);
+                }))
+            return ambiguous();
+
+        for (const RuntimeHostLanEndpointCandidate* candidate : contenders)
+        {
+            if (!selected->routeMetric.has_value() &&
+                candidate->routeMetric.has_value())
+                selected = candidate;
+        }
+        return selectedResult(
+            selected, RuntimeHostRecommendationSource::PreferredRoute);
+    }
+
+    // No trustworthy route winner: only one eligible private interface may be
+    // selected automatically. IPv4 is preferred only within that one
+    // interface, never as a tie-break between different interfaces.
+    std::vector<std::string_view> interfaceIds;
+    interfaceIds.reserve(eligible.size());
     for (const RuntimeHostLanEndpointCandidate* candidate : eligible)
     {
-        if (candidate->preferredRoute == hasPreferredRoute)
-            contenders.push_back(candidate);
+        if (std::ranges::find(interfaceIds, candidate->interfaceId) ==
+            interfaceIds.end())
+            interfaceIds.push_back(candidate->interfaceId);
     }
+    if (interfaceIds.size() != 1U)
+        return ambiguous();
 
-    const bool allMetricsAvailable = std::ranges::all_of(
-        contenders,
-        [](const RuntimeHostLanEndpointCandidate* candidate) {
-            return candidate->routeMetric.has_value();
-        });
-    if (allMetricsAvailable && contenders.size() > 1U)
-    {
-        const auto best = std::min_element(
-            contenders.begin(), contenders.end(),
-            [](const RuntimeHostLanEndpointCandidate* left,
-               const RuntimeHostLanEndpointCandidate* right) {
-                return *left->routeMetric < *right->routeMetric;
-            });
-        const std::uint32_t bestMetric = *(*best)->routeMetric;
-        std::erase_if(
-            contenders,
-            [bestMetric](const RuntimeHostLanEndpointCandidate* candidate) {
-                return *candidate->routeMetric != bestMetric;
-            });
-    }
+    const RuntimeHostAddressFamily family =
+        std::ranges::any_of(
+            eligible,
+            [](const RuntimeHostLanEndpointCandidate* candidate) {
+                return candidate->family == RuntimeHostAddressFamily::Ipv4;
+            })
+            ? RuntimeHostAddressFamily::Ipv4
+            : RuntimeHostAddressFamily::Ipv6;
 
-    const RuntimeHostLanEndpointCandidate* selected = contenders.front();
-    const bool distinctContender = std::ranges::any_of(
-        contenders,
-        [selected](const RuntimeHostLanEndpointCandidate* candidate) {
-            return !sameRuntimeLanEndpointIdentity(*selected, *candidate);
-        });
-    if (distinctContender)
+    const RuntimeHostLanEndpointCandidate* selected = nullptr;
+    for (const RuntimeHostLanEndpointCandidate* candidate : eligible)
     {
-        recommended.ambiguous = true;
-        return recommended;
-    }
-
-    // Duplicate observations of the same endpoint do not create ambiguity.
-    // Prefer the copy carrying a metric when one duplicate has it.
-    for (const RuntimeHostLanEndpointCandidate* candidate : contenders)
-    {
-        if (!selected->routeMetric.has_value() &&
-            candidate->routeMetric.has_value())
+        if (candidate->family != family)
+            continue;
+        if (selected == nullptr)
+        {
             selected = candidate;
+            continue;
+        }
+        if (!sameRuntimeLanEndpointIdentity(*selected, *candidate))
+            return ambiguous();
     }
+    if (selected == nullptr)
+        return recommended;
 
-    recommended.interfaceId = selected->interfaceId;
-    recommended.address = selected->address;
-    recommended.family = selected->family;
-    recommended.privateLanEligible = selected->privateLanEligible;
-    recommended.preferredRoute = selected->preferredRoute;
-    recommended.routeMetric = selected->routeMetric;
-    return recommended;
+    return selectedResult(
+        selected, RuntimeHostRecommendationSource::SoleEligibleInterface);
 }
 
 // Compatibility projection for today's interface-only inventory. It supplies

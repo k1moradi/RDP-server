@@ -206,6 +206,8 @@ int main(int argumentCount, char** argumentValues)
         assert(defaultRoute.family == Family::Ipv4);
         assert(defaultRoute.privateLanEligible);
         assert(defaultRoute.preferredRoute);
+        assert(defaultRoute.source ==
+               RuntimeHostRecommendationSource::PreferredRoute);
         assert(defaultRoute.routeMetric.has_value());
         assert(*defaultRoute.routeMetric == 25U);
 
@@ -217,6 +219,8 @@ int main(int argumentCount, char** argumentValues)
             recommendRuntimePrivateLanEndpoint(metrics);
         assert(lowerMetric.valid());
         assert(lowerMetric.interfaceId == "wlan0");
+        assert(lowerMetric.source ==
+               RuntimeHostRecommendationSource::PreferredRoute);
         assert(lowerMetric.routeMetric.has_value());
         assert(*lowerMetric.routeMetric == 5U);
 
@@ -233,6 +237,8 @@ int main(int argumentCount, char** argumentValues)
                 recommendRuntimePrivateLanEndpoint(*candidates);
             assert(!ambiguous.valid());
             assert(ambiguous.ambiguous);
+            assert(ambiguous.source ==
+                   RuntimeHostRecommendationSource::Ambiguous);
             assert(ambiguous.interfaceId.empty());
             assert(ambiguous.address.empty());
         }
@@ -266,6 +272,19 @@ int main(int argumentCount, char** argumentValues)
         assert(ipv6.family == Family::Ipv6);
         assert(!ipv6.routeMetric.has_value());
 
+        const std::vector<RuntimeHostLanEndpointCandidate> soleDualStack{
+            {"single-interface", "fd12:3456::10", Family::Ipv6,
+             true, false, {}},
+            {"single-interface", "192.168.60.10", Family::Ipv4,
+             true, false, {}}};
+        const auto sole =
+            recommendRuntimePrivateLanEndpoint(soleDualStack);
+        assert(sole.valid());
+        assert(sole.interfaceId == "single-interface");
+        assert(sole.address == "192.168.60.10");
+        assert(sole.source ==
+               RuntimeHostRecommendationSource::SoleEligibleInterface);
+
         const std::vector<RuntimeHostLanEndpointCandidate> denied{{
             "opaque-interface", "192.168.77.8", Family::Ipv4,
             false, true, 2U}};
@@ -273,6 +292,8 @@ int main(int argumentCount, char** argumentValues)
             recommendRuntimePrivateLanEndpoint(denied);
         assert(!deniedResult.valid());
         assert(!deniedResult.ambiguous);
+        assert(deniedResult.source ==
+               RuntimeHostRecommendationSource::Unavailable);
         return 0;
     }
     if (testCase == "host-control-gui-round2-endpoint-recommendation")
@@ -290,6 +311,8 @@ int main(int argumentCount, char** argumentValues)
         assert(actualLan.interfaceId == "lan-default");
         assert(actualLan.address == "192.168.1.5");
         assert(actualLan.port == 3389U);
+        assert(actualLan.source ==
+               RuntimeHostRecommendationSource::PreferredRoute);
 
         const std::vector<RuntimeHostLanEndpointCandidate> solePrivate{{
             "only-private", "172.20.4.8", Family::Ipv4,
@@ -299,6 +322,8 @@ int main(int argumentCount, char** argumentValues)
         assert(automatic.valid());
         assert(automatic.interfaceId == "only-private");
         assert(automatic.address == "172.20.4.8");
+        assert(automatic.source ==
+               RuntimeHostRecommendationSource::SoleEligibleInterface);
 
         const std::vector<RuntimeHostLanEndpointCandidate> ambiguous{
             {"private-a", "192.168.20.9", Family::Ipv4,
@@ -309,6 +334,8 @@ int main(int argumentCount, char** argumentValues)
             recommendRuntimePrivateLanEndpoint(ambiguous, 3389U);
         assert(!noPreference.valid());
         assert(noPreference.ambiguous);
+        assert(noPreference.source ==
+               RuntimeHostRecommendationSource::Ambiguous);
         assert(noPreference.interfaceId.empty());
         assert(noPreference.address.empty());
 
@@ -343,6 +370,8 @@ int main(int argumentCount, char** argumentValues)
         // not turn Linux-shaped stable IDs into a hidden tie-break policy.
         assert(!recommended.valid());
         assert(recommended.ambiguous);
+        assert(recommended.source ==
+               RuntimeHostRecommendationSource::Ambiguous);
         assert(recommended.interfaceId.empty());
         assert(recommended.address.empty());
         assert(recommended.port == 3390U);

@@ -1,3 +1,31 @@
+## R1 exact-SHA hosted qualification after terminal provenance correction (2026-10-22)
+
+Starting exact-main parent: `b633003fc636151f47120d3ee5b32f216099027a`.
+
+Corrective R1 source remains `e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.
+Actions run `39783278573` has completed **PASS** for every R1-relevant
+ordinary hosted lane: Ubuntu, Windows and macOS protocol jobs,
+`r6-windows-clang23`, both R2 Linux production-runtime-security jobs,
+security/protocol sanitizers, documentation policy and CI structure. The
+registered
+`runtime.linux-connection-standalone-authentication-provenance-generation`
+regression therefore passes in the exact corrective-SHA Ubuntu full CTest.
+
+The workflow-level conclusion remains **PENDING** only because
+`r9-clean-windows-portable-gui` job `119846454921` is still queued. That
+job is the separate R9 CLEAN Windows consumer gate and is not R1 transport or
+provenance qualification; no CLEAN result is inherited or claimed here.
+Canonical owner-local configure/build/full CTest remains **NOT RUN** in this
+connector environment.
+
+R1's next gate is unchanged: physical Linux FIRST remains **BLOCKED / NOT
+RUN** pending explicit owner authorization for the live listener/client
+environment. Track A stays frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; WANT_READ/WANT_WRITE,
+partial-write, close_notify, RST, half-close, Stop-race, reconnect and physical
+interface-removal acceptance still require that environment. No transport
+behavior change is justified without a demonstrated physical failure.
+
 ## R6 standalone Windows owner CI expectation correction (2026-10-22)
 
 Starting exact-main parent: `3fcdc393a8cbc9bf060be98201a8ba514885961c`.

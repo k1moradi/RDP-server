@@ -1,3 +1,23 @@
+## R1 corrective hosted qualification receipt — 2026-10-22
+
+Exact corrective source SHA:
+`e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.
+Actions run `39783278573`: **PASS** for all R1-relevant ordinary hosted jobs,
+including protocol Ubuntu/Windows/macOS, Windows CLANG64, both R2 Linux
+production-runtime-security configurations, security/protocol sanitizers,
+documentation policy and CI structure. The Ubuntu full CTest therefore
+qualifies the corrected terminal
+`runtime.linux-connection-standalone-authentication-provenance-generation`
+behavior on that exact SHA.
+
+The workflow itself is still **PENDING** solely because the independent
+`r9-clean-windows-portable-gui` job `119846454921` is queued. This receipt
+does not claim R9 CLEAN. Canonical owner-local build/full CTest is **NOT RUN**
+here, and no listener, real client, desktop, input, credential exchange or
+transport fault injection was performed. FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` pending explicit owner
+authorization.
+
 ## R6 standalone Windows View-only fail-closed correction — 2026-10-22
 
 Starting exact-main parent: `3fcdc393a8cbc9bf060be98201a8ba514885961c`.

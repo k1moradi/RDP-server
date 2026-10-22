@@ -1,3 +1,19 @@
+## R6 CI structure validator 60-test reconciliation — 2026-10-22
+
+Publication `c6fb7dcc78d5b3e5af98aa8f25eb93c2e83830f9` was rejected immediately by structure runs
+`39755337153` / `39755337223`: the validator still required the obsolete
+R6 focused-count token ending in `-eq 59`, even though the workflow now
+correctly uses 60. Platform jobs were skipped by that structural failure.
+
+The validator now pins the new
+`windows.geometry-single-monitor-native-target-selection` token and requires
+the 60-test count literal. This is a validator-contract repair only.
+
+Connector source/log review: **PASS**. Canonical local build/full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Real
+accepted-client SSPI authorization/attach, live WTS/DXGI/cursor/SendInput and
+CLEAN remain **NOT RUN / BLOCKED**.
+
 ## R6 remaining CLANG64 inventory guards — 2026-10-22
 
 Starting exact-main parent: `ddedccdb122bbb162fb0baee8c5d165ddaabb9dd`.

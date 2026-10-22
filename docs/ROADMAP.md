@@ -1,3 +1,27 @@
+## R6 CI-structure validator follows 60-test Windows inventory (2026-10-22)
+
+Starting exact-main parent: `c6fb7dcc78d5b3e5af98aa8f25eb93c2e83830f9`.
+
+The preceding R6 workflow correction made all three CLANG64 focused guards
+require the actual 60-test Windows geometry/capture/cursor/input inventory, but
+exact-publication structure run `39755337153` failed before platform jobs:
+`scripts/validate_ci_workflow.py` still required the obsolete literal
+`<<< "$selected_tests")" -eq 59`. Primary structure job
+`119745796836` reported the same diagnostic.
+
+This follow-up updates the structure validator to require
+`windows.geometry-single-monitor-native-target-selection` and the corrected
+60-test literal. The workflow itself is unchanged from
+`c6fb7dcc78d5b3e5af98aa8f25eb93c2e83830f9`; no coverage is weakened and no runtime/native behavior changes.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. The remaining
+production blocker is still the missing accepted Windows client composition
+that binds `WindowsSspiAuthenticatedIdentityProof` into
+`WindowsNativeDesktopAuthorization` and invokes the sole
+`RuntimePlatformNativeDesktop::attach()`. Positive native activation and
+CLEAN remain **NOT RUN / BLOCKED**.
+
 ## R6 completes Windows focused-test inventory reconciliation (2026-10-22)
 
 Starting exact-main parent: `ddedccdb122bbb162fb0baee8c5d165ddaabb9dd`.

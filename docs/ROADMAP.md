@@ -1,35 +1,3 @@
-## R10 Windows production-linkage macro collision correction (2026-10-22)
-
-Starting exact-main parent: `7a94c9e28b2ef6de9d8ecf31b1a570ec2174750b`.
-The defect was exposed on R6 exact head
-`b9f7246b4196d88f97c9a12a7f0f725f3fa150d0`, Actions run
-`39740725805`.
-
-The first Windows compilation after R10 linked
-`RuntimePlatformNativeDesktop` into the production process exposed an R10
-header portability defect. Win32 RPC headers define the legacy token macro
-`interface`; `runtime_host_control.h` used that exact token as a local loop
-variable in `recommendRuntimePrivateLanEndpoint()`. Once the production
-runtime included the platform-native header, MSVC and CLANG64 expanded the
-identifier and failed compilation before any R6 native code executed.
-
-The correction is identifier-only: the local variable is now
-`candidateInterface`. No endpoint selection, listener, R2/R3 authority,
-native desktop or product-state behavior changes.
-
-New ordinary compile/CTest regression
-`runtime.host-control-windows-interface-macro-compatibility` predefines the
-same `interface` macro before including the production header, so the collision
-is caught on every hosted platform rather than only after a Win32 include-order
-change.
-
-Canonical local configure/build/full CTest: **NOT RUN** because the required
-`~/rdp-server` checkout is absent in this connector environment.
-Exact-publication-SHA hosted CI: **PENDING**. Windows production activation
-remains behind R6's false literal and real-client qualification; macOS remains
-blocked only on R2's concrete authenticated-identity provider; FIRST remains
-owner-authorized and **NOT RUN**.
-
 ## R1/R10 Windows HostControl RPC-macro portability correction (2026-10-22)
 
 Starting exact-main parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`.

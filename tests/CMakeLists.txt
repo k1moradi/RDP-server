@@ -331,26 +331,6 @@ if(TARGET rdp-server-linux-host-control)
         LABELS "runtime;security;r8-r3;r10-host-control;x11;offline")
 endif()
 
-# R10 Windows macro-compatibility regression. Windows RPC headers define the
-# legacy token macro `interface`; predefine the same token before including
-# RuntimeHostControl so ordinary CI catches identifier collisions portably.
-add_executable(test_runtime_host_control_windows_macro_compat
-    test_runtime_host_control_windows_macro_compat.cpp)
-target_link_libraries(test_runtime_host_control_windows_macro_compat PRIVATE
-    rdp-server-protocol)
-if(MSVC)
-    target_compile_options(test_runtime_host_control_windows_macro_compat PRIVATE
-        /W4 /WX /UNDEBUG)
-else()
-    target_compile_options(test_runtime_host_control_windows_macro_compat PRIVATE
-        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
-endif()
-add_test(NAME runtime.host-control-windows-interface-macro-compatibility
-    COMMAND test_runtime_host_control_windows_macro_compat)
-set_tests_properties(
-    runtime.host-control-windows-interface-macro-compatibility PROPERTIES
-    LABELS "runtime;host-control;windows;portability;offline")
-
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)
@@ -362,6 +342,7 @@ else()
 endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
+        host-control-windows-rpc-interface-macro-compatibility
         host-control-product-status-projection
         host-control-clipboard-state-denials
         host-control-credential-setup-denials

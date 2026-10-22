@@ -2416,7 +2416,79 @@ jobs:
           ctest --test-dir build -C Release --timeout 30 \
             -R "$tls_selector" --output-on-failure
 
-          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]offscreen-round2-advanced-groups-scrollable|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)$'
+          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]offscreen-round2-advanced-groups-scrollable|gui[.]round2-tab-source-contract|gui[.]round2-refresh-tray-function-boundary|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)
+          round2_tests="$(ctest --test-dir build -C Release -N -R "$round2_selector")"
+          printf '%s\n' "$round2_tests"
+          for required_test in \
+            gui.offscreen-round2-tabs-and-main-simplicity \
+            gui.offscreen-round2-endpoint-refresh-fail-closed \
+            gui.offscreen-round2-advanced-groups-scrollable \
+            gui.round2-tab-source-contract \
+            gui.round2-refresh-tray-function-boundary \
+            gui.round2-qcolor-warning-classification \
+            runtime.host-control-gui-round2-endpoint-recommendation; do
+            grep -Fq ": $required_test" <<< "$round2_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$round2_tests")" -eq 7
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$round2_selector" --output-on-failure
+      - name: Package, extract and inspect actual Qt/XCB closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          printf 'Qt XCB plugin: %s\n' "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-gui-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-gui-SHA256SUMS.txt
+          unzip -q "$archive" -d build/gui-extracted
+          test -x build/gui-extracted/bin/rdp-server-desktop
+          test -x build/gui-extracted/run-gui.sh
+          test -x "build/gui-extracted/RDP Server.desktop"
+          export LD_LIBRARY_PATH="$PWD/build/gui-extracted/lib"
+          ldd build/gui-extracted/bin/rdp-server-desktop \
+            | tee build/gui-extracted/elf-dependencies.txt
+          ldd build/gui-extracted/plugins/platforms/libqxcb.so \
+            | tee build/gui-extracted/plugin-dependencies.txt
+          if grep -Fq 'not found' build/gui-extracted/*dependencies.txt; then
+            echo "GUI ZIP contains unresolved native dependencies" >&2
+            exit 1
+          fi
+          (
+            cd build/gui-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../gui-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../gui-smoke.log
+              echo "Extracted Qt GUI failed startup/idle smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload Linux GUI preview ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-gui-linux
+          path: |
+            build/rdp-server-gui-*.zip
+            build/rdp-server-gui-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
           round2_tests="$(ctest --test-dir build -C Release -N -R "$round2_selector")"
           printf '%s\n' "$round2_tests"
           for required_test in \

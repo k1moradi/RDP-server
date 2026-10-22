@@ -723,6 +723,165 @@ void DesktopWindow::updateTray(
     trayCopy_->setEnabled(!address.isEmpty());
     using ProductState =
         rdp_server::server::runtime::RuntimeProductHostState;
+    switch (snapshot.productState)
+    {
+    case ProductState::Starting:
+        traySharing_->setText(QStringLiteral("Starting…")); break;
+    case ProductState::Stopping:
+        traySharing_->setText(QStringLiteral("Stopping…")); break;
+    case ProductState::Listening:
+    case ProductState::Authenticating:
+    case ProductState::DesktopInitializing:
+    case ProductState::Connected:
+        traySharing_->setText(QStringLiteral("Stop Sharing")); break;
+    case ProductState::Stopped:
+    case ProductState::Error:
+        traySharing_->setText(QStringLiteral("Start Sharing")); break;
+    }
+    traySharing_->setEnabled(
+        snapshot.productState != ProductState::Starting &&
+        snapshot.productState != ProductState::Stopping &&
+        (sharingToggleOn(snapshot) || canStart()));
+
+    if (snapshot.clientCount != 0U &&
+        snapshot.productState ==
+            rdp_server::server::runtime::RuntimeProductHostState::Connected)
+    {
+        trayClients_->setText(
+            snapshot.clientCount == 1U
+                ? QStringLiteral("1 connected device")
+                : QStringLiteral("%1 connected devices")
+                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
+    }
+    else if (snapshot.clientCount != 0U)
+    {
+        trayClients_->setText(
+            snapshot.clientCount == 1U
+                ? QStringLiteral("1 device connecting")
+                : QStringLiteral("%1 devices connecting")
+                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
+    }
+    else
+    {
+        trayClients_->setText(QStringLiteral("No connected devices"));
+    }
+
+    trayIcon_->setToolTip(
+        address.isEmpty()
+            ? serverStateTitle_->text()
+            : serverStateTitle_->text() + QStringLiteral(" — ") + address);
+}
+
+void DesktopWindow::refresh()
+{
+    const HostStatus snapshot = host_.status();
+    const QString previousInterface = interfaces_->currentData().toString();
+    const QString previousInterfaceId =
+        interfaces_->currentData(Qt::UserRole + 1).toString();
+    const QVariant previousClientId = clientSelection_->currentData();
+
+    {
+        const QSignalBlocker blocked(interfaces_);
+        interfaces_->clear();
+        interfaces_->addItem(
+            snapshot.recommendationSource ==
+                    rdp_server::server::runtime::
+                        RuntimeHostRecommendationSource::Ambiguous
+                ? QStringLiteral("Choose a private LAN interface")
+                : QStringLiteral("No private LAN interface available"),
+            QString());
+
+        for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces)
+        {
+            if (choice.address.isEmpty() || choice.stableId.isEmpty())
+                continue;
+            const QString name = choice.displayName.isEmpty()
+                ? choice.address
+                : choice.displayName + QStringLiteral(" (") +
+                      choice.address + QStringLiteral(")");
+            interfaces_->addItem(name, choice.address);
+            interfaces_->setItemData(
+                interfaces_->count() - 1,
+                choice.stableId, Qt::UserRole + 1);
+        }
+
+        int selectedIndex = 0;
+        if (manualInterfaceOverride_)
+        {
+            if (previousInterface.isEmpty() && previousInterfaceId.isEmpty())
+            {
+                selectedIndex = 0;
+            }
+            else
+            {
+                for (int index = 1; index < interfaces_->count(); ++index)
+                {
+                    if (interfaces_->itemData(index).toString() ==
+                            previousInterface &&
+                        interfaces_->itemData(
+                            index, Qt::UserRole + 1).toString() ==
+                            previousInterfaceId)
+                    {
+                        selectedIndex = index;
+                        break;
+                    }
+                }
+                if (selectedIndex == 0)
+                    manualInterfaceOverride_ = false;
+            }
+        }
+
+        // R10 owns the automatic endpoint recommendation. Follow each fresh
+        // recommendation unless the user made an Advanced override that still
+        // names the exact current stable interface/address pair.
+        if (!manualInterfaceOverride_ &&
+            hasAutomaticLanRecommendation(snapshot.recommendationSource) &&
+            !snapshot.recommendedInterfaceId.isEmpty() &&
+            !snapshot.recommendedAddress.isEmpty())
+        {
+            for (int index = 1; index < interfaces_->count(); ++index)
+            {
+                if (interfaces_->itemData(index).toString() ==
+                        snapshot.recommendedAddress &&
+                    interfaces_->itemData(
+                        index, Qt::UserRole + 1).toString() ==
+                            snapshot.recommendedInterfaceId)
+                {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+        }
+        interfaces_->setCurrentIndex(selectedIndex);
+    }
+
+    {
+        const QSignalBlocker blocked(clientSelection_);
+        clientSelection_->clear();
+        clientSelection_->addItem(
+            QStringLiteral("No connected devices"), QVariant());
+        for (const ActiveClientChoice& client : snapshot.activeClients)
+        {
+            if (client.opaqueId == 0)
+                continue;
+            const QVariant opaqueId =
+                QVariant::fromValue<qulonglong>(client.opaqueId);
+            if (clientSelection_->findData(opaqueId) < 0)
+                clientSelection_->addItem(client.displayName, opaqueId);
+        }
+        const int index = clientSelection_->findData(previousClientId);
+        if (index > 0)
+            clientSelection_->setCurrentIndex(index);
+    }
+
+    const bool authoritativeOn = sharingToggleOn(snapshot);
+    {
+        const QSignalBlocker blocked(sharingToggle_);
+        sharingToggle_->setChecked(authoritativeOn);
+    }
+
+    using ProductState =
+        rdp_server::server::runtime::RuntimeProductHostState;
     serverStateTitle_->setText(
         mayStillBeHosting(snapshot)
             ? QStringLiteral("RDP Server — Sharing")

@@ -1,3 +1,24 @@
+## R5/R7 shared GUI compile correction — 2026-10-22
+
+Starting exact-main parent: `8e25aad15215cf2d2b8fbdbfc5cb3cb5b4708202`.
+
+Exact-parent Actions run `39822413989` failed the R5 Linux GUI producer
+(job `119976902426`) while compiling `src/gui/desktop_window.cpp`:
+`address` redeclared the `updateTray` parameter, `authoritativeOn` was
+undeclared, and `sharingToggleOn` became unused under `-Werror`. Windows
+CLANG64 job `119976902830` failed at the same shared source. Inspection
+confirmed R7's final presentation rewrite accidentally deleted the
+`refresh()` function boundary and merged its body into `updateTray()`.
+
+The correction restores the prior tray-only helper and distinct refresh owner,
+then reapplies only the intended R7 presentation deltas. New
+`gui.round2-refresh-tray-function-boundary` source regression is registered
+and added to the focused Round 2 selector, which now requires seven tests.
+
+Parent compile failure: **REPRODUCED**. Connector/source correction review:
+**PASS**. Canonical owner-local build/full CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R7 P0 GUI Round 2 owner completion receipt — 2026-10-22
 
 Starting exact-main parent: `ee4e3bfe579b9e1505ac0afdec02ea1e04d13d51`.

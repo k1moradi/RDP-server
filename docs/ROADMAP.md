@@ -1,3 +1,37 @@
+## R5/R7 Round 2 refresh/tray function-boundary correction — 2026-10-22
+
+Starting exact-main parent: `8e25aad15215cf2d2b8fbdbfc5cb3cb5b4708202`.
+
+Dependency recheck found R5 P1 itself remains hosted-qualified, but R7's
+`8e25aad15215cf2d2b8fbdbfc5cb3cb5b4708202` final tab-layout change
+introduced a shared GUI compile regression before the R5 focused CTests could
+run. Linux job `119976902426` reports a shadowed `address`, missing
+`authoritativeOn`, and unused `sharingToggleOn`; Windows CLANG64 job
+`119976902830` reports the same source break. Source inspection showed the
+root cause: most of `DesktopWindow::refresh()` had been merged into
+`updateTray()`, including a recursive `updateTray(snapshot, address)` call.
+
+This correction restores the last known-good tray/refresh ownership boundary
+while preserving R7's intended Round 2 presentation: grouped/scrollable
+Advanced, binary Stopped/Sharing headline, R10-owned automatic Main address,
+ambiguous-network wording, Advanced endpoint diagnostics and runtime-readiness
+text. R5's Linux prerequisite projection remains read-only in the Desktop group.
+
+New ordinary source-policy CTest:
+`gui.round2-refresh-tray-function-boundary`. It requires one distinct
+tray-only helper followed by a distinct refresh owner, rejects refresh state
+inside `updateTray`, and pins authoritative toggle/address/tray/quit flow.
+The focused Round 2 inventory increases from six to seven tests.
+
+Parent exact-SHA GUI compile: **FAIL / REPRODUCED**. Connector/source
+correction review: **PASS**. Canonical owner-local configure/build/full CTest:
+**NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**. No live desktop,
+listener, capture, input or permission action was performed.
+
+The separate positive Windows/macOS native-host blocker is unchanged: a trusted
+current-local-owner evidence provider for `CurrentOwnerSharingAuthority` is
+still absent.
+
 ## R7 P0 GUI Round 2 owner completion (2026-10-22)
 
 Starting exact-main parent: `ee4e3bfe579b9e1505ac0afdec02ea1e04d13d51`.

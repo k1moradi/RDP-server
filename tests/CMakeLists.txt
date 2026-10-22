@@ -62,6 +62,13 @@ add_test(NAME gui.round2-tab-source-contract
 set_tests_properties(gui.round2-tab-source-contract PROPERTIES
     LABELS "gui;r9;round2;policy;offline")
 
+add_test(NAME gui.round2-refresh-tray-function-boundary
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_refresh_tray_boundary.cmake")
+set_tests_properties(gui.round2-refresh-tray-function-boundary PROPERTIES
+    LABELS "gui;r7;round2;runtime;policy;offline")
+
 add_test(NAME gui.round2-qcolor-warning-classification
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"

@@ -1,3 +1,17 @@
+## Round 2 tray/refresh ownership regression (2026-10-22)
+
+Keep `gui.round2-refresh-tray-function-boundary` in ordinary CTest and in the
+focused hosted Round 2 inventory. `DesktopWindow::updateTray()` owns tray
+presentation only; it must not acquire host snapshots, recompute the primary
+address, own the authoritative sharing-toggle state, call itself, or absorb
+`refresh()`. `DesktopWindow::refresh()` owns one fresh host snapshot,
+authoritative toggle projection, Main/Advanced status projection, one tray
+update and terminal Quit observation.
+
+This source-level contract complements the offscreen behavior cases and catches
+function-boundary merges at configuration/test time without opening a listener
+or native desktop.
+
 ## Windows Round 2 hidden offline verifier (2026-10-22)
 
 Keep `windows.gui-round2-tab-offline-verifier-source-contract` in ordinary

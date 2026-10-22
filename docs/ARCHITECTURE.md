@@ -1,3 +1,22 @@
+## R1/R2 accepted-client authentication provenance stays read-only (2026-10-22)
+
+The existing `LinuxRuntimeConnectionAcceptanceDiagnostics` is the bounded
+R1/R2/R3 provenance view for one accepted Linux connection. For standalone
+authentication it records the exact service credential generation captured by
+R10 at construction in addition to TLS identity/protocol, CredSSP transition
+and failure classification, MCS phase, Share state and R1 termination. R10 may
+pair this snapshot with its already-owned accepted peer/client handle for an
+owner-authorized FIRST trace.
+
+A standalone `CredentialsVerified` observation is valid only because the
+production transition is set after the existing
+`StandalonePasswordAuthenticatedPrincipalProof::bind()` has accepted the
+same `OwnedPreauthTcpConnection`, established SSL, owner-bound CredSSP state
+and credential generation. The diagnostic snapshot does not expose the proof,
+does not mint an R2 lease and does not authorize MCS, Share or native desktop
+work. Credential generation is correlation only and is zero for
+ExistingOsAccount.
+
 ## R6 Windows production target construction is compiled but gated (2026-10-22)
 
 The Windows native aggregate now has the same separation used by the other

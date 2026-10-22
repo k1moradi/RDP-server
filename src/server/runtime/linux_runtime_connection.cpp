@@ -262,6 +262,10 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.standalonePasswordSelected =
         authenticationMode_ ==
         LinuxRuntimeAuthenticationMode::StandalonePassword;
+    snapshot.standaloneCredentialGeneration =
+        snapshot.standalonePasswordSelected
+            ? standaloneCredentialGeneration_
+            : 0U;
     snapshot.standaloneAuthenticationFailureStage =
         standaloneAuthenticationFailureStage_;
     snapshot.mcsPhase = session_.phase();

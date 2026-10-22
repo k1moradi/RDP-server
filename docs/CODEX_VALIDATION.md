@@ -1,3 +1,26 @@
+## R1 standalone accepted-client provenance audit — 2026-10-22
+
+Starting exact-main parent: `3a6ce3fa9f67737043ef8ded4757135544fb9413`.
+
+Connector source audit: **PASS** for one R1 TCP/BIO/SSL owner in the standalone
+accepted-client path. `LinuxRuntimeConnection` owns the sole
+`OwnedPreauthTcpConnection`; standalone TSRequest reads/replies and proof
+binding reuse it. R2 proof binding rechecks the exact established SSL,
+owner-bound CredSSP state and exact standalone credential generation. R10's
+selector is already explicit and no GSS fallback is present.
+
+This increment exposes that pinned credential generation in the existing
+non-authorizing acceptance diagnostic snapshot and registers
+`runtime.linux-connection-standalone-authentication-provenance-generation`.
+The bounded FIRST trace contract composes R10's accepted peer with TLS,
+authentication mode/generation, CredSSP result, MCS, Share and terminal R1
+classification without authentication wire material or secrets.
+
+Canonical local configure/build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. No listener, physical client,
+desktop, input, credential exchange or transport fault injection was executed.
+FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
 ## R6 CI structure validator 60-test reconciliation — 2026-10-22
 
 Publication `c6fb7dcc78d5b3e5af98aa8f25eb93c2e83830f9` was rejected immediately by structure runs

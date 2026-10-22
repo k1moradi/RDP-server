@@ -1,3 +1,47 @@
+## R1 accepted-client authentication provenance view (2026-10-22)
+
+Starting exact-main parent: `3a6ce3fa9f67737043ef8ded4757135544fb9413`.
+
+Dependency recheck against the current graph finds the source-side R1 path
+unblocked. R2's standalone authenticated-principal proof already requires the
+exact R1 `OwnedPreauthTcpConnection`, exact established TLS object and
+certificate binding, the stateful CredSSP/NTLM transcript owner, and the exact
+current `StandalonePasswordCredentialOwner` generation. R10 already selects
+StandalonePassword explicitly per accepted client and never falls back to GSS.
+The Windows RPC `interface` portability blocker remains resolved.
+
+R1 therefore adds only the missing non-secret correlation scalar to the
+existing bounded `LinuxRuntimeConnectionAcceptanceDiagnostics`: the exact
+standalone credential generation pinned when that accepted connection was
+constructed. It is zero for ExistingOsAccount. The existing
+`CredentialsVerified` diagnostic transition remains stronger than a parser
+milestone: production sets it only after
+`StandalonePasswordAuthenticatedPrincipalProof::bind()` succeeds for the
+same owner-bound connection/TLS/CredSSP state and generation. No authorization
+is created by the diagnostic view.
+
+The bounded owner-authorized FIRST trace format is now defined as:
+`peer | TLS stage/version/certificate SHA-256 | negotiated Enhanced Security protocol | authentication mode | standalone credential generation | CredSSP transition/failure stage | MCS phase | Share activated | R1 termination`.
+R10 supplies the already-bounded accepted peer and R1/R2/R3 supply the remaining
+read-only scalars. The trace must never contain passwords, NT hashes, NTLM
+challenge responses, SPNEGO/TSRequest blobs, session/sign/seal keys or delegated
+credentials. It is a diagnostic composition only; no automatic success logging
+or second lifecycle owner is added.
+
+Dedicated ordinary CTest:
+`runtime.linux-connection-standalone-authentication-provenance-generation`.
+It proves the selected generation is exact, remains pinned when the service
+credential is replaced, survives terminal R1 cancellation for bounded
+correlation, and is zero for ExistingOsAccount.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. Physical Linux FIRST
+remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; live
+WANT_READ/WANT_WRITE, partial-write, close_notify, RST, half-close, Stop-race,
+reconnect and interface-removal acceptance remain **BLOCKED / NOT RUN** until
+the owner explicitly authorizes that environment. No transport behavior was
+changed.
+
 ## R6 CI-structure validator follows 60-test Windows inventory (2026-10-22)
 
 Starting exact-main parent: `c6fb7dcc78d5b3e5af98aa8f25eb93c2e83830f9`.

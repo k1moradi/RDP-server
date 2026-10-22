@@ -414,6 +414,10 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
     bool standalonePasswordSelected{};
+    // Exact non-secret service credential generation pinned when R10 selected
+    // StandalonePassword for this accepted connection. Zero for every other
+    // authentication mode. This is correlation evidence only, never authority.
+    std::uint64_t standaloneCredentialGeneration{};
     rdp_server::server::security::StandaloneAuthenticationFailureStage
         standaloneAuthenticationFailureStage{
             rdp_server::server::security::

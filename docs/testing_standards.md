@@ -1,3 +1,20 @@
+## R1 standalone provenance-generation diagnostic regression (2026-10-22)
+
+Keep
+`runtime.linux-connection-standalone-authentication-provenance-generation`
+in ordinary full Linux runtime-security CTest. It must construct the production
+standalone selector with one exact credential generation, require the bounded
+acceptance snapshot to report that generation, replace the service credential
+and prove the accepted connection still reports its originally pinned
+generation, then retain that correlation through terminal cancellation. The
+ExistingOsAccount control case must report generation zero.
+
+This is diagnostic/source-lifetime evidence only. It does not perform CredSSP
+interoperability, native admission or physical FIRST and cannot substitute for
+the existing owner-bound standalone proof tests. Do not add passwords, hashes,
+NTLM/SPNEGO/TSRequest bytes, session keys, delegated credentials or native
+identity data to the snapshot or FIRST trace.
+
 ## R6 Windows sanitizer selector cardinality tracks required cases (2026-10-22)
 
 The mandatory CLANG64 sanitizer preflight selects

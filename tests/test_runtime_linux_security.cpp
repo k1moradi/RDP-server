@@ -3670,6 +3670,96 @@ void testStandaloneAuthenticationSelectorDenials(
     assert(::close(invalidChallengeClientDescriptor) == 0);
 }
 
+void testStandaloneAuthenticationProvenanceGeneration(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using DiagnosticCredSsp =
+        rdp_server::server::runtime::LinuxRuntimeCredSspDiagnosticTransition;
+    using Termination =
+        rdp_server::server::transport::TcpConnectionTermination;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-standalone-provenance.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+
+    LinuxRuntimeSecurityConfiguration securityConfiguration;
+    assert(securityConfiguration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    rdp_server::server::security::StandalonePasswordCredentialOwner
+        credentialOwner;
+    std::array<char16_t, 8> password{
+        u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+    assert(credentialOwner.configure(u"User", password));
+    const auto selectedObservation = credentialOwner.observation();
+    assert(selectedObservation.configured);
+    assert(selectedObservation.generation != 0U);
+
+    rdp_server::server::runtime::LinuxRuntimeAuthenticationSelection
+        selection{};
+    selection.mode =
+        rdp_server::server::runtime::LinuxRuntimeAuthenticationMode::
+            StandalonePassword;
+    selection.standaloneCredentialOwner = &credentialOwner;
+    selection.standaloneCredentialGeneration =
+        selectedObservation.generation;
+    selection.standaloneChallenge = {
+        {0x01U, 0x23U, 0x45U, 0x67U,
+         0x89U, 0xabU, 0xcdU, 0xefU},
+        u"EXAMPLE", u"RDPHOST", 0x01d9c00000000000ULL};
+
+    int standaloneClientDescriptor = -1;
+    auto standaloneAcceptedSocket =
+        acceptLoopbackConnection(standaloneClientDescriptor);
+    LinuxRuntimeConnection standalone{
+        securityConfiguration, std::move(standaloneAcceptedSocket),
+        nullptr, nullptr, selection};
+    assert(standalone.ready());
+
+    auto diagnostics = standalone.acceptanceDiagnostics();
+    assert(diagnostics.standalonePasswordSelected);
+    assert(diagnostics.standaloneCredentialGeneration ==
+           selectedObservation.generation);
+    assert(diagnostics.credSspTransition ==
+           DiagnosticCredSsp::NotStarted);
+    assert(diagnostics.termination == Termination::Open);
+
+    // The diagnostic is the generation pinned to this exact accepted
+    // connection, not a fresh observation of a later service credential.
+    std::array<char16_t, 8> replacement{
+        u'N', u'e', u'w', u'P', u'a', u's', u's', u'1'};
+    assert(credentialOwner.configure(u"User", replacement));
+    const auto replacementObservation = credentialOwner.observation();
+    assert(replacementObservation.configured);
+    assert(replacementObservation.generation !=
+           selectedObservation.generation);
+    diagnostics = standalone.acceptanceDiagnostics();
+    assert(diagnostics.standaloneCredentialGeneration ==
+           selectedObservation.generation);
+
+    // Keep the correlation available through terminal R1 teardown so an
+    // owner-authorized FIRST trace can classify the closed connection.
+    standalone.revoke();
+    diagnostics = standalone.acceptanceDiagnostics();
+    assert(diagnostics.standalonePasswordSelected);
+    assert(diagnostics.standaloneCredentialGeneration ==
+           selectedObservation.generation);
+    assert(diagnostics.termination == Termination::Cancelled);
+    assert(::close(standaloneClientDescriptor) == 0);
+
+    int osAccountClientDescriptor = -1;
+    auto osAccountAcceptedSocket =
+        acceptLoopbackConnection(osAccountClientDescriptor);
+    LinuxRuntimeConnection osAccount{
+        securityConfiguration, std::move(osAccountAcceptedSocket)};
+    assert(osAccount.ready());
+    const auto osAccountDiagnostics = osAccount.acceptanceDiagnostics();
+    assert(!osAccountDiagnostics.standalonePasswordSelected);
+    assert(osAccountDiagnostics.standaloneCredentialGeneration == 0U);
+    osAccount.revoke();
+    assert(::close(osAccountClientDescriptor) == 0);
+}
+
 void testAdmissionConfigurationOwnedGenerationFence(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -3888,6 +3978,12 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-standalone-authentication-selector-denials")
     {
         testStandaloneAuthenticationSelectorDenials(fixtureDirectory);
+        return 0;
+    }
+    if (testCase ==
+        "linux-connection-standalone-authentication-provenance-generation")
+    {
+        testStandaloneAuthenticationProvenanceGeneration(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-credssp-owner-framing")

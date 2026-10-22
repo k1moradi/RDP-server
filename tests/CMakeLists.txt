@@ -1433,6 +1433,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-security-keytab-policy-denials
             linux-security-admission-request-owned-generation-fence
             linux-connection-standalone-authentication-selector-denials
+            linux-connection-standalone-authentication-provenance-generation
             linux-connection-credssp-owner-framing
             linux-connection-credssp-progress-accounting
             linux-connection-r1-acceptance-diagnostics

@@ -1,3 +1,36 @@
+## R1 route-aware bind-authority hosted qualification receipt — 2026-10-22
+
+Exact R1 implementation SHA:
+`146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1`.
+Actions run `39818346767`:
+
+- Ubuntu protocol: **PASS**, full CTest 866/866; all three R1
+  recommendation/bind regressions PASS.
+- macOS protocol: **PASS**, full CTest 688/688; all three R1
+  recommendation/bind regressions PASS.
+- Windows protocol: **PASS**, full CTest 735/735; all three R1
+  recommendation/bind regressions PASS.
+- CI structure, documentation policy, both R2 Linux production-runtime
+  security jobs and security/protocol sanitizers: **PASS**.
+
+The workflow's GUI producer failures were outside R1 and were corrected by
+later Round 2 test-only commits. Descendant
+`f2c5cd9e54cf727aa84292e3253c78a62e04babf`, which contains no R1 source
+change, also ran
+`runtime.host-control-route-aware-recommendation-non-authority`,
+`runtime.r1-bind-revalidates-recommended-endpoint`, and
+`transport.lan-listener-native-bind-denials` successfully in Windows
+CLANG64 Debug and Release. Its four remaining failures were Windows GUI
+offline-verifier modes, corrected at current-main descendant
+`6d2a289380de1ffd7364eb05f9e3dd6847064415`.
+
+Conclusion for this increment: **R1 HOSTED PASS** for preserving exact
+interface/address/up-state/private-LAN bind authority while R10 recommendation
+ranking changes. Canonical owner-local configure/build/full CTest: **NOT RUN**.
+No live listener/client, TLS/CredSSP exchange, desktop/input action or transport
+fault injection was performed. Physical FIRST remains separately **BLOCKED /
+NOT RUN** and is not a GUI Round 2 dependency.
+
 ## R6 Windows Round 2 hidden-verifier correction — 2026-10-22
 
 Starting exact-main parent: `9ba279482610590660b4eee98f9afd1e7daf566f`.

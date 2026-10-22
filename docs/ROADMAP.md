@@ -1,3 +1,38 @@
+## R1 route-aware bind-authority hosted qualification (2026-10-22)
+
+Starting exact-main parent: `6d2a289380de1ffd7364eb05f9e3dd6847064415`.
+
+R1 implementation SHA
+`146cddcf0b9fcfbb40fbfe0372bd275363b2b7d1` is now **HOSTED
+QUALIFIED** for the GUI Round 2 recommendation/bind boundary. Actions run
+`39818346767` completed the ordinary protocol jobs successfully on Ubuntu,
+macOS and Windows. In each platform's full CTest,
+`runtime.host-control-route-aware-recommendation-non-authority`,
+`runtime.r1-bind-revalidates-recommended-endpoint`, and
+`transport.lan-listener-native-bind-denials` all passed. Ubuntu reported
+866/866, macOS 688/688 and Windows 735/735 in the full protocol suites.
+
+The exact R1 workflow also passed CI structure, documentation policy, both R2
+Linux production-runtime-security jobs and security/protocol sanitizers. Its
+unrelated GUI producer failures were the subsequently corrected Round 2 Qt
+fixture assertions. Descendant `f2c5cd9e54cf727aa84292e3253c78a62e04babf`
+additionally ran the same three R1 tests successfully under Windows CLANG64 in
+both Debug and Release; that CLANG job failed only four hidden Windows GUI
+offline-verifier modes, whose QTabWidget/QStackedWidget assumption is corrected
+by current-main descendant
+`6d2a289380de1ffd7364eb05f9e3dd6847064415`. No R1 production source
+changed in those descendants.
+
+Therefore GUI Round 2 has no remaining R1 source or hosted-qualification
+blocker. Do not modify TLS, CredSSP, socket ownership or transport behavior
+without a demonstrated transport failure. Canonical owner-local
+configure/build/full CTest remains **NOT RUN** in this connector environment.
+
+R1's next gate is still the separate physical Linux FIRST acceptance:
+**BLOCKED / NOT RUN** pending explicit owner authorization. Track A remains
+frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. That physical gate does
+not block GUI Round 2.
+
 ## R6 Windows Round 2 offline-verifier qualification correction (2026-10-22)
 
 Starting exact-main parent: `9ba279482610590660b4eee98f9afd1e7daf566f`.

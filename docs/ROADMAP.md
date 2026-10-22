@@ -60,12 +60,21 @@ permission loss after a held key and requires terminal aggregate retirement
 without a synthetic key release.
 
 This removes the remaining R5 source-scope gap from the dependency graph.
-Hosted exact-publication-SHA qualification for this increment is **PENDING**.
-Live Screen Recording, Accessibility/Input Monitoring grants,
-ScreenCaptureKit pixels, visible desktop, Quartz mouse/keyboard, Stop,
-reconnect and resize remain **NOT RUN** because they require explicit owner
-authorization and a physical logged-in macOS desktop. Linux FIRST remains
-frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+The original `d1858ca0` primary workflow remains queued, but current-main
+descendant `daed9252d14daadcf413012d27148ea38254b585` contains the same R5
+macOS source and exact ordinary tests. In Actions run `39728991286`,
+`r7-macos-native-lifecycle` job `119659450811` is **PASS** and
+`protocol (macos-latest)` job `119659450839` is **PASS**, including
+Debug/Release compile and lifecycle/protocol CTests. The remaining queued
+job in that workflow is R9's independent CLEAN Windows acceptance and does
+not block R5 macOS qualification.
+
+R5's remaining gate is therefore live physical acceptance only: Screen
+Recording, Accessibility/Input Monitoring grants, ScreenCaptureKit pixels,
+visible desktop, Quartz mouse/keyboard, Stop, reconnect and resize remain
+**NOT RUN** because repository policy requires explicit owner authorization
+and a physical logged-in macOS desktop. Linux FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
 
 ## R5 macOS row-size compile correction after R10 composition (2026-10-21)
 

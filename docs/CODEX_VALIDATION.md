@@ -42,8 +42,14 @@ loss with a held key and proves terminal capture/watch retirement with no
 synthetic native release.
 
 Connector source inspection: **PASS**. Canonical owner-local build/full CTest:
-**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Live TCC,
-ScreenCaptureKit, Quartz input, listener/client and Linux FIRST: **NOT RUN**.
+**NOT RUN**. The original `d1858ca0` primary run remains queued, but current
+main `daed9252d14daadcf413012d27148ea38254b585` retains unchanged R5 source
+and tests. Actions run `39728991286`: focused
+`r7-macos-native-lifecycle` job `119659450811` **PASS**; full
+`protocol (macos-latest)` job `119659450839` **PASS**, including
+Debug/Release compile and CTest execution. The workflow's remaining queued
+R9 CLEAN-Windows job is unrelated to R5. Live TCC, ScreenCaptureKit, Quartz
+input, listener/client and Linux FIRST: **NOT RUN**.
 
 ## R5 macOS compile failure and row-size correction receipt (2026-10-21)
 

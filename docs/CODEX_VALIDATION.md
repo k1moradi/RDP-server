@@ -1,3 +1,20 @@
+## R2 focused-workflow reconstruction receipt — 2026-10-22
+
+Starting exact-main parent: `24f393896dfad20f68b2bb60e93577347506e415`.
+
+Comparison with parse-valid `666aaf11d345e6ef5f81ad1f6c74c92777fdb046` found 72 unintended added
+workflow lines from the earlier literal-terminator transformation. Both
+`39825396069` and `39825604093` therefore failed before job creation.
+The workflow is now reconstructed from that known-valid source and receives only
+three semantic edits: select
+`gui.offscreen-sharing-permission-product-language`, require its exact name,
+and raise the focused inventory count from six to seven. The expected net line
+delta is exactly +1.
+
+Root cause: **REPRODUCED / LOCATED**. Reconstructed source review: **PASS**.
+Canonical owner-local build/full CTest: **NOT RUN**. Exact-publication-SHA
+hosted CI: **PENDING**.
+
 ## R2 focused-selector parser correction receipt — 2026-10-22
 
 Starting exact-main parent: `b1bd77f6cbb1ff1439b13cc7a830b01b71f6b704`.

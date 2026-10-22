@@ -1,3 +1,27 @@
+## R2 focused-workflow reconstruction after transform corruption — 2026-10-22
+
+Starting exact-main parent: `24f393896dfad20f68b2bb60e93577347506e415`.
+
+Post-repair comparison against the last parse-valid workflow
+`666aaf11d345e6ef5f81ad1f6c74c92777fdb046` showed the first focused-selector edit had accidentally
+duplicated 72 workflow lines while writing the literal `$'` shell terminator.
+That explains both immediate pre-job failures:
+`39825396069` at `b1bd77f6cbb1ff1439b13cc7a830b01b71f6b704` and
+`39825604093` at this parent. The production GUI/R2 code was not involved.
+
+This correction reconstructs `.github/workflows/ci.yml` byte-for-byte from
+the known-valid `666aaf11d345e6ef5f81ad1f6c74c92777fdb046` version, then applies only the intended
+R2 qualification delta: add
+`gui.offscreen-sharing-permission-product-language` to the Round 2 selector,
+add its exact required-name assertion, and change the focused count from six to
+seven. Pre-publication structure checks require the reconstructed workflow to
+contain exactly one additional line relative to the valid base.
+
+Failed parent workflows: **FAIL before jobs / ROOT CAUSE LOCATED**.
+Reconstructed workflow review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN**. Replacement exact-SHA hosted CI:
+**PENDING**.
+
 ## R2 focused-selector parser correction — 2026-10-22
 
 Starting exact-main parent: `b1bd77f6cbb1ff1439b13cc7a830b01b71f6b704`.

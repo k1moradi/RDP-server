@@ -108,12 +108,26 @@ Debug/Release compile and lifecycle/protocol CTests. The remaining queued
 job in that workflow is R9's independent CLEAN Windows acceptance and does
 not block R5 macOS qualification.
 
-R5's remaining gate is therefore live physical acceptance only: Screen
-Recording, Accessibility/Input Monitoring grants, ScreenCaptureKit pixels,
-visible desktop, Quartz mouse/keyboard, Stop, reconnect and resize remain
-**NOT RUN** because repository policy requires explicit owner authorization
-and a physical logged-in macOS desktop. Linux FIRST remains frozen at
-`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+R5's own aggregate source and hosted macOS qualification are complete, but
+positive **production** macOS activation is still externally blocked at two
+dependency-graph boundaries. First, R2 exposes only the abstract
+`MacAuthenticatedIdentityProof` contract plus the read-only
+`rdp-server-macos-native-session-evidence` adapter; no concrete production
+macOS authenticated-identity implementation is linked from an accepted RDP
+identity. Second, R10's `rdp-server-runtime-platform-native-desktop` remains a
+noninstalled composition target/test seam: the production `rdp-server`
+entry point does not link or instantiate it and currently links only protocol,
+runtime TLS, licensing and configuration at its base target.
+
+Those are R2/R10-owned dependencies, not reasons to add a second R5 loop or
+weaken authorization. Once a real macOS authenticated-identity provider and the
+single R10 serialized production composition land, R5 can proceed to the final
+owner-authorized physical acceptance: Screen Recording,
+Accessibility/Input Monitoring, ScreenCaptureKit pixels, visible desktop,
+Quartz mouse/keyboard, Stop, reconnect and resize. All of those remain
+**NOT RUN** because repository policy also requires explicit owner
+authorization and a physical logged-in macOS desktop. Linux FIRST remains
+frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
 
 ## R5 macOS row-size compile correction after R10 composition (2026-10-21)
 

@@ -10,6 +10,15 @@ authorization and reads the current authorization generation directly during
 attach; callers never supply it. One platform aggregate may exist at a time,
 and replacement requires terminal retirement plus fresh R2 authorization.
 
+The cross-platform `RuntimePlatformNativeDesktop` is currently a noninstalled
+composition seam, not yet the production `rdp-server` runtime owner on
+Windows/macOS. The process entry point does not link or instantiate this target.
+Likewise, macOS has a native-session evidence reader and the abstract
+`MacAuthenticatedIdentityProof` contract, but no concrete production
+authenticated-identity implementation is linked. Positive macOS product
+activation therefore remains an R2/R10 integration gate above R5 rather than
+permission for R5 to create another scheduler or synthesize identity.
+
 R6 remains responsible for WTS/DXGI/cursor/SendInput lifetime and R5 for
 AppKit/session watches, ScreenCaptureKit and Quartz. R10 only serializes those
 owners with the outer service. R2/R3 routing closes first, then R10 invokes

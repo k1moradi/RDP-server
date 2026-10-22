@@ -75,8 +75,21 @@ and tests. Actions run `39728991286`: focused
 `r7-macos-native-lifecycle` job `119659450811` **PASS**; full
 `protocol (macos-latest)` job `119659450839` **PASS**, including
 Debug/Release compile and CTest execution. The workflow's remaining queued
-R9 CLEAN-Windows job is unrelated to R5. Live TCC, ScreenCaptureKit, Quartz
-input, listener/client and Linux FIRST: **NOT RUN**.
+R9 CLEAN-Windows job is unrelated to R5.
+
+Production-path dependency review: **BLOCKED outside R5**. Current CMake builds
+`rdp-server-macos-native-session-evidence` and the abstract R2 native
+authorization core, but no concrete production implementation of
+`MacAuthenticatedIdentityProof` is linked. The production `rdp-server`
+entry point also does not link or instantiate
+`rdp-server-runtime-platform-native-desktop`; that R10 target remains the
+bounded noninstalled composition seam exercised by offline tests. R5 must not
+fabricate either dependency or introduce a second scheduler.
+
+Next external gates: R2 concrete macOS authenticated-identity proof, then R10
+single-owner production composition. After those land, live TCC,
+ScreenCaptureKit, Quartz input, listener/client and Linux FIRST still require
+explicit owner authorization and remain **NOT RUN**.
 
 ## R5 macOS compile failure and row-size correction receipt (2026-10-21)
 

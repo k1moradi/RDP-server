@@ -25,7 +25,7 @@ if (!(Test-Path -LiteralPath "$archivePath.sha256" -PathType Leaf) -or
     throw 'ZIP outer digest/sidecar mismatch'
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+$principal = New-Object Security.Principal.WindowsPrincipal $identity
 $administratorTokenActive =
     $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($administratorTokenActive) {

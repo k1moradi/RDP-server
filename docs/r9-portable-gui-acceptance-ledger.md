@@ -1,3 +1,14 @@
+## R9 inherited R6 Windows PowerShell parser correction (2026-10-21)
+
+R6 exact SHA `40650f9c24f6555b75e7f6a54f989d49118498a7`, primary run
+`39696394298`, independently failed `r9-windows-powershell-parser` before
+R9's later format-2 additions. Diff isolation against the last parser-green
+script identifies R6's variable-argument pseudo-constructor
+`New-Object Security.Principal.WindowsPrincipal($identity)` as the
+parser-unsafe change. The supported Windows PowerShell positional-argument form
+`New-Object Security.Principal.WindowsPrincipal $identity` preserves identical
+runtime intent and restores parseability without weakening the non-admin gate.
+
 ## R9 PowerShell parser correction after exact-SHA rejection (2026-10-21)
 
 Exact parent `6b99b2abdd599cc3e8d249b013927050ee8dd78f`, primary Actions run

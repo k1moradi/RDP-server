@@ -2148,9 +2148,13 @@ if(TARGET rdp-server-windows-desktop)
     add_test(NAME windows.native-owner-r2-authorized-view-only-offline-lifecycle
         COMMAND test_windows_desktop_geometry
             native-owner-r2-authorized-view-only-offline-lifecycle)
+    add_test(NAME windows.native-owner-standalone-authenticated-session-lifecycle
+        COMMAND test_windows_desktop_geometry
+            native-owner-standalone-authenticated-session-lifecycle)
     set_tests_properties(
         windows.native-owner-r2-authorized-offline-lifecycle
         windows.native-owner-r2-authorized-view-only-offline-lifecycle
+        windows.native-owner-standalone-authenticated-session-lifecycle
         PROPERTIES
             LABELS "windows;native-owner;security;offline"
             TIMEOUT 20)

@@ -73,6 +73,35 @@ public:
     std::array<std::byte, kMaximumWindowsNativeSidBytes> sid{};
     std::size_t sidBytes{};
 };
+class FakeStandaloneAuthenticatedSession final
+    : public NativeDesktopAuthenticatedSessionProof
+{
+public:
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept override
+    {
+        return NativeDesktopAuthenticationKind::StandalonePassword;
+    }
+
+    [[nodiscard]] std::uint64_t authenticationGeneration()
+        const noexcept override
+    {
+        return generation;
+    }
+
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept override
+    {
+        return valid && generation != 0U;
+    }
+
+    // Deliberately keep the base deny-only Windows SID matcher. Standalone
+    // authentication proves this RDP application's accepted session, not a
+    // local Windows account identity.
+    std::uint64_t generation{23U};
+    bool valid{true};
+};
+
 class PositiveWindowsEvidence final : public WindowsNativeSessionEvidenceSource
 {
 public:
@@ -379,3 +408,173 @@ void windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle()
     assert(false);
 #endif
 }
+
+void windowsNativeDesktopOwnerStandaloneAuthenticatedSessionLifecycle()
+{
+#if defined(_WIN32)
+    const auto makeConfiguration =
+        [](FakeSessionSource &session,
+           FakeDxgiBackend &dxgi,
+           FakeCaptureBackend &capture,
+           FakeCursorBackend &cursor,
+           FakeInputBackend *input) noexcept
+            -> WindowsNativeDesktopTestConfiguration {
+        WindowsNativeDesktopTestConfiguration configuration{};
+        configuration.layout = singleDisplayLayout();
+        configuration.target = {1234U, {0, 0, 2, 2}};
+        configuration.sessionReader = session.callbacks();
+        configuration.dxgiCallbacks = dxgi.callbacks();
+        configuration.captureCallbacks = capture.callbacks();
+        configuration.cursorReader = cursor.callbacks();
+        if (input != nullptr)
+            configuration.inputCallbacks = input->callbacks();
+        return configuration;
+    };
+
+    {
+        OwnerAuthorityFixture ownerAuthority{kConsoleViewPermission};
+        FakeStandaloneAuthenticatedSession authenticatedSession;
+        PositiveWindowsEvidence evidence;
+        WindowsNativeDesktopAuthorization authorization{
+            authenticatedSession, evidence, ownerAuthority.authority};
+        assert(authorization.bindAuthenticatedSession(kConsoleViewPermission) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+        const std::uint64_t generation =
+            authorization.authorizationGeneration();
+        assert(generation != 0U);
+
+        FakeSessionSource session;
+        FakeDxgiBackend dxgi;
+        FakeCaptureBackend capture;
+        FakeCursorBackend cursor;
+        WindowsNativeDesktopOwner desktop;
+        auto configuration =
+            makeConfiguration(session, dxgi, capture, cursor, nullptr);
+        assert(desktop.openForTesting(
+                   authorization, generation, configuration) ==
+               WindowsNativeDesktopOpenResult::ready);
+
+        FrameSink sink{generation};
+        assert(desktop.serviceOnce(
+                   authorization, generation, sink.consumer()) ==
+               WindowsNativeDesktopServiceResult::frameConsumed);
+        assert(!desktop.handleInput(
+            authorization, generation, WindowsKeyInput{0x1e, false, true}));
+        assert(desktop.ready());
+    }
+
+    {
+        OwnerAuthorityFixture ownerAuthority;
+        FakeStandaloneAuthenticatedSession authenticatedSession;
+        PositiveWindowsEvidence evidence;
+        WindowsNativeDesktopAuthorization authorization{
+            authenticatedSession, evidence, ownerAuthority.authority};
+        constexpr std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleInputPermission;
+        assert(authorization.bindAuthenticatedSession(permissions) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+        const std::uint64_t generation =
+            authorization.authorizationGeneration();
+
+        FakeSessionSource session;
+        FakeDxgiBackend dxgi;
+        FakeCaptureBackend capture;
+        FakeCursorBackend cursor;
+        FakeInputBackend input;
+        WindowsNativeDesktopOwner desktop;
+        auto configuration =
+            makeConfiguration(session, dxgi, capture, cursor, &input);
+        assert(desktop.openForTesting(
+                   authorization, generation, configuration) ==
+               WindowsNativeDesktopOpenResult::ready);
+        assert(desktop.handleInput(
+            authorization, generation, WindowsKeyInput{0x1e, false, true}));
+        assert(input.commands == 1U);
+
+        // Replacing the exact accepted standalone session invalidates R2.
+        // R6 must retire without posting synthetic native input afterward.
+        ++authenticatedSession.generation;
+        FrameSink sink{generation};
+        assert(desktop.serviceOnce(
+                   authorization, generation, sink.consumer()) ==
+               WindowsNativeDesktopServiceResult::authorizationRequired);
+        assert(!desktop.ready());
+        assert(authorization.authorizationGeneration() == 0U);
+        assert(input.commands == 1U);
+        assert(dxgi.releases != 0U);
+    }
+
+    {
+        OwnerAuthorityFixture ownerAuthority;
+        FakeStandaloneAuthenticatedSession authenticatedSession;
+        PositiveWindowsEvidence evidence;
+        WindowsNativeDesktopAuthorization authorization{
+            authenticatedSession, evidence, ownerAuthority.authority};
+        constexpr std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleInputPermission;
+        assert(authorization.bindAuthenticatedSession(permissions) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+        const std::uint64_t generation =
+            authorization.authorizationGeneration();
+
+        FakeSessionSource session;
+        FakeDxgiBackend dxgi;
+        FakeCaptureBackend capture;
+        FakeCursorBackend cursor;
+        FakeInputBackend input;
+        WindowsNativeDesktopOwner desktop;
+        auto configuration =
+            makeConfiguration(session, dxgi, capture, cursor, &input);
+        assert(desktop.openForTesting(
+                   authorization, generation, configuration) ==
+               WindowsNativeDesktopOpenResult::ready);
+
+        ownerAuthority.authority.revoke(OwnerConsentRevocationReason::Stop);
+        FrameSink sink{generation};
+        assert(desktop.serviceOnce(
+                   authorization, generation, sink.consumer()) ==
+               WindowsNativeDesktopServiceResult::authorizationRequired);
+        assert(!desktop.ready());
+        assert(authorization.authorizationGeneration() == 0U);
+        assert(dxgi.releases != 0U);
+    }
+
+    {
+        OwnerAuthorityFixture ownerAuthority;
+        FakeStandaloneAuthenticatedSession authenticatedSession;
+        PositiveWindowsEvidence evidence;
+        WindowsNativeDesktopAuthorization authorization{
+            authenticatedSession, evidence, ownerAuthority.authority};
+        constexpr std::uint32_t permissions =
+            kConsoleViewPermission | kConsoleInputPermission;
+        assert(authorization.bindAuthenticatedSession(permissions) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+        const std::uint64_t generation =
+            authorization.authorizationGeneration();
+
+        FakeSessionSource session;
+        FakeDxgiBackend dxgi;
+        FakeCaptureBackend capture;
+        FakeCursorBackend cursor;
+        FakeInputBackend input;
+        WindowsNativeDesktopOwner desktop;
+        auto configuration =
+            makeConfiguration(session, dxgi, capture, cursor, &input);
+        assert(desktop.openForTesting(
+                   authorization, generation, configuration) ==
+               WindowsNativeDesktopOpenResult::ready);
+
+        ++evidence.evidence.authenticationIdLow;
+        FrameSink sink{generation};
+        assert(desktop.serviceOnce(
+                   authorization, generation, sink.consumer()) ==
+               WindowsNativeDesktopServiceResult::authorizationRequired);
+        assert(!desktop.ready());
+        assert(authorization.authorizationGeneration() == 0U);
+        assert(dxgi.releases != 0U);
+    }
+#else
+    assert(false);
+#endif
+}
+

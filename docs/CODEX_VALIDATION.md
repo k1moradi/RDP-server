@@ -1,3 +1,28 @@
+## R6 standalone-authenticated Windows owner coverage — 2026-10-22
+
+Starting exact-main parent: `806346e3672020af7faef5b9ed2af715f3674e85`.
+
+Dependency recheck: **R2 AND R10 RESOLVED** for the Windows
+authenticated-session authorization/attachment seams. R6 adds
+`windows.native-owner-standalone-authenticated-session-lifecycle` to exercise
+the real Windows native aggregate through a standalone authenticated-session
+proof with no Windows SID matcher.
+
+The injected/offline case covers View-only versus View+Input scope and
+fail-closed retirement on standalone authentication-generation replacement,
+local-owner grant revocation and Windows native-session replacement. The input
+fixture also pins no synthetic native input after authorization loss.
+
+Connector/source inspection: **PASS**. Canonical owner-local configure/build
+and full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
+**PENDING**. No live WTS, DXGI, cursor, SendInput, listener or Microsoft client
+was exercised.
+
+The next positive-production dependency is a trusted Windows current-local-owner
+evidence provider for `CurrentOwnerSharingAuthority`. The production
+activation literal remains false, and real CLEAN/physical acceptance remains a
+separate required gate.
+
 ## R9 standalone native-authorization documentation reconciliation — 2026-10-22
 
 Starting exact-main parent: `89fcec21e2ab471b3582d7534792fd2dbfe0bc0b`.

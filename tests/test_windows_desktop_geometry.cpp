@@ -65,6 +65,7 @@ void windowsInputAuthorityRetirementNoNativePost();
 void windowsNativeDesktopOwnerAuthorizationBoundaryDenials();
 void windowsNativeDesktopOwnerAuthorizedOfflineLifecycle();
 void windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle();
+void windowsNativeDesktopOwnerStandaloneAuthenticatedSessionLifecycle();
 void windowsCursorSnapshotVisibleAndHidden();
 void windowsCursorSnapshotRejections();
 void windowsRdpConflictTermServiceActiveDenial();
@@ -1069,6 +1070,11 @@ int main(int argc, char **argv)
     else if (behavior == "native-owner-r2-authorized-view-only-offline-lifecycle")
     {
         windowsNativeDesktopOwnerAuthorizedViewOnlyOfflineLifecycle();
+    }
+    else if (behavior ==
+             "native-owner-standalone-authenticated-session-lifecycle")
+    {
+        windowsNativeDesktopOwnerStandaloneAuthenticatedSessionLifecycle();
     }
     else if (behavior == "cursor-snapshot-visible-and-hidden")
     {

@@ -1,3 +1,37 @@
+## R6 standalone-authenticated Windows owner after R2/R10 handoff (2026-10-22)
+
+Starting exact-main parent: `806346e3672020af7faef5b9ed2af715f3674e85`.
+
+The dependency graph's R2/R10 blockers that previously stopped Track E have
+cleared. R2 now issues authentication-kind-aware native authorization without a
+fabricated SID for `StandalonePassword`, and R10 now has
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession()` with the concrete
+Windows WTS/LSA evidence reader in its static dependency closure.
+
+R6 therefore advances the already-gated Windows native aggregate with
+`windows.native-owner-standalone-authenticated-session-lifecycle`. The
+Windows-only injected test uses a `StandalonePassword`
+`NativeDesktopAuthenticatedSessionProof` that deliberately keeps the base
+deny-only Windows SID matcher. It proves View-only and View+Input native-owner
+construction, then terminal retirement on authenticated-session generation
+replacement, owner Stop and fresh Windows native-session replacement. A held
+input command is not followed by synthetic native input after authority loss.
+No live WTS/DXGI/cursor/SendInput, listener or client is exercised.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Remaining positive-production blocker:** `CurrentOwnerSharingAuthority`
+still has only the Linux production `ConsoleOsEvidenceSource` composition.
+Windows must obtain a trusted current-local-owner consent observation without
+fabricating Linux seat/display/UID facts. Until that production owner-evidence
+provider lands, R10 cannot mint the owner grant required by
+`attachAuthenticatedSession()`, so
+`kWindowsNativeDesktopPositiveActivationApproved` remains correctly
+**false**. Physical Windows native acceptance and a real R9-verified CLEAN
+receipt remain **NOT RUN / BLOCKED**.
+
 ## R9 standalone native-authorization documentation reconciliation (2026-10-22)
 
 Starting exact-main parent: `89fcec21e2ab471b3582d7534792fd2dbfe0bc0b`.

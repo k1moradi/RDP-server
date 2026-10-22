@@ -1,3 +1,42 @@
+## R5 dependency recheck after R10 production linkage (2026-10-22)
+
+Starting exact-main parent: `60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08`.
+
+R10's former production-linkage blocker is resolved by
+`385128846d2b214ffc16d5759b62ed6e36ef27f0`: the production Windows/macOS
+`rdp-server` target now links the existing
+`rdp-server-runtime-platform-native-desktop` target and `main.cpp`
+constructs exactly one inactive `RuntimePlatformNativeDesktop` on the process
+main thread. It does not attach at startup or create a second scheduler. Current
+descendants through `60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08` preserve that linkage.
+
+The remaining R5 production blocker is now **R2 only**. Current-main tree
+inspection contains the read-only
+`src/server/security/macos_native_session_evidence.{h,cpp}` adapter and the
+abstract `MacAuthenticatedIdentityProof` contract, but no concrete production
+macOS authenticated-identity implementation. The only concrete
+`authenticated_identity` source currently present is the Windows SSPI
+provider. R5 therefore cannot obtain a genuine bound
+`MacNativeDesktopAuthorization` from an accepted macOS RDP identity and must
+not fabricate UID authority or bypass R2.
+
+R5's native aggregate source remains hosted-qualified from descendant
+`daed9252d14daadcf413012d27148ea38254b585`: Actions run `39728991286`
+has `r7-macos-native-lifecycle` **PASS** and
+`protocol (macos-latest)` **PASS**, including Debug/Release compile and CTest.
+R10 linkage structure CI is **PASS**; its primary run remained queued at this
+dependency receipt, so this recheck does not claim new exact-SHA R10 primary
+qualification.
+
+**Next dependency:** R2 must land a concrete production
+`MacAuthenticatedIdentityProof` derived from the accepted authenticated
+client identity. After that, R10 can attach the already-linked single platform
+owner and R5 can proceed to the separately owner-authorized physical macOS
+acceptance sequence. Screen Recording, Accessibility/Input Monitoring,
+ScreenCaptureKit pixels, visible desktop, Quartz mouse/click/keyboard, Stop,
+reconnect and resize remain **NOT RUN**. Linux FIRST remains frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`.
+
 ## R6 production Windows native-target construction after R2/R10 handoff (2026-10-22)
 
 Starting exact-main parent: `385128846d2b214ffc16d5759b62ed6e36ef27f0`.

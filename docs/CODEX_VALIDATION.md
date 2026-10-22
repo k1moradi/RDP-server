@@ -1,3 +1,33 @@
+## R5 dependency recheck after R10 production linkage — 2026-10-22
+
+Starting exact-main parent: `60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08`.
+
+Dependency inspection: **R10 RESOLVED, R2 BLOCKED**. R10 commit
+`385128846d2b214ffc16d5759b62ed6e36ef27f0` links
+`rdp-server-runtime-platform-native-desktop` into the production Windows/macOS
+`rdp-server` executable and creates exactly one inactive
+`RuntimePlatformNativeDesktop` process owner. Current descendants through
+`60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08` preserve that source path.
+
+Current-main tree inspection finds no concrete macOS implementation of
+`MacAuthenticatedIdentityProof`; macOS has only its native-session evidence
+reader while the newly concrete authenticated-identity provider is Windows
+SSPI-specific. R5 therefore cannot form production macOS native authority
+without an R2 implementation and must not substitute caller UID/display/TCC
+facts.
+
+Previously qualified R5 macOS source evidence remains
+`daed9252d14daadcf413012d27148ea38254b585`, Actions run `39728991286`:
+focused native lifecycle **PASS** and full macOS protocol Debug/Release
+compile/CTest **PASS**. R10 production-linkage structure CI is **PASS**; its
+primary workflow was still queued at this receipt. No live TCC,
+ScreenCaptureKit, Quartz input, listener/client, Stop/reconnect/resize or Linux
+FIRST action was performed.
+
+Next gate: concrete production R2 macOS authenticated-identity proof, then the
+already-linked single R10 owner may attach and R5 can enter the separately
+owner-authorized physical acceptance gate.
+
 ## R6 production Windows native-target source handoff (2026-10-22)
 
 Starting exact-main parent: `385128846d2b214ffc16d5759b62ed6e36ef27f0`.

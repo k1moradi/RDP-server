@@ -15,12 +15,36 @@ file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
 file(READ "${RDP_LAN_LISTENER_SOURCE}" listener_source)
 
 foreach(required_text IN ITEMS
+        "RuntimeHostLanEndpointCandidate"
         "RuntimeHostRecommendedEndpoint"
+        "RuntimeHostRecommendationSource"
         "assessRuntimeSelectedLanEndpoint("
         "recommendRuntimePrivateLanEndpoint(")
     string(FIND "${host_header}" "${required_text}" found)
     if(found LESS 0)
         message(FATAL_ERROR "HostControl recommendation boundary missing: ${required_text}")
+    endif()
+endforeach()
+
+# Route/default-route ranking metadata is recommendation-only. Keep the exact
+# Start selection surface deliberately smaller than the recommendation model.
+string(FIND "${host_header}" "struct RuntimeHostOptions" options_begin)
+string(FIND "${host_header}" "enum class RuntimeHostAddressFamily" options_end)
+if(options_begin LESS 0 OR options_end LESS_EQUAL options_begin)
+    message(FATAL_ERROR "Unable to isolate RuntimeHostOptions authority surface")
+endif()
+math(EXPR options_length "${options_end} - ${options_begin}")
+string(SUBSTRING "${host_header}" ${options_begin}
+    ${options_length} options_source)
+foreach(forbidden_text IN ITEMS
+        "preferredRoute"
+        "routeMetric"
+        "RuntimeHostRecommendationSource"
+        "RuntimeHostAddressFamily")
+    string(FIND "${options_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Recommendation metadata leaked into RuntimeHostOptions: ${forbidden_text}")
     endif()
 endforeach()
 
@@ -67,11 +91,19 @@ foreach(required_text IN ITEMS
     endif()
 endforeach()
 
-string(FIND "${transaction_source}"
-    "recommendRuntimePrivateLanEndpoint(" ranking_in_start)
-if(NOT ranking_in_start EQUAL -1)
-    message(FATAL_ERROR "Recommendation ranking entered the Start authority transaction")
-endif()
+foreach(forbidden_text IN ITEMS
+        "recommendRuntimePrivateLanEndpoint("
+        "recommendLinuxPrivateLanEndpoint("
+        "RuntimeHostLanEndpointCandidate"
+        "RuntimeHostRecommendationSource"
+        "preferredRoute"
+        "routeMetric")
+    string(FIND "${transaction_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Recommendation ranking entered the Start authority transaction: ${forbidden_text}")
+    endif()
+endforeach()
 
 string(FIND "${listener_source}"
     "bool findInterfaceAddress(" selection_begin)

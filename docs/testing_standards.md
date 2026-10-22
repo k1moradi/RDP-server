@@ -1,3 +1,22 @@
+## R1 concrete route-aware recommendation authority test (2026-10-22)
+
+Now that R10 exposes `RuntimeHostLanEndpointCandidate`,
+`RuntimeHostRecommendedEndpoint` and
+`RuntimeHostRecommendationSource`,
+`runtime.host-control-route-aware-recommendation-non-authority` must consume
+those real types rather than fabricate a pre-landing recommendation result.
+Cover a preferred physical LAN, a VPN/virtual winner and a bridge winner, then
+convert each only to the exact `RuntimeHostOptions` tuple used by Start.
+Route family, preferred-route, metric, ambiguity and source metadata must not
+become bind authority.
+
+The paired `runtime.r1-bind-revalidates-recommended-endpoint` source contract
+must reject those ranking fields in `RuntimeHostOptions` and in the
+`LinuxRuntimeHostControl::startSharing()` transaction while preserving fresh
+interface enumeration, stable-ID/native-index resolution, private-LAN policy,
+exact current address/up-state checks and post-bind interface continuity. These
+remain offline regression contracts and do not satisfy physical FIRST.
+
 ## R10 Linux route-aware LAN recommendation regressions (2026-10-22)
 
 Keep `runtime.linux-host-control-route-aware-lan-recommendation` in the

@@ -1,3 +1,29 @@
+## R1 concrete route-aware recommendation authority receipt — 2026-10-22
+
+Starting exact-main parent: `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9`.
+
+R10's concrete route-aware recommendation model is now present and reviewed.
+Recommendation-only family/default-route/metric/ambiguity/source metadata does
+not enter `RuntimeHostOptions` and is forbidden from the production
+`startSharing()` authority transaction. The selected exact
+interface/address/port tuple is still revalidated against current native state
+before R1 listener creation.
+
+Updated ordinary regression
+`runtime.host-control-route-aware-recommendation-non-authority` consumes the
+real R10 candidate/result types and covers physical-LAN, VPN/virtual and bridge
+route winners plus stale interface/address/identity and wildcard/public
+denials. The source-contract
+`runtime.r1-bind-revalidates-recommended-endpoint` additionally pins
+separation of route metadata from Start authority.
+
+Connector/source inspection: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN**. Parent `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9` includes R9's test-only helper-call correction
+for the prior cross-platform GUI compile failure; its structure CI is **PASS**
+and replacement full CI is **IN PROGRESS**. Exact-publication-SHA hosted CI:
+**PENDING**. No live listener/client, TLS/CredSSP exchange, desktop, input or
+FIRST action was performed.
+
 ## R2/R9 Round 2 offscreen helper rename correction — 2026-10-22
 
 Starting exact-main parent: `f23db4174b1b983faef94fcad9785d024b932841`.

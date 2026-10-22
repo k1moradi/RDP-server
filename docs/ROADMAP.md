@@ -1,3 +1,42 @@
+## R1 concrete R10 route-aware API authority review (2026-10-22)
+
+Starting exact-main parent: `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9`.
+
+R10 `48e5ea20aec4e0f197e0a5155c58f12652512201` has resolved the
+previously unpublished recommendation dependency. The concrete portable model
+uses `RuntimeHostLanEndpointCandidate` plus
+`RuntimeHostRecommendedEndpoint` metadata for address family,
+preferred/default-route ownership, optional route metric, ambiguity and
+recommendation source. R1 review confirms those facts remain presentation/rank
+inputs only: `RuntimeHostOptions` still carries only the exact stable
+interface ID, numeric local address, port and non-secret request preferences
+into Start.
+
+The existing
+`runtime.host-control-route-aware-recommendation-non-authority` regression is
+updated to consume the real route-aware API. It proves a preferred physical
+`192.168.1.5` recommendation and legitimate VPN/virtual
+`10.180.105.86` or bridge `172.20.0.1` recommendation all enter the same
+R1 exact-tuple preflight. Interface removal, stable-ID replacement, address
+replacement, wildcard and public/non-LAN selections remain fail-closed.
+
+`runtime.r1-bind-revalidates-recommended-endpoint` now additionally rejects
+any route/ranking metadata in `RuntimeHostOptions` or
+`LinuxRuntimeHostControl::startSharing()`. Start must still freshly
+re-enumerate the interface/address and resolve the stable native identity;
+`openLanListener()` independently enforces exact current interface/address,
+up-state, private-LAN-only policy, exact bind and post-bind interface
+continuity.
+
+No production R1, TLS, CredSSP, socket-ownership or FIRST behavior changes.
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN**. Parent `5a18d8ef2e89917c17aebe62a03fe32ec40c36c9` contains R9's narrow fix for the
+previous `checkDashboardDefaults` GUI-fixture compile failure; its structure
+workflow is **PASS** and full hosted CI is **IN PROGRESS**. Exact-publication-SHA
+hosted CI for this R1 test-only follow-up: **PENDING**. GUI Round 2 remains
+independent of physical FIRST; frozen Track A physical acceptance remains
+separately **BLOCKED / NOT RUN** pending explicit owner authorization.
+
 ## R2/R9 Round 2 offscreen helper rename correction — 2026-10-22
 
 Starting exact-main parent: `f23db4174b1b983faef94fcad9785d024b932841`.

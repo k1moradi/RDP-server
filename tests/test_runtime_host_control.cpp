@@ -100,6 +100,9 @@ int main(int argumentCount, char** argumentValues)
     }
     if (testCase == "host-control-route-aware-recommendation-non-authority")
     {
+        using Family = RuntimeHostAddressFamily;
+        using Source = RuntimeHostRecommendationSource;
+
         const std::vector<RuntimeHostInterface> recommendationSnapshot{
             {"eth-main#2", "Ethernet", {"192.168.1.5"}, false, true},
             {"tun-vpn#8", "VPN", {"10.180.105.86"}, false, true},
@@ -115,32 +118,54 @@ int main(int argumentCount, char** argumentValues)
                     false};
             };
 
-        // This is the tuple a route-aware R10 ranker may prefer because the
-        // physical Ethernet adapter owns the default LAN route. R1 consumes
-        // only the exact interface/address/port tuple, never the ranking fact.
-        RuntimeHostRecommendedEndpoint physicalRecommendation;
-        physicalRecommendation.interfaceId = "eth-main#2";
-        physicalRecommendation.address = "192.168.1.5";
-        physicalRecommendation.port = 3389U;
+        // Consume the real route-aware R10 API. The default-route physical LAN
+        // wins recommendation, but R1 receives only its exact tuple.
+        const std::vector<RuntimeHostLanEndpointCandidate> physicalPreferred{
+            {"eth-main#2", "192.168.1.5", Family::Ipv4,
+             true, true, 25U},
+            {"tun-vpn#8", "10.180.105.86", Family::Ipv4,
+             true, false, 1U},
+            {"br-lab#9", "172.20.0.1", Family::Ipv4,
+             true, false, 1U}};
+        const auto physicalRecommendation =
+            recommendRuntimePrivateLanEndpoint(physicalPreferred, 3389U);
+        assert(physicalRecommendation.valid());
+        assert(physicalRecommendation.source == Source::PreferredRoute);
+        assert(physicalRecommendation.preferredRoute);
+        assert(physicalRecommendation.routeMetric == 25U);
+        assert(physicalRecommendation.interfaceId == "eth-main#2");
+        assert(physicalRecommendation.address == "192.168.1.5");
+
         const RuntimeHostOptions physicalSelection =
             optionsFor(physicalRecommendation);
         assert(assessRuntimeSelectedLanEndpoint(
                    physicalSelection, recommendationSnapshot).succeeded());
 
-        // VPN/bridge candidates receive exactly the same bind preflight. Their
-        // recommendation rank is not authority and grants no bypass.
-        RuntimeHostRecommendedEndpoint vpnRecommendation;
-        vpnRecommendation.interfaceId = "tun-vpn#8";
-        vpnRecommendation.address = "10.180.105.86";
-        vpnRecommendation.port = 3389U;
+        // VPN/virtual or bridge routing may legitimately win recommendation.
+        // That changes only which tuple is suggested; the same R1 preflight
+        // remains mandatory for the selected exact interface/address.
+        auto vpnPreferred = physicalPreferred;
+        vpnPreferred[0].preferredRoute = false;
+        vpnPreferred[1].preferredRoute = true;
+        const auto vpnRecommendation =
+            recommendRuntimePrivateLanEndpoint(vpnPreferred, 3389U);
+        assert(vpnRecommendation.valid());
+        assert(vpnRecommendation.source == Source::PreferredRoute);
+        assert(vpnRecommendation.interfaceId == "tun-vpn#8");
+        assert(vpnRecommendation.address == "10.180.105.86");
         assert(assessRuntimeSelectedLanEndpoint(
                    optionsFor(vpnRecommendation),
                    recommendationSnapshot).succeeded());
 
-        RuntimeHostRecommendedEndpoint bridgeRecommendation;
-        bridgeRecommendation.interfaceId = "br-lab#9";
-        bridgeRecommendation.address = "172.20.0.1";
-        bridgeRecommendation.port = 3389U;
+        auto bridgePreferred = physicalPreferred;
+        bridgePreferred[0].preferredRoute = false;
+        bridgePreferred[2].preferredRoute = true;
+        const auto bridgeRecommendation =
+            recommendRuntimePrivateLanEndpoint(bridgePreferred, 3389U);
+        assert(bridgeRecommendation.valid());
+        assert(bridgeRecommendation.source == Source::PreferredRoute);
+        assert(bridgeRecommendation.interfaceId == "br-lab#9");
+        assert(bridgeRecommendation.address == "172.20.0.1");
         assert(assessRuntimeSelectedLanEndpoint(
                    optionsFor(bridgeRecommendation),
                    recommendationSnapshot).succeeded());
@@ -182,7 +207,8 @@ int main(int argumentCount, char** argumentValues)
                    publicSelection, publicSnapshot).error ==
                RuntimeHostError::InterfaceUnavailable);
 
-        // A recommendation never promotes the deny-only host into a listener.
+        // Recommendation metadata never promotes the deny-only host into a
+        // listener or bypasses the normal R1/R2 Start gates.
         assert(!host.configure(physicalSelection).succeeded());
         assert(!host.startSharing().succeeded());
         assert(host.status().boundEndpoint.empty());

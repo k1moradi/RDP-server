@@ -1,3 +1,36 @@
+## R9 GUI Round 2 acceptance contract (2026-10-22)
+
+GUI Round 2 is qualified independently of CLEAN Windows. Keep
+`gui.round2-tab-source-contract`,
+`gui.offscreen-round2-tabs-and-main-simplicity`,
+`gui.offscreen-round2-endpoint-refresh-fail-closed`,
+`gui.round2-qcolor-warning-classification`, and
+`runtime.host-control-gui-round2-endpoint-recommendation` in ordinary CTest.
+The source contract requires exactly one standard Qt tab container with
+`Main` and `Advanced` tabs and rejects the retired wizard,
+`Advanced ▸/▾` disclosure, `advancedPanel`, and
+`setAdvancedVisible` implementation. Main owns product state, connection
+address + Copy, Access/sharing-permission summary, Sharing toggle,
+keyboard/mouse permission and connected-device summary. Interface/port/lifetime
+controls plus authentication/TLS/interface/lifecycle/error diagnostics stay on
+Advanced.
+
+R10 endpoint fixtures use the production
+`RuntimeHostLanEndpointCandidate` recommendation API. A preferred/default
+route beats a VPN/virtual candidate, one eligible private interface selects
+automatically, multiple private interfaces without trustworthy preference are
+ambiguous, and removing the preferred route is re-evaluated rather than
+retaining a stale choice. The GUI separately proves a disappearing automatic
+recommendation clears the prior selection. Fixture addresses are representative
+data only and never define private-address policy.
+
+Color-warning classification is ownership-based. Application source currently
+contains no `QColorSpace` or custom Qt message handler. The source guard
+requires reclassification if that changes and rejects CI-wide Qt warning
+suppression. A QColor/color-profile diagnostic attributable to Qt/platform
+profile parsing while this ownership guard is green is nonblocking
+environmental output; other Qt warnings remain visible.
+
 ## R5 compact Linux prerequisite projection regression (2026-10-22)
 
 Keep `gui.linux-readonly-prerequisite-structured-projection` in the ordinary
@@ -62,15 +95,15 @@ reported as physical FIRST acceptance.
 While `kLinuxProductionClipboardActivationApproved` is false, the default/Main
 dashboard must expose no clipboard control and must not turn an internal
 clipboard permission bit into Main-page product status. Keep
-`gui.offscreen-dashboard-single-page-defaults` requiring no
+`gui.offscreen-round2-tabs-and-main-simplicity` requiring no
 `allowClipboard` or clipboard-named dashboard descendant. Keep `security.owner-consent-read-only-product-facts` injecting the full
 allowed permission mask, including the dormant clipboard bit, below the product
 boundary. Keep `gui.offscreen-r2-owner-grant-observation` consuming only the
 R10 View/Input product projection and requiring Main to show screen and
 keyboard/mouse scope with no clipboard field.
 
-If pre-activation clipboard diagnostics are added later, they belong under
-collapsed Advanced, are read-only, and must not mutate permission or activation
+If pre-activation clipboard diagnostics are added later, they belong under the
+Advanced tab, are read-only, and must not mutate permission or activation
 state. These presentation checks do not replace the existing R8 lifetime
 regressions: hide-to-tray preserves the active owner, explicit Quit retires via
 Stop/Revoke, stale X11 INCR/paste state retires before R5, and reconnect creates
@@ -438,7 +471,7 @@ Register the product UI regressions under every build with
 `RDP_SERVER_BUILD_DESKTOP_GUI=ON` and run them with
 `QT_QPA_PLATFORM=offscreen`; they must not open a listener or native desktop.
 
-- `gui.offscreen-dashboard-single-page-defaults` requires no
+- `gui.offscreen-round2-tabs-and-main-simplicity` requires no
   `QStackedWidget`, Back/Next navigation, password/confirmation fields or
   clipboard control; it requires automatic runtime-approved address
   presentation, collapsed Advanced disclosure, Existing OS Account mode, and

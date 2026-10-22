@@ -1849,6 +1849,34 @@ jobs:
             -R "$r7_focus" --output-on-failure
 
 
+  # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
+  # CLEAN Windows is intentionally a separate release-evidence track.
+  r9-gui-round2-acceptance:
+    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs:
+      - r5-linux-gui-zip
+      - r7-macos-portable-gui
+      - r6-windows-clang23
+      - documentation-policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require GUI Round 2 exact-SHA producers
+        env:
+          LINUX_GUI_RESULT: ${{ needs.r5-linux-gui-zip.result }}
+          MACOS_GUI_RESULT: ${{ needs.r7-macos-portable-gui.result }}
+          WINDOWS_GUI_RESULT: ${{ needs.r6-windows-clang23.result }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation-policy.result }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$LINUX_GUI_RESULT" \
+            "$MACOS_GUI_RESULT" \
+            "$WINDOWS_GUI_RESULT" \
+            "$DOCUMENTATION_RESULT"; do
+            test "$result" = success
+          done
+          printf 'GUI ROUND 2 PASS: %s\n' "$GITHUB_SHA"
+
   # Only trusted main may execute on the owner's clean standard-user VM.
   # A missing interactive clean Windows VM is a hard release block.
   # R9 ordinary hosted syntax gate; it must never wait on the clean VM.
@@ -2367,7 +2395,7 @@ jobs:
             -DRDP_SERVER_BUILD_DESKTOP_GUI=ON
           cmake --build build --config Release \
             --target rdp-server-desktop test_linux_gui_prerequisites \
-              test_desktop_gui_offline --parallel 2
+              test_desktop_gui_offline test_runtime_host_control --parallel 2
           ctest --test-dir build -C Release \
             -R '^gui[.]linux-readonly-seat0-prerequisite-denials$' \
             --output-on-failure
@@ -2378,6 +2406,21 @@ jobs:
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tls_tests")" -eq 1
           ctest --test-dir build -C Release --timeout 30 \
             -R "$tls_selector" --output-on-failure
+
+          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)$'
+          round2_tests="$(ctest --test-dir build -C Release -N -R "$round2_selector")"
+          printf '%s\n' "$round2_tests"
+          for required_test in \
+            gui.offscreen-round2-tabs-and-main-simplicity \
+            gui.offscreen-round2-endpoint-refresh-fail-closed \
+            gui.round2-tab-source-contract \
+            gui.round2-qcolor-warning-classification \
+            runtime.host-control-gui-round2-endpoint-recommendation; do
+            grep -Fq ": $required_test" <<< "$round2_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$round2_tests")" -eq 5
+          ctest --test-dir build -C Release --timeout 30 \
+            -R "$round2_selector" --output-on-failure
       - name: Package, extract and inspect actual Qt/XCB closure
         shell: bash
         run: |

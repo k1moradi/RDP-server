@@ -275,6 +275,62 @@ int main(int argumentCount, char** argumentValues)
         assert(!deniedResult.ambiguous);
         return 0;
     }
+    if (testCase == "host-control-gui-round2-endpoint-recommendation")
+    {
+        using Family = RuntimeHostAddressFamily;
+        const std::vector<RuntimeHostLanEndpointCandidate> preferredLan{
+            {"lan-default", "192.168.1.5", Family::Ipv4,
+             true, true, {}},
+            {"vpn-virtual", "10.180.105.86", Family::Ipv4,
+             true, false, {}}};
+        const auto actualLan =
+            recommendRuntimePrivateLanEndpoint(preferredLan, 3389U);
+        assert(actualLan.valid());
+        assert(!actualLan.ambiguous);
+        assert(actualLan.interfaceId == "lan-default");
+        assert(actualLan.address == "192.168.1.5");
+        assert(actualLan.port == 3389U);
+
+        const std::vector<RuntimeHostLanEndpointCandidate> solePrivate{{
+            "only-private", "172.20.4.8", Family::Ipv4,
+            true, false, {}}};
+        const auto automatic =
+            recommendRuntimePrivateLanEndpoint(solePrivate, 3389U);
+        assert(automatic.valid());
+        assert(automatic.interfaceId == "only-private");
+        assert(automatic.address == "172.20.4.8");
+
+        const std::vector<RuntimeHostLanEndpointCandidate> ambiguous{
+            {"private-a", "192.168.20.9", Family::Ipv4,
+             true, false, {}},
+            {"private-b", "10.50.0.6", Family::Ipv4,
+             true, false, {}}};
+        const auto noPreference =
+            recommendRuntimePrivateLanEndpoint(ambiguous, 3389U);
+        assert(!noPreference.valid());
+        assert(noPreference.ambiguous);
+        assert(noPreference.interfaceId.empty());
+        assert(noPreference.address.empty());
+
+        auto preferenceDisappeared = preferredLan;
+        preferenceDisappeared.front().preferredRoute = false;
+        const auto refreshed =
+            recommendRuntimePrivateLanEndpoint(preferenceDisappeared, 3389U);
+        assert(!refreshed.valid());
+        assert(refreshed.ambiguous);
+        assert(refreshed.interfaceId.empty());
+        assert(refreshed.address.empty());
+
+        auto replacementPreference = preferredLan;
+        replacementPreference.front().preferredRoute = false;
+        replacementPreference.back().preferredRoute = true;
+        const auto replacement =
+            recommendRuntimePrivateLanEndpoint(replacementPreference, 3389U);
+        assert(replacement.valid());
+        assert(replacement.interfaceId == "vpn-virtual");
+        assert(replacement.address == "10.180.105.86");
+        return 0;
+    }
     if (testCase == "host-control-product-status-projection")
     {
         const std::vector<RuntimeHostInterface> interfaces{

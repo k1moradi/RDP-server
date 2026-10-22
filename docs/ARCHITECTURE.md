@@ -251,21 +251,25 @@ capability.
 
 ## R10 product status is the sole R7 lifecycle and automatic-endpoint boundary (2026-10-21)
 
-R7's one-page dashboard, Windows toggle linkage and tray lifetime are now
-landed. R10 therefore publishes one `RuntimeProductHostStatus` that owns the
+R7's dashboard, Windows toggle linkage and tray lifetime are landed. R9 GUI
+Round 2 presents the same single HostControl surface through one standard
+`QTabWidget` with Main and Advanced tabs; the retired wizard and expanding
+Advanced disclosure/panel do not exist. R10 therefore publishes one `RuntimeProductHostStatus` that owns the
 product lifecycle vocabulary: `Stopped`, `Starting`, `Listening`,
 `Authenticating`, `DesktopInitializing`, `Connected`, `Stopping`, and
 `Error`. R7 may render those values but must not reconstruct lifecycle from
 listener, Share, Graphics, native-desktop or command-intent flags.
 
-The same snapshot owns the deterministic automatic private-LAN recommendation,
-the eligible Advanced override list, actual bound endpoint, active-client
-count/opaque IDs, ExistingOsAccount/StandalonePassword capability bits,
-configured-credential state, current owner permission observation, current TLS
-fingerprint/ready state and fixed redacted last-error text. Recommendation
-prefers eligible IPv4, then IPv6, with stable interface/address tie-breaking;
-`configure()` and R1 still re-enumerate/revalidate the exact selection before
-binding.
+The same snapshot owns the automatic private-LAN recommendation, the eligible
+Advanced override list, actual bound endpoint, active-client count/opaque IDs,
+ExistingOsAccount/StandalonePassword capability bits, configured-credential
+state, current owner permission observation, current TLS fingerprint/ready
+state and fixed redacted last-error text. Route-aware recommendation consumes
+portable semantic candidate facts: preferred/default-route ownership outranks a
+non-preferred route, comparable route metrics may rank remaining candidates,
+and otherwise distinct candidates are ambiguous instead of being broken by
+interface/address strings or address family. `configure()` and R1 still
+re-enumerate/revalidate the exact selection before binding.
 
 The standalone selector remains production-composed internally, but
 `kStandalonePasswordProductCapabilityApproved` remains false until the real
@@ -273,7 +277,7 @@ unmodified Windows App/Windows 11 `mstsc.exe` acceptance receipt exists.
 Keeping the capability false prevents the landed dashboard from constructing or
 selecting a Session Password path prematurely.
 
-## R7 single-page product projection and tray ownership (2026-10-21)
+## R7/R9 tabbed product projection and tray ownership (2026-10-22)
 
 `DesktopWindow` is one presentation surface over the existing
 `RuntimeHostControl`; it does not add a connection/session owner. The
@@ -284,14 +288,16 @@ make it On, and a Stop click cannot make it Off. Short-lived
 Starting/Stopping presentation and never satisfy `canStart()`, authorize a
 listener, admit a client or bypass fresh owner checks.
 
-The default endpoint is selected only from
-`HostStatus::approvedLanInterfaces`, which already reflects the shared
-runtime LAN predicate. R7 prefers the first approved IPv4 address for product
-readability, falls back to the first approved address, and preserves a manual
-Advanced override only while the exact stable interface ID + address pair
-survives refresh. The displayed pre-Start endpoint is descriptive
-`address:port`; once the runtime reports a bound endpoint, that value takes
-precedence. Copying either value grants no bind or trust authority.
+The default endpoint is selected only from R10's
+`RuntimeProductHostStatus::recommendedEndpoint`; the approved-interface list
+supplies only Advanced manual overrides. Automatic selection follows each fresh
+R10 recommendation. A manual Advanced override remains sticky only while the
+exact stable interface ID + address pair survives refresh. If the automatic
+recommendation disappears or becomes ambiguous, the GUI clears its previous
+automatic selection rather than retaining stale endpoint text. The displayed
+pre-Start endpoint is descriptive `address:port`; once the runtime reports a
+bound endpoint, that value takes precedence. Copying either value grants no
+bind or trust authority.
 
 Window visibility is not host lifetime. Close while the raw runtime stage may
 still host calls `hide()` and ignores the close event. Tray/menu-bar Open

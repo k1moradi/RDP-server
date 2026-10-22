@@ -14,6 +14,7 @@ class QMenu;
 class QPushButton;
 class QSpinBox;
 class QSystemTrayIcon;
+class QTabWidget;
 
 namespace rdp::gui
 {
@@ -40,10 +41,12 @@ private:
     void requestStop();
     void requestQuit();
     void updateTray(const HostStatus& snapshot, const QString& address);
-    void setAdvancedVisible(bool visible);
 
     HostControl& host_;
 
+    QTabWidget* tabs_;
+    QWidget* mainTab_;
+    QWidget* advancedTab_;
     ToggleSwitchWidget* sharingToggle_;
     QComboBox* interfaces_;
     QComboBox* clientSelection_;
@@ -54,8 +57,6 @@ private:
     QPushButton* requestHostPermission_;
     QPushButton* disconnect_;
     QPushButton* copy_;
-    QPushButton* advancedToggle_;
-    QWidget* advancedPanel_;
 
     QLabel* serverStateTitle_;
     QLabel* platformStatus_;
@@ -78,6 +79,7 @@ private:
     QAction* trayClients_;
     QAction* trayQuit_;
 
+    bool manualInterfaceOverride_{false};
     bool quitRequested_{false};
     QString userFacingError_;
 };

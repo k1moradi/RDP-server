@@ -24,6 +24,7 @@
 #include <QSpinBox>
 #include <QStyle>
 #include <QSystemTrayIcon>
+#include <QTabWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QVariant>
@@ -252,34 +253,35 @@ QString formatEndpoint(const QString& address, const int port)
 DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     : QWidget(parent),
       host_(host),
-      sharingToggle_(new ToggleSwitchWidget(this)),
-      interfaces_(new QComboBox(this)),
-      clientSelection_(new QComboBox(this)),
-      port_(new QSpinBox(this)),
+      tabs_(new QTabWidget(this)),
+      mainTab_(new QWidget(tabs_)),
+      advancedTab_(new QWidget(tabs_)),
+      sharingToggle_(new ToggleSwitchWidget(mainTab_)),
+      interfaces_(new QComboBox(advancedTab_)),
+      clientSelection_(new QComboBox(mainTab_)),
+      port_(new QSpinBox(advancedTab_)),
       allowRemoteInput_(new QCheckBox(
-          QStringLiteral("Allow keyboard/mouse"), this)),
-      permissionLifetimeMinutes_(new QSpinBox(this)),
+          QStringLiteral("Allow keyboard/mouse"), mainTab_)),
+      permissionLifetimeMinutes_(new QSpinBox(advancedTab_)),
       configureOsAccount_(new QPushButton(
-          QStringLiteral("Use Existing OS Account"), this)),
+          QStringLiteral("Use Existing OS Account"), mainTab_)),
       requestHostPermission_(new QPushButton(
-          QStringLiteral("Allow Sharing on This Computer"), this)),
-      disconnect_(new QPushButton(QStringLiteral("Disconnect"), this)),
-      copy_(new QPushButton(QStringLiteral("Copy"), this)),
-      advancedToggle_(new QPushButton(QStringLiteral("Advanced ▸"), this)),
-      advancedPanel_(new QWidget(this)),
-      serverStateTitle_(heading(QStringLiteral("RDP Server — Stopped"), this)),
-      platformStatus_(label({}, this)),
-      addressStatus_(label({}, this)),
-      credentialStatus_(label({}, this)),
-      permissionStatus_(label({}, this)),
-      selectedInterfaceStatus_(label({}, this)),
-      errorStatus_(label({}, this)),
-      tlsIdentityStatus_(label({}, this)),
-      hostLifecycleStatus_(label({}, this)),
-      status_(label({}, this)),
-      activity_(label({}, this)),
+          QStringLiteral("Allow Sharing on This Computer"), mainTab_)),
+      disconnect_(new QPushButton(QStringLiteral("Disconnect"), mainTab_)),
+      copy_(new QPushButton(QStringLiteral("Copy"), mainTab_)),
+      serverStateTitle_(heading(QStringLiteral("RDP Server — Stopped"), mainTab_)),
+      platformStatus_(label({}, mainTab_)),
+      addressStatus_(label({}, mainTab_)),
+      credentialStatus_(label({}, mainTab_)),
+      permissionStatus_(label({}, mainTab_)),
+      selectedInterfaceStatus_(label({}, advancedTab_)),
+      errorStatus_(label({}, advancedTab_)),
+      tlsIdentityStatus_(label({}, advancedTab_)),
+      hostLifecycleStatus_(label({}, advancedTab_)),
+      status_(label({}, mainTab_)),
+      activity_(label({}, mainTab_)),
       authenticationModeStatus_(label(
-          QStringLiteral("Authentication mode: Existing OS Account"), this)),
+          QStringLiteral("Authentication mode: Existing OS Account"), advancedTab_)),
       trayIcon_(new QSystemTrayIcon(this)),
       trayMenu_(new QMenu(this)),
       trayOpen_(new QAction(QStringLiteral("Open"), trayMenu_)),
@@ -322,8 +324,9 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     copy_->setObjectName("copyLanAddress");
     clientSelection_->setObjectName("activeClientSelection");
     disconnect_->setObjectName("disconnectClient");
-    advancedToggle_->setObjectName("advancedDisclosure");
-    advancedPanel_->setObjectName("advancedPanel");
+    tabs_->setObjectName("settingsTabs");
+    mainTab_->setObjectName("mainTab");
+    advancedTab_->setObjectName("advancedTab");
     interfaces_->setObjectName("lanInterface");
     port_->setObjectName("sharingPort");
     permissionLifetimeMinutes_->setObjectName("ownerPermissionLifetimeMinutes");
@@ -337,40 +340,44 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     trayClients_->setEnabled(false);
 
     auto* root = new QVBoxLayout(this);
-    root->addWidget(serverStateTitle_);
-    root->addWidget(platformStatus_);
+    tabs_->addTab(mainTab_, QStringLiteral("Main"));
+    tabs_->addTab(advancedTab_, QStringLiteral("Advanced"));
+    root->addWidget(tabs_);
 
-    root->addWidget(heading(QStringLiteral("This computer"), this));
+    auto* mainLayout = new QVBoxLayout(mainTab_);
+    mainLayout->addWidget(serverStateTitle_);
+    mainLayout->addWidget(platformStatus_);
+
+    mainLayout->addWidget(heading(QStringLiteral("This computer"), mainTab_));
     auto* addressRow = new QHBoxLayout();
     addressRow->addWidget(addressStatus_, 1);
     addressRow->addWidget(copy_);
-    root->addLayout(addressRow);
+    mainLayout->addLayout(addressRow);
 
-    root->addWidget(heading(QStringLiteral("Access"), this));
-    root->addWidget(credentialStatus_);
-    root->addWidget(configureOsAccount_);
-    root->addWidget(permissionStatus_);
-    root->addWidget(requestHostPermission_);
+    mainLayout->addWidget(heading(QStringLiteral("Access"), mainTab_));
+    mainLayout->addWidget(credentialStatus_);
+    mainLayout->addWidget(configureOsAccount_);
+    mainLayout->addWidget(permissionStatus_);
+    mainLayout->addWidget(requestHostPermission_);
 
-    root->addWidget(heading(QStringLiteral("Sharing"), this));
+    mainLayout->addWidget(heading(QStringLiteral("Sharing"), mainTab_));
     auto* sharingRow = new QHBoxLayout();
     sharingRow->addWidget(sharingToggle_);
     sharingRow->addWidget(status_, 1);
-    root->addLayout(sharingRow);
+    mainLayout->addLayout(sharingRow);
     allowRemoteInput_->setChecked(true);
-    root->addWidget(allowRemoteInput_);
+    mainLayout->addWidget(allowRemoteInput_);
 
-    root->addWidget(heading(QStringLiteral("Connected devices"), this));
+    mainLayout->addWidget(heading(QStringLiteral("Connected devices"), mainTab_));
     auto* clientRow = new QHBoxLayout();
     clientSelection_->addItem(QStringLiteral("No connected devices"), QVariant());
     clientRow->addWidget(clientSelection_, 1);
     clientRow->addWidget(disconnect_);
-    root->addLayout(clientRow);
-    root->addWidget(activity_);
+    mainLayout->addLayout(clientRow);
+    mainLayout->addWidget(activity_);
+    mainLayout->addStretch();
 
-    root->addWidget(advancedToggle_);
-
-    auto* advancedLayout = new QVBoxLayout(advancedPanel_);
+    auto* advancedLayout = new QVBoxLayout(advancedTab_);
     auto* advancedForm = new QFormLayout();
     interfaces_->addItem(QStringLiteral("No private LAN interface available"),
                          QString());
@@ -393,12 +400,12 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
 #if defined(Q_OS_LINUX)
     auto* linuxPrerequisites = label(
         formatLinuxPrerequisites(LinuxDesktopPrerequisiteProjection{}),
-        advancedPanel_);
+        advancedTab_);
     linuxPrerequisites->setObjectName("linuxPrerequisiteStatus");
     advancedLayout->addWidget(linuxPrerequisites);
     auto* refreshLinux =
         new QPushButton(QStringLiteral("Refresh Linux desktop"),
-                        advancedPanel_);
+                        advancedTab_);
     refreshLinux->setObjectName("refreshLinuxPrerequisites");
     advancedLayout->addWidget(refreshLinux);
     connect(refreshLinux, &QPushButton::clicked, this, [linuxPrerequisites] {
@@ -408,10 +415,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         requestLinuxPrerequisites(linuxPrerequisites);
     });
 #endif
-
-    root->addWidget(advancedPanel_);
-    root->addStretch();
-    setAdvancedVisible(false);
+    advancedLayout->addStretch();
 
     trayMenu_->addAction(trayOpen_);
     trayMenu_->addAction(trayCopy_);
@@ -426,9 +430,6 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     if (QSystemTrayIcon::isSystemTrayAvailable())
         trayIcon_->show();
 
-    connect(advancedToggle_, &QPushButton::clicked, this, [this] {
-        setAdvancedVisible(advancedPanel_->isHidden());
-    });
     connect(configureOsAccount_, &QPushButton::clicked, this, [this] {
         userFacingError_.clear();
         if (!host_.requestExistingOsAccount())
@@ -493,7 +494,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
             QApplication::clipboard()->setText(address);
     });
     connect(interfaces_, &QComboBox::currentIndexChanged,
-            this, [this](int) { refresh(); });
+            this, [this](int) {
+                manualInterfaceOverride_ = true;
+                refresh();
+            });
     connect(port_, &QSpinBox::valueChanged, this, [this](int) { refresh(); });
     connect(clientSelection_, &QComboBox::currentIndexChanged,
             this, [this](int) { refresh(); });
@@ -529,14 +533,6 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     });
 
     refresh();
-}
-
-void DesktopWindow::setAdvancedVisible(const bool visible)
-{
-    advancedPanel_->setVisible(visible);
-    advancedToggle_->setText(
-        visible ? QStringLiteral("Advanced ▾")
-                : QStringLiteral("Advanced ▸"));
 }
 
 QString DesktopWindow::blockedReason() const
@@ -729,20 +725,35 @@ void DesktopWindow::refresh()
         }
 
         int selectedIndex = 0;
-        for (int index = 1; index < interfaces_->count(); ++index)
+        if (manualInterfaceOverride_)
         {
-            if (interfaces_->itemData(index).toString() == previousInterface &&
-                interfaces_->itemData(
-                    index, Qt::UserRole + 1).toString() == previousInterfaceId)
+            if (previousInterface.isEmpty() && previousInterfaceId.isEmpty())
             {
-                selectedIndex = index;
-                break;
+                selectedIndex = 0;
+            }
+            else
+            {
+                for (int index = 1; index < interfaces_->count(); ++index)
+                {
+                    if (interfaces_->itemData(index).toString() ==
+                            previousInterface &&
+                        interfaces_->itemData(
+                            index, Qt::UserRole + 1).toString() ==
+                            previousInterfaceId)
+                    {
+                        selectedIndex = index;
+                        break;
+                    }
+                }
+                if (selectedIndex == 0)
+                    manualInterfaceOverride_ = false;
             }
         }
 
-        // R10 owns the automatic endpoint recommendation. Manual Advanced
-        // override remains sticky while the exact prior choice survives.
-        if (selectedIndex == 0 &&
+        // R10 owns the automatic endpoint recommendation. Follow each fresh
+        // recommendation unless the user made an Advanced override that still
+        // names the exact current stable interface/address pair.
+        if (!manualInterfaceOverride_ &&
             !snapshot.recommendedInterfaceId.isEmpty() &&
             !snapshot.recommendedAddress.isEmpty())
         {
@@ -752,7 +763,7 @@ void DesktopWindow::refresh()
                         snapshot.recommendedAddress &&
                     interfaces_->itemData(
                         index, Qt::UserRole + 1).toString() ==
-                        snapshot.recommendedInterfaceId)
+                            snapshot.recommendedInterfaceId)
                 {
                     selectedIndex = index;
                     break;

@@ -43,6 +43,24 @@ add_test(NAME gui.r10-product-status-integration-source-contract
 set_tests_properties(gui.r10-product-status-integration-source-contract
     PROPERTIES LABELS "gui;r10-host-control;policy;offline")
 
+# R9 GUI Round 2 exact-source contracts. These inspect source/CI text only:
+# they do not launch Qt, read native color profiles or suppress diagnostics.
+add_test(NAME gui.round2-tab-source-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_DESKTOP_WINDOW_HEADER=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.h"
+        "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_round2_tabs.cmake")
+set_tests_properties(gui.round2-tab-source-contract PROPERTIES
+    LABELS "gui;r9;round2;policy;offline")
+
+add_test(NAME gui.round2-qcolor-warning-classification
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"
+        "-DRDP_CI_WORKFLOW=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_qcolor_warning_policy.cmake")
+set_tests_properties(gui.round2-qcolor-warning-classification PROPERTIES
+    LABELS "gui;r9;round2;qt;policy;offline")
+
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
 add_executable(test_standalone_credential_policy
@@ -345,6 +363,7 @@ foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
         host-control-windows-rpc-interface-macro-compatibility
         host-control-cross-platform-lan-recommendation-contract
+        host-control-gui-round2-endpoint-recommendation
         host-control-product-status-projection
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials
@@ -3642,13 +3661,18 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-hide-preserves-active-sharing
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;clipboard;lifecycle" TIMEOUT 30)
-    # R7 product dashboard: one page, automatic private address, no
-    # wizard/navigation or capability-gated password/clipboard controls.
-    add_test(NAME gui.offscreen-dashboard-single-page-defaults
-        COMMAND test_desktop_gui_offline dashboard)
-    set_tests_properties(gui.offscreen-dashboard-single-page-defaults
+    # R9 GUI Round 2: one standard Main/Advanced tab container, no wizard
+    # or disclosure panel, and no implementation/diagnostic controls on Main.
+    add_test(NAME gui.offscreen-round2-tabs-and-main-simplicity
+        COMMAND test_desktop_gui_offline round2-tabs)
+    set_tests_properties(gui.offscreen-round2-tabs-and-main-simplicity
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;product;dashboard" TIMEOUT 30)
+        LABELS "gui;offline;product;round2;tabs" TIMEOUT 30)
+    add_test(NAME gui.offscreen-round2-endpoint-refresh-fail-closed
+        COMMAND test_desktop_gui_offline round2-endpoint-refresh)
+    set_tests_properties(gui.offscreen-round2-endpoint-refresh-fail-closed
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;round2;lan" TIMEOUT 30)
     # R7 post-qualification polish: the R10-recommended address is the primary
     # selectable connection value, and unsupported builds show one concise
     # default-page explanation instead of repeating the same denial.

@@ -1,3 +1,39 @@
+## R9 P0 GUI Round 2 acceptance gate (2026-10-22)
+
+Starting exact-main parent: `5d8572a6e9a0bfa2f9efdd5e2a2e5faf9f6ef9dd`.
+
+R9 replaces the expanding Advanced disclosure with exactly one standard
+`QTabWidget` containing `Main` and `Advanced`, while preserving R2's
+new product-level sharing-permission projection on Main and R5's compact,
+read-only Linux prerequisite projection on Advanced. Main contains product
+state, connection address + Copy, Access/sharing-permission summary/actions,
+Sharing toggle, keyboard/mouse permission and connected-device summary.
+Interface/port/lifetime and authentication/TLS/interface/lifecycle/error
+diagnostics live only on Advanced.
+
+R1/R6 already provide the route-aware recommendation and independent bind
+authority boundary. R9 adds the requested production-backed fixture:
+preferred LAN `192.168.1.5` versus VPN/virtual `10.180.105.86`, a sole
+eligible private interface, ambiguity without trustworthy preference,
+preferred-route loss and replacement preference. A separate offscreen fixture
+proves that losing an automatic recommendation clears the stale GUI choice.
+Literal addresses are representative fixtures, not portable policy.
+
+GitHub source search and source inspection find no application `QColorSpace`
+construction; the most recent completed macOS portable-GUI,
+macOS/Ubuntu/Windows protocol and Windows CLANG64 logs inspected before
+publication did not reproduce the QColorSpace diagnostic. The Round 2 guard
+therefore classifies a Qt/platform color-profile warning as nonblocking
+environmental output only while application ownership remains absent, and it
+does not suppress Qt warnings.
+
+`r9-gui-round2-acceptance` is the exact-SHA aggregate gate. It requires Linux
+GUI build plus Round 2 tests, macOS portable GUI, Windows GUI/CLANG64 build and
+documentation policy. CLEAN Windows is intentionally not a dependency and
+remains a separate release-evidence track. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted Round 2 qualification: **PENDING**.
+
 ## R2 P1 Linux sharing-permission product projection (2026-10-22)
 
 Starting exact-main parent: `e8527f660b832edfede2f2f901db6c6c15804c36`.

@@ -18,6 +18,7 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QTabWidget>
 
 #include <algorithm>
 #include <cassert>
@@ -289,7 +290,8 @@ void assertNoRoadLabelsInUserText(DesktopWindow& window)
     }
 }
 
-void checkDashboardDefaults(FakeRuntimeHost& runtime, HostControl& host)
+void checkRound2TabsAndMainSimplicity(
+    FakeRuntimeHost& runtime, HostControl& host)
 {
     runtime.snapshot.lastError = RuntimeHostError::None;
     runtime.interfaces = {
@@ -305,35 +307,114 @@ void checkDashboardDefaults(FakeRuntimeHost& runtime, HostControl& host)
     assert(window.findChild<QObject*>("confirmation") == nullptr);
     assert(window.findChild<QObject*>("allowClipboard") == nullptr);
     for (QObject* item : window.findChildren<QObject*>())
-    {
         assert(!item->objectName().contains(
             QStringLiteral("clipboard"), Qt::CaseInsensitive));
-    }
     assert(window.findChild<QObject*>(
                "setApplicationPasswordUnsupported") == nullptr);
+    assert(window.findChild<QObject*>("advancedDisclosure") == nullptr);
+    assert(window.findChild<QObject*>("advancedPanel") == nullptr);
+
+    const auto tabContainers = window.findChildren<QTabWidget*>();
+    assert(tabContainers.size() == 1);
+    auto* tabs = tabContainers.front();
+    assert(tabs->objectName() == QStringLiteral("settingsTabs"));
+    assert(tabs->count() == 2);
+    assert(tabs->tabText(0) == QStringLiteral("Main"));
+    assert(tabs->tabText(1) == QStringLiteral("Advanced"));
+    assert(tabs->currentIndex() == 0);
+
+    auto* mainTab = window.findChild<QWidget*>("mainTab");
+    auto* advancedTab = window.findChild<QWidget*>("advancedTab");
+    assert(mainTab && advancedTab);
+    assert(tabs->widget(0) == mainTab);
+    assert(tabs->widget(1) == advancedTab);
 
     auto* title = requiredLabel(window, "serverStateTitle");
     auto* address = requiredLabel(window, "connectionAddress");
-    auto* access = requiredLabel(window, "credentialStatus");
-    auto* advanced =
-        requiredButton(window, "advancedDisclosure");
-    auto* advancedPanel = window.findChild<QWidget*>("advancedPanel");
+    auto* copy = requiredButton(window, "copyLanAddress");
+    auto* credential = requiredLabel(window, "credentialStatus");
+    auto* permission = requiredLabel(window, "permissionStatus");
     auto* toggle = sharingToggle(window);
+    auto* input = window.findChild<QCheckBox*>("allowRemoteInput");
+    auto* clients = requiredCombo(window, "activeClientSelection");
+    auto* clientSummary = requiredLabel(window, "clientStatus");
+    assert(input);
+    assert(mainTab->isAncestorOf(title));
+    assert(mainTab->isAncestorOf(address));
+    assert(mainTab->isAncestorOf(copy));
+    assert(mainTab->isAncestorOf(credential));
+    assert(mainTab->isAncestorOf(permission));
+    assert(mainTab->isAncestorOf(toggle));
+    assert(mainTab->isAncestorOf(input));
+    assert(mainTab->isAncestorOf(clients));
+    assert(mainTab->isAncestorOf(clientSummary));
+
+    auto* interfaceOverride = requiredCombo(window, "lanInterface");
+    auto* port = window.findChild<QSpinBox*>("sharingPort");
+    auto* lifetime =
+        window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+    auto* authMode = requiredLabel(window, "authenticationModeStatus");
+    auto* tls = requiredLabel(window, "tlsIdentityStatus");
+    auto* selected = requiredLabel(window, "selectedLanInterfaceStatus");
+    auto* lifecycle = requiredLabel(window, "hostLifecycleStatus");
+    auto* error = requiredLabel(window, "hostErrorExplanation");
+    assert(port && lifetime);
+    assert(advancedTab->isAncestorOf(interfaceOverride));
+    assert(advancedTab->isAncestorOf(port));
+    assert(advancedTab->isAncestorOf(lifetime));
+    assert(advancedTab->isAncestorOf(authMode));
+    assert(advancedTab->isAncestorOf(tls));
+    assert(advancedTab->isAncestorOf(selected));
+    assert(advancedTab->isAncestorOf(lifecycle));
+    assert(advancedTab->isAncestorOf(error));
+    assert(!mainTab->isAncestorOf(interfaceOverride));
+    assert(!mainTab->isAncestorOf(port));
+    assert(!mainTab->isAncestorOf(lifetime));
+    assert(!mainTab->isAncestorOf(authMode));
+    assert(!mainTab->isAncestorOf(tls));
+    assert(!mainTab->isAncestorOf(selected));
+    assert(!mainTab->isAncestorOf(lifecycle));
+    assert(!mainTab->isAncestorOf(error));
 
     assert(title->text() == QStringLiteral("RDP Server — Stopped"));
     assert(address->text() == QStringLiteral("192.168.1.42:3389"));
-    assert(access->text().contains("Existing OS Account"));
-    assert(advancedPanel && advancedPanel->isHidden());
+    assert(credential->text().contains("Existing OS Account"));
     assert(!toggle->isChecked() && !toggle->isEnabled());
-
-    advanced->click();
-    assert(!advancedPanel->isHidden());
-    advanced->click();
-    assert(advancedPanel->isHidden());
-
     assertNoRoadLabelsInUserText(window);
 }
 
+void checkRound2RecommendationRefreshFailClosed()
+{
+    FakeRuntimeHost runtime;
+    runtime.deriveProductStatusFromLegacy = false;
+    runtime.snapshot.lastError = RuntimeHostError::None;
+    runtime.snapshot.product.controlAvailable = true;
+    runtime.snapshot.product.state = RuntimeProductHostState::Stopped;
+    runtime.snapshot.product.credentialCapabilities.existingOsAccount = true;
+    runtime.snapshot.product.eligibleLanInterfaces = {
+        {"lan-default", "Ethernet", {"192.168.1.5"}, false, true},
+        {"vpn-virtual", "VPN", {"10.180.105.86"}, false, true}};
+    runtime.snapshot.product.recommendedEndpoint = {
+        "lan-default", "192.168.1.5", 3389U,
+        RuntimeHostAddressFamily::Ipv4, true, true, {}, false};
+
+    HostControl host(runtime);
+    DesktopWindow window(host);
+    auto* address = requiredLabel(window, "connectionAddress");
+    auto* copy = requiredButton(window, "copyLanAddress");
+    auto* interfaceOverride = requiredCombo(window, "lanInterface");
+    assert(address->text() == QStringLiteral("192.168.1.5:3389"));
+    assert(copy->isEnabled());
+    assert(interfaceOverride->currentData().toString() ==
+           QStringLiteral("192.168.1.5"));
+
+    runtime.snapshot.product.recommendedEndpoint = {};
+    window.refresh();
+    assert(address->text() ==
+           QStringLiteral("No private LAN address available"));
+    assert(!copy->isEnabled());
+    assert(interfaceOverride->currentIndex() == 0);
+}
 void checkDashboardPresentationPolish()
 {
     FakeRuntimeHost runtime;
@@ -423,9 +504,15 @@ int main(int argc, char** argv)
     }
 #endif
 
-    if (mode == "dashboard")
+    if (mode == "round2-tabs")
     {
-        checkDashboardDefaults(runtime, host);
+        checkRound2TabsAndMainSimplicity(runtime, host);
+        return 0;
+    }
+
+    if (mode == "round2-endpoint-refresh")
+    {
+        checkRound2RecommendationRefreshFailClosed();
         return 0;
     }
 
@@ -974,11 +1061,14 @@ int main(int argc, char** argv)
         auto* address = requiredLabel(window, "connectionAddress");
         auto* toggle = sharingToggle(window);
         assert(interfaces->count() == 3);
-        assert(interfaces->currentData().toString() ==
-               QStringLiteral("192.168.2.21"));
+        assert(interfaces->currentIndex() == 0);
+        assert(address->text() ==
+               QStringLiteral("No private LAN address available"));
+        assert(!window.canStart() && !toggle->isEnabled());
+
+        interfaces->setCurrentIndex(1);
         assert(address->text() == QStringLiteral("192.168.2.21:3389"));
         assert(window.canStart() && toggle->isEnabled());
-
         interfaces->setCurrentIndex(2);
         assert(address->text() ==
                QStringLiteral("[fe80::1234]:3389"));
@@ -1035,7 +1125,7 @@ int main(int argc, char** argv)
             requiredCombo(window, "activeClientSelection");
         auto* disconnect =
             requiredButton(window, "disconnectClient");
-        assert(interfaces->currentIndex() == 1);
+        assert(interfaces->currentIndex() == 0);
         interfaces->setCurrentIndex(2);
         toggle->click();
         assert(runtime.lastOptions.interfaceId == "wifi-2");

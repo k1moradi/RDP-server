@@ -1,3 +1,34 @@
+## R9 GUI Round 2 acceptance authoring receipt — 2026-10-22
+
+Starting exact-main parent: `5d8572a6e9a0bfa2f9efdd5e2a2e5faf9f6ef9dd`.
+
+Concurrent R2/R5/R6 work was reconciled before publication. R2's redacted
+sharing-permission product facts remain the only Main permission source, R5's
+six-field Linux prerequisite projection remains read-only on Advanced, and
+R6/R1's semantic route recommendation plus Start-time bind revalidation remain
+the endpoint authority split.
+
+R9 removes the old `Advanced ▸/▾`/`advancedPanel` implementation, creates
+one Main/Advanced tab container, makes automatic interface presentation follow
+fresh R10 recommendations, and adds ordinary CTests:
+`gui.round2-tab-source-contract`,
+`gui.offscreen-round2-tabs-and-main-simplicity`,
+`gui.offscreen-round2-endpoint-refresh-fail-closed`,
+`gui.round2-qcolor-warning-classification`, and
+`runtime.host-control-gui-round2-endpoint-recommendation`.
+
+GitHub source search returned no application `QColorSpace` reference, and the
+most recent completed hosted GUI/protocol logs inspected before publication did
+not reproduce the diagnostic. The source guard requires reclassification if
+application QColorSpace/custom message handling appears and rejects CI-wide Qt
+warning suppression; an externally emitted Qt/platform color-profile warning is
+otherwise nonblocking rather than hidden.
+
+Connector source/transformation checks: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN**. Exact-publication-SHA hosted GUI Round
+2 qualification: **PENDING**. CLEAN Windows is separate and is not a dependency
+of `r9-gui-round2-acceptance`; no CLEAN or physical FIRST evidence is claimed.
+
 ## R2 P1 Linux GUI sharing-permission product facts — 2026-10-22
 
 Starting exact-main parent: `e8527f660b832edfede2f2f901db6c6c15804c36`.

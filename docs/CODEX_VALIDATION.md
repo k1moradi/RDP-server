@@ -1,3 +1,21 @@
+## R1 HostControl Windows RPC macro compile correction — 2026-10-22
+
+Publication parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`. Exact-head Windows Actions run
+`39740725805` failed both `protocol (windows-latest)` and
+`r6-windows-clang23` while compiling `src/server/runtime/main.cpp` after
+R10 linked the platform-native owner into the production process. The first
+diagnostic is `runtime_host_control.h:174`: the range-loop identifier
+`interface` is macro-expanded by Windows `rpc.h` (`#define interface struct`).
+
+The correction renames only that local identifier and adds the dedicated
+`runtime.host-control-windows-rpc-interface-macro-compatibility` regression,
+which deliberately defines the RPC macro before including the production
+HostControl header. No R1 socket/TLS path or R2/R3/R5/R6 ownership changes.
+
+Connector source review: **PASS** for minimal scope and unchanged transport
+ownership. Canonical local build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R5 dependency recheck after R10 production linkage — 2026-10-22
 
 Starting exact-main parent: `60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08`.

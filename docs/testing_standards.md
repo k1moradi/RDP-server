@@ -1,3 +1,13 @@
+## Windows RPC macro compatibility for shared HostControl
+
+Keep `runtime.host-control-windows-rpc-interface-macro-compatibility` in the
+ordinary registry. Its translation unit must define the Windows RPC
+`interface` macro before including `runtime_host_control.h`, then exercise
+the private-LAN endpoint recommendation. This catches shared-header identifier
+collisions when R10 production composition causes Windows platform headers to
+precede the HostControl surface; fixing such a failure must not add a second
+listener, transport or platform scheduler.
+
 ## R10 production platform-owner linkage guard (2026-10-22)
 
 `runtime.platform-native-production-single-owner-linkage` is an ordinary

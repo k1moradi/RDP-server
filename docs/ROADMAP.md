@@ -1,3 +1,26 @@
+## R1/R10 Windows HostControl RPC-macro portability correction (2026-10-22)
+
+Starting exact-main parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`.
+
+R10 production linkage made the shared HostControl header reachable after
+Windows RPC headers, exposing a genuine platform-neutrality defect:
+`rpc.h` defines the legacy macro `interface`, while
+`recommendRuntimePrivateLanEndpoint()` used `interface` as a range-loop
+identifier. Both MSVC and CLANG64 therefore failed the production
+`rdp-server` compile before any runtime test or transport action.
+
+R1 corrected only that shared identifier to `runtimeInterface`; no listener,
+socket, BIO, SSL, CredSSP, protocol, authorization or native-desktop lifetime
+changed. The dedicated ordinary CTest
+`runtime.host-control-windows-rpc-interface-macro-compatibility` compiles the
+same HostControl header with the Windows RPC `interface` macro deliberately
+active and exercises the private-LAN endpoint recommendation.
+
+Author-side canonical full build/CTest is **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted qualification is **PENDING**. Linux
+FIRST remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`; this
+portability fix neither moves that candidate nor authorizes physical execution.
+
 ## R5 dependency recheck after R10 production linkage (2026-10-22)
 
 Starting exact-main parent: `60f57f7fe6f1ec4ca2b168d58b65eb0a83330b08`.

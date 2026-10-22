@@ -342,6 +342,7 @@ else()
 endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
+        host-control-windows-rpc-interface-macro-compatibility
         host-control-product-status-projection
         host-control-clipboard-state-denials
         host-control-credential-setup-denials

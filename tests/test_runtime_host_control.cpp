@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Simulate the Windows RPC header macro that production R10 linkage exposes.
+#ifndef interface
+#define interface struct
+#define RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO 1
+#endif
 #include "server/runtime/runtime_host_control.h"
+#ifdef RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO
+#undef interface
+#undef RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO
+#endif
 
 #include <cassert>
 #include <cstdint>
@@ -75,6 +84,17 @@ int main(int argumentCount, char** argumentValues)
                     .succeeded());
         assert(!host.startSharing().succeeded());
         assert(!host.status().listenerAvailable);
+        return 0;
+    }
+    if (testCase == "host-control-windows-rpc-interface-macro-compatibility")
+    {
+        const std::vector<RuntimeHostInterface> interfaces{{
+            "rpc-safe", "RPC-safe", {"192.168.50.10"}, false, true}};
+        const auto recommended =
+            recommendRuntimePrivateLanEndpoint(interfaces, 3389U);
+        assert(recommended.valid());
+        assert(recommended.interfaceId == "rpc-safe");
+        assert(recommended.address == "192.168.50.10");
         return 0;
     }
     if (testCase == "host-control-product-status-projection")

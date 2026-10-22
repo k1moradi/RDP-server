@@ -305,12 +305,12 @@ std::expected<void, MacNativeDesktopOwnerError>
 MacNativeDesktopOwner::initializeNativeAuthorized(
     const MacNativeDesktopAuthorizationView& authorization) noexcept {
     if (authorization.authorizationGeneration() != authorizationGeneration_ ||
-        authorization.authenticatedUserId() == 0 ||
+        authorization.nativeConsoleUserId() == 0 ||
         (authorization.permissionMask() & kConsoleViewPermission) == 0) {
         return std::unexpected(
             MacNativeDesktopOwnerError::AuthorizationUnavailable);
     }
-    targetUserId_ = authorization.authenticatedUserId();
+    targetUserId_ = authorization.nativeConsoleUserId();
     permissionMask_ = authorization.permissionMask();
     authenticationGeneration_ = authorization.authenticationGeneration();
 
@@ -412,12 +412,12 @@ MacNativeDesktopOwner::initializeTestingAuthorized(
     const MacNativeDesktopAuthorizationView& authorization,
     MacNativeDesktopTestConfiguration&& configuration) noexcept {
     if (authorization.authorizationGeneration() != authorizationGeneration_ ||
-        authorization.authenticatedUserId() == 0 ||
+        authorization.nativeConsoleUserId() == 0 ||
         (authorization.permissionMask() & kConsoleViewPermission) == 0) {
         return std::unexpected(
             MacNativeDesktopOwnerError::AuthorizationUnavailable);
     }
-    targetUserId_ = authorization.authenticatedUserId();
+    targetUserId_ = authorization.nativeConsoleUserId();
     permissionMask_ = authorization.permissionMask();
     authenticationGeneration_ = authorization.authenticationGeneration();
 
@@ -526,7 +526,7 @@ bool MacNativeDesktopOwner::authorizationViewMatches(
            targetUserId_ != 0 && authenticationGeneration_ != 0 &&
            authorization.authorizationGeneration() == authorizationGeneration_ &&
            authorization.authenticationGeneration() == authenticationGeneration_ &&
-           authorization.authenticatedUserId() == targetUserId_ &&
+           authorization.nativeConsoleUserId() == targetUserId_ &&
            authorization.permissionMask() == permissionMask_ &&
            (permissionMask_ & requiredPermissions) == requiredPermissions;
 }

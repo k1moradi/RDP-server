@@ -1,3 +1,53 @@
+## R2 P0 portable authenticated-session native authorization (2026-10-22)
+
+Starting exact-main parent: `1e5727ba6af13865d00d7f75a3bede7bb3bacf56`.
+
+Dependency recheck against the portable-product graph found **no remaining
+upstream blocker to R2 P0**. R10's single Windows/macOS
+`RuntimePlatformNativeDesktop` owner is linked into production, R5/R6 already
+consume only the const synchronous R2 authorization visitor, and the standalone
+CredSSP proof already binds `CredentialsVerified` to the exact R1-owned
+connection/TLS transcript and exact `StandalonePasswordCredentialOwner`
+generation. The missing concrete macOS OS-account identity provider remains a
+Policy A/macOS blocker only; it is not a prerequisite for standalone-password
+Policy B.
+
+R2 now generalizes Windows/macOS native authorization around
+`NativeDesktopAuthenticatedSessionProof` plus
+`NativeDesktopAuthenticationKind`. `ExistingOsAccount` preserves the prior
+mandatory Windows SID / future macOS UID equality. `StandalonePassword`
+instead revalidates the exact authenticated application-session proof and never
+supplies or fabricates a remote SID, UID or Kerberos principal. Both kinds
+still require fresh native-session evidence, the exact
+`CurrentOwnerSharingAuthority` epoch, requested View/Input scope and
+pre/post-callback revalidation.
+
+The real `StandalonePasswordAuthenticatedPrincipalProof` now also implements
+that portable proof. Its separate monotonic authentication generation prevents
+an old native grant from following a revoked/rebound proof even when the
+service credential generation did not change. Its validity continues to depend
+on owner-bound `CredentialsVerified`, exact R1 connection/TLS provenance and
+the exact current credential generation.
+
+Dedicated offline CTests:
+`security.native-authorization-standalone-current-owner-without-os-identity`
+and
+`security.native-authorization-standalone-provenance-and-revocation-denials`.
+Existing Windows/macOS OS-account SID/UID mismatch coverage remains unchanged.
+The standalone CredSSP direct-TLS non-promotion test also pins the generic proof
+boundary.
+
+Connector source authoring: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. No live listener, password exchange, WTS/DXGI, ScreenCaptureKit,
+Quartz/SendInput or Microsoft client was activated.
+
+**Next dependency:** R10 must bind this R2 proof from the actual accepted
+standalone client lifetime into the already-single platform authorization /
+native owner and preserve Stop/connection-retirement ordering. Windows R6's
+positive activation literal and real Windows/macOS physical acceptance remain
+separate later gates.
+
 ## R1 accepted-client authentication provenance view (2026-10-22)
 
 Starting exact-main parent: `3a6ce3fa9f67737043ef8ded4757135544fb9413`.

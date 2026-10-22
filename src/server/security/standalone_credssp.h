@@ -3,6 +3,7 @@
 
 #include "credssp_tsrequest.h"
 #include "linux_authenticated_principal_proof.h"
+#include "native_desktop_authorization.h"
 #include "standalone_spnego.h"
 
 #include <openssl/ssl.h>
@@ -173,7 +174,8 @@ private:
 // lifetime credential owner at one exact generation. It owns no password/hash,
 // native session, owner consent, lease or R3 state.
 class StandalonePasswordAuthenticatedPrincipalProof final
-    : public LinuxAuthenticatedPrincipalProof
+    : public LinuxAuthenticatedPrincipalProof,
+      public NativeDesktopAuthenticatedSessionProof
 {
 public:
     StandalonePasswordAuthenticatedPrincipalProof() noexcept = default;
@@ -190,6 +192,16 @@ public:
         std::uint64_t credentialGeneration,
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection) noexcept;
+
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept override
+    {
+        return NativeDesktopAuthenticationKind::StandalonePassword;
+    }
+    [[nodiscard]] std::uint64_t authenticationGeneration()
+        const noexcept override;
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept override;
 
 private:
     [[nodiscard]] bool credentialGenerationCurrent() const noexcept;
@@ -214,6 +226,8 @@ private:
     const rdp_server::server::transport::OwnedPreauthTcpConnection
         *connection_{};
     std::uint64_t credentialGeneration_{};
+    std::uint64_t activeAuthenticationGeneration_{};
+    std::uint64_t nextAuthenticationGeneration_{};
     std::uint64_t policyGeneration_{};
     bool nativeAdmissionComplete_{};
 };

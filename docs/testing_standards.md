@@ -1,3 +1,27 @@
+## R2 P0 standalone native-authorization regression boundary (2026-10-22)
+
+Keep the existing Track E OS-account mismatch cases unchanged: Windows
+`ExistingOsAccount` must reject SID mismatch and macOS must reject UID
+mismatch. Add separate standalone coverage through the same production
+`WindowsNativeDesktopAuthorization` /
+`MacNativeDesktopAuthorization` state machines, with a proof that implements
+no SID/UID matcher. A positive standalone case must expose authentication kind
+`StandalonePassword`, an empty/zero compatibility authenticated SID/UID and
+the real local native-session identity only as target evidence.
+
+Standalone denial coverage must independently reject lost/substituted TLS or
+connection provenance, loss of `CredentialsVerified`, stale/replaced
+`StandalonePasswordCredentialOwner` generation, owner Stop/revocation, owner
+lock and native session replacement. The real
+`StandalonePasswordAuthenticatedPrincipalProof` must remain derived from the
+generic native authenticated-session proof and the direct-TLS memory-BIO path
+must still be unable to produce a nonzero authentication generation.
+
+These are offline state-machine tests only. They do not authorize a live
+desktop, enable the product password capability, flip R6's positive Windows
+activation gate or substitute for an unmodified Windows App/`mstsc.exe`
+physical acceptance run.
+
 ## R1 standalone provenance-generation diagnostic regression (2026-10-22)
 
 Keep

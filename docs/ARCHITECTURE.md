@@ -1,3 +1,33 @@
+## R2 P0 authentication-kind-aware native authorization (2026-10-22)
+
+Windows and macOS native desktop authorization consume one noncopyable,
+synchronous R2 `NativeDesktopAuthenticatedSessionProof`. The proof exposes an
+immutable authentication kind and a monotonic authentication generation; it
+does not expose a reusable capability.
+
+For `ExistingOsAccount`, native authorization retains the previous identity
+rule: Windows requires the authenticated account SID to equal the current
+authorized WTS/native-session SID, and a future macOS OS-account proof must
+likewise match the authenticated UID to the current console UID. Native evidence
+alone never authenticates a client.
+
+For `StandalonePassword`, remote identity is the authenticated application
+session. R2 therefore does **not** ask it to match a local SID/UID. The concrete
+standalone proof remains valid only while the exact owner-bound CredSSP
+`CredentialsVerified` state, exact R1 connection/TLS provenance and exact
+`StandalonePasswordCredentialOwner` generation remain current. A separate
+proof generation changes on every successful bind/rebind so an old native
+authorization cannot follow a replacement connection.
+
+Both policies independently require fresh native physical-session evidence,
+the exact `CurrentOwnerSharingAuthority` grant/revocation epoch and the
+requested View/Input scope. The native evidence snapshot identifies which
+locally approved desktop is shared; for standalone it is not the remote
+identity. Every visitor revalidates proof, native evidence and owner authority
+before and after the synchronous callback. R5/R6/R10 continue to receive only
+the const authorization object and cannot construct authority from generations,
+SID/UID values or permission bits.
+
 ## R1/R2 accepted-client authentication provenance stays read-only (2026-10-22)
 
 The existing `LinuxRuntimeConnectionAcceptanceDiagnostics` is the bounded

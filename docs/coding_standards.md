@@ -1,3 +1,26 @@
+## Authentication kind is part of the R2 native-authorization proof (2026-10-22)
+
+Do not make local SID/UID equality a universal native-desktop admission rule.
+`ExistingOsAccount` must continue to prove exact authenticated SID/UID
+identity equality with the current native owner. `StandalonePassword` must
+instead prove the exact authenticated application session: owner-bound
+`CredentialsVerified`, exact R1/TLS connection provenance and exact current
+standalone credential generation. Never fabricate a SID, UID or GSS/Kerberos
+principal, and never map the standalone application username to an OS account
+just to satisfy an older interface.
+
+Keep one R2 authenticated-session proof generation distinct from the service
+credential generation. Rebinding a proof to another accepted connection must
+advance that proof generation even if the configured password generation is
+unchanged. Native authorizations pin both the proof generation and their own
+authorization generation and revalidate the proof, owner epoch and native
+session before and after each synchronous visitor callback.
+
+Downstream R5/R6/R10 code may consume only the const, noncopyable authorization
+visitor. Native-session SID/UID values exposed to platform owners identify the
+local desktop target for standalone mode; they are evidence/freshness fields,
+not a remote authenticated identity.
+
 ## macOS native input readiness requires both non-prompting privacy gates (2026-10-21)
 
 Treat Accessibility trust and Input Monitoring readiness as one fail-closed

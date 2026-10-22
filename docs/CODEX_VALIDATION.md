@@ -1,3 +1,26 @@
+## R2 P0 portable native authorization redesign — 2026-10-22
+
+Starting exact-main parent: `1e5727ba6af13865d00d7f75a3bede7bb3bacf56`.
+
+Source dependency review: **READY / IMPLEMENTED**. R10's single platform-native
+composition and R5/R6 const visitor consumers are already present. The
+standalone CredSSP proof already owns exact R1/TLS plus credential-generation
+provenance, so no fake OS identity or new authentication stack is required.
+The missing macOS OS-account proof is scoped to `ExistingOsAccount` and does
+not block `StandalonePassword`.
+
+This increment generalizes the shared native authorization proof by
+authentication kind, preserves ExistingOsAccount SID/UID equality, adds
+principal-free standalone native authorization, and gives the real standalone
+proof its own monotonic bind generation. New offline coverage proves standalone
+authorization without OS identity mapping and fail-closed credential,
+connection/TLS, owner, lock and native-session replacement behavior. Existing
+OS-account mismatch regressions remain in place.
+
+Connector source authoring: **PASS**. Canonical local configure/build/full
+CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. No live
+native API, listener or client acceptance was executed.
+
 ## R1 standalone accepted-client provenance audit — 2026-10-22
 
 Starting exact-main parent: `3a6ce3fa9f67737043ef8ded4757135544fb9413`.

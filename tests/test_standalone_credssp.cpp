@@ -16,9 +16,16 @@
 #include <memory>
 #include <span>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 using namespace rdp_server::server::security;
+
+static_assert(std::is_base_of_v<
+              NativeDesktopAuthenticatedSessionProof,
+              StandalonePasswordAuthenticatedPrincipalProof>);
+static_assert(!std::is_copy_constructible_v<
+              StandalonePasswordAuthenticatedPrincipalProof>);
 
 namespace rdp_server::server::security
 {
@@ -891,6 +898,10 @@ void testDirectTlsCannotBindAdmissionProof()
     assert(!proof.bind(
         acceptor, credentialOwner, observation.generation,
         inactiveConnection));
+    assert(proof.authenticationKind() ==
+           NativeDesktopAuthenticationKind::StandalonePassword);
+    assert(proof.authenticationGeneration() == 0U);
+    assert(!proof.revalidatesAuthenticatedSession());
     assert(acceptor.stage() == StandaloneCredSspStage::Unconfigured);
 }
 

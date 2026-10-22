@@ -23,6 +23,13 @@ namespace
            (permissions & ~kNativeDesktopAuthorizationPermissions) == 0;
 }
 
+[[nodiscard]] bool validAuthenticationKind(
+    NativeDesktopAuthenticationKind kind) noexcept
+{
+    return kind == NativeDesktopAuthenticationKind::ExistingOsAccount ||
+           kind == NativeDesktopAuthenticationKind::StandalonePassword;
+}
+
 [[nodiscard]] bool validWindowsEvidence(
     const WindowsNativeSessionEvidence &evidence) noexcept
 {
@@ -100,11 +107,13 @@ namespace
 
 WindowsNativeDesktopAuthorizationView::WindowsNativeDesktopAuthorizationView(
     const WindowsNativeSessionEvidence &evidence,
+    NativeDesktopAuthenticationKind authenticationKind,
     std::uint32_t permissionMask,
     std::uint64_t authenticationGeneration,
     std::uint64_t authorizationGeneration,
     OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch) noexcept
     : evidence_(&evidence),
+      authenticationKind_(authenticationKind),
       permissionMask_(permissionMask),
       authenticationGeneration_(authenticationGeneration),
       authorizationGeneration_(authorizationGeneration),
@@ -112,10 +121,25 @@ WindowsNativeDesktopAuthorizationView::WindowsNativeDesktopAuthorizationView(
 {
 }
 
+NativeDesktopAuthenticationKind
+WindowsNativeDesktopAuthorizationView::authenticationKind() const noexcept
+{
+    return authenticationKind_;
+}
+
+std::span<const std::byte>
+WindowsNativeDesktopAuthorizationView::nativeSessionUserSid() const noexcept
+{
+    return {evidence_->userSid.data(), evidence_->userSidBytes};
+}
+
 std::span<const std::byte>
 WindowsNativeDesktopAuthorizationView::authenticatedSid() const noexcept
 {
-    return {evidence_->userSid.data(), evidence_->userSidBytes};
+    return authenticationKind_ ==
+                   NativeDesktopAuthenticationKind::ExistingOsAccount
+        ? nativeSessionUserSid()
+        : std::span<const std::byte>{};
 }
 
 std::uint32_t
@@ -168,11 +192,13 @@ WindowsNativeDesktopAuthorizationView::ownerAuthorizationEpoch() const noexcept
 
 MacNativeDesktopAuthorizationView::MacNativeDesktopAuthorizationView(
     const MacNativeSessionEvidence &evidence,
+    NativeDesktopAuthenticationKind authenticationKind,
     std::uint32_t permissionMask,
     std::uint64_t authenticationGeneration,
     std::uint64_t authorizationGeneration,
     OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch) noexcept
     : evidence_(&evidence),
+      authenticationKind_(authenticationKind),
       permissionMask_(permissionMask),
       authenticationGeneration_(authenticationGeneration),
       authorizationGeneration_(authorizationGeneration),
@@ -180,10 +206,25 @@ MacNativeDesktopAuthorizationView::MacNativeDesktopAuthorizationView(
 {
 }
 
+NativeDesktopAuthenticationKind
+MacNativeDesktopAuthorizationView::authenticationKind() const noexcept
+{
+    return authenticationKind_;
+}
+
+std::uint32_t
+MacNativeDesktopAuthorizationView::nativeConsoleUserId() const noexcept
+{
+    return evidence_->consoleUserId;
+}
+
 std::uint32_t
 MacNativeDesktopAuthorizationView::authenticatedUserId() const noexcept
 {
-    return evidence_->consoleUserId;
+    return authenticationKind_ ==
+                   NativeDesktopAuthenticationKind::ExistingOsAccount
+        ? nativeConsoleUserId()
+        : 0U;
 }
 
 std::string_view
@@ -241,26 +282,30 @@ MacNativeDesktopAuthorizationView::ownerAuthorizationEpoch() const noexcept
 }
 
 WindowsNativeDesktopAuthorization::WindowsNativeDesktopAuthorization(
-    WindowsAuthenticatedIdentityProof &authenticatedIdentity,
+    NativeDesktopAuthenticatedSessionProof &authenticatedSession,
     WindowsNativeSessionEvidenceSource &nativeEvidence,
     CurrentOwnerSharingAuthority &ownerSharingAuthority) noexcept
-    : authenticatedIdentity_(&authenticatedIdentity),
+    : authenticatedSession_(&authenticatedSession),
       nativeEvidence_(&nativeEvidence),
       ownerSharingAuthority_(&ownerSharingAuthority)
 {
 }
 
 NativeDesktopAuthorizationBindResult
-WindowsNativeDesktopAuthorization::bindAuthenticatedIdentity(
+WindowsNativeDesktopAuthorization::bindAuthenticatedSession(
     std::uint32_t requestedPermissions) noexcept
 {
     clearGrant();
     if (!validGrantPermissions(requestedPermissions))
         return NativeDesktopAuthorizationBindResult::InvalidPermissions;
 
+    const NativeDesktopAuthenticationKind authenticationKind =
+        authenticatedSession_->authenticationKind();
     const std::uint64_t authenticationGeneration =
-        authenticatedIdentity_->authenticationGeneration();
-    if (authenticationGeneration == 0)
+        authenticatedSession_->authenticationGeneration();
+    if (!validAuthenticationKind(authenticationKind) ||
+        authenticationGeneration == 0 ||
+        !authenticatedSession_->revalidatesAuthenticatedSession())
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityUnavailable;
@@ -276,9 +321,13 @@ WindowsNativeDesktopAuthorization::bindAuthenticatedIdentity(
 
     const std::span<const std::byte> firstSid{
         firstEvidence.userSid.data(), firstEvidence.userSidBytes};
-    if (authenticatedIdentity_->authenticationGeneration() !=
+    if (authenticatedSession_->authenticationKind() != authenticationKind ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration ||
-        !authenticatedIdentity_->matchesAuthenticatedSid(firstSid))
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
+        (authenticationKind ==
+             NativeDesktopAuthenticationKind::ExistingOsAccount &&
+         !authenticatedSession_->matchesWindowsOsAccountSid(firstSid)))
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityMismatch;
@@ -302,9 +351,13 @@ WindowsNativeDesktopAuthorization::bindAuthenticatedIdentity(
 
     const std::span<const std::byte> secondSid{
         secondEvidence.userSid.data(), secondEvidence.userSidBytes};
-    if (authenticatedIdentity_->authenticationGeneration() !=
+    if (authenticatedSession_->authenticationKind() != authenticationKind ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration ||
-        !authenticatedIdentity_->matchesAuthenticatedSid(secondSid))
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
+        (authenticationKind ==
+             NativeDesktopAuthenticationKind::ExistingOsAccount &&
+         !authenticatedSession_->matchesWindowsOsAccountSid(secondSid)))
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityMismatch;
@@ -322,6 +375,7 @@ WindowsNativeDesktopAuthorization::bindAuthenticatedIdentity(
     }
 
     evidence_ = secondEvidence;
+    authenticationKind_ = authenticationKind;
     ownerAuthorizationEpoch_ = *ownerAuthorizationEpoch;
     permissionMask_ = requestedPermissions;
     authenticationGeneration_ = authenticationGeneration;
@@ -344,8 +398,10 @@ bool WindowsNativeDesktopAuthorization::revalidatesCurrentGrant() const noexcept
 {
     if (activeAuthorizationGeneration_ == 0 ||
         authenticationGeneration_ == 0 ||
-        authenticatedIdentity_->authenticationGeneration() !=
+        authenticatedSession_->authenticationKind() != authenticationKind_ ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration_ ||
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
         !ownerSharingAuthority_->authorizesAtEpoch(
             permissionMask_, ownerAuthorizationEpoch_))
     {
@@ -362,9 +418,13 @@ bool WindowsNativeDesktopAuthorization::revalidatesCurrentGrant() const noexcept
 
     const std::span<const std::byte> currentSid{
         currentEvidence.userSid.data(), currentEvidence.userSidBytes};
-    return authenticatedIdentity_->authenticationGeneration() ==
+    return authenticatedSession_->authenticationKind() == authenticationKind_ &&
+           authenticatedSession_->authenticationGeneration() ==
                authenticationGeneration_ &&
-           authenticatedIdentity_->matchesAuthenticatedSid(currentSid);
+           authenticatedSession_->revalidatesAuthenticatedSession() &&
+           (authenticationKind_ ==
+                NativeDesktopAuthenticationKind::StandalonePassword ||
+            authenticatedSession_->matchesWindowsOsAccountSid(currentSid));
 }
 
 bool WindowsNativeDesktopAuthorization::visit(
@@ -388,7 +448,7 @@ bool WindowsNativeDesktopAuthorization::visit(
     }
 
     const WindowsNativeDesktopAuthorizationView authorization{
-        evidence_, permissionMask_, authenticationGeneration_,
+        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_
         activeAuthorizationGeneration_, ownerAuthorizationEpoch_};
     if (!visitor(authorization, context) || !revalidatesCurrentGrant())
     {
@@ -401,6 +461,7 @@ bool WindowsNativeDesktopAuthorization::visit(
 void WindowsNativeDesktopAuthorization::clearGrant() const noexcept
 {
     evidence_ = {};
+    authenticationKind_ = NativeDesktopAuthenticationKind::ExistingOsAccount;
     ownerAuthorizationEpoch_ = {};
     permissionMask_ = 0;
     authenticationGeneration_ = 0;
@@ -408,26 +469,30 @@ void WindowsNativeDesktopAuthorization::clearGrant() const noexcept
 }
 
 MacNativeDesktopAuthorization::MacNativeDesktopAuthorization(
-    MacAuthenticatedIdentityProof &authenticatedIdentity,
+    NativeDesktopAuthenticatedSessionProof &authenticatedSession,
     MacNativeSessionEvidenceSource &nativeEvidence,
     CurrentOwnerSharingAuthority &ownerSharingAuthority) noexcept
-    : authenticatedIdentity_(&authenticatedIdentity),
+    : authenticatedSession_(&authenticatedSession),
       nativeEvidence_(&nativeEvidence),
       ownerSharingAuthority_(&ownerSharingAuthority)
 {
 }
 
 NativeDesktopAuthorizationBindResult
-MacNativeDesktopAuthorization::bindAuthenticatedIdentity(
+MacNativeDesktopAuthorization::bindAuthenticatedSession(
     std::uint32_t requestedPermissions) noexcept
 {
     clearGrant();
     if (!validGrantPermissions(requestedPermissions))
         return NativeDesktopAuthorizationBindResult::InvalidPermissions;
 
+    const NativeDesktopAuthenticationKind authenticationKind =
+        authenticatedSession_->authenticationKind();
     const std::uint64_t authenticationGeneration =
-        authenticatedIdentity_->authenticationGeneration();
-    if (authenticationGeneration == 0)
+        authenticatedSession_->authenticationGeneration();
+    if (!validAuthenticationKind(authenticationKind) ||
+        authenticationGeneration == 0 ||
+        !authenticatedSession_->revalidatesAuthenticatedSession())
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityUnavailable;
@@ -440,10 +505,14 @@ MacNativeDesktopAuthorization::bindAuthenticatedIdentity(
     {
         return NativeDesktopAuthorizationBindResult::NativeSessionUnavailable;
     }
-    if (authenticatedIdentity_->authenticationGeneration() !=
+    if (authenticatedSession_->authenticationKind() != authenticationKind ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration ||
-        !authenticatedIdentity_->matchesAuthenticatedUserId(
-            firstEvidence.consoleUserId))
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
+        (authenticationKind ==
+             NativeDesktopAuthenticationKind::ExistingOsAccount &&
+         !authenticatedSession_->matchesMacOsAccountUserId(
+             firstEvidence.consoleUserId)))
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityMismatch;
@@ -464,10 +533,14 @@ MacNativeDesktopAuthorization::bindAuthenticatedIdentity(
     {
         return NativeDesktopAuthorizationBindResult::NativeSessionUnavailable;
     }
-    if (authenticatedIdentity_->authenticationGeneration() !=
+    if (authenticatedSession_->authenticationKind() != authenticationKind ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration ||
-        !authenticatedIdentity_->matchesAuthenticatedUserId(
-            secondEvidence.consoleUserId))
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
+        (authenticationKind ==
+             NativeDesktopAuthenticationKind::ExistingOsAccount &&
+         !authenticatedSession_->matchesMacOsAccountUserId(
+             secondEvidence.consoleUserId)))
     {
         return NativeDesktopAuthorizationBindResult::
             AuthenticatedIdentityMismatch;
@@ -485,6 +558,7 @@ MacNativeDesktopAuthorization::bindAuthenticatedIdentity(
     }
 
     evidence_ = secondEvidence;
+    authenticationKind_ = authenticationKind;
     ownerAuthorizationEpoch_ = *ownerAuthorizationEpoch;
     permissionMask_ = requestedPermissions;
     authenticationGeneration_ = authenticationGeneration;
@@ -507,8 +581,10 @@ bool MacNativeDesktopAuthorization::revalidatesCurrentGrant() const noexcept
 {
     if (activeAuthorizationGeneration_ == 0 ||
         authenticationGeneration_ == 0 ||
-        authenticatedIdentity_->authenticationGeneration() !=
+        authenticatedSession_->authenticationKind() != authenticationKind_ ||
+        authenticatedSession_->authenticationGeneration() !=
             authenticationGeneration_ ||
+        !authenticatedSession_->revalidatesAuthenticatedSession() ||
         !ownerSharingAuthority_->authorizesAtEpoch(
             permissionMask_, ownerAuthorizationEpoch_))
     {
@@ -523,10 +599,14 @@ bool MacNativeDesktopAuthorization::revalidatesCurrentGrant() const noexcept
         return false;
     }
 
-    return authenticatedIdentity_->authenticationGeneration() ==
+    return authenticatedSession_->authenticationKind() == authenticationKind_ &&
+           authenticatedSession_->authenticationGeneration() ==
                authenticationGeneration_ &&
-           authenticatedIdentity_->matchesAuthenticatedUserId(
-               currentEvidence.consoleUserId);
+           authenticatedSession_->revalidatesAuthenticatedSession() &&
+           (authenticationKind_ ==
+                NativeDesktopAuthenticationKind::StandalonePassword ||
+            authenticatedSession_->matchesMacOsAccountUserId(
+                currentEvidence.consoleUserId));
 }
 
 bool MacNativeDesktopAuthorization::visit(
@@ -550,7 +630,7 @@ bool MacNativeDesktopAuthorization::visit(
     }
 
     const MacNativeDesktopAuthorizationView authorization{
-        evidence_, permissionMask_, authenticationGeneration_,
+        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_
         activeAuthorizationGeneration_, ownerAuthorizationEpoch_};
     if (!visitor(authorization, context) || !revalidatesCurrentGrant())
     {
@@ -563,6 +643,7 @@ bool MacNativeDesktopAuthorization::visit(
 void MacNativeDesktopAuthorization::clearGrant() const noexcept
 {
     evidence_ = {};
+    authenticationKind_ = NativeDesktopAuthenticationKind::ExistingOsAccount;
     ownerAuthorizationEpoch_ = {};
     permissionMask_ = 0;
     authenticationGeneration_ = 0;

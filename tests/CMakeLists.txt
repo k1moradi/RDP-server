@@ -410,6 +410,36 @@ foreach(native_authorization_case IN ITEMS
         LABELS "security;r2-native-authorization;offline" TIMEOUT 15)
 endforeach()
 
+# R2 P0 portable authenticated-session native authorization. The standalone
+# fixture intentionally supplies no SID/UID identity mapping and uses the real
+# generation-fenced StandalonePasswordCredentialOwner. Native evidence and
+# CurrentOwnerSharingAuthority remain required and no live native API is called.
+add_executable(test_native_desktop_standalone_authorization
+    test_native_desktop_standalone_authorization.cpp)
+target_link_libraries(test_native_desktop_standalone_authorization PRIVATE
+    rdp-server-native-desktop-authorization
+    rdp-server-standalone-ntlmv2)
+if(MSVC)
+    target_compile_options(test_native_desktop_standalone_authorization PRIVATE
+        /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(test_native_desktop_standalone_authorization PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(standalone_native_authorization_case IN ITEMS
+        standalone-current-owner-without-os-identity
+        standalone-provenance-and-revocation-denials)
+    add_test(
+        NAME "security.native-authorization-${standalone_native_authorization_case}"
+        COMMAND test_native_desktop_standalone_authorization
+            "${standalone_native_authorization_case}")
+    set_tests_properties(
+        "security.native-authorization-${standalone_native_authorization_case}"
+        PROPERTIES
+            LABELS "security;r2-native-authorization;standalone;offline"
+            TIMEOUT 15)
+endforeach()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test

@@ -15,6 +15,12 @@ namespace rdp_server::server::security
 inline constexpr std::uint32_t kNativeDesktopAuthorizationPermissions =
     kConsoleViewPermission | kConsoleInputPermission;
 
+enum class NativeDesktopAuthenticationKind : std::uint8_t
+{
+    ExistingOsAccount,
+    StandalonePassword,
+};
+
 enum class NativeDesktopAuthorizationBindResult : std::uint8_t
 {
     Bound,
@@ -26,38 +32,110 @@ enum class NativeDesktopAuthorizationBindResult : std::uint8_t
     GenerationExhausted,
 };
 
-// These proof interfaces are R2-only inputs. Native evidence cannot implement
-// authentication: production implementations must be backed by the selected
-// CredSSP/NLA identity owner and change generation on credential revocation or
-// replacement. Downstream R10/R5/R6 code receives only the const authorization
-// object and its synchronous visitor.
-class WindowsAuthenticatedIdentityProof
+// R2-only proof of one already-authenticated RDP session. Authentication kind
+// determines whether native OS identity equality is required. Standalone
+// password sessions prove their exact connection/TLS/credential lifetime
+// instead; they must never fabricate a SID, UID or Kerberos principal.
+//
+// The proof is borrowed synchronously by the authorization owner and may not be
+// copied or moved. A nonzero generation is a freshness selector, never a
+// capability by itself.
+class NativeDesktopAuthenticatedSessionProof
 {
 public:
-    virtual ~WindowsAuthenticatedIdentityProof() = default;
+    virtual ~NativeDesktopAuthenticatedSessionProof() = default;
+    NativeDesktopAuthenticatedSessionProof() = default;
+    NativeDesktopAuthenticatedSessionProof(
+        const NativeDesktopAuthenticatedSessionProof &) = delete;
+    NativeDesktopAuthenticatedSessionProof &operator=(
+        const NativeDesktopAuthenticatedSessionProof &) = delete;
+    NativeDesktopAuthenticatedSessionProof(
+        NativeDesktopAuthenticatedSessionProof &&) = delete;
+    NativeDesktopAuthenticatedSessionProof &operator=(
+        NativeDesktopAuthenticatedSessionProof &&) = delete;
+
+    [[nodiscard]] virtual NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept = 0;
+    [[nodiscard]] virtual std::uint64_t authenticationGeneration()
+        const noexcept = 0;
+    [[nodiscard]] virtual bool revalidatesAuthenticatedSession()
+        const noexcept = 0;
+
+    // Only ExistingOsAccount proofs override the platform identity matcher.
+    // Standalone defaults deliberately deny OS-account identity matching.
+    [[nodiscard]] virtual bool matchesWindowsOsAccountSid(
+        std::span<const std::byte> /* sid */) const noexcept
+    {
+        return false;
+    }
+    [[nodiscard]] virtual bool matchesMacOsAccountUserId(
+        std::uint32_t /* userId */) const noexcept
+    {
+        return false;
+    }
+};
+
+class WindowsAuthenticatedIdentityProof
+    : public NativeDesktopAuthenticatedSessionProof
+{
+public:
+    ~WindowsAuthenticatedIdentityProof() override = default;
     WindowsAuthenticatedIdentityProof() = default;
     WindowsAuthenticatedIdentityProof(
         const WindowsAuthenticatedIdentityProof &) = delete;
     WindowsAuthenticatedIdentityProof &operator=(
         const WindowsAuthenticatedIdentityProof &) = delete;
 
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept final
+    {
+        return NativeDesktopAuthenticationKind::ExistingOsAccount;
+    }
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept final
+    {
+        return authenticationGeneration() != 0;
+    }
+    [[nodiscard]] bool matchesWindowsOsAccountSid(
+        std::span<const std::byte> sid) const noexcept final
+    {
+        return matchesAuthenticatedSid(sid);
+    }
+
     [[nodiscard]] virtual std::uint64_t authenticationGeneration()
-        const noexcept = 0;
+        const noexcept override = 0;
     [[nodiscard]] virtual bool matchesAuthenticatedSid(
         std::span<const std::byte> sid) const noexcept = 0;
 };
 
 class MacAuthenticatedIdentityProof
+    : public NativeDesktopAuthenticatedSessionProof
 {
 public:
-    virtual ~MacAuthenticatedIdentityProof() = default;
+    ~MacAuthenticatedIdentityProof() override = default;
     MacAuthenticatedIdentityProof() = default;
     MacAuthenticatedIdentityProof(const MacAuthenticatedIdentityProof &) = delete;
     MacAuthenticatedIdentityProof &operator=(
         const MacAuthenticatedIdentityProof &) = delete;
 
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept final
+    {
+        return NativeDesktopAuthenticationKind::ExistingOsAccount;
+    }
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept final
+    {
+        return authenticationGeneration() != 0;
+    }
+    [[nodiscard]] bool matchesMacOsAccountUserId(
+        std::uint32_t userId) const noexcept final
+    {
+        return matchesAuthenticatedUserId(userId);
+    }
+
     [[nodiscard]] virtual std::uint64_t authenticationGeneration()
-        const noexcept = 0;
+        const noexcept override = 0;
     [[nodiscard]] virtual bool matchesAuthenticatedUserId(
         std::uint32_t userId) const noexcept = 0;
 };
@@ -80,6 +158,12 @@ public:
     WindowsNativeDesktopAuthorizationView &operator=(
         WindowsNativeDesktopAuthorizationView &&) = delete;
 
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept;
+    [[nodiscard]] std::span<const std::byte> nativeSessionUserSid()
+        const noexcept;
+    // ExistingOsAccount compatibility view. Standalone sessions return empty:
+    // the local native SID is not the remote application's authenticated ID.
     [[nodiscard]] std::span<const std::byte> authenticatedSid() const noexcept;
     [[nodiscard]] std::uint32_t wtsSessionId() const noexcept;
     [[nodiscard]] std::uint32_t authenticationIdLow() const noexcept;
@@ -96,12 +180,15 @@ private:
 
     WindowsNativeDesktopAuthorizationView(
         const WindowsNativeSessionEvidence &evidence,
+        NativeDesktopAuthenticationKind authenticationKind,
         std::uint32_t permissionMask,
         std::uint64_t authenticationGeneration,
         std::uint64_t authorizationGeneration,
         OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch) noexcept;
 
     const WindowsNativeSessionEvidence *evidence_{};
+    NativeDesktopAuthenticationKind authenticationKind_{
+        NativeDesktopAuthenticationKind::ExistingOsAccount};
     std::uint32_t permissionMask_{};
     std::uint64_t authenticationGeneration_{};
     std::uint64_t authorizationGeneration_{};
@@ -124,6 +211,11 @@ public:
     MacNativeDesktopAuthorizationView &operator=(
         MacNativeDesktopAuthorizationView &&) = delete;
 
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept;
+    [[nodiscard]] std::uint32_t nativeConsoleUserId() const noexcept;
+    // ExistingOsAccount compatibility view. Standalone sessions return zero:
+    // the local console UID is not the remote application's authenticated ID.
     [[nodiscard]] std::uint32_t authenticatedUserId() const noexcept;
     [[nodiscard]] std::string_view consoleUser() const noexcept;
     [[nodiscard]] std::uint32_t auditUserId() const noexcept;
@@ -141,12 +233,15 @@ private:
 
     MacNativeDesktopAuthorizationView(
         const MacNativeSessionEvidence &evidence,
+        NativeDesktopAuthenticationKind authenticationKind,
         std::uint32_t permissionMask,
         std::uint64_t authenticationGeneration,
         std::uint64_t authorizationGeneration,
         OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch) noexcept;
 
     const MacNativeSessionEvidence *evidence_{};
+    NativeDesktopAuthenticationKind authenticationKind_{
+        NativeDesktopAuthenticationKind::ExistingOsAccount};
     std::uint32_t permissionMask_{};
     std::uint64_t authenticationGeneration_{};
     std::uint64_t authorizationGeneration_{};
@@ -169,7 +264,7 @@ class WindowsNativeDesktopAuthorization final
 {
 public:
     WindowsNativeDesktopAuthorization(
-        WindowsAuthenticatedIdentityProof &authenticatedIdentity,
+        NativeDesktopAuthenticatedSessionProof &authenticatedSession,
         WindowsNativeSessionEvidenceSource &nativeEvidence,
         CurrentOwnerSharingAuthority &ownerSharingAuthority) noexcept;
 
@@ -182,8 +277,15 @@ public:
     WindowsNativeDesktopAuthorization &operator=(
         WindowsNativeDesktopAuthorization &&) = delete;
 
-    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedIdentity(
+    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedSession(
         std::uint32_t requestedPermissions) noexcept;
+    // Compatibility spelling for ExistingOsAccount callers. Authorization kind
+    // is always taken from the R2 proof, never from the caller.
+    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedIdentity(
+        std::uint32_t requestedPermissions) noexcept
+    {
+        return bindAuthenticatedSession(requestedPermissions);
+    }
     void revoke() noexcept;
 
     [[nodiscard]] std::uint64_t authorizationGeneration() const noexcept;
@@ -197,11 +299,13 @@ private:
     [[nodiscard]] bool revalidatesCurrentGrant() const noexcept;
     void clearGrant() const noexcept;
 
-    WindowsAuthenticatedIdentityProof *authenticatedIdentity_{};
+    NativeDesktopAuthenticatedSessionProof *authenticatedSession_{};
     WindowsNativeSessionEvidenceSource *nativeEvidence_{};
     CurrentOwnerSharingAuthority *ownerSharingAuthority_{};
 
     mutable WindowsNativeSessionEvidence evidence_{};
+    mutable NativeDesktopAuthenticationKind authenticationKind_{
+        NativeDesktopAuthenticationKind::ExistingOsAccount};
     mutable OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch_{};
     mutable std::uint32_t permissionMask_{};
     mutable std::uint64_t authenticationGeneration_{};
@@ -213,7 +317,7 @@ class MacNativeDesktopAuthorization final
 {
 public:
     MacNativeDesktopAuthorization(
-        MacAuthenticatedIdentityProof &authenticatedIdentity,
+        NativeDesktopAuthenticatedSessionProof &authenticatedSession,
         MacNativeSessionEvidenceSource &nativeEvidence,
         CurrentOwnerSharingAuthority &ownerSharingAuthority) noexcept;
 
@@ -226,8 +330,13 @@ public:
     MacNativeDesktopAuthorization &operator=(
         MacNativeDesktopAuthorization &&) = delete;
 
-    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedIdentity(
+    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedSession(
         std::uint32_t requestedPermissions) noexcept;
+    [[nodiscard]] NativeDesktopAuthorizationBindResult bindAuthenticatedIdentity(
+        std::uint32_t requestedPermissions) noexcept
+    {
+        return bindAuthenticatedSession(requestedPermissions);
+    }
     void revoke() noexcept;
 
     [[nodiscard]] std::uint64_t authorizationGeneration() const noexcept;
@@ -241,11 +350,13 @@ private:
     [[nodiscard]] bool revalidatesCurrentGrant() const noexcept;
     void clearGrant() const noexcept;
 
-    MacAuthenticatedIdentityProof *authenticatedIdentity_{};
+    NativeDesktopAuthenticatedSessionProof *authenticatedSession_{};
     MacNativeSessionEvidenceSource *nativeEvidence_{};
     CurrentOwnerSharingAuthority *ownerSharingAuthority_{};
 
     mutable MacNativeSessionEvidence evidence_{};
+    mutable NativeDesktopAuthenticationKind authenticationKind_{
+        NativeDesktopAuthenticationKind::ExistingOsAccount};
     mutable OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch_{};
     mutable std::uint32_t permissionMask_{};
     mutable std::uint64_t authenticationGeneration_{};

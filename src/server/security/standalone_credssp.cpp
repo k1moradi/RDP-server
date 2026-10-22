@@ -11,6 +11,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <span>
 
 namespace rdp_server::server::security
@@ -629,6 +630,8 @@ bool StandalonePasswordAuthenticatedPrincipalProof::bind(
 {
     if (acceptor_ != nullptr || credentialOwner_ != nullptr ||
         connection_ != nullptr || credentialGeneration == 0 ||
+        nextAuthenticationGeneration_ ==
+            (std::numeric_limits<std::uint64_t>::max)() ||
         !acceptor.credentialsVerifiedForOwnedConnection(connection))
     {
         acceptor.reset();
@@ -647,7 +650,27 @@ bool StandalonePasswordAuthenticatedPrincipalProof::bind(
     credentialOwner_ = &credentialOwner;
     connection_ = &connection;
     credentialGeneration_ = credentialGeneration;
+    activeAuthenticationGeneration_ = ++nextAuthenticationGeneration_;
     return true;
+}
+
+std::uint64_t
+StandalonePasswordAuthenticatedPrincipalProof::authenticationGeneration()
+    const noexcept
+{
+    return revalidatesAuthenticatedSession()
+        ? activeAuthenticationGeneration_
+        : 0U;
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::
+    revalidatesAuthenticatedSession() const noexcept
+{
+    return activeAuthenticationGeneration_ != 0 &&
+           acceptor_ != nullptr &&
+           connection_ != nullptr &&
+           credentialGenerationCurrent() &&
+           acceptor_->credentialsVerifiedForOwnedConnection(*connection_);
 }
 
 bool StandalonePasswordAuthenticatedPrincipalProof::
@@ -662,10 +685,8 @@ bool StandalonePasswordAuthenticatedPrincipalProof::
            request.authenticationKind ==
                ConsoleEvidenceAuthenticationKind::StandalonePassword &&
            request.kerberosPrincipal.empty() &&
-           acceptor_ != nullptr &&
            connection_ == &connection &&
-           credentialGenerationCurrent() &&
-           acceptor_->credentialsVerifiedForOwnedConnection(connection);
+           revalidatesAuthenticatedSession();
 }
 
 bool StandalonePasswordAuthenticatedPrincipalProof::completeNativeAdmission(
@@ -698,9 +719,7 @@ bool StandalonePasswordAuthenticatedPrincipalProof::revalidatesNativeAdmission(
            connection_ != nullptr &&
            activeServerTls != nullptr &&
            connection_->establishedTls() == activeServerTls &&
-           credentialGenerationCurrent() &&
-           acceptor_ != nullptr &&
-           acceptor_->credentialsVerifiedForOwnedConnection(*connection_);
+           revalidatesAuthenticatedSession();
 }
 
 void StandalonePasswordAuthenticatedPrincipalProof::
@@ -712,6 +731,7 @@ void StandalonePasswordAuthenticatedPrincipalProof::
     credentialOwner_ = nullptr;
     connection_ = nullptr;
     credentialGeneration_ = 0;
+    activeAuthenticationGeneration_ = 0;
     policyGeneration_ = 0;
     nativeAdmissionComplete_ = false;
 }

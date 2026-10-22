@@ -215,6 +215,8 @@ struct WindowsPositiveVisit final
 {
     auto &visit = *static_cast<WindowsPositiveVisit *>(context);
     visit.called = true;
+    assert(authorization.authenticationKind() ==
+           NativeDesktopAuthenticationKind::ExistingOsAccount);
     assert(authorization.authenticatedSid().size() == 4);
     assert(authorization.wtsSessionId() == 42U);
     assert(authorization.authenticationIdLow() == 101U);
@@ -242,6 +244,8 @@ struct MacPositiveVisit final
 {
     auto &visit = *static_cast<MacPositiveVisit *>(context);
     visit.called = true;
+    assert(authorization.authenticationKind() ==
+           NativeDesktopAuthenticationKind::ExistingOsAccount);
     assert(authorization.authenticatedUserId() == 501U);
     assert(authorization.consoleUser() == "owner");
     assert(authorization.auditUserId() == 501U);

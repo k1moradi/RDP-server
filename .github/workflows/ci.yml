@@ -2484,8 +2484,7 @@ jobs:
             grep -Fq ": $required_test" <<< "$selected_r5_prerequisite_tests"
           done
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_r5_prerequisite_tests")" -eq 3
-          ctest --test-dir build -C Release --timeout 20 \
-            -R "$r5_prerequisite_selector" --output-on-failure
+          ctest --test-dir build -C Release --timeout 20 -R "$r5_prerequisite_selector" --output-on-failure
           tls_selector='^gui[.]offscreen-tls-fingerprint-rotation-and-denials$'
           selected_tls_tests="$(ctest --test-dir build -C Release -N -R "$tls_selector")"
           printf '%s\n' "$selected_tls_tests"

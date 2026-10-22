@@ -1,3 +1,23 @@
+## R5 focused prerequisite workflow syntax correction — 2026-10-22
+
+Starting exact-main parent: `fe469076fd39d0b172a0da461b443601a7a36ad8`.
+
+Immediate post-publication diff inspection caught malformed shell/YAML assembly
+in the first focused-inventory commit before its workflow could qualify
+anything. The generated selector line had swallowed the following TLS step and
+duplicated shell text under the artifact-upload mapping. No production source,
+test source, authority or runtime behavior was affected.
+
+This correction reconstructs the R5 GUI job from the last known-good parent
+workflow and changes only the former single denial-test invocation into an
+exact, counted three-test R5 prerequisite selector. The intended inventory is
+unchanged: denial, structured projection and read-only probe-boundary tests.
+
+Bad exact-SHA workflow: **FAIL / syntax-structure defect detected by
+post-publication review**. Connector diff correction review: **PASS**.
+Canonical owner-local build/full CTest: **NOT RUN**. Replacement exact-SHA
+hosted CI: **PENDING**.
+
 ## R5 P1 focused Linux prerequisite qualification closure — 2026-10-22
 
 Starting exact-main parent: `f2c5cd9e54cf727aa84292e3253c78a62e04babf`.

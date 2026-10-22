@@ -1,3 +1,37 @@
+## R6 completes Windows focused-test inventory reconciliation (2026-10-22)
+
+Starting exact-main parent: `ddedccdb122bbb162fb0baee8c5d165ddaabb9dd`.
+
+R9 `ddedccdb122bbb162fb0baee8c5d165ddaabb9dd` recognized the R6 test-set growth after
+`windows.geometry-single-monitor-native-target-selection`, but current source
+inspection shows its workflow correction reached only the Debug native
+preflight. The Release native preflight and the later R6 sanitizer gate still
+require 59 `windows.geometry/capture/cursor/input` tests and do not explicitly
+pin the new geometry case. Those two stale guards would continue to reject the
+same valid 60-test registry.
+
+R6 completes the reconciliation by requiring
+`windows.geometry-single-monitor-native-target-selection` in both remaining
+focused loops and changing their exact cardinality from 59 to 60. This is CI
+inventory maintenance only; no production source, R2/R10 authority, native
+desktop operation, listener or activation gate changes.
+
+Upstream blocker status: the Win32 RPC `interface` macro collision is resolved
+and current descendant `befc9577ea7403c159f2dce720649ca0c3e985c6` has
+`protocol (windows-latest)` **PASS**. Its R6 CLANG64 job compiled the R6
+native graph, passed Debug and Release full CTest **750/750**, package structure,
+PE closure and extracted GUI smoke; the remaining failure was only stale
+focused-test inventory. Exact-publication-SHA hosted CI for this final
+reconciliation is **PENDING**.
+
+The production dependency is unchanged: no accepted Windows client lifetime
+currently binds `WindowsSspiAuthenticatedIdentityProof` into
+`WindowsNativeDesktopAuthorization` and calls the sole
+`RuntimePlatformNativeDesktop::attach()`. Therefore
+`kWindowsNativeDesktopPositiveActivationApproved` remains **false**, live
+WTS/DXGI/cursor/SendInput remains **NOT RUN**, and CLEAN remains separately
+**NOT RUN** on the dedicated standard-user Windows runner.
+
 ## R9 qualification continuation after R6 Windows test-set growth (2026-10-22)
 
 The Win32/RPC macro blocker is resolved on shared main: ordinary Windows/MSVC

@@ -1,3 +1,26 @@
+## R6 remaining CLANG64 inventory guards — 2026-10-22
+
+Starting exact-main parent: `ddedccdb122bbb162fb0baee8c5d165ddaabb9dd`.
+
+Inspection after R9's sanitizer-count commit found two stale R6 guards still in
+`.github/workflows/ci.yml`: Release native preflight and the sanitizer
+selection each expected 59 focused Windows tests and omitted the newly added
+`windows.geometry-single-monitor-native-target-selection`. Debug preflight was
+already corrected to 60 by R9.
+
+This increment makes the remaining two guards require that exact test and
+exactly 60 selected cases. Prior descendant
+`befc9577ea7403c159f2dce720649ca0c3e985c6`, Actions
+`39748272928`, provides the underlying evidence: Windows/MSVC protocol
+**PASS**; CLANG64 Debug/Release full CTest **750/750**; R6 native-owner cases
+PASS; portable-GUI package, recursive PE closure and extracted smoke PASS.
+The dedicated R6 job was rejected only by the stale selector cardinality.
+
+Connector source/log review: **PASS**. Canonical local build/full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Accepted-client
+SSPI authorization-to-`RuntimePlatformNativeDesktop::attach()`, live native
+Windows operation and CLEAN remain **NOT RUN / BLOCKED**.
+
 ## R9 R6 sanitizer preflight count correction — 2026-10-22
 
 Candidate `befc9577ea7403c159f2dce720649ca0c3e985c6`, Actions `39748272928`: **REJECTED** only at

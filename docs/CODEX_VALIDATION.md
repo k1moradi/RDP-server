@@ -1,3 +1,31 @@
+## R5 P1 Linux Advanced prerequisite hosted qualification — 2026-10-22
+
+Qualified source SHA: `6d2a289380de1ffd7364eb05f9e3dd6847064415`. Actions run `39820700342`,
+job `119970960857` (`r5-linux-gui-zip`): **PASS**. Current parent
+`8e38ff67e3c5c03c3193c12b8e0ee06ae3cc37c0` changes documentation only after that qualified source.
+
+The focused R5 inventory enumerated exactly three prerequisite CTests and all
+passed:
+`gui.linux-readonly-seat0-prerequisite-denials`,
+`gui.linux-readonly-prerequisite-structured-projection`, and
+`gui.linux-prerequisite-probe-readonly-boundary`. The same job also passed
+all five GUI Round 2 focused tests, including the Main/Advanced tab contract,
+endpoint refresh fail-closed behavior and
+`gui.round2-qcolor-warning-classification`.
+
+This closes the hosted qualification gate for R5 P1's compact, read-only Linux
+Advanced-tab projection. No capture, input, listener or permission side effect
+was introduced or exercised by these offline tests. Canonical owner-local
+configure/build/full CTest remains **NOT RUN** in this connector environment.
+
+The broader native-product dependency is unchanged and separate from this P1
+closure: positive Windows/macOS native attachment still requires a trusted
+current-local-owner evidence provider for `CurrentOwnerSharingAuthority`.
+The current authority remains backed by Linux-shaped
+`ConsoleOsEvidenceSource` facts, while the macOS/Windows native-session
+readers are explicitly read-only session evidence and cannot mint owner
+consent.
+
 ## R1 route-aware bind-authority hosted qualification receipt — 2026-10-22
 
 Exact R1 implementation SHA:

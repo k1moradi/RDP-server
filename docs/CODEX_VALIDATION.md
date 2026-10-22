@@ -1,3 +1,33 @@
+## R10 authenticated-session platform authorization composition — 2026-10-22
+
+Starting exact-main parent: `e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.
+
+Dependency recheck: **R2 P0 RESOLVED** by `752d4e26` plus
+`1191ef2e`. R10 now has a production
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession()` path that
+constructs the platform authorization from the exact R2 authenticated-session
+proof, the production native-session reader and the current-owner authority,
+then reuses the sole existing `attach()` owner. No caller-supplied
+authentication kind, SID/UID or generation can promote authority, and no
+authentication-mode fallback exists.
+
+Dedicated ordinary platform regressions:
+`runtime.platform-native-desktop-windows-authenticated-session-denials` and
+`runtime.platform-native-desktop-macos-authenticated-session-denials`.
+They require invalid permission, unavailable StandalonePassword proof and
+wrong-thread attachment to fail before any positive native lifetime exists.
+
+Connector source authoring: **PASS**. Canonical local configure/build/full
+CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. No live
+native API or client was exercised.
+
+The next positive-production dependency is a Windows/macOS current-local-owner
+consent evidence provider for `CurrentOwnerSharingAuthority`; the only
+production `ConsoleOsEvidenceSource` composition is Linux-specific. R10 will
+not fabricate Linux seat/display/UID observations on other platforms. Session
+Password remains capability-gated false and still requires unmodified Windows
+App/`mstsc.exe` interoperability after production composition.
+
 ## R1 standalone teardown diagnostic fix — 2026-10-22
 
 Starting exact-main parent: `1191ef2ef8b1f153da1b75818b4ad013a7dab51e`.

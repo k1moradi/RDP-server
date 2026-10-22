@@ -9,6 +9,29 @@ namespace rdp_server::server::runtime
 namespace
 {
 
+[[nodiscard]] RuntimeHostError mapNativeAuthorizationBindResult(
+    rdp_server::server::security::NativeDesktopAuthorizationBindResult
+        result) noexcept
+{
+    using BindResult =
+        rdp_server::server::security::NativeDesktopAuthorizationBindResult;
+    switch (result)
+    {
+    case BindResult::Bound:
+        return RuntimeHostError::None;
+    case BindResult::InvalidPermissions:
+        return RuntimeHostError::InvalidConfiguration;
+    case BindResult::AuthenticatedIdentityUnavailable:
+    case BindResult::NativeSessionUnavailable:
+    case BindResult::AuthenticatedIdentityMismatch:
+    case BindResult::OwnerAuthorizationUnavailable:
+        return RuntimeHostError::NativeAuthorizationDenied;
+    case BindResult::GenerationExhausted:
+        return RuntimeHostError::InternalFailure;
+    }
+    return RuntimeHostError::InternalFailure;
+}
+
 #if defined(__APPLE__)
 [[nodiscard]] RuntimeHostError mapMacOwnerError(
     rdp::macos::MacNativeDesktopOwnerError error) noexcept
@@ -53,6 +76,59 @@ bool RuntimePlatformNativeDesktop::onOwnerThread() const noexcept
 {
     return std::this_thread::get_id() == ownerThread_;
 }
+
+#if defined(_WIN32) || defined(__APPLE__)
+RuntimeHostResult RuntimePlatformNativeDesktop::attachAuthenticatedSession(
+    rdp_server::server::security::NativeDesktopAuthenticatedSessionProof
+        &authenticatedSession,
+    rdp_server::server::security::CurrentOwnerSharingAuthority
+        &ownerSharingAuthority,
+    std::uint32_t requestedPermissions) noexcept
+{
+    if (!onOwnerThread())
+        return {RuntimeHostError::ControlUnavailable, false};
+    if (nativeDesktop_ != nullptr || authorization_ != nullptr ||
+        ownedAuthorization_ != nullptr)
+    {
+        return {RuntimeHostError::InvalidConfiguration, false};
+    }
+
+#if defined(_WIN32)
+    using PlatformAuthorization =
+        rdp_server::server::security::WindowsNativeDesktopAuthorization;
+#elif defined(__APPLE__)
+    using PlatformAuthorization =
+        rdp_server::server::security::MacNativeDesktopAuthorization;
+#endif
+
+    auto candidate = std::unique_ptr<PlatformAuthorization>(
+        new (std::nothrow) PlatformAuthorization(
+            authenticatedSession, nativeEvidence_, ownerSharingAuthority));
+    if (!candidate)
+        return {RuntimeHostError::InternalFailure, false};
+
+    const auto bindResult =
+        candidate->bindAuthenticatedSession(requestedPermissions);
+    if (bindResult != rdp_server::server::security::
+                          NativeDesktopAuthorizationBindResult::Bound)
+    {
+        return {mapNativeAuthorizationBindResult(bindResult), false};
+    }
+
+    // Reuse the already-single R10/R5/R6 native owner. attach() captures the
+    // authorization generation from the bound object; no caller scalar can
+    // manufacture or refresh access.
+    const RuntimeHostResult attachResult = attach(*candidate);
+    if (!attachResult.succeeded())
+    {
+        candidate->revoke();
+        return attachResult;
+    }
+
+    ownedAuthorization_ = std::move(candidate);
+    return attachResult;
+}
+#endif
 
 #if defined(_WIN32)
 RuntimeHostResult RuntimePlatformNativeDesktop::attach(
@@ -291,6 +367,14 @@ void RuntimePlatformNativeDesktop::retireInternal() noexcept
     nativeDesktop_.reset();
     authorization_ = nullptr;
     authorizationGeneration_ = 0;
+    if (ownedAuthorization_ != nullptr)
+    {
+        // Native children are already retired. Drop the R2 grant snapshot only
+        // afterward so teardown never needs to post cleanup input through
+        // revoked desktop authority.
+        ownedAuthorization_->revoke();
+        ownedAuthorization_.reset();
+    }
 }
 
 bool RuntimePlatformNativeDesktop::active() const noexcept

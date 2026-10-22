@@ -1,3 +1,35 @@
+## R10 authenticated-session to single native-owner composition (2026-10-22)
+
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession()` is the R10
+composition boundary above R2's generalized authenticated-session proof. It
+takes the exact noncopyable `NativeDesktopAuthenticatedSessionProof` plus the
+current-owner authority and requested View/Input scope. Authentication kind is
+read only from the proof.
+
+R10 constructs one platform authorization around the production native-session
+reader: `WindowsNativeSessionEvidenceReader` on Windows or
+`MacNativeSessionEvidenceReader` on macOS. R2's
+`bindAuthenticatedSession()` performs authentication-kind-specific proof
+revalidation, fresh native evidence and exact owner-grant checks. Only a bound
+authorization reaches the pre-existing `attach()` path; that path still owns
+the sole R5/R6 aggregate and scheduler. Standalone therefore never receives a
+fabricated remote SID/UID, while ExistingOsAccount continues to use R2's
+platform identity matcher.
+
+The proof and owner authority are borrowed for the attached lifetime. On
+terminal retirement, the platform aggregate is destroyed first with its
+no-post authority-loss semantics; an authorization owned by this composition
+is then revoked and released. No listener, R1 transport, R2 proof issuer or R3
+state machine is added here.
+
+Positive Windows/macOS product hosting is still unavailable until a reviewed
+platform current-owner evidence provider can back
+`CurrentOwnerSharingAuthority`. The existing authority's production evidence
+is Linux-specific; R10 must not synthesize `seat0`, X11 display or UID facts
+from Windows/macOS native-session observations. Product Session Password
+capability remains false until this production authority path and real
+Microsoft-client acceptance both exist.
+
 ## R2 P0 authentication-kind-aware native authorization (2026-10-22)
 
 Windows and macOS native desktop authorization consume one noncopyable,

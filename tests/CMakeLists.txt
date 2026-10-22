@@ -2746,16 +2746,26 @@ if(TARGET rdp-server-runtime-platform-native-desktop)
         add_test(
             NAME runtime.platform-native-desktop-windows-r2-gated-composition
             COMMAND test_runtime_platform_native_desktop)
+        add_test(
+            NAME runtime.platform-native-desktop-windows-authenticated-session-denials
+            COMMAND test_runtime_platform_native_desktop
+                authenticated-session-denials)
         set_tests_properties(
             runtime.platform-native-desktop-windows-r2-gated-composition
+            runtime.platform-native-desktop-windows-authenticated-session-denials
             PROPERTIES
             LABELS "runtime;host-control;native;security;windows;offline")
     elseif(APPLE)
         add_test(
             NAME runtime.platform-native-desktop-macos-r2-gated-composition
             COMMAND test_runtime_platform_native_desktop)
+        add_test(
+            NAME runtime.platform-native-desktop-macos-authenticated-session-denials
+            COMMAND test_runtime_platform_native_desktop
+                authenticated-session-denials)
         set_tests_properties(
             runtime.platform-native-desktop-macos-r2-gated-composition
+            runtime.platform-native-desktop-macos-authenticated-session-denials
             PROPERTIES
             LABELS "runtime;host-control;native;security;macos;offline")
     endif()

@@ -1,3 +1,51 @@
+## R10 P0 consumes authentication-kind-aware native authorization (2026-10-22)
+
+Starting exact-main parent: `e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.
+
+R2 blocker **RESOLVED** by `752d4e26c71f9e4dc6b2103bfaca55794de49995`
+plus syntax correction `1191ef2ef8b1f153da1b75818b4ad013a7dab51e`.
+The shared R2 authorization now consumes
+`NativeDesktopAuthenticatedSessionProof` and distinguishes
+`ExistingOsAccount` from `StandalonePassword` without requiring or
+fabricating a SID/UID for standalone sessions.
+
+R10 now consumes that boundary directly in the already-single
+`RuntimePlatformNativeDesktop`. `attachAuthenticatedSession()` borrows the
+exact accepted-session proof and current-owner authority, constructs the
+platform authorization with the production Windows WTS/LSA or macOS
+console/audit/SecuritySession evidence reader, calls
+`bindAuthenticatedSession()`, and only then reuses the existing `attach()`
+owner. The caller cannot provide an authentication-kind override, SID/UID or
+authorization generation. Failure at proof, native evidence, owner grant,
+permission or platform attach remains fail-closed; there is no fallback to the
+other authentication kind and no second Windows/macOS protocol loop.
+
+When R10 owns the authorization created by this path, native children retire
+first and the owned R2 authorization is revoked afterward. External
+authorization callers retain their previous ownership semantics. New ordinary
+platform CTests are
+`runtime.platform-native-desktop-windows-authenticated-session-denials` and
+`runtime.platform-native-desktop-macos-authenticated-session-denials`; they
+exercise invalid scope, unavailable standalone proof and wrong-thread denial
+without sampling a live desktop.
+
+Connector source authoring: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. No listener, credential exchange, WTS/DXGI, ScreenCaptureKit,
+Quartz/SendInput or Microsoft client was activated.
+
+**Remaining blocker for positive portable Start:** current
+`CurrentOwnerSharingAuthority` has only Linux production
+`ConsoleOsEvidenceSource` composition; Windows/macOS have native-session
+evidence readers but no production current-local-owner consent evidence source
+that can mint the required owner grant without inventing Linux seat/UID/display
+facts. R10 must not fabricate that evidence. The Windows/macOS GUI/runtime also
+remains deny-only until such an authority can be supplied by the reviewed
+platform path. `kStandalonePasswordProductCapabilityApproved` therefore
+remains literal **false**. Real unmodified Windows App/`mstsc.exe`
+standalone-password interoperability is still required after production
+composition before R7 may expose Session Password.
+
 ## R1 standalone terminal provenance correction (2026-10-22)
 
 Starting exact-main parent: `1191ef2ef8b1f153da1b75818b4ad013a7dab51e`.

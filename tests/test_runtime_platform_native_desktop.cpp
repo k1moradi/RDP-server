@@ -6,6 +6,7 @@
 #include <cassert>
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 
@@ -19,6 +20,32 @@ static_assert(!std::is_copy_constructible_v<RuntimePlatformNativeDesktop>);
 static_assert(!std::is_copy_assignable_v<RuntimePlatformNativeDesktop>);
 static_assert(!std::is_move_constructible_v<RuntimePlatformNativeDesktop>);
 static_assert(!std::is_move_assignable_v<RuntimePlatformNativeDesktop>);
+
+class UnavailableStandaloneSession final
+    : public rdp_server::server::security::
+          NativeDesktopAuthenticatedSessionProof
+{
+public:
+    [[nodiscard]]
+    rdp_server::server::security::NativeDesktopAuthenticationKind
+    authenticationKind() const noexcept override
+    {
+        return rdp_server::server::security::
+            NativeDesktopAuthenticationKind::StandalonePassword;
+    }
+
+    [[nodiscard]] std::uint64_t authenticationGeneration()
+        const noexcept override
+    {
+        return 0U;
+    }
+
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept override
+    {
+        return false;
+    }
+};
 
 #if defined(_WIN32)
 class UnavailableIdentity final
@@ -152,10 +179,54 @@ void testR2GatedComposition()
     assert(!composition.active());
 }
 
+void testAuthenticatedSessionCompositionDenials()
+{
+    RuntimePlatformNativeDesktop composition;
+    CurrentOwnerSharingAuthority ownerAuthority;
+    UnavailableStandaloneSession standaloneSession;
+
+    // Invalid requested scope fails before native evidence is sampled.
+    const auto invalidPermissions = composition.attachAuthenticatedSession(
+        standaloneSession, ownerAuthority, 0U);
+    assert(invalidPermissions.error == RuntimeHostError::InvalidConfiguration);
+
+    // A StandalonePassword selection without an exact current authenticated
+    // session proof fails closed. It must not fall back to ExistingOsAccount.
+    const auto unavailableSession = composition.attachAuthenticatedSession(
+        standaloneSession, ownerAuthority,
+        rdp_server::server::security::kConsoleViewPermission);
+    assert(unavailableSession.error ==
+           RuntimeHostError::NativeAuthorizationDenied);
+    assert(!composition.active());
+    assert(!composition.ready());
+    assert(composition.authorizationGeneration() == 0U);
+
+    rdp_server::server::runtime::RuntimeHostResult offThreadResult{};
+    std::thread otherThread([&] {
+        offThreadResult = composition.attachAuthenticatedSession(
+            standaloneSession, ownerAuthority,
+            rdp_server::server::security::kConsoleViewPermission);
+    });
+    otherThread.join();
+    assert(offThreadResult.error == RuntimeHostError::ControlUnavailable);
+    assert(!composition.active());
+}
+
 } // namespace
 
-int main()
+int main(int argumentCount, char **argumentValues)
 {
-    testR2GatedComposition();
-    return 0;
+    if (argumentCount == 1)
+    {
+        testR2GatedComposition();
+        return 0;
+    }
+    if (argumentCount == 2 && argumentValues[1] != nullptr &&
+        std::string_view{argumentValues[1]} ==
+            "authenticated-session-denials")
+    {
+        testAuthenticatedSessionCompositionDenials();
+        return 0;
+    }
+    return 2;
 }

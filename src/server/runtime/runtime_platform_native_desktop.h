@@ -39,6 +39,19 @@ public:
     RuntimePlatformNativeDesktop &operator=(
         RuntimePlatformNativeDesktop &&) = delete;
 
+#if defined(_WIN32) || defined(__APPLE__)
+    // R10 consumes the exact R2 authenticated-session proof and never accepts
+    // a caller-supplied SID/UID or authentication-kind override. The proof and
+    // current-owner authority are borrowed for the complete attached lifetime
+    // and must outlive retireAfterAuthorizationLoss().
+    [[nodiscard]] RuntimeHostResult attachAuthenticatedSession(
+        rdp_server::server::security::NativeDesktopAuthenticatedSessionProof
+            &authenticatedSession,
+        rdp_server::server::security::CurrentOwnerSharingAuthority
+            &ownerSharingAuthority,
+        std::uint32_t requestedPermissions) noexcept;
+#endif
+
 #if defined(_WIN32)
     [[nodiscard]] RuntimeHostResult attach(
         const rdp_server::server::security::WindowsNativeDesktopAuthorization
@@ -81,11 +94,26 @@ private:
     std::uint64_t authorizationGeneration_{};
 
 #if defined(_WIN32)
+    // Production reader supplies fresh WTS/LSA session evidence; it never
+    // authenticates the remote client. ownedAuthorization_ borrows the exact
+    // accepted-session proof plus the longer-lived local-owner authority.
+    rdp_server::server::security::WindowsNativeSessionEvidenceReader
+        nativeEvidence_{};
+    std::unique_ptr<
+        rdp_server::server::security::WindowsNativeDesktopAuthorization>
+        ownedAuthorization_{};
     const rdp_server::server::security::WindowsNativeDesktopAuthorization
         *authorization_{};
     std::unique_ptr<rdp_server::windows::WindowsNativeDesktopOwner>
         nativeDesktop_{};
 #elif defined(__APPLE__)
+    // Production reader supplies fresh console/audit/SecuritySession evidence;
+    // it never authenticates the remote client.
+    rdp_server::server::security::MacNativeSessionEvidenceReader
+        nativeEvidence_{};
+    std::unique_ptr<
+        rdp_server::server::security::MacNativeDesktopAuthorization>
+        ownedAuthorization_{};
     const rdp_server::server::security::MacNativeDesktopAuthorization
         *authorization_{};
     std::unique_ptr<rdp::macos::MacNativeDesktopOwner> nativeDesktop_{};

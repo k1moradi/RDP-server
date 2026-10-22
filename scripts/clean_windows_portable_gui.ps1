@@ -25,7 +25,7 @@ if (!(Test-Path -LiteralPath "$archivePath.sha256" -PathType Leaf) -or
     throw 'ZIP outer digest/sidecar mismatch'
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$principal = New-Object Security.Principal.WindowsPrincipal $identity
+$principal = New-Object -TypeName Security.Principal.WindowsPrincipal -ArgumentList $identity
 $administratorTokenActive =
     $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if ($administratorTokenActive) {
@@ -52,9 +52,9 @@ foreach ($directory in $forbiddenDevelopmentDirectories) {
 }
 $operatingSystem = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
 $osArchitecture =
-    ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture).ToString()
+    [string][Runtime.InteropServices.RuntimeInformation]::OSArchitecture
 $processArchitecture =
-    ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture).ToString()
+    [string][Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
 if ($osArchitecture -cne 'X64') {
     throw 'Clean Windows evidence must come from an x86-64 OS'
 }

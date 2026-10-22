@@ -1,3 +1,27 @@
+## R9 exact-SHA rejection and Windows PowerShell 5.1 compatibility repair (2026-10-21)
+
+Exact product-main candidate `e68c3a18955eb4d00579ec8a467dd1e78c03bc7b`, primary Actions run
+`39697358991`, is **REJECTED**. The ordinary hosted
+`r9-windows-powershell-parser` job `119557889913` still reports a
+PowerShell 5.1 parse failure, so no product-main qualification may be inherited
+from that SHA. Structure/documentation/Linux GUI lanes passing on the same
+candidate do not override the parser failure, and Windows CLANG64 coverage
+remains mandatory.
+
+The CLEAN producer keeps the same fail-closed receipt contract but uses syntax
+with unambiguous Windows PowerShell 5.1 parsing: the WindowsPrincipal
+construction uses explicit `-TypeName`/`-ArgumentList`, and
+`RuntimeInformation` architecture enum properties are converted with a
+`[string]` cast rather than invoking `.ToString()` on a static-property
+expression. No CLEAN requirement, provenance label, non-admin check, PATH
+check, socket check, or firewall/service/policy invariance check is weakened.
+
+This repair creates a new exact product-main candidate and requires a fresh
+complete ordinary-hosted PASS. FIRST remains separately frozen at
+`8f2667b9d4a9dd09b05486e91c3277fc3cb4af72`. CLEAN remains **NOT RUN**
+until a real exact-candidate self-hosted or verifier-accepted owner-native
+receipt exists; manual evidence must remain labeled **MANUAL CLEAN PASS**.
+
 ## R9 inherited R6 Windows PowerShell parser correction (2026-10-21)
 
 R6 exact SHA `40650f9c24f6555b75e7f6a54f989d49118498a7`, primary run

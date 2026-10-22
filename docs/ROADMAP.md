@@ -1,3 +1,35 @@
+## R8 GUI Round 2 dormant-clipboard presentation hygiene (2026-10-22)
+
+Starting exact-main parent: `9212b3cd7c3ad80ea44744c786b6f1b2cbee8f78`.
+
+Round 2 remains presentation-only because Linux FIRST is still **BLOCKED / NOT
+RUN**. The dashboard already has no clipboard widget and product consent already
+forces `allowClipboard = false`, but the Main-page owner-permission summary
+could still spell out `clipboard` if an internal status snapshot carried the
+dormant permission bit. Main now reports only the product-visible screen and
+keyboard/mouse scope. No clipboard diagnostic/control is added; any future
+pre-activation diagnostic belongs under collapsed Advanced and must be
+read-only.
+
+The existing offscreen dashboard regression still requires no
+`allowClipboard` object and now rejects any clipboard-named descendant. The
+owner-grant observation regression additionally injects
+`kConsoleAllowedPermissions` and requires the visible Main permission summary
+to omit clipboard while preserving the screen/input scope.
+
+No R8/R5/R3/R2/R1 lifetime or wire code changes: hide remains presentation-only,
+explicit Quit still enters Stop/Revoke before exit, X11 stale selection/paste/INCR
+state still retires before R5, and reconnect still constructs a fresh
+generation-bound R8 owner. `kLinuxProductionClipboardActivationApproved`
+remains **false**; Unicode text is not activated and images/files/directories
+remain out of scope.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. No listener, desktop, input or clipboard action was performed.
+Next R8 activation gate remains the recorded Linux FIRST visible desktop +
+mouse + keyboard + Stop **PASS**.
+
 ## R1 exact-SHA hosted qualification after terminal provenance correction (2026-10-22)
 
 Starting exact-main parent: `b633003fc636151f47120d3ee5b32f216099027a`.

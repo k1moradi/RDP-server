@@ -84,9 +84,9 @@ QString ownerPermissionStatusText(const HostStatus& status)
         QString scope = QStringLiteral("screen");
         if ((permissions & kConsoleInputPermission) != 0U)
             scope += QStringLiteral(", keyboard/mouse");
-        if ((permissions & kConsoleClipboardPermission) != 0U)
-            scope += QStringLiteral(", clipboard");
-
+        // Clipboard is still a dormant runtime capability. Keep Main limited
+        // to the product-visible screen/input scope until FIRST authorizes a
+        // later clipboard activation milestone.
         const std::uint64_t remainingMilliseconds =
             status.ownerGrant.remainingMilliseconds;
         QString remaining;

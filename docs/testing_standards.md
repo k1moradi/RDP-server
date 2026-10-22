@@ -1,3 +1,22 @@
+## R8 GUI Round 2 dormant-clipboard presentation boundary (2026-10-22)
+
+While `kLinuxProductionClipboardActivationApproved` is false, the default/Main
+dashboard must expose no clipboard control and must not turn an internal
+clipboard permission bit into Main-page product status. Keep
+`gui.offscreen-dashboard-single-page-defaults` requiring no
+`allowClipboard` or clipboard-named dashboard descendant. Keep
+`gui.offscreen-r2-owner-grant-observation` injecting the full allowed
+permission mask and requiring the Main owner-permission summary to show only
+screen and keyboard/mouse scope.
+
+If pre-activation clipboard diagnostics are added later, they belong under
+collapsed Advanced, are read-only, and must not mutate permission or activation
+state. These presentation checks do not replace the existing R8 lifetime
+regressions: hide-to-tray preserves the active owner, explicit Quit retires via
+Stop/Revoke, stale X11 INCR/paste state retires before R5, and reconnect creates
+a fresh generation-bound owner. None of these tests satisfy Linux FIRST or
+authorize clipboard activation.
+
 ## R6 standalone-authenticated Windows owner regression (2026-10-22)
 
 Keep `windows.native-owner-standalone-authenticated-session-lifecycle` in the

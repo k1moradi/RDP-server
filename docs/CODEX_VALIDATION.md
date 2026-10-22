@@ -1,3 +1,30 @@
+## R8 GUI Round 2 dormant-clipboard hygiene — 2026-10-22
+
+Starting exact-main parent: `9212b3cd7c3ad80ea44744c786b6f1b2cbee8f78`.
+
+Source audit found no clipboard control on the one-page dashboard and confirmed
+product consent remains `allowClipboard = false`. One presentation-only edge
+remained: `permissionStatus` is on Main and could include the word
+`clipboard` when an internal owner-grant observation contains
+`kConsoleClipboardPermission`. The correction removes that dormant capability
+from Main's scope text without altering the authorization mask or runtime state.
+
+Offline regression coverage is strengthened in the existing Qt fixture:
+`gui.offscreen-dashboard-single-page-defaults` rejects clipboard-named
+dashboard descendants, and `gui.offscreen-r2-owner-grant-observation` injects
+the full allowed permission mask and requires Main to continue showing only
+screen/keyboard-mouse scope. No Advanced clipboard diagnostic is added.
+
+Lifetime/source inspection remains **PASS**: hide-to-tray does not Stop/Revoke;
+explicit Quit enters Stop/Revoke first; adapter disconnect still clears stale
+paste/INCR state before R5 retirement; reconnect still creates a fresh
+generation-fenced R8 owner. Activation remains literal **false** and no
+PNG/image/file/directory path is added.
+
+Canonical owner-local build/full CTest: **NOT RUN** here. Exact-publication-SHA
+hosted CI: **PENDING**. Linux FIRST physical visible desktop + mouse + keyboard +
+Stop remains **BLOCKED / NOT RUN** and is still the sole R8 activation gate.
+
 ## R1 corrective hosted qualification receipt — 2026-10-22
 
 Exact corrective source SHA:

@@ -281,6 +281,11 @@ void checkDashboardDefaults(FakeRuntimeHost& runtime, HostControl& host)
     assert(window.findChild<QObject*>("password") == nullptr);
     assert(window.findChild<QObject*>("confirmation") == nullptr);
     assert(window.findChild<QObject*>("allowClipboard") == nullptr);
+    for (QObject* item : window.findChildren<QObject*>())
+    {
+        assert(!item->objectName().contains(
+            QStringLiteral("clipboard"), Qt::CaseInsensitive));
+    }
     assert(window.findChild<QObject*>(
                "setApplicationPasswordUnsupported") == nullptr);
 
@@ -637,6 +642,19 @@ int main(int argc, char** argv)
         assert(permission->text().contains(
             "Scope: screen, keyboard/mouse"));
         assert(permission->text().contains("Remaining: 6 min 58 sec"));
+
+        // Even if an internal/runtime observation includes the dormant
+        // clipboard permission, Main must not surface clipboard presentation
+        // before the separate FIRST-gated activation milestone.
+        runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{
+            RuntimeOwnerGrantState::Active,
+            kConsoleAllowedPermissions,
+            6U * 60U * 1000U + 58U * 1000U};
+        window.refresh();
+        assert(permission->text().contains(
+            "Scope: screen, keyboard/mouse"));
+        assert(!permission->text().contains(
+            "clipboard", Qt::CaseInsensitive));
 
         runtime.snapshot.hostOwnerAuthorized = false;
         runtime.snapshot.ownerGrant = RuntimeOwnerGrantObservation{

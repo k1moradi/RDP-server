@@ -52,16 +52,17 @@ public:
 
     void consume(const FramebufferView& frame,
                  const std::uint64_t generation) noexcept override {
+        const std::size_t widthPixels =
+            static_cast<std::size_t>(frame.widthPixels);
         if (!frame.valid() || generation == 0 ||
             generation != geometryGeneration_ || frame.widthPixels == 0 ||
             frame.heightPixels == 0 ||
-            frame.widthPixels >
+            widthPixels >
                 (std::numeric_limits<std::size_t>::max)() / 4U) {
             return;
         }
 
-        const std::size_t rowBytes =
-            static_cast<std::size_t>(frame.widthPixels) * 4U;
+        const std::size_t rowBytes = widthPixels * 4U;
         if (frame.strideBytes < rowBytes ||
             frame.heightPixels >
                 (std::numeric_limits<std::size_t>::max)() / rowBytes) {

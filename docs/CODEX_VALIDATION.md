@@ -1,3 +1,26 @@
+## R5 macOS compile failure and row-size correction receipt (2026-10-21)
+
+Exact parent `419e5d8ab0f81e7d717170bcd67c9b98a6799a03`, Actions
+`39727051415`: R10's new platform-native composition source is present, but
+macOS qualification reaches an R5 compile failure before lifecycle execution.
+`protocol (macos-latest)` job `119653293665` and
+`r7-macos-native-lifecycle` job `119653293822` both fail at
+`src/platform/macos/mac_native_desktop_owner.cpp:58` because Clang diagnoses
+the direct `uint32_t` framebuffer-width comparison against 64-bit
+`size_t::max()/4` as always false under `-Werror`.
+
+Correction: cache the width as `std::size_t`, perform the existing overflow
+bound on that same-width value, and use it for tight BGRA row-byte
+calculation. No mailbox limit, copy layout, R2 visit, ScreenCaptureKit,
+Quartz-input or retirement behavior changes. New ordinary source regression:
+`macos.native-desktop-owner-framebuffer-row-size-bounds`.
+
+Connector inspection of the narrow correction: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN**. Corrective exact-SHA hosted CI:
+**PENDING**. R2/R10 source dependencies are cleared; live macOS positive
+activation remains **NOT RUN** pending explicit owner authorization and a
+physical TCC/desktop session.
+
 ## R10 Track E platform-native composition authoring receipt (2026-10-21)
 
 Starting shared-main parent: `01732d31191406ef37422588dea808f3d9b88c0c`.

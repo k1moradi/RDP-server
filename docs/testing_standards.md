@@ -1,3 +1,13 @@
+## R5 framebuffer row-size compile regression stays in ordinary CTest (2026-10-21)
+
+`macos.native-desktop-owner-framebuffer-row-size-bounds` is a portable
+source-contract regression for the R5 aggregate. It requires framebuffer width
+to be normalized to `std::size_t` before the `size_t::max()/4` overflow
+guard and tight BGRA row calculation, and rejects the direct
+`frame.widthPixels > size_t::max()/4` spelling that fails macOS Clang under
+`-Werror`. Keep this test in ordinary full CTest on every platform so the
+macOS-only compile failure is caught before native packaging lanes diverge.
+
 ## R10 Windows/macOS one-owner composition regression (2026-10-21)
 
 When `rdp-server-runtime-platform-native-desktop` is available, register one

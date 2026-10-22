@@ -1,3 +1,13 @@
+## Normalize bounded pixel dimensions before size_t overflow guards (2026-10-21)
+
+When a fixed-width framebuffer dimension participates in `size_t` allocation
+or stride arithmetic, convert it once to a cached `std::size_t` value before
+comparing against `size_t` limits. Do not compare a narrower unsigned type
+directly with a platform-wider constant such as `size_t::max()/bytesPerPixel`;
+Clang may correctly diagnose that comparison as tautological under `-Werror`.
+Keep the overflow check before multiplication and reuse the converted value for
+the hot-path row calculation.
+
 ## R10 platform-native composition is one owner, never a platform server (2026-10-21)
 
 For Windows/macOS native hosting, keep exactly one R10 owner-thread composition

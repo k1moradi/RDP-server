@@ -2593,6 +2593,14 @@ endif()
 # R5 macOS aggregate owner: real R2 authorization state with injected display,
 # GUI-session, TCC, capture and input seams. These tests never enumerate a live
 # desktop, start ScreenCaptureKit or post Quartz events.
+add_test(NAME macos.native-desktop-owner-framebuffer-row-size-bounds
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_MAC_NATIVE_OWNER_SOURCE=${PROJECT_SOURCE_DIR}/src/platform/macos/mac_native_desktop_owner.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_macos_native_desktop_framebuffer_sizing.cmake")
+set_tests_properties(
+    macos.native-desktop-owner-framebuffer-row-size-bounds PROPERTIES
+    LABELS "macos;desktop;capture;security;policy;offline;native")
+
 if(APPLE)
     add_executable(test_macos_native_desktop_owner
         test_macos_native_desktop_owner.cpp)

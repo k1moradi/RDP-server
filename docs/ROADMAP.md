@@ -1,3 +1,34 @@
+## R5 macOS row-size compile correction after R10 composition (2026-10-21)
+
+Current parent: `419e5d8ab0f81e7d717170bcd67c9b98a6799a03`.
+
+R10's platform-native composition seam is now on `main`, so the R5 source
+dependency on R2/R10 is cleared. Exact-parent Actions run `39727051415`
+then exposed an R5-owned macOS compile blocker in both
+`protocol (macos-latest)` job `119653293665` and
+`r7-macos-native-lifecycle` job `119653293822`: Clang rejects the
+FrameMailbox guard that compares a `std::uint32_t` width directly against
+64-bit `size_t::max()/4` as a tautological out-of-range comparison under
+`-Werror`.
+
+Normalize the framebuffer width to `std::size_t` before the checked
+multiply bound and reuse that cached value for tight BGRA row bytes. This
+preserves the existing overflow/fail-closed behavior without weakening the
+512 MiB mailbox cap or changing capture/input authority. The dedicated
+`macos.native-desktop-owner-framebuffer-row-size-bounds` CTest prevents the
+cross-width comparison from returning.
+
+R2 authorization and R10 composition are therefore no longer R5 source
+blockers. After this correction, remaining R5 gates are exact-publication-SHA
+macOS build/CTest qualification and explicit owner authorization for live TCC,
+ScreenCaptureKit, visible desktop and Quartz input execution. Linux FIRST
+remains frozen at `8f2667b9d4a9dd09b05486e91c3277fc3cb4af72` and is not
+requalified by this change.
+
+Canonical owner-local build/full CTest: **NOT RUN** in this connector
+environment. Corrective publication-SHA hosted CI: **PENDING**. No live
+desktop, input, listener, Stop/reconnect or resize action was performed.
+
 ## R10 Track E one serialized Windows/macOS native composition seam (2026-10-21)
 
 Starting shared-main parent: `01732d31191406ef37422588dea808f3d9b88c0c`.

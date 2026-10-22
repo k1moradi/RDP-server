@@ -1,3 +1,26 @@
+## R10 owns one platform-native composition lifetime above R5/R6 (2026-10-21)
+
+Windows and macOS native owners enter the runtime through one R10
+`RuntimePlatformNativeDesktop` seam. It owns no listener, R1 transport, R2
+authorization issuer, R3 protocol state, worker thread or independent
+scheduler. Linux keeps its existing `LinuxRuntimeHostControl` composition.
+
+R10 consumes only a const, already-bound Windows or macOS R2 native
+authorization and reads the current authorization generation directly during
+attach; callers never supply it. One platform aggregate may exist at a time,
+and replacement requires terminal retirement plus fresh R2 authorization.
+
+R6 remains responsible for WTS/DXGI/cursor/SendInput lifetime and R5 for
+AppKit/session watches, ScreenCaptureKit and Quartz. R10 only serializes those
+owners with the outer service. R2/R3 routing closes first, then R10 invokes
+the platform authority-loss retirement so held input is discarded without
+native cleanup posts before native resources disappear.
+
+Windows positive activation stays disabled in R6 until its native construction
+and real authenticated-provider evidence qualify it. R10 must not flip that
+gate or duplicate R6 construction. FIRST/live execution remains a separate
+owner-authorized acceptance gate.
+
 ## R5 macOS native desktop owner is one R2-visited aggregate (2026-10-21)
 
 `MacNativeDesktopOwner` composes the existing macOS display/session/TCC,

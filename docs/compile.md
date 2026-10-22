@@ -1,3 +1,17 @@
+## R10 noninstalled Windows/macOS platform-native composition target (2026-10-21)
+
+`rdp-server-runtime-platform-native-desktop` is built only on Windows or
+macOS. It compiles one shared R10 composition source and privately links the
+existing R2 native authorization target plus the matching R6 Windows desktop
+or R5 macOS capture aggregate. It is not installed/exported, does not change
+the portable protocol SDK, and adds no Linux dependency.
+
+The header is excluded from SDK installation. Windows retains existing
+User32/GDI/D3D11/DXGI/WTS dependencies through R6; macOS retains existing
+framework dependencies through R5. No new service, daemon, Qt, listener or
+background-thread dependency is introduced. Ordinary CTest remains offline
+and uses the existing one build root.
+
 ## R5 macOS authorized aggregate build boundary (2026-10-21)
 
 On Apple builds, `rdp-server-macos-capture` now also compiles

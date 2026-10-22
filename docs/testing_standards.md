@@ -1,3 +1,22 @@
+## R10 Windows/macOS one-owner composition regression (2026-10-21)
+
+When `rdp-server-runtime-platform-native-desktop` is available, register one
+platform-specific ordinary CTest against the real R10 composition class:
+`runtime.platform-native-desktop-windows-r2-gated-composition` on Windows or
+`runtime.platform-native-desktop-macos-r2-gated-composition` on macOS.
+
+The test uses the real R2 native-authorization object but leaves it unbound. It
+proves service/input/frame/cursor calls cannot create native ownership, attach
+denies a zero authorization generation, the R10 owner is noncopyable/nonmovable,
+off-owner-thread retirement is refused, and owner-thread retirement is
+idempotent. It must not sample live WTS/LSA, open DXGI, call SendInput,
+enumerate a macOS display, request TCC, start ScreenCaptureKit, post Quartz,
+open a listener or fabricate R3 Share authority.
+
+A later positive test must use genuine R2 authorization and the platform
+owner's own acceptance contract; never turn this denial test into a synthetic
+substitute for FIRST or native-host acceptance.
+
 ## R5 macOS aggregate CTests use real R2 authority and injected native seams (2026-10-21)
 
 The dedicated Apple-only aggregate tests are

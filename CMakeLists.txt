@@ -1138,6 +1138,39 @@ if(APPLE)
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R10 cross-platform native HostControl composition seam. Windows and macOS
+# reuse this one owner-thread wrapper around their R6/R5 native aggregates;
+# it owns no listener, protocol loop, worker thread or authorization issuer.
+if(WIN32 OR APPLE)
+    add_library(rdp-server-runtime-platform-native-desktop STATIC
+        src/server/runtime/runtime_platform_native_desktop.cpp)
+    target_compile_features(
+        rdp-server-runtime-platform-native-desktop PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-runtime-platform-native-desktop PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-runtime-platform-native-desktop PRIVATE
+        rdp-server-native-desktop-authorization)
+    if(WIN32)
+        target_link_libraries(
+            rdp-server-runtime-platform-native-desktop PRIVATE
+            rdp-server-windows-desktop)
+    elseif(APPLE)
+        target_link_libraries(
+            rdp-server-runtime-platform-native-desktop PRIVATE
+            rdp-server-macos-capture)
+    endif()
+    if(MSVC)
+        target_compile_options(
+            rdp-server-runtime-platform-native-desktop PRIVATE /W4 /WX)
+    else()
+        target_compile_options(
+            rdp-server-runtime-platform-native-desktop PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endif()
+
 # Windows R6 launcher reuses R7's Qt DesktopWindow; no R2/R10 authority.
 if(WIN32)
     find_package(Qt6 6.4 QUIET COMPONENTS Widgets)
@@ -1258,6 +1291,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "runtime_credential_file_internal.h" EXCLUDE
     PATTERN "current_owner_sharing_authority.h" EXCLUDE
     PATTERN "native_desktop_authorization.h" EXCLUDE
+    PATTERN "runtime_platform_native_desktop.h" EXCLUDE
     PATTERN "standalone_ntlmv2.h" EXCLUDE
     PATTERN "standalone_ntlmssp.h" EXCLUDE
     PATTERN "standalone_spnego.h" EXCLUDE

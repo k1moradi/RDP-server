@@ -1,3 +1,22 @@
+## R10 Track E platform-native composition authoring receipt (2026-10-21)
+
+Starting shared-main parent: `01732d31191406ef37422588dea808f3d9b88c0c`.
+
+Dependency review confirms R2 `8a4d7f35`, R6 `40650f9c`, and R5
+`04302d83` resolved the external source seams required by the R10 graph.
+This increment adds one `RuntimePlatformNativeDesktop` owner-thread
+composition class, platform-conditional build wiring, one platform-specific
+production-backed denial CTest, and canonical documentation co-changes.
+
+Source inspection: **PASS** for one-owner/no-listener design, const R2
+authorization consumption, generation capture from the authorization object,
+no caller generation parameter, owner-thread retirement, platform-native
+delegation and unchanged Windows positive-activation gate. Canonical local
+configure/build/full CTest: **NOT RUN** because this connector shell cannot
+resolve github.com and has no canonical `~/rdp-server` checkout.
+Exact-publication-SHA hosted CI: **PENDING**. Live Windows/macOS native
+activation and Linux FIRST: **NOT RUN**.
+
 ## R5 macOS authorized native desktop aggregate review (2026-10-21)
 
 Starting shared-main parent: `6b99b2abdd599cc3e8d249b013927050ee8dd78f`.

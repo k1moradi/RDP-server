@@ -2620,6 +2620,43 @@ if(APPLE)
     endforeach()
 endif()
 
+# R10 one-owner Windows/macOS platform-native composition seam. The ordinary
+# regression uses an unbound real R2 authorization object, so it executes no
+# WTS/DXGI/SendInput, TCC/ScreenCaptureKit/Quartz, listener or protocol action.
+if(TARGET rdp-server-runtime-platform-native-desktop)
+    add_executable(test_runtime_platform_native_desktop
+        test_runtime_platform_native_desktop.cpp)
+    target_include_directories(test_runtime_platform_native_desktop PRIVATE
+        "${PROJECT_SOURCE_DIR}/src")
+    target_link_libraries(test_runtime_platform_native_desktop PRIVATE
+        rdp-server-runtime-platform-native-desktop
+        rdp-server-native-desktop-authorization)
+    if(MSVC)
+        target_compile_options(test_runtime_platform_native_desktop PRIVATE
+            /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(test_runtime_platform_native_desktop PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    if(WIN32)
+        add_test(
+            NAME runtime.platform-native-desktop-windows-r2-gated-composition
+            COMMAND test_runtime_platform_native_desktop)
+        set_tests_properties(
+            runtime.platform-native-desktop-windows-r2-gated-composition
+            PROPERTIES
+            LABELS "runtime;host-control;native;security;windows;offline")
+    elseif(APPLE)
+        add_test(
+            NAME runtime.platform-native-desktop-macos-r2-gated-composition
+            COMMAND test_runtime_platform_native_desktop)
+        set_tests_properties(
+            runtime.platform-native-desktop-macos-r2-gated-composition
+            PROPERTIES
+            LABELS "runtime;host-control;native;security;macos;offline")
+    endif()
+endif()
+
 # R5 native XCB connection: headless deterministic event draining and
 # invalid-display descriptor ownership, no live desktop/X server.
 if(TARGET rdp-server-x11-connection)

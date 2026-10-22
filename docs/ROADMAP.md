@@ -1,3 +1,40 @@
+## R10 Track E one serialized Windows/macOS native composition seam (2026-10-21)
+
+Starting shared-main parent: `01732d31191406ef37422588dea808f3d9b88c0c`.
+
+R2 `8a4d7f35`, R6 `40650f9c`, and R5 `04302d83` resolve the source
+dependencies named by the R10 P0 graph. R10 now adds one noninstalled
+`RuntimePlatformNativeDesktop` owner for Windows and macOS rather than
+platform-specific server implementations. Linux keeps the existing serialized
+`LinuxRuntimeHostControl` native lifetime.
+
+The seam is owner-thread-affine, owns at most one R5/R6 aggregate, consumes
+only a const already-bound R2 authorization, and captures its generation
+directly. It owns no listener, TLS/session parser, worker thread, protocol
+scheduler or authorization issuer. Terminal retirement delegates R5/R6's
+no-post native-input teardown before clearing R10's borrowed authority.
+
+Windows positive activation remains fail-closed:
+`kWindowsNativeDesktopPositiveActivationApproved` is unchanged, and R10 maps
+R6 native-composition-unavailable to a redacted GraphicsUnavailable result
+rather than bypassing R6. macOS positive construction likewise requires a real
+bound R2 authorization and is not exercised by ordinary CTest.
+
+Dedicated offline production-backed CTests are
+`runtime.platform-native-desktop-windows-r2-gated-composition` and
+`runtime.platform-native-desktop-macos-r2-gated-composition`. They use an
+unbound real R2 authorization and perform no live WTS/DXGI/SendInput,
+TCC/ScreenCaptureKit/Quartz, listener or protocol action.
+
+Canonical local build/full CTest: **NOT RUN** because the connector shell
+cannot resolve github.com and has no canonical `~/rdp-server` checkout.
+Exact-publication-SHA hosted CI: **PENDING**. FIRST remains owner-only and
+**NOT RUN**.
+
+**Dependency result:** R10 is no longer source-blocked on R2/R5/R6. Remaining
+external gates are exact-head qualification and explicit owner authorization
+for FIRST/live native execution.
+
 ## R5 macOS authorized native desktop aggregate (2026-10-21)
 
 Starting shared-main parent: `6b99b2abdd599cc3e8d249b013927050ee8dd78f`.

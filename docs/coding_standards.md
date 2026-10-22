@@ -1,3 +1,23 @@
+## R10 platform-native composition is one owner, never a platform server (2026-10-21)
+
+For Windows/macOS native hosting, keep exactly one R10 owner-thread composition
+surface above R5/R6. Do not create separate RuntimeHostControl state machines,
+listeners, protocol loops, worker threads or native schedulers per platform.
+Linux's existing R10 HostControl remains its already-serialized lifetime.
+
+The platform composition may consume only a const already-bound R2 native
+authorization and must derive the exact current authorization generation from
+that object during attach. Never accept a generation, SID/UID, WTS/session ID,
+TCC status or permission Boolean from GUI/caller code as construction
+authority. At most one native aggregate may be active; a new authorization
+requires retirement and a fresh attach.
+
+All native operations stay bounded and owner-thread-affine. R2/R3 routing is
+closed before terminal native retirement. Delegate retirement to R5/R6 so held
+input is discarded without native cleanup posts before capture/session
+resources are destroyed. Do not bypass a platform's fail-closed positive
+activation gate merely because the R10 composition seam exists.
+
 ## R5 macOS native desktop operations stay inside the R2 visitor (2026-10-21)
 
 Do not expose a macOS native desktop constructor from UID, display ID, geometry

@@ -1,3 +1,15 @@
+## R9 PowerShell parser correction after exact-SHA rejection (2026-10-21)
+
+Exact parent `6b99b2abdd599cc3e8d249b013927050ee8dd78f`, primary Actions run
+`39696835169`, `r9-windows-powershell-parser` job `119556157940`:
+**FAIL** before execution because Windows PowerShell 5.1 rejected the new
+static-property `.ToString()` syntax. Product-main therefore remains
+unqualified even if other parent lanes pass. The correction wraps
+`RuntimeInformation` static properties before `.ToString()` and uses
+ordinary statement assignments for manual/self-hosted provenance; no CLEAN
+requirement or Windows coverage is weakened. This replacement publication
+requires a fresh complete ordinary-hosted PASS.
+
 ## R9 reconciliation with R6 CLEAN receipt format 2 (2026-10-21)
 
 Shared-main parent: `40650f9c24f6555b75e7f6a54f989d49118498a7`. R6's richer format-2 receipt is retained, but

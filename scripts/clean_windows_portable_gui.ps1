@@ -52,26 +52,20 @@ foreach ($directory in $forbiddenDevelopmentDirectories) {
 }
 $operatingSystem = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
 $osArchitecture =
-    [Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString()
+    ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture).ToString()
 $processArchitecture =
-    [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
+    ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture).ToString()
 if ($osArchitecture -cne 'X64') {
     throw 'Clean Windows evidence must come from an x86-64 OS'
 }
-$executionOrigin =
-    if ($env:GITHUB_ACTIONS -ceq 'true') {
-        'self-hosted-clean-runner'
-    }
-    else {
-        'manual-owner-native'
-    }
-$acceptanceLabel =
-    if ($executionOrigin -ceq 'manual-owner-native') {
-        'MANUAL CLEAN PASS'
-    }
-    else {
-        'SELF-HOSTED CLEAN PASS'
-    }
+if ($env:GITHUB_ACTIONS -ceq 'true') {
+    $executionOrigin = 'self-hosted-clean-runner'
+    $acceptanceLabel = 'SELF-HOSTED CLEAN PASS'
+}
+else {
+    $executionOrigin = 'manual-owner-native'
+    $acceptanceLabel = 'MANUAL CLEAN PASS'
+}
 
 # The exact producer archive is structurally bounded and inspected before
 # extraction. No ZIP rewriting, dependency deployment, or copying DLLs.

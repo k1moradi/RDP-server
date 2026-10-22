@@ -3683,6 +3683,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-round2-endpoint-refresh-fail-closed
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;round2;lan" TIMEOUT 30)
+    add_test(NAME gui.offscreen-round2-advanced-groups-scrollable
+        COMMAND test_desktop_gui_offline round2-advanced-scroll)
+    set_tests_properties(gui.offscreen-round2-advanced-groups-scrollable
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;round2;layout" TIMEOUT 30)
     # R7 post-qualification polish: the R10-recommended address is the primary
     # selectable connection value, and unsupported builds show one concise
     # default-page explanation instead of repeating the same denial.

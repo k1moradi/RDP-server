@@ -2416,18 +2416,19 @@ jobs:
           ctest --test-dir build -C Release --timeout 30 \
             -R "$tls_selector" --output-on-failure
 
-          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)$'
+          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]offscreen-round2-advanced-groups-scrollable|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)$'
           round2_tests="$(ctest --test-dir build -C Release -N -R "$round2_selector")"
           printf '%s\n' "$round2_tests"
           for required_test in \
             gui.offscreen-round2-tabs-and-main-simplicity \
             gui.offscreen-round2-endpoint-refresh-fail-closed \
+            gui.offscreen-round2-advanced-groups-scrollable \
             gui.round2-tab-source-contract \
             gui.round2-qcolor-warning-classification \
             runtime.host-control-gui-round2-endpoint-recommendation; do
             grep -Fq ": $required_test" <<< "$round2_tests"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$round2_tests")" -eq 5
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$round2_tests")" -eq 6
           ctest --test-dir build -C Release --timeout 30 \
             -R "$round2_selector" --output-on-failure
       - name: Package, extract and inspect actual Qt/XCB closure

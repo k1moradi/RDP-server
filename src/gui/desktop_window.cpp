@@ -16,10 +16,12 @@
 #include <QComboBox>
 #include <QFont>
 #include <QFormLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStyle>
@@ -283,15 +285,16 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       platformStatus_(label({}, mainTab_)),
       addressStatus_(label({}, mainTab_)),
       credentialStatus_(label({}, mainTab_)),
-      permissionStatus_(label({}, mainTab_)),
+      permissionStatus_(label({}, advancedTab_)),
       selectedInterfaceStatus_(label({}, advancedTab_)),
       errorStatus_(label({}, advancedTab_)),
       tlsIdentityStatus_(label({}, advancedTab_)),
       hostLifecycleStatus_(label({}, advancedTab_)),
-      status_(label({}, mainTab_)),
-      activity_(label({}, mainTab_)),
+      status_(label({}, advancedTab_)),
+      activity_(label({}, advancedTab_)),
       authenticationModeStatus_(label(
           QStringLiteral("Authentication mode: Existing OS Account"), advancedTab_)),
+      runtimeReadinessStatus_(label({}, advancedTab_)),
       trayIcon_(new QSystemTrayIcon(this)),
       trayMenu_(new QMenu(this)),
       trayOpen_(new QAction(QStringLiteral("Open"), trayMenu_)),
@@ -315,6 +318,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     status_->setObjectName("sharingReadinessStatus");
     activity_->setObjectName("clientStatus");
     authenticationModeStatus_->setObjectName("authenticationModeStatus");
+    runtimeReadinessStatus_->setObjectName("runtimeReadinessStatus");
 
     QFont addressFont = addressStatus_->font();
     addressFont.setBold(true);
@@ -367,16 +371,15 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     mainLayout->addWidget(heading(QStringLiteral("Access"), mainTab_));
     mainLayout->addWidget(credentialStatus_);
     mainLayout->addWidget(configureOsAccount_);
-    mainLayout->addWidget(permissionStatus_);
-    mainLayout->addWidget(requestHostPermission_);
 
     mainLayout->addWidget(heading(QStringLiteral("Sharing"), mainTab_));
     auto* sharingRow = new QHBoxLayout();
     sharingRow->addWidget(sharingToggle_);
-    sharingRow->addWidget(status_, 1);
+    sharingRow->addStretch();
     mainLayout->addLayout(sharingRow);
     allowRemoteInput_->setChecked(true);
     mainLayout->addWidget(allowRemoteInput_);
+    mainLayout->addWidget(requestHostPermission_);
 
     mainLayout->addWidget(heading(QStringLiteral("Connected devices"), mainTab_));
     auto* clientRow = new QHBoxLayout();
@@ -384,11 +387,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     clientRow->addWidget(clientSelection_, 1);
     clientRow->addWidget(disconnect_);
     mainLayout->addLayout(clientRow);
-    mainLayout->addWidget(activity_);
     mainLayout->addStretch();
 
-    auto* advancedLayout = new QVBoxLayout(advancedTab_);
-    auto* advancedForm = new QFormLayout();
     interfaces_->addItem(QStringLiteral("No private LAN interface available"),
                          QString());
     port_->setRange(1, 65535);
@@ -396,36 +396,88 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     permissionLifetimeMinutes_->setRange(1, 60);
     permissionLifetimeMinutes_->setValue(15);
     permissionLifetimeMinutes_->setSuffix(QStringLiteral(" min"));
-    advancedForm->addRow(QStringLiteral("Interface override"), interfaces_);
-    advancedForm->addRow(QStringLiteral("Port"), port_);
-    advancedForm->addRow(
-        QStringLiteral("Permission lifetime"), permissionLifetimeMinutes_);
-    advancedLayout->addLayout(advancedForm);
-    advancedLayout->addWidget(authenticationModeStatus_);
-    advancedLayout->addWidget(tlsIdentityStatus_);
-    advancedLayout->addWidget(selectedInterfaceStatus_);
-    advancedLayout->addWidget(hostLifecycleStatus_);
-    advancedLayout->addWidget(errorStatus_);
 
+    auto* advancedTabLayout = new QVBoxLayout(advancedTab_);
+    advancedTabLayout->setContentsMargins(0, 0, 0, 0);
+    auto* advancedScroll = new QScrollArea(advancedTab_);
+    advancedScroll->setObjectName("advancedScrollArea");
+    advancedScroll->setWidgetResizable(true);
+    advancedScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* advancedContent = new QWidget(advancedScroll);
+    advancedContent->setObjectName("advancedContent");
+    auto* advancedLayout = new QVBoxLayout(advancedContent);
+
+    auto* networkGroup =
+        new QGroupBox(QStringLiteral("Network"), advancedContent);
+    networkGroup->setObjectName("networkGroup");
+    auto* networkForm = new QFormLayout(networkGroup);
+    networkForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    networkForm->addRow(QStringLiteral("Automatic selection"),
+                        selectedInterfaceStatus_);
+    networkForm->addRow(QStringLiteral("Interface override"), interfaces_);
+    networkForm->addRow(QStringLiteral("Port"), port_);
+    advancedLayout->addWidget(networkGroup);
+
+    auto* securityGroup =
+        new QGroupBox(QStringLiteral("Security"), advancedContent);
+    securityGroup->setObjectName("securityGroup");
+    auto* securityForm = new QFormLayout(securityGroup);
+    securityForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    securityForm->addRow(QStringLiteral("Authentication"),
+                         authenticationModeStatus_);
+    securityForm->addRow(QStringLiteral("Permission lifetime"),
+                         permissionLifetimeMinutes_);
+    securityForm->addRow(QStringLiteral("Owner permission"),
+                         permissionStatus_);
+    securityForm->addRow(QStringLiteral("TLS identity"),
+                         tlsIdentityStatus_);
+    advancedLayout->addWidget(securityGroup);
+
+    auto* desktopGroup =
+        new QGroupBox(QStringLiteral("Desktop"), advancedContent);
+    desktopGroup->setObjectName("desktopGroup");
+    auto* desktopLayout = new QVBoxLayout(desktopGroup);
 #if defined(Q_OS_LINUX)
     auto* linuxPrerequisites = label(
         formatLinuxPrerequisites(LinuxDesktopPrerequisiteProjection{}),
-        advancedTab_);
+        desktopGroup);
     linuxPrerequisites->setObjectName("linuxPrerequisiteStatus");
-    advancedLayout->addWidget(linuxPrerequisites);
+    desktopLayout->addWidget(linuxPrerequisites);
     auto* refreshLinux =
-        new QPushButton(QStringLiteral("Refresh Linux desktop"),
-                        advancedTab_);
+        new QPushButton(QStringLiteral("Refresh Linux X11 prerequisites"),
+                        desktopGroup);
     refreshLinux->setObjectName("refreshLinuxPrerequisites");
-    advancedLayout->addWidget(refreshLinux);
+    desktopLayout->addWidget(refreshLinux);
     connect(refreshLinux, &QPushButton::clicked, this, [linuxPrerequisites] {
         requestLinuxPrerequisites(linuxPrerequisites);
     });
     QTimer::singleShot(0, linuxPrerequisites, [linuxPrerequisites] {
         requestLinuxPrerequisites(linuxPrerequisites);
     });
+#else
+    auto* desktopPrerequisites = label(
+        QStringLiteral(
+            "Desktop prerequisites are managed by the platform runtime."),
+        desktopGroup);
+    desktopPrerequisites->setObjectName("desktopPrerequisiteStatus");
+    desktopLayout->addWidget(desktopPrerequisites);
 #endif
+    advancedLayout->addWidget(desktopGroup);
+
+    auto* diagnosticsGroup =
+        new QGroupBox(QStringLiteral("Diagnostics"), advancedContent);
+    diagnosticsGroup->setObjectName("diagnosticsGroup");
+    auto* diagnosticsLayout = new QVBoxLayout(diagnosticsGroup);
+    diagnosticsLayout->addWidget(activity_);
+    diagnosticsLayout->addWidget(hostLifecycleStatus_);
+    diagnosticsLayout->addWidget(status_);
+    diagnosticsLayout->addWidget(runtimeReadinessStatus_);
+    diagnosticsLayout->addWidget(errorStatus_);
+    advancedLayout->addWidget(diagnosticsGroup);
     advancedLayout->addStretch();
+
+    advancedScroll->setWidget(advancedContent);
+    advancedTabLayout->addWidget(advancedScroll);
 
     trayMenu_->addAction(trayOpen_);
     trayMenu_->addAction(trayCopy_);
@@ -603,7 +655,16 @@ QString DesktopWindow::displayedAddress(const HostStatus& snapshot) const
 {
     if (!snapshot.lanAddress.isEmpty())
         return snapshot.lanAddress;
-    return formatEndpoint(interfaces_->currentData().toString(), port_->value());
+    if (!hasAutomaticLanRecommendation(snapshot.recommendationSource) ||
+        snapshot.recommendedInterfaceId.isEmpty() ||
+        snapshot.recommendedAddress.isEmpty() ||
+        snapshot.recommendedPort == 0U)
+    {
+        return {};
+    }
+    return formatEndpoint(
+        snapshot.recommendedAddress,
+        static_cast<int>(snapshot.recommendedPort));
 }
 
 void DesktopWindow::requestStart()
@@ -662,185 +723,10 @@ void DesktopWindow::updateTray(
     trayCopy_->setEnabled(!address.isEmpty());
     using ProductState =
         rdp_server::server::runtime::RuntimeProductHostState;
-    switch (snapshot.productState)
-    {
-    case ProductState::Starting:
-        traySharing_->setText(QStringLiteral("Starting…")); break;
-    case ProductState::Stopping:
-        traySharing_->setText(QStringLiteral("Stopping…")); break;
-    case ProductState::Listening:
-    case ProductState::Authenticating:
-    case ProductState::DesktopInitializing:
-    case ProductState::Connected:
-        traySharing_->setText(QStringLiteral("Stop Sharing")); break;
-    case ProductState::Stopped:
-    case ProductState::Error:
-        traySharing_->setText(QStringLiteral("Start Sharing")); break;
-    }
-    traySharing_->setEnabled(
-        snapshot.productState != ProductState::Starting &&
-        snapshot.productState != ProductState::Stopping &&
-        (sharingToggleOn(snapshot) || canStart()));
-
-    if (snapshot.clientCount != 0U &&
-        snapshot.productState ==
-            rdp_server::server::runtime::RuntimeProductHostState::Connected)
-    {
-        trayClients_->setText(
-            snapshot.clientCount == 1U
-                ? QStringLiteral("1 connected device")
-                : QStringLiteral("%1 connected devices")
-                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
-    }
-    else if (snapshot.clientCount != 0U)
-    {
-        trayClients_->setText(
-            snapshot.clientCount == 1U
-                ? QStringLiteral("1 device connecting")
-                : QStringLiteral("%1 devices connecting")
-                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
-    }
-    else
-    {
-        trayClients_->setText(QStringLiteral("No connected devices"));
-    }
-
-    trayIcon_->setToolTip(
-        address.isEmpty()
-            ? serverStateTitle_->text()
-            : serverStateTitle_->text() + QStringLiteral(" — ") + address);
-}
-
-void DesktopWindow::refresh()
-{
-    const HostStatus snapshot = host_.status();
-    const QString previousInterface = interfaces_->currentData().toString();
-    const QString previousInterfaceId =
-        interfaces_->currentData(Qt::UserRole + 1).toString();
-    const QVariant previousClientId = clientSelection_->currentData();
-
-    {
-        const QSignalBlocker blocked(interfaces_);
-        interfaces_->clear();
-        interfaces_->addItem(
-            snapshot.recommendationSource ==
-                    rdp_server::server::runtime::
-                        RuntimeHostRecommendationSource::Ambiguous
-                ? QStringLiteral("Choose a private LAN interface")
-                : QStringLiteral("No private LAN interface available"),
-            QString());
-
-        for (const LanInterfaceChoice& choice : snapshot.approvedLanInterfaces)
-        {
-            if (choice.address.isEmpty() || choice.stableId.isEmpty())
-                continue;
-            const QString name = choice.displayName.isEmpty()
-                ? choice.address
-                : choice.displayName + QStringLiteral(" (") +
-                      choice.address + QStringLiteral(")");
-            interfaces_->addItem(name, choice.address);
-            interfaces_->setItemData(
-                interfaces_->count() - 1,
-                choice.stableId, Qt::UserRole + 1);
-        }
-
-        int selectedIndex = 0;
-        if (manualInterfaceOverride_)
-        {
-            if (previousInterface.isEmpty() && previousInterfaceId.isEmpty())
-            {
-                selectedIndex = 0;
-            }
-            else
-            {
-                for (int index = 1; index < interfaces_->count(); ++index)
-                {
-                    if (interfaces_->itemData(index).toString() ==
-                            previousInterface &&
-                        interfaces_->itemData(
-                            index, Qt::UserRole + 1).toString() ==
-                            previousInterfaceId)
-                    {
-                        selectedIndex = index;
-                        break;
-                    }
-                }
-                if (selectedIndex == 0)
-                    manualInterfaceOverride_ = false;
-            }
-        }
-
-        // R10 owns the automatic endpoint recommendation. Follow each fresh
-        // recommendation unless the user made an Advanced override that still
-        // names the exact current stable interface/address pair.
-        if (!manualInterfaceOverride_ &&
-            hasAutomaticLanRecommendation(snapshot.recommendationSource) &&
-            !snapshot.recommendedInterfaceId.isEmpty() &&
-            !snapshot.recommendedAddress.isEmpty())
-        {
-            for (int index = 1; index < interfaces_->count(); ++index)
-            {
-                if (interfaces_->itemData(index).toString() ==
-                        snapshot.recommendedAddress &&
-                    interfaces_->itemData(
-                        index, Qt::UserRole + 1).toString() ==
-                            snapshot.recommendedInterfaceId)
-                {
-                    selectedIndex = index;
-                    break;
-                }
-            }
-        }
-        interfaces_->setCurrentIndex(selectedIndex);
-    }
-
-    {
-        const QSignalBlocker blocked(clientSelection_);
-        clientSelection_->clear();
-        clientSelection_->addItem(
-            QStringLiteral("No connected devices"), QVariant());
-        for (const ActiveClientChoice& client : snapshot.activeClients)
-        {
-            if (client.opaqueId == 0)
-                continue;
-            const QVariant opaqueId =
-                QVariant::fromValue<qulonglong>(client.opaqueId);
-            if (clientSelection_->findData(opaqueId) < 0)
-                clientSelection_->addItem(client.displayName, opaqueId);
-        }
-        const int index = clientSelection_->findData(previousClientId);
-        if (index > 0)
-            clientSelection_->setCurrentIndex(index);
-    }
-
-    const bool authoritativeOn = sharingToggleOn(snapshot);
-    {
-        const QSignalBlocker blocked(sharingToggle_);
-        sharingToggle_->setChecked(authoritativeOn);
-    }
-
-    using ProductState =
-        rdp_server::server::runtime::RuntimeProductHostState;
-    switch (snapshot.productState)
-    {
-    case ProductState::Stopped:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopped")); break;
-    case ProductState::Starting:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Starting")); break;
-    case ProductState::Listening:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Listening")); break;
-    case ProductState::Authenticating:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Authenticating")); break;
-    case ProductState::DesktopInitializing:
-        serverStateTitle_->setText(
-            QStringLiteral("RDP Server — Desktop Initializing")); break;
-    case ProductState::Connected:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Connected")); break;
-    case ProductState::Stopping:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Stopping")); break;
-    case ProductState::Error:
-        serverStateTitle_->setText(QStringLiteral("RDP Server — Error")); break;
-    }
+    serverStateTitle_->setText(
+        mayStillBeHosting(snapshot)
+            ? QStringLiteral("RDP Server — Sharing")
+            : QStringLiteral("RDP Server — Stopped"));
 
     const QString platformMessage = platformUnavailableText(snapshot);
     platformStatus_->setText(platformMessage);
@@ -864,7 +750,12 @@ void DesktopWindow::refresh()
                  RuntimeHostRecommendationSource::Ambiguous)
     {
         addressStatus_->setText(QStringLiteral(
-            "Multiple private LAN interfaces — choose one in Advanced"));
+            "Multiple private networks found. Choose a network in Advanced."));
+    }
+    else if (!snapshot.approvedLanInterfaces.isEmpty())
+    {
+        addressStatus_->setText(QStringLiteral(
+            "Automatic network selection unavailable. Choose a network in Advanced."));
     }
     else
     {
@@ -939,12 +830,49 @@ void DesktopWindow::refresh()
         break;
     }
 
-    selectedInterfaceStatus_->setText(
-        interfaces_->currentIndex() > 0
-            ? QStringLiteral("Interface: ") + interfaces_->currentText()
-            : QStringLiteral("Interface: unavailable"));
+    if (!snapshot.lanAddress.isEmpty())
+    {
+        selectedInterfaceStatus_->setText(
+            QStringLiteral("Active endpoint: ") + snapshot.lanAddress);
+    }
+    else if (snapshot.recommendationSource ==
+             rdp_server::server::runtime::
+                 RuntimeHostRecommendationSource::Ambiguous)
+    {
+        selectedInterfaceStatus_->setText(
+            QStringLiteral(
+                "Automatic selection is ambiguous; choose an interface override."));
+    }
+    else if (hasAutomaticLanRecommendation(snapshot.recommendationSource) &&
+             !snapshot.recommendedAddress.isEmpty() &&
+             snapshot.recommendedPort != 0U)
+    {
+        selectedInterfaceStatus_->setText(
+            QStringLiteral("Automatic: ") +
+            formatEndpoint(
+                snapshot.recommendedAddress,
+                static_cast<int>(snapshot.recommendedPort)));
+    }
+    else
+    {
+        selectedInterfaceStatus_->setText(
+            QStringLiteral("Automatic selection is unavailable."));
+    }
     tlsIdentityStatus_->setText(tlsIdentityStatusText(snapshot));
     hostLifecycleStatus_->setText(hostLifecycleText(snapshot));
+    runtimeReadinessStatus_->setText(
+        QStringLiteral("Readiness: protocol %1; native desktop %2.")
+            .arg(
+                snapshot.graphicsReady
+                    ? QStringLiteral("ready")
+                    : (snapshot.listenerReady
+                        ? QStringLiteral("waiting")
+                        : QStringLiteral("inactive")),
+                snapshot.nativeDesktopReady
+                    ? QStringLiteral("ready")
+                    : (snapshot.nativeDesktopInitializing
+                        ? QStringLiteral("initializing")
+                        : QStringLiteral("inactive"))));
     errorStatus_->setText(
         !userFacingError_.isEmpty()
             ? QStringLiteral("Last action: ") + userFacingError_

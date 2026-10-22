@@ -70,6 +70,7 @@ private:
     QLabel* status_;
     QLabel* activity_;
     QLabel* authenticationModeStatus_;
+    QLabel* runtimeReadinessStatus_;
 
     QSystemTrayIcon* trayIcon_;
     QMenu* trayMenu_;

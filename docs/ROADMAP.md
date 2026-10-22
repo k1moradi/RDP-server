@@ -1,3 +1,40 @@
+## R7 P0 GUI Round 2 owner completion (2026-10-22)
+
+Starting exact-main parent: `ee4e3bfe579b9e1505ac0afdec02ea1e04d13d51`.
+
+Dependency recheck: R9's Main/Advanced tab model, R10's route-aware
+recommendation source, and the Qt internal-stack corrections on Linux/Windows
+are **RESOLVED**. Concurrent R1 route-aware bind qualification, R5 focused
+prerequisite qualification/receipt and Windows hidden-GUI verifier work are
+preserved. The remaining gaps are R7 presentation-owned: Advanced is still
+ungrouped and non-scrollable; Main still carries permission/status/client
+diagnostics; the Main title exposes detailed lifecycle stages; and
+`displayedAddress()` still follows the manual combo instead of R10's
+automatic recommendation.
+
+This increment completes those gaps. Advanced becomes a scrollable Network /
+Security / Desktop / Diagnostics surface; Main is reduced to owner-facing
+controls; the headline is Stopped/Sharing; and manual Advanced selection no
+longer rewrites the automatic Main address. Ambiguous R10 status shows
+“Multiple private networks found. Choose a network in Advanced.” with Copy
+disabled. R2 permission facts and R5 Linux prerequisites remain intact. No
+Session Password widgets are added.
+
+QColorSpace review remains **PASS / application ownership absent**. No global
+warning suppression or fake profile is introduced.
+
+New dedicated ordinary CTest:
+`gui.offscreen-round2-advanced-groups-scrollable`. The hosted Round 2 selector
+requires six tests including that regression.
+
+Connector source/test review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Live hosting/native/clipboard/Microsoft-client actions: **NOT RUN**.
+
+**Next gate:** exact-publication-SHA `r9-gui-round2-acceptance` PASS. Session
+Password remains separately blocked on real unmodified Microsoft-client
+acceptance and the capability flip.
+
 ## R5 P1 Linux Advanced prerequisite hosted qualification — 2026-10-22
 
 Qualified source SHA: `6d2a289380de1ffd7364eb05f9e3dd6847064415`. Actions run `39820700342`,

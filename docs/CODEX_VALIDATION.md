@@ -1,3 +1,27 @@
+## R7 P0 GUI Round 2 owner completion receipt — 2026-10-22
+
+Starting exact-main parent: `ee4e3bfe579b9e1505ac0afdec02ea1e04d13d51`.
+
+Dependency review: **PASS / RESOLVED** for R9 tabs, R10 recommendation source,
+Qt internal-stack corrections, R1 route-aware bind qualification, R5
+prerequisite qualification/receipt and the Windows hidden-GUI verifier.
+Remaining work was R7 presentation-owned.
+
+Source review: **PASS** for minimal Main, grouped/scrollable Advanced, binary
+Stopped/Sharing title, R10-only automatic address presentation and continued
+absence of Session Password fields.
+
+Test review: **PASS** for strengthened tab/endpoint fixtures and new
+`gui.offscreen-round2-advanced-groups-scrollable`. The hosted Round 2
+selector requires six tests. Existing tray/toggle, R1, R5 and Windows verifier
+coverage remains registered.
+
+QColorSpace classification: **PASS / application ownership absent**.
+
+Canonical owner-local build/full CTest: **NOT RUN**. Exact-publication-SHA
+hosted Round 2 qualification: **PENDING**. No live client/native operation was
+performed.
+
 ## R5 P1 Linux Advanced prerequisite hosted qualification — 2026-10-22
 
 Qualified source SHA: `6d2a289380de1ffd7364eb05f9e3dd6847064415`. Actions run `39820700342`,

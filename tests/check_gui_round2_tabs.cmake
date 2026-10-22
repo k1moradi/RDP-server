@@ -17,7 +17,13 @@ foreach(required_token IN ITEMS
         "mainTab_->setObjectName(\"mainTab\")"
         "advancedTab_->setObjectName(\"advancedTab\")"
         "tabs_->addTab(mainTab_, QStringLiteral(\"Main\"))"
-        "tabs_->addTab(advancedTab_, QStringLiteral(\"Advanced\"))")
+        "tabs_->addTab(advancedTab_, QStringLiteral(\"Advanced\"))"
+        "QScrollArea"
+        "advancedScrollArea"
+        "networkGroup"
+        "securityGroup"
+        "desktopGroup"
+        "diagnosticsGroup")
     string(FIND "${combined_source}" "${required_token}" token_position)
     if(token_position EQUAL -1)
         message(FATAL_ERROR
@@ -32,6 +38,7 @@ foreach(forbidden_token IN ITEMS
         "setAdvancedVisible"
         "Advanced ▸"
         "Advanced ▾"
+        "QWizard"
         "QStackedWidget")
     string(FIND "${combined_source}" "${forbidden_token}" token_position)
     if(NOT token_position EQUAL -1)

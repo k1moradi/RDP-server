@@ -14,11 +14,15 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QFont>
+#include <QGroupBox>
 #include <QLabel>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QTabWidget>
+#include <QWizard>
 
 #include <algorithm>
 #include <cassert>
@@ -300,6 +304,7 @@ void checkRound2TabsAndMainSimplicity(
             {"192.168.1.42"}, false, true}};
 
     DesktopWindow window(host);
+    assert(window.findChild<QWizard*>() == nullptr);
     assert(window.findChild<QObject*>("backPage") == nullptr);
     assert(window.findChild<QObject*>("nextPage") == nullptr);
     assert(window.findChild<QObject*>("password") == nullptr);
@@ -339,54 +344,117 @@ void checkRound2TabsAndMainSimplicity(
     auto* address = requiredLabel(window, "connectionAddress");
     auto* copy = requiredButton(window, "copyLanAddress");
     auto* credential = requiredLabel(window, "credentialStatus");
-    auto* permission = requiredLabel(window, "permissionStatus");
     auto* toggle = sharingToggle(window);
     auto* input = window.findChild<QCheckBox*>("allowRemoteInput");
+    auto* permissionRequest = requiredButton(window, "requestHostPermission");
     auto* clients = requiredCombo(window, "activeClientSelection");
-    auto* clientSummary = requiredLabel(window, "clientStatus");
+    auto* disconnect = requiredButton(window, "disconnectClient");
     assert(input);
+
     assert(mainTab->isAncestorOf(title));
     assert(mainTab->isAncestorOf(address));
     assert(mainTab->isAncestorOf(copy));
     assert(mainTab->isAncestorOf(credential));
-    assert(mainTab->isAncestorOf(permission));
     assert(mainTab->isAncestorOf(toggle));
     assert(mainTab->isAncestorOf(input));
+    assert(mainTab->isAncestorOf(permissionRequest));
     assert(mainTab->isAncestorOf(clients));
-    assert(mainTab->isAncestorOf(clientSummary));
+    assert(mainTab->isAncestorOf(disconnect));
 
     auto* interfaceOverride = requiredCombo(window, "lanInterface");
     auto* port = window.findChild<QSpinBox*>("sharingPort");
     auto* lifetime =
         window.findChild<QSpinBox*>("ownerPermissionLifetimeMinutes");
+    auto* permission = requiredLabel(window, "permissionStatus");
     auto* authMode = requiredLabel(window, "authenticationModeStatus");
     auto* tls = requiredLabel(window, "tlsIdentityStatus");
     auto* selected = requiredLabel(window, "selectedLanInterfaceStatus");
     auto* lifecycle = requiredLabel(window, "hostLifecycleStatus");
+    auto* productStatus = requiredLabel(window, "sharingReadinessStatus");
+    auto* runtimeReadiness = requiredLabel(window, "runtimeReadinessStatus");
+    auto* clientSummary = requiredLabel(window, "clientStatus");
     auto* error = requiredLabel(window, "hostErrorExplanation");
-    assert(port && lifetime);
-    assert(advancedTab->isAncestorOf(interfaceOverride));
-    assert(advancedTab->isAncestorOf(port));
-    assert(advancedTab->isAncestorOf(lifetime));
-    assert(advancedTab->isAncestorOf(authMode));
-    assert(advancedTab->isAncestorOf(tls));
-    assert(advancedTab->isAncestorOf(selected));
-    assert(advancedTab->isAncestorOf(lifecycle));
-    assert(advancedTab->isAncestorOf(error));
-    assert(!mainTab->isAncestorOf(interfaceOverride));
-    assert(!mainTab->isAncestorOf(port));
-    assert(!mainTab->isAncestorOf(lifetime));
-    assert(!mainTab->isAncestorOf(authMode));
-    assert(!mainTab->isAncestorOf(tls));
-    assert(!mainTab->isAncestorOf(selected));
-    assert(!mainTab->isAncestorOf(lifecycle));
-    assert(!mainTab->isAncestorOf(error));
+    auto* scroll = window.findChild<QScrollArea*>("advancedScrollArea");
+    assert(port && lifetime && scroll);
+
+    for (QWidget* advancedOnly :
+         {static_cast<QWidget*>(interfaceOverride),
+          static_cast<QWidget*>(port),
+          static_cast<QWidget*>(lifetime),
+          static_cast<QWidget*>(permission),
+          static_cast<QWidget*>(authMode),
+          static_cast<QWidget*>(tls),
+          static_cast<QWidget*>(selected),
+          static_cast<QWidget*>(lifecycle),
+          static_cast<QWidget*>(productStatus),
+          static_cast<QWidget*>(runtimeReadiness),
+          static_cast<QWidget*>(clientSummary),
+          static_cast<QWidget*>(error)})
+    {
+        assert(advancedTab->isAncestorOf(advancedOnly));
+        assert(!mainTab->isAncestorOf(advancedOnly));
+    }
+
+    assert(scroll->widgetResizable());
+    assert(scroll->widget());
+    assert(advancedTab->isAncestorOf(scroll->widget()));
+    for (const char* groupName :
+         {"networkGroup", "securityGroup", "desktopGroup", "diagnosticsGroup"})
+    {
+        auto* group = window.findChild<QGroupBox*>(groupName);
+        assert(group && advancedTab->isAncestorOf(group));
+    }
+
+#if defined(__linux__)
+    auto* linuxStatus = requiredLabel(window, "linuxPrerequisiteStatus");
+    auto* linuxRefresh =
+        requiredButton(window, "refreshLinuxPrerequisites");
+    assert(advancedTab->isAncestorOf(linuxStatus));
+    assert(advancedTab->isAncestorOf(linuxRefresh));
+#endif
 
     assert(title->text() == QStringLiteral("RDP Server — Stopped"));
     assert(address->text() == QStringLiteral("192.168.1.42:3389"));
     assert(credential->text().contains("Existing OS Account"));
     assert(!toggle->isChecked() && !toggle->isEnabled());
     assertNoRoadLabelsInUserText(window);
+    assertNoRoadLabelsInUserText(window);
+}
+
+void checkRound2AdvancedGroupsScrollable(
+    FakeRuntimeHost& runtime,
+    HostControl& host,
+    QApplication& application)
+{
+    runtime.snapshot.lastError = RuntimeHostError::None;
+    runtime.interfaces = {
+        RuntimeHostInterface{
+            "ethernet-1", "Private Ethernet",
+            {"192.168.1.42"}, false, true}};
+
+    DesktopWindow window(host);
+    window.resize(560, 520);
+    window.show();
+    application.processEvents();
+
+    auto* tabs = window.findChild<QTabWidget*>("settingsTabs");
+    auto* scroll = window.findChild<QScrollArea*>("advancedScrollArea");
+    assert(tabs && scroll && tabs->count() == 2);
+    tabs->setCurrentIndex(1);
+    application.processEvents();
+    assert(scroll->isVisible());
+    assert(scroll->widgetResizable());
+    assert(scroll->widget());
+
+    scroll->widget()->setMinimumHeight(scroll->viewport()->height() + 240);
+    application.processEvents();
+    auto* vertical = scroll->verticalScrollBar();
+    assert(vertical && vertical->maximum() > 0);
+    vertical->setValue(vertical->maximum());
+    assert(vertical->value() == vertical->maximum());
+    scroll->ensureWidgetVisible(
+        requiredLabel(window, "hostErrorExplanation"));
+    application.processEvents();
 }
 
 void checkRound2RecommendationRefreshFailClosed()
@@ -409,22 +477,42 @@ void checkRound2RecommendationRefreshFailClosed()
     DesktopWindow window(host);
     auto* address = requiredLabel(window, "connectionAddress");
     auto* copy = requiredButton(window, "copyLanAddress");
+    auto* trayCopy = requiredAction(window, "trayCopyAddress");
     auto* interfaceOverride = requiredCombo(window, "lanInterface");
     assert(address->text() == QStringLiteral("192.168.1.5:3389"));
-    assert(copy->isEnabled());
+    assert(copy->isEnabled() && trayCopy->isEnabled());
     assert(interfaceOverride->currentData().toString() ==
            QStringLiteral("192.168.1.5"));
+
+    interfaceOverride->setCurrentIndex(2);
+    assert(interfaceOverride->currentData().toString() ==
+           QStringLiteral("10.180.105.86"));
+    assert(address->text() == QStringLiteral("192.168.1.5:3389"));
 
     runtime.snapshot.product.recommendedEndpoint = {};
     runtime.snapshot.product.recommendedEndpoint.ambiguous = true;
     runtime.snapshot.product.recommendedEndpoint.source =
         RuntimeHostRecommendationSource::Ambiguous;
     window.refresh();
-    assert(address->text().contains(
-        QStringLiteral("Multiple private LAN interfaces")));
-    assert(!copy->isEnabled());
-    assert(interfaceOverride->currentIndex() == 0);
+    assert(host.status().recommendationSource ==
+           RuntimeHostRecommendationSource::Ambiguous);
+    assert(address->text() ==
+           QStringLiteral(
+               "Multiple private networks found. Choose a network in Advanced."));
+    assert(!copy->isEnabled() && !trayCopy->isEnabled());
+    assert(interfaceOverride->currentData().toString() ==
+           QStringLiteral("10.180.105.86"));
+
+    runtime.snapshot.product.recommendedEndpoint = {};
+    window.refresh();
+    assert(host.status().recommendationSource ==
+           RuntimeHostRecommendationSource::Unavailable);
+    assert(address->text() ==
+           QStringLiteral(
+               "Automatic network selection unavailable. Choose a network in Advanced."));
+    assert(!copy->isEnabled() && !trayCopy->isEnabled());
 }
+
 void checkDashboardPresentationPolish()
 {
     FakeRuntimeHost runtime;
@@ -526,6 +614,12 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "round2-advanced-scroll")
+    {
+        checkRound2AdvancedGroupsScrollable(runtime, host, application);
+        return 0;
+    }
+
     if (mode == "dashboard-polish")
     {
         checkDashboardPresentationPolish();
@@ -552,13 +646,13 @@ int main(int argc, char** argv)
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         window.refresh();
         assert(toggle->isChecked());
-        assert(title->text().contains("Listening"));
+        assert(title->text().contains("Sharing"));
 
         runtime.refuseRetirement = true;
         toggle->click();
         assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
         assert(toggle->isChecked());
-        assert(title->text().contains("Stopping"));
+        assert(title->text().contains("Sharing"));
 
         runtime.refuseRetirement = false;
         // The refusal case above deliberately switched this fake to an
@@ -1033,7 +1127,7 @@ int main(int argc, char** argv)
         product.activeClientIds = {77U};
         window.refresh();
         assert(toggle->isChecked());
-        assert(title->text().contains("Connected"));
+        assert(title->text().contains("Sharing"));
         assert(address->text() ==
                QStringLiteral("192.168.50.20:3389"));
         assert(host.status().clientCount == 1U);
@@ -1043,13 +1137,13 @@ int main(int argc, char** argv)
         product.state = RuntimeProductHostState::Stopping;
         window.refresh();
         assert(toggle->isChecked());
-        assert(title->text().contains("Stopping"));
+        assert(title->text().contains("Sharing"));
 
         product.state = RuntimeProductHostState::Error;
         product.lastErrorMessage = "Host operation failed";
         window.refresh();
         assert(!toggle->isChecked());
-        assert(title->text().contains("Error"));
+        assert(title->text().contains("Stopped"));
         assert(requiredLabel(window, "sharingReadinessStatus")
                    ->text().contains("Host operation failed"));
         return 0;
@@ -1079,7 +1173,7 @@ int main(int argc, char** argv)
 
         interfaces->setCurrentIndex(2);
         assert(address->text() ==
-               QStringLiteral("[fe80::1234]:3389"));
+               QStringLiteral("192.168.2.21:3389"));
         toggle->click();
         assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
         assert(runtime.lastOptions.interfaceId == "ethernet-1");

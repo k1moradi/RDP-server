@@ -286,8 +286,10 @@ Round 2 presents the same single HostControl surface through one standard
 Advanced disclosure/panel do not exist. R10 therefore publishes one `RuntimeProductHostStatus` that owns the
 product lifecycle vocabulary: `Stopped`, `Starting`, `Listening`,
 `Authenticating`, `DesktopInitializing`, `Connected`, `Stopping`, and
-`Error`. R7 may render those values but must not reconstruct lifecycle from
-listener, Share, Graphics, native-desktop or command-intent flags.
+`Error`. Main compresses those facts to `RDP Server — Stopped` /
+`RDP Server — Sharing`; Advanced Diagnostics may show detailed lifecycle.
+R7 must not reconstruct lifecycle from listener, Share, Graphics,
+native-desktop or command-intent flags.
 
 The same snapshot owns the automatic private-LAN recommendation, the eligible
 Advanced override list, actual bound endpoint, active-client count/opaque IDs,
@@ -317,16 +319,13 @@ make it On, and a Stop click cannot make it Off. Short-lived
 Starting/Stopping presentation and never satisfy `canStart()`, authorize a
 listener, admit a client or bypass fresh owner checks.
 
-The default endpoint is selected only from R10's
-`RuntimeProductHostStatus::recommendedEndpoint`; the approved-interface list
-supplies only Advanced manual overrides. Automatic selection follows each fresh
-R10 recommendation. A manual Advanced override remains sticky only while the
-exact stable interface ID + address pair survives refresh. If the automatic
-recommendation disappears or becomes ambiguous, the GUI clears its previous
-automatic selection rather than retaining stale endpoint text. The displayed
-pre-Start endpoint is descriptive `address:port`; once the runtime reports a
-bound endpoint, that value takes precedence. Copying either value grants no
-bind or trust authority.
+Main displays an automatic endpoint only from R10's
+`RuntimeProductHostStatus::recommendedEndpoint` when its source is
+`PreferredRoute` or `SoleEligibleInterface`; the approved-interface list is
+Advanced manual input only. A bound endpoint wins while hosting. Manual
+Advanced selection never rewrites Main. `Ambiguous` shows the choose-network
+message and disables Copy; `Unavailable` shows no arbitrary fallback.
+Copying a bound/recommended value grants no bind or trust authority.
 
 Window visibility is not host lifetime. Close while the raw runtime stage may
 still host calls `hide()` and ignores the close event. Tray/menu-bar Open
@@ -334,6 +333,12 @@ restores presentation. Explicit tray Quit invokes the same Stop/Revoke command
 path first and exits only after a later status observation no longer reports a
 hosting stage. This preserves R8/R5/R3/R2/R1 ownership across hide/restore and
 uses the existing terminal retirement ordering for Quit.
+
+Advanced is grouped as Network, Security, Desktop and Diagnostics inside a
+widget-resizable scroll area usable at approximately 560x520. Permission
+status/lifetime and TLS are Security details; Linux prerequisites are Desktop;
+client activity, detailed lifecycle, protocol/native readiness and redacted
+errors are Diagnostics.
 
 Session-password widgets remain structurally absent until the standalone
 Microsoft-client gate passes. Clipboard is likewise absent from the product

@@ -80,38 +80,42 @@ must perform no external network request. Production may read
 `/proc/net/route` and `/proc/net/ipv6_route` as kernel state and must not
 name-filter VPN, Docker or bridge interfaces.
 
-## R9 GUI Round 2 acceptance contract (2026-10-22)
+## R7/R9 GUI Round 2 acceptance contract (2026-10-22)
 
 GUI Round 2 is qualified independently of CLEAN Windows. Keep
 `gui.round2-tab-source-contract`,
 `gui.offscreen-round2-tabs-and-main-simplicity`,
 `gui.offscreen-round2-endpoint-refresh-fail-closed`,
+`gui.offscreen-round2-advanced-groups-scrollable`,
 `gui.round2-qcolor-warning-classification`, and
 `runtime.host-control-gui-round2-endpoint-recommendation` in ordinary CTest.
-The source contract requires exactly one standard Qt tab container with
-`Main` and `Advanced` tabs and rejects the retired wizard,
-`Advanced ▸/▾` disclosure, `advancedPanel`, and
-`setAdvancedVisible` implementation. Main owns product state, connection
-address + Copy, Access/sharing-permission summary, Sharing toggle,
-keyboard/mouse permission and connected-device summary. Interface/port/lifetime
-controls plus authentication/TLS/interface/lifecycle/error diagnostics stay on
-Advanced.
 
-R10 endpoint fixtures use the production
-`RuntimeHostLanEndpointCandidate` recommendation API. A preferred/default
-route beats a VPN/virtual candidate, one eligible private interface selects
-automatically, multiple private interfaces without trustworthy preference are
-ambiguous, and removing the preferred route is re-evaluated rather than
-retaining a stale choice. The GUI separately proves a disappearing automatic
-recommendation clears the prior selection. Fixture addresses are representative
-data only and never define private-address policy.
+Exactly one standard Qt `QTabWidget` owns Main and Advanced. `QWizard`,
+Back/Next navigation, the retired disclosure/panel and Session Password fields
+remain absent. Qt's internal `QStackedWidget` child is allowed only inside the
+approved tab container.
 
-Color-warning classification is ownership-based. Application source currently
-contains no `QColorSpace` or custom Qt message handler. The source guard
-requires reclassification if that changes and rejects CI-wide Qt warning
-suppression. A QColor/color-profile diagnostic attributable to Qt/platform
-profile parsing while this ownership guard is green is nonblocking
-environmental output; other Qt warnings remain visible.
+Main contains only the binary Stopped/Sharing title, prominent authoritative
+address + Copy, Existing OS Account access, sharing toggle, keyboard/mouse
+scope, local permission-request action and connected-device selector/Disconnect.
+Interface/port, permission lifetime/status, authentication, TLS, Linux
+prerequisites, client activity, lifecycle/status, protocol/native readiness and
+redacted errors belong to Advanced.
+
+Advanced groups Network, Security, Desktop and Diagnostics in one
+widget-resizable `QScrollArea`; the dedicated offscreen regression forces
+overflow at about 560x520 and proves the final diagnostic remains reachable.
+
+R10's recommendation source is the sole automatic-endpoint presentation
+authority. Main shows only a bound endpoint or a
+`PreferredRoute`/`SoleEligibleInterface` recommendation. Manual Advanced
+selection affects the next Start request only. `Ambiguous` must show
+“Multiple private networks found. Choose a network in Advanced.” and disable
+Main/tray Copy; `Unavailable` must not fall back to the manual combo.
+
+Color-warning classification remains ownership-based: application source has
+no `QColorSpace` construction or global warning suppression. A Qt/platform
+profile warning is benign unless visible corruption is reproduced.
 
 ## R5 compact Linux prerequisite projection regression (2026-10-22)
 
@@ -181,8 +185,9 @@ clipboard permission bit into Main-page product status. Keep
 `allowClipboard` or clipboard-named dashboard descendant. Keep `security.owner-consent-read-only-product-facts` injecting the full
 allowed permission mask, including the dormant clipboard bit, below the product
 boundary. Keep `gui.offscreen-r2-owner-grant-observation` consuming only the
-R10 View/Input product projection and requiring Main to show screen and
-keyboard/mouse scope with no clipboard field.
+R10 View/Input product projection and requiring the read-only Advanced
+owner-permission summary to show screen and keyboard/mouse scope with no
+clipboard field.
 
 If pre-activation clipboard diagnostics are added later, they belong under the
 Advanced tab, are read-only, and must not mutate permission or activation
@@ -547,35 +552,19 @@ Enabled across hide and refused retirement and Retired only after successful
 explicit Quit. None of these offline assertions satisfy FIRST or authorize live
 clipboard activation.
 
-## R7 single-page dashboard, authoritative toggle and tray regressions (2026-10-21)
+## R7 tabbed dashboard, authoritative toggle and tray regressions (2026-10-22)
 
-Register the product UI regressions under every build with
-`RDP_SERVER_BUILD_DESKTOP_GUI=ON` and run them with
-`QT_QPA_PLATFORM=offscreen`; they must not open a listener or native desktop.
+- `gui.offscreen-round2-tabs-and-main-simplicity` pins exactly one
+  Main/Advanced tab flow, no wizard/disclosure/password fields, and the
+  Main/Advanced ownership split.
+- `gui.offscreen-round2-advanced-groups-scrollable` pins Network, Security,
+  Desktop and Diagnostics grouping plus scroll reachability at about 560x520.
+- `gui.offscreen-round2-endpoint-refresh-fail-closed` pins manual override
+  non-authority, explicit R10 ambiguity text and unavailable fallback denial.
+- Existing authoritative toggle and tray lifecycle tests remain required.
 
-- `gui.offscreen-round2-tabs-and-main-simplicity` requires no
-  `QStackedWidget`, Back/Next navigation, password/confirmation fields or
-  clipboard control; it requires automatic runtime-approved address
-  presentation, collapsed Advanced disclosure, Existing OS Account mode, and
-  no user-facing R1/R2/R10 road labels.
-- `gui.offscreen-authoritative-sharing-toggle` proves a successful Start
-  command cannot check the switch before runtime status advances, a confirmed
-  listener/hosting stage checks it, and an unretired Stop keeps it checked with
-  Stopping presentation until authoritative retirement.
-- `gui.offscreen-tray-close-hide-and-explicit-quit` requires Open, Copy
-  Address, Start/Stop, client summary and Quit actions; window close during
-  hosting must hide with zero Stop/Revoke calls, while Quit must issue both and
-  remain nonterminal if the fake runtime refuses retirement.
-
-Keep `gui.offscreen-hide-preserves-active-sharing` as the independent R8
-lifetime assertion. The older close-before-Stop behavior is retired because it
-conflicts with the product requirement that active sharing survives ordinary
-window close. CI exact-one pins must follow the new tray-lifecycle behavior
-name rather than preserving a stale semantic test name.
-
-These tests are presentation/lifecycle evidence only. They do not prove
-physical owner consent, Microsoft-client password interoperability, clipboard
-activation, native Windows/macOS hosting or Linux FIRST acceptance.
+These are presentation/lifecycle tests only; they do not prove Microsoft-client
+password interoperability, native hosting, clipboard activation or Linux FIRST.
 
 ## R2 standalone-password Microsoft-client acceptance run sheet (2026-10-21)
 

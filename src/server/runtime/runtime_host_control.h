@@ -171,12 +171,12 @@ recommendRuntimePrivateLanEndpoint(
 {
     RuntimeHostRecommendedEndpoint recommended;
     bool recommendedIsIpv6 = true;
-    for (const RuntimeHostInterface& runtimeInterface : interfaces)
+    for (const RuntimeHostInterface& candidateInterface : interfaces)
     {
-        for (const std::string& address : runtimeInterface.localAddresses)
+        for (const std::string& address : candidateInterface.localAddresses)
         {
             const RuntimeHostOptions candidate{
-                runtimeInterface.stableId, address, port, true, false};
+                candidateInterface.stableId, address, port, true, false};
             if (!assessRuntimeSelectedLanEndpoint(
                     candidate, interfaces).succeeded())
                 continue;
@@ -188,13 +188,13 @@ recommendRuntimePrivateLanEndpoint(
             const bool sameFamilyBetterIdentity =
                 recommended.valid() &&
                 candidateIsIpv6 == recommendedIsIpv6 &&
-                (runtimeInterface.stableId < recommended.interfaceId ||
-                 (runtimeInterface.stableId == recommended.interfaceId &&
+                (candidateInterface.stableId < recommended.interfaceId ||
+                 (candidateInterface.stableId == recommended.interfaceId &&
                   address < recommended.address));
             if (!recommended.valid() || betterFamily ||
                 sameFamilyBetterIdentity)
             {
-                recommended.interfaceId = runtimeInterface.stableId;
+                recommended.interfaceId = candidateInterface.stableId;
                 recommended.address = address;
                 recommended.port = port;
                 recommendedIsIpv6 = candidateIsIpv6;

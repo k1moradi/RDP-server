@@ -1,3 +1,12 @@
+## Windows legacy `interface` macro compatibility (2026-10-22)
+
+Keep `runtime.host-control-windows-interface-macro-compatibility` in ordinary
+CTest. The fixture must define the Win32/RPC legacy token macro `interface`
+before including `runtime_host_control.h`, compile under the normal strict
+warning policy, and exercise the empty LAN recommendation path. This prevents
+R10 public/runtime headers from depending on a favorable Windows include order.
+The case is offline and must not open sockets or native desktop resources.
+
 ## Windows RPC macro compatibility for shared HostControl
 
 Keep `runtime.host-control-windows-rpc-interface-macro-compatibility` in the

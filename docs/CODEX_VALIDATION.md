@@ -1,3 +1,23 @@
+## R10 Win32 RPC macro compile correction — 2026-10-22
+
+Source parent: `7a94c9e28b2ef6de9d8ecf31b1a570ec2174750b`.
+Failure source: R6 exact head
+`b9f7246b4196d88f97c9a12a7f0f725f3fa150d0`, hosted run
+`39740725805`.
+
+The Windows MSVC protocol lane and CLANG64 R6 lane both failed while compiling
+the production R10 entry point because Windows RPC headers define
+`interface` as a macro and `runtime_host_control.h` used the same token as
+a local variable. The correction renames only that local identifier.
+
+New regression
+`runtime.host-control-windows-interface-macro-compatibility` predefines the
+legacy macro before including the production header. It performs no listener,
+authentication, native-evidence, capture or input operation.
+
+Canonical local build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R1 HostControl Windows RPC macro compile correction — 2026-10-22
 
 Publication parent: `422dec900d999d2d63af8ea1f5bdef2e29093701`. Exact-head Windows Actions run

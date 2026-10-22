@@ -1,3 +1,35 @@
+## R6 authorized Windows aggregate after R10 composition (2026-10-21)
+
+Starting exact-main parent: `d1858ca06dbf8a794d38deb756d1919c353ca2a1`.
+
+R10's `RuntimePlatformNativeDesktop` composition is now on `main`, clearing
+the R6 scheduler/lifetime dependency from Track E. R6 now exercises one
+positively authorized aggregate lifetime with the real
+`WindowsNativeDesktopAuthorization` state machine and injected WTS, DXGI,
+staging, cursor and input callbacks. Construction pins one canonical
+single-display layout, exact WTS session, R2 authorization generation and DXGI
+device epoch; capture, cursor and input operations execute synchronously inside
+the exact R2 View/Input visitor. Authority loss closes the WTS guard, discards
+held input without a native cleanup post, then retires the DXGI graph.
+
+Production activation remains deliberately fail-closed:
+`kWindowsNativeDesktopPositiveActivationApproved == false`. The tree still has
+no concrete production `WindowsAuthenticatedIdentityProof` backed by the
+accepted Windows CredSSP/SSPI identity, and production `open()` does not
+manufacture a native target from SID/WTS/layout facts. R10 therefore continues
+to receive `GraphicsUnavailable` rather than bypassing the R6 gate.
+
+New ordinary Windows CTest
+`windows.native-owner-r2-authorized-offline-lifecycle` uses synthetic native
+I/O only; it performs no live WTS/LSA read, DXGI duplication, cursor sampling or
+SendInput. Canonical owner-local Windows build/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. Track D
+CLEAN remains separately **NOT RUN** pending a real non-admin receipt.
+
+**Next gate:** R2 must land and qualify the concrete production Windows
+authenticated-identity provider; then R6 can wire production native-target
+construction without changing R10's one-owner scheduler.
+
 ## R5 macOS Accessibility + Input Monitoring readiness closure (2026-10-21)
 
 Current parent: `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`.

@@ -1,3 +1,20 @@
+## R6 authorized Windows aggregate after R10 seam (2026-10-21)
+
+Starting exact-main parent: `d1858ca06dbf8a794d38deb756d1919c353ca2a1`.
+
+Source implementation adds a positive permission-free Windows aggregate
+lifecycle behind a test-only injected-native configuration while retaining
+`kWindowsNativeDesktopPositiveActivationApproved == false` for production.
+The new behavior CTest is
+`windows.native-owner-r2-authorized-offline-lifecycle`.
+
+Connector/source review: **PASS** for R2 visitor confinement, one-owner
+WTS/DXGI/input lifetime, single-display geometry fencing, generation pinning
+and no-post authority-loss teardown. Canonical owner-local Windows
+configure/build/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
+**PENDING**. Live WTS/DXGI/cursor/SendInput, listener activation and CLEAN
+execution: **NOT RUN**.
+
 ## R5 macOS native input permission readiness receipt (2026-10-21)
 
 Starting shared-main parent: `02f039fdfd2d9298f4b2fb0f8d8cc1d087d7c64b`.

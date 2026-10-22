@@ -2080,6 +2080,13 @@ if(TARGET rdp-server-windows-desktop)
         windows.native-owner-r2-grant-and-lifetime-denials PROPERTIES
         LABELS "windows;native-owner;security;offline" TIMEOUT 20)
 
+    add_test(NAME windows.native-owner-r2-authorized-offline-lifecycle
+        COMMAND test_windows_desktop_geometry
+            native-owner-r2-authorized-offline-lifecycle)
+    set_tests_properties(
+        windows.native-owner-r2-authorized-offline-lifecycle PROPERTIES
+        LABELS "windows;native-owner;security;offline" TIMEOUT 20)
+
     # R6 read-only cursor metadata snapshot. Synthetic callbacks only; the
     # production Win32 observer is compiled but no CTest reads the live cursor.
     foreach(case_name IN ITEMS

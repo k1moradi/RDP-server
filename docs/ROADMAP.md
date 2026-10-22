@@ -1,3 +1,30 @@
+## R9 standalone native-authorization documentation reconciliation (2026-10-22)
+
+Starting exact-main parent: `89fcec21e2ab471b3582d7534792fd2dbfe0bc0b`.
+
+Dependency recheck: **R2/R10 RESOLVED** for the generalized standalone
+authenticated-session authorization and single platform-native attachment path.
+R5 has also landed standalone macOS owner coverage with no UID matcher. R9 can
+therefore retire stale current-facing platform documentation that described
+local Windows SID / macOS UID equality as a universal standalone-hosting
+requirement.
+
+`docs/WINDOWS_GUI.md` now distinguishes `ExistingOsAccount` SID equality from
+`StandalonePassword` application-session authentication and treats WTS
+identity as local desktop target evidence in standalone mode.
+`docs/MACOS_TEST_BUNDLE.md` makes the same distinction for macOS UID evidence.
+No authentication rule is weakened: both modes still require the exact R2 proof
+generation, fresh platform native-session evidence, requested View/Input scope
+and the exact `CurrentOwnerSharingAuthority` grant/revocation epoch.
+
+Connector source/document review: **PASS**. Canonical owner-local build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. This documentation-only reconciliation does not enable
+Session Password or native Start. The remaining positive-production blocker is
+a trusted Windows/macOS current-local-owner consent evidence source; the Windows
+R6 positive-activation literal remains false. Real Microsoft-client/native
+acceptance, CLEAN Windows, and frozen Linux FIRST remain independent gates.
+
 ## R5 standalone-authenticated macOS owner after R2/R10 handoff (2026-10-22)
 
 Starting exact-main parent: `8295828812fce0ebaf6921937a853ef3f367181a`.

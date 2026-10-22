@@ -113,7 +113,11 @@ Screen Recording/Accessibility prompts.
 
 Screen Recording and Accessibility are separate **operation-specific**
 prerequisite observations, neither authentication nor R2 admission. Only R2 may
-mint the genuinely authenticated macOS UID/session lease; R10 must serialize
-the AppKit watch, retire capture on authority loss and call
-`retireWithoutNativeInput()` before any Quartz teardown. Existing
-synchronous CoreVideo borrowed pixel lifetime remains unchanged.
+mint the authenticated-session proof. `ExistingOsAccount` must still match its
+authenticated UID to the current console UID, but `StandalonePassword` binds
+the exact authenticated application session and does not fabricate or require a
+remote macOS UID. The console/audit/SecuritySession UID data remains fresh local
+desktop target evidence in either case. R10 must serialize the AppKit watch,
+retire capture on authority loss and call `retireWithoutNativeInput()` before
+any Quartz teardown. Existing synchronous CoreVideo borrowed pixel lifetime
+remains unchanged.

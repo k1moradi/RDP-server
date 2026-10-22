@@ -1,3 +1,29 @@
+## R9 standalone native-authorization documentation reconciliation — 2026-10-22
+
+Starting exact-main parent: `89fcec21e2ab471b3582d7534792fd2dbfe0bc0b`.
+
+Current source already implements R2's authentication-kind-aware
+`NativeDesktopAuthenticatedSessionProof` and R10's
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession()`. R5's current
+macOS regression constructs standalone native authority with no UID matcher.
+The remaining stale platform prose was therefore documentation debt, not a code
+dependency.
+
+Updated `docs/WINDOWS_GUI.md` so `ExistingOsAccount` retains exact SSPI
+SID/WTS identity matching while `StandalonePassword` authenticates the exact
+owner-bound CredSSP application session without inventing a remote SID. Updated
+`docs/MACOS_TEST_BUNDLE.md` analogously: OS-account mode retains UID equality;
+standalone mode uses the authenticated application-session proof and treats
+console/audit/SecuritySession identity only as local target evidence.
+
+Connector source/document inspection: **PASS**. Canonical local configure/build
+and full CTest: **NOT RUN** here because this connector environment has no owner
+checkout. Exact-publication-SHA hosted CI: **PENDING**. Session Password remains
+capability-gated false; positive Windows/macOS hosting still needs a trusted
+current-local-owner consent evidence source, and Windows keeps
+`kWindowsNativeDesktopPositiveActivationApproved == false`. CLEAN Windows and
+Linux FIRST are unchanged and are not claimed by this receipt.
+
 ## R5 standalone-authenticated macOS owner coverage — 2026-10-22
 
 Starting exact-main parent: `8295828812fce0ebaf6921937a853ef3f367181a`.

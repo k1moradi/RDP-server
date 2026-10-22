@@ -64,9 +64,12 @@ The clean non-admin Windows consumer for the `1b28...` run is still **QUEUED
 exists and no public `rdp-server-portable-gui-windows-x86_64` artifact has
 been published. Windows portable release therefore remains **BLOCKED**. R6
 read-only firewall/TermService/RDP-policy/requested-port checks are unchanged.
-Positive Windows RDP serving remains independently **BLOCKED** on R2
-SSPI/CredSSP authenticated revocable SID/WTS authority and a concrete R10
-Windows WTS/session owner.
+Positive Windows RDP serving remains independently **BLOCKED**, but not on a
+universal remote SID requirement. R2's generalized authenticated-session proof
+and R10's single platform-native attachment path are present. The remaining
+production gates are a trusted Windows current-local-owner consent evidence
+source for `CurrentOwnerSharingAuthority`, the still-false R6 positive-activation
+literal, and real accepted-client/native Microsoft-client acceptance.
 
 ## R6/R9 clean consumer verifier integrity correction (2026-10-19)
 
@@ -102,9 +105,13 @@ repair. The public Windows portable release remains **BLOCKED** until the
 self-hosted `r9-clean-windows-gui` job executes the exact newly produced ZIP
 with Windows-system-only child PATH and publishes its matching receipt. R6's
 read-only firewall/TermService/RDP-policy/requested-port observations are
-unchanged. Positive Windows RDP serving remains independently **BLOCKED** on
-R2 SSPI/CredSSP authenticated revocable SID/WTS authority and a concrete R10
-Windows WTS/session owner.
+unchanged. Positive Windows RDP serving remains independently **BLOCKED**, but
+not on a universal remote SID requirement. R2's generalized
+authenticated-session proof and R10's single platform-native attachment path
+are present. The remaining production gates are a trusted Windows
+current-local-owner consent evidence source for
+`CurrentOwnerSharingAuthority`, the still-false R6 positive-activation literal,
+and real accepted-client/native Microsoft-client acceptance.
 
 # R6 Windows GUI and native admission boundary
 
@@ -124,13 +131,17 @@ R9 owns staging a verified portable ZIP with all Qt platform plugins, Qt/CRT,
 OpenSSL and other non-system DLLs, a per-file integrity manifest and a
 double-clickable exe. No portable ZIP closure is claimed delivered here.
 
-R2 must privately mint a live, revocable, CredSSP/SSPI-authenticated user SID
-lease, independently matched to the **active physical interactive WTS
-console** identity including WTS session ID, full LUID and logon time.
-A process token observation, accepted TLS connection, and Win32 console
-evidence do not grant this lease. R10 must publish one authoritative host
-status and serialized Start/Stop control API, including exact lease/session
-generation. The GUI must remain disabled until that API positively reports
+R2 must privately mint one live, revocable authenticated-session proof.
+For `ExistingOsAccount`, the accepted SSPI account SID must still match the
+**active physical interactive WTS console** SID while WTS session ID, full LUID
+and logon time remain fresh target evidence. For `StandalonePassword`, the
+remote identity is instead the exact owner-bound CredSSP application session:
+its R1/TLS provenance, verified credential generation and proof generation must
+remain current, and no local SID is fabricated or required as the remote
+identity. The WTS SID/session evidence still identifies the locally approved
+desktop target. R10 must publish one authoritative host status and serialized
+Start/Stop control API, including exact authentication/authorization/session
+generations. The GUI must remain disabled until that API positively reports
 native host readiness; it cannot compose its own readiness from weaker facts.
 
 The R10 interactive session owner checks lease identity before each DXGI
@@ -156,14 +167,18 @@ hash-verification of every staged file and Qt plugin dependency; non-admin
 execution without extra PATH; no network/firewall/service/task side effects;
 unavailable-admission Start denial; malformed/traversal/reparse path refusal;
 and removal of extracted tree plus private settings without touching Windows
-RDP. Genuine native-serving acceptance remains BLOCKED until R2/R10 provide
-real interfaces. Windows App and mstsc.exe should first exercise the
+RDP. Genuine native-serving acceptance remains **BLOCKED** even though the
+R2 generalized authenticated-session authorization and R10 single-owner
+attachment interfaces now exist. Windows still needs a production
+current-local-owner consent evidence source, the R6 positive-activation gate to
+be reviewed only after that authority exists, and accepted-client/native
+Microsoft-client evidence. Windows App and mstsc.exe should first exercise the
 Linux-host server separately from this Windows-host milestone.
 
 
 ## R10/R9 contracts now consumed by Windows packaging
 
-R7 now supplies the shared Qt adapter to R10's typed RuntimeHostControl, and the Windows launcher instantiates that production contract through the deny-only runtime facade. R6 therefore does not add a second control owner. The remaining positive Start path still depends on a concrete R10 Windows backend and genuine R2 Windows admission.
+R7 now supplies the shared Qt adapter to R10's typed RuntimeHostControl, and the Windows launcher instantiates that production contract through the deny-only runtime facade. R6 therefore does not add a second control owner. R2's authentication-kind-aware native authorization and R10's `attachAuthenticatedSession()` composition are now present. The remaining positive Start path depends on a production Windows current-local-owner consent evidence source, the existing R6 activation gate, and real accepted-client/native interoperability; standalone mode must not be remapped to a local SID merely to satisfy the older OS-account contract.
 
 R6 now provides packaging/windows/gui_bundle.py. It first runs local windeployqt, then uses CMake file(GET_RUNTIME_DEPENDENCIES) over the staged GUI and plugin DLLs to resolve the recursive non-system PE closure from the staged tree, Qt/toolchain directories and PATH. Windows API-set names are pre-excluded and resolved Windows system paths are post-excluded; missing non-system dependencies fail closed. Resolved regular DLLs that windeployqt omitted are copied into the GUI root before hashing. The builder requires Qt6Core/Gui/Widgets and plugins/platforms/qwindows.dll, rejects reparse links, unsafe or case-colliding paths, installer/script helpers and unexpected extra executables, and emits R9's exact PORTABLE-GUI manifest/checksum contract plus an adjacent outer SHA-256 receipt. The portable CTests use Unicode and space-containing paths, validate the archive with R9's production verifier, prove injected toolchain DLL staging, and exercise extraction/removal without executing or installing anything. R9 remains the independent native PE-import authority and must classify genuine Windows system DLLs rather than require their redistribution; extracted-GUI offline launch and firewall-state evidence remain native CI responsibilities.
 
@@ -196,14 +211,18 @@ Windows firewall profile state, and the sanitizer R6 native selector **59/59**.
 This is package/runtime assurance only; it does not grant Start authority or
 prove a real Windows RDP host session.
 
-The remaining Windows host gate is outside R6 packaging. R2 must provide a
-genuine SSPI/CredSSP-authenticated SID and bind it privately to the exact active
-physical-console WTS identity including full LUID and logon time with revocable
-generations. R10 must then own WTS registration/events, native-session lifetime,
-Start/Stop status and revocation, and must reauthorize immediately before each
-DXGI borrow and SendInput call. The existing
-`windows_native_session_evidence.*` reader is observational only and cannot
-mint that authority.
+The remaining Windows host gate is outside R6 packaging. R2 now distinguishes
+`ExistingOsAccount` from `StandalonePassword`: OS-account mode still requires
+the authenticated SSPI SID to match the exact active physical-console WTS
+identity, while standalone mode authorizes the exact authenticated application
+session without inventing a remote SID. In both modes WTS SID/session ID, full
+LUID and logon time remain fresh native target evidence rather than independent
+authentication. R10 owns the single native-session lifetime and must reauthorize
+immediately before each DXGI borrow and SendInput call. Positive production
+Start still requires a trusted Windows current-local-owner consent evidence
+source for `CurrentOwnerSharingAuthority`, and
+`windows_native_session_evidence.*` remains observational: it cannot mint the
+owner grant by itself.
 
 ## R6/R9 clean-ZIP release gate (2026-10-19)
 

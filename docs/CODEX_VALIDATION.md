@@ -1,3 +1,17 @@
+## R2 focused-selector parser correction receipt — 2026-10-22
+
+Starting exact-main parent: `b1bd77f6cbb1ff1439b13cc7a830b01b71f6b704`.
+
+Actions run `39825396069` failed before job creation. The committed
+`round2_selector` shell assignment was missing the final `$'`, so the
+workflow could not execute. The repair restores that terminator only and keeps
+the seven required focused tests, including
+`gui.offscreen-sharing-permission-product-language`.
+
+Parser failure: **REPRODUCED / SOURCE-LOCATED**. Connector repair review:
+**PASS**. Canonical owner-local build/full CTest: **NOT RUN**.
+Replacement exact-SHA hosted CI: **PENDING**.
+
 ## R2/R9 Linux sharing-permission focused CI qualification — 2026-10-22
 
 Starting exact-main parent: `666aaf11d345e6ef5f81ad1f6c74c92777fdb046`.

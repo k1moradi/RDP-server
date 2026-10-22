@@ -2416,7 +2416,7 @@ jobs:
           ctest --test-dir build -C Release --timeout 30 \
             -R "$tls_selector" --output-on-failure
 
-          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]offscreen-round2-advanced-groups-scrollable|gui[.]offscreen-sharing-permission-product-language|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)
+          round2_selector='^(gui[.]offscreen-round2-tabs-and-main-simplicity|gui[.]offscreen-round2-endpoint-refresh-fail-closed|gui[.]offscreen-round2-advanced-groups-scrollable|gui[.]offscreen-sharing-permission-product-language|gui[.]round2-tab-source-contract|gui[.]round2-qcolor-warning-classification|runtime[.]host-control-gui-round2-endpoint-recommendation)$'
           round2_tests="$(ctest --test-dir build -C Release -N -R "$round2_selector")"
           printf '%s\n' "$round2_tests"
           for required_test in \

@@ -1,3 +1,23 @@
+## R2 focused-selector parser correction — 2026-10-22
+
+Starting exact-main parent: `b1bd77f6cbb1ff1439b13cc7a830b01b71f6b704`.
+
+Post-publication Actions immediately rejected workflow run `39825396069`
+before creating jobs. Source inspection found the focused Round 2 selector line
+had lost its terminating shell regex end-anchor/quote (`$'`), leaving the
+multiline `run` script syntactically invalid. No R2/R7/R10 production source,
+test semantics or authority behavior failed.
+
+This correction restores only the missing selector terminator while preserving
+the new seven-test Linux inventory, including
+`gui.offscreen-sharing-permission-product-language`. The repaired source is
+checked before publication for the literal terminator, required test name and
+exact count.
+
+Failed parent workflow: **FAIL before jobs**. Connector/source repair review:
+**PASS**. Canonical owner-local configure/build/full CTest: **NOT RUN**.
+Replacement exact-SHA hosted CI: **PENDING**.
+
 ## R2/R9 Linux sharing-permission focused qualification — 2026-10-22
 
 Starting exact-main parent: `666aaf11d345e6ef5f81ad1f6c74c92777fdb046`.

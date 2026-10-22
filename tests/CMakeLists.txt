@@ -19,6 +19,15 @@ add_test(NAME windows.gui-dashboard-toggle-linkage-source-contract
 set_tests_properties(windows.gui-dashboard-toggle-linkage-source-contract
     PROPERTIES LABELS "windows;gui;policy;offline")
 
+# R6/R9 Windows hidden offline verification must allow Qt's internal
+# QTabWidget stack while still rejecting a competing application-owned stack.
+add_test(NAME windows.gui-round2-tab-offline-verifier-source-contract
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_WINDOWS_GUI_SOURCE=${PROJECT_SOURCE_DIR}/src/windows/windows_gui_main.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_windows_gui_round2_tabs.cmake")
+set_tests_properties(windows.gui-round2-tab-offline-verifier-source-contract
+    PROPERTIES LABELS "windows;gui;r6;r9;round2;policy;offline")
+
 # R7's imported switch intentionally has no Q_OBJECT macro. Object-name lookup
 # in hidden launch checks and fixtures must therefore use a Qt meta-object base
 # class rather than making the presentation widget depend on AUTOMOC.

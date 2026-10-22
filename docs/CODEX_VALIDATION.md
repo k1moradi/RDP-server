@@ -1,3 +1,25 @@
+## R6 Windows Round 2 hidden-verifier correction — 2026-10-22
+
+Starting exact-main parent: `9ba279482610590660b4eee98f9afd1e7daf566f`.
+
+Exact parent run `39818499559` proves Windows compilation, R6 native preflight,
+the fixed 60-test focused inventory, and the independent Windows protocol lane
+all reach/pass their intended boundaries. The R6 CLANG64 job's only full-CTest
+failures were the four Windows GUI command modes; the packaged GUI also exited
+3 for `--offline-self-test`.
+
+Source inspection maps exit 3 directly to the launcher verifier's blanket
+`findChild<QStackedWidget*>()` rejection. Round 2 intentionally uses
+`QTabWidget`, whose implementation contains an internal stack. The verifier
+now accepts stacks only when they are descendants of the one
+`settingsTabs` container and still rejects missing/wrong tab structure or an
+independent stack. New ordinary source guard:
+`windows.gui-round2-tab-offline-verifier-source-contract`.
+
+Connector/source inspection: **PASS**. Canonical owner-local full command:
+**NOT RUN**. Replacement exact-SHA hosted CI: **PENDING**. Production network,
+native owner, input and CLEAN behavior: **UNCHANGED / NOT RUN**.
+
 ## R9 focused GUI workflow parse validation receipt — 2026-10-22
 
 Starting exact-main parent: `c9f3960f4a6ea7054dce51b0778f89942f1347a3`.

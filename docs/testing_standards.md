@@ -1,3 +1,20 @@
+## Windows Round 2 hidden offline verifier (2026-10-22)
+
+Keep `windows.gui-round2-tab-offline-verifier-source-contract` in ordinary
+CTest on every platform. The Windows launcher command-mode verifier must require
+the single approved `settingsTabs` container and may accept Qt's internal
+`QStackedWidget` only when that stack is a descendant of the tab widget. It
+must not reintroduce the retired blanket
+`findChild<QStackedWidget*>() == nullptr`/wizard assumption.
+
+The behavior remains covered on Windows by
+`windows.gui-offline-no-side-effects`,
+`windows.gui-start-denied-without-r2-r10`,
+`windows.gui-independent-password-input-unavailable`, and
+`windows.gui-offline-packaged-qwindows-selection`, plus the extracted
+portable-GUI smoke. These tests remain offline and must not create listener,
+native-desktop, credential, input, firewall, service or RDP-policy side effects.
+
 ## Focused R5 Linux prerequisite CI inventory (2026-10-22)
 
 The `r5-linux-gui-zip` hosted lane must enumerate and execute exactly these

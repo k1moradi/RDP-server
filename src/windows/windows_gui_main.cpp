@@ -8,6 +8,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QStackedWidget>
+#include <QTabWidget>
 
 #include <string_view>
 
@@ -28,9 +29,24 @@ namespace
         window.findChild<QAbstractButton*>("sharingToggle");
     auto* passwordField = window.findChild<QWidget*>("password");
     auto* confirmationField = window.findChild<QWidget*>("confirmation");
-    auto* wizard = window.findChild<QStackedWidget*>();
+    auto* tabs = window.findChild<QTabWidget*>("settingsTabs");
+    bool unexpectedStack = tabs == nullptr || tabs->count() != 2;
+    if (!unexpectedStack)
+    {
+        // QTabWidget owns an internal QStackedWidget. Reject only a stack
+        // outside the one approved Main/Advanced tab container so the hidden
+        // Windows verifier follows the same Round 2 structure contract.
+        for (QStackedWidget* stack : window.findChildren<QStackedWidget*>())
+        {
+            if (!tabs->isAncestorOf(stack))
+            {
+                unexpectedStack = true;
+                break;
+            }
+        }
+    }
     if (!sharingToggle || !sharingToggle->isCheckable() || passwordField ||
-        confirmationField || wizard || sharingToggle->isEnabled() ||
+        confirmationField || unexpectedStack || sharingToggle->isEnabled() ||
         sharingToggle->isChecked() ||
         window.blockedReason().isEmpty())
         return 3;

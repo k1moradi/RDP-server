@@ -1,3 +1,41 @@
+## R6 Windows Round 2 offline-verifier qualification correction (2026-10-22)
+
+Starting exact-main parent: `9ba279482610590660b4eee98f9afd1e7daf566f`.
+
+Dependency recheck confirms R10's Linux route collector, R1's recommendation/
+bind-authority fence, R9's fresh recommendation consumption, and the shared R6
+portable recommendation contract are all present. The remaining exact-SHA R6
+qualification failure was isolated to the Windows launcher's hidden GUI checks,
+not native desktop or recommendation code.
+
+Parent run `39818499559`, job `119963242805`, passed the Debug/Release R6
+native preflights and retained the 60 focused Windows native-test inventory.
+The separate `protocol (windows-latest)` job also passed Debug and Release.
+Full Windows CLANG64 CTest failed only the four launcher modes
+`windows.gui-offline-no-side-effects`,
+`windows.gui-start-denied-without-r2-r10`,
+`windows.gui-independent-password-input-unavailable`, and
+`windows.gui-offline-packaged-qwindows-selection`; packaged offline smoke
+then reported `--offline-self-test exit=3`.
+
+The common cause is the same Qt implementation detail already corrected in the
+shared Round 2 fixture: `windows_gui_main.cpp` treated any
+`QStackedWidget` as a retired wizard, but `QTabWidget` internally owns a
+stack. The hidden Windows verifier now requires exactly the approved
+`settingsTabs` container and rejects only stacks outside it. Dedicated
+ordinary source contract:
+`windows.gui-round2-tab-offline-verifier-source-contract`.
+
+This changes only hidden offline qualification logic. It does not open a
+socket, alter R10 ranking, weaken R1 bind revalidation, grant R2 authority,
+change `kWindowsNativeDesktopPositiveActivationApproved`, enable SendInput,
+or enter CLEAN Windows acceptance.
+
+Connector/source review: **PASS**. Parent Windows protocol qualification:
+**PASS**. Parent R6 Windows full CTest/portable smoke: **FAIL** at the launcher
+offline verifier above. Canonical owner-local configure/build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R9 focused GUI workflow parse correction — 2026-10-22
 
 Starting exact-main parent: `c9f3960f4a6ea7054dce51b0778f89942f1347a3`.

@@ -12,6 +12,8 @@ file(READ "${RDP_RUNTIME_ENTRYPOINT_SOURCE}" runtime_entrypoint)
 
 foreach(required_fragment IN ITEMS
         "target_link_libraries(rdp-server PRIVATE\n        rdp-server-runtime-platform-native-desktop)"
+        "rdp-server-windows-desktop\n            rdp-server-windows-native-session-evidence"
+        "rdp-server-macos-capture\n            rdp-server-macos-native-session-evidence"
         "target_compile_definitions(rdp-server PRIVATE\n        RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP=1)")
     string(FIND "${root_cmake}" "${required_fragment}" found)
     if(found EQUAL -1)

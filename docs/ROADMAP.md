@@ -1,3 +1,27 @@
+## R10 platform native-evidence link closure correction (2026-10-22)
+
+Starting exact-main parent: `153acb54da2497863f891305a526f1253da3f2d0`.
+
+Immediate post-publication dependency audit of the new
+`attachAuthenticatedSession()` path found one R10 build-closure defect:
+`RuntimePlatformNativeDesktop` now embeds the concrete production native-session
+reader, but its static target still linked only the native desktop aggregate and
+the authorization core. The reader implementation/vtable lives in the separate
+R2 platform evidence target.
+
+R10 now links
+`rdp-server-windows-native-session-evidence` on Windows and
+`rdp-server-macos-native-session-evidence` on macOS. The existing
+`runtime.platform-native-production-single-owner-linkage` source guard pins
+both dependencies so this closure cannot silently regress. No authentication,
+authorization, listener, native side effect or capability behavior changes.
+
+Connector source review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. The next
+positive-product blocker remains the missing Windows/macOS production
+current-local-owner evidence provider for `CurrentOwnerSharingAuthority`;
+Session Password remains disabled.
+
 ## R10 P0 consumes authentication-kind-aware native authorization (2026-10-22)
 
 Starting exact-main parent: `e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.

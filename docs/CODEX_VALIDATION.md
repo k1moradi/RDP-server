@@ -1,3 +1,17 @@
+## R10 platform evidence static-link correction — 2026-10-22
+
+Starting exact-main parent: `153acb54da2497863f891305a526f1253da3f2d0`.
+
+Post-publication linkage review found the new production
+`WindowsNativeSessionEvidenceReader` / `MacNativeSessionEvidenceReader`
+members require their platform implementation targets in the R10 static
+dependency closure. Added those exact links and strengthened
+`runtime.platform-native-production-single-owner-linkage` to require them.
+
+Connector source review: **PASS**. Local configure/build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Runtime authority and
+product capability semantics are unchanged.
+
 ## R10 authenticated-session platform authorization composition — 2026-10-22
 
 Starting exact-main parent: `e4d1006548e0ea5bf0a10282bef262a0c2b970b5`.

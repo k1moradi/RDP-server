@@ -1180,11 +1180,13 @@ if(WIN32 OR APPLE)
     if(WIN32)
         target_link_libraries(
             rdp-server-runtime-platform-native-desktop PRIVATE
-            rdp-server-windows-desktop)
+            rdp-server-windows-desktop
+            rdp-server-windows-native-session-evidence)
     elseif(APPLE)
         target_link_libraries(
             rdp-server-runtime-platform-native-desktop PRIVATE
-            rdp-server-macos-capture)
+            rdp-server-macos-capture
+            rdp-server-macos-native-session-evidence)
     endif()
     if(MSVC)
         target_compile_options(

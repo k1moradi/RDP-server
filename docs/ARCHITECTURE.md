@@ -1,3 +1,22 @@
+## R10 production process owns the shared platform-native seam (2026-10-22)
+
+On Windows and macOS the production `rdp-server` process now links
+`rdp-server-runtime-platform-native-desktop` and constructs exactly one
+`RuntimePlatformNativeDesktop` on the main/owner thread. This closes the
+previous gap where the R10 seam existed only as a noninstalled library/test
+composition.
+
+The process-owned object starts inactive and is not an authorization source.
+Ordinary startup/configuration paths never call `attach()`; therefore merely
+launching the binary cannot touch WTS/DXGI/SendInput, ScreenCaptureKit/Quartz,
+or create a listener. A future authenticated Windows/macOS serve path must
+reuse this same owner after R2 authority is bound and must retire R2/R3 routing
+before native retirement. R5/R6 remain the sole native resource owners.
+
+Windows positive construction remains R6-gated and macOS positive construction
+still depends on a concrete R2 `MacAuthenticatedIdentityProof`; this linkage
+does not weaken either gate or authorize FIRST.
+
 ## R10 owns one platform-native composition lifetime above R5/R6 (2026-10-21)
 
 Windows and macOS native owners enter the runtime through one R10

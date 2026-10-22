@@ -1194,6 +1194,14 @@ if(WIN32 OR APPLE)
             rdp-server-runtime-platform-native-desktop PRIVATE
             -Wall -Wextra -Wpedantic -Werror)
     endif()
+
+    # R10 owns one process-local platform-native lifetime in the production
+    # runtime binary. Construction alone is inert: R2 authorization is still
+    # required before attach(), and R5/R6 remain the sole native owners.
+    target_link_libraries(rdp-server PRIVATE
+        rdp-server-runtime-platform-native-desktop)
+    target_compile_definitions(rdp-server PRIVATE
+        RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP=1)
 endif()
 
 # Windows R6 launcher reuses R7's Qt DesktopWindow; no R2/R10 authority.

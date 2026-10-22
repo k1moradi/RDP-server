@@ -1,3 +1,36 @@
+## R10 production Windows/macOS platform lifetime linkage (2026-10-22)
+
+Starting exact-main parent: `ded4f348d6a108c9363feae4479d5993da0e5b40`.
+
+Dependency review cleared the prior Windows R2 blocker: R2 now provides
+`WindowsSspiAuthenticatedIdentityProof` from an already-accepted SSPI
+security context. R5 also identified one R10-owned production gap: the shared
+`RuntimePlatformNativeDesktop` seam existed and was tested, but the production
+`rdp-server` process did not link or instantiate it on Windows/macOS.
+
+R10 now links that same seam into the production runtime on Windows/macOS and
+constructs exactly one inactive owner on the process main thread. Construction
+does not call `attach()`, sample native evidence, open WTS/DXGI,
+ScreenCaptureKit, Quartz/SendInput, bind a listener, or mint R2 authority.
+Future Windows/macOS serve integration must reuse this owner rather than create
+a second platform scheduler or server implementation.
+
+Production activation remains fail-closed. Windows still waits for R6 to wire
+production native-target construction to a genuinely accepted SSPI/CredSSP
+identity and keeps `kWindowsNativeDesktopPositiveActivationApproved == false`.
+macOS still waits for R2's concrete production
+`MacAuthenticatedIdentityProof`. FIRST/live native execution remains
+owner-authorized and **NOT RUN**.
+
+New ordinary source-policy CTest:
+`runtime.platform-native-production-single-owner-linkage`. It requires the
+production link/compile definition, exactly one process owner declaration, and
+no startup-time native `attach()`.
+
+Canonical local configure/build/full CTest: **NOT RUN** because
+`~/rdp-server` is absent in this connector environment. Exact-publication-SHA
+hosted CI: **PENDING**.
+
 ## R2 Windows SSPI authenticated-identity proof (2026-10-22)
 
 Starting exact-main parent: `e938723cb83f1aca293178d803b0bd6f7d961726`.

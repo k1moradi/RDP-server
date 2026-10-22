@@ -1,3 +1,16 @@
+## Production Windows/macOS R10 native-owner linkage (2026-10-22)
+
+When configuring on Windows or macOS, the production `rdp-server` executable
+now privately links `rdp-server-runtime-platform-native-desktop`. That target
+in turn links the existing R6 Windows desktop aggregate or R5 macOS capture/input
+aggregate. The runtime receives
+`RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP=1` only on those platforms and owns
+one inactive composition object for the process lifetime.
+
+This is build/lifetime composition only: normal help/configuration/startup
+refusal paths do not attach R2 authorization or activate native APIs. Linux
+build/link behavior is unchanged.
+
 ## R5 macOS input readiness adds no new framework dependency (2026-10-21)
 
 The combined Accessibility/Input Monitoring readiness check remains inside

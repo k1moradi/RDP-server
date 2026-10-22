@@ -1,3 +1,25 @@
+## R10 production platform-native process owner — 2026-10-22
+
+Source parent: `ded4f348d6a108c9363feae4479d5993da0e5b40`.
+
+R2's Windows accepted-SSPI identity provider resolved the previous Windows
+identity dependency, and R5's production review exposed the remaining
+R10-owned linkage gap. The production `rdp-server` target now links the
+existing shared `RuntimePlatformNativeDesktop` target on Windows/macOS and
+the entry point constructs exactly one inactive owner on its main thread.
+
+The new policy regression
+`runtime.platform-native-production-single-owner-linkage` pins that link,
+compile definition and single declaration while rejecting startup-time
+`attach()`. No listener, SSPI authentication, native evidence read,
+WTS/DXGI/SendInput, ScreenCaptureKit/Quartz or live desktop action is added.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** because the
+required `~/rdp-server` checkout is absent in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Windows R6 positive production
+construction, macOS concrete R2 identity, CLEAN and FIRST remain separate
+gates.
+
 ## R2 Windows SSPI authenticated-identity proof — 2026-10-22
 
 Source parent: `e938723cb83f1aca293178d803b0bd6f7d961726`. Added a Windows-only, noninstalled production

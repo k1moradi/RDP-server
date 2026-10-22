@@ -2673,6 +2673,18 @@ if(APPLE)
     endforeach()
 endif()
 
+# R10 production process linkage for the platform-native owner. This source
+# guard is platform-independent; hosted Windows/macOS compilation additionally
+# proves the real static/native dependency closure. Startup remains unattached.
+add_test(NAME runtime.platform-native-production-single-owner-linkage
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_platform_native_production_linkage.cmake")
+set_tests_properties(
+    runtime.platform-native-production-single-owner-linkage PROPERTIES
+    LABELS "runtime;host-control;native;security;r10;offline")
+
 # R10 one-owner Windows/macOS platform-native composition seam. The ordinary
 # regression uses an unbound real R2 authorization object, so it executes no
 # WTS/DXGI/SendInput, TCC/ScreenCaptureKit/Quartz, listener or protocol action.

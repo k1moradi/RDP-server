@@ -6,6 +6,9 @@
 #include "runtime_tls_context.h"
 #include "runtime_configuration.h"
 #include "runtime_licensing_context.h"
+#if defined(RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP)
+#include "runtime_platform_native_desktop.h"
+#endif
 #if defined(RDP_SERVER_HAVE_LINUX_RUNTIME_SECURITY)
 #include "linux_runtime_security.h"
 #include "linux_runtime_connection.h"
@@ -1590,6 +1593,15 @@ void printUsage() noexcept {
 } // namespace
 
 int main(int argumentCount, char* argumentValues[]) noexcept {
+#if defined(RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP)
+    // Exactly one inactive R10 platform-native owner follows the production
+    // process lifetime. No native target is constructed until a real bound R2
+    // authorization is explicitly attached by a future serialized serve path.
+    rdp_server::server::runtime::RuntimePlatformNativeDesktop
+        platformNativeDesktopLifetime;
+    (void)platformNativeDesktopLifetime;
+#endif
+
     if (argumentCount >= 2 && argumentValues[1] != nullptr) {
         const std::string_view option{argumentValues[1]};
         if (argumentCount == 2 && option == "--help") {

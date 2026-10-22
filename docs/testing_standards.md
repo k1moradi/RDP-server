@@ -1,3 +1,17 @@
+## R10 production platform-owner linkage guard (2026-10-22)
+
+`runtime.platform-native-production-single-owner-linkage` is an ordinary
+offline source-policy regression. It must require the production
+`rdp-server` target to link the shared Windows/macOS R10 platform-native
+library, require the platform compile definition, and find exactly one
+`RuntimePlatformNativeDesktop` process-lifetime owner in the runtime entry
+point. Until an authenticated serialized serve path is qualified, the guard
+must also reject startup-time `platformNativeDesktopLifetime.attach(...)`.
+
+Hosted Windows/macOS compilation remains the behavioral build proof for the
+real native dependency closure. This test is not a substitute for FIRST and
+must never invoke live capture, input, TCC/WTS, credentials, or a listener.
+
 ## R2 Windows SSPI identity-provider regression boundary (2026-10-22)
 
 The production `WindowsSspiAuthenticatedIdentityProof` may bind only from an

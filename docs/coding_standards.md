@@ -6,7 +6,8 @@ standalone Session Password path, select exactly one negotiation envelope from
 the first **valid** token: `Spnego` for a valid GSS/SPNEGO initial token or
 `DirectNtlm` for a valid raw NTLMSSP Type-1 NEGOTIATE_MESSAGE. Preserve that
 choice for the complete accepted connection; never trial-parse a later token
-under the other envelope.
+under the other envelope. Never select from host OS, client product, adapter
+type or a rule such as "macOS Windows App uses direct NTLM."
 
 Both envelopes must reuse the single existing NTLM transcript/security owner.
 Direct NTLM is raw Type 1 -> raw Type 2 -> raw Type 3; do not add a second
@@ -16,8 +17,10 @@ no fabricated SPNEGO completion wrapper and, per MS-CSSP, is accepted only in
 the final TSRequest that also carries `pubKeyAuth`.
 
 This compatibility path changes neither authentication authority nor native
-desktop identity. Keep OS/GSS fallback disabled for StandalonePassword; never
-map the remote application username into a host OS identity. After either
+desktop identity. Keep the selector and NTLM implementation in the portable
+security target with no GSS link/runtime dependency. Keep OS/GSS fallback
+disabled for StandalonePassword; never map the remote application username
+into a host OS identity. After either
 envelope verifies the same NTLM security context, continue through the existing
 pubKeyAuth/TLS binding, authInfo and Session Password verification boundaries.
 

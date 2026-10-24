@@ -197,8 +197,15 @@ else()
     target_compile_options(test_standalone_spnego PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
+add_test(NAME security.direct-ntlm-envelope-negotiate-authenticate
+    COMMAND test_standalone_spnego
+        direct-ntlm-envelope-negotiate-authenticate)
+set_tests_properties(
+    security.direct-ntlm-envelope-negotiate-authenticate
+    PROPERTIES LABELS
+        "security;credentials;ntlmv2;credssp;authentication-envelope;r6;offline")
+
 foreach(spnego_case IN ITEMS
-        direct-ntlm-envelope-negotiate-authenticate
         spnego-ntlm-first-negotiate-challenge
         spnego-ntlm-authenticate-known-answer
         spnego-fallback-mechlistmic-roundtrip
@@ -293,8 +300,23 @@ else()
     target_compile_options(test_standalone_credssp PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
+add_test(NAME security.r9-standalone-credssp-direct-ntlm-v6-full-flow
+    COMMAND test_standalone_credssp
+        r9-standalone-credssp-direct-ntlm-v6-full-flow)
+set_tests_properties(
+    security.r9-standalone-credssp-direct-ntlm-v6-full-flow
+    PROPERTIES LABELS
+        "r9;security;credentials;ntlmv2;credssp;tls;authentication-envelope;r6;offline")
+
+add_test(NAME security.standalone-credssp-portable-envelope-modes-converge
+    COMMAND test_standalone_credssp
+        standalone-credssp-portable-envelope-modes-converge)
+set_tests_properties(
+    security.standalone-credssp-portable-envelope-modes-converge
+    PROPERTIES LABELS
+        "security;credentials;ntlmv2;credssp;tls;authentication-envelope;r6;offline")
+
 foreach(standalone_credssp_case IN ITEMS
-        r9-standalone-credssp-direct-ntlm-v6-full-flow
         standalone-credssp-tls-bound-combined-pubkeyauth
         standalone-credssp-pubkeyauth-tamper-revokes
         standalone-credssp-authinfo-exact-credential-match

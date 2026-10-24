@@ -48,6 +48,14 @@ protected `authInfo` to exact standalone credential verification. Existing
 SPNEGO/NegTokenInit2 tests remain required regressions and OS-GSS fallback must
 remain disabled.
 
+Keep
+`security.standalone-credssp-portable-envelope-modes-converge` registered
+unconditionally so ordinary Linux/GCC, macOS/Clang and Windows/MSVC full CTest
+all drive both SPNEGO-wrapped NTLM and DirectNtlm through the same production
+CredSSP owner to `CredentialsVerified`. The fixture must not branch on host
+platform and must link only the shared standalone CredSSP/NTLM target, never an
+OS GSS provider.
+
 The R9 owner-candidate sanitizer lane executes the new direct-NTLM integrated
 flow alongside Start/Stop/Start, X.224/TLS and SPNEGO compatibility fixtures.
 This is automated protocol evidence only; only a new physical Microsoft-client

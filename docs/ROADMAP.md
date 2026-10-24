@@ -1,3 +1,46 @@
+## R6 P1 portable authentication-envelope audit (2026-10-24)
+
+**Starting exact-main parent:** `627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9`.
+
+The R2 direct-NTLM implementation and the strengthened R9 Microsoft-CSSP gate
+are already present on this parent. R6 therefore audits portability instead of
+creating another authentication path.
+
+Audit result: **PASS**. The first valid token selects immutable `Spnego` or
+`DirectNtlm` inside the shared first-party CredSSP/NTLM component. Selection
+does not inspect Linux, macOS, Windows, client product or platform adapter.
+DirectNtlm reuses the same Type1/Type2 transcript, Type3 verifier, MIC and
+SIGN/SEAL context and has no dependency on the ExistingOsAccount GSS acceptor.
+The remote standalone username remains an application credential, not a native
+OS identity.
+
+This R6 follow-up makes the portable contract explicit:
+- document `rdp-server-standalone-ntlmv2` as a platform-neutral,
+  OS-GSS-independent security target;
+- stop labeling raw-NTLM CTests as SPNEGO;
+- add
+  `security.standalone-credssp-portable-envelope-modes-converge`, an
+  unconditional production-backed fixture that runs both SPNEGO-wrapped NTLM
+  and DirectNtlm through TLS, pubKeyAuth, authInfo and exact Session Password
+  verification to `CredentialsVerified`.
+
+The existing R6 Start -> Stop -> Start portability work remains active and
+unchanged. Ordinary Stop may retain only the generation-fenced memory
+credential; each later Start still requires fresh native evidence, fresh owner
+consent, fresh listener ownership and fresh endpoint-bound TLS. The current R9
+owner-candidate gate continues to execute the Start -> Stop -> Start fixture.
+
+**Connector source/test reconciliation:** PASS.
+**Canonical owner-local configure/build/full CTest:** NOT RUN — this connector
+environment has no usable `~/rdp-server` checkout/network.
+**Exact-publication-SHA hosted Linux/macOS/Windows CI:** PENDING.
+**Physical Microsoft-client retry:** NOT RUN.
+
+Next R6 gate: the exact publication SHA must run the portable convergence CTest
+under ordinary Linux/GCC, macOS/Clang and Windows/MSVC full CTest. The separate
+R2/R9 physical gate then reports the first post-Type-1 interoperability
+boundary without any OS-GSS fallback.
+
 ## R9 P0 primary Microsoft-CSSP negotiation qualification owner (2026-10-24)
 
 **Starting exact-main parent:** `78dc66eb7d7cd3bc4d830bffaea01fb8e399eb38`.

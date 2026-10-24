@@ -10,11 +10,17 @@ must be a GSS/SPNEGO `0x60` InitialContextToken.
 MS-CSSP permits `negoTokens` to carry SPNEGO tokens or Kerberos/NTLM
 messages. R2 therefore owns one connection-scoped immutable
 `StandaloneNtlmNegotiationEnvelope`: the first valid token selects
-`Spnego` or `DirectNtlm`. SPNEGO retains the existing NegTokenInit,
-mechanism-selection and mechListMIC behavior. Direct NTLM accepts only raw
-NTLMSSP Type 1 -> raw Type 2 -> raw Type 3. Both routes use the same existing
-Type-1/2/3 parser, transcript, NTLMv2 credential verifier, MIC handling and
-directional SIGN/SEAL security context; no second NTLM implementation exists.
+`Spnego` or `DirectNtlm`. That selector lives inside the shared
+`rdp-server-standalone-ntlmv2` security component; it receives no host OS,
+client-product or platform-adapter discriminator. Linux, macOS and future
+Windows native hosting must consume this same implementation rather than
+creating platform-specific envelope rules.
+
+SPNEGO retains the existing NegTokenInit, mechanism-selection and mechListMIC
+behavior. Direct NTLM accepts only raw NTLMSSP Type 1 -> raw Type 2 -> raw
+Type 3. Both routes use the same existing Type-1/2/3 parser, transcript,
+NTLMv2 credential verifier, MIC handling and directional SIGN/SEAL security
+context; no second NTLM implementation exists.
 
 The client's final raw Type 3 follows the same MS-CSSP final-message rule as
 the SPNEGO terminal token: it must share its TSRequest with `pubKeyAuth`.

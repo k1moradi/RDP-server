@@ -1019,6 +1019,12 @@ void testDirectNtlmEnvelopeFullCredentialFlow()
     assert(serverCredential.configured());
 }
 
+void testPortableEnvelopeModesConverge()
+{
+    testAuthInfoExactCredentialMatch();
+    testDirectNtlmEnvelopeFullCredentialFlow();
+}
+
 void testDirectTlsCannotBindAdmissionProof()
 {
     MemoryTlsPair tls;
@@ -1214,6 +1220,12 @@ int main(int argc, char **argv)
         "r9-standalone-credssp-direct-ntlm-v6-full-flow")
     {
         testDirectNtlmEnvelopeFullCredentialFlow();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-portable-envelope-modes-converge")
+    {
+        testPortableEnvelopeModesConverge();
         return 0;
     }
     if (testCase ==

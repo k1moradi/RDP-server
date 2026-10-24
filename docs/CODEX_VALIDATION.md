@@ -1,3 +1,36 @@
+## R6 portable CredSSP envelope audit receipt (2026-10-24)
+
+**Starting exact-main parent:** `627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9`.
+
+Reconciled after concurrent direct-NTLM and R9 qualification commits advanced
+`main`; no stale files were overwritten. Source audit confirms
+`StandaloneNtlmNegotiationEnvelope` is owned by the shared first-party
+CredSSP/NTLM component. The first valid token selects `Spnego` or
+`DirectNtlm`; no Linux/macOS/Windows or client-product discriminator
+participates. DirectNtlm reuses the same NTLM transcript, Type3 verifier, MIC
+and SIGN/SEAL context and has no OS-GSS dependency or OS-account translation.
+
+Portability follow-up:
+- register
+  `security.standalone-credssp-portable-envelope-modes-converge`
+  unconditionally; it drives the existing SPNEGO and DirectNtlm TLS/CredSSP
+  flows through exact authInfo verification to `CredentialsVerified`;
+- label raw DirectNtlm mechanism/integrated tests as authentication-envelope/R6
+  tests rather than SPNEGO tests;
+- document the shared standalone CredSSP/NTLM target as platform-neutral.
+
+The existing R6 Start -> Stop -> Start credential/fresh-consent tests are
+unchanged and remain a parallel lifecycle contract; the strengthened R9
+owner-candidate gate continues to execute that lifecycle fixture.
+
+Connector source/test review: **PASS**.
+Canonical local build/full CTest: **NOT RUN** — no usable local checkout/network
+is available in this connector environment.
+Exact-publication-SHA hosted Linux/macOS/Windows CI: **PENDING**.
+Physical Microsoft-client interoperability: **NOT RUN**.
+No live listener, desktop, input, clipboard, service or client was activated.
+
+
 ## R9 primary Microsoft-CSSP negotiation gate hardening — 2026-10-24
 
 **Starting exact-main parent:** `78dc66eb7d7cd3bc4d830bffaea01fb8e399eb38`.

@@ -290,6 +290,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-revalidated-interface-denials
+            linux-host-control-automatic-tls-identity-lifecycle
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
             linux-host-control-standalone-password-lifecycle
@@ -2292,7 +2293,8 @@ foreach(runtime_tls_context_case IN ITEMS
         tls-identity-offline-lifecycle-denials
         tls-context-survives-credential-path-replacement
         rejects-live-tls-context-invalid-material
-        rejects-live-tls-context-extra-certificate-material)
+        rejects-live-tls-context-extra-certificate-material
+        rejects-live-tls-context-private-key-mismatch)
     add_test(NAME "runtime.${runtime_tls_context_case}"
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_TLS_CONTEXT_TEST=$<TARGET_FILE:test_runtime_tls_context>"
@@ -2301,6 +2303,20 @@ foreach(runtime_tls_context_case IN ITEMS
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_tls_context.cmake")
     set_tests_properties("runtime.${runtime_tls_context_case}" PROPERTIES
         LABELS "runtime;security;offline")
+endforeach()
+
+# R1 automatic portable-GUI identity: direct in-memory generation has no
+# credential-file fixture and must not attach or open any network socket.
+foreach(generated_tls_context_case IN ITEMS
+        generated-tls-identity-ipv4-san
+        generated-tls-identity-ipv6-san
+        generated-tls-identity-wrong-endpoint-denial
+        generated-tls-identity-stop-retirement
+        generated-tls-identity-no-listener-side-effect)
+    add_test(NAME "runtime.${generated_tls_context_case}"
+        COMMAND test_runtime_tls_context "${generated_tls_context_case}")
+    set_tests_properties("runtime.${generated_tls_context_case}" PROPERTIES
+        LABELS "runtime;security;tls;r1;offline")
 endforeach()
 
 # One R10 production executable, and one offline CMake-script checker,
@@ -3738,6 +3754,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-tray-close-hide-and-explicit-quit
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;tray;lifecycle" TIMEOUT 30)
+    add_test(NAME gui.offscreen-r1-automatic-tls-preparation-order
+        COMMAND test_desktop_gui_offline automatic-tls-preparation-order)
+    set_tests_properties(gui.offscreen-r1-automatic-tls-preparation-order
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;tls;r1" TIMEOUT 30)
     add_test(NAME gui.offscreen-r10-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
     set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES

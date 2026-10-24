@@ -1,3 +1,41 @@
+## R1 P0 automatic TLS identity authoring receipt — 2026-10-23
+
+Starting exact-main parent: `878d7d1678f15a776199028c9d6a21297cdf3bc6`.
+
+Source review: **PASS** for a no-file `RuntimeServerTlsContext` factory,
+numeric-only IPv4/IPv6 parsing, exact binary IP SAN construction, server-purpose
+and key-match validation, reuse of the existing TLS >= 1.2 /
+no-compression/no-renegotiation `SSL_CTX`, and unchanged IP-no-CN-fallback
+endpoint verification. The generated private key remains only in OpenSSL-owned
+memory and is never PEM-serialized or persisted. R3 licensing source and
+CredSSP/transport protocol source are unchanged.
+
+R10/Qt lifecycle review: **PASS** for endpoint preparation before listener
+creation, fresh post-configure TLS status before Start, fresh native
+interface/address revalidation before bind, actual bound-generation SAN
+verification, stale-selection retirement and Stop-time generated-context
+retirement. Advanced fingerprint projection continues through the existing
+status type.
+
+Registered behavior coverage added:
+`runtime.generated-tls-identity-ipv4-san`,
+`runtime.generated-tls-identity-ipv6-san`,
+`runtime.generated-tls-identity-wrong-endpoint-denial`,
+`runtime.generated-tls-identity-stop-retirement`,
+`runtime.generated-tls-identity-no-listener-side-effect`,
+`runtime.rejects-live-tls-context-private-key-mismatch`,
+`runtime.linux-host-control-automatic-tls-identity-lifecycle`, and
+`gui.offscreen-r1-automatic-tls-preparation-order`.
+The existing provisioned-listener source guard is strengthened to reject a
+preparation-time Qt `tlsReady` gate.
+
+A standalone C++23/OpenSSL compile probe using the selected key-generation and
+IP-SAN APIs completed **PASS** against OpenSSL 3.5.5 in the tool container.
+Canonical owner-local `~/rdp-server/build/` configure/build/full CTest:
+**NOT RUN** because the tool container cannot resolve GitHub to materialize the
+approved checkout. Exact publication-SHA hosted CI: **PENDING**. No live
+listener, desktop, input, clipboard or Microsoft client operation was run.
+
 ## R8 P2 zero-argument bootstrap clipboard-lifecycle audit — 2026-10-23
 
 Starting exact-main parent: `512bd9ae5fe5c4918a28914a27af9cca5dbaa0f0`.

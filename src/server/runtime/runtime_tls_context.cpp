@@ -9,8 +9,10 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <new>
+#include <optional>
 #include <string_view>
 
 #include <openssl/bio.h>
@@ -18,6 +20,7 @@
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
 #include <openssl/pem.h>
+#include <openssl/rand.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
@@ -61,10 +64,27 @@ struct PkeyCloser
 {
     void operator()(EVP_PKEY *key) const noexcept { ::EVP_PKEY_free(key); }
 };
+struct X509ExtensionCloser
+{
+    void operator()(X509_EXTENSION *extension) const noexcept
+    {
+        ::X509_EXTENSION_free(extension);
+    }
+};
+struct GeneralNamesCloser
+{
+    void operator()(GENERAL_NAMES *names) const noexcept
+    {
+        ::GENERAL_NAMES_free(names);
+    }
+};
 
 using OwnedBio = std::unique_ptr<BIO, BioCloser>;
 using OwnedCertificate = std::unique_ptr<X509, X509Closer>;
 using OwnedPrivateKey = std::unique_ptr<EVP_PKEY, PkeyCloser>;
+using OwnedX509Extension = std::unique_ptr<X509_EXTENSION, X509ExtensionCloser>;
+using OwnedGeneralNames = std::unique_ptr<GENERAL_NAMES, GeneralNamesCloser>;
+using OwnedSslContext = std::unique_ptr<SSL_CTX, decltype(&::SSL_CTX_free)>;
 
 struct ValidatedTlsCredentials
 {
@@ -146,6 +166,17 @@ int rejectPrivateKeyPassword(char *, int, int, void *) noexcept
 #endif
 }
 
+[[nodiscard]] bool validateTlsCredentialPair(
+    const X509 *certificate, const EVP_PKEY *privateKey) noexcept
+{
+    return certificate != nullptr && privateKey != nullptr &&
+           hasCurrentCertificateValidity(certificate) &&
+           ::X509_check_private_key(certificate, privateKey) == 1 &&
+           ::X509_check_purpose(
+               const_cast<X509 *>(certificate),
+               X509_PURPOSE_SSL_SERVER, 0) == 1;
+}
+
 [[nodiscard]] ValidatedTlsCredentials loadValidatedTlsCredentials(
     std::string_view certificatePath,
     std::string_view privateKeyPath) noexcept
@@ -180,14 +211,195 @@ int rejectPrivateKeyPassword(char *, int, int, void *) noexcept
     if (!certificate || !privateKey ||
         !bioRemainderIsWhitespace(certificateBio.get()) ||
         !bioRemainderIsWhitespace(privateKeyBio.get()) ||
-        !hasCurrentCertificateValidity(certificate.get()) ||
-        ::X509_check_private_key(certificate.get(), privateKey.get()) != 1 ||
-        ::X509_check_purpose(
-            certificate.get(), X509_PURPOSE_SSL_SERVER, 0) != 1) {
+        !validateTlsCredentialPair(certificate.get(), privateKey.get())) {
         return {};
     }
 
     return {std::move(certificate), std::move(privateKey)};
+}
+
+struct ParsedNumericIpAddress
+{
+    std::array<unsigned char, 16> bytes{};
+    std::size_t size{};
+};
+
+[[nodiscard]] std::optional<ParsedNumericIpAddress> parseNumericIpAddress(
+    std::string_view numericIpAddress) noexcept
+{
+    if (numericIpAddress.empty() ||
+        numericIpAddress.size() >= INET6_ADDRSTRLEN ||
+        numericIpAddress.find('\0') != std::string_view::npos)
+        return std::nullopt;
+
+    std::array<char, INET6_ADDRSTRLEN> text{};
+    std::memcpy(text.data(), numericIpAddress.data(), numericIpAddress.size());
+
+    ParsedNumericIpAddress parsed;
+    if (::inet_pton(AF_INET, text.data(), parsed.bytes.data()) == 1)
+    {
+        parsed.size = 4U;
+        return parsed;
+    }
+    if (::inet_pton(AF_INET6, text.data(), parsed.bytes.data()) == 1)
+    {
+        parsed.size = 16U;
+        return parsed;
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] bool addStaticCertificateExtension(
+    X509 *certificate, int extensionNid, const char *value) noexcept
+{
+    if (certificate == nullptr || value == nullptr)
+        return false;
+
+    X509V3_CTX extensionContext{};
+    ::X509V3_set_ctx(
+        &extensionContext, certificate, certificate, nullptr, nullptr, 0);
+    X509V3_set_ctx_nodb(&extensionContext);
+    OwnedX509Extension extension{
+        ::X509V3_EXT_conf_nid(
+            nullptr, &extensionContext, extensionNid,
+            const_cast<char *>(value))};
+    return extension != nullptr &&
+           ::X509_add_ext(certificate, extension.get(), -1) == 1;
+}
+
+[[nodiscard]] bool addIpSubjectAlternativeName(
+    X509 *certificate, const ParsedNumericIpAddress& address) noexcept
+{
+    if (certificate == nullptr ||
+        (address.size != 4U && address.size != 16U))
+        return false;
+
+    OwnedGeneralNames names{::GENERAL_NAMES_new()};
+    if (!names)
+        return false;
+
+    GENERAL_NAME *const name = ::GENERAL_NAME_new();
+    ASN1_OCTET_STRING *const ipAddress = ::ASN1_OCTET_STRING_new();
+    if (name == nullptr || ipAddress == nullptr)
+    {
+        ::GENERAL_NAME_free(name);
+        ::ASN1_OCTET_STRING_free(ipAddress);
+        return false;
+    }
+    if (::ASN1_OCTET_STRING_set(
+            ipAddress, address.bytes.data(),
+            static_cast<int>(address.size)) != 1)
+    {
+        ::GENERAL_NAME_free(name);
+        ::ASN1_OCTET_STRING_free(ipAddress);
+        return false;
+    }
+
+    // GENERAL_NAME owns ipAddress after set0; GENERAL_NAMES owns name after
+    // the successful push. The exact numeric endpoint is the only SAN.
+    ::GENERAL_NAME_set0_value(name, GEN_IPADD, ipAddress);
+    if (::sk_GENERAL_NAME_push(names.get(), name) == 0)
+    {
+        ::GENERAL_NAME_free(name);
+        return false;
+    }
+    return ::X509_add1_ext_i2d(
+               certificate, NID_subject_alt_name, names.get(), 0,
+               X509V3_ADD_DEFAULT) == 1;
+}
+
+[[nodiscard]] ValidatedTlsCredentials generateTlsCredentials(
+    const ParsedNumericIpAddress& address) noexcept
+{
+    // RSA-2048 remains broadly interoperable with Microsoft RDP TLS clients.
+    // EVP_PKEY_Q_keygen uses OpenSSL's provider-backed CSPRNG; no key bytes
+    // cross an application string, file, environment variable or log.
+    OwnedPrivateKey privateKey{
+        ::EVP_PKEY_Q_keygen(
+            nullptr, nullptr, "RSA", static_cast<std::size_t>(2048U))};
+    OwnedCertificate certificate{::X509_new()};
+    if (!privateKey || !certificate)
+        return {};
+
+    if (::X509_set_version(certificate.get(), 2L) != 1)
+        return {};
+
+    std::uint64_t serial = 0U;
+    if (::RAND_bytes(
+            reinterpret_cast<unsigned char *>(&serial),
+            static_cast<int>(sizeof(serial))) != 1)
+        return {};
+    serial &= (std::numeric_limits<std::uint64_t>::max)() >> 1U;
+    if (serial == 0U)
+        serial = 1U;
+    if (::ASN1_INTEGER_set_uint64(
+            ::X509_get_serialNumber(certificate.get()), serial) != 1)
+        return {};
+
+    constexpr long kClockSkewSeconds = 5L * 60L;
+    constexpr long kLifetimeSeconds = 365L * 24L * 60L * 60L;
+    if (::X509_gmtime_adj(
+            ::X509_getm_notBefore(certificate.get()),
+            -kClockSkewSeconds) == nullptr ||
+        ::X509_gmtime_adj(
+            ::X509_getm_notAfter(certificate.get()),
+            kLifetimeSeconds) == nullptr ||
+        ::X509_set_pubkey(certificate.get(), privateKey.get()) != 1)
+        return {};
+
+    X509_NAME *const subject = ::X509_get_subject_name(certificate.get());
+    constexpr unsigned char kCommonName[] = "RDP Server";
+    if (subject == nullptr ||
+        ::X509_NAME_add_entry_by_NID(
+            subject, NID_commonName, MBSTRING_ASC,
+            kCommonName, -1, -1, 0) != 1 ||
+        ::X509_set_issuer_name(certificate.get(), subject) != 1)
+        return {};
+
+    if (!addStaticCertificateExtension(
+            certificate.get(), NID_basic_constraints,
+            "critical,CA:FALSE") ||
+        !addStaticCertificateExtension(
+            certificate.get(), NID_key_usage,
+            "critical,digitalSignature,keyEncipherment") ||
+        !addStaticCertificateExtension(
+            certificate.get(), NID_ext_key_usage, "serverAuth") ||
+        !addIpSubjectAlternativeName(certificate.get(), address))
+        return {};
+
+    if (::X509_sign(
+            certificate.get(), privateKey.get(), ::EVP_sha256()) <= 0 ||
+        ::X509_verify(certificate.get(), privateKey.get()) != 1 ||
+        !validateTlsCredentialPair(certificate.get(), privateKey.get()))
+        return {};
+
+    return {std::move(certificate), std::move(privateKey)};
+}
+
+[[nodiscard]] OwnedSslContext createConfiguredServerTlsContext(
+    const ValidatedTlsCredentials& credentials) noexcept
+{
+    OwnedSslContext context{
+        ::SSL_CTX_new(::TLS_server_method()), &::SSL_CTX_free};
+    if (!context ||
+        ::SSL_CTX_set_min_proto_version(context.get(), TLS1_2_VERSION) != 1)
+        return {nullptr, &::SSL_CTX_free};
+
+    std::uint64_t requiredOptions = SSL_OP_NO_COMPRESSION;
+#if defined(SSL_OP_NO_RENEGOTIATION)
+    requiredOptions |= SSL_OP_NO_RENEGOTIATION;
+#endif
+    const std::uint64_t configuredOptions =
+        ::SSL_CTX_set_options(context.get(), requiredOptions);
+    if ((configuredOptions & requiredOptions) != requiredOptions ||
+        ::SSL_CTX_use_certificate(
+            context.get(), credentials.certificate.get()) != 1 ||
+        ::SSL_CTX_use_PrivateKey(
+            context.get(), credentials.privateKey.get()) != 1 ||
+        ::SSL_CTX_check_private_key(context.get()) != 1)
+        return {nullptr, &::SSL_CTX_free};
+
+    return context;
 }
 
 } // namespace
@@ -215,32 +427,36 @@ RuntimeServerTlsContext RuntimeServerTlsContext::fromCredentialFiles(
 {
     ValidatedTlsCredentials credentials =
         loadValidatedTlsCredentials(certificatePath, privateKeyPath);
-    if (!credentials) {
+    if (!credentials)
         return {};
-    }
 
-    OwnedContext context{::SSL_CTX_new(::TLS_server_method()), &::SSL_CTX_free};
-    if (!context ||
-        ::SSL_CTX_set_min_proto_version(context.get(), TLS1_2_VERSION) != 1) {
+    OwnedSslContext context = createConfiguredServerTlsContext(credentials);
+    if (!context)
         return {};
-    }
-
-    std::uint64_t requiredOptions = SSL_OP_NO_COMPRESSION;
-#if defined(SSL_OP_NO_RENEGOTIATION)
-    requiredOptions |= SSL_OP_NO_RENEGOTIATION;
-#endif
-    const std::uint64_t configuredOptions =
-        ::SSL_CTX_set_options(context.get(), requiredOptions);
-    if ((configuredOptions & requiredOptions) != requiredOptions ||
-        ::SSL_CTX_use_certificate(
-            context.get(), credentials.certificate.get()) != 1 ||
-        ::SSL_CTX_use_PrivateKey(
-            context.get(), credentials.privateKey.get()) != 1 ||
-        ::SSL_CTX_check_private_key(context.get()) != 1) {
-        return {};
-    }
-
     return RuntimeServerTlsContext{std::move(context)};
+}
+
+RuntimeServerTlsContext RuntimeServerTlsContext::fromGeneratedIpAddress(
+    std::string_view numericIpAddress) noexcept
+{
+    const auto parsedAddress = parseNumericIpAddress(numericIpAddress);
+    if (!parsedAddress)
+        return {};
+
+    ValidatedTlsCredentials credentials =
+        generateTlsCredentials(*parsedAddress);
+    if (!credentials)
+        return {};
+
+    OwnedSslContext context = createConfiguredServerTlsContext(credentials);
+    if (!context)
+        return {};
+
+    RuntimeServerTlsContext result{std::move(context)};
+    if (result.validateEndpointIdentity(numericIpAddress) !=
+        RuntimeTlsEndpointIdentityStatus::Match)
+        return {};
+    return result;
 }
 
 RuntimeServerTlsContext::ServerTls

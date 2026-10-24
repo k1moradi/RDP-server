@@ -1,3 +1,19 @@
+## R1 in-memory automatic TLS identity build boundary (2026-10-23)
+
+The existing noninstalled `rdp-server-runtime-tls` target now owns both
+expert file-backed and automatic in-memory identity construction. It adds no
+dependency beyond the already-required OpenSSL Crypto/SSL libraries and writes
+no generated credential file. The Linux `rdp-server-linux-host-control`
+links this target directly so the ordinary no-config GUI can prepare a
+selection-bound R1 identity even before the broader R2/R3 production-security
+configuration is available. This linkage alone never opens a listener.
+
+The normal one-root build/test command is unchanged. Generated TLS CTests run
+offline on every platform against OpenSSL; the Linux HostControl lifecycle case
+is native-interface conditional and uses CTest skip status when no eligible
+private-LAN interface exists. `--config` file-backed TLS remains an
+expert/legacy build path, not a required consumer setup step.
+
 ## Production Windows/macOS R10 native-owner linkage (2026-10-22)
 
 When configuring on Windows or macOS, the production `rdp-server` executable

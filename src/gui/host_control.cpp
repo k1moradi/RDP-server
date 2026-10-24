@@ -223,7 +223,6 @@ bool HostControl::start(const HostRequest& request)
         !snapshot.product.credentialCapabilities.existingOsAccount ||
         !snapshot.product.credentialsConfigured ||
         !snapshot.product.ownerAuthorized ||
-        !snapshot.product.tlsIdentityReady ||
         runtimeProductStateMayHost(snapshot.product.state) ||
         request.interfaceId.isEmpty() || request.interfaceAddress.isEmpty())
         return false;
@@ -236,6 +235,16 @@ bool HostControl::start(const HostRequest& request)
     if (!assessRuntimeSelectedLanEndpoint(
              options, snapshot.product.eligibleLanInterfaces).succeeded() ||
         !runtime_.configure(options).succeeded())
+        return false;
+
+    // Endpoint-bound automatic TLS identity is prepared by R10/R1 configure,
+    // before R1 may open a listener. Re-read authoritative state rather than
+    // allowing the pre-configuration GUI snapshot to authorize Start.
+    const RuntimeHostStatus prepared = runtime_.status();
+    if (!prepared.product.credentialsConfigured ||
+        !prepared.product.ownerAuthorized ||
+        !prepared.product.tlsIdentityReady ||
+        prepared.listenerAvailable)
         return false;
     return runtime_.startSharing().succeeded();
 }

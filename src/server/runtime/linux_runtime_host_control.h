@@ -2,6 +2,7 @@
 #pragma once
 #include "server/runtime/runtime_deployment_policy.h"
 #include "server/runtime/runtime_host_control.h"
+#include "server/runtime/runtime_tls_context.h"
 #include "server/security/authentication_attempt_limiter.h"
 #include "server/security/current_owner_sharing_authority.h"
 #include "server/security/linux_logind_console_evidence.h"
@@ -25,7 +26,6 @@ class LinuxRuntimeAdmissionConfiguration;
 class LinuxRuntimeConnection;
 struct LinuxRuntimeAuthenticationSelection;
 class RuntimeLicensingContext;
-class RuntimeServerTlsContext;
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 struct LinuxHostNativeDesktopState;
@@ -118,6 +118,9 @@ public:
 private:
     [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] RuntimeHostResult deny(RuntimeHostError error) noexcept;
+    [[nodiscard]] bool prepareTlsIdentityForSelection(
+        std::string_view numericIpAddress) noexcept;
+    void retireGeneratedTlsIdentity() noexcept;
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     enum class AcceptedClientPhase : std::uint8_t
     {
@@ -169,9 +172,13 @@ private:
     RuntimeHostStage stage_{RuntimeHostStage::Stopped};
     RuntimeHostError lastError_{RuntimeHostError::HostConsentRequired};
     bool selectionConfigured_{};
+    // Expert --config construction borrows its validated identity. Normal GUI
+    // construction owns a generated endpoint-bound identity in this optional.
+    const RuntimeServerTlsContext* tlsContext_{};
+    std::optional<RuntimeServerTlsContext> generatedTlsContext_{};
+    bool externalTlsContext_{};
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
-    const RuntimeServerTlsContext* tlsContext_{};
     const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
     const RuntimeLicensingContext* licensingContext_{};
     std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};

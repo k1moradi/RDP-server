@@ -1,3 +1,18 @@
+## Normal portable application startup
+
+The normal consumer entry point is `rdp-server-desktop` with no required
+arguments. The intended product workflow is ZIP -> extract -> double-click ->
+set Session Password -> explicitly turn Sharing ON -> connect over the private
+LAN. Ordinary users must not create or understand `server.conf`, TLS/private
+key files, RDP licensing key material, Kerberos/PAM provisioning, UID/seat/
+display policy files or listener configuration. `--config` may remain an
+explicit expert/legacy override, but it is not the product provisioning model.
+
+Double-click may prepare private local runtime prerequisites, but it must never
+open a network listener. R1 may bind only after the explicit Sharing action
+and fresh endpoint/security/owner checks. GUI presentation qualification alone
+does not establish this end-to-end product workflow.
+
 # RDP-server — canonical project vision
 
 ## Mission

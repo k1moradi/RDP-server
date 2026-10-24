@@ -612,9 +612,11 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
         return QStringLiteral("Existing OS Account access is not configured");
     if (!state.desktopAuthorized || state.desktop.isEmpty())
         return ownerPermissionStatusText(state);
-    if (!state.tlsReady)
-        return QStringLiteral("TLS identity is not ready");
 
+    // R1 prepares an exact-endpoint TLS identity only after the user requests
+    // Sharing. Do not require that preparation artifact before the toggle can
+    // invoke the R10 configure transaction; HostControl rechecks it before
+    // startSharing() is allowed to reach R1's listener.
     const QString selectedInterface = interfaces_->currentData().toString();
     const QString selectedInterfaceId =
         interfaces_->currentData(Qt::UserRole + 1).toString();

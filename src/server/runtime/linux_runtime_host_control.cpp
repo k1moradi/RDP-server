@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_host_control.h"
+#include "runtime_tls_context.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 #include "linux_runtime_connection.h"
 #include "linux_runtime_security.h"
 #include "runtime_licensing_context.h"
-#include "runtime_tls_context.h"
 #include <openssl/rand.h>
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -584,8 +584,9 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl(
     const LinuxRuntimeAdmissionConfiguration& admissionConfiguration,
     const RuntimeLicensingContext& licensingContext) noexcept
     : ownerThread_(std::this_thread::get_id()),
-      securityConfiguration_(&securityConfiguration),
       tlsContext_(&tlsContext),
+      externalTlsContext_(true),
+      securityConfiguration_(&securityConfiguration),
       admissionConfiguration_(&admissionConfiguration),
       licensingContext_(&licensingContext)
 {
@@ -597,6 +598,35 @@ LinuxRuntimeHostControl::~LinuxRuntimeHostControl()
     // invalidated before any later-stage R1 listener retirement.
     retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+}
+
+bool LinuxRuntimeHostControl::prepareTlsIdentityForSelection(
+    std::string_view numericIpAddress) noexcept
+{
+    if (externalTlsContext_)
+    {
+        return tlsContext_ != nullptr &&
+               tlsContext_->validateEndpointIdentity(numericIpAddress) ==
+                   RuntimeTlsEndpointIdentityStatus::Match;
+    }
+
+    retireGeneratedTlsIdentity();
+    RuntimeServerTlsContext generated =
+        RuntimeServerTlsContext::fromGeneratedIpAddress(numericIpAddress);
+    if (!generated)
+        return false;
+
+    generatedTlsContext_.emplace(std::move(generated));
+    tlsContext_ = &*generatedTlsContext_;
+    return true;
+}
+
+void LinuxRuntimeHostControl::retireGeneratedTlsIdentity() noexcept
+{
+    if (externalTlsContext_)
+        return;
+    tlsContext_ = nullptr;
+    generatedTlsContext_.reset();
 }
 
 bool LinuxRuntimeHostControl::onOwnerThread() const noexcept
@@ -808,6 +838,7 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured =
         credentialsConfigured_ && serviceCredentialsReady();
+#endif
     if (tlsContext_ != nullptr)
     {
         if (listener_.valid())
@@ -827,7 +858,6 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
                     RuntimeTlsIdentityState::ConfiguredUnbound;
         }
     }
-#endif
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.graphicsReady =
         acceptedClient_ != nullptr &&
@@ -942,6 +972,10 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
     if (listener_.valid())
         return deny(RuntimeHostError::InvalidConfiguration);
 
+    // Automatic identities are selection-scoped. A new preparation attempt
+    // retires the previous key/certificate before evaluating the new address.
+    retireGeneratedTlsIdentity();
+
     // A rejected new selection must not retain a previously approved
     // interface/address preference for a later independent Start request.
     // Never invalidate an already-owned live listener during reconfiguration.
@@ -955,6 +989,8 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
         return deny(preflight.error);
     if (!resolveCurrentLinuxNativeLanInterface(options.interfaceId))
         return deny(RuntimeHostError::InterfaceUnavailable);
+    if (!prepareTlsIdentityForSelection(options.localAddress))
+        return deny(RuntimeHostError::TlsIdentityUnavailable);
     selection_ = options;
     selectionConfigured_ = true;
     lastError_ = RuntimeHostError::HostConsentRequired;
@@ -1154,6 +1190,7 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     {
         selection_ = {};
         selectionConfigured_ = false;
+        retireGeneratedTlsIdentity();
         return deny(current.succeeded()
             ? RuntimeHostError::InterfaceUnavailable : current.error);
     }
@@ -2268,6 +2305,9 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     clientDisconnected_ = false;
 #endif
     listener_.close();
+    // Generated key/certificate ownership is session preparation state, not a
+    // process-global secret. Stop retires it after accepted TLS and listener.
+    retireGeneratedTlsIdentity();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     deploymentPolicy_.reset();
 #endif

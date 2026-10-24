@@ -27,7 +27,7 @@ enum class RuntimeTlsEndpointIdentityStatus : std::uint8_t
 };
 
 
-// Runtime-only TLS server identity owner. A valid instance owns exactly one
+// R1 runtime TLS server identity owner. A valid instance owns exactly one
 // configured SSL_CTX. The runtime must keep this owner alive while connection
 // SSL objects created from it remain active; R1 owns each returned SSL.
 class RuntimeServerTlsContext final
@@ -45,6 +45,12 @@ public:
     [[nodiscard]] static RuntimeServerTlsContext fromCredentialFiles(
         std::string_view certificatePath,
         std::string_view privateKeyPath) noexcept;
+
+    // Generates one process-owned self-signed server identity entirely in
+    // memory for the exact numeric LAN address. The private key is never
+    // exposed, serialized or written to a temporary file. No socket is opened.
+    [[nodiscard]] static RuntimeServerTlsContext fromGeneratedIpAddress(
+        std::string_view numericIpAddress) noexcept;
 
     [[nodiscard]] explicit operator bool() const noexcept
     {

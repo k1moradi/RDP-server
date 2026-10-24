@@ -51,6 +51,7 @@ public:
     std::uint64_t lastDisconnectedId{};
     bool disconnectSucceeds{};
     bool configureSucceeds{true};
+    bool configurePreparesTlsIdentity{};
     bool credentialSetupSucceeds{};
     bool permissionSetupSucceeds{};
     bool startSucceeds{};
@@ -132,6 +133,14 @@ public:
     {
         ++configureCalls;
         lastOptions = options;
+        if (configureSucceeds && configurePreparesTlsIdentity)
+        {
+            snapshot.tlsIdentityReady = true;
+            snapshot.tlsIdentity.state =
+                RuntimeTlsIdentityState::ConfiguredUnbound;
+            snapshot.tlsIdentity.fingerprintAvailable = true;
+            snapshot.tlsIdentity.certificateSha256.fill(0x42U);
+        }
         return configureSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
             : RuntimeHostResult{
@@ -567,6 +576,35 @@ int main(int argc, char** argv)
     HostControl host(runtime);
     const QString mode =
         argc > 1 ? QString::fromLocal8Bit(argv[1]) : QString();
+
+    if (mode == "automatic-tls-preparation-order")
+    {
+        FakeRuntimeHost runtime;
+        prepareReadyHost(runtime);
+        runtime.snapshot.tlsIdentityReady = false;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+        HostControl host(runtime);
+        DesktopWindow window(host);
+        assert(window.canStart());
+        assert(host.start({
+            QStringLiteral("ethernet-1"),
+            QStringLiteral("192.168.0.10"), 3389U}));
+        assert(runtime.configureCalls == 1);
+        assert(runtime.startCalls == 1);
+
+        FakeRuntimeHost missingIdentity;
+        prepareReadyHost(missingIdentity);
+        missingIdentity.snapshot.tlsIdentityReady = false;
+        missingIdentity.startSucceeds = true;
+        HostControl denied(missingIdentity);
+        assert(!denied.start({
+            QStringLiteral("ethernet-1"),
+            QStringLiteral("192.168.0.10"), 3389U}));
+        assert(missingIdentity.configureCalls == 1);
+        assert(missingIdentity.startCalls == 0);
+        return 0;
+    }
 
     if (mode == "runtime")
     {

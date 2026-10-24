@@ -297,6 +297,48 @@ int main(int argc, char** argv)
         }
         return 0;
     }
+    if (testCase == "linux-host-control-automatic-tls-identity-lifecycle")
+    {
+        const auto interfaces = control.enumerateLocalInterfaces();
+        if (interfaces.empty() || interfaces.front().localAddresses.empty())
+            return 77;
+
+        const RuntimeHostOptions selected{
+            interfaces.front().stableId,
+            interfaces.front().localAddresses.front(), 3389U, true, false};
+        assert(control.configure(selected).succeeded());
+        const auto prepared = control.status();
+        assert(prepared.tlsIdentityReady);
+        assert(prepared.tlsIdentity.fingerprintAvailable);
+        assert(prepared.tlsIdentity.state ==
+               RuntimeTlsIdentityState::ConfiguredUnbound);
+        assert(prepared.listenerGeneration == 0U);
+        assert(!prepared.listenerAvailable);
+        assert(prepared.boundEndpoint.empty());
+
+        RuntimeHostOptions stale = selected;
+        stale.localAddress = "203.0.113.250";
+        assert(!control.configure(stale).succeeded());
+        const auto rejected = control.status();
+        assert(!rejected.tlsIdentityReady);
+        assert(!rejected.tlsIdentity.fingerprintAvailable);
+        assert(!rejected.listenerAvailable);
+
+        assert(control.configure(selected).succeeded());
+        assert(control.status().tlsIdentityReady);
+        assert(control.startSharing().error ==
+               RuntimeHostError::CredentialProviderUnavailable);
+        assert(!control.status().listenerAvailable);
+
+        assert(control.stopSharing().succeeded());
+        const auto stopped = control.status();
+        assert(!stopped.tlsIdentityReady);
+        assert(!stopped.tlsIdentity.fingerprintAvailable);
+        assert(!stopped.listenerAvailable);
+        assert(stopped.listenerGeneration == 0U);
+        return 0;
+    }
+
     if (testCase == "linux-host-control-rejected-selection-retires-previous")
     {
         // No synthetic interfaces or socket/credential setup. The host must

@@ -1,3 +1,53 @@
+## R1 P0 automatic endpoint-bound TLS identity — 2026-10-23
+
+Starting exact-main parent: `878d7d1678f15a776199028c9d6a21297cdf3bc6`.
+
+The round-level product contract makes no-argument `rdp-server-desktop` the
+normal consumer entry point; external TLS certificate/private-key paths are no
+longer a required consumer prerequisite. R1 now adds an in-memory
+`RuntimeServerTlsContext::fromGeneratedIpAddress()` path. It accepts only a
+numeric IPv4/IPv6 address, generates a fresh process-owned RSA-2048 key and
+self-signed server leaf through OpenSSL, writes the exact binary IP as an
+`iPAddress` SAN, retains TLS >= 1.2 / no-compression /
+no-renegotiation hardening, verifies current validity, server purpose and
+certificate/private-key correspondence, and then reuses the existing R1
+`SSL_CTX` owner. The private key is never serialized to argv, environment,
+logs, CMake state or a temporary PEM file. No persistence is introduced in
+this increment.
+
+R10's Linux HostControl now owns that R1 identity only as endpoint-preparation
+state for the no-file path. `configure()` freshly validates the selected
+native interface/address and prepares the matching identity without opening a
+listener. The Qt Start adapter no longer demands TLS before endpoint
+preparation; after `configure()` it re-reads authoritative status and requires
+the prepared TLS identity before calling `startSharing()`. R1 still performs
+the fresh interface/address check, opens the sole listener, obtains the bound
+endpoint and requires the certificate SAN to match that exact listener
+generation before publication. A failed/replaced endpoint retires the generated
+identity, and Stop closes accepted/native/listener ownership before destroying
+the generated TLS context. Existing expert `--config` identities remain
+supported and must already cover the selected IP.
+
+R3 licensing material is deliberately **NOT SHARED** with the generated TLS
+key/certificate; no licensing code or CredSSP/transport protocol behavior is
+changed. Advanced still receives the SHA-256 fingerprint from the same
+`RuntimeTlsIdentityStatus` projection.
+
+Dedicated ordinary CTests are added for generated IPv4 and IPv6 SANs, wrong
+endpoint rejection, mismatched external private-key rejection, generated
+identity retirement, no-listener/no-socket generation, Linux HostControl
+prepare/reconfigure/Stop lifetime, and GUI prepare-before-Start ordering.
+Source/API review: **PASS**. A standalone OpenSSL API compile probe for the
+generation/SAN calls: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** because this connector environment cannot resolve GitHub to
+materialize the approved `~/rdp-server` checkout. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Next gate:** exact-SHA hosted compile/full CTest on Linux/macOS/Windows, then
+R10/R2/R3 continue the separate no-config Session Password, owner authority and
+licensing/runtime provisioning work. Do not treat this TLS increment or prior
+GUI Round 2 presentation PASS as end-to-end product readiness.
+
 ## R8 P2 automatic-bootstrap clipboard dormancy audit (2026-10-23)
 
 Product requirement for this round makes `rdp-server-desktop` with no required

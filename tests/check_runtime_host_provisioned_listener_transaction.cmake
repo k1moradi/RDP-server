@@ -90,3 +90,8 @@ string(FIND "${gui_window_source}" "if (!state.captureInputReady)"
 if(NOT forbidden_window_gate EQUAL -1)
     message(FATAL_ERROR "Desktop window still requires post-accept native owner before Start")
 endif()
+string(FIND "${gui_window_source}" "if (!state.tlsReady)"
+    forbidden_prepared_tls_gate)
+if(NOT forbidden_prepared_tls_gate EQUAL -1)
+    message(FATAL_ERROR "Desktop window still requires TLS before endpoint preparation")
+endif()

@@ -1,3 +1,33 @@
+## R1 automatic endpoint-bound TLS identity (2026-10-23)
+
+`RuntimeServerTlsContext` is the single R1 server-TLS identity owner. In
+addition to the expert file-backed constructor, R1 can create an identity
+directly from one numeric LAN IP without serializing private material. OpenSSL
+generates the private key in process, builds a self-signed X.509 server leaf,
+places the exact parsed address bytes in one `GEN_IPADD` subjectAltName,
+checks server purpose and key correspondence, and installs the pair into the
+same hardened server `SSL_CTX`. The generic certificate Common Name is never
+used to validate an IP; existing endpoint validation checks IP SAN first and
+does not fall back to subject/CN for a syntactically valid IP.
+
+The no-file identity is endpoint-preparation state, not listener authority.
+R10 may hold the move-only R1 context between a user-selected endpoint and
+explicit Sharing. R1 still freshly revalidates the native interface/address,
+owns the sole bind/listener, derives the actual bound numeric address and
+requires the prepared certificate to match that listener generation before the
+listener becomes authoritative. Address/interface replacement retires the
+prepared identity; Stop retires accepted/native work and the listener before
+destroying the generated TLS context. Identity generation itself creates no
+socket.
+
+No persistent key storage is introduced by this increment, so no secret is
+placed beside the portable executable or elsewhere on disk. If persistence is
+added later it requires a separate per-user private-storage design. The TLS
+identity is not reused as R3 licensing key material: licensing and TLS remain
+independent cryptographic owners until R3 explicitly proves a safe reason to
+share. Fingerprint presentation remains a read-only SHA-256 observation for
+Advanced and never grants client trust or R2 admission.
+
 ## R8 bootstrap lifecycle remains outside clipboard authority (2026-10-23)
 
 The normal product entrypoint may now grow automatic local provisioning and a

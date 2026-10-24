@@ -77,8 +77,11 @@ elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
 else()
     file(WRITE "${certificate_file}" "${valid_certificate}")
 endif()
-if(NOT RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-   "validates-lan-endpoint-certificate-identity")
+if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+   "rejects-live-tls-context-private-key-mismatch")
+    file(WRITE "${private_key_file}" "${lan_identity_private_key}")
+elseif(NOT RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "validates-lan-endpoint-certificate-identity")
     file(WRITE "${private_key_file}" "${valid_private_key}")
 endif()
 

@@ -1,3 +1,21 @@
+## R1 automatic TLS identity offline gates (2026-10-23)
+
+Automatic TLS provisioning tests must exercise the production in-memory
+factory with **no credential-file arguments**. Require separate exact IPv4 and
+IPv6 IP-SAN matches, wrong-address rejection, server-purpose and TLS-hardening
+checks, and a generated certificate/private-key match. Retain a negative
+file-backed mismatched-key case to prove the common context constructor rejects
+inconsistent material.
+
+Lifecycle coverage must prove identity generation owns no socket/listener,
+Linux endpoint preparation publishes only an unbound fingerprint, rejected
+endpoint replacement cannot retain a stale prepared identity, and Stop removes
+the generated identity after listener retirement. GUI coverage must prove
+Sharing can reach endpoint preparation when TLS is initially absent but cannot
+call `startSharing()` unless a fresh post-configure status reports the exact
+prepared identity. These are offline security/lifetime tests, not Microsoft
+client trust or end-to-end hosting acceptance.
+
 ## R8 automatic-bootstrap clipboard dormancy regression (2026-10-23)
 
 Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` in ordinary full CTest

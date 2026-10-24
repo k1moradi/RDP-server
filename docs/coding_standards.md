@@ -1,3 +1,22 @@
+## R1 generated TLS identity and secret lifetime (2026-10-23)
+
+The portable GUI may prepare an R1 server identity in memory from an exact
+numeric LAN endpoint. Generate keys with reviewed OpenSSL APIs and keep the key
+inside RAII-owned OpenSSL objects; do not serialize generated private-key bytes
+to argv, environment, logs, status/error strings, CMake cache, temporary PEM
+files or the extracted application directory. Numeric addresses require an
+`iPAddress` SAN containing the parsed address bytes. Never use CN/DNS fallback
+for an IP literal.
+
+Generated identity preparation is not bind authority. R10 may own the move-only
+R1 context for lifecycle composition, but R1 remains the sole listener/bind/TLS
+boundary and must revalidate the current native interface/address and the
+certificate against the actual bound listener before publication. Reconfigure
+must retire a stale generated identity; Stop must retire accepted/native and
+listener state before the generated TLS context. File-backed TLS remains an
+expert/legacy input only and must satisfy the same purpose/key/SAN checks.
+Do not share TLS key material with R3 licensing merely to reduce key count.
+
 ## R8 bootstrap must not manufacture clipboard authority (2026-10-23)
 
 Automatic GUI bootstrap may create local runtime prerequisites and Session

@@ -15,6 +15,7 @@
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 namespace
 {
@@ -378,16 +379,114 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+[[nodiscard]] bool validateGeneratedIdentity(
+    std::string_view endpoint, std::string_view wrongEndpoint) noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress(endpoint);
+    if (!context)
+        return fail("generated TLS context construction failed");
+    if (context.minimumProtocolVersion() != TLS1_2_VERSION ||
+        (context.options() & SSL_OP_NO_COMPRESSION) == 0U)
+        return fail("generated TLS context lost hardening");
+#if defined(SSL_OP_NO_RENEGOTIATION)
+    if ((context.options() & SSL_OP_NO_RENEGOTIATION) == 0U)
+        return fail("generated TLS context permits renegotiation");
+#endif
+    if (context.certificate() == nullptr ||
+        ::X509_check_purpose(
+            const_cast<X509 *>(context.certificate()),
+            X509_PURPOSE_SSL_SERVER, 0) != 1)
+        return fail("generated certificate lacks server purpose");
+
+    if (context.validateEndpointIdentity(endpoint) !=
+            RuntimeTlsEndpointIdentityStatus::Match ||
+        context.validateEndpointIdentity(wrongEndpoint) !=
+            RuntimeTlsEndpointIdentityStatus::Mismatch)
+        return fail("generated certificate IP SAN coverage is incorrect");
+
+    RuntimeServerTlsContext::ServerTls serverTls = context.createServerTls();
+    if (!serverTls || ::SSL_is_server(serverTls.get()) != 1)
+        return fail("generated server SSL unavailable");
+    if (::SSL_get_fd(serverTls.get()) != -1)
+        return fail("identity generation unexpectedly attached a socket");
+
+    EVP_PKEY *const privateKey = ::SSL_get_privatekey(serverTls.get());
+    if (privateKey == nullptr ||
+        ::X509_check_private_key(context.certificate(), privateKey) != 1)
+        return fail("generated certificate/private key do not match");
+    return true;
+}
+
+[[nodiscard]] bool validateGeneratedRetirement() noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress("192.0.2.40");
+    if (!context)
+        return fail("generated retirement context unavailable");
+
+    RuntimeServerTlsContext::ServerTls serverTls = context.createServerTls();
+    if (!serverTls || ::SSL_get_fd(serverTls.get()) != -1)
+        return fail("generated retirement SSL unexpectedly owns a socket");
+    serverTls.reset();
+
+    context = RuntimeServerTlsContext{};
+    const auto retired = context.identityStatus();
+    if (context || retired.fingerprintAvailable || retired.boundIdentityMatches())
+        return fail("retired generated identity retained runtime ownership");
+    for (const std::uint8_t byte : retired.certificateSha256)
+        if (byte != 0U)
+            return fail("retired generated identity retained fingerprint bytes");
+    return true;
+}
+
 } // namespace
 
 int main(int argumentCount, char **argumentValues)
 {
     using rdp_server::server::runtime::RuntimeServerTlsContext;
-    if (argumentCount < 4 || argumentValues[1] == nullptr ||
-        argumentValues[2] == nullptr || argumentValues[3] == nullptr) {
+    if (argumentCount < 2 || argumentValues[1] == nullptr)
         return fail("invalid arguments") ? 0 : 1;
-    }
+
     const std::string_view testCase{argumentValues[1]};
+    if (testCase == "generated-tls-identity-ipv4-san")
+        return validateGeneratedIdentity(
+            "192.0.2.40", "192.0.2.41") ? 0 : 1;
+    if (testCase == "generated-tls-identity-ipv6-san")
+        return validateGeneratedIdentity(
+            "2001:db8::40", "2001:db8::41") ? 0 : 1;
+    if (testCase == "generated-tls-identity-wrong-endpoint-denial")
+    {
+        RuntimeServerTlsContext context =
+            RuntimeServerTlsContext::fromGeneratedIpAddress("198.51.100.20");
+        if (!context ||
+            context.validateEndpointIdentity("198.51.100.21") !=
+                rdp_server::server::runtime::
+                    RuntimeTlsEndpointIdentityStatus::Mismatch ||
+            RuntimeServerTlsContext::fromGeneratedIpAddress("rdp.local") ||
+            RuntimeServerTlsContext::fromGeneratedIpAddress(
+                "198.51.100.20:3389"))
+            return 1;
+        return 0;
+    }
+    if (testCase == "generated-tls-identity-stop-retirement")
+        return validateGeneratedRetirement() ? 0 : 1;
+    if (testCase == "generated-tls-identity-no-listener-side-effect")
+    {
+        RuntimeServerTlsContext context =
+            RuntimeServerTlsContext::fromGeneratedIpAddress("203.0.113.15");
+        auto serverTls = context.createServerTls();
+        return context && serverTls && ::SSL_get_fd(serverTls.get()) == -1
+            ? 0 : 1;
+    }
+
+    if (argumentCount < 4 || argumentValues[2] == nullptr ||
+        argumentValues[3] == nullptr)
+        return fail("credential fixture arguments missing") ? 0 : 1;
     if (testCase == "validates-live-tls-context-construction") {
         return validateContext(argumentValues[2], argumentValues[3]) ? 0 : 1;
     }
@@ -418,7 +517,8 @@ int main(int argumentCount, char **argumentValues)
             argumentValues[4], argumentValues[5]) ? 0 : 1;
     }
     if (testCase == "rejects-live-tls-context-invalid-material" ||
-        testCase == "rejects-live-tls-context-extra-certificate-material") {
+        testCase == "rejects-live-tls-context-extra-certificate-material" ||
+        testCase == "rejects-live-tls-context-private-key-mismatch") {
         RuntimeServerTlsContext context =
             RuntimeServerTlsContext::fromCredentialFiles(
                 argumentValues[2], argumentValues[3]);

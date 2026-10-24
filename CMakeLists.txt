@@ -738,8 +738,8 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
-# R10 runtime-only TLS owner: it securely validates one credential snapshot,
-# constructs one reusable server SSL_CTX, and creates per-connection SSL owners.
+# R1 runtime TLS identity owner, composed by R10: it validates or generates one
+# identity, constructs one reusable server SSL_CTX, and creates connection SSL owners.
 # It is deliberately not installed/exported and never binds or listens.
 add_library(rdp-server-runtime-tls STATIC
     src/server/runtime/runtime_tls_context.cpp)
@@ -870,7 +870,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(rdp-server-linux-host-control PUBLIC
         rdp-server-protocol
         rdp-server-linux-logind-evidence
-        rdp-server-standalone-ntlmv2)
+        rdp-server-standalone-ntlmv2
+        rdp-server-runtime-tls)
     target_compile_options(rdp-server-linux-host-control PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

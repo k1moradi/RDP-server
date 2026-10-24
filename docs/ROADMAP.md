@@ -1,3 +1,43 @@
+## R2 P0 owner-consent semantics review for Linux HostControl regression (2026-10-24)
+
+Starting exact-main parent: `77270d4354791ceddd922e4cf2f8deb0be13766c`.
+
+Owner-local CTest reports failures in
+`runtime.linux-host-control-no-consent-start-denials`,
+`runtime.linux-host-control-product-status-projection` and
+`runtime.linux-host-control-sharing-permission-product-projection`.
+At this parent, static control-flow review pins the first machine-dependent
+assertion in each case to, respectively:
+- `tests/test_linux_runtime_host_control.cpp:98`: the default production
+  controller may legitimately grant `requestHostPermissionSetup()` on a fresh
+  unlocked physical seat0/X11 owner instead of returning
+  `HostConsentRequired`;
+- line 128: `sharingPermission.canRequest` may legitimately be true;
+- line 177: `sharingPermission.canRequest` may legitimately be true.
+
+The preceding assertions are independent of live owner evidence. The default
+controller is intentionally backed by production
+`LinuxLogindReadOnlyEvidenceSource`, while the already-existing
+`LinuxRuntimeHostControl(ConsoleOsEvidenceSource&)` constructor is the
+deterministic offline injection seam. R2 production semantics are correct and
+unchanged: unavailable evidence is non-requestable/non-authorizing, while an
+eligible unlocked same-owner physical session is requestable and an explicit
+local request may mint the bounded View/Input consent grant.
+
+R2 strengthens the existing synthetic authority regression to pin unavailable
+`permissionObservation()`, failed consent issuance and absence of a grant.
+No RDP wire behavior, listener, desktop capture, input injection or production
+owner-consent behavior changes. R10 retains ownership of the direct
+`tests/test_linux_runtime_host_control.cpp` patch and should construct the
+three offline cases with deterministic unavailable evidence while preserving a
+separate default-controller/native-evidence integration case.
+
+Verification in this connector environment: source/control-flow review **PASS**;
+owner-local canonical reproduction **NOT RUN** here. R10 next gate: inject the
+deterministic unavailable fixture into the three named HostControl CTests, then
+run the canonical selector on both the physical unlocked Linux/X11 owner host
+and headless hosted CI.
+
 ## macOS LAN route selection and GUI form growth updates (2026-10-24)
 
 Starting exact-main parent: `f7876df97d2b280941de51071ab76a4988188351`.

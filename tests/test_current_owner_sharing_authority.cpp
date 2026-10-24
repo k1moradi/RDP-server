@@ -200,6 +200,24 @@ int main(int argc, char **argv)
                OwnerConsentRequestResult::TrustedOwnerProofUnavailable);
         FakeOwnerEvidence evidence;
         CurrentOwnerSharingAuthority authority(evidence);
+
+        // Offline owner-consent tests must not inherit the machine's native
+        // console state. Unavailable evidence is non-requestable, cannot mint
+        // a grant and projects only the redacted evidence-unavailable denial.
+        evidence.session.status = ConsoleEvidenceReadStatus::Unavailable;
+        auto unavailableObservation = authority.permissionObservation();
+        assert(!unavailableObservation.canRequest);
+        assert(!unavailableObservation.activeGrant);
+        assert(unavailableObservation.effectivePermissionMask == 0U);
+        assert(unavailableObservation.remainingMilliseconds == 0U);
+        assert(unavailableObservation.denial ==
+               OwnerSharingReadOnlyDenial::EvidenceUnavailable);
+        assert(authority.requestConsent({kConsoleViewPermission, 100U}) ==
+               OwnerConsentRequestResult::NativeSessionUnavailable);
+        assert(authority.grantObservation().expiryState ==
+               OwnerSharingGrantExpiryState::Unavailable);
+        evidence.session.status = ConsoleEvidenceReadStatus::Observed;
+
         constexpr std::array invalidIntents{
             OwnerSharingIntent{0U, 100U},
             OwnerSharingIntent{kConsoleInputPermission, 100U},

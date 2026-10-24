@@ -1,3 +1,27 @@
+## Offline owner-consent tests must inject native evidence (2026-10-24)
+
+Linux's default `LinuxRuntimeHostControl` is a production composition object:
+it intentionally consumes live `LinuxLogindReadOnlyEvidenceSource` / physical-X11
+owner evidence. Therefore an offline permission/status CTest must not construct
+the default controller and assume a headless machine. Use the existing
+`LinuxRuntimeHostControl(ConsoleOsEvidenceSource&)` seam with deterministic
+synthetic evidence for those cases. Keep a separate integration test for the
+production/default controller consuming genuine native evidence.
+
+R2's invariant is independent of the host running CTest. Deterministic
+unavailable evidence yields `permissionObservation().canRequest == false`,
+no active grant, no effective permissions and
+`OwnerSharingReadOnlyDenial::EvidenceUnavailable`; `requestConsent()` must
+not grant. Deterministic eligible, unlocked, same-UID physical seat0 evidence
+yields `canRequest == true`; only an explicit local consent request may mint
+the bounded grant, after which View/Input projection follows the exact granted
+permission mask. R10 maps R2 `EvidenceUnavailable` to product
+`RuntimeSharingPermissionDenial::Unavailable`; the product observation is
+descriptive and never substitutes for `authorizes()`.
+
+Such offline tests must not open a listener, capture a real desktop, inject
+input, or use the invoking machine's logind/X11 state as a fixture.
+
 ## R9 credential-generation replacement acceptance rule (2026-10-24)
 
 The owner-acceptance bootstrap gate must include the password-replacement consent

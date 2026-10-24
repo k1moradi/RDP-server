@@ -1,3 +1,37 @@
+## R2 P0 Linux HostControl owner-consent regression review (2026-10-24)
+
+Starting exact-main parent: `77270d4354791ceddd922e4cf2f8deb0be13766c`.
+
+The owner reports the focused Linux HostControl selector failing on a physical
+unlocked X11 desktop. The connector cannot execute that owner-local machine, so
+no local PASS is claimed. Source/control-flow review identifies the earliest
+native-evidence-dependent assertions at this exact parent as:
+- `test_linux_runtime_host_control.cpp:98` in
+  `runtime.linux-host-control-no-consent-start-denials`;
+- line 128 in `runtime.linux-host-control-product-status-projection`;
+- line 177 in
+  `runtime.linux-host-control-sharing-permission-product-projection`.
+
+All three cases instantiate the production default `LinuxRuntimeHostControl`,
+which intentionally reads genuine logind/physical-X11 owner evidence. On an
+eligible host, R2 correctly reports requestable consent and can grant the
+explicit local permission request. This confirms the security semantics should
+not be weakened to recover stale headless expectations.
+
+The existing R2 synthetic test is strengthened so
+`ConsoleEvidenceReadStatus::Unavailable` must produce
+`canRequest == false`, `activeGrant == false`, zero permission/lifetime,
+`OwnerSharingReadOnlyDenial::EvidenceUnavailable`, a non-granting
+`requestConsent()`, and no grant observation. Existing eligible synthetic
+coverage already proves requestability, explicit grant, active grant and the
+exact View/Input/Clipboard permission mask.
+
+R2 production source: **UNCHANGED**.
+Focused R2 CTest execution in this connector: **NOT RUN**.
+R10 three-test physical/headless confirmation: **PENDING** after its owned
+fixture-injection patch. No listener, live capture, input injection or RDP wire
+path was exercised by this review.
+
 ## macOS LAN route selection and GUI form growth updates (2026-10-24)
 
 Starting exact-main parent: `f7876df97d2b280941de51071ab76a4988188351`.

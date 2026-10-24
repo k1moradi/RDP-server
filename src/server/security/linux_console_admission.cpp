@@ -21,6 +21,9 @@ public:
     std::atomic<std::int64_t> validThroughSteadyMilliseconds{};
     const ConsoleIdentityPolicy *policy{};
     std::uint64_t policyGeneration{};
+    ConsoleEvidenceAuthenticationKind authenticationKind{
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal};
+    OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch{};
 };
 
 namespace
@@ -79,6 +82,88 @@ template <std::size_t Capacity>
     destination.fill('\0');
     std::copy(value.begin(), value.end(), destination.begin());
     length = value.size();
+    return true;
+}
+
+[[nodiscard]] bool validStandaloneSessionId(
+    std::string_view sessionId) noexcept
+{
+    if (sessionId.empty() || sessionId.size() > 64U)
+        return false;
+    return std::all_of(
+        sessionId.begin(), sessionId.end(),
+        [](char character) {
+            return (character >= 'a' && character <= 'z') ||
+                   (character >= 'A' && character <= 'Z') ||
+                   (character >= '0' && character <= '9') ||
+                   character == '_' || character == '-';
+        });
+}
+
+[[nodiscard]] bool validStandaloneDisplay(
+    std::string_view display) noexcept
+{
+    if (display.size() < 2U || display.size() > 8U ||
+        display.front() != ':' ||
+        (display.size() > 2U && display[1] == '0'))
+    {
+        return false;
+    }
+    return std::all_of(
+        display.begin() + 1, display.end(),
+        [](char character) {
+            return character >= '0' && character <= '9';
+        });
+}
+
+// Native evidence is freshness/identity only. It never grants admission:
+// callers must separately hold an exact standalone authentication proof and an
+// exact CurrentOwnerSharingAuthority epoch before and after this sample.
+[[nodiscard]] bool captureStandaloneCurrentOwnerSession(
+    LinuxLogindReadOnlyEvidenceSource &evidence,
+    ConsoleCandidateSessionFingerprint &fingerprint,
+    std::array<char, 17> &seat,
+    std::size_t &seatLength,
+    std::array<char, 9> &display,
+    std::size_t &displayLength) noexcept
+{
+    fingerprint = {};
+    const ConsoleSessionObservation session = evidence.readActiveConsole();
+    const std::optional<std::uint64_t> now =
+        evidence.readMonotonicMilliseconds();
+    if (session.status != ConsoleEvidenceReadStatus::Observed ||
+        !session.active || !session.physical || session.remote ||
+        session.lockState != ConsoleDesktopLockState::Unlocked ||
+        session.seat != "seat0" ||
+        !validStandaloneSessionId(session.sessionId) ||
+        !validStandaloneDisplay(session.display) ||
+        session.ownerUid == 0U ||
+        session.ownerUid == (std::numeric_limits<std::uint32_t>::max)() ||
+        session.localProcessUid == 0U ||
+        session.localProcessUid != session.ownerUid ||
+        session.sessionGeneration == 0U ||
+        session.observedAtMonotonicMilliseconds == 0U ||
+        !now.has_value() ||
+        *now < session.observedAtMonotonicMilliseconds ||
+        *now - session.observedAtMonotonicMilliseconds >
+            kMaximumConsoleObservationAgeMilliseconds ||
+        !copyBounded(seat, seatLength, session.seat) ||
+        !copyBounded(display, displayLength, session.display))
+    {
+        return false;
+    }
+
+    std::copy(
+        session.sessionId.begin(), session.sessionId.end(),
+        fingerprint.sessionId.begin());
+    fingerprint.sessionIdLength = session.sessionId.size();
+    // This UID is the locally observed physical owner, never a remote identity.
+    fingerprint.accountUid = session.ownerUid;
+    fingerprint.consoleOwnerUid = session.ownerUid;
+    fingerprint.sessionGeneration = session.sessionGeneration;
+    fingerprint.observedAtMonotonicMilliseconds =
+        session.observedAtMonotonicMilliseconds;
+    fingerprint.evaluatedAtMonotonicMilliseconds = *now;
     return true;
 }
 
@@ -202,10 +287,19 @@ bool LinuxConsoleAdmissionLease::isRevoked() const noexcept
         control_->validThroughSteadyMilliseconds.load(
             std::memory_order_acquire);
     const bool policyChanged =
-        control_->policy == nullptr ||
-        control_->policy->generation() != control_->policyGeneration;
+        control_->authenticationKind ==
+            ConsoleEvidenceAuthenticationKind::KerberosPrincipal &&
+        (control_->policy == nullptr ||
+         control_->policy->generation() != control_->policyGeneration);
+    const bool invalidStandaloneControl =
+        control_->authenticationKind ==
+            ConsoleEvidenceAuthenticationKind::StandalonePassword &&
+        (control_->policy != nullptr ||
+         control_->policyGeneration == 0U ||
+         control_->ownerAuthorizationEpoch.grantGeneration == 0U ||
+         control_->ownerAuthorizationEpoch.revocationGeneration == 0U);
     if (!now.has_value() || deadline <= 0 || *now > deadline ||
-        policyChanged)
+        policyChanged || invalidStandaloneControl)
     {
         std::uint64_t expected = admissionGeneration_;
         (void)control_->activeGeneration.compare_exchange_strong(
@@ -350,8 +444,11 @@ LinuxConsoleAdmissionBroker::issue(
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request) noexcept
 {
-    // A matching session identity is not explicit unlocked owner consent.
+    // ExistingOsAccount remains the only caller-shaped policy route.
     if (state_ != LinuxConsoleAdmissionState::Ready ||
+        policy_ == nullptr ||
+        request.authenticationKind !=
+            ConsoleEvidenceAuthenticationKind::KerberosPrincipal ||
         ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(request.requestedPermissions))
     {
@@ -359,17 +456,13 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    // Reject invalid protocol/transport provenance or a missing private
-    // final-credential proof before constructing a native change monitor or
-    // sampling NSS/logind. HYBRID + GSS binding + PAM are still insufficient
-    // until this exact delegated account is joined to native owner evidence.
     const auto r1Security = r1HybridNlaSecurityView(connection);
     if (!r1Security)
     {
         deny(principalProof);
         return std::nullopt;
     }
-    const std::uint64_t policyGeneration = policy_.generation();
+    const std::uint64_t policyGeneration = policy_->generation();
     if (policyGeneration == 0 ||
         !principalProof.pendingNativeAdmissionMatches(
             connection, request, policyGeneration) ||
@@ -380,8 +473,6 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    // Establish the concrete native change monitor only after genuine TLS/authenticated-proof
-    // identity exists, but before any NSS/logind identity/session sampling.
     try
     {
         changes_ = std::make_unique<LinuxLogindSessionChangeSource>();
@@ -403,14 +494,14 @@ LinuxConsoleAdmissionBroker::issue(
 
     ConsoleCandidateSessionFingerprint fingerprint{};
     if (ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprint(
-            policy_, request, evidence_, fingerprint) !=
+            *policy_, request, evidence_, fingerprint) !=
             ConsoleEvidenceMatch::CandidateOnly ||
         changes_->pollChange() != ConsoleSessionChange::None ||
         fingerprint.sessionIdLength == 0 ||
         fingerprint.sessionIdLength >= 65 ||
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
-        policy_.generation() != policyGeneration ||
+        policy_->generation() != policyGeneration ||
         !principalProof.pendingNativeAdmissionMatches(
             connection, request, policyGeneration))
     {
@@ -440,9 +531,6 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    // All native facts and the change watch are live at this exact boundary.
-    // Only now may R2 set its private completion latch and tell the sole R1
-    // owner that CredSSP is complete. Neither transition is publicly callable.
     if (!principalProof.completeNativeAdmission(
             connection, request, policyGeneration) ||
         !connection.completeCredSspAdmission())
@@ -451,8 +539,10 @@ LinuxConsoleAdmissionBroker::issue(
         return std::nullopt;
     }
 
-    newControl->policy = &policy_;
+    newControl->policy = policy_;
     newControl->policyGeneration = policyGeneration;
+    newControl->authenticationKind =
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal;
     newControl->validThroughSteadyMilliseconds.store(
         *now + kAdmissionValidityMilliseconds, std::memory_order_relaxed);
     newControl->activeGeneration.store(
@@ -464,6 +554,139 @@ LinuxConsoleAdmissionBroker::issue(
         control_, generation, request.authenticationKind,
         request.kerberosPrincipal, request.unixAccount,
         fingerprint, request.requestedPermissions};
+    return std::optional<LinuxConsoleAdmissionLease>{std::move(lease)};
+}
+
+std::optional<LinuxConsoleAdmissionLease>
+LinuxConsoleAdmissionBroker::issueStandaloneCurrentOwner(
+    LinuxAuthenticatedPrincipalProof &principalProof,
+    rdp_server::server::transport::OwnedPreauthTcpConnection &connection)
+    noexcept
+{
+    if (state_ != LinuxConsoleAdmissionState::Ready ||
+        policy_ != nullptr || ownerSharingAuthority_ == nullptr)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    const OwnerSharingGrantObservation grant =
+        ownerSharingAuthority_->grantObservation();
+    const std::uint32_t permissions = grant.effectivePermissionMask;
+    if (grant.expiryState != OwnerSharingGrantExpiryState::Active ||
+        permissions == 0U ||
+        (permissions & kConsoleViewPermission) == 0U ||
+        (permissions & ~kConsoleAllowedPermissions) != 0U)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    const auto ownerEpoch =
+        ownerSharingAuthority_->authorizationEpoch(permissions);
+    const auto r1Security = r1HybridNlaSecurityView(connection);
+    if (!ownerEpoch.has_value() || !r1Security)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    ConsoleEvidenceRequest request{
+        {}, {}, {}, {}, permissions,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+    if (!principalProof.pendingNativeAdmissionMatches(
+            connection, request, ownerEpoch->grantGeneration))
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    try
+    {
+        changes_ = std::make_unique<LinuxLogindSessionChangeSource>();
+    }
+    catch (const std::bad_alloc &)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
+        changes_->pollChange() != ConsoleSessionChange::None)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    ConsoleCandidateSessionFingerprint fingerprint{};
+    if (!captureStandaloneCurrentOwnerSession(
+            evidence_, fingerprint, seat_, seatLength_,
+            display_, displayLength_))
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    request.seat = {seat_.data(), seatLength_};
+    request.display = {display_.data(), displayLength_};
+    if (!ownerSharingAuthority_->authorizesAtEpoch(
+            permissions, *ownerEpoch) ||
+        changes_->pollChange() != ConsoleSessionChange::None ||
+        !principalProof.pendingNativeAdmissionMatches(
+            connection, request, ownerEpoch->grantGeneration))
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    std::shared_ptr<LinuxConsoleAdmissionControl> newControl;
+    try
+    {
+        newControl = std::make_shared<LinuxConsoleAdmissionControl>();
+    }
+    catch (const std::bad_alloc &)
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    const std::uint64_t generation =
+        nextAdmissionGeneration.fetch_add(1, std::memory_order_relaxed);
+    const auto now = steadyMilliseconds();
+    if (generation == 0U || !now.has_value() ||
+        *now > std::numeric_limits<std::int64_t>::max() -
+                   kAdmissionValidityMilliseconds ||
+        !ownerSharingAuthority_->authorizesAtEpoch(
+            permissions, *ownerEpoch))
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    if (!principalProof.completeNativeAdmission(
+            connection, request, ownerEpoch->grantGeneration) ||
+        !connection.completeCredSspAdmission())
+    {
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    newControl->policy = nullptr;
+    newControl->policyGeneration = ownerEpoch->grantGeneration;
+    newControl->authenticationKind =
+        ConsoleEvidenceAuthenticationKind::StandalonePassword;
+    newControl->ownerAuthorizationEpoch = *ownerEpoch;
+    newControl->validThroughSteadyMilliseconds.store(
+        *now + kAdmissionValidityMilliseconds, std::memory_order_relaxed);
+    newControl->activeGeneration.store(
+        generation, std::memory_order_release);
+    control_ = std::move(newControl);
+    state_ = LinuxConsoleAdmissionState::Active;
+
+    LinuxConsoleAdmissionLease lease{
+        control_, generation,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword,
+        {}, {}, fingerprint, permissions};
     return std::optional<LinuxConsoleAdmissionLease>{std::move(lease)};
 }
 
@@ -487,25 +710,81 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
     LinuxAuthenticatedPrincipalProof &principalProof,
     const SSL *activeServerTls) noexcept
 {
-    // Every protected R2 operation revalidates affirmative native authority.
     if (ownerSharingAuthority_ == nullptr ||
-        !ownerSharingAuthority_->authorizes(lease.permissions_) ||
         !ownsActiveLease(lease) ||
-        control_->policyGeneration != policy_.generation() ||
-        !principalProof.revalidatesNativeAdmission(
-            activeServerTls, requestView(lease),
-            control_->policyGeneration) ||
         changes_ == nullptr ||
         changes_->pollChange() != ConsoleSessionChange::None)
     {
         return false;
     }
 
+    const ConsoleEvidenceRequest request = requestView(lease);
+    if (lease.authenticationKind_ ==
+        ConsoleEvidenceAuthenticationKind::KerberosPrincipal)
+    {
+        if (policy_ == nullptr ||
+            !ownerSharingAuthority_->authorizes(lease.permissions_) ||
+            control_->authenticationKind !=
+                ConsoleEvidenceAuthenticationKind::KerberosPrincipal ||
+            control_->policy != policy_ ||
+            control_->policyGeneration != policy_->generation() ||
+            !principalProof.revalidatesNativeAdmission(
+                activeServerTls, request, control_->policyGeneration))
+        {
+            return false;
+        }
+
+        ConsoleCandidateSessionFingerprint fingerprint{};
+        if (ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprint(
+                *policy_, request, evidence_, fingerprint) !=
+                ConsoleEvidenceMatch::CandidateOnly ||
+            changes_->pollChange() != ConsoleSessionChange::None ||
+            fingerprint.sessionIdLength != lease.sessionIdLength_ ||
+            std::string_view(
+                fingerprint.sessionId.data(), fingerprint.sessionIdLength) !=
+                std::string_view(
+                    lease.sessionId_.data(), lease.sessionIdLength_) ||
+            fingerprint.accountUid != lease.localUid_ ||
+            fingerprint.consoleOwnerUid != lease.localUid_ ||
+            fingerprint.sessionGeneration != lease.sessionGeneration_ ||
+            !principalProof.revalidatesNativeAdmission(
+                activeServerTls, request, control_->policyGeneration) ||
+            !refreshDeadline(lease.admissionGeneration_))
+        {
+            return false;
+        }
+        return !lease.isRevoked();
+    }
+
+    if (lease.authenticationKind_ !=
+            ConsoleEvidenceAuthenticationKind::StandalonePassword ||
+        policy_ != nullptr ||
+        control_->authenticationKind !=
+            ConsoleEvidenceAuthenticationKind::StandalonePassword ||
+        control_->policy != nullptr ||
+        !ownerSharingAuthority_->authorizesAtEpoch(
+            lease.permissions_, control_->ownerAuthorizationEpoch) ||
+        !principalProof.revalidatesNativeAdmission(
+            activeServerTls, request, control_->policyGeneration))
+    {
+        return false;
+    }
+
     ConsoleCandidateSessionFingerprint fingerprint{};
-    if (ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprint(
-            policy_, requestView(lease), evidence_, fingerprint) !=
-            ConsoleEvidenceMatch::CandidateOnly ||
+    std::array<char, 17> currentSeat{};
+    std::array<char, 9> currentDisplay{};
+    std::size_t currentSeatLength{};
+    std::size_t currentDisplayLength{};
+    if (!captureStandaloneCurrentOwnerSession(
+            evidence_, fingerprint, currentSeat, currentSeatLength,
+            currentDisplay, currentDisplayLength) ||
         changes_->pollChange() != ConsoleSessionChange::None ||
+        currentSeatLength != seatLength_ ||
+        currentDisplayLength != displayLength_ ||
+        std::string_view(currentSeat.data(), currentSeatLength) !=
+            std::string_view(seat_.data(), seatLength_) ||
+        std::string_view(currentDisplay.data(), currentDisplayLength) !=
+            std::string_view(display_.data(), displayLength_) ||
         fingerprint.sessionIdLength != lease.sessionIdLength_ ||
         std::string_view(
             fingerprint.sessionId.data(), fingerprint.sessionIdLength) !=
@@ -513,9 +792,10 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
         fingerprint.accountUid != lease.localUid_ ||
         fingerprint.consoleOwnerUid != lease.localUid_ ||
         fingerprint.sessionGeneration != lease.sessionGeneration_ ||
+        !ownerSharingAuthority_->authorizesAtEpoch(
+            lease.permissions_, control_->ownerAuthorizationEpoch) ||
         !principalProof.revalidatesNativeAdmission(
-            activeServerTls, requestView(lease),
-            control_->policyGeneration) ||
+            activeServerTls, request, control_->policyGeneration) ||
         !refreshDeadline(lease.admissionGeneration_))
     {
         return false;

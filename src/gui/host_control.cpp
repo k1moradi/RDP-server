@@ -57,6 +57,8 @@ HostStatus HostControl::status() const
                          runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.controlAvailable = runtimeStatus.product.controlAvailable;
     view.credentialsConfigured = runtimeStatus.product.credentialsConfigured;
+    view.credentialEditingAllowed =
+        runtimeStatus.product.credentialEditingAllowed;
     view.credentialCapabilities =
         runtimeStatus.product.credentialCapabilities;
     view.desktopAuthorized =

@@ -1113,6 +1113,10 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     }
     snapshot.product.state = runtimeProductStateFor(
         snapshot.stage, snapshot.lastError, snapshot.nativeDesktopReady);
+    snapshot.product.credentialEditingAllowed =
+        snapshot.product.controlAvailable &&
+        runtimeProductCredentialEditingAllowed(
+            snapshot.stage, snapshot.product.state);
 
     using Readiness = RuntimeProductReadinessStage;
     if (snapshot.nativeDesktopReady &&

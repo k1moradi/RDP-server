@@ -94,6 +94,8 @@ public:
             if (client.opaqueId != 0U)
                 result.product.activeClientIds.emplace_back(client.opaqueId);
         }
+        result.product.credentialCapabilities
+            .standalonePasswordConfigurationAvailable = true;
         result.product.credentialsConfigured =
             result.credentialsConfigured;
         result.product.ownerAuthorized = result.hostOwnerAuthorized;
@@ -128,6 +130,10 @@ public:
         }
         result.product.state = runtimeProductStateFor(
             result.stage, result.lastError, result.nativeDesktopReady);
+        result.product.credentialEditingAllowed =
+            result.product.controlAvailable &&
+            runtimeProductCredentialEditingAllowed(
+                result.stage, result.product.state);
         result.product.lastErrorMessage =
             result.lastError == RuntimeHostError::None
             ? std::string{}
@@ -1022,6 +1028,11 @@ int main(int argc, char** argv)
         assert(address->text() ==
                QStringLiteral("Connect to: 192.168.1.5:3389"));
         assert(copy->isEnabled());
+        for (QLineEdit* editor : {username, password, confirmation})
+        {
+            assert(!editor->isEnabled());
+            assert(editor->isReadOnly());
+        }
         return 0;
     }
 
@@ -1195,11 +1206,18 @@ int main(int argc, char** argv)
         runtime.startSucceeds = true;
 
         DesktopWindow window(host);
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
         auto* password =
             window.findChild<QLineEdit*>("sessionPassword");
         auto* confirmation =
             window.findChild<QLineEdit*>("sessionPasswordConfirm");
-        assert(password && confirmation);
+        assert(username && password && confirmation);
+        assert(username->isEnabled() && !username->isReadOnly());
+        assert(password->isEnabled() && !password->isReadOnly());
+        assert(confirmation->isEnabled() && !confirmation->isReadOnly());
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(confirmation->echoMode() == QLineEdit::Password);
         password->setText(QStringLiteral("replacement-owner-password"));
         confirmation->setText(password->text());
 

@@ -735,7 +735,9 @@ bool DesktopWindow::standalonePasswordSurfaceAvailable(
 {
     return snapshot.controlAvailable &&
            (snapshot.credentialCapabilities.standalonePassword ||
-            ownerAcceptancePasswordUiEnabled());
+            (ownerAcceptancePasswordUiEnabled() &&
+             snapshot.credentialCapabilities
+                 .standalonePasswordConfigurationAvailable));
 }
 
 void DesktopWindow::requestStart()
@@ -1046,12 +1048,12 @@ void DesktopWindow::refresh()
     sessionPasswordLabel_->setVisible(standaloneVisible);
     sessionPasswordConfirmLabel_->setVisible(standaloneVisible);
 
-    // The Debug/explicit owner-acceptance surface deliberately reaches the
-    // exact production standalone credential path before public Release
-    // qualification. Make editability an explicit cross-platform product
-    // projection instead of relying on QLineEdit/platform style defaults.
+    // R10 owns credential mutation authority. The acceptance surface may
+    // expose the production credential owner before public Release
+    // qualification, but R7 must not infer editability from credential
+    // readiness, permission, endpoint, TLS or other unrelated facts.
     const bool standaloneEditable =
-        standaloneVisible && !mayStillBeHosting(snapshot);
+        standaloneVisible && snapshot.credentialEditingAllowed;
     for (QLineEdit* editor :
          {username_, sessionPassword_, sessionPasswordConfirm_})
     {

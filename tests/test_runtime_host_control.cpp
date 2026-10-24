@@ -470,6 +470,48 @@ int main(int argumentCount, char** argumentValues)
         return 0;
     }
 
+    if (testCase == "host-control-credential-editing-lifecycle-policy")
+    {
+        assert(runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::Stopped, RuntimeProductHostState::Stopped));
+        assert(runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::PackageInstalled,
+            RuntimeProductHostState::Stopped));
+        assert(runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::CredentialsConfigured,
+            RuntimeProductHostState::Stopped));
+        assert(runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::Stopped, RuntimeProductHostState::Error));
+
+        for (const auto state : {
+                 RuntimeProductHostState::Starting,
+                 RuntimeProductHostState::Listening,
+                 RuntimeProductHostState::Authenticating,
+                 RuntimeProductHostState::DesktopInitializing,
+                 RuntimeProductHostState::Connected,
+                 RuntimeProductHostState::Stopping})
+            assert(!runtimeProductCredentialEditingAllowed(
+                RuntimeHostStage::Stopped, state));
+
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::ListenerAvailable,
+            RuntimeProductHostState::Listening));
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::ClientAuthenticating,
+            RuntimeProductHostState::Authenticating));
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::ShareActivated,
+            RuntimeProductHostState::DesktopInitializing));
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::DesktopVisible,
+            RuntimeProductHostState::Connected));
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::ClientConnected,
+            RuntimeProductHostState::Connected));
+        assert(!runtimeProductCredentialEditingAllowed(
+            RuntimeHostStage::Revoked, RuntimeProductHostState::Stopped));
+        return 0;
+    }
     if (testCase == "host-control-clipboard-state-denials")
     {
         assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);

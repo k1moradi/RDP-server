@@ -140,6 +140,7 @@ int main(int argc, char** argv)
         const auto status = control.status();
         assert(status.product.state == RuntimeProductHostState::Stopped);
         assert(status.product.controlAvailable);
+        assert(status.product.credentialEditingAllowed);
         assert(!status.product.credentialCapabilities.existingOsAccount);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         assert(!status.product.credentialCapabilities.standalonePassword);
@@ -676,6 +677,7 @@ int main(int argc, char** argv)
         assert(control.status().credentialsConfigured);
         assert(control.status().stage ==
                RuntimeHostStage::CredentialsConfigured);
+        assert(control.status().product.credentialEditingAllowed);
         assert(!control.status().hostOwnerAuthorized);
         assert(!control.status().listenerAvailable);
 #else
@@ -727,6 +729,7 @@ int main(int argc, char** argv)
         assert(third.configured && third.generation > afterStop.generation);
 
         assert(control.revokeSharing().succeeded());
+        assert(!control.status().product.credentialEditingAllowed);
         const auto afterRevoke =
             control.standaloneApplicationPasswordObservation();
         assert(!afterRevoke.configured);
@@ -771,6 +774,7 @@ int main(int argc, char** argv)
         assert(granted.credentialsConfigured);
         assert(granted.hostOwnerAuthorized);
         assert(granted.product.ownerAuthorized);
+        assert(granted.product.credentialEditingAllowed);
         assert(!granted.listenerAvailable);
         assert(granted.listenerGeneration == 0U);
         assert(granted.boundEndpoint.empty());
@@ -827,6 +831,7 @@ int main(int argc, char** argv)
         assert(listening.boundEndpoint == selectedEndpoint);
         assert(listening.product.boundEndpoint == selectedEndpoint);
         assert(listening.product.state == RuntimeProductHostState::Listening);
+        assert(!listening.product.credentialEditingAllowed);
         assert(listening.product.readinessStage ==
                RuntimeProductReadinessStage::Listening);
         assert(listening.activeClients.empty());
@@ -845,6 +850,7 @@ int main(int argc, char** argv)
         assert(control.stopSharing().succeeded());
         const auto stopped = control.status();
         assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(stopped.product.credentialEditingAllowed);
         assert(!stopped.listenerAvailable);
         assert(stopped.listenerGeneration == 0U);
         assert(stopped.boundEndpoint.empty());

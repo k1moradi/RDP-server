@@ -543,6 +543,7 @@ foreach(host_control_case IN ITEMS
         host-control-cross-platform-lan-recommendation-contract
         host-control-gui-round2-endpoint-recommendation
         host-control-product-status-projection
+        host-control-credential-editing-lifecycle-policy
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials
         host-control-credential-setup-denials

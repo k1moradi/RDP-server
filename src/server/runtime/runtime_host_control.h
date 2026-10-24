@@ -524,6 +524,32 @@ enum class RuntimeProductReadinessStage : std::uint8_t
     return false;
 }
 
+// Credential editability is a lifecycle fact, not a credential-readiness
+// fact. A configured password remains replaceable while the host is stopped;
+// active or transitional hosting states and terminal Revoked state lock edits.
+[[nodiscard]] constexpr bool runtimeProductCredentialEditingAllowed(
+    RuntimeHostStage stage, RuntimeProductHostState productState) noexcept
+{
+    if (runtimeProductStateMayHost(productState))
+        return false;
+
+    switch (stage)
+    {
+    case RuntimeHostStage::Stopped:
+    case RuntimeHostStage::PackageInstalled:
+    case RuntimeHostStage::CredentialsConfigured:
+        return true;
+    case RuntimeHostStage::ListenerAvailable:
+    case RuntimeHostStage::ClientAuthenticating:
+    case RuntimeHostStage::ShareActivated:
+    case RuntimeHostStage::DesktopVisible:
+    case RuntimeHostStage::ClientConnected:
+    case RuntimeHostStage::Revoked:
+        return false;
+    }
+    return false;
+}
+
 [[nodiscard]] constexpr RuntimeProductHostState runtimeProductStateFor(
     RuntimeHostStage stage, RuntimeHostError error,
     bool nativeDesktopReady) noexcept
@@ -620,6 +646,10 @@ struct RuntimeProductHostStatus final
     RuntimeTlsCertificateFingerprint tlsFingerprint{};
     bool tlsFingerprintAvailable{};
     std::string lastErrorMessage;
+    // Lifecycle-only UI mutation permission. This never means that
+    // credentials are configured and never grants consent or listener access.
+    // Appended to preserve existing aggregate-initializer field positions.
+    bool credentialEditingAllowed{};
 };
 
 struct RuntimeFirstLiveGraphicsTrace final

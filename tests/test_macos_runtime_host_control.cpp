@@ -84,6 +84,7 @@ void testInitialProductProjection()
     const auto snapshot = control.status();
     assert(snapshot.stage == RuntimeHostStage::Stopped);
     assert(snapshot.product.controlAvailable);
+    assert(snapshot.product.credentialEditingAllowed);
     assert(snapshot.product.automaticRuntimeProvisioned);
     assert(snapshot.product.nativeDesktopTargetAvailable);
     assert(snapshot.product.nativeDesktopTarget == "macOS ScreenCaptureKit Desktop");
@@ -146,6 +147,7 @@ void testStandalonePasswordLifecycle()
     const auto snapshot = control.status();
     assert(snapshot.credentialsConfigured);
     assert(snapshot.stage == RuntimeHostStage::CredentialsConfigured);
+    assert(snapshot.product.credentialEditingAllowed);
     assert(snapshot.product.readinessStage == RuntimeProductReadinessStage::CredentialsConfigured);
     assert(snapshot.product.sharingPermission.canRequest);
     assert(!snapshot.product.sharingPermission.activeGrant);
@@ -199,6 +201,7 @@ void testStopRevokeRetirement()
 
     assert(control.stopSharing().succeeded());
     assert(control.status().stage == RuntimeHostStage::Stopped);
+    assert(control.status().product.credentialEditingAllowed);
 
     assert(control.revokeSharing().succeeded());
     assert(!control.status().hostOwnerAuthorized);

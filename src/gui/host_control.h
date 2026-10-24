@@ -78,6 +78,9 @@ struct HostStatus
     QStringList authenticationFailures;
     QStringList disconnected;
     QStringList revoked;
+    // R10 lifecycle permission only; independent of credentialsConfigured.
+    // Appended to preserve existing aggregate-initializer field positions.
+    bool credentialEditingAllowed{};
 };
 
 struct HostRequest

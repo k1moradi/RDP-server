@@ -1,3 +1,60 @@
+## R10 P0 credential-editor lifecycle authority after R2/R5/R6/R9 unblock — 2026-10-24
+
+Starting exact-main parent: `853cf1838747b381b7e8e0ecef6a8028acbd89dc`.
+
+The dependency recheck resolved the owner-report blockers in sequence rather than
+working around them. R5 pinned physical-X11 precredential readiness. R6 made
+Linux/macOS owner acceptance explicit Release + acceptance ON and added the
+shared Qt property test. R2 then separated production standalone credential
+configuration from later native admission and added the descriptive
+`standalonePasswordConfigurationAvailable` capability. R9 added real Qt
+keyboard entry plus the full credential -> permission -> endpoint -> listener
+behavioral parity gate on Ubuntu and macOS.
+
+One R10/R7 authority gap remained: R9's production editor code still derived
+credential mutation locally from `!mayStillBeHosting(snapshot)`. R10 now owns
+that rule explicitly as `RuntimeProductHostStatus::credentialEditingAllowed`.
+Stopped, PackageInstalled and CredentialsConfigured are editable; hosting and
+transitional product states are locked; raw Revoked is unavailable. This fact is
+independent of `credentialsConfigured`. Linux and macOS project it through the
+same helper, and the Qt HostStatus forwards it without reinterpretation.
+
+The owner-acceptance password surface now additionally requires either public
+standalone qualification or the existing explicit Debug/owner-acceptance gate
+*and* R2's real production-credential configuration availability. R7/R9 still
+use the exact production credential owner; no test-only authentication path is
+introduced. R9's explicit setEnabled/setReadOnly behavior is retained, but its
+authority source is now only the R10 lifecycle fact. Password/Confirm remain
+masked. The R9 keyboard regression is strengthened to require the editors to
+lock after authoritative listener publication, while the existing
+password-replacement regression requires configured-but-stopped editors to stay
+editable.
+
+The production Start transaction remains:
+credential configuration -> fresh HostControl status -> fresh local View/Input
+permission -> exact recommended endpoint/TLS configuration -> R1 listener Start.
+The static acceptance contract continues to pin that order, and credential
+configuration failure still returns before permission, endpoint or listener
+work. Listener authority alone controls Sharing On, `Connect to:` and Copy.
+
+Dedicated ordinary R10 test
+`runtime.host-control-credential-editing-lifecycle-policy` covers the safe,
+hosting/transitional and Revoked state matrix. Linux and macOS HostControl tests
+pin equivalent stopped/configured projections; Linux's authoritative-listener
+test pins editability false while Listening and true again after Stop.
+
+Public `kStandalonePasswordProductCapabilityApproved`, R2 owner-consent
+semantics, R1 listener/TLS, R8 clipboard activation, RDP wire behavior and public
+Release acceptance-OFF packages: **UNCHANGED**. Connector source review:
+**PASS**. Connector-local build/CTest: **NOT RUN**. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Next gate:** current-SHA full CTest, R6 Linux/macOS Release+ON parity gates and
+the R9 Ubuntu/macOS keyboard-parity matrix must PASS. Then publish/use the exact
+owner Linux acceptance artifact and retry no-argument Username / Session
+Password / Confirm entry, Sharing, and authoritative
+`Connect to: 192.168.1.5:3389` / Copy behavior on the physical Linux/X11 host.
+
 ## R9 P0 owner GUI keyboard parity qualification (2026-10-24)
 
 Starting exact-main parent: `1b257735d42d679de8b831f5bd4767c1bd157bf9`.

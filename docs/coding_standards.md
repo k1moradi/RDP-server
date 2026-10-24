@@ -1,3 +1,27 @@
+## Credential editability is R10 lifecycle authority (2026-10-24)
+
+Credential configuration, native admission, owner consent and credential-editor
+mutation are separate facts. R10 product status owns whether the local
+credential editor may mutate the production standalone credential. Never derive
+editor enablement from `credentialsConfigured`: configured credentials remain
+replaceable while the host is stopped, and replacement revokes the prior R2
+consent generation.
+
+Stopped, PackageInstalled and CredentialsConfigured raw host stages are editable
+when HostControl is available and the selected product/acceptance credential
+surface is backed by a configurable production credential owner. Starting,
+Listening, Authenticating, DesktopInitializing, Connected and Stopping product
+states are locked; raw Revoked is locked even when its redacted product state is
+Stopped. A recoverable product Error does not by itself lock a raw stopped host.
+
+Linux and macOS HostControl implementations must project the same lifecycle
+fact. R7 may combine it with the existing public-qualification / explicit
+owner-acceptance surface gate, including R2's descriptive
+`standalonePasswordConfigurationAvailable`, but must not infer editability
+from permission requestability, endpoint/TLS readiness, configured state or
+other unrelated flags. The editability fact grants neither consent,
+authentication, endpoint authority nor listener authority.
+
 ## Keep standalone credential, native admission and consent as separate owners (2026-10-24)
 
 Do not make production standalone credential configuration depend on current

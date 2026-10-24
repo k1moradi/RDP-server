@@ -27,6 +27,9 @@ foreach(required_text IN ITEMS
         "ownerAcceptancePasswordUiEnabled()"
         "!defined(NDEBUG) || defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)"
         "snapshot.credentialCapabilities.standalonePassword"
+        "standalonePasswordConfigurationAvailable"
+        "snapshot.credentialEditingAllowed"
+        "standaloneVisible && snapshot.credentialEditingAllowed"
         "sessionPassword_"
         "sessionPasswordConfirm_"
         "Local address: "
@@ -39,6 +42,13 @@ foreach(required_text IN ITEMS
             "owner-acceptance/release GUI gate lost required token: ${required_text}")
     endif()
 endforeach()
+
+string(FIND "${runtime_header}"
+    "runtimeProductCredentialEditingAllowed(" editability_policy)
+if(editability_policy LESS 0)
+    message(FATAL_ERROR
+        "R10 product status must own credential editability lifecycle semantics")
+endif()
 
 string(FIND "${runtime_header}"
     "kStandalonePasswordProductCapabilityApproved = false" release_gate)

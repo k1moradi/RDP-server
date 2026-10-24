@@ -1,3 +1,24 @@
+## R3 OpenSSL 4 licensing-issuer accessor correction — 2026-10-23
+
+Starting exact-main parent: `22457da64499fd1b2f333e0dd7624649f0de42a1`.
+
+Exact-publication-SHA Actions run `40065928135`, macOS protocol job
+`120789083941`, reached the new R3 generator and failed compilation only
+because OpenSSL 4.0.3 does not expose `X509_get0_subject_name`; its
+const-correct API is `X509_get_subject_name(const X509*)`. The R3 generator
+already treats that returned issuer name as read-only and copies it into the
+leaf with `X509_set_issuer_name()`, so this is an API-portability correction
+only. Generated ProductInfo, RSA keys, certificate-chain bytes, ownership,
+private-material handling, Start gating and all RDP wire behavior are unchanged.
+
+The existing
+`runtime.licensing-autoprovision-microsoft-x509-chain-shape` regression
+continues to verify the generated root/leaf relationship and is the behavior
+coverage for this accessor. Connector/source review: **PASS**. Canonical
+owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Replacement exact-publication-SHA hosted CI: **PENDING**. No
+listener/client, desktop, input or unrelated MCS/Share/RDPGFX action was run.
+
 ## R3 P0 automatic portable licensing identity — 2026-10-23
 
 Starting exact-main parent: `f184a077300c8b4fa46384891835cbf3a550a4b8`.

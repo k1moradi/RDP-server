@@ -210,7 +210,7 @@ struct GeneratedLicensingMaterial final
     OwnedCertificate certificate{::X509_new()};
     constexpr unsigned char kLeafName[] = "RDP-server Licensing";
     OwnedName name = makeName(kLeafName);
-    const X509_NAME* issuer = ::X509_get0_subject_name(root);
+    const X509_NAME* issuer = ::X509_get_subject_name(root);
     if (!certificate || !name || issuer == nullptr ||
         ::X509_set_version(certificate.get(), 2L) != 1 ||
         !setRandomSerial(certificate.get()) ||

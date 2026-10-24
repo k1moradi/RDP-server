@@ -1,3 +1,43 @@
+## R7 P0 owner credential editor interaction/presentation completion (2026-10-24)
+
+Starting exact-main parent: `f50cf957eb6df01ed4fb3f0b3b4fb21836c8d6c3`.
+
+The owner-reported Linux credential-editor failure is now unblocked across the
+dependency graph. R2 separates production standalone credential configuration
+from later native admission and exposes configuration availability. R5 proves
+the eligible physical-X11 precredential path does not disable the editors. R6
+aligns Linux/macOS owner acceptance on explicit Release + acceptance ON. R9
+drives real key events through credential -> owner permission -> exact
+`192.168.1.5:3389` endpoint -> listener behavior and follows the shared
+credential-replacement contract. R10 owns credential editability as a
+lifecycle-only product fact. The GUI consumes both R10 editability and R2
+configuration availability without promoting the public Release capability.
+
+R7 closes the remaining direct GUI contract. Username, Password and Confirm get
+explicit StrongFocus/I-beam behavior, label buddies and deterministic
+Username -> Password -> Confirm -> Sharing tab order. Linux keeps theme palette
+colors but uses structurally distinct solid/focused/dashed-disabled borders so
+an editable control is not visually mistaken for a disabled one. Password and
+Confirm gain clear empty-field placeholders and remain masked.
+
+A Main-tab `sharingAvailabilityStatus` now presents one concise current reason
+while Sharing is unavailable; it does not disable credential entry. R9's
+existing `gui.offscreen-owner-acceptance-credential-editor-parity` is
+strengthened rather than duplicated: it verifies the full enabled ancestor
+chain, Main/QTabWidget state, StrongFocus, Qt enabled style state, I-beam cursor,
+real tab traversal, password-required -> mismatch -> ready transitions and the
+inline reason. Linux CI additionally executes the same mode using
+`QT_QPA_PLATFORM=xcb` under Xvfb.
+
+Production authentication, R2/R10 consent, R1 listener ownership, R8 clipboard
+activation and RDP wire behavior are unchanged. Public
+`kStandalonePasswordProductCapabilityApproved` remains false and the existing
+Debug/owner-acceptance compile gate remains intact.
+
+Connector source review: **PASS**. Local Qt build/CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA Linux offscreen/XCB and macOS
+Release+ON qualification: **PENDING** until this increment is published.
+
 ## R9/R2 owner-acceptance source-contract repair after credential consolidation (2026-10-24)
 
 Starting exact-main parent: `012be92d5611b4bbcfd1bab2d08351f8ef71a55d`.

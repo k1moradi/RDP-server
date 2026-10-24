@@ -72,6 +72,7 @@ private:
     QLabel* platformStatus_;
     QLabel* addressStatus_;
     QLabel* credentialStatus_;
+    QLabel* sharingAvailabilityStatus_;
     QLabel* permissionStatus_;
     QLabel* selectedInterfaceStatus_;
     QLabel* errorStatus_;

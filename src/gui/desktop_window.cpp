@@ -82,6 +82,37 @@ QLabel* heading(const QString& message, QWidget* parent)
     return result;
 }
 
+void configureCredentialEditor(QLineEdit& editor)
+{
+    // Credential entry remains interactive while Sharing is blocked by
+    // missing credentials, owner consent or endpoint readiness.
+    editor.setFocusPolicy(Qt::StrongFocus);
+    editor.setCursor(Qt::IBeamCursor);
+
+#if defined(Q_OS_LINUX)
+    // Some Linux desktop themes make an unfocused enabled QLineEdit resemble a
+    // disabled field. Preserve theme palette roles, while making the enabled,
+    // focused and disabled borders structurally distinct.
+    editor.setStyleSheet(QStringLiteral(
+        "QLineEdit {"
+        " background-color: palette(base);"
+        " color: palette(text);"
+        " border: 1px solid palette(mid);"
+        " border-radius: 4px;"
+        " padding: 4px 6px;"
+        "}"
+        "QLineEdit:focus {"
+        " border: 2px solid palette(highlight);"
+        " padding: 3px 5px;"
+        "}"
+        "QLineEdit:disabled {"
+        " background-color: palette(window);"
+        " color: palette(mid);"
+        " border: 1px dashed palette(mid);"
+        "}"));
+#endif
+}
+
 QString ownerPermissionStatusText(const HostStatus& status)
 {
     using Denial =
@@ -301,6 +332,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       platformStatus_(label({}, mainTab_)),
       addressStatus_(label({}, mainTab_)),
       credentialStatus_(label({}, mainTab_)),
+      sharingAvailabilityStatus_(label({}, mainTab_)),
       permissionStatus_(label({}, advancedTab_)),
       selectedInterfaceStatus_(label({}, advancedTab_)),
       errorStatus_(label({}, advancedTab_)),
@@ -326,6 +358,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     platformStatus_->setObjectName("platformSupportStatus");
     addressStatus_->setObjectName("connectionAddress");
     credentialStatus_->setObjectName("credentialStatus");
+    sharingAvailabilityStatus_->setObjectName("sharingAvailabilityStatus");
     permissionStatus_->setObjectName("permissionStatus");
     selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
     errorStatus_->setObjectName("hostErrorExplanation");
@@ -350,10 +383,21 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharingToggle_->setAccessibleName(QStringLiteral("Start or stop sharing"));
     username_->setObjectName("standaloneUsername");
     username_->setText(QStringLiteral("rdp"));
+    username_->setAccessibleName(QStringLiteral("Username"));
+    configureCredentialEditor(*username_);
     sessionPassword_->setObjectName("sessionPassword");
     sessionPassword_->setEchoMode(QLineEdit::Password);
+    sessionPassword_->setPlaceholderText(
+        QStringLiteral("Enter Session Password"));
+    sessionPassword_->setAccessibleName(QStringLiteral("Session Password"));
+    configureCredentialEditor(*sessionPassword_);
     sessionPasswordConfirm_->setObjectName("sessionPasswordConfirm");
     sessionPasswordConfirm_->setEchoMode(QLineEdit::Password);
+    sessionPasswordConfirm_->setPlaceholderText(
+        QStringLiteral("Confirm Session Password"));
+    sessionPasswordConfirm_->setAccessibleName(
+        QStringLiteral("Confirm Session Password"));
+    configureCredentialEditor(*sessionPasswordConfirm_);
     usernameLabel_->setObjectName("standaloneUsernameLabel");
     sessionPasswordLabel_->setObjectName("sessionPasswordLabel");
     sessionPasswordConfirmLabel_->setObjectName("sessionPasswordConfirmLabel");
@@ -399,6 +443,12 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     accessForm->addRow(usernameLabel_, username_);
     accessForm->addRow(sessionPasswordLabel_, sessionPassword_);
     accessForm->addRow(sessionPasswordConfirmLabel_, sessionPasswordConfirm_);
+    usernameLabel_->setBuddy(username_);
+    sessionPasswordLabel_->setBuddy(sessionPassword_);
+    sessionPasswordConfirmLabel_->setBuddy(sessionPasswordConfirm_);
+    QWidget::setTabOrder(username_, sessionPassword_);
+    QWidget::setTabOrder(sessionPassword_, sessionPasswordConfirm_);
+    QWidget::setTabOrder(sessionPasswordConfirm_, sharingToggle_);
     mainLayout->addLayout(accessForm);
     mainLayout->addWidget(credentialStatus_);
     configureOsAccount_->setParent(advancedTab_);
@@ -408,6 +458,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharingRow->addWidget(sharingToggle_);
     sharingRow->addStretch();
     mainLayout->addLayout(sharingRow);
+    mainLayout->addWidget(sharingAvailabilityStatus_);
     allowRemoteInput_->setChecked(true);
     mainLayout->addWidget(allowRemoteInput_);
     requestHostPermission_->setParent(advancedTab_);
@@ -1093,6 +1144,13 @@ void DesktopWindow::refresh()
         !mayStillBeHosting(snapshot));
 
     const QString denial = blockedReason(snapshot);
+    const QString sharingUnavailableReason =
+        !mayStillBeHosting(snapshot) && snapshot.controlAvailable
+        ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
+        : QString{};
+    sharingAvailabilityStatus_->setText(sharingUnavailableReason);
+    sharingAvailabilityStatus_->setVisible(!sharingUnavailableReason.isEmpty());
+
     sharingToggle_->setEnabled(
         snapshot.productState != ProductState::Starting &&
         snapshot.productState != ProductState::Stopping &&

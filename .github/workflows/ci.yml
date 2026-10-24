@@ -2700,4 +2700,8 @@ jobs:
           test -x build/tests/test_desktop_gui_offline
           QT_QPA_PLATFORM=offscreen \
             build/tests/test_desktop_gui_offline owner-gui-credential-parity
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a env QT_QPA_PLATFORM=xcb \
+              build/tests/test_desktop_gui_offline owner-gui-credential-parity
+          fi
 

@@ -1,3 +1,45 @@
+## R7 P0 credential editor keyboard/focus and Linux presentation validation (2026-10-24)
+
+Starting exact-main parent: `f50cf957eb6df01ed4fb3f0b3b4fb21836c8d6c3`.
+
+Dependency recheck consumed the landed R2/R5/R6/R9/R10 corrections instead of
+working around them. The production password surface requires R2's
+credential-configuration availability plus the existing public/owner-acceptance
+gate, and editability comes only from R10's lifecycle product fact. R9 provides
+the real key-event full Start orchestration test and the shared credential
+replacement follows the same production owner. The remaining R7 gaps were
+explicit tab/focus semantics, complete ancestor/style assertions, Linux visual
+distinction and a Main-tab blocked-Sharing explanation.
+
+R7 adds StrongFocus and I-beam behavior to all three credential editors,
+deterministic Username -> Password -> Confirm -> Sharing tab order, label
+buddies, masked password/confirmation placeholders, and Linux-only
+palette-derived styling whose solid/focused/dashed-disabled borders remain
+distinguishable even when theme colors are similar. No new enable/authorization
+decision is introduced.
+
+The existing R9 behavior mode is strengthened to require:
+- Username/Password/Confirm enabled and not read-only;
+- every QWidget ancestor plus Main and QTabWidget enabled;
+- Main tab enabled and selected;
+- exact StrongFocus, Qt `State_Enabled` and I-beam cursor;
+- Password/Confirm masked;
+- Tab traversal Username -> Password -> Confirm;
+- synthesized keyboard input through each focused editor;
+- inline `Enter a Session Password` then confirmation-mismatch reason;
+- inline reason hidden once matching non-empty input makes Sharing eligible;
+- the existing production credential/permission/endpoint/listener ordering,
+  authoritative `Connect to: 192.168.1.5:3389` transition and Copy gate.
+
+Linux Actions additionally runs this exact mode with qxcb under Xvfb; the
+Ubuntu/macOS Release+ON parity matrix remains the cross-platform gate. No
+test-only authentication implementation or Release qualification promotion is
+introduced.
+
+Connector source/diff review: **PASS**.
+Hosted exact-SHA execution: **PENDING**.
+Owner physical Linux/X11 no-argument retest: **PENDING** after hosted evidence.
+
 ## Owner-acceptance production-path source-contract reconciliation — 2026-10-24
 
 Starting exact-main parent: `012be92d5611b4bbcfd1bab2d08351f8ef71a55d`.

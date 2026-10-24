@@ -1,3 +1,27 @@
+## R7 owner credential keyboard/focus and visual-state contract (2026-10-24)
+
+When the gated Session Password surface is visible, R7 must keep credential
+entry independent of ordinary Sharing readiness. Username, Session Password and
+Confirm must remain enabled, writable, StrongFocus keyboard/click targets while
+R10 reports credential editing allowed, even when Sharing is blocked by an empty
+password, confirmation mismatch, owner permission or endpoint readiness.
+Password and Confirm remain masked.
+
+The shared Linux/macOS owner-acceptance behavioral regression must verify the
+entire enabled QWidget parent chain, enabled Main tab/QTabWidget state, Qt
+enabled style state, explicit Username -> Password -> Confirm tab traversal and
+real key-event editing. Linux hosted qualification must additionally execute the
+same behavior through the XCB platform plugin under Xvfb rather than relying
+only on Qt's offscreen backend.
+
+Linux presentation may use palette-derived styling, but enabled, focused and
+disabled credential fields must remain structurally distinguishable even when a
+desktop theme assigns similar colors. Do not solve a blocked Sharing action by
+graying credential entry. Public Release qualification, production credential
+configuration availability and R10 credential-editing authority remain separate
+gates; no GUI style or focus state authorizes credential configuration, owner
+consent or a listener.
+
 ## Source contracts must follow semantic credential ownership (2026-10-24)
 
 When production credential replacement is consolidated behind a shared R2 helper,

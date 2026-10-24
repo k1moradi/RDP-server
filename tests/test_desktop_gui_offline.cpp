@@ -23,6 +23,7 @@
 #include <QScrollBar>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStyleOptionFrame>
 #include <QTabWidget>
 #include <QWizard>
 
@@ -313,15 +314,41 @@ QAction* requiredAction(DesktopWindow& window, const char* name)
     return result;
 }
 
-void typeWithKeyEvents(
-    QApplication& application, QLineEdit& editor, const QString& text)
+void assertEnabledParentChain(const QWidget& widget)
+{
+    for (const QWidget* current = &widget;
+         current != nullptr;
+         current = current->parentWidget())
+    {
+        assert(current->isEnabled());
+    }
+}
+
+void assertInteractiveCredentialEditor(const QLineEdit& editor)
 {
     assert(editor.isVisible());
     assert(editor.isEnabled());
     assert(!editor.isReadOnly());
+    assertEnabledParentChain(editor);
+    assert(editor.focusPolicy() == Qt::StrongFocus);
 
-    editor.setFocus(Qt::OtherFocusReason);
-    application.processEvents();
+    QStyleOptionFrame styleOption;
+    styleOption.initFrom(&editor);
+    assert(styleOption.state.testFlag(QStyle::State_Enabled));
+    assert(editor.cursor().shape() == Qt::IBeamCursor);
+}
+
+void typeWithKeyEvents(
+    QApplication& application, QLineEdit& editor, const QString& text)
+{
+    assertInteractiveCredentialEditor(editor);
+
+    if (!editor.hasFocus())
+    {
+        editor.setFocus(Qt::OtherFocusReason);
+        application.processEvents();
+    }
+    assert(editor.hasFocus());
     for (const QChar character : text)
     {
         const QString input{character};
@@ -331,6 +358,20 @@ void typeWithKeyEvents(
         QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, input);
         QApplication::sendEvent(&editor, &release);
     }
+    application.processEvents();
+}
+
+void sendTabKey(QApplication& application, QWidget& widget)
+{
+    assert(widget.hasFocus());
+    QKeyEvent press(
+        QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier,
+        QStringLiteral("\t"));
+    QApplication::sendEvent(&widget, &press);
+    QKeyEvent release(
+        QEvent::KeyRelease, Qt::Key_Tab, Qt::NoModifier,
+        QStringLiteral("\t"));
+    QApplication::sendEvent(&widget, &release);
     application.processEvents();
 }
 
@@ -937,6 +978,8 @@ int main(int argc, char** argv)
         window.show();
         application.processEvents();
 
+        auto* tabs = window.findChild<QTabWidget*>("settingsTabs");
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
         auto* username =
             window.findChild<QLineEdit*>("standaloneUsername");
         auto* password =
@@ -947,29 +990,49 @@ int main(int argc, char** argv)
         auto* copy = requiredButton(window, "copyLanAddress");
         auto* address = requiredLabel(window, "connectionAddress");
         auto* readiness = requiredLabel(window, "sharingReadinessStatus");
-        assert(username && password && confirmation);
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        assert(tabs && mainTab && username && password && confirmation);
+        assert(tabs->isEnabled());
+        assert(mainTab->isEnabled());
+        assert(tabs->isTabEnabled(0));
+        assert(tabs->currentWidget() == mainTab);
 
         for (QLineEdit* editor : {username, password, confirmation})
-        {
-            assert(editor->isVisible());
-            assert(editor->isEnabled());
-            assert(!editor->isReadOnly());
-        }
+            assertInteractiveCredentialEditor(*editor);
         assert(username->echoMode() == QLineEdit::Normal);
         assert(password->echoMode() == QLineEdit::Password);
         assert(confirmation->echoMode() == QLineEdit::Password);
+#if defined(__linux__)
+        assert(!username->styleSheet().isEmpty());
+        assert(username->styleSheet() == password->styleSheet());
+        assert(password->styleSheet() == confirmation->styleSheet());
+#endif
         assert(address->text() ==
                QStringLiteral("Local address: 192.168.1.5"));
         assert(!copy->isEnabled());
         assert(!toggle->isChecked());
         assert(!host.status().listenerReady);
         assert(runtime.startCalls == 0);
+        assert(window.blockedReason() ==
+               QStringLiteral("Enter a Session Password"));
+        assert(availability->text() ==
+               QStringLiteral("Enter a Session Password"));
 
         username->clear();
+        username->setFocus(Qt::OtherFocusReason);
+        application.processEvents();
+        assert(username->hasFocus());
         typeWithKeyEvents(
             application, *username, QStringLiteral("owner"));
+
+        sendTabKey(application, *username);
+        assert(password->hasFocus());
         typeWithKeyEvents(
             application, *password, QStringLiteral("ownertest123"));
+
+        sendTabKey(application, *password);
+        assert(confirmation->hasFocus());
         typeWithKeyEvents(
             application, *confirmation, QStringLiteral("different123"));
         assert(username->text() == QStringLiteral("owner"));
@@ -981,17 +1044,17 @@ int main(int argc, char** argv)
             QStringLiteral("does not match")));
         assert(readiness->text().contains(
             QStringLiteral("does not match")));
+        assert(availability->text().contains(
+            QStringLiteral("does not match")));
 
         confirmation->clear();
         typeWithKeyEvents(
             application, *confirmation, QStringLiteral("ownertest123"));
         assert(window.canStart());
         assert(toggle->isEnabled());
+        assert(availability->isHidden());
         for (QLineEdit* editor : {username, password, confirmation})
-        {
-            assert(editor->isEnabled());
-            assert(!editor->isReadOnly());
-        }
+            assertInteractiveCredentialEditor(*editor);
 
         toggle->click();
         assert(runtime.standaloneCredentialCalls == 1);

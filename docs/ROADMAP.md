@@ -606,10 +606,22 @@ proves delayed positive delivery receipts from both older routes cannot mutate
 the third route/source while the third route still completes its own receipt.
 Both stay outside the fixed clipboard sanitizer census.
 
-Connector source review: **PASS**. Canonical owner-local configure/build/full
-CTest: **NOT RUN** because this tool environment cannot resolve `github.com`
-to materialize the required `~/rdp-server/` checkout. Exact-publication-SHA
-hosted CI: **PENDING**. R8 activation remains **BLOCKED**.
+Connector source review: **PASS**. Hosted validation is now **PASS** on
+exact descendant SHA `5024ad560fa53ea56b5ff53f759e393675c434a2`,
+workflow `40103374391`: Ubuntu protocol job `120899938022` passes both
+`runtime.r8-r3-repeated-restart-receipt-isolation` and
+`runtime.r8-x11-restart-incr-isolation` in the ordinary full-suite runs;
+macOS job `120899938002` and Windows job `120899938035` pass the portable
+repeated-receipt case. The complete Linux/macOS/Windows protocol jobs and R9
+security-sanitizer job `120899938062` are green at that exact SHA.
+
+R8 production/test sources and the two R8 registrations are unchanged from the
+authored increment through this validated descendant, so the P2 stale-lifetime
+assertion gate is **PASS**. Canonical owner-local full CTest and physical
+clipboard/live-client testing remain **NOT RUN**. Production clipboard
+activation remains **BLOCKED** and
+`kLinuxProductionClipboardActivationApproved` remains false. No further R8
+stale-lifetime code change is justified unless one of these regressions fails.
 
 ## R3 source-guard final CMake list-token cleanup — 2026-10-24
 

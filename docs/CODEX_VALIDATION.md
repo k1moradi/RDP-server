@@ -400,10 +400,21 @@ Both remain outside the fixed clipboard sanitizer census.
 `kLinuxProductionClipboardActivationApproved` remains false. Production code,
 GUI, credentials and RDP wire behavior are **UNCHANGED**.
 
-Canonical local configure/build/full CTest: **NOT RUN**; a fresh clone to the
-required local checkout could not start because this tool environment could not
-resolve `github.com`. Exact-publication-SHA hosted CI: **PENDING**. No live
-listener, desktop, clipboard, input or Microsoft-client operation was run.
+Canonical local configure/build/full CTest: **NOT RUN**. Hosted validation is
+**PASS** on exact descendant SHA
+`5024ad560fa53ea56b5ff53f759e393675c434a2`, workflow `40103374391`.
+Ubuntu protocol job `120899938022` passes both
+`runtime.r8-r3-repeated-restart-receipt-isolation` and
+`runtime.r8-x11-restart-incr-isolation`; macOS job `120899938002` and
+Windows job `120899938035` pass the portable repeated-receipt regression.
+The complete Linux/macOS/Windows protocol jobs and R9 security-sanitizer job
+`120899938062` are green at that SHA.
+
+R8 production/test sources and registrations are unchanged through that
+validated descendant. R8 P2 stale-lifetime hosted qualification is therefore
+**PASS**. Production clipboard activation remains **BLOCKED** with the literal
+activation gate false. No live listener, desktop, clipboard, input or
+Microsoft-client operation was run.
 
 ## R3 source-guard final list-token cleanup — 2026-10-24
 

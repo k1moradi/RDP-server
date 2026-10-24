@@ -1,3 +1,39 @@
+## R8 current-main verification of R10 owner-evidence fixture isolation — 2026-10-24
+
+Starting exact-main parent: `6ded7b1938bab3c029ef13041b3a46bc09612716`.
+
+R10's P0 repository-side dependency is resolved: deterministic owner-evidence
+fixtures are on `main`, current hosted Linux full CTest is green, and the only
+remaining R10 P0 receipt is the external physical unlocked Linux/X11 rerun. That
+external receipt does not block this R8 isolation verification.
+
+R8 reviewed the current three repaired HostControl cases and the deterministic
+positive/negative evidence matrix. The tests now explicitly pin
+`RuntimeHostStatus::clipboardState == RuntimeClipboardState::Unavailable`
+before and after the denied permission request in the no-consent and
+sharing-projection cases, in the product-status projection, and across the
+synthetic positive View+Input grant. The positive matrix already requests
+`allowClipboard = false`; it now also asserts the resulting R2 owner-grant
+mask contains no `kConsoleClipboardPermission`.
+
+Production remains fail-closed. `kLinuxProductionClipboardActivationApproved`
+is still literal `false`. `LinuxPreparedClipboardOwner::prepare()` returns
+before constructing its R8 bridge/X11 adapter while that gate is false, and the
+three P0 cases never create a listener, accepted client or native desktop owner.
+Therefore no CLIPRDR owner, native clipboard publication/action, capture or
+input path is reachable from the fixture correction.
+
+Production R8/R10/RDP wire source: **UNCHANGED**. Existing current-parent hosted
+qualification is green before these additional assertions. Connector
+source/lifetime review for this increment: **PASS**. Modified focused CTest
+execution: **NOT RUN** in this connector environment. Exact-publication-SHA
+hosted qualification: **PENDING**.
+
+**Next gate:** ordinary hosted/full CTest must pass the strengthened assertions.
+R8 production activation remains independently **BLOCKED** pending the required
+owner-authorized physical FIRST/product receipt; this verification does not
+authorize clipboard activation.
+
 ## R7 current-main hosted qualification after R10 P0 resolution (2026-10-24)
 
 **Tested SHA:** `89493aafe70da0ae0a5ce52ab6ea7aff89cc97a0`.

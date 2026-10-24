@@ -1,3 +1,18 @@
+## R8 isolation assertions in deterministic HostControl evidence tests (2026-10-24)
+
+When an R10 HostControl permission/status regression uses injected deterministic
+owner evidence, it must also pin the independent R8 boundary whenever clipboard
+activation is not part of the test. Assert the observable
+`RuntimeHostStatus::clipboardState` remains `Unavailable` across denied
+permission requests and synthetic View/Input grants, and ensure any positive
+permission fixture explicitly sets `allowClipboard = false` and observes no
+clipboard bit in the resulting owner-grant mask.
+
+These assertions supplement, rather than replace, the production dormancy
+contract: `kLinuxProductionClipboardActivationApproved` remains false until its
+own physical FIRST receipt, and no offline owner-evidence fixture may construct
+or exercise a CLIPRDR/native clipboard owner as evidence for activation.
+
 ## R7 GUI permission requestability projection gate (2026-10-24)
 
 Keep a deterministic offscreen GUI regression for both owner-permission product

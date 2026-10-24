@@ -1,3 +1,27 @@
+## R8 verification of R10 deterministic owner-evidence isolation (2026-10-24)
+
+Starting parent: `6ded7b1938bab3c029ef13041b3a46bc09612716`.
+
+Dependency recheck found the R10 P0 source/hosted blocker resolved by other
+agents. Current hosted Linux qualification is green; only the independent
+physical unlocked Linux/X11 owner receipt remains external. R8 therefore
+continued its P2 isolation verification instead of waiting on that receipt.
+
+The three original failing HostControl cases now explicitly assert clipboard
+status remains `Unavailable`. The deterministic positive/negative permission
+matrix also pins clipboard status before/after grant and proves the explicit
+View+Input grant omits `kConsoleClipboardPermission`. Production activation
+literal remains false; source/lifetime review confirms the disabled
+`LinuxPreparedClipboardOwner::prepare()` path does not construct its bridge or
+X11 adapter, and these tests never reach native desktop/client ownership.
+
+Production source/RDP wire behavior: **UNCHANGED**.
+Source/lifetime review: **PASS**.
+Focused/full CTest after assertion changes: **NOT RUN** here.
+Exact-publication-SHA hosted qualification: **PENDING**.
+R8 physical activation/FIRST: **BLOCKED / NOT RUN** pending its separate
+owner-authorized real-client receipt.
+
 ## R7 current-main hosted qualification after R10 P0 resolution (2026-10-24)
 
 **Tested SHA:** `89493aafe70da0ae0a5ce52ab6ea7aff89cc97a0`.

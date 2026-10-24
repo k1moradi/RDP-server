@@ -116,10 +116,14 @@ int main(int argc, char** argv)
         assert(!control.status().hostOwnerAuthorized);
         assert(!control.status().tlsIdentityReady);
         assert(!control.status().nativeDesktopReady);
+        assert(control.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert(control.startSharing().error ==
                RuntimeHostError::InvalidConfiguration);
         assert(control.requestHostPermissionSetup().error ==
                RuntimeHostError::HostConsentRequired);
+        assert(control.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert(control.requestCredentialSetup(
                    LanCredentialChoice::ExistingOsAccount).error ==
                RuntimeHostError::CredentialProviderUnavailable);
@@ -150,6 +154,7 @@ int main(int argc, char** argv)
 #endif
         assert(!status.product.credentialsConfigured);
         assert(!status.product.ownerAuthorized);
+        assert(status.clipboardState == RuntimeClipboardState::Unavailable);
         assert(!status.product.sharingPermission.canRequest);
         assert(!status.product.sharingPermission.activeGrant);
         assert(!status.product.sharingPermission.viewAllowed);
@@ -201,6 +206,7 @@ int main(int argc, char** argv)
         LinuxRuntimeHostControl control(evidence);
         auto status = control.status();
         assert(status.product.controlAvailable);
+        assert(status.clipboardState == RuntimeClipboardState::Unavailable);
         assert(!status.product.sharingPermission.canRequest);
         assert(!status.product.sharingPermission.activeGrant);
         assert(status.product.sharingPermission.denial ==
@@ -209,6 +215,7 @@ int main(int argc, char** argv)
         assert(control.requestHostPermissionSetup().error ==
                RuntimeHostError::HostConsentRequired);
         status = control.status();
+        assert(status.clipboardState == RuntimeClipboardState::Unavailable);
         assert(!status.product.sharingPermission.canRequest);
         assert(!status.product.sharingPermission.activeGrant);
         assert(status.product.sharingPermission.denial ==
@@ -237,6 +244,8 @@ int main(int argc, char** argv)
         assert(unavailableStatus.product.sharingPermission.denial ==
                RuntimeSharingPermissionDenial::Unavailable);
         assert(!unavailableStatus.hostOwnerAuthorized);
+        assert(unavailableStatus.clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert(!unavailableStatus.listenerAvailable);
         assert(unavailableStatus.boundEndpoint.empty());
         assert(unavailable.requestHostPermissionSetup(permission).error ==
@@ -259,6 +268,8 @@ int main(int argc, char** argv)
         assert(eligibleStatus.product.sharingPermission.denial ==
                RuntimeSharingPermissionDenial::PermissionRequired);
         assert(!eligibleStatus.hostOwnerAuthorized);
+        assert(eligibleStatus.clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert(!eligibleStatus.listenerAvailable);
         assert(eligibleStatus.boundEndpoint.empty());
 
@@ -271,6 +282,10 @@ int main(int argc, char** argv)
         assert(eligibleStatus.product.sharingPermission.denial ==
                RuntimeSharingPermissionDenial::None);
         assert(eligibleStatus.hostOwnerAuthorized);
+        assert(eligibleStatus.clipboardState ==
+               RuntimeClipboardState::Unavailable);
+        assert((eligibleStatus.ownerGrant.effectivePermissionMask &
+                rdp_server::server::security::kConsoleClipboardPermission) == 0U);
         assert(!eligibleStatus.listenerAvailable);
         assert(eligibleStatus.boundEndpoint.empty());
         assert(eligible.startSharing().error ==

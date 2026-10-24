@@ -4029,6 +4029,7 @@ set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
 add_test(NAME runtime.linux-authentication-failure-retains-listener-and-credential-source
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        "-DRDP_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_linux_auth_failure_retention.cmake")
 set_tests_properties(
     runtime.linux-authentication-failure-retains-listener-and-credential-source

@@ -1198,6 +1198,12 @@ private:
     bool nativeChangeRegistrationUnregistered_{};
     LinuxRuntimeCredSspDiagnosticTransition credSspDiagnosticTransition_{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    // Redacted connection-scoped envelope survives terminal CredSSP cleanup so
+    // R10/R7 can classify the failed peer without retaining token material.
+    rdp_server::server::security::StandaloneNtlmNegotiationEnvelope
+        standaloneNegotiationEnvelope_{
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::Undetermined};
     rdp_server::server::security::StandaloneAuthenticationFailureStage
         standaloneAuthenticationFailureStage_{
             rdp_server::server::security::

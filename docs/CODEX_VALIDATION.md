@@ -1,3 +1,22 @@
+## R7 terminal diagnostic-envelope lifetime correction (2026-10-24)
+
+**Starting exact-main parent:** `2b25b727b31c2d3a4acc3f3c4e139548d5678537`.
+
+Post-publication source review found that the standalone CredSSP acceptor is
+cleansed during a terminal authentication failure before HostControl takes its
+accepted-client diagnostic snapshot. The GUI projection therefore must not read
+the negotiation envelope back from that reset owner.
+
+The connection now caches only the closed
+`StandaloneNtlmNegotiationEnvelope` scalar while processing CredSSP and again
+immediately before terminal reset. `acceptanceDiagnostics()` publishes that
+redacted cached enum. No token bytes or parser strings are retained. The R7
+production source-contract now pins capture-before-reset and cached-snapshot
+ordering in addition to listener/credential retention.
+
+Connector source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R7 authentication-failure GUI/status authoring receipt (2026-10-24)
 
 **Starting reconciled main:** `ae7d8d1c0bf18fddbd87b1c5e1bdc83b5144a9c3`.

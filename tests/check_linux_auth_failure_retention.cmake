@@ -4,11 +4,15 @@
 # the local listener; explicit Stop/revoke/session-security policy owns those
 # wider lifetimes.
 if(NOT DEFINED RDP_LINUX_HOST_CONTROL_SOURCE OR
-   "${RDP_LINUX_HOST_CONTROL_SOURCE}" STREQUAL "")
-    message(FATAL_ERROR "RDP_LINUX_HOST_CONTROL_SOURCE is required")
+   "${RDP_LINUX_HOST_CONTROL_SOURCE}" STREQUAL "" OR
+   NOT DEFINED RDP_LINUX_CONNECTION_SOURCE OR
+   "${RDP_LINUX_CONNECTION_SOURCE}" STREQUAL "")
+    message(FATAL_ERROR
+        "RDP_LINUX_HOST_CONTROL_SOURCE and RDP_LINUX_CONNECTION_SOURCE are required")
 endif()
 
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
+file(READ "${RDP_LINUX_CONNECTION_SOURCE}" connection_source)
 string(FIND "${host_source}"
     "void LinuxRuntimeHostControl::retireAcceptedClient("
     retire_begin)
@@ -49,3 +53,30 @@ foreach(forbidden IN ITEMS
             "Per-peer authentication failure widened host teardown: ${forbidden}")
     endif()
 endforeach()
+
+# The acceptor is cleansed on terminal failure, so cache only the redacted
+# envelope before reset. The published acceptance snapshot must use that cached
+# scalar rather than reading the reset mechanism owner.
+foreach(required IN ITEMS
+    "const auto captureNegotiationEnvelope = [this]() noexcept"
+    "standaloneNegotiationEnvelope_ ="
+    "captureNegotiationEnvelope();"
+    "standaloneCredSspAcceptor_.reset();"
+    "snapshot.standaloneNegotiationEnvelope ="
+    "standaloneNegotiationEnvelope_;")
+    string(FIND "${connection_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "Authentication diagnostic envelope lifetime lost required token: ${required}")
+    endif()
+endforeach()
+
+string(FIND "${connection_source}"
+    "captureNegotiationEnvelope();" capture_position)
+string(FIND "${connection_source}"
+    "standaloneCredSspAcceptor_.reset();" reset_position)
+if(capture_position EQUAL -1 OR reset_position EQUAL -1 OR
+   NOT capture_position LESS reset_position)
+    message(FATAL_ERROR
+        "Authentication diagnostic envelope must be captured before CredSSP reset")
+endif()

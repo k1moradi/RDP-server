@@ -381,8 +381,7 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
     snapshot.standaloneNegotiationEnvelope =
-        standaloneCredSspAcceptor_.initialNegoObservation()
-            .spnego.negotiationEnvelope;
+        standaloneNegotiationEnvelope_;
     snapshot.standalonePasswordSelected =
         authenticationMode_ ==
         LinuxRuntimeAuthenticationMode::StandalonePassword;
@@ -1084,6 +1083,19 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         rdp_server::server::security::TsRequestTlsWriteStatus;
     using Step = LinuxCredSspStepStatus;
 
+    const auto captureNegotiationEnvelope = [this]() noexcept {
+        const auto initial =
+            standaloneCredSspAcceptor_.initialNegoObservation();
+        if (initial.observed &&
+            initial.spnego.negotiationEnvelope !=
+                rdp_server::server::security::
+                    StandaloneNtlmNegotiationEnvelope::Undetermined)
+        {
+            standaloneNegotiationEnvelope_ =
+                initial.spnego.negotiationEnvelope;
+        }
+    };
+
     auto fail = [&](Step status, std::size_t bytesRead = 0U,
                     std::size_t bytesWritten = 0U) noexcept {
         auto failureStage = standaloneCredSspAcceptor_.failureStage();
@@ -1095,6 +1107,7 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                 rdp_server::server::security::
                     StandaloneAuthenticationFailureStage::Admission;
         }
+        captureNegotiationEnvelope();
         recordStandaloneAuthenticationFailure(failureStage);
         credSspDiagnosticTransition_ =
             LinuxRuntimeCredSspDiagnosticTransition::Failed;
@@ -1227,6 +1240,7 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
     {
         return fail(Step::Invalid, bytesRead, 0U);
     }
+    captureNegotiationEnvelope();
 
     switch (visitContext.status)
     {

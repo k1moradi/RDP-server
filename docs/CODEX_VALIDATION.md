@@ -1,3 +1,15 @@
+## R2 P0 standalone native admission on current R10 production-security graph — 2026-10-23
+
+**Starting exact-main parent:** `c40ca657b6332f24697caeee52b237aeed113df3`.
+
+The earlier R2 branch demonstrated the policyless standalone admission design but diverged while R10 advanced portable desktop ownership, readiness instrumentation and automatic Linux production-security linkage. This branch ports the R2 connection/broker implementation onto that current parent. The R10 build graph is retained; the synthetic no-config OS-account bootstrap is removed from StandalonePassword rather than treated as authentication authority.
+
+Production R2 now has a dedicated current-owner standalone route with no `ConsoleIdentityPolicy`, keytab, service principal, GSS credential, PAM service or remote-to-local account mapping. Positive issuance requires exact standalone CredSSP/R1/TLS/credential-generation proof, current owner-consent epoch, concrete logind change monitoring and fresh active physical `seat0` evidence. ExistingOsAccount remains unchanged on the GSS/Kerberos/PAM/NSS route.
+
+R10 no longer requires expert security/admission objects for StandalonePassword readiness or accepted-client construction. Automatic runtime provisioning continues to mean that the ordinary desktop binary contains the production graph and owns local TLS/licensing prerequisites; it does not mean GSS/keytab/PAM is configured. The no-config controller can reach `CredentialsConfigured` after Session Password consumption/scrubbing, while listener creation still requires explicit Sharing and local consent. Password replacement retires old listener/client/consent state before the new generation can be used.
+
+Canonical owner `~/rdp-server/build/` execution: **NOT RUN** in this connector environment. Exact branch-head hosted CI is the next acceptance gate. Physical Linux owner acceptance and Microsoft-client interoperability remain **NOT RUN**; prior GUI Round 2 PASS is not product readiness.
+
 ## R2 P0 standalone native admission rebased on current main — 2026-10-23
 
 **Starting exact-main parent:** `c40ca657b6332f24697caeee52b237aeed113df3`.

@@ -1,3 +1,25 @@
+## R3 macOS automatic licensing HostControl consumption — 2026-10-24
+
+Starting exact-main parent: `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.
+
+Dependency review found the new macOS production HostControl already consumes
+the existing R3 generator: both constructors configure the process-local
+`RuntimeLicensingContext`, status reports that context as automatic runtime
+provisioning, and Start fails closed when it is absent. No new licensing key,
+certificate format, persistence policy or wire owner is needed.
+
+Added dedicated ordinary CTest
+`runtime.macos-host-control-automatic-licensing-prestart-no-listener`. It
+requires generated licensing readiness at construction and verifies that
+construction plus one idle service iteration remains Stopped with no listener,
+bound endpoint or client. This closes the macOS application-host consumption
+coverage gap without changing production code.
+
+Source/contract review: **PASS**. Owner-local canonical build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Real Microsoft-client qualification remains downstream and
+**NOT ESTABLISHED** by this receipt.
+
 ## macOS portable GUI native host control and session evidence (2026-10-24)
 
 Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.

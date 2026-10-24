@@ -1,3 +1,34 @@
+## R3 consumes macOS automatic licensing host boundary — 2026-10-24
+
+Starting exact-main parent: `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.
+
+Dependency recheck: the previous R3 provisioning implementation is already
+hosted-qualified and unchanged. A later macOS owner has now resolved the missing
+application-host consumer by landing `MacRuntimeHostControl`; both production
+constructors call `RuntimeLicensingContext::configureGeneratedApplicationIdentity()`,
+`status()` projects that exact state through
+`product.automaticRuntimeProvisioned`, and `startSharing()` fails closed if
+the licensing context is unavailable.
+
+R3 therefore continues with integration coverage rather than a second licensing
+owner or wire change. New behavior CTest
+`runtime.macos-host-control-automatic-licensing-prestart-no-listener` requires
+the generated licensing identity to be present immediately after normal macOS
+HostControl construction, requires the product readiness state to be
+`Provisioned`, and proves both construction and one idle `serviceOnce()`
+leave the host Stopped with no listener, no bound endpoint and no client.
+
+Source review: **PASS**. Existing generated-identity implementation and
+MS-RDPBCGR/MS-RDPELE wire tests are unchanged. Owner-local canonical macOS
+build/full CTest: **NOT RUN** for this increment in the connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Microsoft-client
+acceptance remains a separate downstream product gate and is not manufactured by
+this offline R3 regression.
+
+**R3 next gate:** hosted execution of the new macOS integration test. Reopen
+licensing implementation only if that evidence or later real-client evidence
+specifically implicates generated identity ownership or licensing exchange.
+
 ## macOS portable GUI native host control and session evidence (2026-10-24)
 
 Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.

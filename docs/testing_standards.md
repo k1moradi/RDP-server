@@ -1,3 +1,19 @@
+## R3 platform HostControl automatic-licensing consumption (2026-10-24)
+
+Every production platform HostControl that consumes the automatic R3 licensing
+identity must keep a dedicated behavior-named integration regression in ordinary
+full CTest. The regression must prove normal construction has the generated
+licensing prerequisite before Start while remaining preparation-only: no
+listener, bound endpoint or client may appear from construction or an idle
+service iteration.
+
+For macOS this regression is
+`runtime.macos-host-control-automatic-licensing-prestart-no-listener`. Keep it
+separate from generic product-projection tests so a future refactor cannot
+silently replace `automaticRuntimeProvisioned` with an unrelated readiness
+signal. This integration test does not replace the portable Microsoft-format
+chain, temporary-marker, Server License Request or R1-TLS-separation tests.
+
 ## Owner-acceptance ZIP packaging rule (2026-10-23)
 
 Before physical StandalonePassword qualification, do not publish the Debug/

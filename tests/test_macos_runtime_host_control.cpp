@@ -93,6 +93,32 @@ void testInitialProductProjection()
     assert(snapshot.product.state == RuntimeProductHostState::Stopped);
 }
 
+void testAutomaticLicensingPrestartNoListener()
+{
+    MacRuntimeHostControl control;
+
+    const auto before = control.status();
+    assert(before.product.automaticRuntimeProvisioned);
+    assert(before.product.readinessStage ==
+           RuntimeProductReadinessStage::Provisioned);
+    assert(before.stage == RuntimeHostStage::Stopped);
+    assert(!before.listenerAvailable);
+    assert(before.boundEndpoint.empty());
+    assert(before.activeClients.empty());
+
+    const auto idleResult = control.serviceOnce();
+    assert(idleResult.succeeded());
+
+    const auto after = control.status();
+    assert(after.product.automaticRuntimeProvisioned);
+    assert(after.product.readinessStage ==
+           RuntimeProductReadinessStage::Provisioned);
+    assert(after.stage == RuntimeHostStage::Stopped);
+    assert(!after.listenerAvailable);
+    assert(after.boundEndpoint.empty());
+    assert(after.activeClients.empty());
+}
+
 void testStandalonePasswordLifecycle()
 {
     PortableBootstrapEvidence evidence(501U);
@@ -181,6 +207,10 @@ int main(int argc, char** argv)
     if (selected == "macos-host-control-initial-product-projection")
     {
         testInitialProductProjection();
+    }
+    else if (selected == "macos-host-control-automatic-licensing-prestart-no-listener")
+    {
+        testAutomaticLicensingPrestartNoListener();
     }
     else if (selected == "macos-host-control-standalone-password-lifecycle")
     {

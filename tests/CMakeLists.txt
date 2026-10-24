@@ -438,6 +438,18 @@ if(TARGET rdp-server-macos-host-control)
             LABELS "runtime;security;macos;offline"
             SKIP_RETURN_CODE 77)
     endforeach()
+
+    # R3 cross-platform application-host consumption: macOS must retain the
+    # generated process-local licensing identity before Start without opening a
+    # listener as a construction or idle-service side effect.
+    add_test(NAME runtime.macos-host-control-automatic-licensing-prestart-no-listener
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-automatic-licensing-prestart-no-listener)
+    set_tests_properties(
+        runtime.macos-host-control-automatic-licensing-prestart-no-listener
+        PROPERTIES
+            LABELS "runtime;security;licensing;r3;macos;offline"
+            SKIP_RETURN_CODE 77)
 endif()
 
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.

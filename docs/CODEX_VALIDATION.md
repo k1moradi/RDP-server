@@ -1,3 +1,16 @@
+## R8 CI selector quotation correction — 2026-10-24
+
+Starting exact-main parent: `55b062bb468e93875fd2f8b4aa9532c00db0d703`.
+
+The R8 acceptance-inventory expansion accidentally dropped the closing quote
+from `bootstrap_selector` in `.github/workflows/ci.yml`. GitHub rejected the
+workflow before creating jobs (run `40080792759`: **FAIL**, zero jobs).
+This correction restores the exact closing `)$'` while retaining the intended
+nine-test inventory. No production, authentication, clipboard, listener or RDP
+wire source changes.
+
+Connector source review: **PASS**. Corrective exact-SHA hosted CI: **PENDING**.
+
 ## R8 owner-acceptance credential/start clipboard dormancy — 2026-10-24
 
 Starting parent: `8676668cc15447f1cae85ae6bcbff58b256ba372`.

@@ -1,3 +1,9 @@
+## StandalonePassword no-config/native-admission regressions (2026-10-23)
+
+The standalone runtime selector must construct production `LinuxRuntimeConnection` without `LinuxRuntimeSecurityConfiguration`, keytab, service principal or fake local-account request. It must fail closed before completed CredSSP/current-owner admission and prove stale credential generations and invalid challenges cannot revive the connection. Do not introduce a test-only positive admission lease.
+
+The portable HostControl acceptance fixture must prove Session Password plaintext is scrubbed, `CredentialsConfigured` is reachable with no GSS/keytab/PAM policy, no listener exists before explicit Sharing, local owner consent is still required, view-only consent leaves input disabled, Start can create the listener only after those gates, password replacement advances the generation, and Stop revokes consent/listener state. Source guards must reject any reintroduction of generated OS-account security/admission configuration into StandalonePassword.
+
 ## Owner-acceptance ZIP packaging rule (2026-10-23)
 
 Before physical StandalonePassword qualification, do not publish the Debug/

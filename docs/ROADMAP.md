@@ -1,3 +1,29 @@
+## R8/R9 hosted inventory reconciliation after shared DirectNtlm lifetime label (2026-10-24)
+
+**Starting exact-main parent:** `db4039c73de88c972bf33576d891ebabac0d3192`.
+
+Exact-SHA sanitizer run `40129852008` cleared the focused R9
+Microsoft-CSSP owner-candidate step, including the new same-port
+server-active-close restart regression and the full DirectNtlm
+reconnect/Stop->Start lifecycle. The job then failed only in the next
+clipboard inventory preflight: CTest reported 89 tests carrying the
+`clipboard` label while the workflow still pinned 88.
+
+The extra test is intentional R8 work already present on main:
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`
+now carries `r8-lifetime;clipboard` so R8 can reuse the existing R10
+integration owner rather than create a competing fixture. No clipboard
+behavior failed; the subsequent focused R3/clipboard cases in the same job
+were green. The workflow inventory is therefore updated to 89 and now
+explicitly requires the shared DirectNtlm lifecycle by name.
+
+This is test-registration bookkeeping only. It changes no production RDP,
+authentication, listener, native, graphics or clipboard behavior.
+
+Connector Actions/source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted R9 sanitizer and shared
+Linux/macOS/Windows protocol qualification: **PENDING**.
+
 ## R9/R10 P0 — same-port restart after server-active close (2026-10-24)
 
 **Starting exact-main parent:** `0dd28a0a6840eb343b1dae4fa13ec2d9f73ea00c`.

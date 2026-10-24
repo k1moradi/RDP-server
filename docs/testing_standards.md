@@ -1,3 +1,17 @@
+## Shared labeled-fixture inventories must be updated atomically (2026-10-24)
+
+When an existing production-backed integration CTest is intentionally reused
+by another milestone through an added label, update every exact-count CI
+inventory in the same publication and add an explicit name check for the
+newly shared test. A label-only reuse is not a new behavior test and must not
+be mistaken for an unexpected registry expansion.
+
+For R8, the R10 DirectNtlm reconnect/Stop->Start lifecycle is intentionally
+shared through `r8-lifetime;clipboard`; the clipboard sanitizer inventory
+therefore includes that test in addition to the component clipboard cases.
+Keep the explicit name pin so future count changes cannot silently absorb an
+unintended test.
+
 ## Same-port Stop/Start must survive a server-active TCP close (2026-10-24)
 
 R10 Stop -> Start on an unchanged configured LAN endpoint is a behavior gate,

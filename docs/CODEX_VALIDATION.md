@@ -1,3 +1,23 @@
+## R8 clipboard inventory pin reconciliation — 2026-10-24
+
+**Starting exact-main parent:** `db4039c73de88c972bf33576d891ebabac0d3192`.
+
+Run `40129852008`, sanitizer job `120979064763`, completed the focused
+R9 owner-candidate step successfully. The next step stopped before executing
+its selected clipboard suite because `ctest -N -L clipboard` returned 89
+registered tests while the workflow expected 88.
+
+Repository review found the sole intended increment: R8 commit
+`28f2caccd39881188c8f998ef471da29e77b7fa6` added the
+`clipboard` label to
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`.
+The workflow had not been reconciled. The pin is now 89 and explicitly greps
+for that shared lifecycle test before running the label suite.
+
+No production source or protocol behavior changes. Connector log/source
+review: **PASS**. Canonical local build/full CTest: **NOT RUN**.
+Exact-publication-SHA hosted qualification: **PENDING**.
+
 ## R9/R10 same-port restart diagnosis and correction — 2026-10-24
 
 **Starting exact-main parent:** `0dd28a0a6840eb343b1dae4fa13ec2d9f73ea00c`.

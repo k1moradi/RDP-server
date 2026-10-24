@@ -1,3 +1,26 @@
+## R2 standalone native-admission first compile correction — 2026-10-23
+
+Exact PR-head `ac91fb44d38dc1d85877ec329b7bf6d7d728d037` passed the
+independent CI workflow-structure gate. Primary Actions
+`40066790346` then reached the production Linux security build with tests
+disabled and failed compilation in
+`LinuxConsoleAdmissionBroker::issueStandaloneCurrentOwner()`: the new
+route attempted to call a conceptual `authenticationKind()` accessor on
+the abstract `LinuxAuthenticatedPrincipalProof`, which deliberately does
+not expose such a method.
+
+The correction removes only that redundant precheck. Authentication kind is
+already non-forgeably validated by
+`pendingNativeAdmissionMatches()` / `completeNativeAdmission()` on
+the concrete proof using a StandalonePassword `ConsoleEvidenceRequest`.
+The broker remains standalone-only by construction (`policy_ == nullptr`)
+and still requires exact R1/TLS, credential generation, owner-consent epoch and
+native-session evidence. ExistingOsAccount behavior is unchanged. No test is
+skipped and the failed SHA is not treated as passing evidence.
+
+Replacement exact-SHA hosted CI: **PENDING**. Canonical owner-local build and
+physical/client acceptance remain **NOT RUN**.
+
 ## R2 P0 standalone-password native admission authoring receipt — 2026-10-23
 
 **Starting exact-main parent:** `b3260d50d6c58e837fa726bf15f4e01b80da6882`.

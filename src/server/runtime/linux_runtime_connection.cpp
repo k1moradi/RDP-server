@@ -220,6 +220,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
             return;
         }
 
+        // The real serialized listener always supplies the service-wide peer
+        // and account budget. Offline fixtures may omit it, but no service
+        // invocation can bypass it.
         if (attemptLimiter != nullptr &&
             !acceptor_.bindVerifiedAccountAttemptLimiter(*attemptLimiter))
         {
@@ -229,6 +232,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
             principalProof_ = nullptr;
             return;
         }
+        // ExistingOsAccount keeps the original policy-bound R2 broker.
+        // The host-level owner authority is borrowed for the connection
+        // lifetime and cannot be minted by a peer or protocol field.
         broker_.emplace(*policy, ownerSharingAuthority);
         break;
     }
@@ -258,6 +264,8 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
         standaloneCredentialOwner_ = credentialOwner;
         standaloneCredentialGeneration_ = credentialGeneration;
         principalProof_ = &standalonePrincipalProof_;
+        // Standalone deliberately has no OS-account policy. The dedicated
+        // broker route still borrows the same host-level owner authority.
         broker_.emplace(ownerSharingAuthority);
         break;
     }

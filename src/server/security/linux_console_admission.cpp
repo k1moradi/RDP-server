@@ -564,9 +564,7 @@ LinuxConsoleAdmissionBroker::issueStandaloneCurrentOwner(
     noexcept
 {
     if (state_ != LinuxConsoleAdmissionState::Ready ||
-        policy_ != nullptr || ownerSharingAuthority_ == nullptr ||
-        principalProof.authenticationKind() !=
-            ConsoleEvidenceAuthenticationKind::StandalonePassword)
+        policy_ != nullptr || ownerSharingAuthority_ == nullptr)
     {
         deny(principalProof);
         return std::nullopt;

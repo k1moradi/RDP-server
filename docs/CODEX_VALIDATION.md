@@ -1,3 +1,31 @@
+## R7 focused hosted Stop/restart gate wiring (2026-10-24)
+
+**Starting exact-main parent:** `1e3022c2056ca448eef7f3dd2d1bd395b1e89339`.
+
+The R7 implementation itself is already present and unchanged. Current main
+contains the resolved dependency chain: ordinary Stop retains the memory-only
+standalone credential, while R5/R6 require fresh native evidence and fresh owner
+consent before a later Start.
+
+Hosted predecessor run `40101714128` shows both
+`r9-owner-gui-credential-parity` matrix legs **PASS**, plus the R7 macOS
+portable GUI, native lifecycle and session-sanitizer jobs **PASS**. Its aggregate
+failures are R1 transport/runtime TLS regressions. The macOS portable Release
+log confirms
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`
+was registered but skipped because that public Release build intentionally has
+the owner-acceptance UI disabled.
+
+The focused Linux/macOS owner-GUI Release+acceptance job now selects that
+three-cycle CTest alongside the existing release-gate and credential-editor
+tests, requires all three in the inventory, and treats skip as non-qualifying.
+No production source changed.
+
+Connector source/workflow review: **PASS**. Local canonical build/CTest:
+**NOT RUN**. Exact-publication-SHA hosted gate: **PENDING**. Physical owner GUI
+round-trip: **PENDING**. R2 standalone SPNEGO remains the separate live
+Microsoft-client interoperability blocker.
+
 ## R6 macOS fresh-consent restart denial authoring receipt (2026-10-24)
 
 **Starting exact-main parent:** `3e67e4ff5c05fe5a81d10d7c1e52d9c465b34b65`.

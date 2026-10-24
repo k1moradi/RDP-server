@@ -205,6 +205,13 @@ endpoint and permission request are available. Partial replacement input must
 block Start until Confirm matches. Ordinary OFF must not invoke the terminal
 revoke command; Quit and terminal host-session loss still must.
 
+The focused Linux/macOS owner-GUI qualification must explicitly execute
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`
+from a Release build with `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`. A
+registered skip is not qualifying evidence. Do not rely on the ordinary public
+Release GUI suite for this proof because that build intentionally hides and
+skips the owner-acceptance Session Password surface.
+
 ## R9 TSRequest 5/6 in-memory TLS fixture (2026-10-24)
 
 Run `r9-standalone-credssp-tsrequest-v5-v6-challenge` for two separate

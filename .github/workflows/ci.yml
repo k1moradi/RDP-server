@@ -2740,15 +2740,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity)$'
+          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity|gui[.]offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential)
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Release \
+            --timeout 30 -R "$selector" --output-on-failure
+          # A registered skip must not qualify the owner-acceptance surface.
+          test -x build/tests/test_desktop_gui_offline
+          QT_QPA_PLATFORM=offscreen \
+            build/tests/test_desktop_gui_offline owner-gui-credential-parity
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a env QT_QPA_PLATFORM=xcb \
+              build/tests/test_desktop_gui_offline owner-gui-credential-parity
+          fi
+
+
           inventory="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required in \
             gui.owner-acceptance-release-gate-and-production-path \
-            gui.offscreen-owner-acceptance-credential-editor-parity; do
+            gui.offscreen-owner-acceptance-credential-editor-parity \
+            gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential; do
             grep -Fq ": $required" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 2
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 3
           QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Release \
             --timeout 30 -R "$selector" --output-on-failure
           # A registered skip must not qualify the owner-acceptance surface.

@@ -1,3 +1,36 @@
+## R7 P0 focused hosted round-trip gate after dependency resolution (2026-10-24)
+
+**Starting exact-main parent:** `1e3022c2056ca448eef7f3dd2d1bd395b1e89339`.
+
+Dependency recheck: the former lifecycle handoff is resolved on shared main.
+R10/R2 retain the generation-fenced memory-only standalone credential across
+ordinary Stop, while R5/R6 now independently require fresh native evidence and
+fresh owner consent before every restart. R7's production GUI implementation
+from `fb27691eb0b77425fedde6e7a64d8f4b60165010` remains unchanged on this
+parent: cleared Password/Confirm editors reuse the configured credential,
+ordinary Sharing OFF uses nonterminal Stop, replacement input is explicit, and
+the toggle remains listener/Stopped-authoritative.
+
+Hosted run `40101714128` on predecessor
+`3e67e4ff5c05fe5a81d10d7c1e52d9c465b34b65` shows the R7-adjacent
+`r9-owner-gui-credential-parity` Ubuntu/macOS jobs and the macOS GUI/lifecycle
+jobs **PASS**. The aggregate run fails in R1 transport/runtime TLS tests, not in
+R7 GUI behavior. Audit of the macOS portable Release job also shows the new
+three-cycle R7 CTest is registered but intentionally **SKIPPED** when the public
+owner-acceptance surface is OFF.
+
+This increment closes that validation gap by adding
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`
+to the focused Linux/macOS Release + owner-acceptance-ON selector and making the
+inventory expect all three GUI gates. No production C++ or protocol behavior is
+changed.
+
+Connector source/workflow review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA focused hosted execution: **PENDING**.
+Physical owner Linux/X11 GUI round-trip: **PENDING**. The independent real-client
+protocol blocker remains R2 standalone SPNEGO before `CredentialsVerified`;
+it does not block this R7 GUI validation change.
+
 ## R6 P1 follow-up — macOS fresh-consent restart denial (2026-10-24)
 
 **Starting exact-main parent:** `3e67e4ff5c05fe5a81d10d7c1e52d9c465b34b65`.

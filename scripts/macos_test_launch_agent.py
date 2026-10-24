@@ -94,11 +94,18 @@ def parse_plist(data: bytes, home: str | Path) -> dict[str, object]:
 
 def _is_registration_destination(path: Path, home: str | Path) -> bool:
     try:
-        absolute_path = PurePosixPath(path.absolute().as_posix())
-    except OSError as error:
-        raise LaunchAgentError("unable to make output path absolute") from error
-    launch_agents_root = _absolute_home(home) / LAUNCH_AGENTS_RELATIVE_ROOT
-    return absolute_path == launch_agents_root / LAUNCH_AGENT_FILENAME
+        # Resolve existing symlinked parents before checking the registration
+        # boundary. Path.absolute() leaves those symlinks unresolved, allowing
+        # a seemingly separate review location to write into LaunchAgents.
+        output_path = path.resolve(strict=False)
+        launch_agents_root = (
+            Path(_absolute_home(home)) / LAUNCH_AGENTS_RELATIVE_ROOT
+        ).resolve(strict=False)
+    except (OSError, RuntimeError) as error:
+        raise LaunchAgentError("unable to resolve LaunchAgent output path") from error
+    # Any plist rendered beneath LaunchAgents is implicit installation,
+    # regardless of its filename or nesting.
+    return output_path.is_relative_to(launch_agents_root)
 
 
 def render_plist(home: str | Path, output_path: Path) -> None:

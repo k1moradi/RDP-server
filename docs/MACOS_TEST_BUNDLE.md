@@ -1,5 +1,17 @@
 # macOS protocol TEST BUNDLE (R7; non-serving)
 
+## R7 LaunchAgent render-location guard (2026-10-18)
+
+The optional offline LaunchAgent renderer resolves existing symlinked output
+parents before checking registration boundaries. It refuses **any** output
+inside the resolved `~/Library/LaunchAgents` directory, including alternate
+filenames, nested paths and symlink aliases; it still renders only a manually
+reviewed inert Aqua plist outside that location. The existing LaunchAgent
+unit test includes denials for those paths. This guards against implicit
+registration; it does not add a launchctl call, TCC prompt, runtime listener,
+desktop capture or Quartz posting. This source-level fix awaits its own
+exact-branch CI result and does not replace owner macOS 27 M1 evidence.
+
 This deliberately installs the **protocol SDK only**. No runnable native macOS
 RDP server, AppKit application, listener, ScreenCaptureKit provider or Quartz
 injector is shipped. It must never be advertised as an interactive server or a

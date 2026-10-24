@@ -929,12 +929,16 @@ Invalid replacement therefore retires the old credential rather than silently
 falling back. Explicit revoke cleanses the retained username/hash and advances
 the generation. Generation exhaustion is terminal.
 
-Linux HostControl keeps this owner separate from existing-OS-account
-configuration and from `CurrentOwnerSharingAuthority`. Configuring the
-standalone credential revokes current owner consent as a credential change.
-Stop/revoke/destruction revoke both authorization and credential material before
-the listener is closed. The generic R10 status deliberately does not publish
-this prototype as product-ready credentials.
+Platform HostControl keeps this owner separate from existing-OS-account
+configuration and from `CurrentOwnerSharingAuthority`. Configuring or replacing
+the standalone credential revokes current owner consent as a credential change.
+Ordinary Stop revokes authorization and retires accepted/native/listener/TLS
+state while preserving the current valid memory-only credential generation for
+a later Start in the same application lifetime. Explicit/full revoke,
+credential replacement or mode switch, logout/local-user or native-session
+loss, Quit and destruction retire both authorization and credential material.
+The generic R10 status deliberately does not publish this prototype as
+product-ready credentials.
 
 The future accepted-socket owner must snapshot the exact credential generation,
 process standalone CredSSP synchronously through that generation, and then

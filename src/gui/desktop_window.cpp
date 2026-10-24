@@ -698,22 +698,45 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
 {
     if (!state.controlAvailable)
         return QStringLiteral("Remote hosting is unavailable in this build");
-    const bool legacyCredentialReady =
+
+    const bool standaloneSurfaceSelected =
+        standalonePasswordSurfaceAvailable(state);
+    const bool configuredStandaloneCredential =
+        standaloneCredentialReady(state);
+    const bool replacementPasswordStarted =
+        !sessionPassword_->text().isEmpty() ||
+        !sessionPasswordConfirm_->text().isEmpty();
+    const bool existingOsCredentialReady =
         state.credentialsConfigured &&
         state.credentialCapabilities.existingOsAccount &&
-        sessionPassword_->text().isEmpty() &&
-        sessionPasswordConfirm_->text().isEmpty();
-    if (!legacyCredentialReady &&
-        !standalonePasswordSurfaceAvailable(state))
+        !standaloneSurfaceSelected;
+
+    if (!standaloneSurfaceSelected && !existingOsCredentialReady)
         return QStringLiteral("Session Password is not qualified for this Release build");
-    if (!legacyCredentialReady && username_->text().isEmpty())
-        return QStringLiteral("Enter a username");
-    if (!legacyCredentialReady)
+
+    if (standaloneSurfaceSelected)
     {
-        if (sessionPassword_->text().isEmpty())
+        // Cleared password editors mean "reuse the configured memory-only
+        // credential", never "the credential disappeared". Any new secret
+        // input instead starts an explicit replacement transaction that is
+        // committed only by the Sharing action below.
+        if (replacementPasswordStarted)
+        {
+            if (username_->text().isEmpty())
+                return QStringLiteral("Enter a username");
+            if (sessionPassword_->text().isEmpty())
+                return QStringLiteral("Enter a Session Password");
+            if (sessionPasswordConfirm_->text().isEmpty())
+                return QStringLiteral("Confirm the Session Password");
+            if (sessionPassword_->text() != sessionPasswordConfirm_->text())
+                return QStringLiteral("Session Password confirmation does not match");
+        }
+        else if (!configuredStandaloneCredential)
+        {
+            if (username_->text().isEmpty())
+                return QStringLiteral("Enter a username");
             return QStringLiteral("Enter a Session Password");
-        if (sessionPassword_->text() != sessionPasswordConfirm_->text())
-            return QStringLiteral("Session Password confirmation does not match");
+        }
     }
 
     // R10's product projection distinguishes a requestable local consent
@@ -789,6 +812,16 @@ bool DesktopWindow::standalonePasswordSurfaceAvailable(
             (ownerAcceptancePasswordUiEnabled() &&
              snapshot.credentialCapabilities
                  .standalonePasswordConfigurationAvailable));
+}
+
+bool DesktopWindow::standaloneCredentialReady(
+    const HostStatus& snapshot) const noexcept
+{
+    // R7 owns one visible standalone-password surface. When that surface is
+    // selected, R10's configured-credential fact is the authority for reuse;
+    // cleared GUI editors do not revoke or reconstruct the secret.
+    return snapshot.credentialsConfigured &&
+           standalonePasswordSurfaceAvailable(snapshot);
 }
 
 void DesktopWindow::requestStart()
@@ -870,7 +903,7 @@ void DesktopWindow::requestStop()
     }
 
     userFacingError_.clear();
-    host_.stopAndRevoke();
+    host_.stop();
     refresh();
 }
 
@@ -1116,13 +1149,17 @@ void DesktopWindow::refresh()
         editor->setReadOnly(!standaloneEditable);
     }
 
+    const bool configuredStandaloneCredential =
+        standaloneCredentialReady(snapshot);
     credentialStatus_->setText(
-        standaloneVisible
-            ? QStringLiteral(
-                  "Session Password is memory-only and is configured when "
-                  "you explicitly turn Sharing on.")
-            : QStringLiteral(
-                  "Session Password is awaiting product qualification."));
+        configuredStandaloneCredential
+            ? QStringLiteral("Session Password configured for this app session")
+            : (standaloneVisible
+                ? QStringLiteral(
+                      "Session Password is memory-only and is configured when "
+                      "you explicitly turn Sharing on.")
+                : QStringLiteral(
+                      "Session Password is awaiting product qualification.")));
     authenticationModeStatus_->setText(
         standaloneVisible
             ? QStringLiteral("Authentication mode: Session Password")

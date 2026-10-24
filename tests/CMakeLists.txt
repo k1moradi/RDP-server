@@ -4200,6 +4200,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential
+        COMMAND test_desktop_gui_offline consumer-password-stop-restart)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;lifecycle;consent;r7"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
         COMMAND test_desktop_gui_offline consumer-password-change-rerequests-permission)
     set_tests_properties(
@@ -4238,6 +4248,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             gui.offscreen-owner-acceptance-credential-editor-parity
             gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
             gui.offscreen-owner-acceptance-consumer-start-orchestration
+            gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential
             gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
             gui.offscreen-owner-acceptance-start-failure-rolls-back
             gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant

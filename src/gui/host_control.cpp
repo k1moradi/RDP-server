@@ -287,6 +287,21 @@ bool HostControl::disconnectClient(const std::uint64_t opaqueClientId)
     return runtime_.disconnectClient(opaqueClientId).succeeded();
 }
 
+void HostControl::stop()
+{
+    const auto snapshot = runtime_.status();
+    (void)runtime_.stopSharing();
+
+    // Ordinary Sharing OFF is not a security revoke. A terminal host-session
+    // loss is different: force the runtime's full revoke path so credentials
+    // cannot survive stale native ownership.
+    if (hasTerminalHostSessionError(snapshot.lastError) ||
+        snapshot.stage == RuntimeHostStage::Revoked)
+    {
+        (void)runtime_.revokeSharing();
+    }
+}
+
 void HostControl::stopAndRevoke()
 {
     (void)runtime_.stopSharing();

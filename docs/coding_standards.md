@@ -1,3 +1,17 @@
+## R7 cleared Session Password fields are presentation, not credential state (2026-10-24)
+
+After a successful production credential transfer, R7 clears Password and
+Confirm but must not interpret those empty editors as an unconfigured
+credential. When the standalone-password surface is selected,
+`credentialsConfigured` from R10 is the reuse authority. Ordinary Sharing OFF
+therefore returns to an editable Stopped UI that can Start again with the same
+memory-only credential after fresh owner authorization.
+
+Any new Password or Confirm input is replacement intent, not reuse. Require a
+non-empty password and matching Confirm, and invoke the production replacement
+only after explicit Sharing ON. Never cache or redisplay the transferred secret
+in R7. The toggle remains a projection of authoritative listener/Stop state.
+
 ## R9 standalone SPNEGO diagnostics (2026-10-24)
 
 In the independent Session Password authentication mode, propagate only
@@ -660,8 +674,11 @@ and advances a monotonic generation. Never expose a durable raw
 generation plus a synchronous visitor.
 
 Credential replacement is an R2 authorization event: revoke current-owner
-consent as `CredentialChange`. Stop, explicit revoke, and owner destruction
-must cleanse standalone credential material before the listener retires.
+consent as `CredentialChange`. Ordinary Stop revokes current-owner consent and
+retires per-Share runtime state but preserves the current valid standalone
+credential generation. Explicit/full revoke, native-session or local-user loss,
+Quit, owner destruction and credential-mode replacement must cleanse standalone
+credential material; terminal teardown must do so before the listener retires.
 Switching to another credential mode must revoke the alternate standalone
 credential even if the requested replacement later fails.
 

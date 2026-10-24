@@ -1,3 +1,28 @@
+## R7 P0 GUI Session Password round-trip implementation receipt (2026-10-24)
+
+Starting exact-main parent: `ec2ec0482830a8fb0ca20f1b20d8e026c9a4a7d3`.
+
+R9 already owns the Linux service-lifetime credential retention fix and native
+three-cycle TLS pre-owner gate. This R7 increment fixes the remaining GUI
+authority: ordinary Sharing OFF no longer invokes full revoke; cleared
+Password/Confirm fields reuse R10's configured standalone credential; partial
+replacement input remains blocked until confirmation; and the non-secret UI
+reports `Session Password configured for this app session`.
+
+The new owner-acceptance Qt regression performs three complete ON/OFF cycles
+plus a fourth ON. It requires one credential configuration total, fresh owner
+permission on every Start, runtime-authoritative Listening/Stopped toggle
+states, cleared secret editors and no full revoke during ordinary OFF. The
+older Linux lifecycle assertion is updated to the same retained-generation
+contract. macOS terminal revoke/session-loss/destruction now cleanse the
+standalone credential; ordinary Stop retains it.
+
+Connector source/diff validation: **PASS**.
+Local canonical build/CTest: **NOT RUN**.
+Hosted exact-publication-SHA CI: **PENDING**.
+Physical owner GUI round-trip: **PENDING**.
+R1 Microsoft-client TLS establishment: **UNCHANGED / NOT CLAIMED**.
+
 ## R8 repeated Stop/restart stale clipboard lifetime authoring receipt — 2026-10-24
 
 Starting exact-main parent: `03473b1dfa2bf180c05996fc044b0f7393e19f64`.

@@ -217,7 +217,9 @@ MacRuntimeHostControl::MacRuntimeHostControl(
 
 MacRuntimeHostControl::~MacRuntimeHostControl()
 {
-    (void)stopSharing();
+    retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason::
+            NativeAuthorizationLost);
 }
 
 void MacRuntimeHostControl::setScreenCaptureProbeForTesting(
@@ -286,6 +288,16 @@ void MacRuntimeHostControl::retireStoppedRuntime(
     rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept
 {
     ownerSharingAuthority_.revoke(reason);
+    // Match Linux service-lifetime semantics: ordinary Stop retains the
+    // memory-only credential, while terminal authority loss/destruction
+    // securely retires the exact generation.
+    if (reason !=
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop)
+    {
+        standalonePasswordCredential_.revoke();
+        standaloneCredentialGeneration_ = 0U;
+        credentialsConfigured_ = false;
+    }
     if (activeConnection_ != nullptr)
     {
         activeConnection_->cancel();
@@ -953,7 +965,8 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
             if (currentCapture == ::rdp::macos::ScreenCapturePreflightStatus::NotGranted)
             {
                 retireStoppedRuntime(
-                    rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+                    rdp_server::server::security::OwnerConsentRevocationReason::
+                        NativeAuthorizationLost);
                 stage_ = RuntimeHostStage::Revoked;
                 customErrorMessage_ =
                     "Screen Recording permission was revoked in System Settings.";
@@ -1084,12 +1097,9 @@ RuntimeHostResult MacRuntimeHostControl::revokeSharing()
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
-    ownerSharingAuthority_.revoke(
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
     retireStoppedRuntime(
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
-    standaloneCredentialGeneration_ = 0U;
-    credentialsConfigured_ = false;
+        rdp_server::server::security::OwnerConsentRevocationReason::
+            NativeAuthorizationLost);
     stage_ = RuntimeHostStage::Revoked;
     lastError_ = RuntimeHostError::AccessRevoked;
     customErrorMessage_.clear();

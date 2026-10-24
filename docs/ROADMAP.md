@@ -1,3 +1,43 @@
+## R7 P0 GUI Session Password round-trip after R9 retention landing (2026-10-24)
+
+Starting exact-main parent: `ec2ec0482830a8fb0ca20f1b20d8e026c9a4a7d3`.
+
+The concurrent R9 increment already corrected Linux HostControl ordinary Stop to
+retain the selected memory-only standalone credential and added a native
+three-cycle Start/Stop/TLS fixture. R7 consumes that authority instead of
+duplicating it. The remaining GUI defect was that Sharing OFF called the
+terminal `stopAndRevoke()` command and `blockedReason()` treated the cleared
+Password/Confirm editors as missing credential state.
+
+R7 now uses an ordinary Stop command for Sharing OFF, keeps Quit on terminal
+Stop+Revoke, and defines cleared-editor reuse from R10's configured standalone
+credential on the selected password surface. New secret input remains explicit
+replacement intent and is configured only on Sharing ON. The UI presents
+`Session Password configured for this app session` without redisplaying the
+secret. Terminal host-session errors still force full revoke.
+
+The dedicated Qt CTest
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`
+performs three complete ON/OFF cycles plus a fourth ON, requires exactly one
+credential configuration, fresh owner permission on every Start, authoritative
+Listening/Stopped toggle projection and zero full-revoke calls during ordinary
+OFF. The pre-existing Linux standalone lifecycle test is reconciled with R9's
+retention semantics. macOS terminal revoke, privacy-session loss and destruction
+now explicitly cleanse the credential while ordinary Stop continues to retain
+it.
+
+R3/R8 containment remains unchanged: accepted MCS/session and clipboard/native
+owners still retire on every Stop before the listener. No TLS/CredSSP/NTLM,
+MCS, Share, licensing, graphics or clipboard wire behavior is changed.
+
+Connector source/diff validation: **PASS**.
+Canonical local configure/build/full CTest: **NOT RUN** in this connector
+environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+Physical owner Linux/X11 GUI round-trip: **PENDING**.
+Microsoft-client TLS establishment remains the first R1 acceptance boundary and
+is **NOT CLAIMED**.
+
 ## R9 P0 — TLS-record TSRequest v5/v6 challenge addition (2026-10-24)
 
 Added `r9-standalone-credssp-tsrequest-v5-v6-challenge`: reuse the

@@ -1,3 +1,18 @@
+## R7 Qt Session Password Stop/restart round-trip (2026-10-24)
+
+The owner-acceptance Qt regression must enter Username, Password and Confirm once,
+turn Sharing ON, observe listener-authoritative Listening and cleared secret
+editors, then turn Sharing OFF and observe authoritative Stopped. Repeat at
+least three complete ON/OFF cycles and Start once more without re-entering the
+password. Exactly one standalone credential configuration is allowed; every
+Start must request fresh local-owner permission.
+
+After each ordinary Stop, require the configured credential to remain present,
+the owner grant to be absent, the toggle to be OFF and enabled again when the
+endpoint and permission request are available. Partial replacement input must
+block Start until Confirm matches. Ordinary OFF must not invoke the terminal
+revoke command; Quit and terminal host-session loss still must.
+
 ## R9 TSRequest 5/6 in-memory TLS fixture (2026-10-24)
 
 Run `r9-standalone-credssp-tsrequest-v5-v6-challenge` for two separate
@@ -1716,11 +1731,12 @@ unavailable. The visitor is synchronous only and must not retain the credential
 reference.
 
 Linux R10 coverage must additionally prove that configuring the standalone
-credential does not make generic `credentialsConfigured` positive, a product
-credential-mode request revokes it, Stop revokes it, explicit Revoke revokes it,
-and an attempted configure after terminal revoke still scrubs its input.
-These tests must not open a listener, synthesize current-owner consent, add a
-Qt secret field, or claim Microsoft-client compatibility.
+credential remains independent of native admission, a product credential-mode
+request revokes it, ordinary Stop preserves the exact configured generation
+while revoking owner authorization, explicit Revoke retires it, and an
+attempted configure after terminal revoke still scrubs its input. Cross-platform
+HostControl coverage must keep ordinary Stop and terminal revoke distinct.
+These tests must not claim Microsoft-client compatibility.
 
 ## R10 owned admission snapshot and private-LAN policy tests (2026-10-20)
 

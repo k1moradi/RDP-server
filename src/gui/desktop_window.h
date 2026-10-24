@@ -40,6 +40,8 @@ private:
     [[nodiscard]] QString addressPresentation(const HostStatus& snapshot) const;
     [[nodiscard]] bool standalonePasswordSurfaceAvailable(
         const HostStatus& snapshot) const noexcept;
+    [[nodiscard]] bool standaloneCredentialReady(
+        const HostStatus& snapshot) const noexcept;
     [[nodiscard]] HostRequest currentHostRequest() const;
     void requestStart();
     void requestStop();

@@ -63,6 +63,7 @@ public:
     bool standaloneCredentialSucceeds{};
     bool permissionSetupSucceeds{};
     bool startSucceeds{};
+    bool publishListenerOnSuccessfulStart{};
     bool refuseRetirement{};
     bool deriveProductStatusFromLegacy{true};
     std::u16string lastStandaloneUsername;
@@ -224,6 +225,14 @@ public:
     {
         ++startCalls;
         commandOrder.emplace_back("listener");
+        if (startSucceeds && publishListenerOnSuccessfulStart)
+        {
+            snapshot.stage = RuntimeHostStage::ListenerAvailable;
+            snapshot.listenerAvailable = true;
+            snapshot.boundEndpoint =
+                lastOptions.localAddress + ":" +
+                std::to_string(lastOptions.port);
+        }
         return startSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
             : RuntimeHostResult{
@@ -242,6 +251,10 @@ public:
         {
             deriveProductStatusFromLegacy = true;
             snapshot.stage = RuntimeHostStage::Stopped;
+            snapshot.listenerAvailable = false;
+            snapshot.boundEndpoint.clear();
+            snapshot.hostOwnerAuthorized = false;
+            snapshot.tlsIdentityReady = false;
         }
         return {RuntimeHostError::None, false};
     }
@@ -272,6 +285,10 @@ public:
         {
             deriveProductStatusFromLegacy = true;
             snapshot.stage = RuntimeHostStage::Revoked;
+            snapshot.credentialsConfigured = false;
+            snapshot.hostOwnerAuthorized = false;
+            snapshot.listenerAvailable = false;
+            snapshot.boundEndpoint.clear();
             snapshot.clipboardState = RuntimeClipboardState::Retired;
         }
         return {RuntimeHostError::None, false};
@@ -934,7 +951,7 @@ int main(int argc, char** argv)
 
         runtime.refuseRetirement = true;
         toggle->click();
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 0);
         assert(toggle->isChecked());
         assert(title->text().contains("Sharing"));
 
@@ -942,11 +959,15 @@ int main(int argc, char** argv)
         // The refusal case above deliberately switched this fake to an
         // explicit authoritative Stopping product snapshot. Restore the
         // ordinary legacy-derived fake before emulating runtime-confirmed
-        // retirement; otherwise stale Stopping remains authoritative.
+        // ordinary Stop; otherwise stale Stopping remains authoritative.
         runtime.deriveProductStatusFromLegacy = true;
-        runtime.snapshot.stage = RuntimeHostStage::Revoked;
+        runtime.snapshot.stage = RuntimeHostStage::Stopped;
+        runtime.snapshot.listenerAvailable = false;
+        runtime.snapshot.boundEndpoint.clear();
+        runtime.snapshot.hostOwnerAuthorized = false;
         window.refresh();
         assert(!toggle->isChecked());
+        assert(toggle->isEnabled());
         assert(title->text().contains("Stopped"));
         return 0;
     }
@@ -1373,6 +1394,84 @@ int main(int argc, char** argv)
         assert(copy->isEnabled());
         assert(host.status().clipboardState ==
                RuntimeClipboardState::Unavailable);
+        return 0;
+    }
+
+    if (mode == "consumer-password-stop-restart")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        return 77;
+#endif
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+        runtime.publishListenerOnSuccessfulStart = true;
+
+        DesktopWindow window(host);
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* toggle = sharingToggle(window);
+        auto* credentialStatus =
+            requiredLabel(window, "credentialStatus");
+        assert(username && password && confirmation);
+
+        username->setText(QStringLiteral("rdp"));
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(password->text());
+        assert(window.canStart());
+
+        // Three complete ON/OFF cycles prove that cleared editors reuse the
+        // one memory-only credential. A fourth ON leaves the fixture in the
+        // listener-authoritative state requested by the product workflow.
+        for (int cycle = 0; cycle < 3; ++cycle)
+        {
+            toggle->click();
+            assert(runtime.snapshot.stage ==
+                   RuntimeHostStage::ListenerAvailable);
+            assert(toggle->isChecked());
+            assert(password->text().isEmpty());
+            assert(confirmation->text().isEmpty());
+            assert(host.status().credentialsConfigured);
+            assert(credentialStatus->text() ==
+                   QStringLiteral(
+                       "Session Password configured for this app session"));
+            assert(runtime.standaloneCredentialCalls == 1);
+            assert(runtime.permissionSetupCalls == cycle + 1);
+            assert(runtime.startCalls == cycle + 1);
+
+            toggle->click();
+            assert(runtime.snapshot.stage == RuntimeHostStage::Stopped);
+            assert(!toggle->isChecked());
+            assert(runtime.revokeCalls == 0);
+            assert(host.status().credentialsConfigured);
+            assert(!host.status().desktopAuthorized);
+            assert(window.blockedReason().isEmpty());
+            assert(window.canStart());
+            assert(toggle->isEnabled());
+        }
+
+        toggle->click();
+        assert(runtime.snapshot.stage ==
+               RuntimeHostStage::ListenerAvailable);
+        assert(toggle->isChecked());
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.permissionSetupCalls == 4);
+        assert(runtime.startCalls == 4);
+        assert(runtime.stopCalls == 3);
+        assert(runtime.revokeCalls == 0);
+        assert(std::count(
+                   runtime.commandOrder.begin(), runtime.commandOrder.end(),
+                   std::string{"credential"}) == 1);
         return 0;
     }
 
@@ -2104,7 +2203,7 @@ int main(int argc, char** argv)
                 ->text().contains("192.168.0.44"));
 
         toggle->click();
-        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 1);
+        assert(runtime.stopCalls == 1 && runtime.revokeCalls == 0);
         assert(!toggle->isChecked());
     }
 

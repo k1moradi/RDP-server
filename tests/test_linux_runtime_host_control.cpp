@@ -805,10 +805,15 @@ int main(int argc, char** argv)
         assert(control.stopSharing().succeeded());
         const auto afterStop =
             control.standaloneApplicationPasswordObservation();
-        assert(!afterStop.configured);
-        assert(afterStop.generation > second.generation);
-        assert(!control.visitStandaloneApplicationPassword(
+        assert(afterStop.configured);
+        assert(afterStop.generation == second.generation);
+        assert(control.status().credentialsConfigured);
+        assert(control.status().product.credentialsConfigured);
+        assert(!control.status().hostOwnerAuthorized);
+        observed = {};
+        assert(control.visitStandaloneApplicationPassword(
             second.generation, &observeStandaloneCredential, &observed));
+        assert(observed.visited);
 
         auto thirdPassword = standalonePassword();
         assert(control.configureStandaloneApplicationPassword(

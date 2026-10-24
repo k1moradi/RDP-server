@@ -194,18 +194,46 @@ void testStopRevokeRetirement()
 
     auto password = standalonePassword();
     assert(control.configureStandaloneApplicationPassword(u"testuser", password));
+    const auto configuredCredential =
+        control.standaloneApplicationPasswordObservation();
+    assert(configuredCredential.configured);
+    assert(configuredCredential.generation != 0U);
 
     RuntimeHostPermissionRequest permission;
     assert(control.requestHostPermissionSetup(permission).succeeded());
     assert(control.status().hostOwnerAuthorized);
 
     assert(control.stopSharing().succeeded());
-    assert(control.status().stage == RuntimeHostStage::Stopped);
-    assert(control.status().product.credentialEditingAllowed);
+    const auto stoppedCredential =
+        control.standaloneApplicationPasswordObservation();
+    const auto stopped = control.status();
+    assert(stopped.stage == RuntimeHostStage::Stopped);
+    assert(stopped.product.credentialEditingAllowed);
+    assert(stopped.credentialsConfigured);
+    assert(stopped.product.credentialsConfigured);
+    assert(!stopped.hostOwnerAuthorized);
+    assert(!stopped.product.ownerAuthorized);
+    assert(stoppedCredential.configured);
+    assert(stoppedCredential.generation == configuredCredential.generation);
+
+    StandaloneVisitObservation observed;
+    assert(control.visitStandaloneApplicationPassword(
+        configuredCredential.generation,
+        &observeStandaloneCredential, &observed));
+    assert(observed.visited);
 
     assert(control.revokeSharing().succeeded());
+    const auto revokedCredential =
+        control.standaloneApplicationPasswordObservation();
     assert(!control.status().hostOwnerAuthorized);
     assert(!control.status().product.ownerAuthorized);
+    assert(!control.status().credentialsConfigured);
+    assert(!control.status().product.credentialsConfigured);
+    assert(!revokedCredential.configured);
+    assert(revokedCredential.generation > configuredCredential.generation);
+    assert(!control.visitStandaloneApplicationPassword(
+        configuredCredential.generation,
+        &observeStandaloneCredential, &observed));
 }
 
 void testPortableGuiBootstrapReadiness()

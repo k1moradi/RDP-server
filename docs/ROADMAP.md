@@ -1,3 +1,40 @@
+## R5 hosted physical-X11 precredential readiness qualified (2026-10-24)
+
+**Tested R5 publication SHA:** `ea37e403158a9732ad0296ffe364a0258e00c1d9`.
+
+The repository-side R5 dependency gate is now closed. GitHub Actions run
+`40082955670`, job `120840104821` (`r5-linux-gui-zip`) completed
+**PASS**. Its dedicated Release + explicit owner-acceptance step reconfigured
+the one hosted `build/` root with
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`, built
+`test_linux_gui_physical_x11_precredential_readiness`, selected exactly one
+CTest, and executed
+`runtime.linux-gui-physical-x11-precredential-readiness` as **Passed**
+(`1/1`, 0.19 s). The gate did not take its registered skip path.
+
+The same R5 gate is preserved and also **PASS** on current descendant
+`58d323fe69cbe57373e5279a8f74a536e2969a92` in Actions run
+`40083271144`, job `120841016666` (`1/1`, 0.47 s). This descendant also
+has Ubuntu/macOS owner-GUI credential parity and the portable no-argument owner
+bootstrap lane green. The current run's separate
+`r7-macos-portable-gui` failure is outside R5 Linux native-readiness
+ownership and does not invalidate these exact R5 receipts.
+
+The qualified R5 fixture proves the production Linux/Qt projection for an
+eligible active/physical/local/non-remote/unlocked seat0 X11 owner, production
+standalone credential configuration availability, lifecycle-authoritative
+credential editability, requestable-but-not-granted owner permission, genuine
+LAN recommendation, editable masked password fields and matching-password
+Sharing eligibility. It still performs no credential configuration, consent
+request, listener bind, capture, framebuffer publication or XTEST operation.
+
+**Remaining R5 gate:** physical owner Linux/X11 acceptance only. Freshly pull
+current `main`, launch `rdp-server-desktop` with no arguments on the actual
+unlocked local X11 session, verify Username / Session Password / Confirm accept
+keyboard input, then explicitly turn Sharing ON and record the first genuine
+platform prerequisite/listener result. Hosted synthetic X11 evidence cannot
+close that physical-owner gate.
+
 ## Agent 11 native macOS validation, GUI parity and TCC permission safety (2026-10-24)
 
 Starting exact-main parent: `ea37e408ec2d8299eb0155b46b1467647228a7b1`.

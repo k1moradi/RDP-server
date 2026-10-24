@@ -1,3 +1,33 @@
+## R5 hosted owner-readiness qualification receipt (2026-10-24)
+
+Exact implementation SHA
+`ea37e403158a9732ad0296ffe364a0258e00c1d9` is hosted-qualified for the R5
+Linux precredential owner-readiness boundary.
+
+Actions run `40082955670`, job `120840104821`:
+- `r5-linux-gui-zip`: **PASS**;
+- Release public GUI packaging/closure: **PASS** before acceptance reconfigure;
+- Release + `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` reconfigure: **PASS**;
+- dedicated target
+  `test_linux_gui_physical_x11_precredential_readiness`: **BUILT**;
+- exactly one selected CTest:
+  `runtime.linux-gui-physical-x11-precredential-readiness`;
+- execution: **PASS**, `1/1`, 0.19 s;
+- registered native-environment skip: **NOT TAKEN**.
+
+Current descendant
+`58d323fe69cbe57373e5279a8f74a536e2969a92` independently preserves the same
+result in Actions run `40083271144`, job `120841016666`: **PASS**, `1/1`,
+0.47 s. R9 Ubuntu/macOS owner credential parity and the portable owner bootstrap
+also pass on that descendant. A separate current
+`r7-macos-portable-gui` job failure is unrelated to the Linux R5 fixture and
+is not used as R5 acceptance evidence.
+
+No live desktop, credential configuration, consent request, listener, native
+capture, framebuffer or XTEST operation was performed by this hosted receipt.
+Physical owner Linux/X11 no-argument acceptance remains **PENDING / NOT RUN by
+connector** and is now the only R5 blocker.
+
 ## Agent 11 native macOS validation, GUI parity and TCC permission safety (2026-10-24)
 
 Starting exact-main parent: `ea37e408ec2d8299eb0155b46b1467647228a7b1`.

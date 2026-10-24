@@ -1,3 +1,30 @@
+## R8 P2 consumes landed R3 automatic licensing bootstrap (2026-10-23)
+
+Dependency recheck at starting main `b3260d50d6c58e837fa726bf15f4e01b80da6882`: R3's external
+licensing-file prerequisite is now **RESOLVED**. Normal
+`LinuxRuntimeHostControl` construction owns a fresh process-local
+`RuntimeLicensingContext` and calls
+`configureGeneratedApplicationIdentity()` before any Start eligibility check.
+The immediately following R3 portability correction changes only the OpenSSL
+issuer accessor.
+
+R8 continues across that new bootstrap edge. The existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` regression now isolates the
+normal HostControl constructor, requires the landed generated-licensing seam,
+and rejects any listener start, native clipboard owner, clipboard permission,
+CLIPRDR dispatch/queue/write or other R8 authority from that constructor.
+Generated licensing remains service-lifetime bootstrap material; it does not
+replace the fresh admission/session generations used by the dormant clipboard
+owner after a real client reaches the native desktop.
+
+The remaining normal-product blockers are downstream of R8: the public
+standalone-password capability is still false, the GUI still has no Session
+Password control, and zero-argument `main.cpp` still uses a HostControl with
+no automatic R2 security/admission provisioning or runtime service/status
+timers. Those gaps do not justify reintroducing required `--config` or
+activating clipboard. R8 production activation remains separately
+**BLOCKED** until the first owner-authorized real desktop/video/input/Stop PASS.
+
 ## R3 OpenSSL 4 licensing-issuer accessor correction — 2026-10-23
 
 Starting exact-main parent: `22457da64499fd1b2f333e0dd7624649f0de42a1`.

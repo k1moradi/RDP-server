@@ -1,3 +1,18 @@
+## R8 regression consumes R3 automatic licensing construction (2026-10-23)
+
+Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` coupled to the normal
+Linux HostControl constructor now that R3 licensing is automatically generated.
+The source guard must require
+`configureGeneratedApplicationIdentity()` in that preparation boundary while
+rejecting listener access, Start, native desktop/clipboard ownership, clipboard
+permission and CLIPRDR routing or writes there. R3's own production-backed
+licensing CTests remain responsible for certificate-chain/wire correctness and
+the no-listener assertion; R8 verifies only that the new bootstrap lifetime
+cannot manufacture clipboard authority.
+
+This source/lifetime regression does not activate clipboard and does not replace
+the physical FIRST desktop/video/input/Stop acceptance gate.
+
 ## Generated TLS subject/SAN portability regression (2026-10-23)
 
 Keep

@@ -1,3 +1,13 @@
+## Generated licensing bootstrap is not clipboard authority (2026-10-23)
+
+Keep automatic R3 licensing construction side-effect-free with respect to R1
+listen, R2 admission, native desktop creation and R8. Do not call clipboard
+permission, prepared-owner, CLIPRDR route/dispatch/queue/write or native
+clipboard APIs from the HostControl constructor or licensing generator.
+Service-lifetime licensing material may outlive Stop; dormant/live clipboard
+state may not. Clipboard freshness continues to come only from the current
+admission/session generations and common native-desktop retirement.
+
 ## OpenSSL generated-certificate mutable-object portability (2026-10-23)
 
 Do not assume an accessor returning an X509-owned subobject remains mutable

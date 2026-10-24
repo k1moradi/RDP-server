@@ -1,3 +1,33 @@
+## R8 P2 dependency recheck after R3 licensing bootstrap — 2026-10-23
+
+Starting exact-main parent: `b3260d50d6c58e837fa726bf15f4e01b80da6882`.
+
+R3 automatic portable licensing is **RESOLVED at the source dependency
+boundary**: normal `LinuxRuntimeHostControl` construction now owns a generated
+process-local licensing identity and the dedicated R3 pre-Start test asserts
+that construction opens no listener. Parent R3 publication exposed an OpenSSL
+4 accessor compile issue on macOS; current main contains the narrow
+`X509_get_subject_name(const X509*)` correction, with replacement exact-SHA
+hosted qualification still pending.
+
+R8 continued. `runtime.linux-gui-bootstrap-clipboard-dormancy` now requires
+the generated-licensing constructor seam and rejects listener access, Start,
+native desktop/clipboard ownership, clipboard permission and all protected
+CLIPRDR route/dispatch/queue/write APIs from that constructor. No R8 production
+code or activation flag changes.
+
+Remaining end-to-end zero-argument blockers are outside R8:
+`kStandalonePasswordProductCapabilityApproved` remains false; R7 exposes no
+Session Password field/action; normal `src/gui/main.cpp` still constructs the
+default HostControl without automatic R2 security/admission provisioning and
+does not install the runtime service/status timers used by the expert
+`--config` branch. Clipboard activation remains **BLOCKED** on the first real
+desktop/video/input/Stop PASS regardless of those bootstrap changes.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI for this R8 continuation:
+**PENDING**. No listener, desktop, input or clipboard operation was performed.
+
 ## R1 OpenSSL 4 generated-subject portability receipt — 2026-10-23
 
 Starting exact-main parent: `0a602aab1b0ae1668122d5c4327361ba2df4d62a`.

@@ -46,6 +46,48 @@ foreach(forbidden_text IN ITEMS
     endif()
 endforeach()
 
+# R3 normal HostControl construction now owns an automatically generated
+# process-local licensing identity. That service-lifetime bootstrap material is
+# allowed before Start, but construction must remain preparation-only: it cannot
+# open the listener or create/grant/dispatch any R8 state.
+string(FIND "${host_source}"
+    "LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept"
+    licensing_constructor_begin)
+string(FIND "${host_source}"
+    "LinuxRuntimeHostControl::~LinuxRuntimeHostControl()"
+    licensing_constructor_end)
+if(licensing_constructor_begin LESS 0 OR
+   licensing_constructor_end LESS_EQUAL licensing_constructor_begin)
+    message(FATAL_ERROR
+        "unable to isolate automatic licensing HostControl construction")
+endif()
+math(EXPR licensing_constructor_length
+    "${licensing_constructor_end} - ${licensing_constructor_begin}")
+string(SUBSTRING "${host_source}" ${licensing_constructor_begin}
+    ${licensing_constructor_length} licensing_constructor_source)
+string(FIND "${licensing_constructor_source}"
+    "configureGeneratedApplicationIdentity()" generated_licensing_prepare)
+if(generated_licensing_prepare LESS 0)
+    message(FATAL_ERROR
+        "R8 audit expects the landed R3 automatic licensing preparation seam")
+endif()
+foreach(forbidden_text IN ITEMS
+        "listener_."
+        "startSharing("
+        "clipboard.prepare("
+        "nativeDesktop_"
+        "kConsoleClipboardPermission"
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite(")
+    string(FIND "${licensing_constructor_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "automatic licensing construction must stay outside listener/R8 authority: ${forbidden_text}")
+    endif()
+endforeach()
+
 # Automatic GUI bootstrap may provision local TLS/licensing/authentication
 # prerequisites, but it is not an R8 authority boundary and must not activate
 # CLIPRDR or construct/dispatch the prepared clipboard owner.

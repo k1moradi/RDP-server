@@ -1,3 +1,18 @@
+## R8 boundary after automatic R3 licensing landing (2026-10-23)
+
+R3's generated licensing context is process-local service bootstrap state.
+Normal R10 HostControl construction may create it before the user requests
+Sharing, but that constructor owns no R1 listener, R2 admission, R5 desktop or
+R8 clipboard authority. Licensing identity lifetime is intentionally different
+from clipboard lifetime: the licensing context may survive Stop for reuse by
+the process, while every native clipboard owner remains subordinate to one
+fresh admitted native-desktop generation and is retired before that desktop.
+
+Therefore R8 must not key clipboard freshness to licensing identity or treat
+successful licensing generation as permission to advertise/dispatch CLIPRDR.
+The existing activation gate stays literal false until physical FIRST
+acceptance.
+
 ## R8 boundary after automatic TLS/bootstrap policy landing (2026-10-23)
 
 R1 endpoint-bound TLS preparation and R6 portable bootstrap policy are now

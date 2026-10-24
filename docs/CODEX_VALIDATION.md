@@ -1,3 +1,25 @@
+## R6 cross-platform HostControl Stop/Start contract authoring receipt (2026-10-24)
+
+**Starting exact-main parent:** `86d8abc6d9cdffb96779ce872662abe8cf47793b`.
+
+Source audit: **PASS**. Linux and macOS production teardown both consume the
+shared standalone-credential keep-vs-revoke policy. The shared policy is now an
+explicit exhaustive Stop-retain / terminal-revoke matrix and has a portable
+CTest so future Windows HostControl cannot silently choose different credential
+lifetime semantics.
+
+macOS gains production-listener coverage matching Linux's existing three-cycle
+fixture: one Session Password configuration, fresh owner grant and fresh
+selection-bound TLS preparation on every Start, three unique listener
+generations, immediate reuse of the same port, and full listener/client/native
+desktop+input/TLS retirement after each Stop. Explicit Revoke clears the retained
+credential generation.
+
+No RDP protocol behavior changed. Connector-local compile/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted Linux/macOS execution:
+**PENDING**. Real Microsoft-client interoperability remains governed by the
+current R2 standalone-SPNEGO blocker and is not claimed here.
+
 ## R1 hosted compile repair after dependency correction (2026-10-24)
 
 Dependency classification from `050bfaf7d9ab7480980d7ba98abaceaef6a374ed`

@@ -1,3 +1,36 @@
+## R6 P1 cross-platform HostControl round-trip contract (2026-10-24)
+
+**Starting exact-main parent:** `86d8abc6d9cdffb96779ce872662abe8cf47793b`.
+
+Audit result: Linux already implements ordinary Stop as credential-retaining
+and has production three-cycle same-port listener coverage. macOS uses the same
+shared keep-vs-revoke helper, but its existing HostControl regression stopped at
+one Stop followed by Revoke and did not prove listener rebinding.
+
+This increment makes the portable retirement matrix explicit and exhaustive:
+Stop retains the generation-fenced memory-only Session Password; every
+lock/logout/user-switch/session-replacement/credential-change/expiry/native
+security-loss reason retires it. A portable CTest pins that matrix for Linux,
+macOS and future Windows consumers.
+
+New macOS native-environment CTest
+`runtime.macos-host-control-stop-start-retains-standalone-credential` configures
+the Session Password once, performs three Start/Stop cycles, requires fresh
+owner consent each time, prepares fresh endpoint-bound TLS state, reuses the
+same port immediately, requires unique listener generations and proves Stop
+leaves no listener, accepted client, native desktop/input owner or TLS state.
+Explicit Revoke then clears the credential. Linux's existing R9 three-cycle
+same-port fixture remains the corresponding production contract.
+
+RDP TLS/CredSSP/MCS/Share/graphics/input wire semantics: **UNCHANGED**.
+Connector source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN in this connector environment**. Exact-publication-SHA hosted CI and
+native macOS execution: **PENDING**.
+
+**Next gate:** exact-SHA Linux/macOS CTest execution. When Windows HostControl
+lands, it must consume the same portable matrix and add the same three-cycle
+same-port native listener test before cross-platform qualification.
+
 ## R1 hosted compile repair after dependency correction (2026-10-24)
 
 The dependency graph is already corrected on shared main: R1 TLS is crossed,

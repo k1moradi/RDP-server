@@ -21,7 +21,24 @@ namespace rdp_server::server::security
 [[nodiscard]] constexpr bool shouldRetireStandaloneApplicationCredential(
     OwnerConsentRevocationReason reason) noexcept
 {
-    return reason != OwnerConsentRevocationReason::Stop;
+    // Portable HostControl lifecycle matrix. Keep this exhaustive so Linux,
+    // macOS and future Windows ownership cannot silently diverge:
+    // ordinary Stop retains only the configured memory-only credential;
+    // every terminal authorization/security boundary retires it.
+    switch (reason)
+    {
+    case OwnerConsentRevocationReason::Stop:
+        return false;
+    case OwnerConsentRevocationReason::LockOrUnknown:
+    case OwnerConsentRevocationReason::Logout:
+    case OwnerConsentRevocationReason::UserSwitch:
+    case OwnerConsentRevocationReason::SessionReplacement:
+    case OwnerConsentRevocationReason::CredentialChange:
+    case OwnerConsentRevocationReason::AuthorityExpired:
+    case OwnerConsentRevocationReason::NativeAuthorizationLost:
+        return true;
+    }
+    return true; // Unknown future reasons fail closed.
 }
 
 enum class StandaloneCredentialSessionState : std::uint8_t

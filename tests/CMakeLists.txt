@@ -548,6 +548,19 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77)
     endforeach()
 
+    # R6 portable Stop/Start contract: exercise the production macOS listener
+    # three times on one immediately reusable port. The injected owner evidence
+    # avoids TCC prompts; interface/bind/TLS/listener state remains production.
+    add_test(
+        NAME runtime.macos-host-control-stop-start-retains-standalone-credential
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-stop-start-retains-standalone-credential)
+    set_tests_properties(
+        runtime.macos-host-control-stop-start-retains-standalone-credential
+        PROPERTIES
+            LABELS "runtime;security;r1-tls;r2-owner-consent;r6;macos;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Production/default route/interface observation intentionally consumes the
     # machine environment and therefore has its own native integration gate.
     add_test(NAME runtime.macos-host-control-native-lan-endpoint-observation
@@ -633,7 +646,8 @@ foreach(owner_consent_case IN ITEMS
         owner-consent-read-only-product-facts
         owner-consent-invalid-native-evidence-denials
         owner-consent-stop-lock-logout-switch-replacement-revocations
-        owner-consent-credential-expiry-native-loss-revocations)
+        owner-consent-credential-expiry-native-loss-revocations
+        standalone-credential-portable-stop-revoke-matrix)
     add_test(NAME "security.${owner_consent_case}"
         COMMAND test_current_owner_sharing_authority "${owner_consent_case}")
     set_tests_properties("security.${owner_consent_case}" PROPERTIES

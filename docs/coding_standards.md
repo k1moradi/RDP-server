@@ -1,3 +1,21 @@
+## Portable HostControl Stop versus terminal credential lifetime (2026-10-24)
+
+Linux, macOS and future Windows HostControl implementations share one
+credential-lifetime matrix through
+`shouldRetireStandaloneApplicationCredential()`. Ordinary `Stop` is the only
+retaining event: it revokes current-owner consent and retires accepted client,
+native desktop/input, listener and endpoint-bound TLS state while preserving the
+configured generation-fenced Session Password in secure process memory.
+Lock/unknown state, logout, local-user switch, native-session replacement,
+credential replacement, consent expiry/security loss, explicit Revoke, Quit and
+object destruction are terminal and must retire the credential.
+
+A later Start may reuse only that retained credential. It must obtain fresh
+local-owner authorization, prepare fresh selection-bound TLS state and bind a
+new listener generation. Retained credential possession is never permission,
+listener authority or native desktop authority. Platform implementations must
+use the shared matrix rather than inventing a Windows/macOS-specific Stop rule.
+
 ## R1 Microsoft-client TLS failure diagnostics (2026-10-24)
 
 When a real client reaches X.224 Enhanced Security but TLS does not establish,

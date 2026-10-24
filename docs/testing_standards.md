@@ -1,3 +1,26 @@
+## R6 cross-platform Session Password Stop/Start round trip (2026-10-24)
+
+Keep a portable policy test for the complete credential retirement matrix and
+production HostControl lifecycle coverage on each implemented desktop platform.
+Linux and macOS must each exercise at least three
+`Start -> Stop -> Start` listener lifetimes with one configured Session
+Password. Every Start requires a fresh owner-consent grant and freshly prepared
+endpoint-bound TLS state; every listener generation must differ.
+
+The first successful port is reused immediately on later cycles. Rebinding the
+same endpoint is the socket-retirement assertion: a leaked listener descriptor
+must make the test fail rather than choosing another port. After every Stop
+require no listener generation/bound endpoint/active client, no TLS identity,
+no native desktop/input owner, and no owner grant while the exact credential
+generation remains visitable. Explicit Revoke must then make that generation
+unvisitable. Native-interface absence may skip the platform integration case;
+a skip is not platform qualification.
+
+The shared portable matrix is compiled on every platform so a future Windows
+HostControl inherits the same Stop-retain / terminal-revoke contract before it
+adds its own native listener round-trip test. These tests change no RDP wire
+semantics.
+
 ## R1 real-socket X.224 -> TLS interoperability gate (2026-10-24)
 
 A production-linked compatibility regression must perform TCP, X.224 Connection

@@ -236,6 +236,137 @@ void testStopRevokeRetirement()
         &observeStandaloneCredential, &observed));
 }
 
+[[nodiscard]] bool testStopStartRetainsStandaloneCredential()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+    assert(std::ranges::all_of(
+        password, [](char16_t value) { return value == u'\0'; }));
+    const auto original =
+        control.standaloneApplicationPasswordObservation();
+    assert(original.configured && original.generation != 0U);
+
+    const auto recommendation =
+        control.status().product.recommendedEndpoint;
+    if (!recommendation.valid())
+        return false;
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowInput = true;
+    permission.allowClipboard = false;
+    permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+
+    std::uint16_t selectedPort = 0U;
+    std::uint64_t previousListenerGeneration = 0U;
+    for (std::size_t cycle = 0U; cycle < 3U; ++cycle)
+    {
+        const auto beforePermission = control.status();
+        assert(beforePermission.credentialsConfigured);
+        assert(beforePermission.product.credentialsConfigured);
+        assert(!beforePermission.hostOwnerAuthorized);
+        assert(!beforePermission.listenerAvailable);
+
+        // The configured credential is reusable, but consent never is.
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(control.status().hostOwnerAuthorized);
+
+        if (cycle == 0U)
+        {
+            for (std::uint16_t port = 34300U; port < 34330U; ++port)
+            {
+                const RuntimeHostOptions options{
+                    recommendation.interfaceId, recommendation.address,
+                    port, true, false};
+                assert(control.configure(options).succeeded());
+                const auto prepared = control.status();
+                assert(prepared.tlsIdentityReady);
+                assert(prepared.tlsIdentity.state ==
+                       RuntimeTlsIdentityState::ConfiguredUnbound);
+                assert(prepared.tlsIdentity.endpointGeneration == 0U);
+                assert(!prepared.listenerAvailable);
+
+                const auto start = control.startSharing();
+                if (start.succeeded())
+                {
+                    selectedPort = port;
+                    break;
+                }
+                assert(start.error == RuntimeHostError::PortUnavailable);
+            }
+            assert(selectedPort != 0U);
+        }
+        else
+        {
+            // Reuse the identical port immediately. Success proves the prior
+            // listener/socket owner was closed rather than leaked across Stop.
+            const RuntimeHostOptions options{
+                recommendation.interfaceId, recommendation.address,
+                selectedPort, true, false};
+            assert(control.configure(options).succeeded());
+            const auto prepared = control.status();
+            assert(prepared.tlsIdentityReady);
+            assert(prepared.tlsIdentity.state ==
+                   RuntimeTlsIdentityState::ConfiguredUnbound);
+            assert(prepared.tlsIdentity.endpointGeneration == 0U);
+            assert(control.startSharing().succeeded());
+        }
+
+        const auto live = control.status();
+        assert(live.stage == RuntimeHostStage::ListenerAvailable);
+        assert(live.listenerAvailable);
+        assert(live.listenerGeneration != 0U);
+        assert(live.listenerGeneration != previousListenerGeneration);
+        assert(live.boundEndpoint == live.selectedEndpoint);
+        assert(live.tlsIdentityReady);
+        assert(live.tlsIdentity.boundIdentityMatchesGeneration(
+            live.listenerGeneration));
+        assert(live.hostOwnerAuthorized);
+        assert(live.activeClients.empty());
+        previousListenerGeneration = live.listenerGeneration;
+
+        assert(control.stopSharing().succeeded());
+        const auto stopped = control.status();
+        assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(stopped.credentialsConfigured);
+        assert(stopped.product.credentialsConfigured);
+        assert(!stopped.hostOwnerAuthorized);
+        assert(!stopped.product.ownerAuthorized);
+        assert(!stopped.listenerAvailable);
+        assert(stopped.listenerGeneration == 0U);
+        assert(stopped.boundEndpoint.empty());
+        assert(stopped.activeClients.empty());
+        // MacRuntimeNativeDesktop owns the capture/input capability. A false
+        // aggregate readiness observation proves neither native nor input
+        // ownership survived the ordinary Stop.
+        assert(!stopped.nativeDesktopReady);
+        assert(!stopped.tlsIdentityReady);
+        assert(!stopped.product.tlsIdentityReady);
+        assert(!stopped.tlsIdentity.fingerprintAvailable);
+
+        const auto retained =
+            control.standaloneApplicationPasswordObservation();
+        assert(retained.configured);
+        assert(retained.generation == original.generation);
+        StandaloneVisitObservation visited;
+        assert(control.visitStandaloneApplicationPassword(
+            original.generation, &observeStandaloneCredential, &visited));
+        assert(visited.visited);
+    }
+
+    assert(control.revokeSharing().succeeded());
+    const auto revoked = control.status();
+    assert(revoked.stage == RuntimeHostStage::Revoked);
+    assert(!revoked.credentialsConfigured);
+    assert(!revoked.product.credentialsConfigured);
+    assert(!revoked.hostOwnerAuthorized);
+    assert(!revoked.listenerAvailable);
+    assert(!control.standaloneApplicationPasswordObservation().configured);
+    return true;
+}
+
 void testPortableGuiBootstrapReadiness()
 {
     MacPortableDesktopRuntime runtime;
@@ -415,6 +546,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-stop-revoke-retirement")
     {
         testStopRevokeRetirement();
+    }
+    else if (selected == "macos-host-control-stop-start-retains-standalone-credential")
+    {
+        if (!testStopStartRetainsStandaloneCredential())
+            return 77;
     }
     else if (selected == "macos-portable-gui-bootstrap-readiness")
     {

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/current_owner_sharing_authority.h"
+#include "server/security/standalone_credential_consent.h"
 
 #include <array>
 #include <cassert>
@@ -64,6 +65,22 @@ int main(int argc, char **argv)
     if (argc != 2 || argv[1] == nullptr) return 2;
     const std::string_view testCase{argv[1]};
 
+    if (testCase == "standalone-credential-portable-stop-revoke-matrix")
+    {
+        assert(!shouldRetireStandaloneApplicationCredential(
+            OwnerConsentRevocationReason::Stop));
+        constexpr std::array terminalReasons{
+            OwnerConsentRevocationReason::LockOrUnknown,
+            OwnerConsentRevocationReason::Logout,
+            OwnerConsentRevocationReason::UserSwitch,
+            OwnerConsentRevocationReason::SessionReplacement,
+            OwnerConsentRevocationReason::CredentialChange,
+            OwnerConsentRevocationReason::AuthorityExpired,
+            OwnerConsentRevocationReason::NativeAuthorizationLost};
+        for (const auto reason : terminalReasons)
+            assert(shouldRetireStandaloneApplicationCredential(reason));
+        return 0;
+    }
     if (testCase == "owner-consent-positive-seat0-unlocked-grant")
     {
         FakeOwnerEvidence evidence;

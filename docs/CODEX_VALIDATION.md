@@ -1,3 +1,30 @@
+## R1/R5 pre-listener denial test reconciliation — 2026-10-23
+
+Starting exact-main parent: `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.
+
+Hosted descendant evidence at `47df6f91c2708464b7c40c5978d6d14104580fe2`
+shows the R1 OpenSSL portability correction itself is working: Ubuntu and
+macOS compiled and passed the generated IPv4 SAN, IPv6 SAN, generic-subject/IP
+SAN authority, wrong-endpoint, Stop-retirement, no-listener and external
+mismatched-key cases.
+
+The failing R1-named Linux HostControl lifecycle case was an obsolete assertion,
+not a TLS failure. R5 now performs native X11 eligibility before R2 credential
+provider checks, so an unprovisioned offline controller may fail Start with
+`NativeAuthorizationDenied` on headless CI or
+`CredentialProviderUnavailable` on an eligible owner X11 session. Both are
+pre-listener.
+
+The R1 lifecycle test is now scoped back to R1 ownership and does not call
+Start; it verifies prepared identity state, stale-selection retirement, zero
+listener generation and Stop-time identity destruction. The two separate
+interface-policy tests retain Start coverage and accept only those two valid
+pre-listener denials while requiring no listener.
+
+Source review: **PASS**. Owner-local full build/CTest: **NOT RUN**.
+Replacement exact-SHA hosted CI: **PENDING**. No live listener, desktop,
+input, clipboard or Microsoft client operation was performed.
+
 ## 2026-10-23 — R7 P0 hosted test-contract correction after compile recovery
 
 Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.

@@ -1,3 +1,19 @@
+## Pre-listener denial ordering across subsystem gates (2026-10-23)
+
+Offline tests that intentionally stop before listener creation must assert the
+security property owned by the test, not a stale ordering assumption between
+independent fail-closed gates. When R5 native desktop freshness precedes R2
+credential provisioning, an unprovisioned HostControl may legitimately report
+`NativeAuthorizationDenied` on a headless host or
+`CredentialProviderUnavailable` on an eligible physical X11 host. A test
+covering that boundary must constrain the accepted denial set explicitly and
+still require zero listener/bound-endpoint state.
+
+Subsystem lifecycle tests should avoid invoking unrelated later gates when not
+needed. In particular, the R1 generated-TLS Stop-retirement case prepares the
+identity and calls Stop directly; R5/R2 Start denials have their own tests.
+This keeps ordinary CTest deterministic without weakening listener safety.
+
 ## R7 P0 consumer workflow and owner-acceptance qualification tests (2026-10-23)
 
 The pre-qualification Microsoft-client run may use the production Main-tab

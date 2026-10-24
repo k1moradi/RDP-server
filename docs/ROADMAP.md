@@ -1,3 +1,42 @@
+## R1/R5 offline pre-listener denial integration correction — 2026-10-23
+
+Starting exact-main parent: `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.
+
+Dependency recheck: R6 bootstrap, R3 automatic licensing, R5 current physical
+X11 selection and R7/R10 no-config Session Password owner-acceptance composition
+are now present on main. The prior R6 portable-manifest fixture blocker is also
+**RESOLVED** by R7's current fixture update.
+
+Descendant hosted run `40068362582` at
+`47df6f91c2708464b7c40c5978d6d14104580fe2` compiled the corrected R1 TLS
+test on Ubuntu/macOS and reported PASS for the mismatched-key case and all six
+generated TLS identity cases, including
+`runtime.generated-tls-identity-generic-subject-ip-san-authority`.
+It exposed a separate stale Linux HostControl expectation:
+`runtime.linux-host-control-automatic-tls-identity-lifecycle` still expected
+`CredentialProviderUnavailable` from `startSharing()`.
+
+R5 now intentionally checks a fresh same-owner unlocked physical X11 target
+before the R2 credential-provider gate. Headless CI therefore returns
+`NativeAuthorizationDenied`, while a real eligible X11 owner session can
+proceed to `CredentialProviderUnavailable`. Neither path opens a listener.
+The R1 TLS lifecycle regression no longer invokes those unrelated Start gates:
+it proves selection-bound identity preparation, stale-selection retirement,
+no listener, and Stop-time generated identity destruction directly. The two
+interface-policy cases that intentionally exercise Start now accept only the
+two valid pre-listener denials and continue to require no listener/bound
+endpoint.
+
+Production TLS, listener, authentication, native desktop and wire behavior are
+unchanged. Source/test review: **PASS**. Canonical owner-local full build/CTest:
+**NOT RUN** in this connector environment. Replacement exact-SHA hosted CI:
+**PENDING**.
+
+**Remaining product gate:** public Release StandalonePassword remains
+deliberately disabled until an owner-authorized real Windows App /
+`mstsc.exe` interoperability run qualifies the production acceptance path.
+That physical-client evidence cannot be manufactured by offline CI.
+
 ## R7 P0 follow-up — acceptance/source and portable-fixture contract correction — 2026-10-23
 
 Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.

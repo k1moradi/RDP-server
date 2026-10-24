@@ -33,6 +33,17 @@ struct StandaloneVisitObservation final
 {
     return {u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
 }
+
+[[nodiscard]] bool isExpectedUnprovisionedPrelistenerDenial(
+    RuntimeHostError error) noexcept
+{
+    // R5's native desktop gate intentionally precedes R2 credential-provider
+    // checks. Headless/offline hosts therefore fail at native authorization,
+    // while an eligible physical X11 owner session reaches the still-
+    // unprovisioned credential-provider gate. Both are pre-listener denials.
+    return error == RuntimeHostError::NativeAuthorizationDenied ||
+           error == RuntimeHostError::CredentialProviderUnavailable;
+}
 } // namespace
 
 int main(int argc, char** argv)
@@ -290,8 +301,8 @@ int main(int argc, char** argv)
             assert(!configured.selectedEndpoint.empty());
             assert(configured.listenerGeneration == 0U);
             assert(configured.boundEndpoint.empty());
-            assert(control.startSharing().error ==
-                   RuntimeHostError::CredentialProviderUnavailable);
+            const auto start = control.startSharing();
+            assert(isExpectedUnprovisionedPrelistenerDenial(start.error));
             assert(!control.status().listenerAvailable);
             assert(control.status().boundEndpoint.empty());
         }
@@ -326,10 +337,11 @@ int main(int argc, char** argv)
 
         assert(control.configure(selected).succeeded());
         assert(control.status().tlsIdentityReady);
-        assert(control.startSharing().error ==
-               RuntimeHostError::CredentialProviderUnavailable);
         assert(!control.status().listenerAvailable);
 
+        // This R1 lifecycle case owns endpoint preparation/retirement only.
+        // Native desktop and R2 credential gates are independently covered
+        // elsewhere and must not make TLS Stop retirement host-dependent.
         assert(control.stopSharing().succeeded());
         const auto stopped = control.status();
         assert(!stopped.tlsIdentityReady);
@@ -351,8 +363,9 @@ int main(int argc, char** argv)
             interfaces.front().stableId,
             interfaces.front().localAddresses.front(), 3389U, true, false};
         assert(control.configure(selected).succeeded());
-        assert(control.startSharing().error ==
-               RuntimeHostError::CredentialProviderUnavailable);
+        const auto initialStart = control.startSharing();
+        assert(isExpectedUnprovisionedPrelistenerDenial(initialStart.error));
+        assert(!control.status().listenerAvailable);
 
         RuntimeHostOptions removed = selected;
         removed.interfaceId += "#stale";

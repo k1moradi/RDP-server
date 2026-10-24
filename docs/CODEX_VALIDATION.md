@@ -1,3 +1,26 @@
+## R7 acceptance-only macOS GUI test gating correction (2026-10-24)
+
+Starting exact-main parent: `5058fefe03b3fe611d5c39a52cb724375933a519`.
+
+Observed Actions run `40083271144`:
+- `r9-owner-gui-credential-parity (ubuntu-latest)`: **PASS**;
+- `r9-owner-gui-credential-parity (macos-latest)`: **PASS**;
+- Ubuntu and macOS protocol jobs: **PASS**;
+- `r7-macos-portable-gui`: **FAIL** because ordinary Release+acceptance-OFF
+  executed acceptance-only GUI assertions. The first failures required visible
+  or editable Session Password controls while the Release gate was intentionally
+  closed.
+
+The production gate is correct and remains closed in ordinary Release. The
+acceptance-only modes now use registered skip code 77 when the owner-acceptance
+UI is not compiled. Acceptance-ON/Debug behavior remains unchanged and continues
+to exercise the real production credential path.
+
+Production `desktop_window.*`: **UNCHANGED in this follow-up** because the
+R7 interaction/presentation fix is already present and cross-platform parity
+jobs are green. Public standalone-password Release qualification remains false.
+Exact-publication-SHA hosted requalification: **PENDING**.
+
 ## R5 hosted owner-readiness qualification receipt (2026-10-24)
 
 Exact implementation SHA

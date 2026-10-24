@@ -1,3 +1,29 @@
+## R7 owner-acceptance test-gate alignment after credential editor repair (2026-10-24)
+
+Starting exact-main parent: `5058fefe03b3fe611d5c39a52cb724375933a519`.
+
+Current R7 production behavior already contains the credential-editor correction:
+owner-acceptance/Debug builds expose the production Session Password surface only
+when R2 configuration is available; R10 lifecycle state controls editability;
+Username/Password/Confirm use StrongFocus, deterministic tab order, masked
+password fields and Linux-visible enabled/focus styling. The shared real-key
+owner parity test is green on both Ubuntu/XCB and macOS acceptance builds.
+
+The remaining current-main failure was a test-configuration mismatch, not a
+production editor defect. Three acceptance-only macOS/property modes were also
+executed by the ordinary Release+acceptance-OFF portable-GUI suite and asserted
+that the intentionally gated password surface was visible/editable. Changing
+production to satisfy those failures would incorrectly weaken the Release gate.
+
+Those modes now return the canonical skip code when
+`RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI` is absent, and their CTests register
+`SKIP_RETURN_CODE 77`. Debug and explicit owner-acceptance Release builds still
+execute the exact assertions; public Release keeps the prequalification surface
+gated. No authentication, consent, listener, capture, input, clipboard or RDP
+wire behavior changes.
+
+Connector source review: **PASS**. Exact-publication-SHA CI: **PENDING**.
+
 ## R5 hosted physical-X11 precredential readiness qualified (2026-10-24)
 
 **Tested R5 publication SHA:** `ea37e403158a9732ad0296ffe364a0258e00c1d9`.

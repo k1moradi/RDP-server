@@ -4082,13 +4082,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             COMMAND test_desktop_gui_offline macos-gui-parity)
         set_tests_properties(gui.offscreen-macos-gui-parity-and-widget-properties
             PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-            LABELS "gui;macos;offline;acceptance;round2" TIMEOUT 30)
+            LABELS "gui;macos;offline;acceptance;round2"
+            SKIP_RETURN_CODE 77 TIMEOUT 30)
 
         add_test(NAME gui.offscreen-macos-concrete-host-control-acceptance
             COMMAND test_desktop_gui_offline macos-real-host-control)
         set_tests_properties(gui.offscreen-macos-concrete-host-control-acceptance
             PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-            LABELS "gui;macos;offline;security;runtime" TIMEOUT 30)
+            LABELS "gui;macos;offline;security;runtime"
+            SKIP_RETURN_CODE 77 TIMEOUT 30)
     endif()
     # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
     add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials
@@ -4110,6 +4112,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-acceptance-editor-properties PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;editability;parity"
+        SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
     # R9 owner-reported usability regression. Unlike the property-only case,

@@ -1157,6 +1157,10 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
     if (credSspReplyWriter_.status() != WriteStatus::Idle)
         return fail(Step::Invalid);
 
+    // This one reader/writer pair is retained for the accepted connection.
+    // SPNEGO and DirectNtlm therefore traverse the exact same R1 owner,
+    // transport generation, established SSL and selected-certificate pin from
+    // Type 1 through Type 2/Type 3, pubKeyAuth and final authInfo.
     std::size_t bytesRead = 0U;
     if (credSspFrameReader_.status() ==
         rdp_server::server::security::TsRequestFrameStatus::NeedMore)

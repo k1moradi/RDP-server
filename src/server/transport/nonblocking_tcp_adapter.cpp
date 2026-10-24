@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -32,6 +33,30 @@ namespace rdp_server::server::transport
 {
 namespace
 {
+[[nodiscard]] std::uint64_t allocateOwnedPreauthTransportGeneration() noexcept
+{
+    // Generation zero is permanently invalid. If the 64-bit namespace is
+    // exhausted, fail closed rather than wrapping onto stale provenance.
+    static std::atomic<std::uint64_t> nextGeneration{1U};
+    std::uint64_t current =
+        nextGeneration.load(std::memory_order_relaxed);
+    while (current != 0U)
+    {
+        const std::uint64_t following =
+            current == (std::numeric_limits<std::uint64_t>::max)()
+                ? 0U
+                : current + 1U;
+        if (nextGeneration.compare_exchange_weak(
+                current, following,
+                std::memory_order_relaxed,
+                std::memory_order_relaxed))
+        {
+            return current;
+        }
+    }
+    return 0U;
+}
+
 [[nodiscard]] bool isUnexpectedTlsEof() noexcept
 {
 #ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
@@ -1011,10 +1036,18 @@ OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
     OwnedNativeTcpSocket acceptedSocket,
     SecurityNegotiationPolicy negotiationPolicy) noexcept
     : socket_(std::move(acceptedSocket)),
+      transportGeneration_(
+          socket_.valid()
+              ? allocateOwnedPreauthTransportGeneration()
+              : 0U),
       io_(socket_.nativeSocket()),
       adapter_(io_, negotiationPolicy)
 {
-    if (!socket_.valid()) adapter_.close();
+    if (!socket_.valid() || transportGeneration_ == 0U)
+    {
+        adapter_.close();
+        socket_.close();
+    }
 }
 
 void OwnedPreauthTcpConnection::cancel() noexcept

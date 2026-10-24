@@ -451,6 +451,13 @@ private:
      {
          return socket_.nativeSocket();
      }
+     // Non-secret process-lifetime identity for this exact accepted transport.
+     // Zero means inactive/invalid. This is correlation provenance only and
+     // cannot grant authentication, admission, or native desktop authority.
+     [[nodiscard]] std::uint64_t transportGeneration() const noexcept
+     {
+         return active() ? transportGeneration_ : 0U;
+     }
      // Snapshot by value so R2/R3 never receives a mutable socket/address
      // capability. Invalid after cancellation/close; never authorization.
      [[nodiscard]] TcpPeerEndpoint peerEndpoint() const noexcept
@@ -570,6 +577,7 @@ private:
      void clearPendingTlsApplicationIo() noexcept;
 
      OwnedNativeTcpSocket socket_{};
+     std::uint64_t transportGeneration_{};
      NativeTcpIo io_;
      PreauthTcpAdapter adapter_;
      ServerTls serverTls_{nullptr, SSL_free};

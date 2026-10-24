@@ -1,3 +1,29 @@
+## R1 established-TLS provenance authoring receipt (2026-10-24)
+
+**Starting reconciled main:** `2e807fd3afddaf2b5379ff7ca46d3db75b8df4ed`.
+
+The owner trace is classified as R1 **PASS** through TLS application data; this
+change does not alter certificate generation or reinterpret the client warning
+as the first failure. Existing handshake/certificate diagnostics are preserved.
+
+Production provenance is strengthened from owner pointer + SSL pointer +
+certificate fingerprint to owner pointer + nonzero accepted-transport
+generation + SSL pointer + certificate fingerprint. Reader and writer retain
+that tuple across successful release boundaries, so Type 1/2/3, pubKeyAuth and
+authInfo remain on one accepted TLS lifetime. Generation zero is invalid and
+64-bit exhaustion fails closed rather than wrapping onto stale authority.
+
+Added transport fixtures prove raw DirectNtlm Type 1 crosses real X.224 HYBRID
+and established TLS without closing R1, and prove a reconstructed owner at the
+same memory address cannot reuse a retired reader/writer generation. Existing
+tests continue to deny another established owner, direct-SSL takeover, reply
+owner substitution and selected-certificate mutation.
+
+Connector source/test/workflow review: **PASS**. Canonical local configure,
+build and full CTest: **NOT RUN**. Exact-SHA hosted CI: **PENDING**. No R2
+credential-authority, R3, graphics, native desktop, clipboard, or certificate
+generation behavior is claimed changed.
+
 ## R5 authentication-envelope independence verification (2026-10-24)
 
 **Starting exact-main parent:** `5c9d460adc759711b3e67502164cc2487a893a59`.

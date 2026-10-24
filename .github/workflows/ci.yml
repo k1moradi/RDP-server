@@ -829,6 +829,19 @@ jobs:
           build/tests/test_linux_runtime_host_control \
             r9-start-stop-start-and-tls-interop
 
+          # R1 remains the one established HYBRID/TLS transport for the raw
+          # DirectNtlm token, and stale/alternate transport provenance denies.
+          build/tests/test_owned_preauth_session \
+            tcp-owned-hybrid-direct-ntlm-first-record
+          build/tests/test_owned_preauth_session \
+            credssp-r1-owned-transport-generation
+          build/tests/test_owned_preauth_session \
+            credssp-r1-owned-framing
+          build/tests/test_owned_preauth_session \
+            credssp-r1-owned-reply
+          build/tests/test_owned_preauth_session \
+            credssp-tls-certificate-pinning
+
           # Exact owner reproduction: v6 / one 40-byte raw NTLMSSP Type 1,
           # raw Type 2, raw Type 3 + pubKeyAuth, server pubKeyAuth, authInfo,
           # then CredentialsVerified through the production CredSSP code.

@@ -1,3 +1,23 @@
+## R1 provenance beneath SPNEGO and DirectNtlm (2026-10-24)
+
+R1 owns one accepted socket/BIO/SSL lifetime after X.224 HYBRID. Each valid
+accepted owner receives a nonzero process-lifetime transport generation. R2's
+TSRequest reader and reply writer pin that generation together with the owner
+identity, established `SSL*`, and selected certificate fingerprint, and retain
+the pin across successive CredSSP frames/replies.
+
+Therefore DirectNtlm does not add a transport path. Raw Type 1 enters through
+the same R1 TLS application reader as SPNEGO, raw Type 2 leaves through the same
+R1 writer, and Type 3/pubKeyAuth/authInfo continue on the same pinned tuple.
+Another connection, another SSL object, a substituted selected certificate, or
+a reconstructed connection at the same owner address cannot continue the
+exchange.
+
+The physical Microsoft-client trace has already crossed R1: endpoint,
+certificate self-check, selected certificate, TLS establishment, and CredSSP
+application data are observed on one connection. Certificate generation remains
+unchanged; current interoperability work stays in R2 and later boundaries.
+
 ## R5 consumes capability, not CredSSP envelope (2026-10-24)
 
 The R2-to-R5 interface is the admitted native-desktop capability, not the

@@ -1,3 +1,33 @@
+## R1 P1 — preserve established TLS and transport provenance (2026-10-24)
+
+**Starting reconciled main:** `2e807fd3afddaf2b5379ff7ca46d3db75b8df4ed`.
+
+Owner evidence establishes R1 success through CredSSP application data, so TLS
+and certificate generation are not reopened as the active blocker. The existing
+R1 handshake diagnostics, exact selected-certificate checks, generated-IP
+identity behavior, and HYBRID provenance remain unchanged.
+
+This increment adds a non-secret monotonic generation to each valid
+`OwnedPreauthTcpConnection` and pins it in the existing TSRequest reader and
+writer beside owner identity, established SSL identity, and certificate
+fingerprint. The pin survives frame/reply release across the whole CredSSP
+exchange. This closes same-address stale reconnect aliasing while preserving the
+already existing denials for another owner, another SSL path, and certificate
+substitution. SPNEGO and DirectNtlm still use one LinuxRuntimeConnection
+reader/writer pair; no second TLS or NTLM path exists.
+
+New transport gates:
+- `transport.tcp-owned-hybrid-direct-ntlm-first-record`;
+- `transport.credssp-r1-owned-transport-generation`.
+
+The focused R9 Microsoft-CSSP sanitizer gate also runs these plus the existing
+owner-framing, owner-reply, and certificate-pinning cases before the R2
+DirectNtlm flow. No certificate generation source is modified.
+
+Connector source/diff review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Physical Windows App rerun remains a later exact-SHA gate.
+
 ## R5 P1 authentication-envelope independence pinned (2026-10-24)
 
 **Starting exact-main parent:** `5c9d460adc759711b3e67502164cc2487a893a59`.

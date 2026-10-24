@@ -1055,7 +1055,7 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;transport")
         endforeach()
     elseif(test_target STREQUAL "test_owned_preauth_session")
-        # Seventeen behavior groups from ONE existing executable: no duplicate
+        # Behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.
         foreach(case_name IN ITEMS
                 preauth-session-lifecycle
@@ -1089,6 +1089,8 @@ function(add_rdp_test source_file suite behavior)
                 tcp-owned-security-negotiation-provenance
                 tcp-owned-hybrid-nla-negotiation
                 tcp-owned-hybrid-credssp-first-record
+                tcp-owned-hybrid-direct-ntlm-first-record
+                credssp-r1-owned-transport-generation
                 tcp-owned-buffered-tls-credssp-mcs-readiness
                 tcp-owned-hybrid-no-premature-mcs
                 tcp-owned-hybrid-provenance-revocation

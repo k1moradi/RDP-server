@@ -1,3 +1,27 @@
+## R1 established TLS provenance is envelope-independent (2026-10-24)
+
+Once X.224 HYBRID has selected the accepted connection and TLS is established,
+R2 negotiation must remain on that exact R1 transport. SPNEGO and DirectNtlm
+share the same `OwnedPreauthTcpConnection`, the same established server
+`SSL*`, and the same selected-certificate SHA-256 pin. A valid raw NTLM
+Type-1 token changes only the R2 negotiation envelope; it must never create,
+reattach, or replace TLS.
+
+Bind every production TSRequest reader/writer to the tuple
+`(R1 owner, transport generation, SSL identity, certificate fingerprint)`.
+The accepted transport generation is nonzero and process-lifetime monotonic;
+zero is invalid and exhaustion fails closed. Preserve the tuple across
+`releaseFrame()` and `releaseReply()` so Type 1, Type 2, Type 3,
+`pubKeyAuth`, and `authInfo` cannot cross a reconnect boundary. Owner
+substitution, SSL substitution, certificate substitution, or same-address stale
+owner reuse is terminal.
+
+Established TLS application data is decisive R1 success evidence. Do not treat
+a Microsoft client certificate-warning UI as the first failing boundary when
+the same connection reaches CredSSP application data. Do not change generated
+certificate shape, SAN policy, or fingerprint behavior without independent
+evidence requiring such a change.
+
 ## R5 native authority is independent of the R2 authentication envelope (2026-10-24)
 
 R5 must never branch on, store, or interpret CredSSP negotiation-envelope state.

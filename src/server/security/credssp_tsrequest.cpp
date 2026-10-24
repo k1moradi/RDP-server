@@ -401,6 +401,7 @@ void TsRequestFrameReader::close() noexcept
     clear();
     boundServerTls_ = nullptr;
     boundOwner_ = nullptr;
+    boundTransportGeneration_ = 0U;
     OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
     certificatePinned_ = false;
     status_ = TsRequestFrameStatus::Closed;
@@ -433,8 +434,12 @@ const SSL *TsRequestFrameReader::completedFrameServerTls() const noexcept
         boundServerTls_ == nullptr || !certificatePinned_)
         return nullptr;
     if (boundOwner_ != nullptr &&
-        boundOwner_->establishedTls() != boundServerTls_)
+        (boundTransportGeneration_ == 0U ||
+         boundOwner_->transportGeneration() != boundTransportGeneration_ ||
+         boundOwner_->establishedTls() != boundServerTls_))
+    {
         return nullptr;
+    }
     CredSspTlsCertificateFingerprint current{};
     if (!fingerprintActiveCredSspServerTlsCertificate(
             boundServerTls_, current))
@@ -444,6 +449,16 @@ const SSL *TsRequestFrameReader::completedFrameServerTls() const noexcept
         current.size()) == 0;
     OPENSSL_cleanse(current.data(), current.size());
     return identical ? boundServerTls_ : nullptr;
+}
+
+bool TsRequestFrameReader::completedFrameOwnedBy(
+    const transport::OwnedPreauthTcpConnection &connection) const noexcept
+{
+    return status_ == TsRequestFrameStatus::Complete &&
+           boundOwner_ == &connection &&
+           boundTransportGeneration_ != 0U &&
+           connection.transportGeneration() == boundTransportGeneration_ &&
+           completedFrameServerTls() != nullptr;
 }
 
 std::span<const std::uint8_t>
@@ -508,11 +523,18 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStepImpl(
     const SSL *const serverTls =
         connection != nullptr ? connection->establishedTls()
                               : directServerTls;
+    const std::uint64_t transportGeneration =
+        connection != nullptr ? connection->transportGeneration() : 0U;
     const bool ownerMismatch =
         (boundOwner_ != nullptr && boundOwner_ != connection) ||
         (boundOwner_ == nullptr && boundServerTls_ != nullptr &&
          connection != nullptr);
-    if (serverTls == nullptr || ownerMismatch ||
+    const bool generationMismatch =
+        connection != nullptr &&
+        (transportGeneration == 0U ||
+         (boundOwner_ != nullptr &&
+          boundTransportGeneration_ != transportGeneration));
+    if (serverTls == nullptr || ownerMismatch || generationMismatch ||
         (boundServerTls_ != nullptr && boundServerTls_ != serverTls) ||
         SSL_is_server(serverTls) != 1 ||
         SSL_is_init_finished(serverTls) != 1 ||
@@ -560,7 +582,10 @@ TsRequestTlsReadResult TsRequestFrameReader::readOneTlsStepImpl(
     }
     OPENSSL_cleanse(current.data(), current.size());
     if (boundServerTls_ == nullptr)
+    {
         boundOwner_ = connection;
+        boundTransportGeneration_ = transportGeneration;
+    }
     boundServerTls_ = serverTls;
 
     std::array<std::uint8_t, 512> plaintext{};
@@ -744,6 +769,7 @@ void TsRequestTlsReplyWriter::close() noexcept
     clear();
     boundServerTls_ = nullptr;
     boundOwner_ = nullptr;
+    boundTransportGeneration_ = 0U;
     OPENSSL_cleanse(pinnedCertificate_.data(), pinnedCertificate_.size());
     certificatePinned_ = false;
     failureQueued_ = false;
@@ -805,9 +831,14 @@ bool TsRequestTlsReplyWriter::queueEncoded(
         return false;
     }
 
+    const std::uint64_t transportGeneration =
+        connection != nullptr ? connection->transportGeneration() : 0U;
     const bool ownerMismatch =
         connection != nullptr &&
-        ((boundOwner_ != nullptr && boundOwner_ != connection) ||
+        (transportGeneration == 0U ||
+         (boundOwner_ != nullptr &&
+          (boundOwner_ != connection ||
+           boundTransportGeneration_ != transportGeneration)) ||
          directIoUsed_ ||
          connection->establishedTls() != serverTls);
     if (status_ != TsRequestTlsWriteStatus::Idle || ownerMismatch ||
@@ -833,7 +864,10 @@ bool TsRequestTlsReplyWriter::queueEncoded(
     offset_ = 0;
     boundServerTls_ = serverTls;
     if (connection != nullptr)
+    {
         boundOwner_ = connection;
+        boundTransportGeneration_ = transportGeneration;
+    }
     failureQueued_ = isFailure;
     if (!certificatePinned_)
     {
@@ -875,9 +909,14 @@ TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStepImpl(
     const SSL *const serverTls =
         connection != nullptr ? connection->establishedTls()
                               : directServerTls;
+    const std::uint64_t transportGeneration =
+        connection != nullptr ? connection->transportGeneration() : 0U;
     if (serverTls == nullptr || boundServerTls_ != serverTls ||
         !certificatePinned_ ||
-        (boundOwner_ != nullptr && boundOwner_ != connection) ||
+        (connection != nullptr && transportGeneration == 0U) ||
+        (boundOwner_ != nullptr &&
+         (boundOwner_ != connection ||
+          boundTransportGeneration_ != transportGeneration)) ||
         (connection == nullptr && boundOwner_ != nullptr) ||
         (connection != nullptr && boundOwner_ == nullptr && directIoUsed_))
     {
@@ -889,7 +928,10 @@ TsRequestTlsWriteResult TsRequestTlsReplyWriter::writeOneTlsStepImpl(
     // be adopted by this exact owner on the first write. No later downgrade
     // to direct SSL_write_ex is permitted.
     if (connection != nullptr && boundOwner_ == nullptr)
+    {
         boundOwner_ = connection;
+        boundTransportGeneration_ = transportGeneration;
+    }
 
     CredSspTlsCertificateFingerprint current{};
     const bool sameCertificate =
@@ -976,7 +1018,9 @@ bool TsRequestTlsReplyWriter::releaseReply() noexcept
     if (status_ != TsRequestTlsWriteStatus::Complete)
         return false;
     if (boundOwner_ != nullptr &&
-        boundOwner_->establishedTls() != boundServerTls_)
+        (boundTransportGeneration_ == 0U ||
+         boundOwner_->transportGeneration() != boundTransportGeneration_ ||
+         boundOwner_->establishedTls() != boundServerTls_))
     {
         close();
         return false;

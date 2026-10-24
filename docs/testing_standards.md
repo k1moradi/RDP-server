@@ -1,3 +1,25 @@
+## R1 direct-NTLM transport-provenance gates (2026-10-24)
+
+Keep `transport.tcp-owned-hybrid-direct-ntlm-first-record` as the positive R1
+fixture: real loopback X.224 HYBRID negotiation -> established TLS -> CredSSP v6
+with one raw 40-byte `NTLMSSP\\0` Type-1 token. The frame must be read by
+the exact R1 owner/SSL, the selected-certificate fingerprint must remain
+unchanged, HYBRID provenance must remain available, and the transport must stay
+active in `AwaitCredSsp` after the frame is released.
+
+Keep `transport.credssp-r1-owned-transport-generation` as the stale reconnect
+gate. It deliberately destroys and reconstructs the nonmoving connection owner
+at the same memory address; the new accepted connection must have a different
+nonzero transport generation, and a reader/writer pinned to the retired
+generation must reject it without revoking the new owner. Continue running the
+existing owner-substitution, raw-SSL downgrade, reply-owner substitution, and
+selected-certificate pinning cases beside these gates.
+
+The persistent production reader/writer pair in `LinuxRuntimeConnection`
+provides the same provenance pin for both SPNEGO and DirectNtlm through Type 1,
+Type 2, Type 3, pubKeyAuth, and authInfo. These tests are transport provenance,
+not authentication or certificate-generation qualification.
+
 ## R5 authentication-envelope independence gate (2026-10-24)
 
 Keep `runtime.linux-r5-auth-envelope-independent-native-owner` as an offline

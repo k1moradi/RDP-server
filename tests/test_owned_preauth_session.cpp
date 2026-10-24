@@ -28,6 +28,7 @@
 #include <fstream>
 #include <filesystem>
 #include <memory>
+#include <optional>
 
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
@@ -7091,6 +7092,32 @@ constexpr std::array<std::uint8_t, 21> kTestCredSspDer{
     0xa1, 0x0c, 0x30, 0x0a, 0x30, 0x08,
     0xa0, 0x06, 0x04, 0x04, 0x60, 0x82, 0x01, 0x00};
 
+// CredSSP v6 with one direct 40-byte NTLMSSP Type-1 token. R1 treats the
+// token as opaque application data; the signature/message type make this
+// transport fixture explicit without duplicating the R2 NTLM parser.
+[[nodiscard]] constexpr std::array<std::uint8_t, 57>
+directNtlmTypeOneCredSspDer() noexcept
+{
+    std::array<std::uint8_t, 57> frame{};
+    constexpr std::array<std::uint8_t, 17> prefix{
+        0x30, 0x37, 0xa0, 0x03, 0x02, 0x01, 0x06,
+        0xa1, 0x30, 0x30, 0x2e, 0x30, 0x2c, 0xa0, 0x2a, 0x04, 0x28};
+    std::copy(prefix.begin(), prefix.end(), frame.begin());
+    constexpr std::array<std::uint8_t, 8> signature{
+        'N','T','L','M','S','S','P',0};
+    std::copy(signature.begin(), signature.end(), frame.begin() + 17);
+    frame[25] = 0x01U; // NEGOTIATE_MESSAGE
+    // Unicode/NTLM/sign/seal/ESS/128/key-exchange/56-bit negotiate flags.
+    frame[29] = 0x35U;
+    frame[30] = 0x82U;
+    frame[31] = 0x88U;
+    frame[32] = 0xe2U;
+    return frame;
+}
+
+inline constexpr auto kDirectNtlmTypeOneCredSspDer =
+    directNtlmTypeOneCredSspDer();
+
 // Syntactically valid final authInfo shape with intentionally opaque,
 // non-GSS ciphertext. It is used only to prove premature owner dispatch denial.
 constexpr std::array<std::uint8_t, 14> kTestCredSspAuthInfoDer{
@@ -7271,6 +7298,171 @@ void testOwnedHybridCredSspFirstRecord()
     owner.cancel();
     assert(owner.stage() == PreauthStage::Closed);
     assert(!owner.securityNegotiationProvenance().has_value());
+}
+
+
+void testOwnedHybridDirectNtlmFirstRecord()
+{
+    using Interest = TcpConnectionIoInterest;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    const std::uint64_t transportGeneration = owner.transportGeneration();
+    assert(transportGeneration != 0U);
+
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+    TlsHandshakeFixture tls{false, false};
+    SSL *const selectedServer = tls.server.get();
+    establishOwnedApplicationTlsForRequest(
+        owner, clientIo, tls, tlsAndHybridRequestWire(),
+        SecurityNegotiationPolicy::HybridNla);
+
+    assert(owner.active());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(owner.ioInterest() == Interest::Read);
+    assert(owner.establishedTls() == selectedServer);
+    assert(owner.transportGeneration() == transportGeneration);
+
+    CredSspTlsCertificateFingerprint certificateBefore{};
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        selectedServer, certificateBefore));
+
+    TsRequestFrameReader reader;
+    assert(reader.readOneTlsStep(owner).status ==
+           TsRequestTlsReadStatus::NeedRead);
+    writeNativeTlsClientAll(
+        tls.client.get(), kDirectNtlmTypeOneCredSspDer);
+    assert(drainCredSspFromOwnedTls(
+               reader, owner, TsRequestTlsReadStatus::Complete) ==
+           kDirectNtlmTypeOneCredSspDer.size());
+
+    assert(reader.completedFrameUsesOwnedTransport());
+    assert(reader.completedFrameOwnedBy(owner));
+    assert(reader.completedFrameServerTls() == selectedServer);
+    const auto parsed = parseCredSspTsRequest(reader.completeDer());
+    assert(parsed && parsed.value.version == 6U);
+    assert(parsed.value.tokenCount == 1U);
+    const auto token = parsed.value.tokens[0];
+    assert(token.size() == 40U);
+    constexpr std::array<std::uint8_t, 12> typeOneSignature{
+        'N','T','L','M','S','S','P',0,1,0,0,0};
+    assert(std::equal(
+        typeOneSignature.begin(), typeOneSignature.end(), token.begin()));
+
+    CredSspTlsCertificateFingerprint certificateAfter{};
+    assert(fingerprintActiveCredSspServerTlsCertificate(
+        owner.establishedTls(), certificateAfter));
+    assert(certificateAfter == certificateBefore);
+    assert(owner.active());
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    assert(owner.establishedTls() == selectedServer);
+    assert(owner.transportGeneration() == transportGeneration);
+    const auto provenance = owner.securityNegotiationProvenance();
+    assert(provenance.has_value());
+    assert(provenance->serverSelectedProtocol == kRdpProtocolHybrid);
+
+    assert(reader.releaseFrame());
+    assert(owner.active());
+    owner.cancel();
+}
+
+void testOwnedCredSspTransportGenerationProvenance()
+{
+    // Re-emplace the nonmoving owner in the same storage. Pointer equality
+    // alone is then ambiguous; the R1 generation must reject the reconnect.
+    std::optional<OwnedPreauthTcpConnection> owner;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    const OwnedPreauthTcpConnection *firstAddress = nullptr;
+    std::uint64_t firstGeneration = 0U;
+
+    {
+        LoopbackSocketPair firstPair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(firstPair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        owner.emplace(
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla);
+        firstAddress = std::addressof(*owner);
+        firstGeneration = owner->transportGeneration();
+        assert(firstGeneration != 0U);
+
+        NativeTcpIo firstClient{
+            static_cast<std::uintptr_t>(firstPair.client.value)};
+        TlsHandshakeFixture firstTls{false, false};
+        establishOwnedApplicationTlsForRequest(
+            *owner, firstClient, firstTls, tlsAndHybridRequestWire(),
+            SecurityNegotiationPolicy::HybridNla);
+
+        writeNativeTlsClientAll(
+            firstTls.client.get(), kDirectNtlmTypeOneCredSspDer);
+        assert(drainCredSspFromOwnedTls(
+                   reader, *owner, TsRequestTlsReadStatus::Complete) ==
+               kDirectNtlmTypeOneCredSspDer.size());
+        assert(reader.completedFrameOwnedBy(*owner));
+        assert(reader.releaseFrame());
+
+        constexpr std::array<std::uint8_t, 12> rawTypeTwo{
+            'N','T','L','M','S','S','P',0,2,0,0,0};
+        const auto expected = encodeCredSspServerTsRequest(
+            6U, CredSspServerReplyField::NegoToken, rawTypeTwo);
+        assert(writer.queueReply(
+            *owner, 6U, CredSspServerReplyField::NegoToken, rawTypeTwo));
+        bool shortWrite = false;
+        assert(drainCredSspReplyThroughOwnedTls(
+                   writer, *owner, shortWrite) == expected.size());
+        std::vector<std::uint8_t> received(expected.size());
+        readNativeTlsClientAll(firstTls.client.get(), received);
+        assert(received == expected);
+        assert(writer.releaseReply());
+
+        owner->cancel();
+        owner.reset();
+    }
+
+    {
+        LoopbackSocketPair secondPair{false};
+        auto accepted = waitForAcceptedLoopbackConnection(
+            static_cast<std::uintptr_t>(secondPair.listener.value));
+        assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+        owner.emplace(
+            std::move(accepted.connection),
+            SecurityNegotiationPolicy::HybridNla);
+        assert(std::addressof(*owner) == firstAddress);
+        assert(owner->transportGeneration() != 0U);
+        assert(owner->transportGeneration() != firstGeneration);
+
+        NativeTcpIo secondClient{
+            static_cast<std::uintptr_t>(secondPair.client.value)};
+        TlsHandshakeFixture secondTls{false, false};
+        establishOwnedApplicationTlsForRequest(
+            *owner, secondClient, secondTls, tlsAndHybridRequestWire(),
+            SecurityNegotiationPolicy::HybridNla);
+        assert(owner->active());
+
+        const auto staleRead = reader.readOneTlsStep(*owner);
+        assert(staleRead.status == TsRequestTlsReadStatus::Invalid);
+        assert(staleRead.plaintextBytesRead == 0U);
+        assert(reader.status() == TsRequestFrameStatus::Closed);
+        assert(owner->active());
+
+        constexpr std::array<std::uint8_t, 12> rawTypeTwo{
+            'N','T','L','M','S','S','P',0,2,0,0,0};
+        assert(!writer.queueReply(
+            *owner, 6U, CredSspServerReplyField::NegoToken, rawTypeTwo));
+        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+        assert(owner->active());
+
+        owner->cancel();
+        owner.reset();
+    }
 }
 
 void testOwnedBufferedTlsCredSspThenMcsReadiness()
@@ -11401,6 +11593,10 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-generated-ip-hybrid-tls-client-verification",
      &testOwnedGeneratedIpHybridTlsClientVerification},
     {"tcp-owned-hybrid-credssp-first-record", &testOwnedHybridCredSspFirstRecord},
+    {"tcp-owned-hybrid-direct-ntlm-first-record",
+     &testOwnedHybridDirectNtlmFirstRecord},
+    {"credssp-r1-owned-transport-generation",
+     &testOwnedCredSspTransportGenerationProvenance},
     {"tcp-owned-buffered-tls-credssp-mcs-readiness",
      &testOwnedBufferedTlsCredSspThenMcsReadiness},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},

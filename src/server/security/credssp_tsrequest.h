@@ -239,15 +239,11 @@ public:
     {
         return status_ == TsRequestFrameStatus::Complete &&
                boundOwner_ != nullptr &&
+               boundTransportGeneration_ != 0U &&
                completedFrameServerTls() != nullptr;
     }
     [[nodiscard]] bool completedFrameOwnedBy(
-        const transport::OwnedPreauthTcpConnection &connection) const noexcept
-    {
-        return status_ == TsRequestFrameStatus::Complete &&
-               boundOwner_ == &connection &&
-               completedFrameServerTls() != nullptr;
-    }
+        const transport::OwnedPreauthTcpConnection &connection) const noexcept;
 
     // Only after a synchronous GSS/DER handoff; wipes all buffered bytes.
     // TLS-derived frames revalidate the pinned SSL/certificate first and
@@ -271,6 +267,7 @@ private:
     TsRequestFrameStatus status_{TsRequestFrameStatus::NeedMore};
     const SSL *boundServerTls_{};
     const transport::OwnedPreauthTcpConnection *boundOwner_{};
+    std::uint64_t boundTransportGeneration_{};
     // Borrowed TLS pointer alone is insufficient: SSL credentials may be
     // reconfigured/renegotiated without replacing the SSL object. Pin the
     // selected certificate's fingerprint from the FIRST read and verify it
@@ -391,6 +388,7 @@ private:
     std::size_t offset_{};
     const SSL *boundServerTls_{};
     const transport::OwnedPreauthTcpConnection *boundOwner_{};
+    std::uint64_t boundTransportGeneration_{};
     CredSspTlsCertificateFingerprint pinnedCertificate_{};
     bool certificatePinned_{};
     bool failureQueued_{};

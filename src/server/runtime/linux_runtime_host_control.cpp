@@ -1320,9 +1320,14 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::NativeAuthorizationDenied);
     if (licensingContext_ == nullptr || !licensingContext_->configured())
         return deny(RuntimeHostError::InternalFailure);
-    if (securityConfiguration_ == nullptr ||
-        !securityConfiguration_->configured())
+    if (authenticationMode_ ==
+            ConfiguredAuthenticationMode::ExistingOsAccount &&
+        (securityConfiguration_ == nullptr ||
+         !securityConfiguration_->configured() ||
+         admissionConfiguration_ == nullptr))
+    {
         return deny(RuntimeHostError::CredentialProviderUnavailable);
+    }
     if (!credentialsConfigured_ || !serviceCredentialsReady())
         return deny(RuntimeHostError::CredentialNotConfigured);
 

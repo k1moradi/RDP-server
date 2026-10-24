@@ -1,3 +1,34 @@
+## R10/R6 current-main Linux HostControl headless qualification (2026-10-24)
+
+**Tested SHA:** `dc72ae4321b1f5672cb38f10a100247b544fc931`.
+
+GitHub Actions run `40077611410`, Ubuntu protocol job `120824301641`:
+**PASS**. Debug compiled successfully and full CTest reported **892/892
+passed**. The P0 selector cases passed individually:
+- `runtime.linux-host-control-no-consent-start-denials` — PASS;
+- `runtime.linux-host-control-product-status-projection` — PASS;
+- `runtime.linux-host-control-sharing-permission-product-projection` — PASS;
+- `runtime.linux-host-control-injected-owner-evidence-permission-determinism`
+  — PASS.
+
+The separate genuine production/default evidence observation
+`runtime.linux-host-control-default-native-evidence-projection` returned the
+registered skip on the headless runner, as designed. Release full CTest also
+reported **892/892 passed**, with the same four deterministic HostControl cases
+PASS and the native observation skipped. CI workflow structure guard run
+`40077611378`: **PASS**.
+
+This qualifies the required headless-hosted side of the P0 regression on the
+current code. It does not manufacture the independent owner-native receipt.
+Owner physical unlocked Linux/X11 execution of the canonical focused selector:
+**PENDING / NOT RUN by this connector**. No listener, desktop capture, input
+injection or live RDP client was used for this hosted evidence.
+
+**Next gate:** on freshly pulled current `main`, run
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(no-consent-start-denials|product-status-projection|sharing-permission-product-projection)$' --output-on-failure --verbose`
+repeatedly on the owner physical unlocked Linux/X11 desktop and record the exact
+SHA plus first failure if any.
+
 ## R6 P1 cross-platform HostControl test-hermeticity audit — 2026-10-24
 
 Starting exact-main parent: `51e6cbd7af106af12e4e66977dd83a2901a7fabb`.

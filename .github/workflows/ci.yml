@@ -2740,19 +2740,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity|gui[.]offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential)
-          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Release \
-            --timeout 30 -R "$selector" --output-on-failure
-          # A registered skip must not qualify the owner-acceptance surface.
-          test -x build/tests/test_desktop_gui_offline
-          QT_QPA_PLATFORM=offscreen \
-            build/tests/test_desktop_gui_offline owner-gui-credential-parity
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            xvfb-run -a env QT_QPA_PLATFORM=xcb \
-              build/tests/test_desktop_gui_offline owner-gui-credential-parity
-          fi
-
-
+          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity|gui[.]offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential)$'
           inventory="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required in \
@@ -2772,4 +2760,3 @@ jobs:
             xvfb-run -a env QT_QPA_PLATFORM=xcb \
               build/tests/test_desktop_gui_offline owner-gui-credential-parity
           fi
-

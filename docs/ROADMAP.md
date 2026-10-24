@@ -1,3 +1,22 @@
+## R7 focused owner-GUI workflow correction (2026-10-24)
+
+**Starting exact-main parent:** `4c641d69be2323460b243fba11d1fe54e51b3754`.
+
+Post-publication verification caught an authoring defect in the preceding
+CI-only R7 gate commit: shell replacement syntax corrupted the focused
+owner-GUI selector and duplicated part of the step. Production C++ and the
+registered R7 CTest were unaffected.
+
+This follow-up restores the single intended Release + owner-acceptance-ON step:
+exactly three selected GUI CTests, including the three-cycle
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`,
+followed by the existing direct Qt parity execution. The registered inventory
+must equal three and any skip remains non-qualifying.
+
+Connector post-edit source review: **PASS**. CI structure and exact-SHA hosted
+execution: **PENDING**. No RDP wire, credential-lifetime or GUI production
+behavior changes.
+
 ## R7 P0 focused hosted round-trip gate after dependency resolution (2026-10-24)
 
 **Starting exact-main parent:** `1e3022c2056ca448eef7f3dd2d1bd395b1e89339`.

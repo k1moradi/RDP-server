@@ -1,3 +1,19 @@
+## R7 focused owner-GUI workflow correction receipt (2026-10-24)
+
+**Starting exact-main parent:** `4c641d69be2323460b243fba11d1fe54e51b3754`.
+
+Post-commit diff verification found the preceding workflow-only R7 selector edit
+was malformed and duplicated shell commands. The defect is confined to CI
+authoring; no production C++ or registered behavioral test changed.
+
+The corrected step has one anchored three-test selector, verifies an inventory
+of exactly three tests, executes the Release owner-acceptance CTests offscreen,
+then retains the existing direct offscreen/XCB parity run. The new third test is
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`.
+
+Connector source review: **PASS**. Workflow-structure and hosted exact-SHA
+execution: **PENDING**.
+
 ## R7 focused hosted Stop/restart gate wiring (2026-10-24)
 
 **Starting exact-main parent:** `1e3022c2056ca448eef7f3dd2d1bd395b1e89339`.

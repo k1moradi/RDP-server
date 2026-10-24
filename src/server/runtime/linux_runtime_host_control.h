@@ -149,7 +149,6 @@ private:
     };
 
     [[nodiscard]] bool selectedStandaloneCredentialReady() const noexcept;
-    [[nodiscard]] bool prepareAutomaticStandaloneAdmission() noexcept;
     [[nodiscard]] bool buildAuthenticationSelection(
         LinuxRuntimeAuthenticationSelection& selection) const noexcept;
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
@@ -181,11 +180,7 @@ private:
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
     const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
-    std::unique_ptr<LinuxRuntimeSecurityConfiguration>
-        generatedSecurityConfiguration_{};
-    std::unique_ptr<LinuxRuntimeAdmissionConfiguration>
-        generatedAdmissionConfiguration_{};
-    bool externalSecurityConfiguration_{};
+
 #endif
     // Normal GUI startup owns a process-local R3 licensing identity before
     // any Start eligibility check. Expert --config construction borrows its
@@ -228,6 +223,7 @@ private:
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.
     rdp_server::server::transport::OwnedLanListener listener_{};
 };
+
 
 // Application-lifetime owner for the normal zero-argument desktop command.
 // The contained serialized R10 controller transitively owns automatic

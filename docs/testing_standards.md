@@ -1,3 +1,25 @@
+## R3 gate after direct-NTLM owner evidence (2026-10-24)
+
+Keep `runtime.linux-host-control-stop-retires-r3-session-state` as the
+production source-contract gate for the R2 -> R3 boundary. It must prove that
+`TlsEstablished` and `BindingVerified` remain in `PreAdmission`, that only
+`CredentialsVerified` can invoke `issueAdmission()`, that the standalone
+mechanism is already at `StandaloneCredSspStage::CredentialsVerified`, and
+that the native admission broker actually issues a lease before HostControl
+moves to `McsConnectInitial`.
+
+The first connection-side MCS read must independently require a live,
+non-revoked R2 lease, `AwaitVerifiedR2Admission`, and successful revalidation.
+The broader accepted-client scheduler guard must preserve the same ordering.
+Synthetic TLS completion or a parser-ready MCS state is not qualifying R3
+evidence.
+
+Current owner evidence stops earlier: TLS is established and CredSSP receives a
+TSRequest v6 carrying a direct-NTLM first token, but the SPNEGO-only envelope
+rejects it before `CredentialsVerified`. Do not add or alter MCS/Share tests to
+work around that R2 blocker. The next real-client R3 test is permitted only
+after the trace reaches `CredentialsVerified` and native admission succeeds.
+
 ## R1 diagnostic-independence and deterministic terminal transport (2026-10-24)
 
 Keep a dedicated production-runtime regression proving HYBRID TLS can attach and

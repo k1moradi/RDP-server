@@ -1,3 +1,25 @@
+## R3 P2 gate hardening after direct-NTLM owner evidence (2026-10-24)
+
+**Starting exact-main parent:** `dac291c38f294e1a181572c959db454e10d7021a`.
+
+Reviewed the production HostControl and Linux runtime connection. Current source
+already keeps `TlsEstablished` and `BindingVerified` in
+`AcceptedClientPhase::PreAdmission`; only `CredentialsVerified` calls
+`issueAdmission()`, and only success moves HostControl to
+`McsConnectInitial`. `issueAdmission()` requires the standalone CredSSP
+mechanism at `CredentialsVerified`, then obtains a concrete native admission
+lease from the broker. The first-MCS reader additionally requires that live
+lease, `AwaitVerifiedR2Admission`, and fresh broker revalidation.
+
+The existing R3 source-contract and accepted-client scheduler guards are
+strengthened to pin all of those facts explicitly. No production C++, MCS,
+Share, licensing or graphics wire source changed.
+
+Owner trace classification: **PASS** through TLS and initial CredSSP; **BLOCKED
+in R2** on the unsupported direct-NTLM negotiation envelope; **R3 NOT
+REACHED**. Connector source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R7 exact-SHA hosted Stop/restart qualification (2026-10-24)
 
 **Qualified exact SHA:** `5024ad560fa53ea56b5ff53f759e393675c434a2`.

@@ -1,3 +1,23 @@
+## R2-to-R3 boundary after direct-NTLM owner evidence (2026-10-24)
+
+R1 TLS establishment is transport readiness only. R2 owns all CredSSP
+negotiation, including the newly demonstrated direct-NTLM envelope, the shared
+NTLM security context, pubKeyAuth, authInfo, standalone Session Password
+verification, authenticated-session proof and native admission. R3 receives no
+authority from TLS itself.
+
+The one-way production transition is:
+
+`R1 TLS established -> R2 CredentialsVerified -> R2 native admission lease ->
+R3 MCS Connect-Initial`.
+
+HostControl remains in `PreAdmission` through TLS and binding. The connection
+may expose transport parser state needed for subsequent MCS framing, but R10
+must not enter its first R3 phase until R2 has both verified credentials and
+issued the concrete native admission lease. Every first-MCS read revalidates
+that lease. This preserves one authority chain whether R2 negotiated SPNEGO or
+DirectNtlm and prevents either envelope from creating an alternate R3 path.
+
 ## R1 first-failure TLS observability boundary (2026-10-24)
 
 The accepted Linux connection still has exactly one R1 socket/BIO/SSL owner.

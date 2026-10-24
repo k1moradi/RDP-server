@@ -1,3 +1,20 @@
+## R3 authority requires verified credentials and native admission (2026-10-24)
+
+Treat established TLS as an R1 transport fact, never as R3 authority. A
+connection may have an established HYBRID/TLS transport and a parser positioned
+for later application data while R2 is still negotiating CredSSP. Do not infer
+MCS ownership, diagnose an R3 failure, or advance a HostControl R3 phase from
+TLS readiness, certificate continuity, `BindingVerified`, configured
+credentials or candidate native-session evidence.
+
+For the standalone Session Password path, the only promotion sequence is
+`CredentialsVerified` -> successful `LinuxConsoleAdmissionBroker::issue()`
+-> live admission lease -> first R3/MCS transition. The first-MCS path must keep
+requiring and revalidating that exact lease. Direct-NTLM support in R2 must
+converge on the same existing credential proof and native-admission authority;
+it must not create a shortcut into R3, enable OS/GSS fallback or translate the
+remote username into a host identity.
+
 ## Diagnostic projection must never become TLS authority (2026-10-24)
 
 R1 diagnostic setup is descriptive only. A valid accepted TLS owner must not

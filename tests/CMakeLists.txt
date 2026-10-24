@@ -1908,9 +1908,10 @@ if(TARGET rdp-server-linux-runtime-security)
     set_tests_properties(runtime.linux-serve-cooperative-signal-stop-order
         PROPERTIES LABELS "runtime;security;r10-stop;offline")
 
-    # R3 P1 containment: no protocol bytes are changed. Pin the production
-    # TLS/CredSSP -> first-MCS handoff and prove Stop destroys the accepted
-    # connection/MCS owner before R1 listener teardown. A full product
+    # R3 containment: no protocol bytes are changed. Pin the production
+    # TLS -> CredSSP CredentialsVerified -> successful native R2 admission ->
+    # first-MCS handoff, and prove Stop destroys the accepted connection/MCS
+    # owner before R1 listener teardown. A full product
     # Start->Stop->Start receipt remains gated by the independent credential
     # retention defect tracked in the roadmap.
     add_test(NAME runtime.linux-host-control-stop-retires-r3-session-state

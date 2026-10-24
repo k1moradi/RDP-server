@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# R3 source contract: require TLS Established AND CredSSP CredentialsVerified
-# before R3/MCS ownership, classify standalone SPNEGO rejection as pre-R3,
-# and prove Stop destroys the accepted R3/MCS owner before R1.
+# R3 source contract: TLS establishment is prerequisite evidence only.
+# Require CredSSP CredentialsVerified AND a successful native R2 admission
+# lease before R3/MCS ownership, classify earlier negotiation rejection as
+# pre-R3, and prove Stop destroys the accepted R3/MCS owner before R1.
 if(NOT DEFINED RDP_LINUX_HOST_CONTROL_SOURCE OR
    "${RDP_LINUX_HOST_CONTROL_SOURCE}" STREQUAL "" OR
    NOT DEFINED RDP_LINUX_CONNECTION_HEADER OR
@@ -40,8 +41,10 @@ function(require_order variable_name description)
     endforeach()
 endfunction()
 
-# R1 must establish TLS before R2/CredSSP can move R10 toward any R3 phase.
-# TlsEstablished and BindingVerified deliberately remain in PreAdmission.
+# R1 must establish TLS before R2/CredSSP can progress, but TLS is never R3
+# authority. TlsEstablished and BindingVerified deliberately remain in
+# PreAdmission; only verified credentials plus successful native admission may
+# move the host toward the first R3/MCS phase.
 string(FIND "${host_source}"
     "case AcceptedClientPhase::PreAdmission:" preauth_begin)
 string(FIND "${host_source}"
@@ -66,14 +69,36 @@ require_token(preauth_source
             return {RuntimeHostError::None, false}"
     "TLS/Binding must not advance R3")
 require_order(preauth_source
-    "CredentialsVerified must own the first R3 handoff"
+    "CredentialsVerified plus successful native admission must own the first R3 handoff"
     "case Step::CredentialsVerified:"
     "acceptedClient_->issueAdmission(*request)"
     "acceptedClientPhase_ = AcceptedClientPhase::McsConnectInitial")
 
-# Owner evidence now reaches standalone SPNEGO. That proves established TLS
-# application traffic plus an owned TSRequest, but remains pre-CredentialsVerified
-# and therefore pre-R3.
+# Pin the connection-side admission transaction as well. The independent
+# Session Password mechanism must already be CredentialsVerified, then the
+# native admission broker must issue a live lease. TLS readiness, a completed
+# binding, a configured credential or a candidate native identity is not enough.
+string(FIND "${connection_source}"
+    "bool LinuxRuntimeConnection::issueAdmission(" admission_begin)
+string(FIND "${connection_source}"
+    "LinuxRuntimeConnection::authorizeMcsConnectInitial(" admission_end)
+if(admission_begin EQUAL -1 OR admission_end EQUAL -1 OR
+   NOT admission_begin LESS admission_end)
+    message(FATAL_ERROR "Cannot isolate R2 native admission transaction")
+endif()
+math(EXPR admission_length "${admission_end} - ${admission_begin}")
+string(SUBSTRING "${connection_source}" ${admission_begin}
+    ${admission_length} admission_source)
+require_order(admission_source
+    "Standalone CredentialsVerified must precede native admission lease"
+    "CredentialsVerified"
+    "auto issued = broker_->issue(*proof, connection_, request)"
+    "lease_.emplace(std::move(*issued))")
+
+# Owner evidence now reaches an owned CredSSP TSRequest v6 whose first
+# negotiation token is a 40-byte direct-NTLM form and is rejected by the current
+# SPNEGO-only envelope rule. That is decisive R2 evidence, but it remains
+# pre-CredentialsVerified and therefore pre-R3.
 string(FIND "${connection_source}"
     "LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept"
     standalone_begin)
@@ -142,6 +167,31 @@ require_order(mcs_response_source
     "advancePostAdmissionMcsConnectResponseWrite("
     "case Step::Delivered:"
     "acceptedClientPhase_ = AcceptedClientPhase::McsErectDomain")
+
+# The first connection-side MCS read must also retain the concrete R2 admission
+# lease and revalidate it. A transport parser being ready for MCS after TLS is
+# not permission to diagnose or consume R3 traffic.
+string(FIND "${connection_source}"
+    "LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial("
+    connection_mcs_begin)
+string(FIND "${connection_source}"
+    "LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite("
+    connection_mcs_end)
+if(connection_mcs_begin EQUAL -1 OR connection_mcs_end EQUAL -1 OR
+   NOT connection_mcs_begin LESS connection_mcs_end)
+    message(FATAL_ERROR "Cannot isolate connection-side first R3 transition")
+endif()
+math(EXPR connection_mcs_length
+    "${connection_mcs_end} - ${connection_mcs_begin}")
+string(SUBSTRING "${connection_source}" ${connection_mcs_begin}
+    ${connection_mcs_length} connection_mcs_source)
+foreach(needle IN ITEMS
+    "if (!broker_ || !lease_ || lease_->isRevoked() ||"
+    "AwaitVerifiedR2Admission"
+    "broker_->revalidate(*lease_, *principalProof_, connection_)")
+    require_token(connection_mcs_source "${needle}"
+        "First R3 transition must retain verified R2 admission")
+endforeach()
 
 # Stop must retire the accepted connection before R1 listener teardown.
 string(FIND "${host_source}"

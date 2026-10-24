@@ -1,3 +1,39 @@
+## R3 P2 remains blocked after direct-NTLM owner evidence (2026-10-24)
+
+**Starting exact-main parent:** `dac291c38f294e1a181572c959db454e10d7021a`.
+
+New owner evidence is decisive at the R2 boundary: the real Microsoft Windows
+App reaches established TLS and an owned CredSSP TSRequest v6, then supplies one
+40-byte negotiation token in the direct-NTLM form. The current standalone
+implementation rejects that token as `invalid-gss-wrapper` because it accepts
+only a GSS/SPNEGO initial envelope. No `CredentialsVerified` or MCS evidence
+exists yet.
+
+R3 ownership therefore does **not** begin at TLS. The production gate is:
+
+`TLS established -> R2 negotiation -> pubKeyAuth -> authInfo ->
+CredentialsVerified -> successful native admission lease -> MCS Connect-Initial`.
+
+`TlsEstablished` and `BindingVerified` remain in HostControl
+`PreAdmission`. Only `CredentialsVerified` may request
+`issueAdmission()`, and HostControl may enter `McsConnectInitial` only after
+that call succeeds. The connection-side first-MCS path independently requires a
+live, non-revoked R2 lease in `AwaitVerifiedR2Admission` and revalidates it
+before reading MCS application data. Transport/parser readiness after TLS is not
+R3 authority and is not permission to diagnose an R3 failure.
+
+The existing source-contract gate
+`runtime.linux-host-control-stop-retires-r3-session-state` and the broader
+accepted-client scheduler guard are strengthened to pin that ordering. No MCS,
+Share, licensing, RDPGFX or production protocol source changed. The independent
+Start -> Stop -> Start lifecycle work remains valid and unchanged.
+
+**Source review:** PASS. **Canonical build/full CTest:** NOT RUN in this
+connector environment. **Exact-publication-SHA hosted CI:** PENDING.
+**Real-client R3/MCS acceptance:** NOT RUN / BLOCKED in R2 until the direct
+NTLM Type 1 -> Type 2 -> Type 3 -> pubKeyAuth -> authInfo path reaches
+`CredentialsVerified` and native admission succeeds.
+
 ## R7 hosted Session Password Stop/restart qualification complete (2026-10-24)
 
 **Qualified exact SHA:** `5024ad560fa53ea56b5ff53f759e393675c434a2`.

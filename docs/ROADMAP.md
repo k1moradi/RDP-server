@@ -1,3 +1,41 @@
+## Dependency graph correction after owner SPNEGO evidence (2026-10-24)
+
+**Starting exact-main parent:** `8b42df4bffd3d071dc784ac27d8e7a17da7cf800`.
+
+The current first demonstrated real Microsoft-client failure is **not R1 TLS**.
+The owner-observed
+`stage=spnego; os-gss-fallback=disabled` record is emitted only after the
+standalone CredSSP path owns a TSRequest on an established HYBRID/TLS
+transport. Therefore the authoritative dependency state is:
+
+`R1 TCP/X.224/TLS established -> R2 CredSSP TSRequest received -> R2 standalone
+SPNEGO rejected -> R3 blocked before CredentialsVerified -> R4 blocked behind
+R3`.
+
+The R1 terminal-handshake instrumentation landed in
+`8b42df4bffd3d071dc784ac27d8e7a17da7cf800` remains useful supplemental
+transport diagnostics and must be preserved, but it does not supersede the
+later/stronger SPNEGO owner evidence or reopen TLS as the primary blocker.
+
+Other-agent progress has resolved the former lifecycle prerequisite: ordinary
+Sharing OFF retains the generation-fenced memory-only Session Password, revokes
+the owner grant and all accepted/native/listener/TLS state, and repeated
+Start/Stop/Start requests fresh owner authorization without password re-entry.
+The R9/R2 automated gates also reach Microsoft-style SPNEGO NTLM selection and a
+server Type 2 challenge with OS-GSS fallback disabled.
+
+**Current P0 blocker:** capture one new physical Microsoft Windows App attempt on
+fresh `main` and record the bounded first-token structural diagnostic
+(`tsrequest-version`, token count/length/tag, GSS wrapper, mechanism OIDs/count,
+NTLM index, optimistic token facts, NegTokenInit2/reqFlags/negHints/mechListMIC,
+and exact `spnego=` reason). That live record is required to identify the
+actual valid Microsoft token shape still rejected by production. Do not make
+another TLS compatibility change or broaden SPNEGO ASN.1 acceptance before this
+record exists.
+
+Hosted exact-head CI for the newest R1/R9 commits is currently queued; this is a
+validation dependency, not the protocol root-cause blocker.
+
 ## R1 P0 Microsoft-client TLS first-failure instrumentation (2026-10-24)
 
 Owner evidence reaches TCP, X.224 HYBRID selection and receipt of the server

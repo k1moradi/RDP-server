@@ -1,3 +1,24 @@
+## Dependency status correction: R2 SPNEGO remains the live blocker (2026-10-24)
+
+**Starting exact-main parent:** `8b42df4bffd3d071dc784ac27d8e7a17da7cf800`.
+
+GitHub `main` contains the R7/R10 Session Password Stop/restart correction,
+the R2 bounded standalone-SPNEGO diagnostics/taxonomy, Microsoft-style
+NegTokenInit2 -> NTLM challenge fixtures, and the R9 combined owner-candidate
+gate. The later R1 diagnostic commit adds useful TLS terminal observability but
+does not invalidate the stronger owner record
+`stage=spnego; os-gss-fallback=disabled`.
+
+Accordingly, the demonstrated live sequence remains TCP -> X.224 HYBRID -> TLS
+application transport -> CredSSP TSRequest -> standalone SPNEGO -> rejection.
+R3/MCS remains blocked until `CredentialsVerified`; R4 remains downstream of
+R3. No OS-GSS fallback is permitted for the independent Session Password.
+
+Current connector review: **PASS** for dependency classification.
+Newest exact-head hosted CI: **QUEUED / not yet a PASS receipt**.
+Physical Microsoft-client rerun with the new structural `spnego=` diagnostic:
+**NOT RUN / REQUIRED NEXT**.
+
 ## R1 Microsoft-client TLS diagnostic implementation (2026-10-24)
 
 Starting reconciled main: `0a6301e8673d84789cfc12ba0483da3ceb36e482`.

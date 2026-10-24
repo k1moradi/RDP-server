@@ -1,3 +1,37 @@
+## R8 P2 dependency recheck after portable-runtime/R9 bootstrap qualification — 2026-10-23
+
+Starting exact-main parent: `0657af06c7fcb48e8248fa0e411794d0c0423f6f`.
+
+Newly resolved dependencies consumed by R8:
+- R10 normal startup now owns `LinuxPortableDesktopRuntime`; the bare
+  unprovisioned zero-argument HostControl path is gone.
+- Linux desktop builds automatically include the production runtime-security
+  graph.
+- R1 automatic endpoint-bound TLS now has same-SHA hosted PASS evidence on
+  Windows, Ubuntu and macOS.
+- R9 exact candidate `3cabe3ae0d384007eb14edd56890125f38256367`
+  completed the dedicated portable-bootstrap job **PASS (7/7)**, including the
+  R8 bootstrap-dormancy regression and real-listener bootstrap acceptance.
+- Current source has
+  `kStandalonePasswordProductCapabilityApproved = true`; older R8 receipts
+  saying the source flag was false are historical.
+
+R8 continued. The bootstrap dormancy regression now reads the portable-runtime
+header and requires the canonical zero-argument wrapper/HostControl/service-loop
+composition while rejecting direct clipboard ownership or protected CLIPRDR
+APIs from the wrapper.
+
+The remaining R8 production blocker is still physical evidence, not source
+composition: the repository continues to record FIRST real desktop acceptance
+as **NOT RUN/BLOCKED**, and
+`kLinuxProductionClipboardActivationApproved = false`. The R9 nominated owner
+candidate and hosted listener test do not prove visible desktop + mouse +
+keyboard + Stop on the physical owner-authorized X11 seat. No clipboard
+activation is performed in this continuation.
+
+Current-head full hosted CI is separate from the already-passed dedicated R9
+bootstrap job and must be evaluated on its own exact SHA.
+
 ## R1 automatic TLS same-SHA hosted qualification — 2026-10-23
 
 Exact qualified SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.

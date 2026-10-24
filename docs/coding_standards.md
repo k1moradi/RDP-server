@@ -1,3 +1,13 @@
+## Keep the portable desktop wrapper composition-only (2026-10-23)
+
+Do not add clipboard state or protected CLIPRDR operations directly to
+`LinuxPortableDesktopRuntime`. The wrapper may own the one serialized
+`LinuxRuntimeHostControl` and delegate `serviceOnce()`; all native/R8 state
+must remain inside the existing generation-fenced HostControl/native-desktop
+lifetime. A product capability flag, hosted bootstrap PASS or listener-ready
+projection is not clipboard authority and must never be used to bypass the
+literal production activation gate.
+
 ## Standalone bootstrap/Sharing must remain clipboard-free (2026-10-23)
 
 When no-config standalone security/admission policy is regenerated from current

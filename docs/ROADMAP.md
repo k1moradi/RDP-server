@@ -1,3 +1,32 @@
+## R8 P2 consumes the portable application runtime and hosted bootstrap gate (2026-10-23)
+
+Dependency recheck at starting main `0657af06c7fcb48e8248fa0e411794d0c0423f6f`: R10 now uses one
+application-lifetime `LinuxPortableDesktopRuntime` for normal zero-argument
+Linux startup, the default desktop build composes the production Linux
+runtime-security graph, R1 automatic TLS is now same-SHA hosted-qualified across
+Windows/Linux/macOS, and R9's exact candidate
+`3cabe3ae0d384007eb14edd56890125f38256367` passed its dedicated portable
+bootstrap acceptance job **7/7**. That hosted inventory includes
+`runtime.linux-gui-bootstrap-clipboard-dormancy`, a real-listener bootstrap
+acceptance case, and no-argument no-autostart/secret-log checks.
+
+R8 therefore continues across the concrete application wrapper rather than
+treating zero-argument composition as blocked. The dormancy regression now
+requires `rdp-server-desktop` to own `LinuxPortableDesktopRuntime`, obtain
+the existing single HostControl through `hostControl()`, and service that
+aggregate through `serviceOnce()`. It isolates the aggregate class itself and
+rejects any second prepared-clipboard owner, clipboard permission or CLIPRDR
+route/dispatch/write API there. The wrapper may compose existing owners; it may
+not become new R8 authority.
+
+The standalone Session Password product capability is now literal **true** in
+source. This supersedes older R8 notes that described that source gate as false,
+but it does not satisfy R8's independent activation gate. The owner product
+candidate is nominated, not a physical FIRST receipt. Production clipboard
+activation remains **BLOCKED** until the first owner-authorized real
+desktop/video/input/Stop PASS, and
+`kLinuxProductionClipboardActivationApproved` remains literal false.
+
 ## R1 automatic TLS hosted qualification closure — 2026-10-23
 
 Qualified exact SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.

@@ -409,6 +409,7 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_DESKTOP_WINDOW_HEADER=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.h"
             "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
             "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
             "-DRDP_RUNTIME_BOOTSTRAP_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_application_bootstrap.h"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_bootstrap_clipboard_dormancy.cmake")

@@ -6,6 +6,7 @@ foreach(required_var IN ITEMS
         RDP_DESKTOP_WINDOW_HEADER
         RDP_DESKTOP_WINDOW_SOURCE
         RDP_LINUX_HOST_CONTROL_SOURCE
+        RDP_LINUX_HOST_CONTROL_HEADER
         RDP_LINUX_PREPARED_CLIPBOARD_HEADER
         RDP_RUNTIME_BOOTSTRAP_HEADER)
     if(NOT DEFINED ${required_var})
@@ -17,6 +18,7 @@ file(READ "${RDP_DESKTOP_ENTRYPOINT_SOURCE}" desktop_entrypoint_source)
 file(READ "${RDP_DESKTOP_WINDOW_HEADER}" desktop_window_header)
 file(READ "${RDP_DESKTOP_WINDOW_SOURCE}" desktop_window_source)
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
+file(READ "${RDP_LINUX_HOST_CONTROL_HEADER}" host_header)
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
 file(READ "${RDP_RUNTIME_BOOTSTRAP_HEADER}" bootstrap_header)
 set(gui_source "${desktop_window_header}\n${desktop_window_source}")
@@ -43,6 +45,62 @@ foreach(forbidden_text IN ITEMS
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
             "portable bootstrap policy must not manufacture clipboard/listener authority: ${forbidden_text}")
+    endif()
+endforeach()
+
+# R10 now makes the normal zero-argument product own one
+# LinuxPortableDesktopRuntime aggregate instead of a bare HostControl. Keep
+# that application-lifetime wrapper composition-only: it may serialize the
+# existing R10 owner/service loop, but it must not introduce a second R8 owner
+# or direct clipboard/CLIPRDR authority.
+foreach(required_text IN ITEMS
+        "LinuxPortableDesktopRuntime applicationRuntime"
+        "auto& runtime = applicationRuntime.hostControl()"
+        "applicationRuntime.serviceOnce()")
+    string(FIND "${desktop_entrypoint_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "zero-argument application runtime lost required R10 seam: ${required_text}")
+    endif()
+endforeach()
+string(FIND "${desktop_entrypoint_source}"
+    "LinuxRuntimeHostControl runtime;" bare_unprovisioned_runtime)
+if(NOT bare_unprovisioned_runtime EQUAL -1)
+    message(FATAL_ERROR
+        "zero-argument desktop regressed to a bare unprovisioned HostControl")
+endif()
+
+string(FIND "${host_header}"
+    "class LinuxPortableDesktopRuntime final" portable_runtime_begin)
+string(FIND "${host_header}"
+    "} // namespace rdp_server::server::runtime" portable_runtime_end)
+if(portable_runtime_begin LESS 0 OR
+   portable_runtime_end LESS_EQUAL portable_runtime_begin)
+    message(FATAL_ERROR "unable to isolate LinuxPortableDesktopRuntime")
+endif()
+math(EXPR portable_runtime_length
+    "${portable_runtime_end} - ${portable_runtime_begin}")
+string(SUBSTRING "${host_header}" ${portable_runtime_begin}
+    ${portable_runtime_length} portable_runtime_source)
+string(FIND "${portable_runtime_source}"
+    "LinuxRuntimeHostControl hostControl_{}" portable_host_owner)
+if(portable_host_owner LESS 0)
+    message(FATAL_ERROR
+        "portable desktop runtime must retain the single R10 HostControl owner")
+endif()
+foreach(forbidden_text IN ITEMS
+        "LinuxPreparedClipboardOwner"
+        "clipboard.prepare("
+        "clipboard.retire("
+        "kConsoleClipboardPermission"
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite(")
+    string(FIND "${portable_runtime_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "portable desktop aggregate must not own or authorize R8: ${forbidden_text}")
     endif()
 endforeach()
 

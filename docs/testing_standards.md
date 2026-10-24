@@ -1,3 +1,19 @@
+## R8 portable-runtime composition regression (2026-10-23)
+
+Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` coupled to the normal
+zero-argument application wrapper. The test must read
+`linux_runtime_host_control.h`, require
+`LinuxPortableDesktopRuntime applicationRuntime`,
+`applicationRuntime.hostControl()` and `applicationRuntime.serviceOnce()`,
+reject a return to bare `LinuxRuntimeHostControl runtime;`, and isolate the
+wrapper class to prove it owns only the existing HostControl rather than any
+R8 prepared owner or protected clipboard/CLIPRDR API.
+
+R9's dedicated portable-bootstrap hosted gate may include this test as
+acceptance evidence for bootstrap dormancy, but that hosted PASS is not a
+physical clipboard activation receipt. FIRST still requires the real
+owner-authorized visible desktop + input + Stop path.
+
 ## Product hosting listener-readiness and offline GUI portability (2026-10-23)
 
 Tests covering `DesktopWindow` and `HostControl` must observe the cross-platform

@@ -1,3 +1,18 @@
+## R8 authority boundary at the portable application aggregate (2026-10-23)
+
+`LinuxPortableDesktopRuntime` is an application-lifetime composition wrapper,
+not a new protocol or authorization layer. It owns one
+`LinuxRuntimeHostControl` and delegates the serialized service loop. Its
+construction may transitively prepare process-local licensing and later compose
+the existing standalone/TLS/listener/native owners through that HostControl,
+but the wrapper itself must not own clipboard permission, a
+`LinuxPreparedClipboardOwner`, or CLIPRDR routing/writes.
+
+The public standalone-password capability is now enabled in the Linux product
+graph. That product decision does not change the R8 authority invariant:
+clipboard remains generation-bound to a later freshly admitted native desktop
+and remains dormant until the separate physical FIRST activation gate passes.
+
 ## R8 boundary after no-config R2/R5/R7 composition landing (2026-10-23)
 
 The no-argument consumer path now has a real pre-listener standalone

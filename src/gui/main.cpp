@@ -175,6 +175,24 @@ int main(int argc, char** argv)
 #endif
     rdp::gui::HostControl control(runtime);
     rdp::gui::DesktopWindow window(control);
+#if defined(__linux__)
+    // The canonical no-argument product path owns the same bounded R10 service
+    // loop as the expert --config path. Construction/provisioning alone never
+    // opens a listener; only the user's explicit Sharing action can do that.
+    QTimer runtimeServiceTimer;
+    runtimeServiceTimer.setInterval(25);
+    QObject::connect(
+        &runtimeServiceTimer, &QTimer::timeout, &window,
+        [&runtime] { (void)runtime.serviceOnce(); });
+    runtimeServiceTimer.start();
+
+    QTimer statusRefreshTimer;
+    statusRefreshTimer.setInterval(250);
+    QObject::connect(
+        &statusRefreshTimer, &QTimer::timeout, &window,
+        [&window] { window.refresh(); });
+    statusRefreshTimer.start();
+#endif
     window.show();
     return application.exec();
 }

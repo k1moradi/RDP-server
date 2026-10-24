@@ -105,6 +105,13 @@ public:
     // publishes a fresh policy generation, invalidating old R2 acceptors and
     // leases through their existing generation checks. No positive admission
     // or host consent is created by this call.
+    // Consumer StandalonePassword mode has no Kerberos/keytab/PAM
+    // prerequisite. This creates only the native-account/session selector
+    // consumed after exact TLS-bound standalone authentication.
+    [[nodiscard]] bool configureStandalonePersonalDesktop(
+        const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
+        noexcept;
+
     [[nodiscard]] bool replaceAuthorizedIdentity(
         const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
         noexcept;
@@ -179,6 +186,11 @@ public:
 
     [[nodiscard]] bool configureFromConfiguration(
         const RuntimeConfigurationView& configuration,
+        const LinuxRuntimeSecurityConfiguration& securityConfiguration)
+        noexcept;
+
+    [[nodiscard]] bool configureStandalonePersonalDesktop(
+        const rdp_server::server::security::ConsoleIdentityRuleInput& rule,
         const LinuxRuntimeSecurityConfiguration& securityConfiguration)
         noexcept;
 

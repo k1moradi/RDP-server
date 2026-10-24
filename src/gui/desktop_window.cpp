@@ -19,6 +19,7 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
 #include <QScrollArea>
@@ -41,6 +42,15 @@ namespace rdp::gui
 {
 namespace
 {
+
+[[nodiscard]] constexpr bool ownerAcceptancePasswordUiEnabled() noexcept
+{
+#if !defined(NDEBUG) || defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+    return true;
+#else
+    return false;
+#endif
+}
 
 [[nodiscard]] constexpr bool hasAutomaticLanRecommendation(
     const rdp_server::server::runtime::RuntimeHostRecommendationSource source)
@@ -275,6 +285,12 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       allowRemoteInput_(new QCheckBox(
           QStringLiteral("Allow keyboard/mouse"), mainTab_)),
       permissionLifetimeMinutes_(new QSpinBox(advancedTab_)),
+      username_(new QLineEdit(mainTab_)),
+      sessionPassword_(new QLineEdit(mainTab_)),
+      sessionPasswordConfirm_(new QLineEdit(mainTab_)),
+      usernameLabel_(label(QStringLiteral("Username"), mainTab_)),
+      sessionPasswordLabel_(label(QStringLiteral("Session Password"), mainTab_)),
+      sessionPasswordConfirmLabel_(label(QStringLiteral("Confirm"), mainTab_)),
       configureOsAccount_(new QPushButton(
           QStringLiteral("Use Existing OS Account"), mainTab_)),
       requestHostPermission_(new QPushButton(
@@ -332,6 +348,15 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
 
     sharingToggle_->setObjectName("sharingToggle");
     sharingToggle_->setAccessibleName(QStringLiteral("Start or stop sharing"));
+    username_->setObjectName("standaloneUsername");
+    username_->setText(QStringLiteral("rdp"));
+    sessionPassword_->setObjectName("sessionPassword");
+    sessionPassword_->setEchoMode(QLineEdit::Password);
+    sessionPasswordConfirm_->setObjectName("sessionPasswordConfirm");
+    sessionPasswordConfirm_->setEchoMode(QLineEdit::Password);
+    usernameLabel_->setObjectName("standaloneUsernameLabel");
+    sessionPasswordLabel_->setObjectName("sessionPasswordLabel");
+    sessionPasswordConfirmLabel_->setObjectName("sessionPasswordConfirmLabel");
     configureOsAccount_->setObjectName("configureOsAccount");
     requestHostPermission_->setObjectName("requestHostPermission");
     allowRemoteInput_->setObjectName("allowRemoteInput");
@@ -369,8 +394,13 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     mainLayout->addLayout(addressRow);
 
     mainLayout->addWidget(heading(QStringLiteral("Access"), mainTab_));
+    auto* accessForm = new QFormLayout();
+    accessForm->addRow(usernameLabel_, username_);
+    accessForm->addRow(sessionPasswordLabel_, sessionPassword_);
+    accessForm->addRow(sessionPasswordConfirmLabel_, sessionPasswordConfirm_);
+    mainLayout->addLayout(accessForm);
     mainLayout->addWidget(credentialStatus_);
-    mainLayout->addWidget(configureOsAccount_);
+    configureOsAccount_->setParent(advancedTab_);
 
     mainLayout->addWidget(heading(QStringLiteral("Sharing"), mainTab_));
     auto* sharingRow = new QHBoxLayout();
@@ -379,7 +409,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     mainLayout->addLayout(sharingRow);
     allowRemoteInput_->setChecked(true);
     mainLayout->addWidget(allowRemoteInput_);
-    mainLayout->addWidget(requestHostPermission_);
+    requestHostPermission_->setParent(advancedTab_);
 
     mainLayout->addWidget(heading(QStringLiteral("Connected devices"), mainTab_));
     auto* clientRow = new QHBoxLayout();
@@ -427,6 +457,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
                          authenticationModeStatus_);
     securityForm->addRow(QStringLiteral("Permission lifetime"),
                          permissionLifetimeMinutes_);
+    securityForm->addRow(QStringLiteral("Existing OS Account"),
+                         configureOsAccount_);
+    securityForm->addRow(QStringLiteral("Owner permission action"),
+                         requestHostPermission_);
     securityForm->addRow(QStringLiteral("Owner permission"),
                          permissionStatus_);
     securityForm->addRow(QStringLiteral("TLS identity"),
@@ -491,6 +525,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         QApplication::style()->standardIcon(QStyle::SP_ComputerIcon));
     if (QSystemTrayIcon::isSystemTrayAvailable())
         trayIcon_->show();
+
+    connect(username_, &QLineEdit::textChanged, this, [this] { refresh(); });
+    connect(sessionPassword_, &QLineEdit::textChanged, this, [this] { refresh(); });
+    connect(sessionPasswordConfirm_, &QLineEdit::textChanged, this, [this] { refresh(); });
 
     connect(configureOsAccount_, &QPushButton::clicked, this, [this] {
         userFacingError_.clear();
@@ -606,12 +644,22 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
 {
     if (!state.controlAvailable)
         return QStringLiteral("Remote hosting is unavailable in this build");
-    if (!state.credentialCapabilities.existingOsAccount)
-        return QStringLiteral("Existing OS Account access is unavailable");
-    if (!state.credentialsConfigured)
-        return QStringLiteral("Existing OS Account access is not configured");
-    if (!state.desktopAuthorized || state.desktop.isEmpty())
-        return ownerPermissionStatusText(state);
+    if (!standalonePasswordSurfaceAvailable(state))
+        return QStringLiteral("Session Password is not qualified for this Release build");
+    if (username_->text().isEmpty())
+        return QStringLiteral("Enter a username");
+    const bool legacyCredentialReady =
+        state.credentialsConfigured &&
+        state.credentialCapabilities.existingOsAccount &&
+        sessionPassword_->text().isEmpty() &&
+        sessionPasswordConfirm_->text().isEmpty();
+    if (!legacyCredentialReady)
+    {
+        if (sessionPassword_->text().isEmpty())
+            return QStringLiteral("Enter a Session Password");
+        if (sessionPassword_->text() != sessionPasswordConfirm_->text())
+            return QStringLiteral("Session Password confirmation does not match");
+    }
 
     // R1 prepares an exact-endpoint TLS identity only after the user requests
     // Sharing. Do not require that preparation artifact before the toggle can
@@ -655,18 +703,28 @@ HostRequest DesktopWindow::currentHostRequest() const
 
 QString DesktopWindow::displayedAddress(const HostStatus& snapshot) const
 {
-    if (!snapshot.lanAddress.isEmpty())
-        return snapshot.lanAddress;
-    if (!hasAutomaticLanRecommendation(snapshot.recommendationSource) ||
-        snapshot.recommendedInterfaceId.isEmpty() ||
-        snapshot.recommendedAddress.isEmpty() ||
-        snapshot.recommendedPort == 0U)
-    {
-        return {};
-    }
-    return formatEndpoint(
-        snapshot.recommendedAddress,
-        static_cast<int>(snapshot.recommendedPort));
+    return snapshot.listenerReady && !snapshot.lanAddress.isEmpty()
+        ? snapshot.lanAddress
+        : QString{};
+}
+
+QString DesktopWindow::addressPresentation(const HostStatus& snapshot) const
+{
+    const QString connectable = displayedAddress(snapshot);
+    if (!connectable.isEmpty())
+        return QStringLiteral("Connect to: ") + connectable;
+    if (hasAutomaticLanRecommendation(snapshot.recommendationSource) &&
+        !snapshot.recommendedAddress.isEmpty())
+        return QStringLiteral("Local address: ") + snapshot.recommendedAddress;
+    return {};
+}
+
+bool DesktopWindow::standalonePasswordSurfaceAvailable(
+    const HostStatus& snapshot) const noexcept
+{
+    return snapshot.controlAvailable &&
+           (snapshot.credentialCapabilities.standalonePassword ||
+            ownerAcceptancePasswordUiEnabled());
 }
 
 void DesktopWindow::requestStart()
@@ -687,8 +745,46 @@ void DesktopWindow::requestStart()
     }
 
     userFacingError_.clear();
+
+    const QString password = sessionPassword_->text();
+    if (!password.isEmpty())
+    {
+        const bool credentialConfigured =
+            host_.configureStandalonePassword(username_->text(), password);
+        sessionPassword_->clear();
+        sessionPasswordConfirm_->clear();
+        if (!credentialConfigured)
+        {
+            userFacingError_ = QStringLiteral(
+                "Automatic Session Password provisioning failed. "
+                "Use an unlocked physical desktop session.");
+            refresh();
+            return;
+        }
+    }
+
+    if (!snapshot.desktopAuthorized)
+    {
+        rdp_server::server::runtime::RuntimeHostPermissionRequest permission;
+        permission.allowInput = allowRemoteInput_->isChecked();
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds =
+            static_cast<std::uint64_t>(permissionLifetimeMinutes_->value()) *
+            60'000U;
+        if (!host_.requestHostPermission(permission))
+        {
+            userFacingError_ = QStringLiteral(
+                "Local View/Input permission could not be granted. "
+                "Check that this computer is unlocked and locally owned.");
+            refresh();
+            return;
+        }
+    }
+
     if (!host_.start(currentHostRequest()))
-        userFacingError_ = QStringLiteral("Sharing could not be started.");
+        userFacingError_ = QStringLiteral(
+            "The LAN endpoint could not be prepared or the listener could "
+            "not be started.");
     refresh();
 }
 
@@ -902,9 +998,10 @@ void DesktopWindow::refresh()
     status_->setVisible(showHostingDetails);
 
     const QString address = displayedAddress(snapshot);
-    if (!address.isEmpty())
+    const QString addressText = addressPresentation(snapshot);
+    if (!addressText.isEmpty())
     {
-        addressStatus_->setText(address);
+        addressStatus_->setText(addressText);
     }
     else if (snapshot.recommendationSource ==
              rdp_server::server::runtime::
@@ -923,18 +1020,29 @@ void DesktopWindow::refresh()
         addressStatus_->setText(
             QStringLiteral("No private LAN address available"));
     }
-    copy_->setEnabled(!address.isEmpty());
+    copy_->setEnabled(snapshot.listenerReady && !address.isEmpty());
 
+    const bool standaloneVisible =
+        standalonePasswordSurfaceAvailable(snapshot);
+    username_->setVisible(standaloneVisible);
+    sessionPassword_->setVisible(standaloneVisible);
+    sessionPasswordConfirm_->setVisible(standaloneVisible);
+    usernameLabel_->setVisible(standaloneVisible);
+    sessionPasswordLabel_->setVisible(standaloneVisible);
+    sessionPasswordConfirmLabel_->setVisible(standaloneVisible);
     credentialStatus_->setText(
-        !snapshot.credentialCapabilities.existingOsAccount
+        standaloneVisible
             ? QStringLiteral(
-                  "Existing OS Account mode is unavailable in this build.")
-            : (snapshot.credentialsConfigured
-                ? QStringLiteral(
-                      "Existing OS Account mode is configured. Remote clients "
-                      "must sign in with that account.")
-                : QStringLiteral(
-                      "Existing OS Account mode. Configure access before sharing.")));
+                  "Session Password is memory-only and is configured when "
+                  "you explicitly turn Sharing on.")
+            : QStringLiteral(
+                  "Session Password is awaiting product qualification."));
+    authenticationModeStatus_->setText(
+        standaloneVisible
+            ? QStringLiteral("Authentication mode: Session Password")
+            : (snapshot.credentialCapabilities.existingOsAccount
+                ? QStringLiteral("Authentication mode: Existing OS Account")
+                : QStringLiteral("Authentication mode unavailable")));
     configureOsAccount_->setEnabled(
         snapshot.controlAvailable &&
         snapshot.credentialCapabilities.existingOsAccount &&

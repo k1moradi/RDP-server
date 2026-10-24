@@ -3,12 +3,14 @@
 
 #include "server/runtime/runtime_application_bootstrap.h"
 #include "server/security/standalone_credential_policy.h"
+#include "server/security/standalone_ntlmv2.h"
 #include "server/runtime/runtime_tls_identity_status.h"
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -679,6 +681,18 @@ public:
         const RuntimeHostOptions& options) = 0;
     [[nodiscard]] virtual RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) = 0;
+
+    // One production R2P memory-only standalone credential command. Product
+    // visibility is a separate capability gate; this deny-by-default seam
+    // still non-elidably scrubs caller-owned password storage.
+    [[nodiscard]] virtual bool configureStandaloneApplicationPassword(
+        std::u16string_view,
+        std::span<char16_t> password) noexcept
+    {
+        rdp_server::server::security::cleanseStandalonePasswordInput(password);
+        return false;
+    }
+
     [[nodiscard]] virtual RuntimeHostResult requestHostPermissionSetup(
         const RuntimeHostPermissionRequest& request = {}) = 0;
     [[nodiscard]] virtual RuntimeHostResult startSharing() = 0;

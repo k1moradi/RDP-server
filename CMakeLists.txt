@@ -1269,6 +1269,8 @@ endif()
 # R7: ordinary desktop shell; deliberate headless builds opt out explicitly.
 # No protocol/runtime/native authorization link is implied by building the GUI.
 option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" ON)
+option(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI
+    "Expose pre-qualification Session Password UI for owner acceptance builds" OFF)
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
     add_library(rdp-server-desktop-ui STATIC
@@ -1285,6 +1287,10 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     endif()
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
+    if(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+        target_compile_definitions(rdp-server-desktop-ui PUBLIC
+            RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=1)
+    endif()
     add_executable(rdp-server-desktop src/gui/main.cpp)
     target_link_libraries(rdp-server-desktop PRIVATE rdp-server-desktop-ui)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

@@ -16,6 +16,7 @@
 #include <QFont>
 #include <QGroupBox>
 #include <QLabel>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -43,6 +44,7 @@ public:
     RuntimeHostPermissionRequest lastPermissionRequest;
     int configureCalls{};
     int credentialSetupCalls{};
+    int standaloneCredentialCalls{};
     int permissionSetupCalls{};
     int startCalls{};
     int stopCalls{};
@@ -53,10 +55,12 @@ public:
     bool configureSucceeds{true};
     bool configurePreparesTlsIdentity{};
     bool credentialSetupSucceeds{};
+    bool standaloneCredentialSucceeds{};
     bool permissionSetupSucceeds{};
     bool startSucceeds{};
     bool refuseRetirement{};
     bool deriveProductStatusFromLegacy{true};
+    std::vector<std::string> commandOrder;
 
     [[nodiscard]] std::vector<RuntimeHostInterface>
     enumerateLocalInterfaces() const override
@@ -132,6 +136,7 @@ public:
         const RuntimeHostOptions& options) override
     {
         ++configureCalls;
+        commandOrder.emplace_back("endpoint");
         lastOptions = options;
         if (configureSucceeds && configurePreparesTlsIdentity)
         {
@@ -161,11 +166,29 @@ public:
                   RuntimeHostError::ControlUnavailable, false};
     }
 
+    [[nodiscard]] bool configureStandaloneApplicationPassword(
+        std::u16string_view username,
+        std::span<char16_t> password) noexcept override
+    {
+        ++standaloneCredentialCalls;
+        commandOrder.emplace_back("credential");
+        const bool valid =
+            standaloneCredentialSucceeds && !username.empty() &&
+            !password.empty();
+        rdp_server::server::security::cleanseStandalonePasswordInput(password);
+        if (valid)
+            snapshot.credentialsConfigured = true;
+        return valid;
+    }
+
     [[nodiscard]] RuntimeHostResult requestHostPermissionSetup(
         const RuntimeHostPermissionRequest& request = {}) override
     {
         ++permissionSetupCalls;
+        commandOrder.emplace_back("permission");
         lastPermissionRequest = request;
+        if (permissionSetupSucceeds)
+            snapshot.hostOwnerAuthorized = true;
         return permissionSetupSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
             : RuntimeHostResult{
@@ -175,6 +198,7 @@ public:
     [[nodiscard]] RuntimeHostResult startSharing() override
     {
         ++startCalls;
+        commandOrder.emplace_back("listener");
         return startSucceeds
             ? RuntimeHostResult{RuntimeHostError::None, false}
             : RuntimeHostResult{
@@ -316,8 +340,11 @@ void checkRound2TabsAndMainSimplicity(
     assert(window.findChild<QWizard*>() == nullptr);
     assert(window.findChild<QObject*>("backPage") == nullptr);
     assert(window.findChild<QObject*>("nextPage") == nullptr);
-    assert(window.findChild<QObject*>("password") == nullptr);
-    assert(window.findChild<QObject*>("confirmation") == nullptr);
+    auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+    auto* password = window.findChild<QLineEdit*>("sessionPassword");
+    auto* confirmation =
+        window.findChild<QLineEdit*>("sessionPasswordConfirm");
+    assert(username && password && confirmation);
     assert(window.findChild<QObject*>("allowClipboard") == nullptr);
     for (QObject* item : window.findChildren<QObject*>())
         assert(!item->objectName().contains(
@@ -366,7 +393,11 @@ void checkRound2TabsAndMainSimplicity(
     assert(mainTab->isAncestorOf(credential));
     assert(mainTab->isAncestorOf(toggle));
     assert(mainTab->isAncestorOf(input));
-    assert(mainTab->isAncestorOf(permissionRequest));
+    assert(!mainTab->isAncestorOf(permissionRequest));
+    assert(advancedTab->isAncestorOf(permissionRequest));
+    assert(mainTab->isAncestorOf(username));
+    assert(mainTab->isAncestorOf(password));
+    assert(mainTab->isAncestorOf(confirmation));
     assert(mainTab->isAncestorOf(clients));
     assert(mainTab->isAncestorOf(disconnect));
 
@@ -423,8 +454,10 @@ void checkRound2TabsAndMainSimplicity(
 #endif
 
     assert(title->text() == QStringLiteral("RDP Server — Stopped"));
-    assert(address->text() == QStringLiteral("192.168.1.42:3389"));
-    assert(credential->text().contains("Existing OS Account"));
+    assert(address->text() ==
+           QStringLiteral("Local address: 192.168.1.42"));
+    assert(!copy->isEnabled());
+    assert(credential->text().contains("Session Password"));
     assert(!toggle->isChecked() && !toggle->isEnabled());
     assertNoRoadLabelsInUserText(window);
     assertNoRoadLabelsInUserText(window);
@@ -488,15 +521,17 @@ void checkRound2RecommendationRefreshFailClosed()
     auto* copy = requiredButton(window, "copyLanAddress");
     auto* trayCopy = requiredAction(window, "trayCopyAddress");
     auto* interfaceOverride = requiredCombo(window, "lanInterface");
-    assert(address->text() == QStringLiteral("192.168.1.5:3389"));
-    assert(copy->isEnabled() && trayCopy->isEnabled());
+    assert(address->text() ==
+           QStringLiteral("Local address: 192.168.1.5"));
+    assert(!copy->isEnabled() && !trayCopy->isEnabled());
     assert(interfaceOverride->currentData().toString() ==
            QStringLiteral("192.168.1.5"));
 
     interfaceOverride->setCurrentIndex(2);
     assert(interfaceOverride->currentData().toString() ==
            QStringLiteral("10.180.105.86"));
-    assert(address->text() == QStringLiteral("192.168.1.5:3389"));
+    assert(address->text() ==
+           QStringLiteral("Local address: 192.168.1.5"));
 
     runtime.snapshot.product.recommendedEndpoint = {};
     runtime.snapshot.product.recommendedEndpoint.ambiguous = true;
@@ -534,7 +569,8 @@ void checkDashboardPresentationPolish()
     DesktopWindow window(host);
 
     auto* address = requiredLabel(window, "connectionAddress");
-    assert(address->text() == QStringLiteral("192.168.1.42:3389"));
+    assert(address->text() ==
+           QStringLiteral("Local address: 192.168.1.42"));
     const QFont addressFont = address->font();
     assert(addressFont.bold());
     const auto basePointSize = window.font().pointSizeF();
@@ -709,6 +745,7 @@ int main(int argc, char** argv)
     {
         prepareReadyHost(runtime);
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         runtime.snapshot.clipboardState = RuntimeClipboardState::Enabled;
         runtime.snapshot.nativeDesktopReady = true;
@@ -822,18 +859,96 @@ int main(int argc, char** argv)
 
     if (mode == "unsupported-password")
     {
-        prepareReadyHost(runtime);
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
         DesktopWindow window(host);
-        assert(window.findChild<QObject*>("password") == nullptr);
-        assert(window.findChild<QObject*>("confirmation") == nullptr);
-        assert(window.findChild<QObject*>(
-                   "setApplicationPasswordUnsupported") == nullptr);
+        assert(window.findChild<QLineEdit*>("standaloneUsername"));
+        assert(window.findChild<QLineEdit*>("sessionPassword"));
+        assert(window.findChild<QLineEdit*>("sessionPasswordConfirm"));
         assert(
             requiredLabel(window, "credentialStatus")
-                ->text().contains("Existing OS Account"));
+                ->text().contains("Session Password"));
+        assert(!runtime.snapshot.product.credentialCapabilities.standalonePassword);
+        return 0;
+    }
+
+    if (mode == "consumer-workflow")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+
+        DesktopWindow window(host);
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        auto* address = requiredLabel(window, "connectionAddress");
+        assert(password && confirmation);
+        assert(address->text() ==
+               QStringLiteral("Local address: 192.168.0.10"));
+        assert(!copy->isEnabled());
+
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(QStringLiteral("different"));
+        assert(!window.canStart());
+        confirmation->setText(password->text());
+        assert(window.canStart());
+
+        toggle->click();
+        assert((runtime.commandOrder ==
+                std::vector<std::string>{
+                    "credential", "permission", "endpoint", "listener"}));
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        assert(!toggle->isChecked());
+        assert(!copy->isEnabled());
+
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        window.refresh();
+        assert(toggle->isChecked());
+        assert(address->text() ==
+               QStringLiteral("Connect to: 192.168.0.10:3389"));
+        assert(copy->isEnabled());
+        return 0;
+    }
+
+    if (mode == "consumer-workflow-failure")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        DesktopWindow window(host);
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(password->text());
+        sharingToggle(window)->click();
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        assert(!sharingToggle(window)->isChecked());
         assert(
-            requiredLabel(window, "authenticationModeStatus")
-                ->text().contains("Existing OS Account"));
+            requiredLabel(window, "hostErrorExplanation")
+                ->text().contains("provisioning failed"));
         return 0;
     }
 
@@ -1297,7 +1412,7 @@ int main(int argc, char** argv)
             requiredLabel(window, "credentialStatus");
         auto* permission =
             requiredLabel(window, "permissionStatus");
-        assert(credentials->text().contains("Existing OS Account"));
+        assert(credentials->text().contains("Session Password"));
         assert(permission->text() ==
                QStringLiteral("Sharing permission required"));
         assert(!window.canStart());
@@ -1319,10 +1434,10 @@ int main(int argc, char** argv)
         auto* toggle = sharingToggle(window);
         auto* copy = requiredButton(window, "copyLanAddress");
         assert(window.canStart() && toggle->isEnabled());
+        const QString clipboardBefore = application.clipboard()->text();
+        assert(!copy->isEnabled());
         copy->click();
-        assert(
-            application.clipboard()->text() ==
-            QStringLiteral("192.168.0.10:3389"));
+        assert(application.clipboard()->text() == clipboardBefore);
 
         toggle->click();
         assert(runtime.configureCalls == 1 && runtime.startCalls == 1);

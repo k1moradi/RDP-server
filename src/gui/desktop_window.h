@@ -10,6 +10,7 @@ class QCheckBox;
 class QCloseEvent;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QMenu;
 class QPushButton;
 class QSpinBox;
@@ -36,6 +37,9 @@ protected:
 private:
     [[nodiscard]] QString blockedReason(const HostStatus& snapshot) const;
     [[nodiscard]] QString displayedAddress(const HostStatus& snapshot) const;
+    [[nodiscard]] QString addressPresentation(const HostStatus& snapshot) const;
+    [[nodiscard]] bool standalonePasswordSurfaceAvailable(
+        const HostStatus& snapshot) const noexcept;
     [[nodiscard]] HostRequest currentHostRequest() const;
     void requestStart();
     void requestStop();
@@ -53,6 +57,12 @@ private:
     QSpinBox* port_;
     QCheckBox* allowRemoteInput_;
     QSpinBox* permissionLifetimeMinutes_;
+    QLineEdit* username_;
+    QLineEdit* sessionPassword_;
+    QLineEdit* sessionPasswordConfirm_;
+    QLabel* usernameLabel_;
+    QLabel* sessionPasswordLabel_;
+    QLabel* sessionPasswordConfirmLabel_;
     QPushButton* configureOsAccount_;
     QPushButton* requestHostPermission_;
     QPushButton* disconnect_;

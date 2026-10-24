@@ -209,6 +209,15 @@ bool HostControl::requestExistingOsAccount()
         LanCredentialChoice::ExistingOsAccount).succeeded();
 }
 
+bool HostControl::configureStandalonePassword(
+    const QString& username, const QString& password)
+{
+    const std::u16string usernameUtf16 = username.toStdU16String();
+    std::u16string mutablePassword = password.toStdU16String();
+    return runtime_.configureStandaloneApplicationPassword(
+        usernameUtf16, std::span<char16_t>{mutablePassword});
+}
+
 bool HostControl::requestHostPermission(
     const rdp_server::server::runtime::RuntimeHostPermissionRequest& request)
 {
@@ -225,7 +234,6 @@ bool HostControl::start(const HostRequest& request)
     if (snapshot.lastError == RuntimeHostError::ControlUnavailable ||
         hasTerminalHostSessionError(snapshot.lastError) ||
         snapshot.stage == RuntimeHostStage::Revoked ||
-        !snapshot.product.credentialCapabilities.existingOsAccount ||
         !snapshot.product.credentialsConfigured ||
         !snapshot.product.ownerAuthorized ||
         runtimeProductStateMayHost(snapshot.product.state) ||

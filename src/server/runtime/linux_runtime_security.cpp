@@ -444,6 +444,22 @@ bool LinuxRuntimeSecurityConfiguration::configureInternal(
     return true;
 }
 
+bool LinuxRuntimeSecurityConfiguration::configureStandalonePersonalDesktop(
+    const rdp_server::server::security::ConsoleIdentityRuleInput& rule)
+    noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+    if (!rule.kerberosPrincipal.empty() ||
+        policy_.addStandaloneNativeRule(rule) !=
+            rdp_server::server::security::ConsoleRuleError::None)
+        return false;
+
+    configured_ = true;
+    return true;
+}
+
 bool LinuxRuntimeSecurityConfiguration::replaceAuthorizedIdentity(
     const rdp_server::server::security::ConsoleIdentityRuleInput &rule)
     noexcept
@@ -593,6 +609,36 @@ bool LinuxRuntimeAdmissionConfiguration::configureFromConfiguration(
     policyGeneration_ = policy->generation();
     configured_ = policyGeneration_ != 0U;
     return configured_;
+}
+
+bool LinuxRuntimeAdmissionConfiguration::configureStandalonePersonalDesktop(
+    const rdp_server::server::security::ConsoleIdentityRuleInput& rule,
+    const LinuxRuntimeSecurityConfiguration& securityConfiguration) noexcept
+{
+    if (attempted_)
+        return false;
+    attempted_ = true;
+
+    const auto* policy = securityConfiguration.policy();
+    if (!securityConfiguration.configured() || policy == nullptr ||
+        policy->size() == 0U || policy->generation() == 0U ||
+        !rule.kerberosPrincipal.empty() ||
+        !copyOwnedAdmissionText(
+            unixAccount_, unixAccountLength_, rule.unixAccount) ||
+        !copyOwnedAdmissionText(seat_, seatLength_, rule.seat) ||
+        !copyOwnedAdmissionText(display_, displayLength_, rule.display) ||
+        rule.permissions == 0U ||
+        (rule.permissions &
+         ~rdp_server::server::security::kConsoleAllowedPermissions) != 0U)
+        return false;
+
+    kerberosPrincipalLength_ = 0U;
+    kerberosPrincipal_[0] = '\0';
+    permissions_ = rule.permissions;
+    policy_ = policy;
+    policyGeneration_ = policy->generation();
+    configured_ = true;
+    return true;
 }
 
 std::optional<rdp_server::server::security::ConsoleEvidenceRequest>

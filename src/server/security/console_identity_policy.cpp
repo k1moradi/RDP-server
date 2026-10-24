@@ -107,9 +107,12 @@ namespace
     return true;
 }
 
-[[nodiscard]] bool validRule(const ConsoleIdentityRuleInput &rule) noexcept
+[[nodiscard]] bool validRule(
+    const ConsoleIdentityRuleInput &rule,
+    const bool allowEmptyPrincipal = false) noexcept
 {
-    return validPrincipal(rule.kerberosPrincipal) &&
+    return ((allowEmptyPrincipal && rule.kerberosPrincipal.empty()) ||
+            validPrincipal(rule.kerberosPrincipal)) &&
            validAccount(rule.unixAccount) &&
            validSeat(rule.seat) &&
            validDisplay(rule.display) &&
@@ -202,6 +205,33 @@ ConsoleRuleError ConsoleIdentityPolicy::add(
 
     Rule newRule{};
     copyExact(newRule.principal, rule.kerberosPrincipal);
+    copyExact(newRule.account, rule.unixAccount);
+    copyExact(newRule.seat, rule.seat);
+    copyExact(newRule.display, rule.display);
+    newRule.uid = rule.localUid;
+    newRule.permissions = rule.permissions;
+    rules_[count_++] = newRule;
+    generation_.store(next, std::memory_order_release);
+    return ConsoleRuleError::None;
+}
+
+ConsoleRuleError ConsoleIdentityPolicy::addStandaloneNativeRule(
+    const ConsoleIdentityRuleInput &rule) noexcept
+{
+    if (!rule.kerberosPrincipal.empty() || !validRule(rule, true))
+        return ConsoleRuleError::InvalidRule;
+    if (count_ == rules_.size())
+        return ConsoleRuleError::Full;
+
+    std::uint64_t next = 0;
+    if (!nextGeneration(next))
+    {
+        clearRules();
+        generation_.store(0, std::memory_order_release);
+        return ConsoleRuleError::GenerationExhausted;
+    }
+
+    Rule newRule{};
     copyExact(newRule.account, rule.unixAccount);
     copyExact(newRule.seat, rule.seat);
     copyExact(newRule.display, rule.display);

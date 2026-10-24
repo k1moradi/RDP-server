@@ -1,3 +1,26 @@
+## R7 owner-acceptance Session Password surface (2026-10-23)
+
+Before StandalonePassword is publicly qualified, its product capability must
+remain false in Release. A qualification UI may exist only behind compile-time
+Debug/acceptance gating; do not add a runtime preference, hidden command,
+environment variable or second authentication implementation that bypasses the
+product capability. The acceptance UI must invoke the exact production
+generation-fenced standalone credential owner and clear presentation password
+fields immediately after the production configure call.
+
+Normal no-argument Linux standalone provisioning must not fabricate a
+Kerberos/GSS identity or map the application username to an OS account. Reuse
+R5's current physical X11 selector for the native target, resolve that target's
+current non-root NSS account, retain an empty Kerberos principal through the
+dedicated standalone policy producer, and continue requiring exact standalone
+authentication plus fresh owner authority before native admission.
+
+A recommended address is descriptive before Start, not proof of a listener.
+Presentation must call it a local address and keep Copy disabled until R10
+reports a current bound listener. Only then may the GUI call the value
+connectable. Startup/provisioning code must never call listener Start; the
+explicit Sharing action is the local intent boundary.
+
 ## Generated licensing bootstrap is not clipboard authority (2026-10-23)
 
 Keep automatic R3 licensing construction side-effect-free with respect to R1

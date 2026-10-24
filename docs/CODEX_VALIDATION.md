@@ -1,3 +1,37 @@
+## 2026-10-23 — R7 P0 owner-acceptance consumer workflow
+
+Starting exact-main parent: `346f5933d47778599aa67c77052e4025040d0230`.
+
+**Scope:** normal `rdp-server-desktop` no-argument consumer composition and
+compile-time owner qualification surface. Public
+`kStandalonePasswordProductCapabilityApproved` remains literal false.
+
+**Source/ownership review: PASS.** The acceptance fields call
+`HostControl::configureStandalonePassword()`, which forwards directly to
+`RuntimeHostControl::configureStandaloneApplicationPassword()`; Linux uses
+the existing generation-fenced `StandalonePasswordCredentialOwner`. There is
+no mock/test authentication implementation. Normal Linux provisioning reuses
+R5's `selectCurrentPhysicalX11Desktop()` and builds a standalone-only native
+account/seat/display policy from that trusted target plus NSS. It does not
+fabricate Kerberos identity. Expert configuration-backed ownership remains
+separate.
+
+**Listener-intent review: PASS.** Zero-argument construction and Qt service
+timers do not call Start. Session-password provisioning is pre-listener. Only
+the explicit Sharing action proceeds through owner permission, endpoint/TLS
+configuration and `startSharing()`. UI Sharing remains Off in Starting/error
+states and turns On only from R10 Listening-or-later state.
+
+**Address review: PASS.** Before a bound listener, Main displays
+`Local address: <recommended-ip>` and Copy is disabled. A listener-confirmed
+bound endpoint displays `Connect to: <ip>:<port>` and enables Copy.
+
+**Validation status:** connector/source review **PASS**; owner-local
+`~/rdp-server/build` configure/build/full CTest **NOT RUN** here; hosted
+exact-publication-SHA CI **PENDING**; real unmodified Windows App /
+`mstsc.exe` StandalonePassword interoperability **NOT RUN**. This is an
+acceptance enabler, not product qualification or end-to-end readiness.
+
 ## R1 generated-subject test API portability receipt — 2026-10-23
 
 Starting exact-main parent: `56c5371f6b421a9bb672011845b073afab3a9099`.

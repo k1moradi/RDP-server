@@ -1,3 +1,32 @@
+## R7 P0 consumer workflow and owner-acceptance qualification tests (2026-10-23)
+
+The pre-qualification Microsoft-client run may use the production Main-tab
+Session Password fields only in a Debug build or an explicit compile-time
+owner-acceptance build. This supersedes older instructions that required the
+password to be injected outside Qt. Public Release builds must still hide the
+fields while `standalonePassword` product capability is unapproved. Tests
+must pin the literal Release capability false, compile-time acceptance gate,
+and forwarding into the exact production standalone credential owner; a mock
+verifier or test-only authentication path is a failure.
+
+Keep behavior-named GUI coverage for the one-action Start transaction:
+mismatched confirmation denies before credential/permission/network commands;
+success orders credential generation before owner View/Input permission,
+endpoint configuration and listener Start; failure at any step leaves
+authoritative Sharing Off and does not execute later steps. A credential test
+double may observe GUI command ordering, but it is not authentication evidence
+and must never be cited as Microsoft-client qualification.
+
+Address tests distinguish pre-listener `Local address: <ip>` from
+listener-confirmed `Connect to: <ip>:<port>`. Copy and tray Copy are disabled
+for the former and enabled only for the latter. Zero-argument startup tests
+must continue proving construction/service timers do not open a listener.
+
+Real qualification remains a separate owner-authorized physical test with an
+unmodified Windows App or Windows 11 `mstsc.exe`, exact SHA and the existing
+R1/R2/R3 redacted evidence chain. Offline GUI PASS cannot flip the Release
+capability.
+
 ## OpenSSL name-observation test portability (2026-10-23)
 
 Tests that inspect X.509 subject/issuer names must use the supported const

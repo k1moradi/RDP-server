@@ -1,3 +1,49 @@
+## R7 P0 consumer Session Password workflow and owner-acceptance surface — 2026-10-23
+
+Starting exact-main parent: `346f5933d47778599aa67c77052e4025040d0230`.
+
+R7/R10/R2 now implement the normal no-argument consumer composition requested
+for this round. Main presents the R10-recommended local LAN address, Username,
+Session Password + confirmation, one Sharing toggle, keyboard/mouse scope and
+connected devices. Configuration files, TLS/licensing material,
+Kerberos/keytab/PAM and native UID/seat/display policy are not Main-tab setup
+steps. Before listener ownership the address is explicitly `Local address:
+<ip>` and Copy is disabled; only a current R10 listener produces `Connect to:
+<ip>:<port>` and enables Copy.
+
+The public capability gate remains unchanged:
+`kStandalonePasswordProductCapabilityApproved = false`. Debug builds and
+builds compiled with `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` may expose
+the exact same password fields solely for owner interoperability qualification.
+Release builds with the unapproved capability keep those fields and labels
+hidden. The acceptance surface forwards to the production
+`StandalonePasswordCredentialOwner`; no test-only verifier or second
+authentication implementation exists.
+
+An explicit Sharing-ON click now composes the production path in order:
+R5's current physical X11 selector -> automatic standalone R2 native-target
+policy -> exact standalone credential generation -> local View/Input owner
+consent -> R10 recommended/selected LAN endpoint -> R1 endpoint-bound TLS ->
+listener Start. No constructor, startup timer or provisioning action opens a
+listener. The automatic policy uses R5's same unlocked physical seat0 X11
+selection plus NSS account resolution and carries no Kerberos principal.
+Expert `--config` construction remains available and separate.
+
+Dedicated coverage:
+`gui.owner-acceptance-release-gate-and-production-path`,
+`gui.offscreen-owner-acceptance-consumer-start-orchestration`, and
+`gui.offscreen-owner-acceptance-start-failure-rolls-back`, plus updated
+Round 2 address/Main-tab regressions. Connector/source review: **PASS**.
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Real Windows App / Windows 11 `mstsc.exe` qualification:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
+This does **not** promote StandalonePassword for public Release. GUI Round 2
+remains presentation qualification only. The next gate is clean exact-SHA
+build/test followed by the owner-authorized real Microsoft-client
+StandalonePassword run through this production acceptance surface; only that
+evidence may justify flipping the product capability.
+
 ## R5 P1 no-config physical X11 desktop targeting (2026-10-23)
 
 Normal Linux product startup remains `rdp-server-desktop` with no required

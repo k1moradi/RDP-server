@@ -69,6 +69,13 @@ public:
     [[nodiscard]] ConsoleRuleError add(
         const ConsoleIdentityRuleInput &rule) noexcept;
 
+    // StandalonePassword has no Kerberos identity. This dedicated producer
+    // accepts an otherwise normal native account/seat/display rule only when
+    // kerberosPrincipal is empty; ordinary add() continues requiring a real
+    // principal so the two authentication mechanisms cannot be conflated.
+    [[nodiscard]] ConsoleRuleError addStandaloneNativeRule(
+        const ConsoleIdentityRuleInput &rule) noexcept;
+
     // GUI-facing OS-account access lifecycle. Replacement publishes exactly
     // one new policy generation; every acceptor/lease bound to an older
     // generation consequently fails its existing freshness checks. No

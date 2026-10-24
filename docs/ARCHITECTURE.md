@@ -1,3 +1,28 @@
+## R7/R10 no-argument consumer composition and qualification seam — 2026-10-23
+
+The normal Linux desktop entrypoint now composes existing owners instead of
+requiring a configuration-file-created R2 owner. On explicit Sharing intent,
+R10 reuses R5's current unlocked physical X11 selector and resolves its NSS
+account to construct a standalone native-target policy. That policy contains
+account/seat/display/UID target evidence but no Kerberos principal. The exact
+R2 standalone authenticated-principal proof remains the remote identity
+authority; native target evidence does not authenticate the application
+username.
+
+R7 has one Session Password presentation surface. In unqualified public
+Release builds it is hidden by product capability. Debug or explicit
+compile-time owner-acceptance builds may expose the same widgets so the owner
+can qualify the production R2P path. They forward through R10 to the single
+service-lifetime `StandalonePasswordCredentialOwner`; there is no parallel
+acceptance authenticator.
+
+The explicit Sharing click is the composition boundary: R5/R2 standalone
+runtime provisioning and credential generation -> current-owner View/Input
+grant -> R10-selected LAN endpoint and R1 TLS identity -> listener ownership.
+Startup and provisioning stop before the listener. R7 projects a recommendation
+as `Local address`; it projects `Connect to` and permits Copy only after R10
+reports the bound listener.
+
 ## R8 boundary after automatic R3 licensing landing (2026-10-23)
 
 R3's generated licensing context is process-local service bootstrap state.

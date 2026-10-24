@@ -27,6 +27,7 @@
 #include <limits>
 #include <memory>
 #include <new>
+#include <pwd.h>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -79,6 +80,45 @@ inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
         return false;
     *valid = true;
     return true;
+}
+
+struct CurrentConsoleAccount final
+{
+    std::array<char, 33> name{};
+    std::size_t length{};
+
+    [[nodiscard]] std::string_view view() const noexcept
+    {
+        return {name.data(), length};
+    }
+};
+
+[[nodiscard]] std::optional<CurrentConsoleAccount>
+currentConsoleAccount(const std::uint32_t uid) noexcept
+{
+    if (uid == 0U || !std::in_range<uid_t>(uid))
+        return std::nullopt;
+
+    constexpr std::size_t kPasswordDatabaseBufferBytes = 16U * 1024U;
+    std::array<char, kPasswordDatabaseBufferBytes> buffer{};
+    passwd record{};
+    passwd* result = nullptr;
+    if (::getpwuid_r(
+            static_cast<uid_t>(uid), &record, buffer.data(), buffer.size(),
+            &result) != 0 ||
+        result != &record || record.pw_name == nullptr)
+        return std::nullopt;
+
+    const std::string_view name{record.pw_name};
+    if (name.empty() || name.size() >= CurrentConsoleAccount{}.name.size() ||
+        name == "root")
+        return std::nullopt;
+
+    CurrentConsoleAccount account;
+    std::copy(name.begin(), name.end(), account.name.begin());
+    account.length = name.size();
+    account.name[account.length] = '\0';
+    return account;
 }
 
 [[nodiscard]] std::uint64_t currentWindowsFileTime() noexcept
@@ -603,6 +643,7 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl(
       externalTlsContext_(true),
       securityConfiguration_(&securityConfiguration),
       admissionConfiguration_(&admissionConfiguration),
+      externalSecurityConfiguration_(true),
       licensingContext_(&licensingContext)
 {
 }
@@ -674,6 +715,47 @@ bool LinuxRuntimeHostControl::selectedStandaloneCredentialReady() const noexcept
                standaloneCredentialGeneration_,
                &validateStandaloneCredentialVisit, &visited) &&
            visited;
+}
+
+bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept
+{
+    if (externalSecurityConfiguration_)
+    {
+        return securityConfiguration_ != nullptr &&
+               securityConfiguration_->configured() &&
+               admissionConfiguration_ != nullptr;
+    }
+
+    // R5 owns the one no-config physical X11 selector. Reuse that exact
+    // trusted logind observation instead of creating a second session policy.
+    const auto desktop =
+        rdp_server::server::security::selectCurrentPhysicalX11Desktop(
+            ownerEvidence_);
+    if (!desktop.eligible())
+        return false;
+
+    const auto account = currentConsoleAccount(desktop.ownerUid);
+    if (!account)
+        return false;
+
+    using namespace rdp_server::server::security;
+    const ConsoleIdentityRuleInput rule{
+        {}, account->view(), "seat0", desktop.display(), desktop.ownerUid,
+        kConsoleViewPermission | kConsoleInputPermission};
+
+    auto security =
+        std::make_unique<LinuxRuntimeSecurityConfiguration>();
+    auto admission =
+        std::make_unique<LinuxRuntimeAdmissionConfiguration>();
+    if (!security->configureStandalonePersonalDesktop(rule) ||
+        !admission->configureStandalonePersonalDesktop(rule, *security))
+        return false;
+
+    generatedAdmissionConfiguration_ = std::move(admission);
+    generatedSecurityConfiguration_ = std::move(security);
+    securityConfiguration_ = generatedSecurityConfiguration_.get();
+    admissionConfiguration_ = generatedAdmissionConfiguration_.get();
+    return true;
 }
 
 bool LinuxRuntimeHostControl::buildAuthenticationSelection(
@@ -958,6 +1040,7 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     }
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.product.credentialCapabilities.existingOsAccount =
+        externalSecurityConfiguration_ &&
         securityConfiguration_ != nullptr && tlsContext_ != nullptr &&
         admissionConfiguration_ != nullptr && licensingContext_ != nullptr;
 #endif
@@ -1035,9 +1118,20 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
-    // Credential replacement invalidates prior owner approval. The public GUI
-    // still has no password surface; this selects only R10's internal product
-    // authentication path for a later explicitly authorized acceptance run.
+    // Every explicit Sharing attempt reuses R5's current physical X11 target
+    // to create the production R2 standalone admission policy. Failure is
+    // pre-listener and scrubs caller-owned password bytes.
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (!prepareAutomaticStandaloneAdmission())
+    {
+        cleanseStandalonePasswordInput(password);
+        lastError_ = RuntimeHostError::NativeAuthorizationDenied;
+        return false;
+    }
+#endif
+
+    // Credential replacement invalidates prior owner approval and selects the
+    // exact production standalone authentication owner/generation.
     ownerSharingAuthority_.revoke(
         OwnerConsentRevocationReason::CredentialChange);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

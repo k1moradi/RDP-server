@@ -97,6 +97,8 @@ public:
 
     [[nodiscard]] HostStatus status() const;
     [[nodiscard]] bool requestExistingOsAccount();
+    [[nodiscard]] bool configureStandalonePassword(
+        const QString& username, const QString& password);
     [[nodiscard]] bool requestHostPermission(
         const rdp_server::server::runtime::RuntimeHostPermissionRequest&
             request = {});

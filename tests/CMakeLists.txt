@@ -52,6 +52,18 @@ add_test(NAME gui.r10-product-status-integration-source-contract
 set_tests_properties(gui.r10-product-status-integration-source-contract
     PROPERTIES LABELS "gui;r10-host-control;policy;offline")
 
+add_test(NAME gui.owner-acceptance-release-gate-and-production-path
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+        "-DRDP_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
+        "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        "-DRDP_RUNTIME_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_host_control.h"
+        "-DRDP_DESKTOP_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_gui_owner_acceptance_gate.cmake")
+set_tests_properties(gui.owner-acceptance-release-gate-and-production-path
+    PROPERTIES LABELS "gui;r7;r2;r10;acceptance;security;offline")
+
 # R9 GUI Round 2 exact-source contracts. These inspect source/CI text only:
 # they do not launch Qt, read native color profiles or suppress diagnostics.
 add_test(NAME gui.round2-tab-source-contract
@@ -3909,13 +3921,31 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-lifecycle-and-terminal-close-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
-    # Until R2 proves interoperable independent-password NLA, the GUI must
-    # contain no application-password entry fields or actionable workflow.
+    # Public Release capability remains false, while Debug/explicit owner
+    # acceptance builds expose the exact production standalone path.
     add_test(NAME gui.offscreen-independent-password-workflow-unavailable
         COMMAND test_desktop_gui_offline unsupported-password)
     set_tests_properties(gui.offscreen-independent-password-workflow-unavailable
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;security;credentials" TIMEOUT 30)
+        LABELS "gui;offline;security;credentials;acceptance" TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-owner-acceptance-consumer-start-orchestration
+        COMMAND test_desktop_gui_offline consumer-workflow)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-consumer-start-orchestration PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;lifecycle"
+        CONFIGURATIONS Debug
+        TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-owner-acceptance-start-failure-rolls-back
+        COMMAND test_desktop_gui_offline consumer-workflow-failure)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-start-failure-rolls-back PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;failure"
+        CONFIGURATIONS Debug
+        TIMEOUT 30)
     # R10 client authentication cannot be presented as a connected desktop.
     # Stale endpoint/peer fields are cleared by the Qt projection on Stop.
     add_test(NAME gui.offscreen-r10-client-stage-and-retirement-status-denials

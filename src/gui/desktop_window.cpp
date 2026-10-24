@@ -665,6 +665,13 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
             return QStringLiteral("Session Password confirmation does not match");
     }
 
+    // R10's product projection distinguishes a requestable local consent
+    // action from an already-active owner grant. R7 may expose the explicit
+    // Sharing action when consent can be requested, but a machine with no
+    // eligible owner session must remain fail-closed before any Start attempt.
+    if (!state.desktopAuthorized && !state.sharingPermission.canRequest)
+        return ownerPermissionStatusText(state);
+
     // R1 prepares an exact-endpoint TLS identity only after the user requests
     // Sharing. Do not require that preparation artifact before the toggle can
     // invoke the R10 configure transaction; HostControl rechecks it before

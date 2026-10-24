@@ -1,3 +1,38 @@
+## R7 GUI owner-permission projection consistency correction (2026-10-24)
+
+Starting exact-main parent: `b5d2d72267744928eb4336fddea8c3f7f7ab61f7`.
+
+R7 review found the product-language strings were already correct, but the
+main/tray Sharing enablement path did not consume R10's permission requestability
+fact. With otherwise-ready credentials and LAN selection, a deterministic
+`sharingPermission = { canRequest=false, activeGrant=false, denial=Unavailable }`
+snapshot could therefore leave Sharing enabled even though no eligible owner
+session existed.
+
+`DesktopWindow::blockedReason()` now fails closed when there is neither an
+active R10 owner authorization nor a requestable local permission action. The
+existing requestable/no-grant state remains actionable: it displays
+`Sharing permission required` and permits the explicit local Sharing action,
+which still requests R10 permission before endpoint/listener Start.
+`canRequest` is not treated as a grant and no automatic Start was added.
+
+Added dedicated behavior CTest
+`gui.offscreen-sharing-permission-requestability-gates-start`. Its synthetic
+product snapshots prove unavailable permission disables both main and tray
+Sharing, while requestable permission enables the explicit action without
+automatically requesting permission or starting. The denied explicit-action
+fixture verifies no endpoint configuration or listener Start occurs.
+
+R10's P0 HostControl test file was not edited. The concurrent R2 review at
+`b5d2d72267744928eb4336fddea8c3f7f7ab61f7` already records the first
+machine-dependent assertions in the three owner-local failures and preserves
+production consent behavior.
+
+Validation in this connector environment: source/control-flow review **PASS**;
+canonical build/CTest **NOT RUN**. Next gate: run the new offscreen CTest and the
+ordinary full Debug CTest on freshly pulled `main`; R10 separately owns the
+three-test physical-X11/headless HostControl confirmation.
+
 ## R2 P0 owner-consent semantics review for Linux HostControl regression (2026-10-24)
 
 Starting exact-main parent: `77270d4354791ceddd922e4cf2f8deb0be13766c`.

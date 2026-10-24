@@ -3934,6 +3934,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-sharing-permission-product-language
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;consent" TIMEOUT 30)
+    add_test(NAME gui.offscreen-sharing-permission-requestability-gates-start
+        COMMAND test_desktop_gui_offline permission-requestability-gates-sharing)
+    set_tests_properties(
+        gui.offscreen-sharing-permission-requestability-gates-start PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;runtime;consent;security" TIMEOUT 30)
 
     add_test(NAME gui.offscreen-positive-owner-workflow-presentation
         COMMAND test_desktop_gui_offline positive-workflow)

@@ -1,3 +1,21 @@
+## R7 GUI permission requestability projection gate (2026-10-24)
+
+Keep a deterministic offscreen GUI regression for both owner-permission product
+states without consulting native logind/X11 evidence. With no active owner grant
+and `sharingPermission.canRequest == false`, the GUI must display the bounded
+unavailable/denial text and disable main/tray Sharing plus the explicit
+permission button. With an eligible owner session represented by
+`canRequest == true` and no active grant, it must display
+`Sharing permission required`, enable the explicit permission/Sharing action,
+and remain stopped until the user acts.
+
+The test must prove requestability is not authorization: constructing or
+refreshing the window performs no permission request and no Start. Exercising
+the explicit Sharing action may request local permission, but a denied fixture
+must not progress to endpoint configuration or listener Start. Keep this test
+independent of `tests/test_linux_runtime_host_control.cpp`, whose deterministic
+native-evidence fixtures are owned by R10.
+
 ## Offline owner-consent tests must inject native evidence (2026-10-24)
 
 Linux's default `LinuxRuntimeHostControl` is a production composition object:

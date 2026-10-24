@@ -1173,6 +1173,70 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "permission-requestability-gates-sharing")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.deriveProductStatusFromLegacy = false;
+
+        auto& product = runtime.snapshot.product;
+        product.controlAvailable = true;
+        product.state = RuntimeProductHostState::Stopped;
+        product.credentialsConfigured = true;
+        product.credentialCapabilities.existingOsAccount = true;
+        product.eligibleLanInterfaces = runtime.interfaces;
+        product.recommendedEndpoint =
+            recommendRuntimePrivateLanEndpoint(runtime.interfaces);
+        product.ownerAuthorized = false;
+        product.sharingPermission = {
+            false, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::Unavailable};
+
+        DesktopWindow window(host);
+        auto* permission = requiredLabel(window, "permissionStatus");
+        auto* request = requiredButton(window, "requestHostPermission");
+        auto* toggle = sharingToggle(window);
+        auto* traySharing = requiredAction(window, "traySharing");
+
+        assert(permission->text() ==
+               QStringLiteral("Sharing permission unavailable"));
+        assert(!request->isEnabled());
+        assert(!window.canStart());
+        assert(!toggle->isEnabled() && !toggle->isChecked());
+        assert(!traySharing->isEnabled());
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+
+        product.sharingPermission = {
+            true, false, false, false, 0U,
+            RuntimeSharingPermissionDenial::PermissionRequired};
+        window.refresh();
+
+        assert(permission->text() ==
+               QStringLiteral("Sharing permission required"));
+        assert(request->isEnabled());
+        assert(window.canStart());
+        assert(toggle->isEnabled() && !toggle->isChecked());
+        assert(traySharing->isEnabled());
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+
+        // Requestability is not a grant. The explicit Sharing action asks R10
+        // for local permission first; this failing fixture must never proceed
+        // to endpoint configuration or listener Start.
+        toggle->click();
+        assert(runtime.permissionSetupCalls == 1);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        assert(!toggle->isChecked());
+        return 0;
+    }
+
     if (mode == "tls-identity")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

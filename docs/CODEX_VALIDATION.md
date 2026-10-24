@@ -1,3 +1,34 @@
+## R7 GUI permission requestability projection review (2026-10-24)
+
+Starting exact-main parent: `b5d2d72267744928eb4336fddea8c3f7f7ab61f7`.
+
+Source review found a genuine R7-only presentation/actionability gap:
+`ownerPermissionStatusText()` already distinguished
+`Sharing permission unavailable` from `Sharing permission required`, and
+the explicit permission button already consumed `canRequest`, but
+`DesktopWindow::blockedReason()` did not. Consequently, an otherwise-ready
+stopped host could expose main/tray Sharing while the product permission
+projection said no local permission request was possible.
+
+The correction gates Start on either an existing R10 owner authorization or a
+requestable local permission action. It does not reinterpret `canRequest` as a
+grant, does not change R10/R2 consent behavior, and does not touch RDP wire,
+listener, capture or input code.
+
+Dedicated CTest:
+`gui.offscreen-sharing-permission-requestability-gates-start`.
+The synthetic unavailable state requires the unavailable text, disabled
+permission/main/tray actions and zero permission/configure/start calls. The
+synthetic requestable state requires the required text, enabled explicit
+actions and zero automatic calls; a denied explicit Sharing click must issue
+only the permission request and never configure or start a listener.
+
+Source/control-flow review: **PASS**.
+Build and CTest execution in this connector environment: **NOT RUN**.
+R10-owned `tests/test_linux_runtime_host_control.cpp`: **UNCHANGED**.
+Next gate: exact-publication-SHA hosted/offscreen execution plus owner-local
+ordinary Debug CTest.
+
 ## R2 P0 Linux HostControl owner-consent regression review (2026-10-24)
 
 Starting exact-main parent: `77270d4354791ceddd922e4cf2f8deb0be13766c`.

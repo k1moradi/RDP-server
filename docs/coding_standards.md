@@ -1,3 +1,14 @@
+## R7 permission requestability is not owner authorization (2026-10-24)
+
+R7 may use R10's redacted `sharingPermission.canRequest` fact only to decide
+whether the explicit local Sharing/permission action is available. It is never
+an owner grant and must not be converted into `desktopAuthorized`, listener
+authority or automatic Start. When no current owner grant exists and permission
+cannot be requested, the GUI keeps both main and tray Sharing actions disabled
+and presents the bounded product denial. When permission is requestable, the GUI
+may enable the explicit local action, but that action must still call R10's
+permission command and obtain a fresh grant before endpoint/listener Start.
+
 ## Keep qualification gates independent (2026-10-23)
 
 Do not use `kStandalonePasswordProductCapabilityApproved` as a proxy for

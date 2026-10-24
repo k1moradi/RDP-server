@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "security/linux_logind_console_evidence.h"
+#include "server/runtime/linux_runtime_security.h"
 
 #include <cassert>
 #include <optional>
@@ -15,9 +16,12 @@ public:
     ConsoleSessionObservation session{};
     std::uint64_t now{1001U};
 
-    ConsoleAccountObservation readUnixAccount(std::string_view) noexcept override
+    ConsoleAccountObservation readUnixAccount(
+        std::string_view account) noexcept override
     {
-        return {};
+        if (account != "owner")
+            return {};
+        return {ConsoleEvidenceReadStatus::Observed, "owner", 1000U};
     }
 
     ConsoleSessionObservation readActiveConsole() noexcept override
@@ -82,6 +86,9 @@ int main(int argc, char **argv)
             "session-1", "seat0", ":42", 1000U, 77U, 1000U,
             true, true, 1000U, ConsoleDesktopLockState::Unlocked, false};
 
+        // R5 selects only from the trusted native observation. No
+        // RuntimeConfigurationView, config file or process DISPLAY exists in
+        // this fixture.
         const auto selected = selectCurrentPhysicalX11Desktop(source);
         assert(selected.eligible());
         assert(selected.sessionId() == "session-1");
@@ -89,6 +96,47 @@ int main(int argc, char **argv)
         assert(selected.ownerUid == 1000U);
         assert(selected.sessionGeneration == 77U);
 
+        // Exercise the exact production no-config standalone policy/admission
+        // seam landed by R7: principal-free native target policy, then the
+        // StandalonePassword R2 request, then a fresh evidence inspection.
+        using namespace rdp_server::server::runtime;
+        const ConsoleIdentityRuleInput rule{
+            {}, "owner", "seat0", selected.display(), selected.ownerUid,
+            kConsoleViewPermission | kConsoleInputPermission};
+
+        LinuxRuntimeSecurityConfiguration security;
+        LinuxRuntimeAdmissionConfiguration admission;
+        assert(security.configureStandalonePersonalDesktop(rule));
+        assert(admission.configureStandalonePersonalDesktop(rule, security));
+
+        const auto request = admission.request(
+            security, ConsoleEvidenceAuthenticationKind::StandalonePassword);
+        assert(request.has_value());
+        assert(request->authenticationKind ==
+               ConsoleEvidenceAuthenticationKind::StandalonePassword);
+        assert(request->kerberosPrincipal.empty());
+        assert(request->unixAccount == "owner");
+        assert(request->seat == "seat0");
+        assert(request->display == ":42");
+        assert(request->requestedPermissions ==
+               (kConsoleViewPermission | kConsoleInputPermission));
+
+        const ConsoleIdentityPolicy* policy = security.policy();
+        assert(policy != nullptr);
+        ConsoleCandidateSessionFingerprint fingerprint;
+        const ConsoleOsEvidenceInspector inspector;
+        assert(inspector.inspectWithSessionFingerprint(
+                   *policy, *request, source, fingerprint) ==
+               ConsoleEvidenceMatch::CandidateOnly);
+        assert(fingerprint.accountUid == 1000U);
+        assert(fingerprint.consoleOwnerUid == 1000U);
+        assert(fingerprint.sessionGeneration == 77U);
+        assert(std::string_view(
+                   fingerprint.sessionId.data(),
+                   fingerprint.sessionIdLength) == "session-1");
+
+        // Selector denials remain pre-listener and cannot be repaired by GUI
+        // text, a process DISPLAY variable or caller-supplied identity data.
         auto wrongOwner = source.session;
         wrongOwner.localProcessUid = 1001U;
         source.session = wrongOwner;

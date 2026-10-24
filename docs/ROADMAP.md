@@ -1,3 +1,33 @@
+## R5 P1 dependency recheck and end-to-end offline closure — 2026-10-23
+
+Starting exact-main parent: `8d4a476b404ef3bef1d70705a913bc19e28a0fee`.
+
+The prior R5 source blocker is **RESOLVED** by R7 P0. R7 now composes the
+normal no-argument StandalonePassword path through R5's trusted current-X11
+selector, NSS account resolution, principal-free standalone native policy,
+production `StandalonePasswordCredentialOwner`, owner consent and the
+explicit Sharing-triggered listener transaction. Kerberos/keytab/PAM and
+`server.conf` are no longer prerequisites for that acceptance path.
+
+R5 therefore continues rather than waiting. The existing
+`runtime.linux-no-config-standalone-current-x11-selection` regression is
+upgraded from selector-only coverage to an end-to-end offline native-admission
+state machine: trusted X11 selection -> production standalone security policy
+-> production standalone admission request -> fresh
+`ConsoleOsEvidenceInspector` candidate fingerprint. It proves the request is
+principal-free, binds the exact account/seat/display/permission tuple and
+retains the current native session generation, while preserving wrong-owner,
+locked, remote, missing-display and stale-evidence denials. It uses no config
+file, `RuntimeConfigurationView`, process `DISPLAY`, listener, X server,
+capture or XTEST.
+
+No R5 implementation dependency is currently blocked. The remaining product
+gate is downstream acceptance evidence: the public
+`kStandalonePasswordProductCapabilityApproved` flag intentionally remains
+false until the owner-authorized real Windows App / Windows 11 `mstsc.exe`
+StandalonePassword run passes. That gate blocks public Release promotion, not
+this R5 implementation/test closure.
+
 ## R1/R5 offline pre-listener denial integration correction — 2026-10-23
 
 Starting exact-main parent: `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.

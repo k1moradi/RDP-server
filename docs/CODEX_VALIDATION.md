@@ -1,3 +1,32 @@
+## 2026-10-23 — R5 P1 dependency recheck after R7 no-config provisioning
+
+Starting exact-main parent: `8d4a476b404ef3bef1d70705a913bc19e28a0fee`.
+
+Dependency status: **RESOLVED**. R7 P0 landed the missing normal-product
+standalone provisioning edge on top of R5's current physical X11 selector.
+The no-argument path can now construct a principal-free native policy and
+admission selector from trusted logind evidence plus NSS, then forward Session
+Password into the exact production standalone credential owner. No
+Kerberos/keytab/PAM/config-file prerequisite is introduced and startup still
+does not call Start.
+
+R5 continuation upgrades
+`runtime.linux-no-config-standalone-current-x11-selection` so the offline test
+now traverses the production selector, `LinuxRuntimeSecurityConfiguration::
+configureStandalonePersonalDesktop()`,
+`LinuxRuntimeAdmissionConfiguration::configureStandalonePersonalDesktop()`,
+the StandalonePassword evidence request and
+`ConsoleOsEvidenceInspector::inspectWithSessionFingerprint()`. Positive
+coverage requires the exact principal-free owner/seat/display/View+Input tuple
+and session generation; native wrong-owner/locked/remote/missing-display/stale
+evidence remains denied.
+
+Source review: **PASS**. Owner-local canonical build/full CTest is **NOT RUN**
+in this connector environment. Exact-publication-SHA hosted CI is **PENDING**
+until publication. Public Release StandalonePassword remains **BLOCKED** only
+on the separate owner-authorized real Microsoft-client interoperability gate;
+that does not block R5 source/test progress.
+
 ## R1/R5 pre-listener denial test reconciliation — 2026-10-23
 
 Starting exact-main parent: `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.

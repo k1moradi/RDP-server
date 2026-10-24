@@ -1,3 +1,18 @@
+## R5 no-config StandalonePassword end-to-end offline state machine — 2026-10-23
+
+`runtime.linux-no-config-standalone-current-x11-selection` must not stop at
+the read-only selector. It must continue through the production principal-free
+standalone native policy, production admission configuration, a
+`ConsoleEvidenceAuthenticationKind::StandalonePassword` request and fresh
+native evidence inspection/fingerprint. The request must carry no Kerberos
+principal and must bind the exact selected local account, `seat0`, X11
+display, View/Input permissions and current session generation.
+
+The fixture must remain config-free and side-effect-free: no
+`RuntimeConfigurationView`, config file, process `DISPLAY`, listener, X
+connection, capture or XTEST. Preserve explicit denials for wrong process/owner
+UID, locked/unknown state, remote session, missing display and stale evidence.
+
 ## Pre-listener denial ordering across subsystem gates (2026-10-23)
 
 Offline tests that intentionally stop before listener creation must assert the

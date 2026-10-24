@@ -174,6 +174,41 @@ bool consistentLogindSessionFacts(
            session.graphicalSeat && session.active && !session.remote;
 }
 
+LinuxCurrentX11DesktopSelection selectCurrentPhysicalX11Desktop(
+    ConsoleOsEvidenceSource &source) noexcept
+{
+    const ConsoleSessionObservation session = source.readActiveConsole();
+    const std::optional<std::uint64_t> now =
+        source.readMonotonicMilliseconds();
+    if (session.status != ConsoleEvidenceReadStatus::Observed ||
+        !session.active || !session.physical || session.remote ||
+        session.lockState != ConsoleDesktopLockState::Unlocked ||
+        session.seat != "seat0" || !validSessionId(session.sessionId) ||
+        !validLocalDisplay(session.display) || session.ownerUid == 0U ||
+        session.localProcessUid == 0U ||
+        session.ownerUid != session.localProcessUid ||
+        session.sessionGeneration == 0U || !now.has_value() ||
+        session.observedAtMonotonicMilliseconds == 0U ||
+        *now < session.observedAtMonotonicMilliseconds ||
+        *now - session.observedAtMonotonicMilliseconds >
+            kMaximumConsoleObservationAgeMilliseconds)
+    {
+        return {};
+    }
+
+    LinuxCurrentX11DesktopSelection selection;
+    selection.status = LinuxCurrentX11DesktopStatus::Eligible;
+    selection.sessionIdLength = session.sessionId.size();
+    selection.displayLength = session.display.size();
+    std::copy(session.sessionId.begin(), session.sessionId.end(),
+              selection.sessionIdBytes.begin());
+    std::copy(session.display.begin(), session.display.end(),
+              selection.displayBytes.begin());
+    selection.ownerUid = session.ownerUid;
+    selection.sessionGeneration = session.sessionGeneration;
+    return selection;
+}
+
 ConsoleAccountObservation LinuxLogindReadOnlyEvidenceSource::readUnixAccount(
     std::string_view account) noexcept
 {

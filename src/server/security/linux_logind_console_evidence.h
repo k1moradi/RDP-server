@@ -5,6 +5,7 @@
 #include "linux_nss_console_evidence.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -41,6 +42,42 @@ struct LogindActiveSeatFacts
 [[nodiscard]] bool consistentLogindSessionFacts(
     const LogindSessionFacts &session,
     const LogindActiveSeatFacts &secondSeat) noexcept;
+
+enum class LinuxCurrentX11DesktopStatus : std::uint8_t
+{
+    Unavailable,
+    Eligible,
+};
+
+struct LinuxCurrentX11DesktopSelection final
+{
+    LinuxCurrentX11DesktopStatus status{
+        LinuxCurrentX11DesktopStatus::Unavailable};
+    std::array<char, 65> sessionIdBytes{};
+    std::array<char, 9> displayBytes{};
+    std::size_t sessionIdLength{};
+    std::size_t displayLength{};
+    std::uint32_t ownerUid{};
+    std::uint64_t sessionGeneration{};
+
+    [[nodiscard]] bool eligible() const noexcept
+    {
+        return status == LinuxCurrentX11DesktopStatus::Eligible;
+    }
+    [[nodiscard]] std::string_view sessionId() const noexcept
+    {
+        return {sessionIdBytes.data(), sessionIdLength};
+    }
+    [[nodiscard]] std::string_view display() const noexcept
+    {
+        return {displayBytes.data(), displayLength};
+    }
+};
+
+// Read-only no-config desktop targeting from the same trusted native evidence
+// boundary used by R2. No DISPLAY environment or GUI text is accepted.
+[[nodiscard]] LinuxCurrentX11DesktopSelection
+selectCurrentPhysicalX11Desktop(ConsoleOsEvidenceSource &source) noexcept;
 
 // Linux-only logind/NSS evidence source. It is NOT an authorization service.
 // The source owns returned string buffers; callers must finish synchronous

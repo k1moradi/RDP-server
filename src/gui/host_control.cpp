@@ -95,8 +95,13 @@ HostStatus HostControl::status() const
         view.productState == RuntimeProductHostState::Starting &&
         !terminalHostSession;
     view.clipboardState = runtimeStatus.clipboardState;
-    if (view.desktopAuthorized)
-        view.desktop = QStringLiteral("Authorized logged-in desktop");
+    if (runtimeStatus.product.nativeDesktopTargetAvailable &&
+        !runtimeStatus.product.nativeDesktopTarget.empty())
+    {
+        view.desktop =
+            QStringLiteral("Physical X11 desktop ") +
+            toQString(runtimeStatus.product.nativeDesktopTarget);
+    }
 
     // R10 owns the exact native interface/endpoint selection policy.
     // Project only eligible choices; a GUI label or wildcard is not bind

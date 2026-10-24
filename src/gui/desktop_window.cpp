@@ -1022,7 +1022,8 @@ void DesktopWindow::refresh()
     tlsIdentityStatus_->setText(tlsIdentityStatusText(snapshot));
     hostLifecycleStatus_->setText(hostLifecycleText(snapshot));
     runtimeReadinessStatus_->setText(
-        QStringLiteral("Readiness: protocol %1; native desktop %2.")
+        QStringLiteral("Readiness: protocol %1; native desktop %2.\n"
+                       "Selected desktop: %3")
             .arg(
                 snapshot.graphicsReady
                     ? QStringLiteral("ready")
@@ -1033,7 +1034,12 @@ void DesktopWindow::refresh()
                     ? QStringLiteral("ready")
                     : (snapshot.nativeDesktopInitializing
                         ? QStringLiteral("initializing")
-                        : QStringLiteral("inactive"))));
+                        : QStringLiteral("inactive")),
+                snapshot.desktop.isEmpty()
+                    ? QStringLiteral(
+                          "No eligible physical X11 desktop "
+                          "(Wayland is not supported).")
+                    : snapshot.desktop));
     errorStatus_->setText(
         !userFacingError_.isEmpty()
             ? QStringLiteral("Last action: ") + userFacingError_

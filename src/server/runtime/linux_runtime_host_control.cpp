@@ -850,6 +850,14 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             rdp_server::server::security::kConsoleViewPermission);
     const auto ownerPermission =
         ownerSharingAuthority_.permissionObservation();
+    const auto currentDesktop =
+        rdp_server::server::security::selectCurrentPhysicalX11Desktop(
+            ownerEvidence_);
+    snapshot.product.nativeDesktopTargetAvailable =
+        currentDesktop.eligible();
+    if (currentDesktop.eligible())
+        snapshot.product.nativeDesktopTarget =
+            std::string(currentDesktop.display());
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured =
         credentialsConfigured_ && serviceCredentialsReady();
@@ -1188,6 +1196,11 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return deny(RuntimeHostError::CredentialProviderUnavailable);
 #else
+    // No listener or native capture is created unless the current desktop is
+    // a fresh same-owner unlocked physical X11 session from native evidence.
+    if (!rdp_server::server::security::selectCurrentPhysicalX11Desktop(
+            ownerEvidence_).eligible())
+        return deny(RuntimeHostError::NativeAuthorizationDenied);
     if (licensingContext_ == nullptr || !licensingContext_->configured())
         return deny(RuntimeHostError::InternalFailure);
     if (securityConfiguration_ == nullptr ||

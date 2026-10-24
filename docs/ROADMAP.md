@@ -1,3 +1,27 @@
+## R5 P1 no-config physical X11 desktop targeting (2026-10-23)
+
+Normal Linux product startup remains `rdp-server-desktop` with no required
+arguments. R5/R10 now derives the candidate desktop only through the existing
+trusted logind/native evidence source; process `DISPLAY`, GUI text and manual
+UID/seat/display configuration do not participate. The read-only selector
+requires a fresh active physical local `seat0` X11 session, same process/owner
+UID, known unlocked state, non-remote status and nonzero session generation.
+R10 projects only the selected X11 display into Advanced diagnostics.
+
+`startSharing()` now fails closed with the native-desktop denial before any
+listener is opened when no eligible physical X11 target exists. Advanced
+product language explicitly states that Wayland is unsupported. Application
+launch still starts no X11 capture. The one X11 native owner continues to be
+created only after authenticated client admission and R3 GraphicsReady.
+
+Offline CTest
+`runtime.linux-no-config-standalone-current-x11-selection` exercises the
+no-config StandalonePassword desktop-selection state machine and stale/locked/
+remote/wrong-owner/missing-display denials without a config file, process
+DISPLAY, listener, X server, capture or XTEST. This closes only R5 P1 desktop
+targeting; standalone credential/product provisioning and live owner-authorized
+Microsoft-client/XTEST acceptance remain separate gates.
+
 ## R1 generated-subject regression OpenSSL API correction — 2026-10-23
 
 Starting exact-main parent: `56c5371f6b421a9bb672011845b073afab3a9099`.

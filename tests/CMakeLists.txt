@@ -1538,7 +1538,12 @@ if(TARGET rdp-server-linux-runtime-security)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     add_test(NAME security.linux-seat0-session-identity-denials
         COMMAND test_linux_logind_session_identity seat0-session-identity-denials)
-    set_tests_properties(security.linux-seat0-session-identity-denials PROPERTIES
+    add_test(NAME runtime.linux-no-config-standalone-current-x11-selection
+        COMMAND test_linux_logind_session_identity
+            no-config-standalone-current-x11-selection)
+    set_tests_properties(
+        security.linux-seat0-session-identity-denials
+        runtime.linux-no-config-standalone-current-x11-selection PROPERTIES
         LABELS "security;linux-provider;offline;seat0-revocation")
 
     # R2 final-credential security contract: check only GSS-verified account

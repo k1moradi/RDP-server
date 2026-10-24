@@ -586,6 +586,9 @@ struct RuntimeProductHostStatus final
     bool credentialsConfigured{};
     bool ownerAuthorized{};
     RuntimeSharingPermissionStatus sharingPermission{};
+    // Read-only platform-selected desktop target. This is never R2 authority.
+    bool nativeDesktopTargetAvailable{};
+    std::string nativeDesktopTarget;
     bool tlsIdentityReady{};
     RuntimeTlsCertificateFingerprint tlsFingerprint{};
     bool tlsFingerprintAvailable{};

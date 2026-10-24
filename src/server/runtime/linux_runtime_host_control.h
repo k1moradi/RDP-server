@@ -210,7 +210,7 @@ private:
 #endif
     // Production-native evidence owns all borrowed views. It must outlive
     // R2's host-lifetime authority and every admission broker borrowing it.
-    rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource
+    mutable rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource
         ownerEvidence_{};
     rdp_server::server::security::CurrentOwnerSharingAuthority
         ownerSharingAuthority_{ownerEvidence_};

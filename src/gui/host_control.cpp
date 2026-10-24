@@ -48,9 +48,12 @@ HostStatus HostControl::status() const
     const bool terminalHostSession =
         hasTerminalHostSessionError(runtimeStatus.lastError) ||
         runtimeStatus.stage == RuntimeHostStage::Revoked;
+    const bool productMayHost =
+        runtimeProductStateMayHost(view.productState) && !terminalHostSession;
     // A stale/revoked R2 host session cannot prove listener readiness.
     // Preserve the raw R10 stage for explicit Stop/close retirement.
-    view.listenerReady = runtimeStatus.listenerAvailable && !terminalHostSession &&
+    view.listenerReady = (runtimeStatus.listenerAvailable || productMayHost) &&
+                         !terminalHostSession &&
                          runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.controlAvailable = runtimeStatus.product.controlAvailable;
     view.credentialsConfigured = runtimeStatus.product.credentialsConfigured;
@@ -75,8 +78,6 @@ HostStatus HostControl::status() const
     view.tlsFingerprintAvailable =
         runtimeStatus.product.tlsFingerprintAvailable && tlsObservationCurrent;
 
-    const bool productMayHost =
-        runtimeProductStateMayHost(view.productState) && !terminalHostSession;
     view.graphicsReady =
         productMayHost && runtimeStatus.graphicsReady && !terminalHostSession;
     view.nativeDesktopReady =

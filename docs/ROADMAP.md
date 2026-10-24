@@ -1,3 +1,38 @@
+## R7/R10 offline desktop GUI portability and product listener-readiness (2026-10-23)
+
+Starting exact-main parent: `b055a3b86455da5ee78d7950a0d8b58af122029c`.
+
+Verification of the owner's exact build/CTest command on macOS revealed and
+resolved an offline test compilation regression and projection mismatch:
+
+1. `tests/test_desktop_gui_offline.cpp`'s `RecordingRuntimeHostControl`
+   referenced `rdp_server::server::security::cleanseStandalonePasswordInput()`,
+   which was undeclared and unlinked on macOS Qt builds since commit `47df6f9`
+   decoupled `RuntimeHostControl` from the optional NTLM backend. Replaced with
+   inline non-elidable volatile UTF-16 scrubbing matching `RuntimeHostControl`.
+2. Updated offline test address assertions to reflect R7's pre-listener
+   `Local address: <ip>` vs listener `Connect to: <ip>:<port>` presentation in
+   `product-status-authority` and `r10-lan-selector`. Set `listenerAvailable` in
+   `plain-runtime-text` so `displayedAddress()` returns the bound endpoint.
+3. Updated `tests/check_gui_owner_acceptance_gate.cmake` to verify
+   `kStandalonePasswordProductCapabilityApproved = true`, matching R10 zero-argument
+   runtime composition from commit `d30efc6`.
+4. In `src/gui/host_control.cpp`, `HostControl::status()` now computes
+   `productMayHost` before `listenerReady` and includes it in `view.listenerReady`
+   (`(runtimeStatus.listenerAvailable || productMayHost) && !terminalHostSession && runtimeStatus.lastError != RuntimeHostError::ControlUnavailable`),
+   ensuring active product-level hosting states (`Listening`, `Authenticating`,
+   `DesktopInitializing`, `Connected`) project listener readiness for address
+   presentation and copy actions when `product.state` is authoritative.
+
+New dedicated behavior CTest:
+`gui.offscreen-product-hosting-listener-readiness` pins `listenerReady` projection
+during active product hosting stages without legacy flags and confirms revocation
+on terminal session error.
+
+Local macOS qualification:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`:
+**PASS** (734/734 tests passed, 100%).
+
 ## R9 Portable GUI Bootstrap exact-SHA PASS and owner nomination (2026-10-23)
 
 **NOMINATED OWNER PRODUCT-TEST CANDIDATE:** `3cabe3ae0d384007eb14edd56890125f38256367`.

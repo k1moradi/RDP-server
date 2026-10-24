@@ -1,3 +1,20 @@
+## Product hosting listener-readiness and offline GUI portability (2026-10-23)
+
+Tests covering `DesktopWindow` and `HostControl` must observe the cross-platform
+independence of the test doubles:
+1. `test_desktop_gui_offline.cpp` must not link or invoke backend-specific
+   credential scrubbing routines such as `cleanseStandalonePasswordInput()`.
+   Use inline volatile scrubbing across caller-owned UTF-16 spans.
+2. Address verification tests must differentiate pre-listener `Local address: <ip>`
+   from bound listener `Connect to: <ip>:<port>`. Copy actions are enabled only
+   when `snapshot.listenerReady && !snapshot.lanAddress.isEmpty()`.
+3. `HostControl::status()` projects `listenerReady` when either legacy
+   `runtimeStatus.listenerAvailable` is true or `productMayHost` is true
+   (`Listening`, `Authenticating`, `DesktopInitializing`, `Connected`), provided
+   no terminal host error or revocation is active.
+4. Dedicated behavior test `gui.offscreen-product-hosting-listener-readiness` pins
+   this projection across lifecycle transitions without relying on legacy fields.
+
 ## R9 Portable GUI Bootstrap acceptance gate (2026-10-23)
 
 Keep **GUI Round 2** as presentation qualification only. The stronger

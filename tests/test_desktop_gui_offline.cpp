@@ -175,7 +175,11 @@ public:
         const bool valid =
             standaloneCredentialSucceeds && !username.empty() &&
             !password.empty();
-        rdp_server::server::security::cleanseStandalonePasswordInput(password);
+        for (char16_t& codeUnit : password)
+        {
+            volatile char16_t* const volatileCodeUnit = &codeUnit;
+            *volatileCodeUnit = u'\0';
+        }
         if (valid)
             snapshot.credentialsConfigured = true;
         return valid;
@@ -1268,7 +1272,7 @@ int main(int argc, char** argv)
         assert(interfaces->currentData().toString() ==
                QStringLiteral("192.168.50.20"));
         assert(address->text() ==
-               QStringLiteral("192.168.50.20:3389"));
+               QStringLiteral("Local address: 192.168.50.20"));
 
         runtime.snapshot.stage = RuntimeHostStage::Stopped;
         runtime.snapshot.listenerAvailable = false;
@@ -1282,7 +1286,7 @@ int main(int argc, char** argv)
         assert(toggle->isChecked());
         assert(title->text().contains("Sharing"));
         assert(address->text() ==
-               QStringLiteral("192.168.50.20:3389"));
+               QStringLiteral("Connect to: 192.168.50.20:3389"));
         assert(host.status().clientCount == 1U);
         assert(host.status().activeClients.size() == 1U);
         assert(host.status().activeClients.front().opaqueId == 77U);
@@ -1321,12 +1325,12 @@ int main(int argc, char** argv)
         auto* toggle = sharingToggle(window);
         assert(interfaces->count() == 3);
         assert(interfaces->currentIndex() == 1);
-        assert(address->text() == QStringLiteral("192.168.2.21:3389"));
+        assert(address->text() == QStringLiteral("Local address: 192.168.2.21"));
         assert(window.canStart() && toggle->isEnabled());
 
         interfaces->setCurrentIndex(2);
         assert(address->text() ==
-               QStringLiteral("192.168.2.21:3389"));
+               QStringLiteral("Local address: 192.168.2.21"));
         toggle->click();
         assert(runtime.configureCalls == 1 && runtime.startCalls == 1);
         assert(runtime.lastOptions.interfaceId == "ethernet-1");
@@ -1339,6 +1343,7 @@ int main(int argc, char** argv)
     {
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint =
             "<a href='https://invalid.example/'>host</a>";
         runtime.snapshot.activeClients = {
@@ -1401,6 +1406,30 @@ int main(int argc, char** argv)
         disconnect->click();
         assert(runtime.disconnectCalls == 1);
         assert(runtime.lastDisconnectedId == 7U);
+        return 0;
+    }
+
+    if (mode == "product-hosting-listener-readiness")
+    {
+        prepareReadyHost(runtime);
+        runtime.deriveProductStatusFromLegacy = false;
+        runtime.snapshot.stage = RuntimeHostStage::Stopped;
+        runtime.snapshot.listenerAvailable = false;
+        runtime.snapshot.lastError = RuntimeHostError::None;
+
+        auto& product = runtime.snapshot.product;
+        product.state = RuntimeProductHostState::Listening;
+        assert(host.status().listenerReady);
+
+        product.state = RuntimeProductHostState::Connected;
+        assert(host.status().listenerReady);
+
+        product.state = RuntimeProductHostState::Stopped;
+        assert(!host.status().listenerReady);
+
+        product.state = RuntimeProductHostState::Connected;
+        runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
+        assert(!host.status().listenerReady);
         return 0;
     }
 

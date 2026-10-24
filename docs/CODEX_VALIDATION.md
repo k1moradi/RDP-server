@@ -1,3 +1,33 @@
+## 2026-10-23 — R7/R10 offline desktop GUI portability and product listener-readiness
+
+Starting exact-main parent: `b055a3b86455da5ee78d7950a0d8b58af122029c`.
+
+**Observed local build/test regressions on macOS:**
+- `test_desktop_gui_offline.cpp:178`: compile failure due to undeclared
+  `rdp_server::server::security::cleanseStandalonePasswordInput` in namespace
+  when compiled on macOS without optional NTLM backend.
+- `gui.owner-acceptance-release-gate-and-production-path`: failed checking
+  stale `= false` token for `kStandalonePasswordProductCapabilityApproved`.
+- `gui.offscreen-r10-product-status-authority` &
+  `gui.offscreen-r10-selected-lan-endpoint-preflight-denials`: failed asserting
+  legacy format instead of R7 `Local address: <ip>` / `Connect to: <ip>:<port>`.
+- `gui.offscreen-runtime-peer-and-endpoint-plain-text`: failed asserting
+  bound endpoint text because `listenerAvailable` was unpopulated.
+- `HostControl::status()` failed to project `listenerReady` when active hosting
+  states were indicated only via `product.state`.
+
+**Corrections:**
+- Inlined volatile UTF-16 scrubbing in `test_desktop_gui_offline.cpp` test fake.
+- Fixed `tests/check_gui_owner_acceptance_gate.cmake` for `kStandalonePasswordProductCapabilityApproved = true`.
+- Reconciled address presentation assertions across offline GUI tests.
+- Updated `HostControl::status()` to recognize `productMayHost` in `view.listenerReady`.
+- Added dedicated CTest `gui.offscreen-product-hosting-listener-readiness`.
+
+**Verification:**
+- macOS Debug full build and CTest: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+- Result: **PASS** (734/734 tests passed, 100%).
+- Remote hosted CI: **PENDING** after publication.
+
 ## R9 Portable GUI Bootstrap exact-SHA PASS and owner nomination (2026-10-23)
 
 **NOMINATED OWNER PRODUCT-TEST CANDIDATE:** `3cabe3ae0d384007eb14edd56890125f38256367`.

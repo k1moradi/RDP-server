@@ -1,3 +1,38 @@
+## R8 P2 consumes DirectNtlm reconnect lifetime while remaining dormant — 2026-10-24
+
+**Starting exact-main parent:** `350a56cbc57ae3f818cfc78ff4b6dfda61788fbc`.
+
+The dependency graph advanced without changing R8 authority. R10 now owns a
+production-backed DirectNtlm failed-peer -> reconnect -> authenticated R2/MCS ->
+Stop -> fresh Start -> authenticated R2/MCS round trip, R2 has hardened the raw
+DirectNtlm envelope, and R5 has pinned that every one of those pre-GraphicsReady
+states has no native X11 owner. Those source-side dependencies are sufficient
+for R8's permitted offline lifetime work to continue.
+
+R8 reuses that same fixture rather than duplicating an integration owner. At
+the initial listener, malformed DirectNtlm retirement, first authenticated MCS
+peer, ordinary Stop, fresh Start, second authenticated MCS peer and final Stop,
+the fixture now additionally requires clipboard state `Unavailable`,
+`graphicsReady == false`, and no `kConsoleClipboardPermission` bit in the
+current owner grant. Together with R5's existing no-native-owner assertions,
+failed DirectNtlm cannot create a clipboard owner, cannot reach CLIPRDR, and
+cannot leave an R8 generation to carry into reconnect/Stop -> Start.
+
+The existing dedicated stale callbacks/receipts remain unchanged:
+`runtime.r8-x11-restart-incr-isolation` and
+`runtime.r8-r3-repeated-restart-receipt-isolation`. The shared DirectNtlm
+lifecycle CTest is additionally labeled `r8-lifetime;clipboard` so R8 can
+select it without registering a duplicate run.
+
+Production C++/RDP wire behavior: **UNCHANGED**. Connector source/test review:
+**PASS**. Canonical owner-local configure/build/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Remaining R8 blocker:** production activation is still **P2 / BLOCKED** on
+the separate owner-authorized physical R8 product receipt. R2/R5/R10 source
+progress and hosted/offline lifetime tests do not authorize changing
+`kLinuxProductionClipboardActivationApproved`.
+
 ## R5 P1 DirectNtlm admitted-MCS dormancy verified (2026-10-24)
 
 **Starting exact-main parent:** `1d755c39cb0a36ed329a2effe8f698d5fcd4fa5f`.

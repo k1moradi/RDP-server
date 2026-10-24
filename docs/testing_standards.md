@@ -1,3 +1,17 @@
+## R8 shares the DirectNtlm reconnect round trip only as a dormancy gate (2026-10-24)
+
+When the production-backed R10 DirectNtlm lifecycle already covers failed-peer
+retirement, reconnect and Stop -> Start, R8 must reuse that fixture rather than
+create a competing owner. While clipboard activation is blocked, each
+pre-GraphicsReady checkpoint must require clipboard `Unavailable`, no
+clipboard permission bit in the current owner grant, and no graphics/native
+ownership. This makes the authentication lifetime an R8 stale-state regression
+without sending CLIPRDR or constructing a clipboard owner.
+
+Keep the dedicated stale INCR and delayed R3 receipt tests as the component
+round trips. Synthetic/hosted success remains regression evidence only and
+cannot satisfy the separate physical activation receipt.
+
 ## R5 DirectNtlm admitted-MCS native-dormancy gate (2026-10-24)
 
 The production-backed R10 DirectNtlm reconnect/Stop -> Start lifecycle now

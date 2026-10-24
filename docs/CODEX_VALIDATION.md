@@ -1,3 +1,27 @@
+## R8 DirectNtlm reconnect dormancy follow-up — 2026-10-24
+
+**Starting exact-main parent:** `350a56cbc57ae3f818cfc78ff4b6dfda61788fbc`.
+
+Dependency recheck found the earlier source-side obstruction has moved. R10's
+production-backed DirectNtlm fixture now spans malformed authentication,
+same-listener retry, valid CredentialsVerified/R2 admission into MCS, ordinary
+Stop, fresh-consent Start and another valid DirectNtlm peer. R5's concurrent
+follow-up pins that all of those states remain before native X11 construction.
+
+R8 continues only stale-lifetime verification. The same nonduplicated fixture
+now additionally asserts at every snapshot that clipboard is `Unavailable`,
+`graphicsReady` is false and the owner grant contains no
+`kConsoleClipboardPermission`. Combined with the R5 no-native-owner checks,
+the failed DirectNtlm connection has no clipboard owner, no CLIPRDR reachability
+and no R8 lifetime to survive into the replacement connection or Stop -> Start.
+The existing stale-INCR and repeated stale-receipt tests are unchanged.
+
+Production C++/wire behavior: **UNCHANGED**. Connector source/test review:
+**PASS**. Canonical local build/full CTest: **NOT RUN**. Exact-publication-SHA
+hosted CI: **PENDING**. No live desktop/clipboard action was performed.
+Production R8 activation remains **BLOCKED / P2** pending the independent
+owner-authorized physical R8 product receipt.
+
 ## R5 DirectNtlm admitted-MCS dormancy follow-up (2026-10-24)
 
 **Starting exact-main parent:** `1d755c39cb0a36ed329a2effe8f698d5fcd4fa5f`.

@@ -961,6 +961,14 @@ struct PeerResult final
         first.begin(), first.end(), second.begin());
 }
 
+void assertClipboardDormant(const RuntimeHostStatus& status) noexcept
+{
+    assert(status.clipboardState == RuntimeClipboardState::Unavailable);
+    assert(!status.graphicsReady);
+    assert((status.ownerGrant.effectivePermissionMask &
+            kConsoleClipboardPermission) == 0U);
+}
+
 [[nodiscard]] bool startSharingOnPort(
     LinuxRuntimeHostControl& control,
     const RuntimeHostRecommendedEndpoint& recommendation,
@@ -1048,6 +1056,7 @@ int main(int argc, char** argv)
     assert(firstListener.credentialsConfigured);
     assert(!firstListener.nativeDesktopReady);
     assert(!firstListener.nativeDesktopInitializing);
+    assertClipboardDormant(firstListener);
     const std::uint64_t firstListenerGeneration =
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
@@ -1074,6 +1083,7 @@ int main(int argc, char** argv)
     assert(afterBad.clientDisconnected);
     assert(!afterBad.nativeDesktopReady);
     assert(!afterBad.nativeDesktopInitializing);
+    assertClipboardDormant(afterBad);
     assert(afterBad.acceptedClientPreauthDiagnostics.available);
     assert(afterBad.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
@@ -1112,6 +1122,7 @@ int main(int argc, char** argv)
     // create the native owner.
     assert(!firstAuthenticated.nativeDesktopReady);
     assert(!firstAuthenticated.nativeDesktopInitializing);
+    assertClipboardDormant(firstAuthenticated);
     assert(firstAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodOne.store(true, std::memory_order_release);
@@ -1133,6 +1144,7 @@ int main(int argc, char** argv)
     assert(stopped.activeClients.empty());
     assert(!stopped.nativeDesktopReady);
     assert(!stopped.nativeDesktopInitializing);
+    assertClipboardDormant(stopped);
     const auto retained =
         control.standaloneApplicationPasswordObservation();
     assert(retained.configured);
@@ -1152,6 +1164,7 @@ int main(int argc, char** argv)
     assert(restarted.credentialsConfigured);
     assert(!restarted.nativeDesktopReady);
     assert(!restarted.nativeDesktopInitializing);
+    assertClipboardDormant(restarted);
     assert(control.standaloneApplicationPasswordObservation().generation ==
            credential.generation);
 
@@ -1171,6 +1184,7 @@ int main(int argc, char** argv)
            restarted.listenerGeneration);
     assert(!secondAuthenticated.nativeDesktopReady);
     assert(!secondAuthenticated.nativeDesktopInitializing);
+    assertClipboardDormant(secondAuthenticated);
     assert(secondAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodTwo.store(true, std::memory_order_release);
@@ -1187,6 +1201,7 @@ int main(int argc, char** argv)
     const auto finalStopped = control.status();
     assert(!finalStopped.nativeDesktopReady);
     assert(!finalStopped.nativeDesktopInitializing);
+    assertClipboardDormant(finalStopped);
     assert(control.standaloneApplicationPasswordObservation().generation ==
            credential.generation);
     assert(control.revokeSharing().succeeded());

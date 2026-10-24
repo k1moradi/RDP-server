@@ -1,3 +1,37 @@
+## R3 automatic licensing hosted qualification closure — 2026-10-23
+
+Qualified exact SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.
+Actions run: `40070183496`.
+
+The original R3 dependency blocker is **RESOLVED**. R1 automatic TLS is now
+separately hosted-qualified, R10 owns the generated R3 licensing context in the
+normal zero-argument application lifetime before Start, and no ordinary GUI
+licensing file or user-facing licensing configuration is required.
+
+Same-SHA hosted R3 evidence from the ordinary full CTest inventory:
+- Windows job `120801757647`: all five
+  `runtime.licensing-autoprovision-*` cases **PASS**, including the Microsoft
+  temporary-certificate marker.
+- macOS job `120801757678`: the same five cases **PASS** on the hosted
+  OpenSSL toolchain.
+- Ubuntu job `120801757716`: the same five cases **PASS**, plus
+  `runtime.linux-host-control-automatic-licensing-prestart-no-listener`
+  **PASS**.
+
+Those protocol jobs had unrelated GUI/R2 aggregate failures on that SHA. The
+R3 cases themselves passed, and the later owning agents corrected the failing
+GUI/standalone tests. From the qualified SHA through current parent
+`8acd291324bcc9b2518334228769d414239367cc`, the generated licensing implementation and both dedicated R3
+test sources are byte-for-byte unchanged; no later commit altered the R3
+provisioning semantics.
+
+Classification: **R3 HOSTED QUALIFICATION PASS** for automatic licensing
+identity provisioning across Windows/Linux/macOS. Owner-native canonical full
+CTest and physical Microsoft-client product acceptance remain separate evidence
+and are not claimed by this receipt. **R3 next gate:** none at the provisioning
+implementation boundary; reopen only if later owner/client evidence specifically
+implicates licensing identity generation, ownership or MS-RDPELE exchange.
+
 ## R7 P0 dedicated owner-acceptance/Release-gate GUI regression (2026-10-23)
 
 Starting exact-main parent: `03aa820a8536a2dec42498072b2f1fc44d886ccf`.

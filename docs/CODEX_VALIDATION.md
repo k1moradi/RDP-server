@@ -1,3 +1,31 @@
+## R3 automatic licensing same-SHA hosted qualification — 2026-10-23
+
+Exact qualified SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.
+Actions run `40070183496`.
+
+Hosted full-CTest logs provide direct R3 evidence:
+- Windows `120801757647`: deterministic ProductInfo, Microsoft root-first
+  X.509 chain shape, temporary `SERVER_CERTIFICATE.dwVersion` marker,
+  generated Server License Request and R1-TLS separation all **PASS**.
+- macOS `120801757678`: the identical five production-backed cases **PASS**.
+- Ubuntu `120801757716`: the identical five cases **PASS** and the normal
+  HostControl pre-Start/no-listener construction case **PASS**.
+
+The aggregate protocol jobs reported failures owned by the then-current
+GUI/StandalonePassword path, not R3. Subsequent R7/R2 commits address those
+failures. A source/blob comparison from the qualified SHA through current
+parent `8acd291324bcc9b2518334228769d414239367cc` shows no change to
+`src/server/runtime/runtime_licensing_context.cpp`,
+`tests/test_runtime_licensing_autoprovision.cpp`, or
+`tests/test_linux_runtime_licensing_autoprovision.cpp`.
+
+R1's separate automatic TLS qualification is also closed, so there is no
+upstream TLS dependency blocker remaining for R3. Source dependency,
+cross-platform compile/test and Microsoft-format provisioning evidence are
+therefore **PASS / RESOLVED** at the R3 implementation boundary. Owner-native
+canonical full CTest and a real Microsoft-client end-to-end product run remain
+separate downstream evidence and are **NOT ESTABLISHED** by this receipt.
+
 ## 2026-10-23 — R7 dedicated acceptance-surface gate regression
 
 Starting exact-main parent: `03aa820a8536a2dec42498072b2f1fc44d886ccf`.

@@ -198,6 +198,44 @@ void testPortableGuiBootstrapReadiness()
     assert(idleResult.succeeded());
 }
 
+void testMacLanEndpointRecommendation()
+{
+    RuntimeHostInterface en0Interface;
+    en0Interface.stableId = "en0#15";
+    en0Interface.displayName = "en0";
+    en0Interface.lanEligible = true;
+    en0Interface.localAddresses = {"192.168.1.6"};
+
+    RuntimeHostInterface bridgeInterface;
+    bridgeInterface.stableId = "bridge100#24";
+    bridgeInterface.displayName = "bridge100";
+    bridgeInterface.lanEligible = true;
+    bridgeInterface.localAddresses = {"192.168.43.1"};
+
+    const std::vector<RuntimeHostInterface> interfaces{en0Interface, bridgeInterface};
+
+    const std::vector<MacRuntimeDefaultRoutePreference> defaultRoutes{
+        {"en0#15", RuntimeHostAddressFamily::Ipv4, 10U}
+    };
+
+    const auto withRoute = recommendMacPrivateLanEndpoint(interfaces, defaultRoutes, 3389U);
+    assert(!withRoute.ambiguous);
+    assert(withRoute.address == "192.168.1.6");
+    assert(withRoute.source == RuntimeHostRecommendationSource::PreferredRoute);
+
+    const auto withoutRoute = recommendMacPrivateLanEndpoint(interfaces, {}, 3389U);
+    assert(!withoutRoute.ambiguous);
+    assert(withoutRoute.address == "192.168.1.6");
+
+    MacRuntimeHostControl hostControl;
+    const auto status = hostControl.status();
+    if (!status.product.eligibleLanInterfaces.empty())
+    {
+        assert(!status.product.recommendedEndpoint.address.empty());
+        assert(!status.product.recommendedEndpoint.ambiguous);
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -227,6 +265,10 @@ int main(int argc, char** argv)
     else if (selected == "macos-portable-gui-bootstrap-readiness")
     {
         testPortableGuiBootstrapReadiness();
+    }
+    else if (selected == "macos-host-control-lan-endpoint-recommendation")
+    {
+        testMacLanEndpointRecommendation();
     }
     else
     {

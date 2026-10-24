@@ -26,6 +26,22 @@
 namespace rdp_server::server::runtime
 {
 
+struct MacRuntimeDefaultRoutePreference final
+{
+    std::string interfaceId;
+    RuntimeHostAddressFamily family{RuntimeHostAddressFamily::Ipv4};
+    std::uint32_t metric{0U};
+};
+
+[[nodiscard]] std::vector<MacRuntimeDefaultRoutePreference>
+readMacDefaultRoutePreferences();
+
+[[nodiscard]] RuntimeHostRecommendedEndpoint
+recommendMacPrivateLanEndpoint(
+    const std::vector<RuntimeHostInterface>& interfaces,
+    std::span<const MacRuntimeDefaultRoutePreference> defaultRoutes,
+    std::uint16_t port = kRuntimeDefaultListenPort);
+
 // Serialized macOS GUI RuntimeHostControl.
 // Follows the same owner-thread execution model and preparation-only lifecycle as Linux.
 // Qt options/views never confer authority.

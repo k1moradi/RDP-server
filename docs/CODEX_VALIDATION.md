@@ -1,3 +1,20 @@
+## macOS LAN route selection and GUI form growth updates (2026-10-24)
+
+Starting exact-main parent: `f7876df97d2b280941de51071ab76a4988188351`.
+
+Validation evidence on macOS arm64:
+- Canonical build command:
+  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+- Build outcome: **PASS** (100% built cleanly with zero warnings under `-Wall -Wextra -Wpedantic -Werror`).
+- Test outcome: **PASS** (744/744 tests passed in 15.28s).
+- Dedicated new behavior test:
+  - `runtime.macos-host-control-lan-endpoint-recommendation`: **PASS** (0.53s)
+- GUI offline and offscreen test suite:
+  - 30/30 tests **PASS**, confirming form layouts and UI states remain fully compliant with all offline contracts.
+- Verified on host:
+  - `MacRuntimeHostControl::status()` selects `en0` (`192.168.1.6:3389`) as the unambiguous preferred route.
+  - Form layout fields in `DesktopWindow` expand to full width and multi-line status labels no longer suffer from vertical font clipping.
+
 ## R9 refreshed owner-acceptance candidate after consent-generation fix — 2026-10-24
 
 **OWNER PRODUCT-TEST CANDIDATE:** `c3cbe4450eff11a143b0f36e715cdf6a22113641`.

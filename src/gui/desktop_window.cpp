@@ -395,6 +395,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
 
     mainLayout->addWidget(heading(QStringLiteral("Access"), mainTab_));
     auto* accessForm = new QFormLayout();
+    accessForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     accessForm->addRow(usernameLabel_, username_);
     accessForm->addRow(sessionPasswordLabel_, sessionPassword_);
     accessForm->addRow(sessionPasswordConfirmLabel_, sessionPasswordConfirm_);
@@ -441,6 +442,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         new QGroupBox(QStringLiteral("Network"), advancedContent);
     networkGroup->setObjectName("networkGroup");
     auto* networkForm = new QFormLayout(networkGroup);
+    networkForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     networkForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
     networkForm->addRow(QStringLiteral("Automatic selection"),
                         selectedInterfaceStatus_);
@@ -452,6 +454,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         new QGroupBox(QStringLiteral("Security"), advancedContent);
     securityGroup->setObjectName("securityGroup");
     auto* securityForm = new QFormLayout(securityGroup);
+    securityForm->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
     securityForm->setRowWrapPolicy(QFormLayout::WrapLongRows);
     securityForm->addRow(QStringLiteral("Authentication"),
                          authenticationModeStatus_);

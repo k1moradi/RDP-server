@@ -1,3 +1,31 @@
+## macOS LAN route selection and GUI form growth updates (2026-10-24)
+
+Starting exact-main parent: `f7876df97d2b280941de51071ab76a4988188351`.
+
+Addressed macOS native runtime host network selection and GUI presentation feedback:
+- Resolved ambiguous network selection when virtual bridges or VPN tunnels exist alongside
+  the primary physical network interface:
+  - Excluded point-to-point interfaces (`IFF_POINTOPOINT`) in `MacRuntimeHostControl::enumerateLocalInterfaces()`,
+    ensuring VPN and tunnel endpoints (such as `ipsec*`, `utun*`) are excluded from LAN candidates.
+  - Implemented `readMacDefaultRoutePreferences()` querying `SCDynamicStore` for active network
+    services with configured default gateways/routers (`State:/Network/Service/.*/IPv4`).
+  - Implemented `recommendMacPrivateLanEndpoint()` in `src/server/runtime/mac_runtime_host_control.cpp`,
+    marking matching default-route interfaces with `preferredRoute = true` and `routeMetric = 10`,
+    and giving physical Ethernet/Wi-Fi (`en*`) interfaces precedence over virtual bridge interfaces.
+  - As a result, the primary physical network interface (e.g. `en0` at `192.168.1.6`) is selected
+    as the authoritative recommended private LAN endpoint without ambiguity.
+- Resolved font height and label truncation in the Advanced tab's Security section:
+  - Configured `setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow)` on `accessForm`,
+    `networkForm`, and `securityForm` in `DesktopWindow` (`src/gui/desktop_window.cpp`).
+  - On macOS, Qt's native style defaults `fieldGrowthPolicy` to `FieldsStayAtSizeHint`, which
+    clamped multi-line status labels to narrow widths and truncated wrapped lines;
+    `AllNonFixedFieldsGrow` allows fields to expand across the full column width and
+    accurately compute row heights.
+- Registered new behavior CTest in `tests/CMakeLists.txt`:
+  `runtime.macos-host-control-lan-endpoint-recommendation`.
+
+Verification: 744/744 tests **PASS** on macOS Debug.
+
 ## R9 refreshed owner-acceptance candidate after consent-generation fix — 2026-10-24
 
 **OWNER PRODUCT-TEST CANDIDATE:** `c3cbe4450eff11a143b0f36e715cdf6a22113641`.

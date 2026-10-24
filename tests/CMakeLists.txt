@@ -451,7 +451,8 @@ if(TARGET rdp-server-macos-host-control)
             macos-host-control-standalone-password-lifecycle
             macos-host-control-sharing-permission-lifecycle
             macos-host-control-stop-revoke-retirement
-            macos-portable-gui-bootstrap-readiness)
+            macos-portable-gui-bootstrap-readiness
+            macos-host-control-lan-endpoint-recommendation)
         add_test(NAME "runtime.${mac_host_control_case}"
             COMMAND test_macos_runtime_host_control "${mac_host_control_case}")
         set_tests_properties("runtime.${mac_host_control_case}" PROPERTIES

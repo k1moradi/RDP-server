@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mac_runtime_host_control.h"
 
+#include <CoreFoundation/CoreFoundation.h>
+#include <SystemConfiguration/SystemConfiguration.h>
+
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
@@ -10,6 +13,7 @@
 #include <array>
 #include <cstring>
 #include <limits>
+#include <memory>
 #include <utility>
 
 namespace rdp_server::server::runtime
@@ -278,6 +282,148 @@ void MacRuntimeHostControl::retireStoppedRuntime(
     deploymentPolicy_.reset();
 }
 
+std::vector<MacRuntimeDefaultRoutePreference>
+readMacDefaultRoutePreferences()
+{
+    std::vector<MacRuntimeDefaultRoutePreference> routes;
+    SCDynamicStoreRef store = SCDynamicStoreCreate(
+        kCFAllocatorDefault, CFSTR("rdp_default_route_preference"), nullptr, nullptr);
+    if (store == nullptr)
+        return routes;
+
+    const std::unique_ptr<const __SCDynamicStore, decltype(&CFRelease)>
+        storeOwner(store, &CFRelease);
+
+    const void* patternList[] = {
+        CFSTR("State:/Network/Service/.*/IPv4"),
+        CFSTR("State:/Network/Service/.*/IPv6")
+    };
+    CFArrayRef patterns = CFArrayCreate(
+        kCFAllocatorDefault, patternList, 2, &kCFTypeArrayCallBacks);
+    if (patterns == nullptr)
+        return routes;
+    const std::unique_ptr<const __CFArray, decltype(&CFRelease)>
+        patternsOwner(patterns, &CFRelease);
+
+    CFDictionaryRef matches = SCDynamicStoreCopyMultiple(store, nullptr, patterns);
+    if (matches == nullptr)
+        return routes;
+    const std::unique_ptr<const __CFDictionary, decltype(&CFRelease)>
+        matchesOwner(matches, &CFRelease);
+
+    const CFIndex count = CFDictionaryGetCount(matches);
+    if (count <= 0)
+        return routes;
+
+    std::vector<const void*> keys(static_cast<std::size_t>(count));
+    std::vector<const void*> values(static_cast<std::size_t>(count));
+    CFDictionaryGetKeysAndValues(matches, keys.data(), values.data());
+
+    for (CFIndex i = 0; i < count; ++i)
+    {
+        auto dict = static_cast<CFDictionaryRef>(values[i]);
+        if (dict == nullptr || CFGetTypeID(dict) != CFDictionaryGetTypeID())
+            continue;
+
+        auto ifNameRef = static_cast<CFStringRef>(
+            CFDictionaryGetValue(dict, CFSTR("InterfaceName")));
+        auto routerRef = static_cast<CFStringRef>(
+            CFDictionaryGetValue(dict, CFSTR("Router")));
+        if (ifNameRef == nullptr || routerRef == nullptr)
+            continue;
+
+        char ifNameBuf[IFNAMSIZ]{};
+        if (!CFStringGetCString(ifNameRef, ifNameBuf, sizeof(ifNameBuf),
+                                kCFStringEncodingUTF8))
+            continue;
+
+        const unsigned int index = ::if_nametoindex(ifNameBuf);
+        if (index == 0U)
+            continue;
+
+        const std::string stableId =
+            std::string(ifNameBuf) + "#" + std::to_string(index);
+
+        auto keyRef = static_cast<CFStringRef>(keys[i]);
+        char keyBuf[128]{};
+        CFStringGetCString(keyRef, keyBuf, sizeof(keyBuf),
+                           kCFStringEncodingUTF8);
+        const bool isIpv6 = (std::strstr(keyBuf, "IPv6") != nullptr);
+        const auto family = isIpv6 ? RuntimeHostAddressFamily::Ipv6
+                                   : RuntimeHostAddressFamily::Ipv4;
+
+        if (std::ranges::any_of(
+                routes,
+                [&](const MacRuntimeDefaultRoutePreference& route) {
+                    return route.interfaceId == stableId &&
+                           route.family == family;
+                }))
+            continue;
+
+        routes.push_back({stableId, family, 10U});
+    }
+    return routes;
+}
+
+RuntimeHostRecommendedEndpoint
+recommendMacPrivateLanEndpoint(
+    const std::vector<RuntimeHostInterface>& interfaces,
+    const std::span<const MacRuntimeDefaultRoutePreference> defaultRoutes,
+    const std::uint16_t port)
+{
+    std::vector<RuntimeHostLanEndpointCandidate> candidates;
+    for (const RuntimeHostInterface& runtimeInterface : interfaces)
+    {
+        for (const std::string& address : runtimeInterface.localAddresses)
+        {
+            const RuntimeHostOptions selection{
+                runtimeInterface.stableId, address, port, true, false};
+            if (!assessRuntimeSelectedLanEndpoint(
+                    selection, interfaces).succeeded())
+                continue;
+
+            RuntimeHostLanEndpointCandidate candidate;
+            candidate.interfaceId = runtimeInterface.stableId;
+            candidate.address = address;
+            candidate.family = address.find(':') == std::string::npos
+                ? RuntimeHostAddressFamily::Ipv4
+                : RuntimeHostAddressFamily::Ipv6;
+            candidate.privateLanEligible = true;
+
+            bool matchedDefaultRoute = false;
+            for (const MacRuntimeDefaultRoutePreference& route : defaultRoutes)
+            {
+                if (route.interfaceId != candidate.interfaceId ||
+                    route.family != candidate.family)
+                    continue;
+                candidate.preferredRoute = true;
+                matchedDefaultRoute = true;
+                if (!candidate.routeMetric.has_value() ||
+                    route.metric < *candidate.routeMetric)
+                    candidate.routeMetric = route.metric;
+            }
+
+            // In absence of an explicit default route from SCDynamicStore,
+            // physical Ethernet/Wi-Fi interfaces (en*) outrank virtual bridges.
+            if (!matchedDefaultRoute)
+            {
+                if (runtimeInterface.displayName.starts_with("en"))
+                {
+                    candidate.preferredRoute = true;
+                    candidate.routeMetric = 50U;
+                }
+                else
+                {
+                    candidate.routeMetric = 100U;
+                }
+            }
+
+            candidates.emplace_back(std::move(candidate));
+        }
+    }
+    return recommendRuntimePrivateLanEndpoint(candidates, port);
+}
+
 std::vector<RuntimeHostInterface>
 MacRuntimeHostControl::enumerateLocalInterfaces() const
 {
@@ -296,6 +442,7 @@ MacRuntimeHostControl::enumerateLocalInterfaces() const
             (current->ifa_flags & (IFF_UP | IFF_RUNNING)) !=
                 (IFF_UP | IFF_RUNNING) ||
             (current->ifa_flags & IFF_LOOPBACK) != 0 ||
+            (current->ifa_flags & IFF_POINTOPOINT) != 0 ||
             !isEligibleAddress(current->ifa_addr))
             continue;
         const unsigned index = ::if_nametoindex(current->ifa_name);
@@ -419,9 +566,12 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
     snapshot.product.eligibleLanInterfaces = enumerateLocalInterfaces();
     const std::uint16_t recommendedPort =
         selectionConfigured_ ? selection_.port : 3389U;
+    const std::vector<MacRuntimeDefaultRoutePreference> defaultRoutes =
+        readMacDefaultRoutePreferences();
     snapshot.product.recommendedEndpoint =
-        recommendRuntimePrivateLanEndpoint(
-            snapshot.product.eligibleLanInterfaces, recommendedPort);
+        recommendMacPrivateLanEndpoint(
+            snapshot.product.eligibleLanInterfaces, defaultRoutes,
+            recommendedPort);
     snapshot.product.boundEndpoint = snapshot.boundEndpoint;
     snapshot.product.clientCount = snapshot.activeClients.size();
     snapshot.product.activeClientIds.reserve(snapshot.activeClients.size());

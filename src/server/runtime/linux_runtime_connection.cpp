@@ -18,6 +18,24 @@ namespace rdp_server::server::runtime
 namespace
 {
 
+[[nodiscard]] constexpr const char *standaloneSpnegoReasonName(
+    rdp_server::server::security::StandaloneSpnegoStatus status) noexcept
+{
+    using Status = rdp_server::server::security::StandaloneSpnegoStatus;
+    switch (status)
+    {
+    case Status::Continue: return "initial-accepted-or-no-token";
+    case Status::MechanismVerified: return "mechanism-verified";
+    case Status::InvalidState: return "invalid-mechanism-state";
+    case Status::InvalidToken: return "invalid-der-or-ntlm-token";
+    case Status::UnsupportedMechanismIntegrity:
+        return "unsupported-mechanism-integrity";
+    case Status::CredentialRejected: return "ntlm-credential-rejected";
+    case Status::OutputTooSmall: return "bounded-output-exhausted";
+    }
+    return "unknown-rejection";
+}
+
 [[nodiscard]] constexpr const char *standaloneFailureStageName(
     rdp_server::server::security::StandaloneAuthenticationFailureStage
         stage) noexcept
@@ -802,8 +820,12 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
     std::fprintf(
         stderr,
         "rdp-server: standalone authentication failed: stage=%s; "
+        "tls=%s; credssp=spnego-initial; spnego=%s; "
         "os-gss-fallback=disabled\n",
-        standaloneFailureStageName(failureStage));
+        standaloneFailureStageName(failureStage),
+        tlsEverEstablished_ ? "established" : "not-established",
+        standaloneSpnegoReasonName(
+            standaloneCredSspAcceptor_.lastSpnegoStatus()));
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept

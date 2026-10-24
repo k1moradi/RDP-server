@@ -1,3 +1,35 @@
+## R9 P0 — SPNEGO-first owner evidence supersedes TLS-first diagnosis (2026-10-24)
+
+**NEW OWNER OBSERVATION:** `standalone authentication failed: stage=spnego; os-gss-fallback=disabled`.
+This proves execution entered standalone SPNEGO through an owned CredSSP
+TSRequest, which requires the established R1 TLS/HYBRID owner. Microsoft
+client's generic handshake message does not place the failure inside TLS.
+The first demonstrated blocker is **standalone SPNEGO interoperability**.
+
+The `r9-start-stop-start-and-tls-interop` same-port three-cycle fixture
+and real TLS peer remain required (ordinary Stop retains the memory-only
+credential, not permission). They are no longer sufficient to nominate an
+owner candidate. Add `r9-standalone-credssp-spnego-microsoft-negotiation`:
+a deterministic Kerberos-first Microsoft-style NegTokenInit2/negHints token,
+NTLM mechanism selection, continuation Type 1 and entry to Type 2 challenge.
+This synthetic shape is *not* claimed to be a captured Microsoft client
+token and is not a full live TLS/TSRequest v5/v6 integration trace.
+
+On failure, R10 now reports redacted `tls=...`,
+`credssp=spnego-initial`, and a parser status `spnego=...`
+alongside the legacy stage and `os-gss-fallback=disabled`. The precise
+structural reject subfield remains limited by the shared parser's
+`InvalidToken` category (DER envelope versus embedded NTLM), and must be
+refined further if the owner still observes that outcome. No private token
+bytes, credentials or keys are logged; no GSS fallback is enabled.
+
+**Gate state: NOT RUN / NOT QUALIFIED.** The real owner retry must preserve
+the same SHA for server R1/TLS and CredSSP/SPNEGO structural diagnostics,
+the matching Microsoft client log, and a confirmed NTLM Type 2 challenge.
+Do not call standalone password Microsoft-client interoperability PASS
+until actual owner evidence shows it. The upstream TLS fixture alone is
+insufficient, and R2/R3/R4 protocol rewrites remain unapproved absent evidence.
+
 ## R9 P0 — start/stop/start and TLS interop exact-SHA pre-owner gate (2026-10-24)
 
 **Gate:** `r9-start-stop-start-and-tls-interop`. **State: NOT RUN / NOT QUALIFIED.**

@@ -1,3 +1,15 @@
+## R9 SPNEGO-first acceptance correction (2026-10-24)
+
+A standalone `stage=spnego` failure after an owned TSRequest demonstrates
+established TLS/HYBRID provenance and does not justify TLS-first blame.
+The pre-owner R9 gate combines the three-cycle same-port host lifecycle,
+X.224/TLS identity test, and synthetic Microsoft-compatible NegTokenInit2
+Kerberos-first/NTLM-select/Type 2 challenge CTest. Synthetic SPNEGO coverage
+does not replace TLS-bound TSRequest v5/v6 full-chain verification or actual
+client logs. Do not nominate owner acceptance on a generic SPNEGO stage;
+capture the redacted `tls`, `credssp` and `spnego` fields and correlate
+the exact SHA and real client trace. Preserve GSS fallback disabled.
+
 ## R9 TLS-first and repeated Sharing qualification (2026-10-24)
 
 Run `r9-start-stop-start-and-tls-interop` against the exact commit. A native

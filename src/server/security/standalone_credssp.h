@@ -116,6 +116,13 @@ public:
         return failureStage_;
     }
 
+    // Redacted parser outcome captured before terminal mechanism cleansing.
+    // This is diagnostic only and never authorizes fallback or admission.
+    [[nodiscard]] StandaloneSpnegoStatus lastSpnegoStatus() const noexcept
+    {
+        return lastSpnegoStatus_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -156,6 +163,8 @@ private:
     [[nodiscard]] bool matchesPinnedTls(const SSL *serverTls) const noexcept;
 
     StandaloneSpnegoNtlmAcceptor mechanism_{};
+    StandaloneSpnegoStatus lastSpnegoStatus_{
+        StandaloneSpnegoStatus::Continue};
     TsRequestFrameReader *boundReader_{};
     TsRequestTlsReplyWriter *boundWriter_{};
     const SSL *boundServerTls_{};

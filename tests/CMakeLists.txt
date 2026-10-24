@@ -169,6 +169,15 @@ foreach(ntlm_security_case IN ITEMS
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
 endforeach()
 
+# R9 P0 Microsoft-compatible synthetic NegTokenInit2 path through
+# Kerberos-first mechanism selection into NTLM challenge. This does not claim
+# that the unmodified owner client succeeded or that GSS fallback is enabled.
+add_test(NAME r9-standalone-credssp-spnego-microsoft-negotiation
+    COMMAND test_standalone_spnego
+        r9-microsoft-neginit2-ntlm-challenge)
+set_tests_properties(r9-standalone-credssp-spnego-microsoft-negotiation
+    PROPERTIES LABELS "r9;security;spnego;credssp;offline")
+
 # R2 standalone SPNEGO/NTLM mechanism state. These are bounded offline wire
 # and cryptographic tests only; no TSRequest/TLS, GUI secret or R2 admission.
 add_executable(test_standalone_spnego test_standalone_spnego.cpp)

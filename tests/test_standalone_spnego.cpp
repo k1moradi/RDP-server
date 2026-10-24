@@ -207,6 +207,47 @@ int main(int argc, char **argv)
         return 2;
     const std::string_view testCase{argv[1]};
 
+
+    if (testCase == "r9-microsoft-neginit2-ntlm-challenge")
+    {
+        // Windows-compatible synthetic token structure, not an owner capture:
+        // Kerberos-first MechTypeList, optimistic Kerberos mechToken,
+        // Microsoft's NegTokenInit2 negHints, then explicit NTLM Type 1.
+        const std::vector<Bytes> mechanisms{
+            Bytes(kKerberosOid.begin(), kKerberosOid.end()),
+            Bytes(kNtlmOid.begin(), kNtlmOid.end())};
+        const std::array<std::uint8_t, 1> optimisticKerberos{0x01U};
+        StandaloneSpnegoNtlmAcceptor acceptor;
+        assert(configure(acceptor));
+        const auto initial = initialToken(
+            mechanisms, optimisticKerberos, true);
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+        const auto selected = acceptor.acceptInitialToken(initial, reply);
+        assert(selected.status == StandaloneSpnegoStatus::Continue);
+        assert(acceptor.stage() ==
+               StandaloneSpnegoStage::AwaitNtlmNegotiate);
+        const auto expectedSelection = expectedServerResponse(3U, true);
+        assert(selected.bytesWritten == expectedSelection.size());
+        assert(std::equal(expectedSelection.begin(),
+                          expectedSelection.end(), reply.begin()));
+
+        const auto typeOne = continuationToken(negotiateMessage());
+        reply.fill(0);
+        const auto challenged = acceptor.acceptContinuationToken(
+            typeOne, EphemeralNtlmV2Credential{}, reply);
+        assert(challenged.status == StandaloneSpnegoStatus::Continue);
+        assert(acceptor.stage() ==
+               StandaloneSpnegoStage::AwaitNtlmAuthenticate);
+        assert(challenged.bytesWritten > 0U);
+        // The challenge contains NTLMSSP Type 2 only inside a strict
+        // NegTokenResp: do not accept a naked NTLM downgrade.
+        const auto challengeEnvelope = expectedServerResponse(
+            1U, false, {});
+        assert(challenged.bytesWritten > challengeEnvelope.size());
+        assert(reply[0] == 0xa1U);
+        return 0;
+    }
+
     if (testCase == "spnego-ntlm-first-negotiate-challenge")
     {
         StandaloneSpnegoNtlmAcceptor acceptor;

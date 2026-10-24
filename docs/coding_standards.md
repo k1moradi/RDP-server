@@ -1,3 +1,15 @@
+## R9 standalone SPNEGO diagnostics (2026-10-24)
+
+In the independent Session Password authentication mode, propagate only
+a bounded `StandaloneSpnegoStatus` from the mechanism through CredSSP
+before the mechanism resets on failure. Redacted runtime diagnostics
+may classify invalid state/token, mechanism-integrity mismatch, NTLM
+credential rejection or bounded reply exhaustion. They must not log peer
+token material, username, password, session key or hash, alter fallback
+selection, or grant admission. The current invalid-token category can
+cover both ASN.1 DER and embedded NTLM framing and is not yet a byte-level
+root-cause diagnosis.
+
 ## Ordinary Stop versus terminal credential revoke (2026-10-24)
 
 Linux HostControl ordinary Stop invalidates current-owner authorization first,

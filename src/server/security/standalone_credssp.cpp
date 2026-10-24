@@ -106,6 +106,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
         stage_ = StandaloneCredSspStage::Failed;
         return false;
     }
+    lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
@@ -475,6 +476,9 @@ StandaloneCredSspNtlmAcceptor::processNego(
         return reject(reader, writer);
     }
 
+    // Preserve the bounded cause before reject() clears the SPNEGO owner.
+    // The diagnostic never contains peer token bytes or credentials.
+    lastSpnegoStatus_ = step.status;
     if (!step ||
         step.bytesWritten == 0 ||
         step.bytesWritten > mechanismReply.size())

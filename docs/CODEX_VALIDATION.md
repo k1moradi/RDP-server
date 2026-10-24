@@ -1,3 +1,32 @@
+## R7 exact-SHA hosted Stop/restart qualification (2026-10-24)
+
+**Qualified exact SHA:** `5024ad560fa53ea56b5ff53f759e393675c434a2`.
+
+Hosted workflow `40103374391` confirms the focused R7 owner-GUI gate on both
+supported desktop-hosting platforms used by this qualification:
+
+- Ubuntu job `120899938206`: the inventory contained exactly
+  `gui.owner-acceptance-release-gate-and-production-path`,
+  `gui.offscreen-owner-acceptance-credential-editor-parity`, and
+  `gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`;
+  all three executed and **PASS**.
+- macOS job `120899938115`: the same exact three-test inventory executed and
+  **PASS**.
+
+The three-cycle test proves one credential configuration, cleared secret
+editors, ordinary Stop rather than full revoke, retained configured credential,
+fresh owner permission on every Start, listener-authoritative ON, confirmed
+Stopped OFF, and restart without password re-entry. No skip qualified the gate.
+
+The same exact SHA is also green in the Linux/macOS/Windows protocol jobs,
+R9 security sanitizers, R7 macOS GUI/lifecycle/sanitizer jobs, R5 Linux GUI ZIP,
+R2 Linux runtime-security jobs, and GUI Round 2 acceptance.
+
+Repository-side R7 implementation + hosted qualification: **PASS**.
+Physical owner Linux/X11 round-trip: **NOT RUN / REQUIRES EXPLICIT LIVE-TEST
+AUTHORIZATION**. Real Microsoft-client interoperability remains separately
+blocked in R2 standalone SPNEGO before `CredentialsVerified`.
+
 ## R1 post-compile hosted regression repair (2026-10-24)
 
 Starting reconciled main:

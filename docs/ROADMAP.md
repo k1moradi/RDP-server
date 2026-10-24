@@ -1,3 +1,40 @@
+## R7 hosted Session Password Stop/restart qualification complete (2026-10-24)
+
+**Qualified exact SHA:** `5024ad560fa53ea56b5ff53f759e393675c434a2`.
+
+The former R7 lifecycle and hosted-validation blockers are resolved on shared
+main. R10/R2 retain only the generation-fenced memory-only standalone credential
+across ordinary Stop, R5/R6 require fresh native evidence and fresh owner consent
+before every restart, and R7 continues to project cleared Password/Confirm
+editors as reuse of that configured credential rather than loss of credential
+state.
+
+Exact-SHA workflow `40103374391` provides current-head hosted evidence:
+
+- Ubuntu `r9-owner-gui-credential-parity`, job `120899938206`: **PASS**.
+- macOS `r9-owner-gui-credential-parity`, job `120899938115`: **PASS**.
+- On both platforms the focused Release +
+  `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` inventory contained exactly three
+  tests, including
+  `gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`,
+  and all three executed without skip and **PASS**.
+- The same exact SHA also has **PASS** for Linux/macOS/Windows protocol,
+  R9 security sanitizers, R7 macOS portable GUI/native lifecycle/session
+  sanitizers, R5 Linux GUI ZIP, R2 Linux runtime-security, and GUI Round 2
+  acceptance.
+
+R7 repository-side implementation and hosted qualification are therefore
+**PASS**. No additional R7 production change is justified by current evidence.
+
+**Remaining R7 gate:** physical owner Linux/X11 GUI round-trip using the
+production application: enter Username/Password/Confirm once -> Sharing ON ->
+Listening -> Sharing OFF -> Stopped -> Sharing ON again without secret re-entry,
+repeated for at least three cycles. This requires explicit owner authorization
+for live desktop/listener testing and cannot be claimed from hosted CI.
+
+The independent product interoperability blocker remains R2 standalone SPNEGO
+before `CredentialsVerified`; R3 and R4 remain downstream.
+
 ## R1 CI regression repair — diagnostics remain non-authoritative (2026-10-24)
 
 **Starting reconciled main:** `c311450842b1e52ba3a97fa894c22dbeb3135b16`.

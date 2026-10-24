@@ -1,3 +1,19 @@
+## R8 CI workflow recovery after literal-replacement corruption — 2026-10-24
+
+Starting exact-main parent: `7acd0ab4fe108340c08ebd9efbcbd6e5a336b160`.
+
+The two prior corrective edits used JavaScript replacement strings containing
+the shell token `$'`; JavaScript interpreted `$'` as a replacement
+substitution and duplicated workflow suffix content. The resulting workflow
+diff was 591 additions and GitHub rejected the workflow before jobs. This
+recovery reconstructs `.github/workflows/ci.yml` from last known-good parent
+`8676668cc15447f1cae85ae6bcbff58b256ba372` and reapplies only the intended three changes: add the ninth R8
+test to the selector, require its name, and change the exact count from eight
+to nine.
+
+No production/authentication/clipboard/listener/RDP wire source changes.
+Connector compare review after recovery is required before publication.
+
 ## R8 CI selector follow-up correction — 2026-10-24
 
 Starting exact-main parent: `93ff5dc87083854f2035124dcb807a129ae3bdec`.

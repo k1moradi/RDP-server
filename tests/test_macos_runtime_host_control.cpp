@@ -226,14 +226,23 @@ void testMacLanEndpointRecommendation()
     const auto withoutRoute = recommendMacPrivateLanEndpoint(interfaces, {}, 3389U);
     assert(!withoutRoute.ambiguous);
     assert(withoutRoute.address == "192.168.1.6");
+}
 
+[[nodiscard]] bool testMacNativeLanEndpointObservation()
+{
     MacRuntimeHostControl hostControl;
     const auto status = hostControl.status();
-    if (!status.product.eligibleLanInterfaces.empty())
-    {
-        assert(!status.product.recommendedEndpoint.address.empty());
-        assert(!status.product.recommendedEndpoint.ambiguous);
-    }
+    const auto& recommended = status.product.recommendedEndpoint;
+    if (status.product.eligibleLanInterfaces.empty() || !recommended.valid())
+        return false;
+
+    assert(!recommended.ambiguous);
+    const RuntimeHostOptions selection{
+        recommended.interfaceId, recommended.address, recommended.port,
+        true, false};
+    assert(assessRuntimeSelectedLanEndpoint(
+               selection, status.product.eligibleLanInterfaces).succeeded());
+    return true;
 }
 
 } // namespace
@@ -269,6 +278,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-lan-endpoint-recommendation")
     {
         testMacLanEndpointRecommendation();
+    }
+    else if (selected == "macos-host-control-native-lan-endpoint-observation")
+    {
+        if (!testMacNativeLanEndpointObservation())
+            return 77;
     }
     else
     {

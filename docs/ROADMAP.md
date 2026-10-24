@@ -1,3 +1,49 @@
+## R6 P1 cross-platform HostControl test-hermeticity audit — 2026-10-24
+
+Starting exact-main parent: `51e6cbd7af106af12e4e66977dd83a2901a7fabb`.
+
+R10's P0 fixes are preserved: the three owner-reported Linux regressions use
+injected unavailable evidence, a deterministic positive/negative permission
+matrix exists, and
+`runtime.linux-host-control-default-native-evidence-projection` separately
+observes the production/default logind/X11 source. R6's portability audit found
+three remaining classes of environment coupling.
+
+First, the new positive injected permission fixture still derived its synthetic
+UID from `getuid()` and skipped when CTest ran as root. That path never uses NSS
+or any native API, so it now uses fixed nonzero fixture UID `1000`; the
+`offline` test no longer varies with the invoking account. Second, six Linux
+HostControl cases intentionally consume real interface/native identity, NSS
+account state or a real listener prerequisite. Their test names are unchanged,
+but CTest registration moves them from `offline` to the explicit
+`linux;native-environment` integration group. Third, the macOS LAN
+recommendation case mixed deterministic synthetic route ranking with a read of
+the real host interface snapshot. The synthetic case remains offline, while new
+`runtime.macos-host-control-native-lan-endpoint-observation` owns the
+production/default observation and skips when no unambiguous eligible endpoint
+exists.
+
+Generic cross-platform HostControl tests use deterministic synthetic data.
+No concrete Windows RuntimeHostControl test was found whose expected result
+requires a native activation change. Windows/macOS native activation,
+production owner-consent, zero-config runtime composition, listener policy and
+RDP wire behavior are unchanged. The macOS native observation performs no
+consent request, listener Start, capture or input.
+
+No source-token policy CTest was added: one would overfit constructor spelling
+while missing semantically equivalent native reads. Explicit CTest
+classification plus the separated macOS native integration case directly cover
+the observed defect class.
+
+Connector source/registration review: **PASS**. Owner-local canonical
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** owner physical Linux/X11 reruns the canonical three-test P0
+selector; hosted CI must pass the same deterministic cases and the fixed injected
+permission matrix. Native-environment tests may PASS or use only their
+documented prerequisite skip.
+
 ## R10 P0 HostControl permission-fixture matrix completion (2026-10-24)
 
 Starting exact-main parent: `1bbadd5309ba21709069ab1144e4679d6932f103`.

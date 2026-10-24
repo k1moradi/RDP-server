@@ -1,3 +1,24 @@
+## R6 HostControl cross-platform hermeticity audit — 2026-10-24
+
+Starting exact-main parent: `51e6cbd7af106af12e4e66977dd83a2901a7fabb`.
+
+R10's owner-consent P0 behavior fixes remain intact. R6 removed the remaining
+runner-UID dependency from the injected offline permission matrix by using a
+fixed synthetic UID, reclassified six Linux HostControl cases that intentionally
+consume interface/native identity/NSS/listener prerequisites as
+`linux;native-environment`, and split the macOS LAN test so synthetic
+recommendation semantics remain offline while production route/interface
+observation has its own skip-capable native-environment CTest.
+
+No production source or Windows/macOS native activation behavior changed. The
+new macOS integration observation is read-only: it neither requests consent nor
+starts a listener, capture or input path. A token-based source-contract guard
+was intentionally not added because it would overfit spelling rather than the
+environment-dependence class.
+
+Connector source/registration review: **PASS**. Owner-local build/full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R10 P0 HostControl permission-fixture matrix completion (2026-10-24)
 
 Starting exact-main parent: `1bbadd5309ba21709069ab1144e4679d6932f103`.

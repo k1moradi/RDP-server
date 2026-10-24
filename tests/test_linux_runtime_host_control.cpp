@@ -245,10 +245,10 @@ int main(int argc, char** argv)
                RuntimeHostError::InvalidConfiguration);
         assert(!unavailable.status().listenerAvailable);
 
-        const auto processUid = static_cast<std::uint32_t>(::getuid());
-        if (processUid == 0U)
-            return 77;
-        PortableBootstrapEvidence eligibleEvidence(processUid);
+        // This branch is fully synthetic: permissionObservation()/requestConsent()
+        // consume only the injected evidence, so the fixture UID must not
+        // depend on the user running CTest.
+        PortableBootstrapEvidence eligibleEvidence(1000U);
         LinuxRuntimeHostControl eligible(eligibleEvidence);
         auto eligibleStatus = eligible.status();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

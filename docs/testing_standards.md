@@ -38,7 +38,19 @@ permission mask. R10 maps R2 `EvidenceUnavailable` to product
 descriptive and never substitutes for `authorizes()`.
 
 Such offline tests must not open a listener, capture a real desktop, inject
-input, or use the invoking machine's logind/X11 state as a fixture.
+input, or use the invoking machine's logind/X11 state as a fixture. Synthetic
+positive evidence must also use fixed fixture identities rather than
+`getuid()`, the logged-in account or another runner-derived identity unless
+the test is explicitly classified as native-environment integration.
+
+Apply the same hermeticity rule to HostControl platform inventory. A test that
+intentionally consumes the real route/interface list, native interface identity,
+NSS account database or another host-session prerequisite belongs in an
+explicit native-environment integration group rather than the `offline`
+group. Use `SKIP_RETURN_CODE 77` when absence of that prerequisite is a valid
+environment outcome. Keep deterministic policy/algorithm assertions in a
+separate offline case so native coverage cannot substitute for portable
+semantics.
 
 ## R9 credential-generation replacement acceptance rule (2026-10-24)
 

@@ -341,17 +341,29 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-injected-owner-evidence-permission-determinism
             linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
-            linux-host-control-revalidated-interface-denials
-            linux-host-control-automatic-tls-identity-lifecycle
-            linux-host-control-rejected-selection-retires-previous
-            linux-host-control-native-interface-id-verification
-            linux-host-control-standalone-password-lifecycle
-            linux-portable-gui-bootstrap-listener-acceptance
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")
         set_tests_properties("runtime.${host_control_case}" PROPERTIES
             LABELS "runtime;security;r10-host-control;offline"
+            SKIP_RETURN_CODE 77)
+    endforeach()
+
+    # These cases intentionally consume host interface/native identity, NSS
+    # account state or a real listener prerequisite. Keep the existing names
+    # for selectors, but do not classify their environment-dependent coverage
+    # as deterministic offline behavior.
+    foreach(native_host_control_case IN ITEMS
+            linux-host-control-revalidated-interface-denials
+            linux-host-control-automatic-tls-identity-lifecycle
+            linux-host-control-rejected-selection-retires-previous
+            linux-host-control-native-interface-id-verification
+            linux-host-control-standalone-password-lifecycle
+            linux-portable-gui-bootstrap-listener-acceptance)
+        add_test(NAME "runtime.${native_host_control_case}"
+            COMMAND test_linux_runtime_host_control "${native_host_control_case}")
+        set_tests_properties("runtime.${native_host_control_case}" PROPERTIES
+            LABELS "runtime;security;r10-host-control;linux;native-environment"
             SKIP_RETURN_CODE 77)
     endforeach()
 
@@ -473,6 +485,16 @@ if(TARGET rdp-server-macos-host-control)
             LABELS "runtime;security;macos;offline"
             SKIP_RETURN_CODE 77)
     endforeach()
+
+    # Production/default route/interface observation intentionally consumes the
+    # machine environment and therefore has its own native integration gate.
+    add_test(NAME runtime.macos-host-control-native-lan-endpoint-observation
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-native-lan-endpoint-observation)
+    set_tests_properties(
+        runtime.macos-host-control-native-lan-endpoint-observation PROPERTIES
+            LABELS "runtime;security;macos;native-environment"
+            SKIP_RETURN_CODE 77)
 
     # R3 cross-platform application-host consumption: macOS must retain the
     # generated process-local licensing identity before Start without opening a

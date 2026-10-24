@@ -1,3 +1,14 @@
+## Cross-platform typed protocol-version fixture rule (2026-10-24)
+
+When iterating fixed-width protocol scalar fixtures, make the container element
+type explicit. Do not rely on an untyped braced range such as `{5U, 6U}` when
+the loop variable is `std::uint8_t`: GCC/Clang may accept the constant
+conversion while MSVC with warnings-as-errors reports C4244. Use an explicitly
+typed `std::array<std::uint8_t, N>` (or the exact protocol scalar type) so the
+same ordinary behavior CTest compiles under every supported toolchain. This is
+a test-portability rule only and must not alter protocol semantics or relax
+warnings.
+
 ## R2 P0 credential retention, native-session retirement and SPNEGO evidence (2026-10-24)
 
 Pin the exact lifecycle sequence: configure G1 -> obtain A1 -> ordinary Stop ->

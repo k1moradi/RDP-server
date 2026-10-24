@@ -1,3 +1,27 @@
+## Windows CredSSP v5/v6 fixture portability unblock — 2026-10-24
+
+**Starting exact-main parent:** `fcff4a47513f3f04d23cf4a0e8505dea1187d7fb`.
+
+Exact-head hosted CI exposed one non-architectural Windows blocker in
+`protocol (windows-latest)`: MSVC treated the braced `{5U, 6U}` range in
+`test_standalone_credssp.cpp` as `unsigned int` and, with warnings-as-errors,
+rejected conversion to `std::uint8_t` (C4244/C2220). The fixture now uses an
+explicit `std::array<std::uint8_t, 2>`, preserving the exact CredSSP v5/v6
+coverage without changing production authentication, SPNEGO/NTLM behavior,
+wire bytes or the owner-test gate.
+
+Dependency status at this parent: R7 ordinary OFF/cleared-editor reuse, R10
+keep-vs-revoke teardown and diagnostics, and R9/R2 Microsoft-style standalone
+SPNEGO-to-NTLM challenge fixtures are all present on `main`. The remaining
+validation dependency is exact-publication-SHA CI, not an unresolved subsystem
+handoff.
+
+Observed failing run before this fix: workflow `40091599368`, Windows protocol
+job `120865255271`. Linux/macOS/security/owner-GUI lanes in that run passed;
+the server-test preview failure was downstream of the Windows protocol failure.
+Canonical local build/full CTest: **NOT RUN in this connector environment**.
+Exact-publication-SHA hosted CI after this repair: **PENDING**.
+
 ## R2 SPNEGO structural-diagnostic audit follow-up (2026-10-24)
 
 Starting exact-main parent: `098527813cb678913a9ab7ddf84f451dfabdeae8`.

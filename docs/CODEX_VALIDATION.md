@@ -1,3 +1,17 @@
+## Windows CredSSP fixture compile unblock — 2026-10-24
+
+Starting exact-main parent `fcff4a47513f3f04d23cf4a0e8505dea1187d7fb`. Hosted run `40091599368` reached the
+Windows protocol build and failed only because
+`test_standalone_credssp.cpp:1058` iterated `{5U, 6U}` into a
+`std::uint8_t` loop variable. MSVC emitted C4244 and `/WX` promoted it to
+C2220. The test now declares the v5/v6 values in an explicit
+`std::array<std::uint8_t, 2>`.
+
+No production source or wire behavior changes. The existing
+`r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge` behavior gate remains
+the test owner. Source/diff review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R2 SPNEGO diagnostic completeness follow-up (2026-10-24)
 
 Starting exact-main parent: `098527813cb678913a9ab7ddf84f451dfabdeae8`.

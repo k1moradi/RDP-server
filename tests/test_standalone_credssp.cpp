@@ -1055,7 +1055,9 @@ int main(int argc, char **argv)
         // record reader and R2 SPNEGO acceptor, including NTLM Type 2 output.
         // This does not substitute for the listener's owned R1 socket or a
         // captured unmodified Windows-client NegTokenInit2.
-        for (const std::uint8_t requestVersion : {5U, 6U})
+        constexpr std::array<std::uint8_t, 2> requestVersions{
+            std::uint8_t{5U}, std::uint8_t{6U}};
+        for (const std::uint8_t requestVersion : requestVersions)
         {
             MemoryTlsPair tls;
             TsRequestFrameReader reader;

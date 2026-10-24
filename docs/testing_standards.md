@@ -1,3 +1,20 @@
+## R5 DirectNtlm admitted-MCS native-dormancy gate (2026-10-24)
+
+The production-backed R10 DirectNtlm reconnect/Stop -> Start lifecycle now
+provides a stronger R5 dependency check than the earlier source-only boundary:
+one malformed DirectNtlm peer is retired before admission, while later valid
+DirectNtlm peers reach `CredentialsVerified` and fresh R2 admission into MCS.
+At every one of those states, and across ordinary Stop/restart, the test must
+require both `nativeDesktopReady == false` and
+`nativeDesktopInitializing == false`.
+
+This proves that failed DirectNtlm authentication creates no X11 owner and that
+successful DirectNtlm credentials plus fresh R2 admission still do not create
+one. The positive native-owner transition remains owned by the existing
+`GraphicsReady -> visitNativeDesktopSelection() -> initializeNativeDesktop()`
+gate. Do not extend R5 with authentication-envelope branching or treat MCS
+admission as graphics/native authority.
+
 ## Direct-NTLM strict-envelope negative matrix (2026-10-24)
 
 The production-linked DirectNtlm gates must prove the classifier requires both

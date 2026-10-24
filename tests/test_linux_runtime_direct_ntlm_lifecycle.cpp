@@ -948,7 +948,9 @@ struct PeerResult final
            status.acceptedClientPreauthDiagnostics.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::CredentialsVerified &&
            status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
-               RuntimeAcceptedClientStandaloneFailureStage::None;
+               RuntimeAcceptedClientStandaloneFailureStage::None &&
+           !status.nativeDesktopReady &&
+           !status.nativeDesktopInitializing;
 }
 
 [[nodiscard]] bool challengesDiffer(
@@ -1044,6 +1046,8 @@ int main(int argc, char** argv)
     assert(firstListener.listenerAvailable);
     assert(firstListener.hostOwnerAuthorized);
     assert(firstListener.credentialsConfigured);
+    assert(!firstListener.nativeDesktopReady);
+    assert(!firstListener.nativeDesktopInitializing);
     const std::uint64_t firstListenerGeneration =
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
@@ -1068,6 +1072,8 @@ int main(int argc, char** argv)
     assert(afterBad.product.state == RuntimeProductHostState::Listening);
     assert(afterBad.product.credentialsConfigured);
     assert(afterBad.clientDisconnected);
+    assert(!afterBad.nativeDesktopReady);
+    assert(!afterBad.nativeDesktopInitializing);
     assert(afterBad.acceptedClientPreauthDiagnostics.available);
     assert(afterBad.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
@@ -1101,6 +1107,11 @@ int main(int argc, char** argv)
     assert(firstAuthenticated.listenerGeneration ==
            firstListenerGeneration);
     assert(firstAuthenticated.hostOwnerAuthorized);
+    // DirectNtlm has crossed CredentialsVerified and fresh R2 admission into
+    // MCS, but that is still not R5/X11 authority. Only GraphicsReady may
+    // create the native owner.
+    assert(!firstAuthenticated.nativeDesktopReady);
+    assert(!firstAuthenticated.nativeDesktopInitializing);
     assert(firstAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodOne.store(true, std::memory_order_release);
@@ -1120,6 +1131,8 @@ int main(int argc, char** argv)
     assert(!stopped.hostOwnerAuthorized);
     assert(stopped.credentialsConfigured);
     assert(stopped.activeClients.empty());
+    assert(!stopped.nativeDesktopReady);
+    assert(!stopped.nativeDesktopInitializing);
     const auto retained =
         control.standaloneApplicationPasswordObservation();
     assert(retained.configured);
@@ -1137,6 +1150,8 @@ int main(int argc, char** argv)
     assert(restarted.listenerGeneration != firstListenerGeneration);
     assert(restarted.hostOwnerAuthorized);
     assert(restarted.credentialsConfigured);
+    assert(!restarted.nativeDesktopReady);
+    assert(!restarted.nativeDesktopInitializing);
     assert(control.standaloneApplicationPasswordObservation().generation ==
            credential.generation);
 
@@ -1154,6 +1169,8 @@ int main(int argc, char** argv)
     const auto secondAuthenticated = control.status();
     assert(secondAuthenticated.listenerGeneration ==
            restarted.listenerGeneration);
+    assert(!secondAuthenticated.nativeDesktopReady);
+    assert(!secondAuthenticated.nativeDesktopInitializing);
     assert(secondAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodTwo.store(true, std::memory_order_release);
@@ -1167,6 +1184,9 @@ int main(int argc, char** argv)
         badResult.serverChallenge, goodTwoResult.serverChallenge));
 
     assert(control.stopSharing().succeeded());
+    const auto finalStopped = control.status();
+    assert(!finalStopped.nativeDesktopReady);
+    assert(!finalStopped.nativeDesktopInitializing);
     assert(control.standaloneApplicationPasswordObservation().generation ==
            credential.generation);
     assert(control.revokeSharing().succeeded());

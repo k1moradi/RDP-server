@@ -1,3 +1,29 @@
+## R5 DirectNtlm admitted-MCS dormancy follow-up (2026-10-24)
+
+**Starting exact-main parent:** `1d755c39cb0a36ed329a2effe8f698d5fcd4fa5f`.
+
+Rechecked current main after R10 reconnect composition and R2 strict
+DirectNtlm-envelope hardening landed. The existing production-backed
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`
+now reaches valid DirectNtlm `CredentialsVerified` and fresh R2 admission/MCS
+on two accepted connections separated by ordinary Stop/restart. It still does
+not send the later Share/RDPGFX sequence required for `GraphicsReady`.
+
+The test is strengthened in place to require no native desktop ready or
+initializing state for: initial listener; malformed DirectNtlm peer retirement;
+first successful admitted-MCS DirectNtlm client; ordinary Stop; fresh-consent
+restart; second successful admitted-MCS DirectNtlm client; and final Stop. No
+production C++, RDP wire, NTLM, admission or X11 implementation changed.
+
+Result: DirectNtlm failure -> **no X11 owner**, and successful DirectNtlm
+credentials -> fresh R2 admission/MCS -> **still no X11 owner before
+GraphicsReady**. The positive X11 construction half remains blocked only by the
+absence of a DirectNtlm path reaching `GraphicsReady`.
+
+Connector source/test review: **PASS**. Canonical owner-local configure/build/
+full CTest: **NOT RUN**. Exact-SHA hosted CI: **PENDING**. Physical Microsoft
+client/X11 receipt: **NOT RUN**.
+
 ## R2 P0 strict DirectNtlm envelope hardening authoring receipt (2026-10-24)
 
 **Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.

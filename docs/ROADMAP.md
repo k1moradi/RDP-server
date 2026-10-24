@@ -1,3 +1,42 @@
+## R5 P1 DirectNtlm admitted-MCS dormancy verified (2026-10-24)
+
+**Starting exact-main parent:** `1d755c39cb0a36ed329a2effe8f698d5fcd4fa5f`.
+
+The dependency check found useful upstream progress. R10's current production
+DirectNtlm lifecycle test now drives the real listener through malformed peer
+retirement, a valid DirectNtlm client to `CredentialsVerified` plus fresh R2
+admission/MCS, ordinary Stop with retained Session Password, fresh consent and
+listener/TLS restart, then another successful DirectNtlm admission. R2's strict
+raw-envelope hardening is also present.
+
+R5 therefore advances its verification on that existing test rather than
+creating a duplicate seam. The lifecycle now explicitly requires
+`nativeDesktopReady == false` and `nativeDesktopInitializing == false` for
+the initial listener, failed DirectNtlm peer, both successful admitted-MCS
+DirectNtlm peers, stopped state and restarted listener. This dynamically proves
+the current dependency chain:
+
+`DirectNtlm failure -> no X11 owner`
+
+and
+
+`DirectNtlm CredentialsVerified -> fresh R2 admission -> MCS -> still no X11
+owner until GraphicsReady`.
+
+The existing offline R5 source-contract still pins the only positive transition
+as `GraphicsReady -> visitNativeDesktopSelection() -> initializeNativeDesktop()`.
+
+**Connector source/test review:** PASS. **Canonical owner-local build/full
+CTest:** NOT RUN in this connector environment. **Exact-publication-SHA hosted
+CI:** PENDING. **Physical X11/Microsoft-client execution:** NOT RUN.
+
+**Remaining R5 blocker:** no current production-backed DirectNtlm test or
+physical client receipt reaches the R3 Share/RDPGFX `GraphicsReady` boundary,
+so positive DirectNtlm-triggered X11 construction cannot yet be exercised.
+That is an R3/live-client dependency, not an authentication-envelope or R5
+implementation defect. Continue Start -> Stop -> Start and native-authority
+gates in parallel.
+
 ## R2 P0 — strict DirectNtlm classifier and failure-boundary hardening (2026-10-24)
 
 **Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.

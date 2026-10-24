@@ -4090,6 +4090,17 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;product;credentials;acceptance;editability;parity"
         TIMEOUT 30)
 
+    # R9 owner-reported usability regression. Unlike the property-only case,
+    # this drives real Qt key events and the listener-authoritative UI flow.
+    add_test(NAME gui.offscreen-owner-acceptance-credential-editor-parity
+        COMMAND test_desktop_gui_offline owner-gui-credential-parity)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-credential-editor-parity PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;editability;parity;r9;lifecycle"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
         COMMAND test_desktop_gui_offline debug-owner-acceptance-release-gate)
     set_tests_properties(
@@ -4143,6 +4154,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     if(NOT RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
         set_tests_properties(
             gui.offscreen-owner-acceptance-editor-properties
+            gui.offscreen-owner-acceptance-credential-editor-parity
             gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
             gui.offscreen-owner-acceptance-consumer-start-orchestration
             gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission

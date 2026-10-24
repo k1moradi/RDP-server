@@ -1,3 +1,43 @@
+## R9 P0 owner GUI keyboard parity qualification (2026-10-24)
+
+Starting exact-main parent: `1b257735d42d679de8b831f5bd4767c1bd157bf9`.
+
+R2, R5 and R6 have now resolved three dependencies exposed by the owner report:
+R2 separated production standalone credential configuration from later native
+admission, R5 added Linux physical-X11 precredential readiness coverage, and R6
+made Linux/macOS owner acceptance use the same explicit Release+ON build intent
+plus a shared editor-property regression. Those changes are retained. The
+remaining R9 gap is behavioral: R6 still populates the editors with
+`setText()`, so enabled/read-only/focus properties do not prove owner keyboard
+entry.
+
+R9 makes editability an explicit shared-window projection for the existing
+prequalification surface and adds
+`gui.offscreen-owner-acceptance-credential-editor-parity`. The test shows the
+window and sends actual Qt key events into Username, Session Password and
+Confirm; Password/Confirm remain masked. It proves initial
+`Local address: 192.168.1.5`, Copy disabled, Sharing Off/no listener; useful
+mismatch denial; matching-password eligibility; exact Username/password
+forwarding through the production HostControl adapter; View/Input owner
+permission with clipboard excluded; exact `192.168.1.5:3389` endpoint; and
+credential -> permission -> endpoint -> listener ordering. Command success alone
+does not flip presentation: only published listener status permits Sharing On,
+`Connect to: 192.168.1.5:3389`, and Copy enabled.
+
+Dedicated Actions gate `r9-owner-gui-credential-parity` runs that behavioral
+test plus the existing production-path contract in explicit Release+ON builds on
+Ubuntu and macOS. It depends only on the workflow structure guard and therefore
+does not wait for CLEAN Windows. The public Release standalone-password
+qualification literal remains false; no test-only authentication path is added.
+
+Connector source/diff review: **PASS**. Connector-local build/CTest:
+**NOT RUN**. Exact-publication-SHA Linux parity: **PENDING**. macOS parity:
+**PENDING**.
+
+**Nomination rule:** do not nominate an owner-test SHA until both R9 matrix legs
+PASS. Physical no-argument owner reruns on Linux and macOS remain the downstream
+proof for genuine platform consent and listener bind.
+
 ## R2 P0 standalone credential / owner-consent state parity (2026-10-24)
 
 Starting exact-main parent: `c6f2a116c9ffba47f804b5e970c99f8450969400`.

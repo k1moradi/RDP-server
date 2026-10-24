@@ -1045,6 +1045,20 @@ void DesktopWindow::refresh()
     usernameLabel_->setVisible(standaloneVisible);
     sessionPasswordLabel_->setVisible(standaloneVisible);
     sessionPasswordConfirmLabel_->setVisible(standaloneVisible);
+
+    // The Debug/explicit owner-acceptance surface deliberately reaches the
+    // exact production standalone credential path before public Release
+    // qualification. Make editability an explicit cross-platform product
+    // projection instead of relying on QLineEdit/platform style defaults.
+    const bool standaloneEditable =
+        standaloneVisible && !mayStillBeHosting(snapshot);
+    for (QLineEdit* editor :
+         {username_, sessionPassword_, sessionPasswordConfirm_})
+    {
+        editor->setEnabled(standaloneEditable);
+        editor->setReadOnly(!standaloneEditable);
+    }
+
     credentialStatus_->setText(
         standaloneVisible
             ? QStringLiteral(

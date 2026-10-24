@@ -15,6 +15,7 @@
 #include <QComboBox>
 #include <QFont>
 #include <QGroupBox>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
@@ -60,6 +61,8 @@ public:
     bool startSucceeds{};
     bool refuseRetirement{};
     bool deriveProductStatusFromLegacy{true};
+    std::u16string lastStandaloneUsername;
+    std::u16string lastStandalonePassword;
     std::vector<std::string> commandOrder;
 
     [[nodiscard]] std::vector<RuntimeHostInterface>
@@ -172,6 +175,8 @@ public:
     {
         ++standaloneCredentialCalls;
         commandOrder.emplace_back("credential");
+        lastStandaloneUsername.assign(username.begin(), username.end());
+        lastStandalonePassword.assign(password.begin(), password.end());
         const bool valid =
             standaloneCredentialSucceeds && !username.empty() &&
             !password.empty();
@@ -300,6 +305,27 @@ QAction* requiredAction(DesktopWindow& window, const char* name)
     auto* result = window.findChild<QAction*>(name);
     assert(result);
     return result;
+}
+
+void typeWithKeyEvents(
+    QApplication& application, QLineEdit& editor, const QString& text)
+{
+    assert(editor.isVisible());
+    assert(editor.isEnabled());
+    assert(!editor.isReadOnly());
+
+    editor.setFocus(Qt::OtherFocusReason);
+    application.processEvents();
+    for (const QChar character : text)
+    {
+        const QString input{character};
+        const int key = static_cast<int>(character.toUpper().unicode());
+        QKeyEvent press(QEvent::KeyPress, key, Qt::NoModifier, input);
+        QApplication::sendEvent(&editor, &press);
+        QKeyEvent release(QEvent::KeyRelease, key, Qt::NoModifier, input);
+        QApplication::sendEvent(&editor, &release);
+    }
+    application.processEvents();
 }
 
 void prepareReadyHost(FakeRuntimeHost& runtime)
@@ -882,6 +908,120 @@ int main(int argc, char** argv)
             requiredLabel(window, "credentialStatus")
                 ->text().contains("Session Password"));
         assert(!runtime.snapshot.product.credentialCapabilities.standalonePassword);
+        return 0;
+    }
+
+    if (mode == "owner-gui-credential-parity")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        return 77;
+#endif
+        static_assert(!kStandalonePasswordProductCapabilityApproved);
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.1.5"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        auto* address = requiredLabel(window, "connectionAddress");
+        auto* readiness = requiredLabel(window, "sharingReadinessStatus");
+        assert(username && password && confirmation);
+
+        for (QLineEdit* editor : {username, password, confirmation})
+        {
+            assert(editor->isVisible());
+            assert(editor->isEnabled());
+            assert(!editor->isReadOnly());
+        }
+        assert(username->echoMode() == QLineEdit::Normal);
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(confirmation->echoMode() == QLineEdit::Password);
+        assert(address->text() ==
+               QStringLiteral("Local address: 192.168.1.5"));
+        assert(!copy->isEnabled());
+        assert(!toggle->isChecked());
+        assert(!host.status().listenerReady);
+        assert(runtime.startCalls == 0);
+
+        username->clear();
+        typeWithKeyEvents(
+            application, *username, QStringLiteral("owner"));
+        typeWithKeyEvents(
+            application, *password, QStringLiteral("ownertest123"));
+        typeWithKeyEvents(
+            application, *confirmation, QStringLiteral("different123"));
+        assert(username->text() == QStringLiteral("owner"));
+        assert(password->text() == QStringLiteral("ownertest123"));
+        assert(confirmation->text() == QStringLiteral("different123"));
+        assert(!window.canStart());
+        assert(!toggle->isEnabled());
+        assert(window.blockedReason().contains(
+            QStringLiteral("does not match")));
+        assert(readiness->text().contains(
+            QStringLiteral("does not match")));
+
+        confirmation->clear();
+        typeWithKeyEvents(
+            application, *confirmation, QStringLiteral("ownertest123"));
+        assert(window.canStart());
+        assert(toggle->isEnabled());
+        for (QLineEdit* editor : {username, password, confirmation})
+        {
+            assert(editor->isEnabled());
+            assert(!editor->isReadOnly());
+        }
+
+        toggle->click();
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.lastStandaloneUsername == u"owner");
+        assert(runtime.lastStandalonePassword == u"ownertest123");
+        assert(runtime.permissionSetupCalls == 1);
+        assert(runtime.lastPermissionRequest.allowInput);
+        assert(!runtime.lastPermissionRequest.allowClipboard);
+        assert(runtime.configureCalls == 1);
+        assert(runtime.startCalls == 1);
+        assert(runtime.lastOptions.interfaceId == "ethernet-1");
+        assert(runtime.lastOptions.localAddress == "192.168.1.5");
+        assert(runtime.lastOptions.port == 3389U);
+        assert((runtime.commandOrder ==
+                std::vector<std::string>{
+                    "credential", "permission", "endpoint", "listener"}));
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+
+        // Command success is not listener authority. Presentation stays
+        // pre-listener until the runtime publishes the bound endpoint.
+        assert(!host.status().listenerReady);
+        assert(!toggle->isChecked());
+        assert(address->text() ==
+               QStringLiteral("Local address: 192.168.1.5"));
+        assert(!copy->isEnabled());
+
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.1.5:3389";
+        window.refresh();
+        assert(host.status().listenerReady);
+        assert(toggle->isChecked());
+        assert(address->text() ==
+               QStringLiteral("Connect to: 192.168.1.5:3389"));
+        assert(copy->isEnabled());
         return 0;
     }
 

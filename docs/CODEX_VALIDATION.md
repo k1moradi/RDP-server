@@ -1,3 +1,37 @@
+## R9 P0 owner GUI keyboard parity qualification (2026-10-24)
+
+Starting exact-main parent: `1b257735d42d679de8b831f5bd4767c1bd157bf9`.
+
+Dependency reconciliation: R2 separated production standalone credential state
+from later native admission, R5 proves the Linux physical-X11 precredential
+state, and R6 proves Linux/macOS acceptance uses the same explicit Release+ON
+compile intent with visible/enabled/non-read-only/focusable editors. None of
+those checks performs behavioral keyboard entry, so the owner-reported
+uneditable-Linux symptom is not yet closed by their PASS conditions.
+
+R9 adds an explicit production editability projection plus behavioral CTest
+`gui.offscreen-owner-acceptance-credential-editor-parity`. It sends Qt key
+events through all three editors, checks masked password fields, mismatch
+denial, matching eligibility, exact credential/permission/endpoint/listener
+command observations, and the listener-authoritative Local address -> Connect
+to / Copy / Sharing transition at `192.168.1.5:3389`.
+
+The fake RuntimeHostControl is only an orchestration observer. The same R9 gate
+also executes `gui.owner-acceptance-release-gate-and-production-path`, which
+requires `HostControl::configureStandalonePassword()` to forward into the real
+standalone runtime credential owner and rejects test-only authentication tokens.
+Public `kStandalonePasswordProductCapabilityApproved` remains false.
+
+Actions gate: `r9-owner-gui-credential-parity`, matrix Ubuntu + macOS,
+explicit Release+ON, no CLEAN Windows dependency. CI structure validation makes
+the job and behavioral test token mandatory.
+
+Connector source review: **PASS**.
+Build/CTest: **NOT RUN** here.
+Linux matrix: **PENDING**.
+macOS matrix: **PENDING**.
+Owner physical no-argument rerun: **PENDING**.
+
 ## R2 standalone credential / consent parity validation (2026-10-24)
 
 Starting exact-main parent: `c6f2a116c9ffba47f804b5e970c99f8450969400`.

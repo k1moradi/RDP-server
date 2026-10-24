@@ -191,6 +191,7 @@ REQUIRED_JOBS = {
     "r7-macos-portable-gui",
     "r5-linux-gui-zip",
     "r9-portable-gui-bootstrap-acceptance",
+    "r9-owner-gui-credential-parity",
     "documentation-policy",
     "publish-protocol-prerelease",
 }
@@ -208,6 +209,8 @@ REQUIRED_TOKENS = (
     "-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF",
     "RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON",
     "r9-portable-gui-bootstrap-acceptance",
+    "r9-owner-gui-credential-parity",
+    "gui.offscreen-owner-acceptance-credential-editor-parity",
     "runtime.linux-portable-gui-bootstrap-listener-acceptance",
     "gui.offscreen-owner-acceptance-consumer-start-orchestration",
     "gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission",

@@ -1,3 +1,27 @@
+## R9 owner-GUI keyboard editability parity gate (2026-10-24)
+
+The R6 editor-property gate is necessary but not sufficient for owner usability:
+visible/enabled/non-read-only/focusable QLineEdit state does not prove that user
+key entry reaches the editor. For the owner-reported Linux regression, keep a
+second behavior test that sends Qt key events into Username, Session Password and
+Confirm and verifies the resulting text. Run that same case under explicit
+`Release + RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` on Linux and macOS.
+
+Keep Password and Confirm masked. A mismatched confirmation must leave Sharing
+unavailable and present a useful reason; matching non-empty credentials may make
+Sharing actionable only when the injected product permission/network
+prerequisites permit it. The GUI test double may observe command arguments and
+ordering only. Pair the test with
+`gui.owner-acceptance-release-gate-and-production-path`, which pins forwarding
+through the real runtime standalone credential owner and prohibits test-only
+authentication.
+
+Start command success is not listener authority. Until HostControl publishes
+the exact bound endpoint, the UI must remain Sharing Off, show
+`Local address: <ip>`, and keep Copy disabled. Only authoritative listener
+state may change that to Sharing On, `Connect to: <ip>:<port>`, and Copy
+enabled. The dedicated R9 Linux/macOS gate must not depend on CLEAN Windows.
+
 ## R2 standalone credential state must be independent of native admission (2026-10-24)
 
 A production standalone credential owner being configurable is a distinct fact

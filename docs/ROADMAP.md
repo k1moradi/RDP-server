@@ -1,3 +1,44 @@
+## R9 owner-GUI parity candidate nominated after Linux/macOS PASS (2026-10-24)
+
+**OWNER-GUI QUALIFICATION CANDIDATE:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.
+
+R9's requested cross-platform gate is now closed on one exact code SHA.
+Actions run `40083958306` reports:
+- `r9-owner-gui-credential-parity (ubuntu-latest)`, job `120843003185`:
+  **PASS**;
+- `r9-owner-gui-credential-parity (macos-latest)`, job `120843003239`:
+  **PASS**.
+
+Supporting exact-SHA lanes are also green: `r5-linux-gui-zip`
+(`120843003195`), `r9-portable-gui-bootstrap-acceptance`
+(`120843003155`), R2 Linux security complete/missing-systemd
+(`120843003184` / `120843003198`), R9 security/protocol sanitizers
+(`120843003158`), protocol Ubuntu/macOS/Windows (`120843003211` /
+`120843003272` / `120843003213`), and `r7-macos-portable-gui`
+(`120843003189`).
+
+The gate uses real Qt keyboard events against the production credential UI. It
+requires Username/Session Password/Confirm visible, enabled and non-read-only,
+password masking, mismatch denial, matching-password Sharing eligibility when
+genuine prerequisites permit, and production orchestration in the order
+credential -> owner permission -> exact recommended LAN endpoint -> listener.
+The UI remains listener-authoritative: Start command success alone cannot
+change `Local address:` to `Connect to:` or enable Copy.
+
+Public Release standalone-password qualification remains unchanged; the
+existing Debug/explicit owner-acceptance mechanism is preserved. CLEAN Windows
+is explicitly outside this Linux/macOS gate and does not block the nomination.
+Current `main` descendants after the candidate are documentation-only at this
+record, so the tested code state is unchanged.
+
+**Remaining P0 acceptance gate:** physical owner Linux/X11 execution. On a
+freshly pulled owner-acceptance build, launch `rdp-server-desktop` with no
+arguments, verify real keyboard editing, enter matching non-empty credentials,
+turn Sharing ON, and record the first genuine local-owner/platform/listener
+outcome plus any authoritative `Connect to: <ip>:3389` / Copy transition.
+Hosted Xvfb/offscreen evidence is not a substitute for this owner-machine
+receipt.
+
 ## R7 hosted credential-editor qualification complete; physical Linux owner gate remains (2026-10-24)
 
 **Tested SHA:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.

@@ -1,3 +1,28 @@
+## R9 exact-SHA owner GUI credential parity qualification (2026-10-24)
+
+**Nominated candidate:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.
+
+Actions run `40083958306` satisfies the R9 Linux/macOS parity gate:
+Ubuntu job `120843003185` **PASS** and macOS job `120843003239` **PASS**.
+The behavioral test performs real Qt key entry and verifies editable Username,
+masked editable Session Password/Confirm, mismatch denial, matching-password
+eligibility, exact production credential/permission/endpoint/listener command
+order, and listener-authoritative Sharing/`Connect to:`/Copy presentation.
+
+Exact-SHA supporting receipts are **PASS** for Linux GUI ZIP
+`120843003195`, portable owner bootstrap `120843003155`, R2 Linux security
+`120843003184` / `120843003198`, R9 sanitizers `120843003158`, protocol
+Ubuntu/macOS/Windows `120843003211` / `120843003272` / `120843003213`,
+and macOS portable GUI `120843003189`.
+
+No test-only authentication implementation is used and no Release capability
+gate is promoted. CLEAN Windows is not a dependency of this qualification.
+
+Hosted R9 owner-GUI qualification: **PASS**.
+Physical Linux/X11 owner no-argument acceptance: **PENDING / NOT RUN by this
+connector**.
+Final product/Microsoft-client acceptance: **NOT CLAIMED**.
+
 ## R7 exact-SHA hosted credential-editor qualification (2026-10-24)
 
 **Tested SHA:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.

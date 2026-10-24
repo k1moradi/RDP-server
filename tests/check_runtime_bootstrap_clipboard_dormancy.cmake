@@ -9,7 +9,8 @@ foreach(required_var IN ITEMS
         RDP_LINUX_HOST_CONTROL_HEADER
         RDP_LINUX_PREPARED_CLIPBOARD_HEADER
         RDP_RUNTIME_BOOTSTRAP_HEADER
-        RDP_RUNTIME_HOST_CONTROL_HEADER)
+        RDP_RUNTIME_HOST_CONTROL_HEADER
+        RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
     endif()
@@ -23,6 +24,7 @@ file(READ "${RDP_LINUX_HOST_CONTROL_HEADER}" host_header)
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
 file(READ "${RDP_RUNTIME_BOOTSTRAP_HEADER}" bootstrap_header)
 file(READ "${RDP_RUNTIME_HOST_CONTROL_HEADER}" runtime_host_header)
+file(READ "${RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER}" credential_consent_header)
 set(gui_source "${desktop_window_header}\n${desktop_window_source}")
 
 # R6 may define where automatic bootstrap state lives, but that policy cannot
@@ -386,29 +388,43 @@ if(password_live_listener_denial LESS 0 AND password_live_retirement LESS 0)
         "Session Password replacement must reject a live host or retire it first")
 endif()
 string(FIND "${password_source}"
-    "OwnerConsentRevocationReason::CredentialChange"
-    password_owner_generation_revoke)
-string(FIND "${password_source}"
     "standaloneCredentialGeneration_ = 0U" password_generation_clear)
 string(FIND "${password_source}"
-    "standalonePasswordCredential_.configure(" password_configure)
+    "replaceStandaloneApplicationCredential(" password_replace_transaction)
 string(FIND "${password_source}"
     "standaloneCredentialGeneration_ = observation.generation"
     password_generation_install)
-if(password_owner_generation_revoke LESS 0 OR
-   password_generation_clear LESS 0 OR password_configure LESS 0 OR
+if(password_generation_clear LESS 0 OR password_replace_transaction LESS 0 OR
    password_generation_install LESS 0 OR
-   NOT password_owner_generation_revoke LESS password_configure OR
-   NOT password_generation_clear LESS password_configure OR
-   NOT password_configure LESS password_generation_install)
+   NOT password_generation_clear LESS password_replace_transaction OR
+   NOT password_replace_transaction LESS password_generation_install)
     message(FATAL_ERROR
-        "Session Password replacement must invalidate and replace its generation")
+        "Session Password replacement must clear, replace and install its generation")
 endif()
+
+# R2 owns consent invalidation and production credential consumption in one
+# shared transaction. Inspect that helper rather than requiring the old direct
+# HostControl implementation spelling.
+string(FIND "${credential_consent_header}"
+    "OwnerConsentRevocationReason::CredentialChange"
+    credential_owner_generation_revoke)
+string(FIND "${credential_consent_header}"
+    "credentialOwner.configure(username, password)"
+    credential_owner_configure)
+if(credential_owner_generation_revoke LESS 0 OR
+   credential_owner_configure LESS 0 OR
+   NOT credential_owner_generation_revoke LESS credential_owner_configure)
+    message(FATAL_ERROR
+        "shared R2 credential replacement must revoke owner consent before configuring")
+endif()
+
+set(password_replacement_sources
+    "${password_source}\n${credential_consent_header}")
 foreach(forbidden_text IN ITEMS
         "clipboard.prepare("
         "nativeDesktop_->clipboard"
         "kConsoleClipboardPermission")
-    string(FIND "${password_source}" "${forbidden_text}" found)
+    string(FIND "${password_replacement_sources}" "${forbidden_text}" found)
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
             "Session Password replacement must not manipulate R8 state: ${forbidden_text}")

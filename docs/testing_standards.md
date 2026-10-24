@@ -1,3 +1,18 @@
+## Shared source contracts must follow the R2 credential transaction (2026-10-24)
+
+Static lifecycle/security tests must validate the current ownership boundary,
+not a retired inlined implementation. When platform HostControl delegates
+standalone password replacement to
+`replaceStandaloneApplicationCredential()`, source contracts should require
+the platform caller to clear/select the exact credential generation and should
+inspect the shared R2 helper for consent revocation before production credential
+configuration.
+
+Do not weaken cross-subsystem negative assertions when following a helper.
+Clipboard/R8 forbidden-operation scans for credential replacement must include
+both the platform call site and the shared R2 replacement helper so refactoring
+cannot hide clipboard activation behind the helper boundary.
+
 ## R7 owner credential keyboard/focus and visual-state contract (2026-10-24)
 
 When the gated Session Password surface is visible, R7 must keep credential

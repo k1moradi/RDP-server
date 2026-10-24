@@ -1,3 +1,42 @@
+## R2 follow-up: shared credential transaction source-contract repair (2026-10-24)
+
+Starting exact-main parent: `e190af5daecb2fa2cf8bd821f2235d378e36336b`.
+
+The R2 credential/native-admission separation is already present on current
+`main` from `1b257735d42d679de8b831f5bd4767c1bd157bf9`: Linux and macOS
+share `replaceStandaloneApplicationCredential()`, credential configuration is
+separate from owner permission and listener readiness, caller password storage
+is scrubbed by the production credential owner, and credential replacement
+revokes prior owner consent before a new generation is selected.
+
+Current-head hosted execution exposed one stale downstream source contract:
+`runtime.linux-gui-bootstrap-clipboard-dormancy` still searched Linux
+HostControl for the retired direct `standalonePasswordCredential_.configure()`
+and `OwnerConsentRevocationReason::CredentialChange` spellings. The behavioral
+credential/consent regressions and both Ubuntu/macOS owner-GUI parity jobs were
+green; the source-contract failure occurred before owner artifact publication.
+
+This follow-up changes no production source. The R8 bootstrap contract now
+requires Linux HostControl to clear the selected generation, call the shared R2
+replacement transaction, and install only the returned observation generation.
+It separately inspects `standalone_credential_consent.h` to require
+`CredentialChange` revocation before production `credentialOwner.configure()`.
+The existing prohibition on clipboard/R8 operations now covers both the
+HostControl replacement scope and the shared R2 helper. Public
+`kStandalonePasswordProductCapabilityApproved` remains false.
+
+Evidence before this patch: Actions run `40082498143`, job
+`120838766977`, first failure
+`runtime.linux-gui-bootstrap-clipboard-dormancy`: **FAIL** with
+"Session Password replacement must invalidate and replace its generation".
+Ubuntu/macOS owner-GUI credential parity on the same SHA: **PASS**. Connector
+source review of this repair: **PASS**. Local build/CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** hosted Ubuntu full CTest and R9 portable owner-acceptance
+inventory must pass the repaired source contract; physical Linux/macOS
+no-argument owner acceptance remains required for final product evidence.
+
 ## R7 Linux XCB focus-chain qualification correction (2026-10-24)
 
 Starting exact-main parent: `8c94f9fffe5172f7e149c69d5f01afa80d7d6d45`.

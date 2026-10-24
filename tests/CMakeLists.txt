@@ -478,6 +478,7 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
             "-DRDP_RUNTIME_BOOTSTRAP_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_application_bootstrap.h"
             "-DRDP_RUNTIME_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_host_control.h"
+            "-DRDP_STANDALONE_CREDENTIAL_CONSENT_HEADER=${PROJECT_SOURCE_DIR}/src/server/security/standalone_credential_consent.h"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_bootstrap_clipboard_dormancy.cmake")
     set_tests_properties(
         runtime.linux-gui-bootstrap-clipboard-dormancy PROPERTIES

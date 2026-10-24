@@ -1,3 +1,25 @@
+## R2 shared credential transaction source-contract follow-up (2026-10-24)
+
+Starting exact-main parent: `e190af5daecb2fa2cf8bd821f2235d378e36336b`.
+
+Current-head Actions run `40082498143` confirmed the R2 production-security
+lanes and both owner-GUI credential-parity jobs were green, while the portable
+owner-acceptance inventory failed first at
+`runtime.linux-gui-bootstrap-clipboard-dormancy`. The failure was a stale
+source-spelling contract: it expected direct Linux HostControl calls that R2
+intentionally consolidated into `replaceStandaloneApplicationCredential()`.
+
+The repaired contract checks generation clear -> shared replacement -> exact
+generation install at the Linux call site, checks
+`CredentialChange` revocation precedes production
+`credentialOwner.configure(username, password)` inside the shared R2 helper,
+and continues to reject clipboard/R8 operations across both scopes.
+
+Production source and Release capability gates: **UNCHANGED**.
+Connector source review: **PASS**.
+Local build/CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R7 XCB focus-chain follow-up after first hosted execution (2026-10-24)
 
 Starting exact-main parent: `8c94f9fffe5172f7e149c69d5f01afa80d7d6d45`.

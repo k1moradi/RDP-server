@@ -608,6 +608,15 @@ void prepareDirectNtlmNegotiation(
     assert(acceptor.configureChallenge(
         {kServerChallenge, u"Domain", u"Server", kTimestamp}));
     const auto negotiate = negotiateMessage();
+    assert(negotiate.size() == 40U);
+    constexpr std::array<std::uint8_t, 8> directSignature{
+        'N','T','L','M','S','S','P',0};
+    assert(std::equal(
+        directSignature.begin(), directSignature.end(), negotiate.begin()));
+    assert(negotiate[8] == 1U);
+    assert(negotiate[9] == 0U);
+    assert(negotiate[10] == 0U);
+    assert(negotiate[11] == 0U);
     const Bytes directTypeOne{negotiate.begin(), negotiate.end()};
     const auto request =
         wrap(0x30U, append(version(6U), tokens(directTypeOne)));
@@ -627,13 +636,16 @@ void prepareDirectNtlmNegotiation(
     assert(initialObservation.spnego.observed);
     assert(initialObservation.spnego.negotiationEnvelope ==
            StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+    assert(initialObservation.spnego.directNtlmType1Accepted);
     assert(initialObservation.spnego.tokenBytes == negotiate.size());
     assert(initialObservation.spnego.topLevelTag == 0x4eU);
     assert(!initialObservation.spnego.gssInitialContextToken);
     assert(initialObservation.spnego.mechanismCount == 0U);
-    assert(initialObservation.spnego.ntlmOffered);
+    assert(!initialObservation.spnego.ntlmOffered);
     assert(initialObservation.spnego.rejectionReason ==
            StandaloneSpnegoRejectionReason::None);
+    assert(initialObservation.spnego.rejectionReason !=
+           StandaloneSpnegoRejectionReason::InvalidGssWrapper);
 
     const auto reply = tls.flushServerReply(writer);
     const auto parsed = parseCredSspTsRequest(reply);

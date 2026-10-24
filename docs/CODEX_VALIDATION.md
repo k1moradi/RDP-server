@@ -1,3 +1,32 @@
+## R9 primary Microsoft-CSSP negotiation gate hardening — 2026-10-24
+
+**Starting exact-main parent:** `78dc66eb7d7cd3bc4d830bffaea01fb8e399eb38`.
+
+Source review found the newly landed direct-NTLM protocol path already reused
+the single NTLM parser/transcript/security context and reached
+`CredentialsVerified` through the TLS/CredSSP fixture. This follow-up hardens
+qualification rather than creating another authentication path.
+
+The direct fixture now pins the exact observed v6/one-token/40-byte
+`NTLMSSP\0` MessageType-1 structure, records a dedicated
+`directNtlmType1Accepted` fact, keeps SPNEGO mechanism count zero and
+`ntlmOffered=false`, and explicitly asserts that
+`invalid-gss-wrapper` is not the result. Runtime failure diagnostics now say
+`credssp=direct-ntlm` for that envelope and expose
+`direct-ntlm-type1=accepted`; existing SPNEGO diagnostics are preserved.
+
+The R9 sanitizer owner-candidate step directly executes the lifecycle fixture,
+direct NTLM mechanism test, complete direct CredSSP v6 flow through
+`CredentialsVerified`, TLS-backed SPNEGO bridge, and all ordinary SPNEGO
+positive/negative cases. Owner nomination additionally requires the shared
+Linux/macOS/Windows protocol jobs to be green on the same exact SHA.
+
+Connector source/test/workflow review: **PASS**. Canonical local
+configure/build/full CTest: **NOT RUN** because this connector session cannot
+materialize the required owner checkout/build root. Exact-publication-SHA
+hosted CI: **PENDING**. Physical Microsoft-client retry: **NOT RUN / NOT
+NOMINATED**.
+
 ## R2 owner direct-NTLM evidence and envelope authoring receipt (2026-10-24)
 
 **Starting exact-main parent:** `ff9b6c7566bf5497e6d23096395dc02a4c8e4105`.

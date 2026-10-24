@@ -150,6 +150,7 @@ struct StandaloneSpnegoInitialTokenObservation final
     bool observed{};
     StandaloneNtlmNegotiationEnvelope negotiationEnvelope{
         StandaloneNtlmNegotiationEnvelope::Undetermined};
+    bool directNtlmType1Accepted{};
     std::size_t tokenBytes{};
     std::uint8_t topLevelTag{};
     bool gssInitialContextToken{};

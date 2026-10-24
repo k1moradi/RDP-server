@@ -996,6 +996,31 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
     }
 
     const auto &spnego = initial.spnego;
+    if (spnego.negotiationEnvelope ==
+        rdp_server::server::security::
+            StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+    {
+        std::fprintf(
+            stderr,
+            "rdp-server: standalone authentication failed: stage=%s; "
+            "tls=%s; credssp=direct-ntlm; os-gss-fallback=disabled; "
+            "tsrequest-version=%u; nego-token-count=%zu; token-bytes=%zu; "
+            "top-tag=0x%02x; gss-initial-context-token=%s; "
+            "mechanism-count=%zu; ntlm-offered=%s; "
+            "direct-ntlm-type1=%s; spnego=not-used\n",
+            standaloneFailureStageName(failureStage),
+            tlsEverEstablished_ ? "established" : "not-established",
+            static_cast<unsigned int>(initial.tsRequestVersion),
+            initial.tokenCount,
+            spnego.tokenBytes,
+            static_cast<unsigned int>(spnego.topLevelTag),
+            yesNo(spnego.gssInitialContextToken),
+            spnego.mechanismCount,
+            yesNo(spnego.ntlmOffered),
+            spnego.directNtlmType1Accepted ? "accepted" : "rejected");
+        return;
+    }
+
     std::array<char, 2048> mechanismOidStorage{};
     const std::string_view mechanismOids =
         formatMechanismOids(spnego, mechanismOidStorage);

@@ -817,23 +817,40 @@ jobs:
             test_x11_desktop_resources \
             test_x11_authorized_input_route test_x11_rdp_slow_path_input \
             fuzz_mcs_cliprdr fuzz_credssp
-      - name: R9 Start-Stop-Start and standalone CredSSP envelope owner-candidate gate
+      - name: R9 Microsoft-CSSP negotiation owner-candidate gate
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         shell: bash
         run: |
           set -euo pipefail
-          # One exact-SHA gate owns both owner regressions. Run binaries
-          # directly so native-environment skip code 77 is a hard failure.
+          # One exact-SHA gate owns lifecycle plus both MS-CSSP negotiation
+          # envelopes. Run binaries directly so skip code 77 is a hard failure.
           build/tests/test_linux_runtime_host_control \
             r9-start-stop-start-and-tls-interop
+
+          # Exact owner reproduction: v6 / one 40-byte raw NTLMSSP Type 1,
+          # raw Type 2, raw Type 3 + pubKeyAuth, server pubKeyAuth, authInfo,
+          # then CredentialsVerified through the production CredSSP code.
           build/tests/test_standalone_spnego \
-            r9-microsoft-neginit2-ntlm-challenge
-          build/tests/test_standalone_credssp \
-            r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge
+            direct-ntlm-envelope-negotiate-authenticate
           build/tests/test_standalone_credssp \
             r9-standalone-credssp-direct-ntlm-v6-full-flow
+
+          # Preserve both the TLS-backed SPNEGO challenge bridge and every
+          # ordinary SPNEGO behavior/denial case in the qualification gate.
+          build/tests/test_standalone_credssp \
+            r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge
+          for spnego_case in \
+            r9-microsoft-neginit2-ntlm-challenge \
+            r9-spnego-initial-rejection-categories \
+            spnego-ntlm-first-negotiate-challenge \
+            spnego-ntlm-authenticate-known-answer \
+            spnego-fallback-mechlistmic-roundtrip \
+            spnego-fallback-integrity-and-der-denials
+          do
+            build/tests/test_standalone_spnego "$spnego_case"
+          done
 
       - name: Run all registered clipboard CTests with sanitizers
         env:

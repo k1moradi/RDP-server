@@ -127,7 +127,13 @@ require_token(connection_source
     "Standalone SPNEGO diagnostic classification")
 require_token(connection_source
     "credssp=spnego-initial"
-    "Standalone CredSSP diagnostic boundary")
+    "Standalone SPNEGO CredSSP diagnostic boundary")
+require_token(connection_source
+    "credssp=direct-ntlm"
+    "Standalone direct-NTLM CredSSP diagnostic boundary")
+require_token(connection_source
+    "direct-ntlm-type1="
+    "Standalone direct-NTLM Type-1 diagnostic checkpoint")
 require_token(connection_source
     "os-gss-fallback=disabled"
     "Standalone product must keep OS GSS fallback disabled")

@@ -1,3 +1,36 @@
+## R9 primary Microsoft-CSSP negotiation qualification gate (2026-10-24)
+
+The owner-candidate gate is no longer a generic "entered SPNEGO" check. The
+required direct-NTLM fixture reproduces the physical Microsoft-client structure
+exactly: TSRequest version 6, one negoToken, exactly 40 bytes, leading
+`NTLMSSP\0`, MessageType 1. That valid token MUST select `DirectNtlm`;
+classifying it as `invalid-gss-wrapper` is a regression failure. Keep
+`ntlmOffered` reserved for a SPNEGO mechanism-list offer: the direct fixture
+therefore observes zero mechanisms and `ntlmOffered == false`, with the
+separate `directNtlmType1Accepted` checkpoint true.
+
+The same production CredSSP translation units must then return raw Type 2,
+verify the known-answer raw Type 3 into the existing NTLM security context,
+accept final Type 3 together with `pubKeyAuth`, verify TLS channel binding,
+return server `pubKeyAuth`, decrypt/verify protected `authInfo`, and reach
+`CredentialsVerified`. Do not add a second NTLM implementation or OS/GSS
+fallback.
+
+The primary R9 sanitizer gate MUST directly run Start -> Stop -> Start, the
+direct-NTLM mechanism and full CredSSP flow, the TLS-backed SPNEGO bridge, and
+the complete ordinary SPNEGO matrix: NTLM-first, NegTokenInit2 with
+Kerberos/NEGOEX before NTLM, mechListMIC, and malformed-DER/integrity denials.
+Do not nominate another Linux owner candidate until (1) Start -> Stop -> Start
+passes, (2) the direct-NTLM production-backed fixture reaches
+`CredentialsVerified`, (3) the ordinary SPNEGO suite passes, and (4) the
+Linux/macOS/Windows shared protocol jobs are green on one exact SHA.
+
+Runtime diagnostics remain secret-safe and fail-only. A direct-NTLM connection
+must identify itself as `credssp=direct-ntlm` and preserve
+`direct-ntlm-type1=accepted`; any later failure must retain the exact
+authentication failure stage instead of falling back to a generic SPNEGO
+classification.
+
 ## Direct-NTLM CredSSP envelope and immutable-mode gates (2026-10-24)
 
 Real Microsoft Windows App evidence now proves a CredSSP v6 initial

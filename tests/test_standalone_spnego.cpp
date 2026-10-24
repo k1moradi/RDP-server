@@ -226,6 +226,15 @@ int main(int argc, char **argv)
     if (testCase == "direct-ntlm-envelope-negotiate-authenticate")
     {
         const auto negotiate = negotiateMessage();
+        assert(negotiate.size() == 40U);
+        constexpr std::array<std::uint8_t, 8> directSignature{
+            'N','T','L','M','S','S','P',0};
+        assert(std::equal(
+            directSignature.begin(), directSignature.end(), negotiate.begin()));
+        assert(negotiate[8] == 1U);
+        assert(negotiate[9] == 0U);
+        assert(negotiate[10] == 0U);
+        assert(negotiate[11] == 0U);
         std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
 
         StandaloneSpnegoNtlmAcceptor acceptor;
@@ -248,13 +257,18 @@ int main(int argc, char **argv)
                StandaloneNtlmNegotiationEnvelope::DirectNtlm);
         assert(observation.tokenBytes == negotiate.size());
         assert(observation.topLevelTag == 0x4eU);
+        assert(observation.directNtlmType1Accepted);
         assert(!observation.gssInitialContextToken);
         assert(observation.mechanismCount == 0U);
-        assert(observation.ntlmOffered);
+        assert(!observation.ntlmOffered);
         assert(observation.ntlmMechanismIndex ==
                kStandaloneSpnegoNoMechanismIndex);
         assert(observation.rejectionReason ==
                StandaloneSpnegoRejectionReason::None);
+        // This exact Microsoft-CSSP raw Type 1 used to be rejected as a
+        // malformed GSS wrapper. That interpretation is now a regression.
+        assert(observation.rejectionReason !=
+               StandaloneSpnegoRejectionReason::InvalidGssWrapper);
 
         EphemeralNtlmV2Credential credential;
         auto mutablePassword = password();

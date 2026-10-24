@@ -880,8 +880,7 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
         negotiationEnvelope_ =
             StandaloneNtlmNegotiationEnvelope::DirectNtlm;
         initialTokenObservation_.negotiationEnvelope = negotiationEnvelope_;
-        initialTokenObservation_.ntlmOffered = true;
-        ntlmWasFirstMechanism_ = true;
+        initialTokenObservation_.directNtlmType1Accepted = true;
         failureStage_ = StandaloneSpnegoFailureStage::None;
         rejectionReason_ = StandaloneSpnegoRejectionReason::None;
         return issueChallenge(token, false, output);
@@ -1054,7 +1053,9 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
         serverMechListMicView = serverMechListMic;
         failureStage_ = StandaloneSpnegoFailureStage::None;
     }
-    else if (!ntlmWasFirstMechanism_)
+    else if (
+        negotiationEnvelope_ == StandaloneNtlmNegotiationEnvelope::Spnego &&
+        !ntlmWasFirstMechanism_)
     {
         return fail(
             StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);

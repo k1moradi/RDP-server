@@ -1,3 +1,45 @@
+## R9 P0 primary Microsoft-CSSP negotiation qualification owner (2026-10-24)
+
+**Starting exact-main parent:** `78dc66eb7d7cd3bc4d830bffaea01fb8e399eb38`.
+
+The direct-NTLM implementation is now present on main, but owner nomination is
+stricter than "SPNEGO challenge entry." This increment makes the decisive
+Microsoft structure itself the R9 oracle: CredSSP TSRequest v6, one 40-byte
+`NTLMSSP\0` MessageType-1 token, immutable `DirectNtlm` selection, raw
+Type 2, known-answer raw Type 3 plus `pubKeyAuth`, server binding response,
+protected `authInfo`, then `CredentialsVerified`. The historical
+`invalid-gss-wrapper` interpretation of that exact token is now explicitly a
+regression failure.
+
+Direct NTLM no longer overloads the SPNEGO `ntlmOffered` observation.
+A raw Type 1 records `directNtlmType1Accepted=true` while mechanism count
+remains zero and SPNEGO `ntlmOffered=false`. Fail-only physical diagnostics
+use `credssp=direct-ntlm` and `direct-ntlm-type1=accepted`; SPNEGO keeps
+its existing `credssp=spnego-initial` record. OS/GSS fallback remains
+disabled and the remote standalone username is not a host identity.
+
+The exact-SHA R9 sanitizer owner gate now directly requires:
+- the existing Start -> Stop -> Start / TLS interop fixture;
+- direct-NTLM mechanism verification and the complete v6 CredSSP flow through
+  `CredentialsVerified`;
+- the TLS-backed SPNEGO challenge fixture plus SPNEGO NTLM-first,
+  NegTokenInit2/Kerberos/NEGOEX-before-NTLM, mechListMIC and malformed
+  DER/integrity denials;
+- ordinary shared protocol CI on Linux, macOS and Windows.
+
+**Owner-candidate rule:** do not nominate another Linux physical owner test
+until all four conditions above are PASS on one exact SHA. The desired next
+physical progression remains
+`tls=established -> credssp=direct-ntlm -> ntlm-type1=accepted ->
+ntlm-type2=sent -> ntlm-type3=verified -> pubkeyauth=verified ->
+authinfo=verified -> credentials=verified`. If it stops earlier, report the
+first missing/failed stage; do not reopen R1 TLS or enable OS/GSS fallback.
+
+Connector source/test/workflow review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Microsoft-client rerun:
+**NOT RUN** and **NOT YET NOMINATED**.
+
 ## R2 P0 direct-NTLM CredSSP envelope after decisive owner evidence (2026-10-24)
 
 **Starting exact-main parent:** `ff9b6c7566bf5497e6d23096395dc02a4c8e4105`.

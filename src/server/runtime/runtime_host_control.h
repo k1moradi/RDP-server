@@ -572,7 +572,7 @@ struct RuntimeCredentialCapabilities final
     bool standalonePassword{};
 };
 
-inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;
+// Credential capability only: this does not imply a listener, native desktop\n// authority, Share activation, or end-to-end Microsoft-client acceptance.\ninline constexpr bool kStandalonePasswordProductCapabilityApproved = true;
 
 struct RuntimeProductHostStatus final
 {

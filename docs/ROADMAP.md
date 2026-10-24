@@ -1,3 +1,13 @@
+## R2 P0 portable StandalonePassword admission — 2026-10-23
+
+**Current-main parent:** `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.
+
+Standalone NTLMv2/SPNEGO/CredSSP is now split from the GSS-configured `LinuxRuntimeSecurityConfiguration` path. The dedicated R2 current-owner route accepts no remote/local account mapping and joins exact R1 HYBRID/TLS ownership, exact standalone credential generation, successful standalone CredSSP verification, exact local sharing consent and fresh physical logind session evidence. ExistingOsAccount stays on the stronger GSS/Kerberos/PAM/NSS policy route.
+
+R10 consumes that split directly. Normal `LinuxRuntimeHostControl` construction can reach `CredentialsConfigured` after Session Password setup with no keytab, service principal, PAM service or OS-account policy. Owner consent stays separate and `startSharing()` opens a listener only after explicit Sharing plus fresh view authorization. Password replacement while Sharing is active retires the old connection/listener/consent before installing a new credential generation. Slow-path input remains gated by fresh input permission, not authentication mode.
+
+Coverage includes the no-keytab standalone connection selector, dedicated policyless R2 admission source guard, plaintext password scrubbing, and the no-config HostControl progression Session Password → `CredentialsConfigured` → owner-consent gate → Start eligibility with no pre-Start listener. Physical-owner and real Microsoft-client acceptance remain **NOT RUN**; prior GUI Round 2 remains presentation qualification only.
+
 ## R7 P0 follow-up — acceptance/source and portable-fixture contract correction — 2026-10-23
 
 Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.

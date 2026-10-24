@@ -10,6 +10,7 @@
 #undef RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO
 #endif
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -482,7 +483,7 @@ int main(int argumentCount, char** argumentValues)
         assert(host.requestCredentialSetup(LanCredentialChoice::ExistingOsAccount).error ==
                RuntimeHostError::ControlUnavailable);
         assert(host.requestCredentialSetup(LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+               RuntimeHostError::CredentialNotConfigured);
         assert(host.requestCredentialSetup(LanCredentialChoice::Unconfigured).error ==
                RuntimeHostError::CredentialNotConfigured);
         assert(host.requestCredentialSetup(static_cast<LanCredentialChoice>(255U)).error ==

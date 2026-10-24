@@ -58,7 +58,7 @@ int main(int argc, char** argv)
                RuntimeHostError::CredentialProviderUnavailable);
         assert(control.requestCredentialSetup(
                    LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+               RuntimeHostError::CredentialNotConfigured);
         assert(control.status().activeClients.empty());
         return 0;
     }
@@ -68,7 +68,7 @@ int main(int argc, char** argv)
         assert(status.product.state == RuntimeProductHostState::Stopped);
         assert(status.product.controlAvailable);
         assert(!status.product.credentialCapabilities.existingOsAccount);
-        assert(!status.product.credentialCapabilities.standalonePassword);
+        assert(status.product.credentialCapabilities.standalonePassword);
         assert(!status.product.credentialsConfigured);
         assert(!status.product.ownerAuthorized);
         assert(!status.product.sharingPermission.canRequest);
@@ -291,7 +291,7 @@ int main(int argc, char** argv)
             assert(configured.listenerGeneration == 0U);
             assert(configured.boundEndpoint.empty());
             assert(control.startSharing().error ==
-                   RuntimeHostError::CredentialProviderUnavailable);
+                   RuntimeHostError::CredentialNotConfigured);
             assert(!control.status().listenerAvailable);
             assert(control.status().boundEndpoint.empty());
         }
@@ -327,7 +327,7 @@ int main(int argc, char** argv)
         assert(control.configure(selected).succeeded());
         assert(control.status().tlsIdentityReady);
         assert(control.startSharing().error ==
-               RuntimeHostError::CredentialProviderUnavailable);
+               RuntimeHostError::CredentialNotConfigured);
         assert(!control.status().listenerAvailable);
 
         assert(control.stopSharing().succeeded());
@@ -352,7 +352,7 @@ int main(int argc, char** argv)
             interfaces.front().localAddresses.front(), 3389U, true, false};
         assert(control.configure(selected).succeeded());
         assert(control.startSharing().error ==
-               RuntimeHostError::CredentialProviderUnavailable);
+               RuntimeHostError::CredentialNotConfigured);
 
         RuntimeHostOptions removed = selected;
         removed.interfaceId += "#stale";
@@ -418,8 +418,9 @@ int main(int argc, char** argv)
         const auto first =
             control.standaloneApplicationPasswordObservation();
         assert(first.configured && first.generation != 0U);
-        assert(!control.status().credentialsConfigured);
-        assert(control.status().stage == RuntimeHostStage::Stopped);
+        assert(control.status().credentialsConfigured);
+        assert(control.status().stage ==
+               RuntimeHostStage::CredentialsConfigured);
 
         StandaloneVisitObservation observed;
         assert(control.visitStandaloneApplicationPassword(
@@ -429,11 +430,11 @@ int main(int argc, char** argv)
             first.generation + 1U,
             &observeStandaloneCredential, &observed));
 
-        // Switching to any product credential mode revokes the alternate
-        // standalone credential even when that product request later denies.
+        // Switching to ExistingOsAccount revokes the alternate standalone
+        // credential even when the expert GSS provider is unavailable.
         assert(control.requestCredentialSetup(
-                   LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+                   LanCredentialChoice::ExistingOsAccount).error ==
+               RuntimeHostError::CredentialProviderUnavailable);
         const auto afterModeRequest =
             control.standaloneApplicationPasswordObservation();
         assert(!afterModeRequest.configured);
@@ -477,6 +478,88 @@ int main(int argc, char** argv)
             deniedPassword,
             [](char16_t value) { return value == u'\0'; }));
         assert(!control.standaloneApplicationPasswordObservation().configured);
+        return 0;
+    }
+
+    if (testCase == "linux-host-control-standalone-no-config-start-gate")
+    {
+        RuntimeHostControl& productControl = control;
+        auto password = standalonePassword();
+        assert(productControl.configureStandaloneApplicationPassword(
+            u"RemoteUser", password));
+        assert(std::ranges::all_of(
+            password,
+            [](char16_t value) { return value == u'\0'; }));
+
+        auto configured = productControl.status();
+        assert(configured.product.credentialCapabilities.standalonePassword);
+        assert(configured.credentialsConfigured);
+        assert(configured.product.credentialsConfigured);
+        assert(configured.stage == RuntimeHostStage::CredentialsConfigured);
+        assert(!configured.product.credentialCapabilities.existingOsAccount);
+        assert(!configured.listenerAvailable);
+
+        // Explicit mode selection remains valid but is not a GSS/keytab
+        // provisioning action and does not mint consent.
+        assert(productControl.requestCredentialSetup(
+                   LanCredentialChoice::IndependentApplicationPassword)
+                   .succeeded());
+        configured = productControl.status();
+        assert(configured.credentialsConfigured);
+        assert(!configured.hostOwnerAuthorized);
+        assert(!configured.listenerAvailable);
+
+        const auto interfaces = productControl.enumerateLocalInterfaces();
+        if (interfaces.empty() || interfaces.front().localAddresses.empty())
+            return 77;
+
+        const RuntimeHostOptions selected{
+            interfaces.front().stableId,
+            interfaces.front().localAddresses.front(), 3389U, true, false};
+        assert(productControl.configure(selected).succeeded());
+        configured = productControl.status();
+        assert(configured.credentialsConfigured);
+        assert(configured.tlsIdentityReady);
+        assert(!configured.listenerAvailable);
+
+        // Request view-only owner consent to prove input permission remains
+        // separately scoped from the authentication decision.
+        const auto consent = productControl.requestHostPermissionSetup(
+            {false, false, 60'000U});
+        if (!consent.succeeded())
+        {
+            assert(consent.error == RuntimeHostError::HostConsentRequired);
+            assert(productControl.startSharing().error ==
+                   RuntimeHostError::HostConsentRequired);
+            assert(!productControl.status().listenerAvailable);
+            return 0;
+        }
+
+        configured = productControl.status();
+        assert(configured.hostOwnerAuthorized);
+        assert(configured.product.sharingPermission.viewAllowed);
+        assert(!configured.product.sharingPermission.inputAllowed);
+        assert(productControl.startSharing().succeeded());
+        assert(productControl.status().listenerAvailable);
+
+        // Replacing the Session Password while Sharing is active is terminal
+        // for the old listener, consent epoch and credential generation.
+        const auto beforeReplacement =
+            control.standaloneApplicationPasswordObservation();
+        auto replacement = std::array<char16_t, 8>{
+            u'N', u'e', u'w', u'P', u'a', u's', u's', u'1'};
+        assert(productControl.configureStandaloneApplicationPassword(
+            u"RemoteUser", replacement));
+        assert(std::ranges::all_of(
+            replacement,
+            [](char16_t value) { return value == u'\0'; }));
+        const auto afterReplacement =
+            control.standaloneApplicationPasswordObservation();
+        assert(afterReplacement.configured);
+        assert(afterReplacement.generation > beforeReplacement.generation);
+        assert(!productControl.status().listenerAvailable);
+        assert(!productControl.status().hostOwnerAuthorized);
+        assert(productControl.status().credentialsConfigured);
         return 0;
     }
 

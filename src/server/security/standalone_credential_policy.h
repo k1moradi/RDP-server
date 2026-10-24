@@ -22,6 +22,9 @@ enum class LanCredentialDecision : std::uint8_t
 {
     CredentialNotConfigured,
     RequiresGenuineOsAuthenticationAndHostConsent,
+    RequiresStandalonePasswordAndHostConsent,
+    // Retained for source compatibility with older callers. Current Linux
+    // StandalonePassword no longer returns this decision.
     UnsupportedIndependentPasswordCredSsp,
 };
 
@@ -35,7 +38,7 @@ enum class LanCredentialDecision : std::uint8_t
             RequiresGenuineOsAuthenticationAndHostConsent;
     case LanCredentialChoice::IndependentApplicationPassword:
         return LanCredentialDecision::
-            UnsupportedIndependentPasswordCredSsp;
+            RequiresStandalonePasswordAndHostConsent;
     case LanCredentialChoice::Unconfigured:
         return LanCredentialDecision::CredentialNotConfigured;
     }

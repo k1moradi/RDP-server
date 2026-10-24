@@ -1,3 +1,13 @@
+## R2 P0 standalone-password native admission boundary (2026-10-23)
+
+`StandalonePassword` is a first-party authentication mode, not an alias for the ExistingOsAccount/GSS path. Its positive Linux authority is the conjunction of the exact accepted R1 HYBRID/TLS connection, the exact `StandalonePasswordCredentialOwner` generation, successful NTLMv2/SPNEGO/CredSSP verification, the current locally approved `CurrentOwnerSharingAuthority` epoch and fresh physical-session evidence. No scalar, GUI state, remote username, UID or logind observation is authority by itself.
+
+R2 therefore has two distinct positive Linux admission routes. ExistingOsAccount retains the service-owned `LinuxRuntimeSecurityConfiguration`, OS-account policy, GSS/Kerberos provenance, PAM verification and NSS/logind correlation. StandalonePassword uses no `ConsoleIdentityPolicy`, keytab, service principal, GSS credential, PAM service or local-account mapping. After exact standalone CredSSP verification, R2 samples the current physical `seat0` X11 owner, pins the native session/display/generation, binds the exact local-consent epoch and issues the existing move-only admission lease only when all facts remain current.
+
+Revalidation repeats the same conjunction before every protected transition. Password replacement, Stop, consent replacement/expiry, lock, logout, user switch and session replacement revoke the route. View/input/clipboard remain separate permission bits; standalone authentication never implies input authority.
+
+R10's normal no-argument Linux host may therefore reach `CredentialsConfigured` after Session Password consumption without expert security configuration. R1 TLS and R3 licensing bootstrap remain independent, and no listener opens until the user's explicit Sharing action succeeds.
+
 ## R7/R10 no-argument consumer composition and qualification seam — 2026-10-23
 
 The normal Linux desktop entrypoint now composes existing owners instead of

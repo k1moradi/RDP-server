@@ -21,7 +21,7 @@ int main(int argc, char **argv)
                   LanCredentialDecision::RequiresGenuineOsAuthenticationAndHostConsent);
     static_assert(assessLanCredentialChoice(
                       LanCredentialChoice::IndependentApplicationPassword) ==
-                  LanCredentialDecision::UnsupportedIndependentPasswordCredSsp);
+                  LanCredentialDecision::RequiresStandalonePasswordAndHostConsent);
     static_assert(assessLanCredentialChoice(static_cast<LanCredentialChoice>(255)) ==
                   LanCredentialDecision::CredentialNotConfigured);
 

@@ -1,3 +1,15 @@
+## R2 P0 standalone native admission rebased on current main — 2026-10-23
+
+**Starting exact-main parent:** `56ef5a1bb5acbd7dadc3497c1886b06e3ae21408`.
+
+The earlier R2 feature branch demonstrated the intended policyless standalone admission design but diverged while R7/R10 advanced GUI acceptance and native-target status projection. This branch ports the R2 connection/broker implementation onto current main and preserves the newer R10 product-status work. The synthetic no-config OS-account bootstrap added on main is removed from StandalonePassword rather than treated as portable authentication authority.
+
+Production R2 now has a dedicated current-owner standalone route with no `ConsoleIdentityPolicy`, keytab, service principal, GSS credential, PAM service or remote-to-local account mapping. Positive issuance requires exact standalone CredSSP/R1/TLS/credential-generation proof, current owner-consent epoch, concrete logind change monitoring and fresh active physical `seat0` evidence. ExistingOsAccount remains unchanged on the GSS/Kerberos/PAM/NSS route.
+
+R10 no longer requires expert security/admission objects for StandalonePassword readiness or accepted-client construction. The normal no-config controller can reach `CredentialsConfigured` after Session Password consumption/scrubbing, while listener creation still requires explicit Sharing and local consent. Password replacement retires old listener/client/consent state before the new generation can be used.
+
+Canonical owner `~/rdp-server/build/` execution: **NOT RUN** in this connector environment. Exact branch-head hosted CI is the next acceptance gate. Physical Linux owner acceptance and Microsoft-client interoperability remain **NOT RUN**; prior GUI Round 2 PASS is not product readiness.
+
 ## 2026-10-23 — R7 P0 hosted test-contract correction after compile recovery
 
 Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.

@@ -1,3 +1,9 @@
+## StandalonePassword must not inherit OS-account authority (2026-10-23)
+
+Keep StandalonePassword and ExistingOsAccount as separate R2 authority paths. Standalone code must not manufacture a Kerberos principal, Unix account, UID, PAM result, `ConsoleIdentityPolicy` or GSS service configuration to reuse ExistingOsAccount admission. The remote application username is credential correlation only and must never select a Linux user/session.
+
+Positive standalone admission requires exact R1 HYBRID/TLS ownership, exact standalone credential generation, completed standalone CredSSP, fresh exact local sharing-consent epoch and fresh physical-session evidence. Recheck authority around native sampling and before every downstream protected transition. Password APIs consume mutable plaintext spans and must scrub them synchronously before return; replacement is terminal for the old generation and consent. Keep view/input/clipboard permissions independent.
+
 ## Portable host-control deny fallbacks must be backend-link independent (2026-10-23)
 
 A cross-platform `RuntimeHostControl` default denial path must not introduce a

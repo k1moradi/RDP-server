@@ -4090,6 +4090,18 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant
+        COMMAND test_desktop_gui_offline
+            consumer-listener-start-failure-clipboard-dormant)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;failure;clipboard;r8"
+        CONFIGURATIONS Debug
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
     # R10 client authentication cannot be presented as a connected desktop.
     # Stale endpoint/peer fields are cleared by the Qt projection on Stop.
     add_test(NAME gui.offscreen-r10-client-stage-and-retirement-status-denials

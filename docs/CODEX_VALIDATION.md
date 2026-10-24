@@ -1,3 +1,28 @@
+## R8 owner-acceptance credential/start clipboard dormancy — 2026-10-24
+
+Starting parent: `8676668cc15447f1cae85ae6bcbff58b256ba372`.
+
+Source/lifetime audit confirms the owner-acceptance Session Password path does
+not authorize clipboard: GUI permission requests set `allowClipboard = false`;
+credential replacement revokes the prior owner-consent generation and cannot
+run across a live listener; listener Start does not construct native desktop or
+R8 state; native clipboard preparation remains accepted-client/GraphicsReady
+only; Stop/Revoke retires clipboard before native/connection/listener teardown.
+
+Added CTest
+`gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant`
+for the failure boundary after credential + owner permission + endpoint
+preparation. Existing owner-acceptance workflow/password-replacement cases now
+also assert the permission excludes clipboard and the observable clipboard
+state remains `Unavailable`. The R9 portable GUI acceptance selector is
+expanded from eight to nine exact tests.
+
+Production source and Release qualification gates: **UNCHANGED**.
+R8 activation: **BLOCKED / NOT RUN**.
+Connector source review: **PASS**.
+Focused/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted qualification: **PENDING**.
+
 ## R1 P1 Linux standalone owner-grant -> authoritative listener regression (2026-10-24)
 
 Starting exact-main parent: `15e4d479819e8a76e7ff563b67d681a5c3a2d49b`.

@@ -386,14 +386,19 @@ if(password_live_listener_denial LESS 0 AND password_live_retirement LESS 0)
         "Session Password replacement must reject a live host or retire it first")
 endif()
 string(FIND "${password_source}"
+    "OwnerConsentRevocationReason::CredentialChange"
+    password_owner_generation_revoke)
+string(FIND "${password_source}"
     "standaloneCredentialGeneration_ = 0U" password_generation_clear)
 string(FIND "${password_source}"
     "standalonePasswordCredential_.configure(" password_configure)
 string(FIND "${password_source}"
     "standaloneCredentialGeneration_ = observation.generation"
     password_generation_install)
-if(password_generation_clear LESS 0 OR password_configure LESS 0 OR
+if(password_owner_generation_revoke LESS 0 OR
+   password_generation_clear LESS 0 OR password_configure LESS 0 OR
    password_generation_install LESS 0 OR
+   NOT password_owner_generation_revoke LESS password_configure OR
    NOT password_generation_clear LESS password_configure OR
    NOT password_configure LESS password_generation_install)
     message(FATAL_ERROR
@@ -407,6 +412,45 @@ foreach(forbidden_text IN ITEMS
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
             "Session Password replacement must not manipulate R8 state: ${forbidden_text}")
+    endif()
+endforeach()
+
+# Listener Start remains an R1/R2 boundary only. In particular, a failed
+# Start after credential replacement, consent and endpoint preparation must not
+# construct or retain a native/R8 owner; native/R8 construction begins only
+# later for an accepted client at GraphicsReady.
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::startSharing()"
+    start_sharing_begin)
+string(FIND "${host_source}"
+    "void LinuxRuntimeHostControl::retireNativeDesktop() noexcept"
+    start_sharing_end)
+if(start_sharing_begin LESS 0 OR
+   start_sharing_end LESS_EQUAL start_sharing_begin)
+    message(FATAL_ERROR "unable to isolate listener Start")
+endif()
+math(EXPR start_sharing_length
+    "${start_sharing_end} - ${start_sharing_begin}")
+string(SUBSTRING "${host_source}" ${start_sharing_begin}
+    ${start_sharing_length} start_sharing_source)
+string(FIND "${start_sharing_source}" "openLanListener(" start_listener_open)
+if(start_listener_open LESS 0)
+    message(FATAL_ERROR "R8 audit expects Start to own only the R1 listener boundary")
+endif()
+foreach(forbidden_text IN ITEMS
+        "nativeDesktop_"
+        "initializeNativeDesktop("
+        "LinuxPreparedClipboardOwner"
+        "clipboard.prepare("
+        "kConsoleClipboardPermission"
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite(")
+    string(FIND "${start_sharing_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "listener Start must not construct or retain R8 state: ${forbidden_text}")
     endif()
 endforeach()
 

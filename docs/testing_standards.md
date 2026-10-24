@@ -1,3 +1,20 @@
+## R8 owner-acceptance credential/start clipboard-dormancy rule (2026-10-24)
+
+The prequalification Session Password workflow must keep R8 dormant through the
+entire local credential/start transaction. Owner-acceptance GUI tests must
+observe `allowClipboard == false` for both initial and replacement credentials,
+and a listener Start failure after successful credential configuration, owner
+consent and endpoint preparation must leave
+`RuntimeHostStatus::clipboardState == Unavailable`.
+
+Linux source-contract coverage must independently prove that standalone
+credential replacement invalidates the prior owner-consent generation and
+cannot cross a live listener, while `startSharing()` contains no native
+desktop/CLIPRDR owner construction. Native clipboard preparation remains
+accepted-client/GraphicsReady-only, and Stop/Revoke must retire any prepared R8
+owner before native desktop, connection and listener teardown. Do not add a GUI
+clipboard preference while the production activation gate is false.
+
 ## R8 isolation assertions in deterministic HostControl evidence tests (2026-10-24)
 
 When an R10 HostControl permission/status regression uses injected deterministic
@@ -73,8 +90,8 @@ The owner-acceptance bootstrap gate must include the password-replacement consen
 regression. After `configureStandalonePassword()`, production GUI Start logic
 must re-read authoritative HostControl status before evaluating owner permission;
 a pre-credential GUI snapshot cannot authorize a new credential generation.
-The exact R9 acceptance inventory is eight tests while this regression is part
-of the consumer path. Any owner ZIP candidate must be built from an exact SHA
+The exact R9 acceptance inventory is nine tests while this regression and the
+listener-Start clipboard-dormancy failure case are part of the consumer path. Any owner ZIP candidate must be built from an exact SHA
 that passes that inventory plus the packaged no-argument smoke.
 
 ## R3 platform HostControl automatic-licensing consumption (2026-10-24)

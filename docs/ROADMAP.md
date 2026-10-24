@@ -1,3 +1,41 @@
+## R8 P2 owner-acceptance credential/start dormancy audit — 2026-10-24
+
+Starting exact-main parent: `8676668cc15447f1cae85ae6bcbff58b256ba372`.
+
+The Linux owner report exposes an R7/R10 credential-widget usability defect, but
+R8 activation remains independently blocked and must not be used to solve it.
+R8 therefore audits the existing production credential/start transaction
+without enabling clipboard or changing authentication.
+
+The production GUI already requests View/Input with
+`allowClipboard = false`. Standalone password replacement revokes the prior
+owner-consent generation and is rejected while a listener is live. R10's
+`startSharing()` owns endpoint/listener/TLS work only; native desktop and R8
+clipboard preparation remain accepted-client/GraphicsReady-only. Stop/Revoke
+continues to retire clipboard before the borrowed native desktop, accepted
+connection and listener.
+
+Coverage is strengthened in two places. The owner-acceptance GUI regressions now
+assert clipboard remains `Unavailable` for the initial credential cycle and
+password replacement. New ordinary CTest
+`gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant`
+drives credential -> permission -> endpoint -> failing listener Start and
+requires no clipboard grant/owner plus no Copy/bound-address projection. The
+Linux bootstrap source contract additionally rejects any native/R8 construction
+inside `startSharing()` and requires credential replacement to invalidate the
+prior owner-consent generation.
+
+Production R8/R7/R10/RDP wire source: **UNCHANGED**.
+`kLinuxProductionClipboardActivationApproved`: **false / UNCHANGED**.
+No GUI clipboard checkbox was added. Connector source review: **PASS**.
+Focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** the R7/R10 owner must land the Linux credential-field editability
+correction while preserving these R8 contracts; then the nine-test portable GUI
+acceptance inventory and ordinary full CTest must pass. R8 activation remains
+**BLOCKED** until the separate physical FIRST/product receipt.
+
 ## R1 P1 authoritative listener readiness after Linux GUI unblock (2026-10-24)
 
 Starting exact-main parent: `15e4d479819e8a76e7ff563b67d681a5c3a2d49b`.

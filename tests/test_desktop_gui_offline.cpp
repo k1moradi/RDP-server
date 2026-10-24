@@ -958,6 +958,9 @@ int main(int argc, char** argv)
                     "credential", "permission", "endpoint", "listener"}));
         assert(password->text().isEmpty());
         assert(confirmation->text().isEmpty());
+        assert(!runtime.lastPermissionRequest.allowClipboard);
+        assert(host.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert(!toggle->isChecked());
         assert(!copy->isEnabled());
 
@@ -969,6 +972,8 @@ int main(int argc, char** argv)
         assert(address->text() ==
                QStringLiteral("Connect to: 192.168.0.10:3389"));
         assert(copy->isEnabled());
+        assert(host.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
         return 0;
     }
 
@@ -1006,6 +1011,9 @@ int main(int argc, char** argv)
         assert(runtime.standaloneCredentialCalls == 1);
         assert(runtime.permissionSetupCalls == 1);
         assert(runtime.lastPermissionRequest.allowInput);
+        assert(!runtime.lastPermissionRequest.allowClipboard);
+        assert(host.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
         assert((runtime.commandOrder ==
                 std::vector<std::string>{
                     "credential", "permission", "endpoint", "listener"}));
@@ -1043,6 +1051,56 @@ int main(int argc, char** argv)
         assert(
             requiredLabel(window, "hostErrorExplanation")
                 ->text().contains("provisioning failed"));
+        return 0;
+    }
+
+    if (mode == "consumer-listener-start-failure-clipboard-dormant")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        return 77;
+#endif
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = false;
+
+        DesktopWindow window(host);
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        auto* address = requiredLabel(window, "connectionAddress");
+        assert(password && confirmation);
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(password->text());
+        assert(window.canStart());
+
+        toggle->click();
+
+        assert((runtime.commandOrder ==
+                std::vector<std::string>{
+                    "credential", "permission", "endpoint", "listener"}));
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.permissionSetupCalls == 1);
+        assert(runtime.configureCalls == 1);
+        assert(runtime.startCalls == 1);
+        assert(!runtime.lastPermissionRequest.allowClipboard);
+        assert(host.status().clipboardState ==
+               RuntimeClipboardState::Unavailable);
+        assert(!toggle->isChecked());
+        assert(!copy->isEnabled());
+        assert(address->text() ==
+               QStringLiteral("Local address: 192.168.0.10"));
+        assert(
+            requiredLabel(window, "hostErrorExplanation")
+                ->text().contains("listener"));
         return 0;
     }
 

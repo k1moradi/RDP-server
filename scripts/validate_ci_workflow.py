@@ -210,6 +210,7 @@ REQUIRED_TOKENS = (
     "r9-portable-gui-bootstrap-acceptance",
     "runtime.linux-portable-gui-bootstrap-listener-acceptance",
     "gui.offscreen-owner-acceptance-consumer-start-orchestration",
+    "gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission",
     "runtime.desktop-shared-configuration-feed",
     "rdp-server-owner-acceptance-linux",
     "owner-acceptance ZIP failed canonical no-argument startup smoke",

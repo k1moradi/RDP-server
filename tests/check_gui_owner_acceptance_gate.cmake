@@ -90,14 +90,18 @@ string(SUBSTRING "${window_source}" ${request_start_begin}
 string(FIND "${request_start_source}"
     "host_.configureStandalonePassword(" credential_step)
 string(FIND "${request_start_source}"
+    "const HostStatus permissionSnapshot = host_.status();" permission_refresh_step)
+string(FIND "${request_start_source}"
     "host_.requestHostPermission(" permission_step)
 string(FIND "${request_start_source}"
     "host_.start(currentHostRequest())" start_step)
-if(credential_step LESS 0 OR permission_step LESS 0 OR start_step LESS 0 OR
-   NOT credential_step LESS permission_step OR
+if(credential_step LESS 0 OR permission_refresh_step LESS 0 OR
+   permission_step LESS 0 OR start_step LESS 0 OR
+   NOT credential_step LESS permission_refresh_step OR
+   NOT permission_refresh_step LESS permission_step OR
    NOT permission_step LESS start_step)
     message(FATAL_ERROR
-        "Sharing intent must orchestrate credential -> owner permission -> endpoint/listener")
+        "Sharing intent must orchestrate credential -> authoritative permission refresh -> owner permission -> endpoint/listener")
 endif()
 
 message(STATUS

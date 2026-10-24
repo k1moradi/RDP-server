@@ -2519,7 +2519,7 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build --config Debug --parallel 2
-          bootstrap_selector='^(runtime[.]bootstrap-portable-storage-and-no-autostart-contract|runtime[.]desktop-shared-configuration-feed|runtime[.]linux-no-config-standalone-current-x11-selection|runtime[.]linux-portable-gui-bootstrap-listener-acceptance|runtime[.]linux-gui-bootstrap-clipboard-dormancy|gui[.]offscreen-owner-acceptance-consumer-start-orchestration|gui[.]offscreen-owner-acceptance-start-failure-rolls-back)$'
+          bootstrap_selector='^(runtime[.]bootstrap-portable-storage-and-no-autostart-contract|runtime[.]desktop-shared-configuration-feed|runtime[.]linux-no-config-standalone-current-x11-selection|runtime[.]linux-portable-gui-bootstrap-listener-acceptance|runtime[.]linux-gui-bootstrap-clipboard-dormancy|gui[.]offscreen-owner-acceptance-consumer-start-orchestration|gui[.]offscreen-owner-acceptance-password-change-rerequests-owner-permission|gui[.]offscreen-owner-acceptance-start-failure-rolls-back)$'
           bootstrap_tests="$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
           printf '%s\n' "$bootstrap_tests"
           for required_test in \
@@ -2529,10 +2529,11 @@ jobs:
             runtime.linux-portable-gui-bootstrap-listener-acceptance \
             runtime.linux-gui-bootstrap-clipboard-dormancy \
             gui.offscreen-owner-acceptance-consumer-start-orchestration \
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission \
             gui.offscreen-owner-acceptance-start-failure-rolls-back; do
             grep -Fq ": $required_test" <<< "$bootstrap_tests"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 7
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 8
           QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Debug --timeout 45 \
             -R "$bootstrap_selector" --output-on-failure
       - name: Canonical no-argument launch remains pre-listener and secret-free

@@ -1,3 +1,21 @@
+## R9 refresh after R7 credential-generation consent fix — 2026-10-24
+
+Starting exact-main parent: `730825ac415405efe2bb4768601f11e1c0ac2b37`.
+
+R7 resolved a real consumer-start race after the previous owner ZIP candidate:
+StandalonePassword replacement revokes the prior R2 consent generation, and the
+GUI now re-reads authoritative HostControl state before deciding whether fresh
+View/Input permission is required. The old owner candidate `c0cbcc7…` predates
+that fix and is therefore historical rather than the next physical-test binary.
+
+R9 continues instead of waiting on the external client gate. The portable GUI
+bootstrap inventory now requires the new behavior test
+`gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission`,
+raising the exact inventory from seven to eight tests. The static owner-acceptance
+contract also pins the post-credential `host_.status()` refresh between credential
+replacement and permission evaluation. A replacement artifact may be nominated
+only after this exact descendant passes the eight-test R9 job and ZIP smoke/upload.
+
 ## R6 generated-identity default lifetime contract correction — 2026-10-24
 
 Starting exact-main parent: `364ec0b7df2d92219ea9b0cec1e9f533067396ee`.

@@ -1,3 +1,18 @@
+## R9 consumes R7 credential-change consent revalidation — 2026-10-24
+
+Starting exact-main parent: `730825ac415405efe2bb4768601f11e1c0ac2b37`.
+
+Dependency recheck found the earlier external product blocker unchanged, but R7
+landed a repository-side correctness fix after the previous artifact candidate.
+R9 therefore does not reuse `c0cbcc7…` for physical qualification. The exact
+bootstrap selector now includes the new password-change/fresh-consent behavior,
+requires eight enumerated cases, and the static acceptance source contract pins
+the authoritative post-credential status refresh before owner-permission logic.
+R6's concurrent generated-licensing memory-only correction is preserved and is
+consistent with the no-config bootstrap contract. No Release capability,
+listener, TLS/licensing, native desktop or clipboard gate is promoted by this
+change. Exact publication-SHA hosted qualification: **PENDING**.
+
 ## R6 generated-identity default lifetime contract correction — 2026-10-24
 
 Starting exact-main parent: `364ec0b7df2d92219ea9b0cec1e9f533067396ee`.

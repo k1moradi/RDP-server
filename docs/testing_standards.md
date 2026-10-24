@@ -1,3 +1,13 @@
+## R9 credential-generation replacement acceptance rule (2026-10-24)
+
+The owner-acceptance bootstrap gate must include the password-replacement consent
+regression. After `configureStandalonePassword()`, production GUI Start logic
+must re-read authoritative HostControl status before evaluating owner permission;
+a pre-credential GUI snapshot cannot authorize a new credential generation.
+The exact R9 acceptance inventory is eight tests while this regression is part
+of the consumer path. Any owner ZIP candidate must be built from an exact SHA
+that passes that inventory plus the packaged no-argument smoke.
+
 ## R3 platform HostControl automatic-licensing consumption (2026-10-24)
 
 Every production platform HostControl that consumes the automatic R3 licensing

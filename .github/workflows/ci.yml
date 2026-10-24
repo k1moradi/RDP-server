@@ -2513,8 +2513,8 @@ jobs:
             -DRDP_SERVER_BUILD_DESKTOP_GUI=ON \
             -DRDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON
           grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
-          grep -Fx 'RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY:BOOL=ON' build/CMakeCache.txt
           grep -Fx 'RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI:BOOL=ON' build/CMakeCache.txt
+          cmake --build build --config Debug --target rdp-server-linux-runtime-security --parallel 2
       - name: Build and run exact portable bootstrap acceptance inventory
         run: |
           set -euo pipefail

@@ -1,3 +1,22 @@
+## R9 Portable GUI Bootstrap first exact-SHA configure correction — 2026-10-23
+
+Exact source `9bfc6b813e2fe8dfaeb09e0b0b4df00e3e2ab778`, Actions run `40069867854`, job
+`120800801581`: dependency installation **PASS** and CMake configuration
+**PASS**, but the gate then failed its own cache assertion. The Linux GUI
+composition intentionally forces `RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY`
+as an ordinary CMake variable when the desktop product is ON; the cache may
+still preserve the option's default OFF spelling. Treating that cache spelling
+as the effective build graph was an R9 gate bug, not a product/bootstrap
+failure.
+
+The correction keeps the GUI and owner-acceptance cache assertions and instead
+builds the concrete `rdp-server-linux-runtime-security` target before the
+acceptance inventory. This proves the effective production graph without
+requiring consumers to know the expert CMake switch. No product runtime,
+authorization, listener or test semantics changed.
+
+Replacement exact-SHA hosted gate: **PENDING**.
+
 ## R9 P0 Portable GUI Bootstrap acceptance authoring receipt — 2026-10-23
 
 Starting exact-main parent: `d64fd6f1db9e13704f1c29c4afcd6b1b58a32100`.

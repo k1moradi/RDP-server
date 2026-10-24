@@ -1,3 +1,24 @@
+## Same-port Stop/Start must survive a server-active TCP close (2026-10-24)
+
+R10 Stop -> Start on an unchanged configured LAN endpoint is a behavior gate,
+including when the immediately preceding accepted client was actively closed
+by the server after authentication/admission failure. On POSIX, that accepted
+connection may leave the local endpoint in TCP `TIME_WAIT`; the listener
+implementation must allow prompt exact-address rebind without weakening live
+listener exclusivity.
+
+Use `SO_REUSEADDR` for this POSIX restart purpose, never `SO_REUSEPORT`.
+The regression must prove both halves together: after a real accepted
+connection is server-closed and the peer observes EOF, closing the listener
+allows immediate bind/listen on the same numeric address and port with a fresh
+listener generation; while that replacement listener is live, a second bind to
+the same exact endpoint still fails as `PortOccupied`.
+
+Keep this native behavior separate from CredSSP/native admission assertions.
+The focused R9 gate runs it before the DirectNtlm reconnect/Stop->Start fixture
+so a port-lifetime regression cannot be misreported as an authentication
+failure.
+
 ## Hosted DirectNtlm lifetime tests stop at the real native-admission boundary (2026-10-24)
 
 A hosted production-backed DirectNtlm lifecycle may use deterministic

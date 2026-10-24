@@ -291,6 +291,16 @@ LanListenerResult openLanListener(LanListenerRequest request) noexcept {
     if (!::SetHandleInformation(reinterpret_cast<HANDLE>(socket), HANDLE_FLAG_INHERIT, 0))
         return fail(LanListenerError::ListenerNotReady);
 #else
+    // Allow a stopped server to reclaim its exact configured endpoint when a
+    // process-owned accepted connection is still in TCP TIME_WAIT after an
+    // active close. This is deliberately SO_REUSEADDR, never SO_REUSEPORT:
+    // the existing exact-address live-listener collision must still fail.
+    int reuseAddress = 1;
+    if (::setsockopt(
+            socket, SOL_SOCKET, SO_REUSEADDR,
+            &reuseAddress, sizeof(reuseAddress)) != 0)
+        return fail(socketFailure());
+
     int flags = ::fcntl(socket, F_GETFL, 0);
     if (flags < 0 || ::fcntl(socket, F_SETFL, flags | O_NONBLOCK) != 0 ||
         ::fcntl(socket, F_SETFD, FD_CLOEXEC) != 0)

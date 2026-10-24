@@ -4070,6 +4070,15 @@ add_test(NAME transport.lan-listener-native-bind-denials
     COMMAND test_lan_listener)
 set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
     LABELS "protocol;transport;native;security" TIMEOUT 20)
+if(NOT WIN32)
+    add_test(NAME transport.lan-listener-same-port-rebind-after-server-close
+        COMMAND test_lan_listener same-port-rebind-after-server-close)
+    set_tests_properties(
+        transport.lan-listener-same-port-rebind-after-server-close PROPERTIES
+        LABELS "protocol;transport;native;security;r1;r10-stop"
+        TIMEOUT 20
+        SKIP_RETURN_CODE 77)
+endif()
 
 # R7 per-peer authentication failure is not host teardown. Pin the production
 # Linux retirement boundary so a rejected remote client cannot revoke the

@@ -1,3 +1,16 @@
+## POSIX LAN listener restart preserves exact-endpoint exclusivity (2026-10-24)
+
+The opt-in LAN listener may set `SO_REUSEADDR` before a POSIX exact-address
+bind so ordinary Stop -> Start can promptly reclaim the same configured port
+after a process-owned accepted connection was actively closed and remains in
+TCP `TIME_WAIT`. Do not use `SO_REUSEPORT` for this purpose.
+
+This restart allowance must not weaken listener ownership: binding is still to
+the exact validated private interface address, wildcard/public selection stays
+denied, and a second concurrently live listener on the same exact address/port
+must still fail as occupied. Keep a native regression that proves both the
+server-active-close rebind and the simultaneous-live-listener denial.
+
 ## Direct NTLM envelope classification is parser-gated, not prefix-gated (2026-10-24)
 
 For standalone CredSSP, never classify a peer token as `DirectNtlm` merely

@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #if !defined(_WIN32)
@@ -19,7 +20,14 @@
 #endif
 
 using namespace rdp_server::server::transport;
-int main() {
+int main(int argc, char **argv) {
+    const bool requireSamePortRebind =
+        argc == 2 && argv[1] != nullptr &&
+        std::string_view{argv[1]} ==
+            "same-port-rebind-after-server-close";
+    if ((argc != 1 && !requireSamePortRebind) || argc > 2)
+        return 2;
+    bool samePortRebindExercised = false;
     // Fail closed before native socket creation: never wildcard, public,
     // loopback or implicitly choose a network interface.
     for (const char *address : {"0.0.0.0", "::", "8.8.8.8", "2001:4860:4860::8888",
@@ -140,11 +148,39 @@ int main() {
             assert(accepted.connection.valid());
             assert(accepted.connection.peerEndpoint().valid());
             assert(accepted.connection.peerEndpoint().family == TcpPeerAddressFamily::Ipv4);
+            const std::uint64_t firstGeneration =
+                listener.listener.generation();
             accepted.connection.close();
+
+            if (requireSamePortRebind) {
+                // Make the server the active closer and observe its FIN before
+                // retiring the client. The accepted local endpoint can then
+                // remain in TIME_WAIT even though the listener itself is gone.
+                std::uint8_t eofByte{};
+                ssize_t received = -1;
+                do {
+                    received = ::recv(client, &eofByte, sizeof(eofByte), 0);
+                } while (received < 0 && errno == EINTR);
+                assert(received == 0);
+            }
+
             ::close(client);
             listener.listener.close();
             assert(listener.listener.generation() == 0U);
             assert(!listener.listener.interfaceStillMatches());
+
+            if (requireSamePortRebind) {
+                auto restarted = openLanListener({name, address, port});
+                assert(restarted.error == LanListenerError::None);
+                assert(restarted.listener.valid());
+                assert(restarted.listener.generation() != 0U);
+                assert(restarted.listener.generation() != firstGeneration);
+                auto duplicate = openLanListener({name, address, port});
+                assert(duplicate.error == LanListenerError::PortOccupied);
+                assert(!duplicate.listener.valid());
+                restarted.listener.close();
+                samePortRebindExercised = true;
+            }
         } else {
             assert(listener.error == LanListenerError::PortOccupied ||
                    listener.error == LanListenerError::InterfaceUnavailable);
@@ -212,4 +248,7 @@ int main() {
         }
     }
 #endif
+    if (requireSamePortRebind && !samePortRebindExercised)
+        return 77;
+    return 0;
 }

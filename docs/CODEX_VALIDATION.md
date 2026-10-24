@@ -1,3 +1,35 @@
+## R9/R10 same-port restart diagnosis and correction — 2026-10-24
+
+**Starting exact-main parent:** `0dd28a0a6840eb343b1dae4fa13ec2d9f73ea00c`.
+
+Exact-SHA Actions run `40129269378` compiled the corrected DirectNtlm
+lifecycle successfully. In focused sanitizer job `120977311045`, the
+malformed peer was retired, the next valid peer completed the real
+DirectNtlm/CredSSP path and was denied at the expected native
+`Admission` boundary. The fixture then failed at
+`tests/test_linux_runtime_direct_ntlm_lifecycle.cpp:1196` when immediate
+Stop -> fresh Start attempted to reuse the same configured port.
+
+Source review isolated the remaining boundary to POSIX listener lifetime.
+`OwnedLanListener::close()` correctly closes the listening descriptor, but
+`openLanListener()` previously bound a new POSIX socket without
+`SO_REUSEADDR`. Because R2 rejection actively closes the accepted server-side
+connection, its local endpoint can remain in `TIME_WAIT`, making the
+immediate exact-port bind report occupied. This is why the older same-port
+three-cycle TLS fixture could pass while the stronger server-rejection
+lifecycle failed.
+
+The correction sets only POSIX `SO_REUSEADDR`; Windows retains
+`SO_EXCLUSIVEADDRUSE`. No `SO_REUSEPORT` is enabled. A dedicated native
+CTest now drives accept -> server active close -> peer EOF -> listener close ->
+same-port immediate rebind and separately confirms another live duplicate bind
+still returns `PortOccupied`. The focused R9 sanitizer lane builds and runs
+that case before the DirectNtlm lifecycle.
+
+Connector source/log review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted qualification: **PENDING**. No
+physical server/client or native desktop action was performed.
+
 ## R9/R10 hosted native-admission boundary correction — 2026-10-24
 
 **Starting exact-main parent:** `8b28b342b130efb1dc85a3e3049ce75efbccb205`.

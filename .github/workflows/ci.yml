@@ -801,7 +801,7 @@ jobs:
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
             test_standalone_spnego test_standalone_credssp \
-            test_linux_runtime_host_control \
+            test_linux_runtime_host_control test_lan_listener \
             test_linux_runtime_direct_ntlm_lifecycle \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
             test_linux_logind_session_identity test_runtime_host_control \
@@ -829,6 +829,8 @@ jobs:
           # envelopes. Run binaries directly so skip code 77 is a hard failure.
           build/tests/test_linux_runtime_host_control \
             r9-start-stop-start-and-tls-interop
+          build/tests/test_lan_listener \
+            same-port-rebind-after-server-close
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             r10-direct-ntlm-reconnect-stop-start-lifecycle
 

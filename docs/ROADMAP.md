@@ -1,3 +1,44 @@
+## R9/R10 P0 — same-port restart after server-active close (2026-10-24)
+
+**Starting exact-main parent:** `0dd28a0a6840eb343b1dae4fa13ec2d9f73ea00c`.
+
+The hosted native-admission correction worked: exact-SHA run
+`40129269378`, job `120977311045`, compiled the production-linked
+DirectNtlm lifecycle and the valid reconnect peer reached the expected
+`CredentialsVerified -> Admission denied` boundary. The R9 gate then failed
+later at the first fresh Start after ordinary Stop:
+`startSharingOnPort(control, recommendation, selectedPort)`.
+
+This exposes a real R1/R10 lifecycle dependency rather than an authentication
+failure. The rejected authenticated peer is actively closed by the server.
+On POSIX, the accepted local endpoint can therefore remain in TCP
+`TIME_WAIT` after the listener is closed. The exact-address production LAN
+listener did not set `SO_REUSEADDR`, so immediate restart on the user's same
+configured port could fail with `PortOccupied`. The older three-cycle
+Start/Stop fixture used a client-side close and did not exercise this server
+active-close case.
+
+The POSIX listener now sets `SO_REUSEADDR` before its exact-address bind.
+It deliberately does **not** use `SO_REUSEPORT`; a second concurrently live
+listener on the same exact endpoint must still return `PortOccupied`.
+Dedicated native regression
+`transport.lan-listener-same-port-rebind-after-server-close` makes the server
+the active closer, observes EOF at the peer, closes the listener and requires
+an immediate same-port rebind with a fresh listener generation while preserving
+the live-duplicate denial. The focused R9 sanitizer gate compiles and directly
+executes this regression before the full DirectNtlm reconnect/Stop->Start
+lifecycle.
+
+No CredSSP, NTLM, native-admission, MCS, graphics or clipboard authority is
+changed. If exact-SHA hosted R9 plus Linux/macOS/Windows protocol jobs are green,
+the repository-side R9/R10 blocker is cleared. The next unresolved positive
+boundary remains owner-authorized physical Microsoft-client/native admission.
+
+Connector diagnosis/source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Physical native/client acceptance: **NOT RUN / REQUIRES EXPLICIT
+OWNER AUTHORIZATION**.
+
 ## R9/R10 P0 — hosted native-admission boundary correction (2026-10-24)
 
 **Starting exact-main parent:** `8b28b342b130efb1dc85a3e3049ce75efbccb205`.

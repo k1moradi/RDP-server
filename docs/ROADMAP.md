@@ -1,3 +1,37 @@
+## R7 P0 follow-up — acceptance/source and portable-fixture contract correction — 2026-10-23
+
+Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.
+
+Replacement hosted run
+[40068362582](https://github.com/k1moradi/RDP-server/actions/runs/40068362582)
+proved the prior portable-link correction: macOS Debug **compiled successfully**
+at the exact point that failed on `8001d148...`, and the actual Linux R7 GUI
+build/native read-only preflight plus Linux GUI ZIP job completed **PASS**.
+The macOS full Debug CTest then exposed three offline-test failures rather than
+production build failures.
+
+First, `gui.owner-acceptance-release-gate-and-production-path` searched the
+entire `desktop_window.cpp` for command ordering, so an earlier Advanced-tab
+manual permission callback made the source-contract index ordering false even
+though `requestStart()` has the required credential -> permission ->
+endpoint/listener sequence. The check is now scoped strictly to the
+`DesktopWindow::requestStart()` function boundary.
+
+Second, portable-GUI verifier tests still generated an old manifest fixture
+without the already-required zero-argument bootstrap fields. The production
+verifier correctly rejected those fixtures with `portable automatic-bootstrap
+contract mismatch`. The fixture now declares empty canonical startup
+arguments, no required configuration, memory-only Session Password storage, no
+automatic listener start and read-only extraction support. The verifier is not
+weakened.
+
+Validation: exact-SHA Linux GUI packaging **PASS** on `47df6f91...`; macOS
+Debug compile **PASS** there; failing CTest receipt **FAIL recorded**; corrected
+test-contract source review **PASS**. Owner-local full build/CTest remains
+**NOT RUN** here; replacement exact-SHA hosted CI is **PENDING** after
+publication; real Microsoft-client StandalonePassword qualification remains
+**NOT RUN** and the Release product capability remains false.
+
 ## R7 P0 follow-up — portable deny-fallback linkage correction — 2026-10-23
 
 Starting exact-main parent: `8001d148678b8106ac0953bba70be01ab1af38ee`.

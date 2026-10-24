@@ -71,9 +71,22 @@ if(NOT startup_listener EQUAL -1)
         "normal application startup must not invoke listener Start")
 endif()
 
-string(FIND "${window_source}" "host_.configureStandalonePassword(" credential_step)
-string(FIND "${window_source}" "host_.requestHostPermission(" permission_step)
-string(FIND "${window_source}" "host_.start(currentHostRequest())" start_step)
+string(FIND "${window_source}" "void DesktopWindow::requestStart()" request_start_begin)
+string(FIND "${window_source}" "void DesktopWindow::requestStop()" request_start_end)
+if(request_start_begin LESS 0 OR request_start_end LESS 0 OR
+   NOT request_start_begin LESS request_start_end)
+    message(FATAL_ERROR "requestStart function boundary unavailable")
+endif()
+math(EXPR request_start_length "${request_start_end} - ${request_start_begin}")
+string(SUBSTRING "${window_source}" ${request_start_begin}
+    ${request_start_length} request_start_source)
+
+string(FIND "${request_start_source}"
+    "host_.configureStandalonePassword(" credential_step)
+string(FIND "${request_start_source}"
+    "host_.requestHostPermission(" permission_step)
+string(FIND "${request_start_source}"
+    "host_.start(currentHostRequest())" start_step)
 if(credential_step LESS 0 OR permission_step LESS 0 OR start_step LESS 0 OR
    NOT credential_step LESS permission_step OR
    NOT permission_step LESS start_step)

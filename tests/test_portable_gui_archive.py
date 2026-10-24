@@ -68,6 +68,11 @@ class PortableGuiArchiveTests(unittest.TestCase):
             "version": "0.1.0", "platform": platform, "architecture": architecture,
             "exact_git_sha": self.source_sha, "runtime_integration": runtime,
             "startup_enabled": False, "mutable_state_location": "user-private-os-location",
+            "canonical_startup_arguments": [],
+            "configuration_required": False,
+            "session_password_storage": "memory-only",
+            "automatic_listener_start": False,
+            "read_only_extraction_supported": True,
             "files": hashes,
         }
         payload[module.MANIFEST] = json.dumps(manifest, sort_keys=True).encode()

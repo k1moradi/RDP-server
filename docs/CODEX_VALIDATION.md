@@ -1,3 +1,33 @@
+## 2026-10-23 — R7 P0 hosted test-contract correction after compile recovery
+
+Starting exact-main parent: `47df6f91c2708464b7c40c5978d6d14104580fe2`.
+
+Run [40068362582](https://github.com/k1moradi/RDP-server/actions/runs/40068362582)
+confirmed the previous linker fix: macOS `Compile Debug` **PASS**, focused R7
+macOS lifecycle **PASS**, and `r5-linux-gui-zip` completed **PASS** including
+the actual R7 GUI build/native read-only R5 preflight and portable closure
+packaging.
+
+The later macOS Debug CTest reported three failures. One was our new
+owner-acceptance source contract: it searched the whole GUI source, so the
+Advanced-tab manual permission callback appeared before the production Start
+credential call. The correction extracts only
+`DesktopWindow::requestStart()` before asserting the required production
+ordering.
+
+The other two failures were the same stale portable-GUI Python fixture reached
+through two CTests. `scripts/verify_portable_gui.py` already correctly
+requires the round-level zero-argument product manifest:
+`canonical_startup_arguments=[]`, `configuration_required=false`,
+`session_password_storage=memory-only`,
+`automatic_listener_start=false`, and
+`read_only_extraction_supported=true`. The test fixture lacked those fields.
+The fixture is updated; production verification rules remain unchanged.
+
+Status: source correction **PASS**; exact prior failure receipt **FAIL
+recorded**; owner-local full CTest **NOT RUN**; next exact-SHA hosted CI
+**PENDING**; real Windows App/`mstsc.exe` qualification **NOT RUN**.
+
 ## 2026-10-23 — R7 P0 portable host-control cleanup linkage correction
 
 Starting exact-main parent: `8001d148678b8106ac0953bba70be01ab1af38ee`.

@@ -1,3 +1,32 @@
+## R7 current-main hosted qualification after R10 P0 resolution (2026-10-24)
+
+**Tested SHA:** `89493aafe70da0ae0a5ce52ab6ea7aff89cc97a0`.
+
+Dependency recheck confirms R10's repository-side P0 correction is present:
+the three formerly environment-dependent Linux HostControl tests use injected
+deterministic evidence, a separate default/native-evidence observation remains,
+and hosted Linux qualification is green. The only unresolved P0 item is the
+owner physical unlocked Linux/X11 receipt; it is external evidence rather than a
+remaining R7 code dependency.
+
+Actions run `40078039811`:
+- macOS portable-GUI job `120825580563`: **PASS**;
+- Release offscreen GUI inventory: **31/31 PASS**;
+- `gui.offscreen-sharing-permission-requestability-gates-start`: **PASS**
+  as test #725;
+- Ubuntu protocol job `120825580559`: full CTest **892/892 PASS**.
+
+The dedicated R7 test proves `canRequest` remains requestability only: the
+non-requestable/unavailable state disables permission/main/tray actions, while
+the requestable/no-grant state exposes the explicit local action and does not
+automatically grant consent or Start. The correction therefore needs no further
+production GUI or HostControl change at this point.
+
+R7 repository-side qualification: **PASS / COMPLETE**.
+Owner-local physical Linux/X11 P0 selector: **PENDING** under R10 ownership.
+No listener, real desktop capture, input injection or live RDP client was
+exercised by this R7 hosted qualification.
+
 ## R10/R6 current-main Linux HostControl headless qualification (2026-10-24)
 
 **Tested SHA:** `dc72ae4321b1f5672cb38f10a100247b544fc931`.

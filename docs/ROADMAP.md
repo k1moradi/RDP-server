@@ -1,3 +1,34 @@
+## R7 current-main hosted qualification after R10 P0 resolution (2026-10-24)
+
+**Tested SHA:** `89493aafe70da0ae0a5ce52ab6ea7aff89cc97a0`.
+
+R10's P0 dependency is repository-side resolved for R7: the three Linux
+HostControl permission/status regressions now use deterministic injected owner
+evidence, the separate default-controller native-evidence observation remains,
+and the hosted Ubuntu lane is green. The remaining owner physical unlocked
+Linux/X11 rerun is an external acceptance receipt, not a code dependency that
+blocks the deterministic R7 GUI projection review.
+
+GitHub Actions run `40078039811`, macOS portable-GUI job `120825580563`:
+**PASS**. The Release offscreen GUI inventory enumerated **31** tests and
+reported **31/31 PASS**. Dedicated R7 regression
+`gui.offscreen-sharing-permission-requestability-gates-start` was test #725
+and **PASS**. This confirms both deterministic product states on current
+`main`: unavailable/non-requestable permission keeps main/tray Sharing
+disabled, while requestable/no-grant permission remains explicitly actionable
+without being treated as authorization.
+
+The same exact-SHA Ubuntu protocol job `120825580559` reported full CTest
+**892/892 PASS**. No production R2/R10 owner-consent source, listener, capture,
+input or RDP wire code changed in the R7 increment.
+
+**R7 status:** repository-side P1 projection correction and hosted
+qualification **COMPLETE**. No repository-side dependency blocker remains for
+this increment. The outstanding project-level P0 evidence is the owner physical
+Linux/X11 focused HostControl rerun recorded by R10; it should not trigger
+further R7 GUI changes unless that real-host evidence exposes a new projection
+defect.
+
 ## R10/R6 current-main Linux HostControl headless qualification (2026-10-24)
 
 **Tested SHA:** `dc72ae4321b1f5672cb38f10a100247b544fc931`.

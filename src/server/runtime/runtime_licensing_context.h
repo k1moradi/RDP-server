@@ -11,10 +11,10 @@ namespace rdp_server::server::runtime
 {
 
 // Service-lifetime R10 ownership for the already-reviewed R3 licensing
-// identity + private-key credential pair. This object does not read paths,
-// authorize a user, create a session, bind a listener, or make a licensing
-// decision. Callers must provision the input bytes through an independently
-// secure configuration/file boundary before configure().
+// identity + private-key credential pair. This object does not authorize a
+// user, create a session, bind a listener, or make a licensing decision.
+// Normal portable startup uses configureGeneratedApplicationIdentity(); the
+// explicit byte/file APIs remain expert provisioning seams.
 //
 // Configuration is one-shot. On success both R3 objects own their required
 // snapshots, so caller buffers may be released or overwritten immediately.
@@ -29,6 +29,11 @@ public:
     RuntimeLicensingContext &operator=(const RuntimeLicensingContext &) = delete;
     RuntimeLicensingContext(RuntimeLicensingContext &&) = delete;
     RuntimeLicensingContext &operator=(RuntimeLicensingContext &&) = delete;
+
+    // Provision the portable application's deterministic ProductInfo/scope
+    // with a fresh in-memory RSA-2048 X.509 licensing chain. Private key
+    // material never crosses a pathname, argv, environment or logging API.
+    [[nodiscard]] bool configureGeneratedApplicationIdentity() noexcept;
 
     [[nodiscard]] bool configure(
         std::uint32_t productVersion,

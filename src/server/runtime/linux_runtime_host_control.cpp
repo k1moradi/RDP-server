@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "linux_runtime_host_control.h"
+#include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 #include "linux_runtime_connection.h"
 #include "linux_runtime_security.h"
-#include "runtime_licensing_context.h"
 #include <openssl/rand.h>
 #endif
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -26,6 +26,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <new>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -576,7 +577,21 @@ resolveCurrentLinuxNativeLanInterface(std::string_view stableId) noexcept
 }
 
 LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
-    : ownerThread_(std::this_thread::get_id()) {}
+    : ownerThread_(std::this_thread::get_id()),
+      generatedLicensingContext_(
+          new (std::nothrow) RuntimeLicensingContext{})
+{
+    if (generatedLicensingContext_ != nullptr &&
+        generatedLicensingContext_->configureGeneratedApplicationIdentity())
+    {
+        licensingContext_ = generatedLicensingContext_.get();
+    }
+    else
+    {
+        generatedLicensingContext_.reset();
+        lastError_ = RuntimeHostError::InternalFailure;
+    }
+}
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 LinuxRuntimeHostControl::LinuxRuntimeHostControl(
     LinuxRuntimeSecurityConfiguration& securityConfiguration,
@@ -971,6 +986,8 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
         return deny(RuntimeHostError::AccessRevoked);
     if (listener_.valid())
         return deny(RuntimeHostError::InvalidConfiguration);
+    if (licensingContext_ == nullptr || !licensingContext_->configured())
+        return deny(RuntimeHostError::InternalFailure);
 
     // Automatic identities are selection-scoped. A new preparation attempt
     // retires the previous key/certificate before evaluating the new address.
@@ -1171,6 +1188,8 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return deny(RuntimeHostError::CredentialProviderUnavailable);
 #else
+    if (licensingContext_ == nullptr || !licensingContext_->configured())
+        return deny(RuntimeHostError::InternalFailure);
     if (securityConfiguration_ == nullptr ||
         !securityConfiguration_->configured())
         return deny(RuntimeHostError::CredentialProviderUnavailable);

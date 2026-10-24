@@ -1269,6 +1269,53 @@ add_test(NAME runtime.r8-r3-retired-route-positive-receipt-isolation
 set_tests_properties(runtime.r8-r3-retired-route-positive-receipt-isolation
     PROPERTIES LABELS "runtime;security;r8-receipt;offline")
 
+# R3 portable licensing bootstrap: exercise the production no-file generator,
+# the normative MS-RDPBCGR X.509 chain shape, and the existing MS-RDPELE
+# Server License Request serializer. This target opens no listener and owns no
+# R2/native authorization object.
+add_executable(test_runtime_licensing_autoprovision
+    test_runtime_licensing_autoprovision.cpp)
+target_link_libraries(test_runtime_licensing_autoprovision PRIVATE
+    rdp-server-runtime-licensing
+    rdp-server-runtime-tls
+    OpenSSL::Crypto)
+if(MSVC)
+    target_compile_options(test_runtime_licensing_autoprovision PRIVATE
+        /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(test_runtime_licensing_autoprovision PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+foreach(runtime_licensing_autoprovision_case IN ITEMS
+        deterministic-product-identity
+        microsoft-x509-chain-shape
+        server-license-request-generated-identity
+        distinct-from-r1-tls)
+    add_test(
+        NAME "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}"
+        COMMAND test_runtime_licensing_autoprovision
+            "${runtime_licensing_autoprovision_case}")
+    set_tests_properties(
+        "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}"
+        PROPERTIES LABELS "runtime;security;licensing;r3;offline")
+endforeach()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+   TARGET rdp-server-linux-host-control)
+    add_executable(test_linux_runtime_licensing_autoprovision
+        test_linux_runtime_licensing_autoprovision.cpp)
+    target_link_libraries(test_linux_runtime_licensing_autoprovision PRIVATE
+        rdp-server-linux-host-control)
+    target_compile_options(test_linux_runtime_licensing_autoprovision PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(
+        NAME runtime.linux-host-control-automatic-licensing-prestart-no-listener
+        COMMAND test_linux_runtime_licensing_autoprovision)
+    set_tests_properties(
+        runtime.linux-host-control-automatic-licensing-prestart-no-listener
+        PROPERTIES LABELS "runtime;security;licensing;r3;linux;offline")
+endif()
+
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
 # fixture to validate the noninstalled service-lifetime runtime owner.
 target_link_libraries(test_owned_mcs_connect_initial PRIVATE

@@ -772,7 +772,8 @@ target_include_directories(rdp-server-runtime-licensing PUBLIC
     "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
 target_link_libraries(rdp-server-runtime-licensing
     PUBLIC rdp-server-protocol
-    PRIVATE rdp-server-runtime-credential-files)
+    PRIVATE OpenSSL::Crypto
+            rdp-server-runtime-credential-files)
 if(MSVC)
     target_compile_options(rdp-server-runtime-licensing PRIVATE /W4)
 else()
@@ -871,7 +872,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         rdp-server-protocol
         rdp-server-linux-logind-evidence
         rdp-server-standalone-ntlmv2
-        rdp-server-runtime-tls)
+        rdp-server-runtime-tls
+        rdp-server-runtime-licensing)
     target_compile_options(rdp-server-linux-host-control PRIVATE
         -Wall -Wextra -Wpedantic -Werror)
 endif()

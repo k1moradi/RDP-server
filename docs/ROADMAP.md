@@ -1,3 +1,48 @@
+## R3 P0 automatic portable licensing identity — 2026-10-23
+
+Starting exact-main parent: `f184a077300c8b4fa46384891835cbf3a550a4b8`.
+
+Normal no-argument GUI startup no longer needs external RDP licensing
+certificate/private-key/ProductInfo fields. R3 adds
+`RuntimeLicensingContext::configureGeneratedApplicationIdentity()`: fixed
+application ProductInfo/scope (`RDP-server`, `RDP-server Personal Desktop`)
+is paired with fresh provider-backed RSA-2048 cryptographic material and a
+root-first two-certificate X.509 `CERT_CHAIN_VERSION_2`
+`SERVER_CERTIFICATE` object. The generated leaf private key exists only in
+process memory, is copied into the existing cleansing R3 credential owner, and
+is never written to the ZIP, a file, argv, environment, logs or GUI state.
+Expert explicit licensing configuration remains supported.
+
+R1 TLS is **not reused** for licensing. R1's automatic identity is one
+endpoint-bound self-signed TLS leaf inside its SSL context; MS-RDPBCGR licensing
+requires a distinct `SERVER_CERTIFICATE` chain used by the MS-RDPELE RSA key
+exchange. The existing R3 credential validator independently parses the
+root-first chain, verifies the root->leaf signature and requires the leaf's
+matching RSA private key. Keeping those roles separate also avoids exporting
+R1's private TLS key.
+
+Normal Linux HostControl construction now owns this generated R3 context before
+any Start eligibility check. Generation itself has no listener, R2 authority,
+desktop owner or protocol transition. Provisioning failure remains fail-closed
+as the existing bounded product `InternalFailure` / “Host operation failed”
+message rather than exposing licensing internals on Main. Expert `--config`
+construction continues to borrow its explicitly validated licensing context.
+
+Dedicated ordinary CTests:
+`runtime.licensing-autoprovision-deterministic-product-identity`,
+`runtime.licensing-autoprovision-microsoft-x509-chain-shape`,
+`runtime.licensing-autoprovision-server-license-request-generated-identity`,
+`runtime.licensing-autoprovision-distinct-from-r1-tls`, and
+`runtime.linux-host-control-automatic-licensing-prestart-no-listener`. They exercise the
+production generator, the MS-RDPBCGR `CERT_CHAIN_VERSION_2` root-first wire
+shape, RSA-2048 key binding, the existing MS-RDPELE Server License Request
+serializer, fresh cryptographic identity, and explicit separation from R1 TLS.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. No listener/client, desktop, input, clipboard or unrelated
+MCS/Share/RDPGFX behavior was changed or exercised.
+
 ## R1 OpenSSL 4 generated-subject portability correction — 2026-10-23
 
 Starting exact-main parent: `0a602aab1b0ae1668122d5c4327361ba2df4d62a`.

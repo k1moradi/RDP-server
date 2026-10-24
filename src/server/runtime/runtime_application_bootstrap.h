@@ -21,9 +21,9 @@ enum class RuntimeBootstrapStorage : std::uint8_t
     VolatileMemoryOnly,
 };
 
-// The default is the shortest safe lifetime. R1 currently generates the
-// endpoint-bound TLS identity in process memory. Licensing identity has no
-// automatic producer yet; if it becomes persistent, it must use private
+// The default is the shortest safe lifetime. R1 generates endpoint-bound TLS
+// identity in process memory and R3 now generates the licensing identity in
+// process memory. If licensing is ever persisted, it must use private
 // application data. Session Password never gets a persistent default.
 [[nodiscard]] constexpr RuntimeBootstrapStorage runtimeBootstrapDefaultStorage(
     const RuntimeBootstrapMaterial material) noexcept

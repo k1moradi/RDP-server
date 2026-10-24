@@ -25,8 +25,8 @@ class LinuxRuntimeSecurityConfiguration;
 class LinuxRuntimeAdmissionConfiguration;
 class LinuxRuntimeConnection;
 struct LinuxRuntimeAuthenticationSelection;
-class RuntimeLicensingContext;
 #endif
+class RuntimeLicensingContext;
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
 struct LinuxHostNativeDesktopState;
 #endif
@@ -180,7 +180,13 @@ private:
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
     const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
+#endif
+    // Normal GUI startup owns a process-local R3 licensing identity before
+    // any Start eligibility check. Expert --config construction borrows its
+    // validated licensing owner instead. Neither path opens a listener.
+    std::unique_ptr<RuntimeLicensingContext> generatedLicensingContext_{};
     const RuntimeLicensingContext* licensingContext_{};
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};
     std::unique_ptr<LinuxRuntimeConnection> acceptedClient_{};
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)

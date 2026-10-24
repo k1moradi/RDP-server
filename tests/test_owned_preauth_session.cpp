@@ -5488,7 +5488,11 @@ void testOwnedTlsApplicationTerminalReadiness()
             static_cast<std::uintptr_t>(pair.client.value)};
         TlsHandshakeFixture tls{false, false};
         establishOwnedApplicationTls(owner, clientIo, tls);
-        pair.client.close();
+#ifdef _WIN32
+        assert(::shutdown(pair.client.value, SD_SEND) == 0);
+#else
+        assert(::shutdown(pair.client.value, SHUT_WR) == 0);
+#endif
 
         const auto deadline = Clock::now() + std::chrono::seconds{5};
         std::array<std::uint8_t, 16> buffer{};

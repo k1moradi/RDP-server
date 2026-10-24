@@ -1,3 +1,13 @@
+## Diagnostic projection must never become TLS authority (2026-10-24)
+
+R1 diagnostic setup is descriptive only. A valid accepted TLS owner must not
+require a prior logging/projection call in order to attach its SSL object.
+Certificate continuity is enforced directly between the fresh accepted SSL leaf
+and the exact service-owned TLS context. When an earlier public fingerprint
+snapshot exists, it is an additional continuity cross-check, never the source
+of transport authority. Keep endpoint-name/IP self-check logging independent
+from handshake liveness.
+
 ## R5 fresh native authorization on every Start (2026-10-24)
 
 Ordinary Stop may retain the generation-fenced memory-only standalone Session

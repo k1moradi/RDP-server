@@ -889,6 +889,22 @@ bool LinuxRuntimeConnection::attachServerTls(
         return false;
     }
 
+    // R1 certificate continuity is an attach invariant, not a hidden
+    // prerequisite on configureTlsIdentityDiagnostics(). Compare the fresh
+    // SSL leaf directly with this exact R10 context. If descriptive endpoint
+    // diagnostics already projected a fingerprint, also require that snapshot
+    // to still describe the same context.
+    RuntimeTlsCertificateFingerprint runtimeFingerprint{};
+    const bool runtimeFingerprintAvailable =
+        tlsContext.certificateSha256Fingerprint(runtimeFingerprint);
+    const bool projectedFingerprintMatchesRuntime =
+        !negotiatedCertificateFingerprintAvailable_ ||
+        (runtimeFingerprintAvailable &&
+         ::CRYPTO_memcmp(
+             runtimeFingerprint.data(),
+             negotiatedCertificateSha256_.data(),
+             runtimeFingerprint.size()) == 0);
+
     auto serverTls = tlsContext.createServerTls();
     if (serverTls)
     {
@@ -897,7 +913,8 @@ bool LinuxRuntimeConnection::attachServerTls(
         unsigned int selectedFingerprintBytes = 0U;
         X509 *const selectedCertificate = ::SSL_get_certificate(serverTls.get());
         selectedCertificateMatchesRuntimeIdentity_ =
-            negotiatedCertificateFingerprintAvailable_ &&
+            runtimeFingerprintAvailable &&
+            projectedFingerprintMatchesRuntime &&
             selectedCertificate != nullptr &&
             ::X509_digest(
                 selectedCertificate, ::EVP_sha256(),
@@ -905,11 +922,13 @@ bool LinuxRuntimeConnection::attachServerTls(
             selectedFingerprintBytes == selectedFingerprint.size() &&
             ::CRYPTO_memcmp(
                 selectedFingerprint.data(),
-                negotiatedCertificateSha256_.data(),
+                runtimeFingerprint.data(),
                 selectedFingerprint.size()) == 0;
         ::OPENSSL_cleanse(
             selectedFingerprint.data(), selectedFingerprint.size());
     }
+    ::OPENSSL_cleanse(runtimeFingerprint.data(), runtimeFingerprint.size());
+
     if (!serverTls || !selectedCertificateMatchesRuntimeIdentity_ ||
         !connection_.attachServerTls(std::move(serverTls)))
     {

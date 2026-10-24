@@ -1406,6 +1406,45 @@ void testConnectionPostAdmissionMcsFramingDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+void testConnectionR1TlsAttachIndependentOfDiagnosticProjection(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Termination =
+        rdp_server::server::transport::TcpConnectionTermination;
+
+    const auto keytab =
+        fixtureDirectory / "runtime-connection-r1-attach-independent.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "r1-attach-independent");
+    int clientDescriptor = -1;
+    auto accepted = acceptLoopbackConnection(clientDescriptor);
+    LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+    assert(connection.ready());
+
+    auto diagnostics = connection.acceptanceDiagnostics();
+    assert(!diagnostics.certificateFingerprintAvailable);
+    assert(!diagnostics.selectedCertificateIdentityChecked);
+
+    TestSsl clientTls =
+        establishHybridTls(connection, clientDescriptor, tlsContext);
+    diagnostics = connection.acceptanceDiagnostics();
+    assert(diagnostics.selectedCertificateIdentityChecked);
+    assert(diagnostics.selectedCertificateMatchesRuntimeIdentity);
+    assert(diagnostics.certificateFingerprintAvailable);
+    assert(diagnostics.termination == Termination::Open);
+
+    connection.revoke();
+    assert(connection.acceptanceDiagnostics().termination ==
+           Termination::OwnerCancellation);
+    clientTls.reset();
+    assert(::close(clientDescriptor) == 0);
+}
+
 void testConnectionR1AcceptanceDiagnostics(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -1468,7 +1507,7 @@ void testConnectionR1AcceptanceDiagnostics(
     connection.revoke();
     diagnostics = connection.acceptanceDiagnostics();
     assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-    assert(diagnostics.termination == Termination::Cancelled);
+    assert(diagnostics.termination == Termination::OwnerCancellation);
     assert(diagnostics.certificateFingerprintAvailable);
     assert(!connection.hasAdmissionLease());
     assert(::close(clientDescriptor) == 0);
@@ -1491,7 +1530,7 @@ void testConnectionR1AcceptanceDiagnostics(
     handshakeConnection.revoke();
     diagnostics = handshakeConnection.acceptanceDiagnostics();
     assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-    assert(diagnostics.termination == Termination::Cancelled);
+    assert(diagnostics.termination == Termination::OwnerCancellation);
     assert(diagnostics.negotiatedSecurityProtocol == 0U);
     assert(!diagnostics.certificateFingerprintAvailable);
     assert(!diagnostics.shareActivated);
@@ -1587,14 +1626,14 @@ void testConnectionR1TerminalTransportClassification(
         assert(terminal == Step::Closed || terminal == Step::Invalid);
         const auto diagnostics = connection.acceptanceDiagnostics();
         assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-        assert(diagnostics.termination == Termination::OrderlyTlsClose);
+        assert(diagnostics.termination == Termination::PeerTlsAlert);
         assert(!connection.ready());
 
         clientTls.reset();
         assert(::close(clientDescriptor) == 0);
     }
 
-    // A TCP FIN without close_notify is a transport close, not orderly TLS.
+    // A TCP FIN without close_notify is a peer EOF, not orderly TLS.
     {
         int clientDescriptor = -1;
         auto accepted = acceptLoopbackConnection(clientDescriptor);
@@ -1609,7 +1648,7 @@ void testConnectionR1TerminalTransportClassification(
         assert(terminal == Step::Closed || terminal == Step::Invalid);
         const auto diagnostics = connection.acceptanceDiagnostics();
         assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-        assert(diagnostics.termination == Termination::TransportError);
+        assert(diagnostics.termination == Termination::PeerEof);
         assert(!connection.ready());
 
         clientTls.reset();
@@ -1641,7 +1680,7 @@ void testConnectionR1TerminalTransportClassification(
         assert(terminal == Step::Closed || terminal == Step::Invalid);
         const auto diagnostics = connection.acceptanceDiagnostics();
         assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-        assert(diagnostics.termination == Termination::TransportError);
+        assert(diagnostics.termination == Termination::PeerReset);
         assert(!connection.ready());
     }
 
@@ -1674,7 +1713,7 @@ void testConnectionR1TerminalTransportClassification(
         assert(terminal == Step::Closed || terminal == Step::Invalid);
         const auto diagnostics = connection.acceptanceDiagnostics();
         assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-        assert(diagnostics.termination == Termination::TlsFailure);
+        assert(diagnostics.termination == Termination::LocalTlsFailure);
         assert(!connection.ready());
         assert(::close(clientDescriptor) == 0);
     }
@@ -1694,7 +1733,7 @@ void testConnectionR1TerminalTransportClassification(
             configuration, std::move(accepted)};
         connection.revoke();
         assert(connection.acceptanceDiagnostics().termination ==
-               Termination::Cancelled);
+               Termination::OwnerCancellation);
 
         int replacementDescriptor =
             ::socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -3744,7 +3783,7 @@ void testStandaloneAuthenticationProvenanceGeneration(
     assert(diagnostics.standalonePasswordSelected);
     assert(diagnostics.standaloneCredentialGeneration ==
            selectedObservation.generation);
-    assert(diagnostics.termination == Termination::Cancelled);
+    assert(diagnostics.termination == Termination::OwnerCancellation);
     assert(::close(standaloneClientDescriptor) == 0);
 
     int osAccountClientDescriptor = -1;
@@ -3994,6 +4033,12 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-credssp-progress-accounting")
     {
         testConnectionCredSspProgressAccounting(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "r1-tls-attach-independent-of-diagnostic-projection")
+    {
+        testConnectionR1TlsAttachIndependentOfDiagnosticProjection(
+            fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-r1-acceptance-diagnostics")

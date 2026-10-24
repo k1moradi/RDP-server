@@ -1840,6 +1840,14 @@ if(TARGET rdp-server-linux-runtime-security)
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
+    add_test(NAME runtime.r1-tls-attach-independent-of-diagnostic-projection
+        COMMAND test_runtime_linux_security
+            "r1-tls-attach-independent-of-diagnostic-projection"
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        runtime.r1-tls-attach-independent-of-diagnostic-projection
+        PROPERTIES LABELS "runtime;security;r1;offline")
+
     # Dedicated production-runtime R2/R3 classifier gateway denial: the
     # existing Linux runtime executable receives no synthetic native lease.
     # Keep this outside R9's fixed 40-case legacy sanitizer selector.

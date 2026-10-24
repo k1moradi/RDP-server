@@ -1,3 +1,17 @@
+## R1 diagnostic-independence and deterministic terminal transport (2026-10-24)
+
+Keep a dedicated production-runtime regression proving HYBRID TLS can attach and
+establish from the exact R10 TLS context without first calling the optional
+endpoint diagnostic projection. The accepted SSL leaf must still match that
+context. A projected fingerprint, when present, is an additional continuity
+assertion only.
+
+When a test intends to prove peer EOF after established TLS without
+`close_notify`, use a write-side TCP shutdown and keep the socket alive until
+the server observes EOF. Closing a socket with unread TLS state may legally
+surface as an RST on some platforms and must not be used as a deterministic EOF
+fixture. Separate tests own peer reset and peer TLS-alert classifications.
+
 ## R6 macOS restart must deny retained credential without fresh consent (2026-10-24)
 
 The macOS production-listener round-trip must prove more than requesting consent

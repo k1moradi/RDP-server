@@ -1,3 +1,32 @@
+## R1 post-compile hosted regression repair (2026-10-24)
+
+Starting reconciled main:
+`c311450842b1e52ba3a97fa894c22dbeb3135b16`.
+
+Hosted exact-head run `40101714128` still failed after the OpenSSL header/macro
+compile repair. Repeated Linux/macOS/Windows evidence identified two R1-owned
+test/runtime contracts:
+
+- direct `LinuxRuntimeConnection` callers failed
+  `attachServerTls(tlsContext)` because the optional
+  `configureTlsIdentityDiagnostics()` snapshot had become a hidden transport
+  prerequisite;
+- `transport.tcp-owned-tls-terminal-readiness` closed the client socket
+  outright, which can observably become RST when TLS state remains unread, yet
+  asserted only peer EOF.
+
+The runtime attach now validates the selected SSL leaf directly against the
+supplied R10 TLS context and merely cross-checks an earlier diagnostic snapshot
+when one exists. The EOF fixture uses write-side shutdown, and legacy
+cancellation/TLS terminal assertions use R1's specific classifications.
+New behavior gate:
+`runtime.r1-tls-attach-independent-of-diagnostic-projection`.
+
+Concurrent R6/R7/R5 changes on the reconciled parent are retained. Production
+SPNEGO/CredSSP parsing is unchanged. Source/CI-log diagnosis: **PASS**.
+Canonical local build/full CTest: **NOT RUN**. Corrected exact-SHA hosted CI:
+**PENDING**.
+
 ## R7 focused owner-GUI workflow correction receipt (2026-10-24)
 
 **Starting exact-main parent:** `4c641d69be2323460b243fba11d1fe54e51b3754`.

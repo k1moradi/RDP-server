@@ -1,3 +1,40 @@
+## R1 CI regression repair — diagnostics remain non-authoritative (2026-10-24)
+
+**Starting reconciled main:** `c311450842b1e52ba3a97fa894c22dbeb3135b16`.
+
+Hosted runs through `40101714128` showed that the earlier R1 diagnostics
+increment still blocked the shared suite after the compile fixes. The first
+production defect was architectural rather than SPNEGO-related:
+`LinuxRuntimeConnection::attachServerTls()` required
+`configureTlsIdentityDiagnostics()` to have populated a fingerprint even
+though that API is explicitly descriptive and non-authoritative. Direct
+production-runtime tests therefore revoked otherwise valid HYBRID TLS before
+the handshake.
+
+R1 now compares the fresh accepted SSL certificate directly against the exact
+R10 TLS context on every attach. If endpoint diagnostics were projected first,
+their fingerprint must additionally still match that context; absence of that
+optional diagnostic call cannot deny transport. Legacy runtime expectations are
+aligned with the authoritative R1 terminal taxonomy (peer TLS alert, peer EOF,
+peer reset, local TLS failure, owner cancellation), and the raw-EOF transport
+fixture now uses a write-side TCP shutdown so it cannot become an incidental
+RST because of unread TLS state.
+
+Dedicated regression:
+`runtime.r1-tls-attach-independent-of-diagnostic-projection`.
+
+Concurrent R6/R7/R5 lifecycle and GUI-gate changes through the reconciled
+parent are preserved unchanged.
+
+**Source/CI failure diagnosis:** PASS. **Owner-local canonical build/full
+CTest:** NOT RUN in this connector environment. **Corrected exact-SHA hosted
+CI:** PENDING.
+
+The dependency graph is unchanged: R1 TLS is already crossed by real owner
+evidence; R2 standalone SPNEGO remains the live Microsoft-client blocker before
+`CredentialsVerified`; R3 and R4 remain downstream. No SPNEGO acceptance,
+certificate format, R3, R4, desktop or clipboard behavior changes here.
+
 ## R7 focused owner-GUI workflow correction (2026-10-24)
 
 **Starting exact-main parent:** `4c641d69be2323460b243fba11d1fe54e51b3754`.

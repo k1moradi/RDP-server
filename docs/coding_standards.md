@@ -1,3 +1,25 @@
+## R8 authentication-envelope changes must have zero clipboard authority (2026-10-24)
+
+R2 authentication envelope selection is not R8 authority. A failed SPNEGO or
+DirectNtlm attempt must terminate before any native clipboard owner is created,
+before any CLIPRDR route/dispatch/write operation is reachable, and before any
+R8 admission/session generation can become nonzero. Do not add clipboard cleanup
+as a substitute for this ordering; the preferred invariant is that failed
+authentication never constructs the R8 owner in the first place.
+
+Successful authentication alone is also insufficient. Clipboard remains a child
+of the separately admitted/authorized native desktop lifetime and the existing
+R3 clipboard permission/channel gates. Keep
+`kLinuxProductionClipboardActivationApproved = false` until the independent
+R8 physical acceptance gate is satisfied. Authentication work must not flip the
+gate, expose clipboard UI, enable OS/GSS fallback or translate a standalone
+username into clipboard/native authority.
+
+While R8 remains P2/BLOCKED, work is limited to stale-lifetime containment and
+regression coverage. Preserve clipboard-first teardown, zero retired
+admission/session generations, and reject late X11/INCR callbacks and R3/TLS
+receipts from retired lifetimes.
+
 ## R1 established TLS provenance is envelope-independent (2026-10-24)
 
 Once X.224 HYBRID has selected the accepted connection and TLS is established,

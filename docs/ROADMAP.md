@@ -1,3 +1,38 @@
+## R8 P2 remains dormant across DirectNtlm authentication — 2026-10-24
+
+**Starting exact-main parent:** `f23eb358c977654a51c38a5ecc8d2d0484dd25f6`.
+
+Priority remains **P2** and production status remains **BLOCKED**. R2
+`DirectNtlm` support does not authorize or advance R8.
+
+Current production ownership is already fail-closed. Failed authentication
+remains in `AcceptedClientPhase::PreAdmission` and retires the accepted client.
+`LinuxRuntimeHostControl::initializeNativeDesktop()` is reachable only after a
+successfully admitted client reaches `AcceptedClientPhase::GraphicsReady`.
+The sole production clipboard preparation call is inside that native-desktop
+initialization. Therefore failed DirectNtlm authentication creates no native
+clipboard owner, no CLIPRDR route/traffic and no clipboard
+admission/session generation. The independent production gate
+`kLinuxProductionClipboardActivationApproved = false` remains literal false.
+
+R8 scope does not expand because R2 gained another standards-compliant
+authentication envelope. No clipboard UI, activation, CLIPRDR interoperability
+work, image/file scope or authentication-specific R8 implementation is
+authorized by this evidence. Continue only the existing stale-lifetime
+round-trip coverage:
+`runtime.r8-x11-restart-incr-isolation` and
+`runtime.r8-r3-repeated-restart-receipt-isolation`, together with the existing
+teardown/receipt denials.
+
+Production C++/RDP wire/tests: **UNCHANGED**. Connector source/lifetime review:
+**PASS**. Canonical owner-local full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next R8 gate:** remain BLOCKED. Keep stale-lifetime round trips green while
+R2/R3/R5 complete their own authentication/native gates. DirectNtlm success or
+failure is not an R8 activation signal; the separate owner-authorized physical
+R8 product receipt remains required before the production gate may move.
+
 ## R1 P1 — preserve established TLS and transport provenance (2026-10-24)
 
 **Starting reconciled main:** `2e807fd3afddaf2b5379ff7ca46d3db75b8df4ed`.

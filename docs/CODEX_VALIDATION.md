@@ -1,3 +1,31 @@
+## R8 DirectNtlm dormancy verification — 2026-10-24
+
+**Starting exact-main parent:** `f23eb358c977654a51c38a5ecc8d2d0484dd25f6`.
+
+Reviewed the current DirectNtlm/R2 path against R8 ownership. Authentication
+failure remains in HostControl `PreAdmission` and retires the accepted client.
+Native construction is gated on `GraphicsReady`; the only production
+`candidate->clipboard.prepare(...)` call occurs inside
+`initializeNativeDesktop()` after that gate. The prepared clipboard owner also
+retains the independent literal
+`kLinuxProductionClipboardActivationApproved = false` barrier.
+
+Result: failed DirectNtlm authentication has no clipboard effect: no clipboard
+owner, no CLIPRDR route/traffic and no R8 admission/session generation.
+Successful DirectNtlm authentication does not itself authorize clipboard
+either; existing native admission, R3 permission/channel and R8 activation
+boundaries remain unchanged.
+
+Existing active R8 P2 regression scope remains the stale-lifetime round trips
+`runtime.r8-x11-restart-incr-isolation` and
+`runtime.r8-r3-repeated-restart-receipt-isolation`, plus their established
+teardown/receipt denials. No production/test source changed and no live
+clipboard action was performed.
+
+Connector source/lifetime review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. R8 production
+activation remains **BLOCKED / P2**.
+
 ## R1 established-TLS provenance authoring receipt (2026-10-24)
 
 **Starting reconciled main:** `2e807fd3afddaf2b5379ff7ca46d3db75b8df4ed`.

@@ -1,3 +1,24 @@
+## R8 blocked-state testing after DirectNtlm support (2026-10-24)
+
+DirectNtlm support does not create a new R8 acceptance lane. While production
+clipboard activation is blocked, do not add a live clipboard/client test merely
+because authentication can progress farther. Failed authentication must remain
+provably before native/R8 construction; existing R2/R5 ownership tests may pin
+that boundary without manufacturing clipboard authority.
+
+Continue the existing R8 stale-lifetime round-trip regressions as the active P2
+scope: `runtime.r8-x11-restart-incr-isolation` for stale native INCR callbacks
+and `runtime.r8-r3-repeated-restart-receipt-isolation` for delayed positive
+receipts across repeated route retirement/replacement. Keep the existing
+teardown and stale-receipt denials green. These tests may use synthetic/offline
+state only; they do not qualify production CLIPRDR or authorize the activation
+gate.
+
+A failed-authentication regression is a failure if it can construct a clipboard
+owner, advertise/dispatch CLIPRDR, or leave a nonzero clipboard
+admission/session generation. Prefer proving that state is unreachable before
+`GraphicsReady` rather than treating cleanup after construction as success.
+
 ## R1 direct-NTLM transport-provenance gates (2026-10-24)
 
 Keep `transport.tcp-owned-hybrid-direct-ntlm-first-record` as the positive R1

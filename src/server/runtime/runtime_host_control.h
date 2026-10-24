@@ -3,7 +3,6 @@
 
 #include "server/runtime/runtime_application_bootstrap.h"
 #include "server/security/standalone_credential_policy.h"
-#include "server/security/standalone_ntlmv2.h"
 #include "server/runtime/runtime_tls_identity_status.h"
 
 #include <algorithm>
@@ -683,13 +682,18 @@ public:
         rdp_server::server::security::LanCredentialChoice choice) = 0;
 
     // One production R2P memory-only standalone credential command. Product
-    // visibility is a separate capability gate; this deny-by-default seam
-    // still non-elidably scrubs caller-owned password storage.
+    // visibility is a separate capability gate. This portable deny fallback
+    // deliberately carries no optional authentication-backend link dependency;
+    // volatile writes ensure caller-owned password storage is still wiped.
     [[nodiscard]] virtual bool configureStandaloneApplicationPassword(
         std::u16string_view,
         std::span<char16_t> password) noexcept
     {
-        rdp_server::server::security::cleanseStandalonePasswordInput(password);
+        for (char16_t& codeUnit : password)
+        {
+            volatile char16_t* const volatileCodeUnit = &codeUnit;
+            *volatileCodeUnit = u'\0';
+        }
         return false;
     }
 

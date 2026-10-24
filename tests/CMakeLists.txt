@@ -426,6 +426,7 @@ else()
 endif()
 foreach(host_control_case IN ITEMS
         host-control-unavailable-denials
+        host-control-standalone-deny-fallback-cleanses
         host-control-windows-rpc-interface-macro-compatibility
         host-control-cross-platform-lan-recommendation-contract
         host-control-gui-round2-endpoint-recommendation

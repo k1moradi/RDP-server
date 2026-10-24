@@ -10,6 +10,7 @@
 #undef RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO
 #endif
 
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <string_view>
@@ -51,6 +52,18 @@ int main(int argumentCount, char** argumentValues)
                "Listener denied by network policy");
         assert(runtimeHostErrorMessage(
                static_cast<RuntimeHostError>(255U)) == "Host operation failed");
+        return 0;
+    }
+    if (testCase == "host-control-standalone-deny-fallback-cleanses")
+    {
+        std::array<char16_t, 5> password{
+            u's', u'e', u'c', u'r', u't'};
+        assert(!host.configureStandaloneApplicationPassword(
+            u"owner", std::span<char16_t>{password}));
+        assert(std::ranges::all_of(
+            password, [](const char16_t codeUnit) { return codeUnit == u'\0'; }));
+        assert(!host.status().credentialsConfigured);
+        assert(!host.status().listenerAvailable);
         return 0;
     }
     if (testCase == "host-control-authentication-outcome-denials")

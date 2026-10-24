@@ -1,3 +1,13 @@
+## Portable host-control deny fallbacks must be backend-link independent (2026-10-23)
+
+A cross-platform `RuntimeHostControl` default denial path must not introduce a
+link dependency on an optional authentication provider merely to erase caller
+input. Keep the base fallback self-contained, bounded, allocation-free and
+non-elidably cleansing; concrete production providers remain responsible for
+their stronger mechanism-specific secret lifecycle. A cleanup fallback is not
+an authentication implementation and must never mint credentials, authority or
+listener state.
+
 ## R7 owner-acceptance Session Password surface (2026-10-23)
 
 Before StandalonePassword is publicly qualified, its product capability must

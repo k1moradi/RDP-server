@@ -1,3 +1,32 @@
+## R7 P0 follow-up — portable deny-fallback linkage correction — 2026-10-23
+
+Starting exact-main parent: `8001d148678b8106ac0953bba70be01ab1af38ee`.
+
+Hosted run [40068167134](https://github.com/k1moradi/RDP-server/actions/runs/40068167134)
+found a real cross-platform build regression in the first R7 P0 publication:
+macOS Debug linked `test_runtime_host_control` without the optional standalone
+NTLM implementation, while the new base `RuntimeHostControl` deny fallback
+called `cleanseStandalonePasswordInput()` from that backend. The job failed
+with an undefined symbol before CTest. This failure does not implicate the
+Linux production standalone credential owner; it exposes an invalid dependency
+from a portable interface default.
+
+The correction keeps the deny fallback backend-independent and wipes its
+caller-owned UTF-16 password span with inline volatile writes before returning
+false. The Linux production override still calls the existing exact
+generation-fenced `StandalonePasswordCredentialOwner` path; no authentication
+implementation or capability gate changes. Dedicated
+`runtime.host-control-standalone-deny-fallback-cleanses` proves denial,
+complete input cleanup, and absence of credential/listener state in the
+minimal cross-platform host-control target.
+
+Validation: failing exact-SHA hosted macOS compile receipt **FAIL recorded**;
+source correction review **PASS**; owner-local `~/rdp-server/build` full
+configure/build/CTest **NOT RUN** in this connector environment; replacement
+exact-SHA hosted CI **PENDING** until publication; real Microsoft-client
+StandalonePassword qualification remains **NOT RUN** and the public capability
+remains unapproved.
+
 ## R7 P0 consumer Session Password workflow and owner-acceptance surface — 2026-10-23
 
 Starting exact-main parent: `346f5933d47778599aa67c77052e4025040d0230`.

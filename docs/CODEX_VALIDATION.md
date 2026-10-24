@@ -1,3 +1,34 @@
+## 2026-10-23 — R7 P0 portable host-control cleanup linkage correction
+
+Starting exact-main parent: `8001d148678b8106ac0953bba70be01ab1af38ee`.
+
+**Observed hosted failure:** GitHub Actions run
+[40068167134](https://github.com/k1moradi/RDP-server/actions/runs/40068167134),
+job `protocol (macos-latest)` / job id `120795700407`, failed during Debug
+link of `test_runtime_host_control`. The undefined symbol was
+`rdp_server::server::security::cleanseStandalonePasswordInput(std::span<char16_t>)`,
+referenced by the new base
+`RuntimeHostControl::configureStandaloneApplicationPassword()` fallback.
+That target intentionally links only the portable protocol/runtime contract,
+so the interface default must not require an optional standalone-auth backend.
+
+**Correction:** remove the standalone-NTLM header/backend dependency from the
+portable interface default. Its deny path now performs non-elidable inline
+volatile UTF-16 zeroing and returns false. The concrete Linux override is
+unchanged and remains the only production standalone credential implementation.
+The Release product capability remains literal false.
+
+**Dedicated regression:**
+`runtime.host-control-standalone-deny-fallback-cleanses` invokes the base
+fallback through `UnavailableRuntimeHostControl`, verifies every supplied
+password code unit is zero afterward, and verifies no credential or listener
+state appears.
+
+Status: source review **PASS**; failing hosted receipt **FAIL recorded**;
+owner-local canonical build/CTest **NOT RUN** here; replacement hosted exact-SHA
+CI **PENDING**; Microsoft Windows App / Windows 11 `mstsc.exe` qualification
+**NOT RUN**.
+
 ## 2026-10-23 — R7 P0 owner-acceptance consumer workflow
 
 Starting exact-main parent: `346f5933d47778599aa67c77052e4025040d0230`.

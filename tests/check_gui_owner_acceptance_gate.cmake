@@ -5,6 +5,7 @@ foreach(required_var IN ITEMS
         RDP_DESKTOP_WINDOW_SOURCE
         RDP_HOST_CONTROL_SOURCE
         RDP_LINUX_HOST_CONTROL_SOURCE
+        RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER
         RDP_RUNTIME_HOST_CONTROL_HEADER
         RDP_DESKTOP_ENTRYPOINT_SOURCE
         RDP_ROOT_CMAKE
@@ -17,6 +18,7 @@ endforeach()
 file(READ "${RDP_DESKTOP_WINDOW_SOURCE}" window_source)
 file(READ "${RDP_HOST_CONTROL_SOURCE}" host_control_source)
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" linux_host_source)
+file(READ "${RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER}" credential_consent_header)
 file(READ "${RDP_RUNTIME_HOST_CONTROL_HEADER}" runtime_header)
 file(READ "${RDP_DESKTOP_ENTRYPOINT_SOURCE}" entrypoint_source)
 file(READ "${RDP_ROOT_CMAKE}" root_cmake)
@@ -66,10 +68,15 @@ endif()
 string(FIND "${host_control_source}"
     "runtime_.configureStandaloneApplicationPassword(" production_forward)
 string(FIND "${linux_host_source}"
-    "standalonePasswordCredential_.configure(" production_owner)
-if(production_forward LESS 0 OR production_owner LESS 0)
+    "replaceStandaloneApplicationCredential(" production_replacement)
+string(FIND "${credential_consent_header}"
+    "credentialOwner.configure(username, password)" production_owner)
+string(FIND "${credential_consent_header}"
+    "OwnerConsentRevocationReason::CredentialChange" consent_revocation)
+if(production_forward LESS 0 OR production_replacement LESS 0 OR
+   production_owner LESS 0 OR consent_revocation LESS 0)
     message(FATAL_ERROR
-        "acceptance UI must forward into the exact production standalone credential owner")
+        "acceptance UI must forward through the shared R2 replacement transaction into the production standalone credential owner")
 endif()
 
 foreach(forbidden_text IN ITEMS

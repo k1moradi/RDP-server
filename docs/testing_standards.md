@@ -1,3 +1,14 @@
+## Source contracts must follow semantic credential ownership (2026-10-24)
+
+When production credential replacement is consolidated behind a shared R2 helper,
+source-contract tests must validate the complete semantic chain rather than pin
+the retired direct-call spelling. For owner acceptance this means proving Qt
+forwards to `configureStandaloneApplicationPassword()`, the platform
+HostControl invokes the shared replacement transaction, and that transaction
+uses the production credential owner's `configure()` while revoking prior
+owner consent for `CredentialChange`. Do not weaken the contract to a generic
+token or require duplication of the old direct call.
+
 ## R9 owner-GUI keyboard editability parity gate (2026-10-24)
 
 The R6 editor-property gate is necessary but not sufficient for owner usability:

@@ -57,6 +57,7 @@ add_test(NAME gui.owner-acceptance-release-gate-and-production-path
         "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
         "-DRDP_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
         "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        "-DRDP_STANDALONE_CREDENTIAL_CONSENT_HEADER=${PROJECT_SOURCE_DIR}/src/server/security/standalone_credential_consent.h"
         "-DRDP_RUNTIME_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_host_control.h"
         "-DRDP_DESKTOP_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
         "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"

@@ -1,3 +1,31 @@
+## Owner-acceptance production-path source-contract reconciliation — 2026-10-24
+
+Starting exact-main parent: `012be92d5611b4bbcfd1bab2d08351f8ef71a55d`.
+
+Observed predecessor failure:
+- Actions run `40081623096`;
+- Ubuntu R9 parity job `120836416306`;
+- `gui.offscreen-owner-acceptance-credential-editor-parity`: **PASS**;
+- `gui.owner-acceptance-release-gate-and-production-path`: **FAIL** with
+  "acceptance UI must forward into the exact production standalone credential
+  owner";
+- macOS full CTest failed the same policy test.
+
+Root cause: test drift after R2 credential consolidation, not a production
+authentication failure. The old guard required
+`standalonePasswordCredential_.configure(` inside Linux HostControl even
+though production now intentionally delegates replacement to
+`replaceStandaloneApplicationCredential()`.
+
+Correction: the existing policy CTest now receives
+`standalone_credential_consent.h` and proves the current exact chain through
+runtime forwarding, the platform replacement call, production credential-owner
+`configure(username, password)`, and `CredentialChange` consent revocation.
+
+Production behavior: **UNCHANGED**. R4: **NO CODE CHANGE**.
+Source review: **PASS**. Local execution: **NOT RUN**. Hosted publication-SHA
+execution: **PENDING**.
+
 ## R10 P0 credential-editor lifecycle authority after R2/R5/R6/R9 unblock — 2026-10-24
 
 Starting exact-main parent: `853cf1838747b381b7e8e0ecef6a8028acbd89dc`.

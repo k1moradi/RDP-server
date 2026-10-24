@@ -1,3 +1,44 @@
+## R9/R2 owner-acceptance source-contract repair after credential consolidation (2026-10-24)
+
+Starting exact-main parent: `012be92d5611b4bbcfd1bab2d08351f8ef71a55d`.
+
+Hosted R9 keyboard-parity execution at predecessor
+`853cf1838747b381b7e8e0ecef6a8028acbd89dc` exposed the first failing
+boundary before any owner GUI behavior could qualify:
+`gui.owner-acceptance-release-gate-and-production-path` failed on Ubuntu and
+macOS because its static source contract still searched Linux HostControl for
+the retired direct
+`standalonePasswordCredential_.configure(...)` spelling. R2 had correctly
+moved that operation into the shared
+`replaceStandaloneApplicationCredential()` transaction.
+
+The contract is updated without weakening authentication evidence. It now
+requires the complete current production path:
+Qt `HostControl::configureStandalonePassword()` forwards to runtime
+`configureStandaloneApplicationPassword()`; Linux HostControl calls the shared
+R2 replacement transaction; the shared helper calls the production credential
+owner's `configure(username, password)`; and the helper revokes prior owner
+consent as `CredentialChange`. The helper header is an explicit input to the
+existing behavior-named policy CTest.
+
+No production GUI, R2 credential semantics, R10 lifecycle/editability, R1
+listener/TLS, R8 clipboard, R4 graphics or RDP wire code changes.
+
+First failure evidence: Actions run `40081623096`, Ubuntu parity job
+`120836416306`, CTest
+`gui.owner-acceptance-release-gate-and-production-path`: **FAIL** at the stale
+source-contract assertion while
+`gui.offscreen-owner-acceptance-credential-editor-parity` itself **PASS**.
+macOS protocol reported the same single policy failure.
+
+Connector source review: **PASS**. Connector-local CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** rerun the source contract plus R9 Linux/macOS keyboard parity and
+ordinary full CTest. If green, the remaining proof is the physical owner
+no-argument artifact workflow; R4 stays frozen until a real client reaches the
+first-live graphics boundary.
+
 ## R10 P0 credential-editor lifecycle authority after R2/R5/R6/R9 unblock — 2026-10-24
 
 Starting exact-main parent: `853cf1838747b381b7e8e0ecef6a8028acbd89dc`.

@@ -120,10 +120,14 @@ enum class LinuxConsoleAdmissionState : std::uint8_t
 // native NSS/logind/session-watch checks. Metadata is bounded and contains no
 // password, ticket, keytab or delegated credential plaintext.
 //
-// The service-owned ConsoleIdentityPolicy must outlive this lease. Dropping
-// the lease revokes its shared control epoch. A lease is intentionally not
-// self-sufficient for protected R3 transitions: use broker.authorizes(),
-// which revalidates live authenticated TLS, policy, logind/NSS and change-watch state.
+// ExistingOsAccount leases retain the service-owned ConsoleIdentityPolicy.
+// StandalonePassword leases deliberately retain no OS-account policy: their
+// native owner identity comes only from fresh physical-session evidence under
+// the exact local sharing-consent epoch. Dropping either lease revokes its
+// shared control epoch. A lease is intentionally not self-sufficient for
+// protected R3 transitions: use broker.authorizes(), which revalidates the
+// exact authenticated TLS owner, authentication generation, current consent,
+// native session and change-watch state.
 class LinuxConsoleAdmissionLease final
 {
 public:
@@ -195,7 +199,16 @@ public:
     explicit LinuxConsoleAdmissionBroker(
         const ConsoleIdentityPolicy &policy,
         const CurrentOwnerSharingAuthority *ownerSharingAuthority = nullptr) noexcept
-        : policy_(policy), ownerSharingAuthority_(ownerSharingAuthority) {}
+        : policy_(&policy), ownerSharingAuthority_(ownerSharingAuthority) {}
+
+    // StandalonePassword intentionally has no ConsoleIdentityPolicy. Positive
+    // issuance samples the currently approved physical owner under the exact
+    // CurrentOwnerSharingAuthority epoch and never maps the remote application
+    // username to a Unix account.
+    explicit LinuxConsoleAdmissionBroker(
+        const CurrentOwnerSharingAuthority *ownerSharingAuthority) noexcept
+        : ownerSharingAuthority_(ownerSharingAuthority) {}
+
     ~LinuxConsoleAdmissionBroker();
 
     LinuxConsoleAdmissionBroker(const LinuxConsoleAdmissionBroker &) = delete;
@@ -208,6 +221,16 @@ public:
         LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request) noexcept;
+
+    // StandalonePassword positive admission accepts no caller account, UID,
+    // seat or display selector. R2 derives the exact current physical owner
+    // from concrete logind evidence only after exact R1/TLS + standalone
+    // credential proof and explicit local sharing consent are both current.
+    [[nodiscard]] std::optional<LinuxConsoleAdmissionLease>
+    issueStandaloneCurrentOwner(
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection)
+        noexcept;
 
     // Legacy compatibility path is intentionally terminal deny-only. A raw
     // SSL pointer, even when genuinely established, cannot prove which X.224
@@ -928,7 +951,9 @@ private:
     [[nodiscard]] ConsoleEvidenceRequest requestView(
         const LinuxConsoleAdmissionLease &lease) const noexcept;
 
-    const ConsoleIdentityPolicy &policy_;
+    // Non-null only for ExistingOsAccount. StandalonePassword must never
+    // synthesize an OS-account policy or local account identity.
+    const ConsoleIdentityPolicy *policy_{};
     // Borrowed from R2; neither Qt nor a peer can mint sharing authority.
     const CurrentOwnerSharingAuthority *ownerSharingAuthority_{};
     LinuxLogindReadOnlyEvidenceSource evidence_{};

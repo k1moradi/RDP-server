@@ -98,10 +98,11 @@ if(peer_gate EQUAL -1 OR connection_owner EQUAL -1 OR
     message(FATAL_ERROR "Linux serve does not share one pre-NLA attempt budget")
 endif()
 string(FIND "${connection_source}"
-    "securityConfiguration_.configureAcceptor(acceptor_)" security_provider)
+    "securityConfiguration->configureAcceptor(acceptor_)" security_provider)
 string(FIND "${connection_source}"
     "acceptor_.bindVerifiedAccountAttemptLimiter(" bind_budget)
-string(FIND "${connection_source}" "broker_.emplace(" broker_owner)
+string(FIND "${connection_source}"
+    "broker_.emplace(*policy, ownerSharingAuthority)" broker_owner)
 string(REGEX MATCH
     "broker_[.]emplace[(][ \t\r\n]*[*]policy[ \t\r\n]*,[ \t\r\n]*ownerSharingAuthority[ \t\r\n]*[)]"
     authority_aware_broker "${connection_source}")

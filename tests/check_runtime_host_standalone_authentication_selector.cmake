@@ -3,6 +3,7 @@ foreach(required_variable IN ITEMS
         RDP_LINUX_HOST_CONTROL_HEADER
         RDP_LINUX_HOST_CONTROL_SOURCE
         RDP_LINUX_CONNECTION_HEADER
+        RDP_CONSOLE_ADMISSION_HEADER
         RDP_GUI_WINDOW_SOURCE)
     if(NOT DEFINED ${required_variable})
         message(FATAL_ERROR "Missing ${required_variable}")
@@ -12,6 +13,7 @@ endforeach()
 file(READ "${RDP_LINUX_HOST_CONTROL_HEADER}" host_header)
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
 file(READ "${RDP_LINUX_CONNECTION_HEADER}" connection_header)
+file(READ "${RDP_CONSOLE_ADMISSION_HEADER}" admission_header)
 file(READ "${RDP_GUI_WINDOW_SOURCE}" gui_window_source)
 
 foreach(required IN ITEMS
@@ -35,7 +37,7 @@ foreach(required IN ITEMS
         "selection.mode = LinuxRuntimeAuthenticationMode::StandalonePassword"
         "selection.standaloneCredentialOwner = &standalonePasswordCredential_"
         "selection.standaloneCredentialGeneration ="
-        "Kind::StandalonePassword")
+        "acceptedClient_->issueStandaloneAdmission()")
     string(FIND "${host_source}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
@@ -77,11 +79,23 @@ foreach(required IN ITEMS
         "StandalonePassword,"
         "standaloneCredentialOwner"
         "standaloneCredentialGeneration"
-        "standaloneChallenge")
+        "standaloneChallenge"
+        "issueStandaloneAdmission()")
     string(FIND "${connection_header}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
             "Lower-level LinuxRuntimeConnection selector contract missing: ${required}")
+    endif()
+endforeach()
+
+
+foreach(required IN ITEMS
+        "issueStandaloneCurrentOwner("
+        "const ConsoleIdentityPolicy *policy_{}")
+    string(FIND "${admission_header}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "R2 standalone-native admission contract missing: ${required}")
     endif()
 endforeach()
 
@@ -101,4 +115,4 @@ foreach(required_gui IN ITEMS
 endforeach()
 
 message(STATUS
-    "R10 selects standalone authentication explicitly with exact-generation fencing and no OS-account fallback")
+    "Standalone authentication uses exact credential generation plus R2 current-owner admission without GSS/keytab fallback")

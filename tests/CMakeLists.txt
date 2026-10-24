@@ -370,6 +370,7 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_LINUX_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
+            "-DRDP_CONSOLE_ADMISSION_HEADER=${PROJECT_SOURCE_DIR}/src/server/security/linux_console_admission.h"
             "-DRDP_GUI_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_standalone_authentication_selector.cmake")
     set_tests_properties(

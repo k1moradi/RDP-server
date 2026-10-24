@@ -511,12 +511,17 @@ StandaloneCredSspNtlmAcceptor::processNego(
         return reject(reader, writer);
     }
 
-    // Preserve the bounded cause before reject() clears the SPNEGO owner.
+    // Preserve the bounded cause before reject() clears the negotiation owner.
     // The diagnostic never contains peer token bytes or credentials.
     lastSpnegoStatus_ = step.status;
     spnegoRejectionReason_ = mechanism_.rejectionReason();
+    const bool directNtlmVerifiedWithoutReply =
+        step.status == StandaloneSpnegoStatus::MechanismVerified &&
+        mechanism_.negotiationEnvelope() ==
+            StandaloneNtlmNegotiationEnvelope::DirectNtlm &&
+        step.bytesWritten == 0U;
     if (!step ||
-        step.bytesWritten == 0 ||
+        (!directNtlmVerifiedWithoutReply && step.bytesWritten == 0U) ||
         step.bytesWritten > mechanismReply.size())
     {
         failureStage_ = mapSpnegoFailureStage(
@@ -534,7 +539,9 @@ StandaloneCredSspNtlmAcceptor::processNego(
 
     if (combinedFinal)
     {
-        const bool suppressibleTerminalReply =
+        const bool suppressibleSpnegoTerminalReply =
+            mechanism_.negotiationEnvelope() ==
+                StandaloneNtlmNegotiationEnvelope::Spnego &&
             step.status ==
                 StandaloneSpnegoStatus::MechanismVerified &&
             step.bytesWritten ==
@@ -543,17 +550,33 @@ StandaloneCredSspNtlmAcceptor::processNego(
                 kCanonicalEmptyAcceptCompleted.begin(),
                 kCanonicalEmptyAcceptCompleted.end(),
                 mechanismReply.begin());
+        const bool directNtlmTerminal =
+            mechanism_.negotiationEnvelope() ==
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm &&
+            directNtlmVerifiedWithoutReply;
         OPENSSL_cleanse(
             mechanismReply.data(), mechanismReply.size());
-        if (!suppressibleTerminalReply)
+        if (!suppressibleSpnegoTerminalReply && !directNtlmTerminal)
             return reject(reader, writer);
 
         // MS-CSSP 3.1.5 requires the server binding reply to omit
-        // negoTokens. The only suppressed SPNEGO bytes are our canonical
-        // empty accept-completed envelope; any responseToken or server
-        // mechListMIC requires a separate negotiation reply instead.
+        // negoTokens. SPNEGO suppresses only our canonical empty
+        // accept-completed envelope. Direct NTLM has no negotiation wrapper
+        // to synthesize after a verified raw Type 3. Any other terminal bytes
+        // require a separate negotiation reply instead.
         return processBinding(
             reader, writer, request, true);
+    }
+
+    // MS-CSSP requires the client's last SPNEGO/Kerberos/NTLM message to
+    // share the TSRequest with pubKeyAuth. A successfully verified direct
+    // NTLM Type 3 therefore cannot be accepted as a token-only frame.
+    if (directNtlmVerifiedWithoutReply)
+    {
+        failureStage_ = StandaloneAuthenticationFailureStage::PubKeyAuth;
+        OPENSSL_cleanse(
+            mechanismReply.data(), mechanismReply.size());
+        return reject(reader, writer);
     }
 
     const auto replyBytes =

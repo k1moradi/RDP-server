@@ -17,6 +17,28 @@ inline constexpr std::size_t kMaximumStandaloneSpnegoMechanisms = 16U;
 inline constexpr std::size_t kMaximumStandaloneSpnegoMechanismOidBytes = 32U;
 inline constexpr std::uint8_t kStandaloneSpnegoNoMechanismIndex = 0xffU;
 
+enum class StandaloneNtlmNegotiationEnvelope : std::uint8_t
+{
+    Undetermined,
+    Spnego,
+    DirectNtlm,
+};
+
+[[nodiscard]] constexpr const char *standaloneNtlmNegotiationEnvelopeName(
+    StandaloneNtlmNegotiationEnvelope envelope) noexcept
+{
+    switch (envelope)
+    {
+    case StandaloneNtlmNegotiationEnvelope::Undetermined:
+        return "undetermined";
+    case StandaloneNtlmNegotiationEnvelope::Spnego:
+        return "spnego";
+    case StandaloneNtlmNegotiationEnvelope::DirectNtlm:
+        return "direct-ntlm";
+    }
+    return "undetermined";
+}
+
 enum class StandaloneSpnegoStage : std::uint8_t
 {
     Unconfigured,
@@ -126,6 +148,8 @@ struct StandaloneSpnegoMechanismOidObservation final
 struct StandaloneSpnegoInitialTokenObservation final
 {
     bool observed{};
+    StandaloneNtlmNegotiationEnvelope negotiationEnvelope{
+        StandaloneNtlmNegotiationEnvelope::Undetermined};
     std::size_t tokenBytes{};
     std::uint8_t topLevelTag{};
     bool gssInitialContextToken{};
@@ -166,15 +190,15 @@ struct StandaloneSpnegoChallengeConfiguration final
     std::uint64_t timestampFileTime{};
 };
 
-// One noncopyable connection-oriented SPNEGO/NTLM owner for the standalone
-// application-password track.
+// One noncopyable connection-oriented negotiation/NTLM owner for the
+// standalone application-password track.
 //
-// The object accepts only SPNEGO with the Microsoft NTLM mechanism OID. It can
-// select NTLM when it was not the initiator's first mechanism and requires the
-// RFC 4178 mechListMIC exchange before that fallback can complete. The
-// NTLM-first path retains the exact Type 1
-// and server-emitted Type 2 bytes, verifies the Type 3 password proof and MIC,
-// and then owns the established directional NTLM message-security state.
+// The first valid token immutably selects either SPNEGO or direct NTLM for this
+// accepted connection. SPNEGO keeps the existing Microsoft NTLM mechanism-OID
+// selection and RFC 4178 mechListMIC rules. Direct NTLM accepts only raw
+// NTLMSSP Type 1 -> Type 2 -> Type 3 messages. Both envelopes share the exact
+// same NTLM transcript, password verification and directional message-security
+// state; there is no second NTLM implementation.
 //
 // No method here grants R2 desktop admission or performs TLS/TSRequest I/O.
 class StandaloneSpnegoNtlmAcceptor final
@@ -224,6 +248,12 @@ public:
         return failureStage_;
     }
 
+    [[nodiscard]] StandaloneNtlmNegotiationEnvelope negotiationEnvelope()
+        const noexcept
+    {
+        return negotiationEnvelope_;
+    }
+
     [[nodiscard]] StandaloneSpnegoRejectionReason rejectionReason() const noexcept
     {
         return rejectionReason_;
@@ -266,6 +296,8 @@ private:
     std::size_t mechanismListLength_{};
 
     bool ntlmWasFirstMechanism_{};
+    StandaloneNtlmNegotiationEnvelope negotiationEnvelope_{
+        StandaloneNtlmNegotiationEnvelope::Undetermined};
     NtlmV2SecurityContext securityContext_{};
     StandaloneSpnegoStage stage_{StandaloneSpnegoStage::Unconfigured};
     StandaloneSpnegoFailureStage failureStage_{

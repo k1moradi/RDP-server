@@ -817,7 +817,7 @@ jobs:
             test_x11_desktop_resources \
             test_x11_authorized_input_route test_x11_rdp_slow_path_input \
             fuzz_mcs_cliprdr fuzz_credssp
-      - name: R9 Start-Stop-Start and standalone CredSSP-SPNEGO owner-candidate gate
+      - name: R9 Start-Stop-Start and standalone CredSSP envelope owner-candidate gate
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
@@ -832,6 +832,8 @@ jobs:
             r9-microsoft-neginit2-ntlm-challenge
           build/tests/test_standalone_credssp \
             r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge
+          build/tests/test_standalone_credssp \
+            r9-standalone-credssp-direct-ntlm-v6-full-flow
 
       - name: Run all registered clipboard CTests with sanitizers
         env:

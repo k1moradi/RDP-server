@@ -569,6 +569,8 @@ void prepareInitialNegotiation(
     assert(initialObservation.tsRequestVersion == requestVersion);
     assert(initialObservation.tokenCount == 1U);
     assert(initialObservation.spnego.observed);
+    assert(initialObservation.spnego.negotiationEnvelope ==
+           StandaloneNtlmNegotiationEnvelope::Spnego);
     assert(initialObservation.spnego.tokenBytes == spnego.size());
     assert(initialObservation.spnego.topLevelTag == 0x60U);
     assert(initialObservation.spnego.gssInitialContextToken);
@@ -594,6 +596,54 @@ void prepareInitialNegotiation(
     assert(std::search(replyToken.begin(), replyToken.end(),
                        typeTwoSignature.begin(), typeTwoSignature.end()) !=
            replyToken.end());
+}
+
+void prepareDirectNtlmNegotiation(
+    StandaloneCredSspNtlmAcceptor &acceptor,
+    EphemeralNtlmV2Credential &credential,
+    MemoryTlsPair &tls,
+    TsRequestFrameReader &reader,
+    TsRequestTlsReplyWriter &writer)
+{
+    assert(acceptor.configureChallenge(
+        {kServerChallenge, u"Domain", u"Server", kTimestamp}));
+    const auto negotiate = negotiateMessage();
+    const Bytes directTypeOne{negotiate.begin(), negotiate.end()};
+    const auto request =
+        wrap(0x30U, append(version(6U), tokens(directTypeOne)));
+
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, credential) ==
+           StandaloneCredSspFrameStatus::NegoReplyQueued);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::NegoContinue);
+
+    const auto initialObservation = acceptor.initialNegoObservation();
+    assert(initialObservation.observed);
+    assert(initialObservation.tsRequestVersion == 6U);
+    assert(initialObservation.tokenCount == 1U);
+    assert(initialObservation.spnego.observed);
+    assert(initialObservation.spnego.negotiationEnvelope ==
+           StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+    assert(initialObservation.spnego.tokenBytes == negotiate.size());
+    assert(initialObservation.spnego.topLevelTag == 0x4eU);
+    assert(!initialObservation.spnego.gssInitialContextToken);
+    assert(initialObservation.spnego.mechanismCount == 0U);
+    assert(initialObservation.spnego.ntlmOffered);
+    assert(initialObservation.spnego.rejectionReason ==
+           StandaloneSpnegoRejectionReason::None);
+
+    const auto reply = tls.flushServerReply(writer);
+    const auto parsed = parseCredSspTsRequest(reply);
+    assert(parsed && parsed.value.tokenCount == 1U);
+    constexpr std::array<std::uint8_t, 12> typeTwoSignature{
+        'N','T','L','M','S','S','P',0,2,0,0,0};
+    assert(parsed.value.tokens[0].size() > typeTwoSignature.size());
+    assert(std::equal(
+        typeTwoSignature.begin(), typeTwoSignature.end(),
+        parsed.value.tokens[0].begin()));
 }
 
 void configureClientMirror(
@@ -673,18 +723,34 @@ void completeBindingForAuthInfo(
     NtlmV2SecurityContext &clientSecurity,
     MemoryTlsPair &tls,
     TsRequestFrameReader &reader,
-    TsRequestTlsReplyWriter &writer)
+    TsRequestTlsReplyWriter &writer,
+    StandaloneNtlmNegotiationEnvelope envelope =
+        StandaloneNtlmNegotiationEnvelope::Spnego)
 {
-    prepareInitialNegotiation(
-        acceptor, serverCredential, tls, reader, writer);
+    if (envelope == StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+    {
+        prepareDirectNtlmNegotiation(
+            acceptor, serverCredential, tls, reader, writer);
+    }
+    else
+    {
+        assert(envelope == StandaloneNtlmNegotiationEnvelope::Spnego);
+        prepareInitialNegotiation(
+            acceptor, serverCredential, tls, reader, writer);
+    }
     configureClientMirror(clientSecurity);
     const auto clientNonce = nonce();
     const auto protectedBinding =
         protectClientBinding(
             tls, clientSecurity, clientNonce);
+    const Bytes finalNegoToken =
+        envelope == StandaloneNtlmNegotiationEnvelope::DirectNtlm
+        ? Bytes{
+              kMicrosoftAuthenticateMessage.begin(),
+              kMicrosoftAuthenticateMessage.end()}
+        : continuationSpnego(kMicrosoftAuthenticateMessage);
     const auto finalRequest = combinedFinalRequest(
-        continuationSpnego(kMicrosoftAuthenticateMessage),
-        protectedBinding, clientNonce);
+        finalNegoToken, protectedBinding, clientNonce);
 
     tls.sendClient(finalRequest);
     tls.readServerFrame(reader);
@@ -863,6 +929,65 @@ void testAuthInfoExactCredentialMatch()
     completeBindingForAuthInfo(
         acceptor, serverCredential, clientSecurity,
         tls, reader, writer);
+
+    const auto credentials =
+        passwordCredentials({}, u"User", u"Password");
+    const auto protectedAuthInfo =
+        protectAuthInfo(clientSecurity, credentials);
+    const auto request = authInfoRequest(protectedAuthInfo);
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::CredentialsVerified);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::CredentialsVerified);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(serverCredential.configured());
+}
+
+void testDirectNtlmEnvelopeFullCredentialFlow()
+{
+    // The final raw Type 3 is not complete CredSSP authentication by itself.
+    // MS-CSSP requires the last negotiation message and pubKeyAuth together.
+    {
+        MemoryTlsPair missingBindingTls;
+        TsRequestFrameReader missingBindingReader;
+        TsRequestTlsReplyWriter missingBindingWriter;
+        EphemeralNtlmV2Credential missingBindingCredential;
+        configureServerCredential(missingBindingCredential);
+        StandaloneCredSspNtlmAcceptor missingBindingAcceptor;
+        prepareDirectNtlmNegotiation(
+            missingBindingAcceptor, missingBindingCredential,
+            missingBindingTls, missingBindingReader, missingBindingWriter);
+        const Bytes directTypeThree{
+            kMicrosoftAuthenticateMessage.begin(),
+            kMicrosoftAuthenticateMessage.end()};
+        const auto tokenOnlyRequest = wrap(
+            0x30U, append(version(6U), tokens(directTypeThree)));
+        missingBindingTls.sendClient(tokenOnlyRequest);
+        missingBindingTls.readServerFrame(missingBindingReader);
+        assert(missingBindingAcceptor.processCompleteFrame(
+                   missingBindingReader, missingBindingWriter,
+                   missingBindingCredential) ==
+               StandaloneCredSspFrameStatus::Rejected);
+        assert(missingBindingAcceptor.failureStage() ==
+               StandaloneAuthenticationFailureStage::PubKeyAuth);
+    }
+
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer,
+        StandaloneNtlmNegotiationEnvelope::DirectNtlm);
 
     const auto credentials =
         passwordCredentials({}, u"User", u"Password");
@@ -1071,6 +1196,12 @@ int main(int argc, char **argv)
             assert(acceptor.lastSpnegoStatus() ==
                    StandaloneSpnegoStatus::Continue);
         }
+        return 0;
+    }
+    if (testCase ==
+        "r9-standalone-credssp-direct-ntlm-v6-full-flow")
+    {
+        testDirectNtlmEnvelopeFullCredentialFlow();
         return 0;
     }
     if (testCase ==

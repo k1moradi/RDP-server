@@ -1,3 +1,26 @@
+## Direct-NTLM CredSSP envelope and immutable-mode gates (2026-10-24)
+
+Real Microsoft Windows App evidence now proves a CredSSP v6 initial
+`negoTokens` payload can be the 40-byte raw NTLMSSP Type-1 message rather
+than a GSS/SPNEGO wrapper. Keep production-backed coverage for both immutable
+connection envelope modes.
+
+The focused mechanism gate must prove raw Type 1 produces a raw Type 2,
+raw Type 3 reaches the existing `MechanismVerified` NTLM security context
+with no synthetic SPNEGO terminal bytes, and changing DirectNtlm -> SPNEGO or
+Spnego -> raw NTLM on a later token fails closed. The integrated TLS/TSRequest
+gate must additionally prove the direct v6 path through final raw Type 3 +
+`pubKeyAuth`, TLS channel-binding verification, server binding reply and
+protected `authInfo` to exact standalone credential verification. Existing
+SPNEGO/NegTokenInit2 tests remain required regressions and OS-GSS fallback must
+remain disabled.
+
+The R9 owner-candidate sanitizer lane executes the new direct-NTLM integrated
+flow alongside Start/Stop/Start, X.224/TLS and SPNEGO compatibility fixtures.
+This is automated protocol evidence only; only a new physical Microsoft-client
+receipt can advance the live acceptance boundary beyond the previous
+`invalid-gss-wrapper` failure.
+
 ## R3 gate after direct-NTLM owner evidence (2026-10-24)
 
 Keep `runtime.linux-host-control-stop-retires-r3-session-state` as the

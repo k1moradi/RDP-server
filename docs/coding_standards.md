@@ -1,3 +1,26 @@
+## CredSSP negotiation envelope is connection-scoped and immutable (2026-10-24)
+
+MS-CSSP `TSRequest.negoTokens` can carry SPNEGO tokens or direct
+Kerberos/NTLM messages. Do not infer SPNEGO solely from CredSSP. For the
+standalone Session Password path, select exactly one negotiation envelope from
+the first **valid** token: `Spnego` for a valid GSS/SPNEGO initial token or
+`DirectNtlm` for a valid raw NTLMSSP Type-1 NEGOTIATE_MESSAGE. Preserve that
+choice for the complete accepted connection; never trial-parse a later token
+under the other envelope.
+
+Both envelopes must reuse the single existing NTLM transcript/security owner.
+Direct NTLM is raw Type 1 -> raw Type 2 -> raw Type 3; do not add a second
+NTLM parser, verifier, challenge generator or SIGN/SEAL context. SPNEGO keeps
+its existing mechanism-list and mechListMIC rules. The final raw Type 3 carries
+no fabricated SPNEGO completion wrapper and, per MS-CSSP, is accepted only in
+the final TSRequest that also carries `pubKeyAuth`.
+
+This compatibility path changes neither authentication authority nor native
+desktop identity. Keep OS/GSS fallback disabled for StandalonePassword; never
+map the remote application username into a host OS identity. After either
+envelope verifies the same NTLM security context, continue through the existing
+pubKeyAuth/TLS binding, authInfo and Session Password verification boundaries.
+
 ## R3 authority requires verified credentials and native admission (2026-10-24)
 
 Treat established TLS as an R1 transport fact, never as R3 authority. A

@@ -1,3 +1,37 @@
+## R2 direct-NTLM CredSSP negotiation envelope (2026-10-24)
+
+Owner Microsoft Windows App evidence on Linux establishes the first standalone
+CredSSP token as a direct 40-byte NTLMSSP NEGOTIATE_MESSAGE inside
+`TSRequest.negoTokens`: CredSSP version 6, top byte `0x4e`, no GSS
+InitialContextToken, no SPNEGO mechanism list and the literal `NTLMSSP\0`
+signature. This supersedes the earlier assumption that the first valid token
+must be a GSS/SPNEGO `0x60` InitialContextToken.
+
+MS-CSSP permits `negoTokens` to carry SPNEGO tokens or Kerberos/NTLM
+messages. R2 therefore owns one connection-scoped immutable
+`StandaloneNtlmNegotiationEnvelope`: the first valid token selects
+`Spnego` or `DirectNtlm`. SPNEGO retains the existing NegTokenInit,
+mechanism-selection and mechListMIC behavior. Direct NTLM accepts only raw
+NTLMSSP Type 1 -> raw Type 2 -> raw Type 3. Both routes use the same existing
+Type-1/2/3 parser, transcript, NTLMv2 credential verifier, MIC handling and
+directional SIGN/SEAL security context; no second NTLM implementation exists.
+
+The client's final raw Type 3 follows the same MS-CSSP final-message rule as
+the SPNEGO terminal token: it must share its TSRequest with `pubKeyAuth`.
+Direct mode emits no synthetic SPNEGO accept-completed wrapper. After Type 3,
+both envelopes converge on the existing pubKeyAuth/TLS channel-binding,
+authInfo decrypt/verification, standalone Session Password match and R2
+authenticated-session proof. Envelope switching after the first valid token is
+terminal. OS/GSS fallback remains disabled, and the remote standalone username
+is not translated into an OS account identity.
+
+Starting exact-main parent: `ff9b6c7566bf5497e6d23096395dc02a4c8e4105`. Source/test/CI authoring review:
+**PASS**. Local canonical build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and the next physical Microsoft
+client attempt: **PENDING**. The existing Start -> Stop -> Start credential and
+fresh-owner-consent lifecycle is unchanged and remains an independent parallel
+gate.
+
 ## R2-to-R3 boundary after direct-NTLM owner evidence (2026-10-24)
 
 R1 TLS establishment is transport readiness only. R2 owns all CredSSP

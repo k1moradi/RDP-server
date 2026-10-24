@@ -1,3 +1,34 @@
+## R2 owner direct-NTLM evidence and envelope authoring receipt (2026-10-24)
+
+**Starting exact-main parent:** `ff9b6c7566bf5497e6d23096395dc02a4c8e4105`.
+
+Physical Microsoft Windows App against the Linux standalone path produced the
+redacted first-token record: TLS established; CredSSP initial negotiation;
+TSRequest version 6; one 40-byte token; top byte `0x4e`; no GSS
+InitialContextToken; zero SPNEGO mechanisms; NTLM not offered through SPNEGO;
+terminal category `invalid-gss-wrapper`. The first bytes are the standard
+`NTLMSSP\0` signature, so this is direct NTLM Type 1 rather than malformed
+SPNEGO.
+
+Normative MS-CSSP review confirms `TSRequest.negoTokens` carries SPNEGO
+tokens **or Kerberos/NTLM messages**, and the client's last negotiation message
+is sent together with `pubKeyAuth`. The source change therefore adds one
+immutable per-connection `Spnego` / `DirectNtlm` selector around the
+existing NTLM owner. Direct Type 1 issues the existing raw Type 2; direct Type
+3 reuses the same password/MIC/SIGN-SEAL context and produces no synthetic
+SPNEGO completion token before the existing pubKeyAuth/authInfo path.
+
+Authoring coverage adds a direct Type-1/2/3 mechanism round trip, bidirectional
+envelope-switch denials, token-only final Type-3 rejection, and an in-memory
+TLS/CredSSP v6 direct-NTLM flow through pubKeyAuth and exact authInfo
+credential verification. The focused R9 owner-candidate job invokes the
+integrated direct case. Existing SPNEGO, Start/Stop/Start and OS-GSS-disabled
+behavior are preserved.
+
+Connector source/test/workflow review: **PASS**. Canonical local build/full
+CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Physical
+Microsoft-client rerun on the publication SHA: **NOT RUN / NEXT GATE**.
+
 ## R3 post-publication registration-comment correction (2026-10-24)
 
 **Starting exact-main parent:** `c88b4132a8cdfc9422ab5be809ed7fb9041f99de`.

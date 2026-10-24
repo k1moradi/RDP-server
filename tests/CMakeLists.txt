@@ -198,6 +198,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(spnego_case IN ITEMS
+        direct-ntlm-envelope-negotiate-authenticate
         spnego-ntlm-first-negotiate-challenge
         spnego-ntlm-authenticate-known-answer
         spnego-fallback-mechlistmic-roundtrip
@@ -293,6 +294,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(standalone_credssp_case IN ITEMS
+        r9-standalone-credssp-direct-ntlm-v6-full-flow
         standalone-credssp-tls-bound-combined-pubkeyauth
         standalone-credssp-pubkeyauth-tamper-revokes
         standalone-credssp-authinfo-exact-credential-match

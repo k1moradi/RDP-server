@@ -89,11 +89,12 @@ public:
     // Consume exactly one already-complete TLS-derived TSRequest. The caller
     // must fully write and release each queued reply before presenting another
     // frame. Token-only negotiation is accepted until the NTLM mechanism is
-    // complete. For the NTLM-first CredSSP fast path, the final SPNEGO token
-    // may share the TSRequest with pubKeyAuth/clientNonce as required by
-    // MS-CSSP 3.1.5; only the canonical empty accept-completed SPNEGO response
-    // may then be suppressed because the server binding reply MUST omit
-    // negoTokens.
+    // complete. The first valid token immutably selects SPNEGO or direct NTLM.
+    // The final SPNEGO token or raw NTLM Type 3 may share the TSRequest with
+    // pubKeyAuth/clientNonce as required by MS-CSSP 3.1.5. SPNEGO suppresses
+    // only the canonical empty accept-completed envelope; direct NTLM emits no
+    // synthetic negotiation wrapper after Type 3 because the server binding
+    // reply MUST omit negoTokens.
     [[nodiscard]] StandaloneCredSspFrameStatus processCompleteFrame(
         TsRequestFrameReader &reader,
         TsRequestTlsReplyWriter &writer,

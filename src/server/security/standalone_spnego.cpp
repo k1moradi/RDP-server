@@ -20,6 +20,8 @@ constexpr std::array<std::uint8_t, 6> kSpnegoOid{
     0x2b,0x06,0x01,0x05,0x05,0x02};
 constexpr std::array<std::uint8_t, 10> kNtlmOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
+constexpr std::array<std::uint8_t, 8> kNtlmSignature{
+    'N','T','L','M','S','S','P',0};
 
 constexpr std::uint8_t kAcceptCompleted = 0U;
 constexpr std::uint8_t kAcceptIncomplete = 1U;
@@ -667,6 +669,7 @@ void StandaloneSpnegoNtlmAcceptor::reset() noexcept
     domainNameLength_ = 0;
     computerNameLength_ = 0;
     timestampFileTime_ = 0;
+    negotiationEnvelope_ = StandaloneNtlmNegotiationEnvelope::Undetermined;
     stage_ = StandaloneSpnegoStage::Unconfigured;
     failureStage_ = StandaloneSpnegoFailureStage::None;
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
@@ -812,16 +815,34 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
 
     std::size_t bytesWritten = 0;
-    if (!encodeServerResponse(
-            kAcceptIncomplete,
-            includeSupportedMechanism,
-            std::span<const std::uint8_t>{challengeMessage_}.first(
-                challengeMessageLength_),
-            {},
-            output,
-            bytesWritten))
+    if (negotiationEnvelope_ ==
+        StandaloneNtlmNegotiationEnvelope::DirectNtlm)
     {
-        return fail(StandaloneSpnegoStatus::OutputTooSmall);
+        if (output.size() < challengeMessageLength_)
+            return fail(StandaloneSpnegoStatus::OutputTooSmall);
+        std::copy_n(
+            challengeMessage_.begin(), challengeMessageLength_,
+            output.begin());
+        bytesWritten = challengeMessageLength_;
+    }
+    else if (
+        negotiationEnvelope_ == StandaloneNtlmNegotiationEnvelope::Spnego)
+    {
+        if (!encodeServerResponse(
+                kAcceptIncomplete,
+                includeSupportedMechanism,
+                std::span<const std::uint8_t>{challengeMessage_}.first(
+                    challengeMessageLength_),
+                {},
+                output,
+                bytesWritten))
+        {
+            return fail(StandaloneSpnegoStatus::OutputTooSmall);
+        }
+    }
+    else
+    {
+        return fail(StandaloneSpnegoStatus::InvalidState);
     }
 
     stage_ = StandaloneSpnegoStage::AwaitNtlmAuthenticate;
@@ -835,12 +856,45 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
     if (stage_ != StandaloneSpnegoStage::AwaitInitialToken)
         return fail(StandaloneSpnegoStatus::InvalidState);
 
+    const bool directNtlmCandidate =
+        token.size() >= kNtlmSignature.size() &&
+        std::equal(
+            kNtlmSignature.begin(), kNtlmSignature.end(), token.begin());
+    if (directNtlmCandidate)
+    {
+        initialTokenObservation_ = {};
+        initialTokenObservation_.observed = true;
+        initialTokenObservation_.tokenBytes = token.size();
+        initialTokenObservation_.topLevelTag = token.front();
+
+        NtlmNegotiateMessage negotiate;
+        failureStage_ = StandaloneSpnegoFailureStage::NtlmNegotiation;
+        rejectionReason_ = StandaloneSpnegoRejectionReason::NtlmNegotiate;
+        if (parseNtlmNegotiateMessage(token, negotiate) !=
+            NtlmMessageParseResult::Parsed)
+        {
+            initialTokenObservation_.rejectionReason = rejectionReason_;
+            return fail(StandaloneSpnegoStatus::InvalidToken);
+        }
+
+        negotiationEnvelope_ =
+            StandaloneNtlmNegotiationEnvelope::DirectNtlm;
+        initialTokenObservation_.negotiationEnvelope = negotiationEnvelope_;
+        initialTokenObservation_.ntlmOffered = true;
+        ntlmWasFirstMechanism_ = true;
+        failureStage_ = StandaloneSpnegoFailureStage::None;
+        rejectionReason_ = StandaloneSpnegoRejectionReason::None;
+        return issueChallenge(token, false, output);
+    }
+
     ParsedInitialToken parsed;
     if (!parseInitialToken(token, parsed, initialTokenObservation_))
     {
         rejectionReason_ = initialTokenObservation_.rejectionReason;
         return fail(StandaloneSpnegoStatus::InvalidToken);
     }
+    negotiationEnvelope_ = StandaloneNtlmNegotiationEnvelope::Spnego;
+    initialTokenObservation_.negotiationEnvelope = negotiationEnvelope_;
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
     if (!parsed.mechListMic.empty() ||
         parsed.mechanismListEncoded.size() > mechanismList_.size())
@@ -887,24 +941,43 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
     }
 
     ParsedResponseToken parsed;
-    if (!parseResponseToken(token, parsed))
-        return fail(StandaloneSpnegoStatus::InvalidToken);
+    ByteSpan mechanismToken;
+    ByteSpan mechListMic;
+    if (negotiationEnvelope_ == StandaloneNtlmNegotiationEnvelope::Spnego)
+    {
+        if (!parseResponseToken(token, parsed))
+            return fail(StandaloneSpnegoStatus::InvalidToken);
+        mechanismToken = parsed.mechanismToken;
+        mechListMic = parsed.mechListMic;
+    }
+    else if (
+        negotiationEnvelope_ ==
+        StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+    {
+        if (stage_ != StandaloneSpnegoStage::AwaitNtlmAuthenticate)
+            return fail(StandaloneSpnegoStatus::InvalidState);
+        mechanismToken = token;
+    }
+    else
+    {
+        return fail(StandaloneSpnegoStatus::InvalidState);
+    }
 
     if (stage_ == StandaloneSpnegoStage::AwaitNtlmNegotiate)
     {
-        if (!parsed.mechListMic.empty())
+        if (!mechListMic.empty())
         {
             return fail(
                 StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
         }
         return issueChallenge(
-            parsed.mechanismToken, false, output);
+            mechanismToken, false, output);
     }
 
     NtlmAuthenticateMessage authenticate;
     failureStage_ = StandaloneSpnegoFailureStage::NtlmNegotiation;
     if (parseNtlmAuthenticateMessage(
-            parsed.mechanismToken, authenticate) !=
+            mechanismToken, authenticate) !=
         NtlmMessageParseResult::Parsed)
     {
         return fail(StandaloneSpnegoStatus::InvalidToken);
@@ -922,14 +995,14 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
     {
         failureStage_ = StandaloneSpnegoFailureStage::Mic;
         const std::uint8_t *const messageStart =
-            parsed.mechanismToken.data();
+            mechanismToken.data();
         const std::uint8_t *const micStart =
             authenticate.messageIntegrityCode.data();
         if (micStart < messageStart ||
             micStart >
-                messageStart + parsed.mechanismToken.size() ||
+                messageStart + mechanismToken.size() ||
             static_cast<std::size_t>(micStart - messageStart) >
-                parsed.mechanismToken.size() -
+                mechanismToken.size() -
                     authenticate.messageIntegrityCode.size())
         {
             return fail(StandaloneSpnegoStatus::InvalidToken);
@@ -942,7 +1015,7 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
                     negotiateMessageLength_),
                 std::span<const std::uint8_t>{challengeMessage_}.first(
                     challengeMessageLength_),
-                parsed.mechanismToken,
+                mechanismToken,
                 micOffset))
         {
             return fail(StandaloneSpnegoStatus::CredentialRejected);
@@ -953,10 +1026,10 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
     std::array<std::uint8_t, kNtlmMessageSignatureBytes>
         serverMechListMic{};
     ByteSpan serverMechListMicView{};
-    if (!parsed.mechListMic.empty())
+    if (!mechListMic.empty())
     {
         failureStage_ = StandaloneSpnegoFailureStage::Mic;
-        if (parsed.mechListMic.size() != kNtlmMessageSignatureBytes ||
+        if (mechListMic.size() != kNtlmMessageSignatureBytes ||
             mechanismListLength_ == 0U)
         {
             return fail(StandaloneSpnegoStatus::InvalidToken);
@@ -964,8 +1037,8 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
 
         const auto clientMic =
             std::span<const std::uint8_t, kNtlmMessageSignatureBytes>{
-                parsed.mechListMic.data(),
-                parsed.mechListMic.size()};
+                mechListMic.data(),
+                mechListMic.size()};
         const auto mechanismList =
             std::span<const std::uint8_t>{mechanismList_}.first(
                 mechanismListLength_);
@@ -985,6 +1058,14 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
     {
         return fail(
             StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
+    }
+
+    if (negotiationEnvelope_ ==
+        StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+    {
+        failureStage_ = StandaloneSpnegoFailureStage::None;
+        stage_ = StandaloneSpnegoStage::MechanismVerified;
+        return {StandaloneSpnegoStatus::MechanismVerified, 0U};
     }
 
     std::size_t bytesWritten = 0;

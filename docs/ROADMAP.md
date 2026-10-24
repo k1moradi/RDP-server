@@ -1,3 +1,45 @@
+## R2 P0 direct-NTLM CredSSP envelope after decisive owner evidence (2026-10-24)
+
+**Starting exact-main parent:** `ff9b6c7566bf5497e6d23096395dc02a4c8e4105`.
+
+New owner Microsoft Windows App evidence is decisive and supersedes the prior
+"unknown Microsoft SPNEGO shape" blocker. The live Linux server reports TLS
+established, CredSSP initial negotiation, TSRequest version 6, exactly one
+40-byte negotiation token, top tag `0x4e`, no GSS InitialContextToken, zero
+mechanisms, no SPNEGO NTLM offer and `invalid-gss-wrapper`. `0x4e` begins
+the literal `NTLMSSP\0` signature, and the existing Type-1 parser already
+accepts this 40-byte NEGOTIATE_MESSAGE.
+
+MS-CSSP explicitly allows `TSRequest.negoTokens` to contain SPNEGO tokens or
+Kerberos/NTLM messages. The implementation therefore now has two immutable
+connection-scoped envelope modes: `Spnego` and `DirectNtlm`. The first valid
+token selects the mode. SPNEGO behavior is preserved. Direct mode routes raw
+NTLMSSP Type 1 -> existing Type-2 generator -> raw Type 3 through the same
+single NTLM transcript/password/security-context implementation. The final raw
+Type 3 is accepted only with the same TSRequest's `pubKeyAuth`; both modes
+then converge on the existing TLS binding, authInfo, standalone Session
+Password verification and R2 proof. Cross-envelope continuation is terminal.
+
+No OS/GSS fallback is enabled, no remote standalone username becomes a host OS
+identity, and the independent GUI Session Password remains authoritative.
+Start -> Stop -> Start credential retention/fresh-consent work is unchanged
+and continues in parallel.
+
+New behavior gates:
+- `security.direct-ntlm-envelope-negotiate-authenticate`;
+- `security.r9-standalone-credssp-direct-ntlm-v6-full-flow`;
+- the R9 exact-SHA owner-candidate sanitizer step now executes the direct v6
+  full flow in addition to the existing SPNEGO fixture.
+
+Connector source/test/workflow review: **PASS**. Canonical owner-local build and
+full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next P0 gate:** after exact-SHA CI is green, repeat the physical Microsoft
+Windows App attempt on that exact SHA. The required evidence is whether the
+server now emits/advances past raw NTLM Type 2 and where the first later
+failure occurs (Type 3/NTLMv2, MIC/SIGN-SEAL, pubKeyAuth, authInfo or
+post-auth composition). Do not re-open TLS or add OS-GSS fallback.
+
 ## R3 P2 remains blocked after direct-NTLM owner evidence (2026-10-24)
 
 **Starting exact-main parent:** `dac291c38f294e1a181572c959db454e10d7021a`.

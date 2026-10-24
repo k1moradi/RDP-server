@@ -1010,7 +1010,8 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         stderr,
         "rdp-server: standalone authentication failed: stage=%s; "
         "tls=%s; credssp=spnego-initial; os-gss-fallback=disabled; "
-        "tsrequest-version=%u; nego-token-count=%zu; token-bytes=%zu; "
+        "nego-envelope=%s; tsrequest-version=%u; nego-token-count=%zu; "
+        "token-bytes=%zu; "
         "top-tag=0x%02x; gss-initial-context-token=%s; "
         "neg-token-init=%s; neg-token-init2=%s; req-flags=%s; "
         "neg-hints=%s; mech-list-mic=%s; mechanism-count=%zu; "
@@ -1019,6 +1020,8 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         "spnego=%s\n",
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
+        rdp_server::server::security::standaloneNtlmNegotiationEnvelopeName(
+            spnego.negotiationEnvelope),
         static_cast<unsigned int>(initial.tsRequestVersion),
         initial.tokenCount,
         spnego.tokenBytes,
@@ -1036,7 +1039,11 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         ntlmMechanismIndex,
         yesNo(spnego.optimisticMechanismTokenPresent),
         spnego.optimisticMechanismTokenBytes,
-        spnegoDiagnosticName(spnego.rejectionReason));
+        spnego.negotiationEnvelope ==
+                rdp_server::server::security::
+                    StandaloneNtlmNegotiationEnvelope::DirectNtlm
+            ? "not-used"
+            : spnegoDiagnosticName(spnego.rejectionReason));
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept

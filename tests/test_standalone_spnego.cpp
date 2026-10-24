@@ -223,6 +223,75 @@ int main(int argc, char **argv)
         return 2;
     const std::string_view testCase{argv[1]};
 
+    if (testCase == "direct-ntlm-envelope-negotiate-authenticate")
+    {
+        const auto negotiate = negotiateMessage();
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+
+        StandaloneSpnegoNtlmAcceptor acceptor;
+        assert(configure(acceptor));
+        const auto challenged = acceptor.acceptInitialToken(negotiate, reply);
+        assert(challenged.status == StandaloneSpnegoStatus::Continue);
+        assert(challenged.bytesWritten > 12U);
+        assert(acceptor.negotiationEnvelope() ==
+               StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+        assert(acceptor.stage() ==
+               StandaloneSpnegoStage::AwaitNtlmAuthenticate);
+        constexpr std::array<std::uint8_t, 12> typeTwoSignature{
+            'N','T','L','M','S','S','P',0,2,0,0,0};
+        assert(std::equal(
+            typeTwoSignature.begin(), typeTwoSignature.end(), reply.begin()));
+
+        const auto observation = acceptor.initialTokenObservation();
+        assert(observation.observed);
+        assert(observation.negotiationEnvelope ==
+               StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+        assert(observation.tokenBytes == negotiate.size());
+        assert(observation.topLevelTag == 0x4eU);
+        assert(!observation.gssInitialContextToken);
+        assert(observation.mechanismCount == 0U);
+        assert(observation.ntlmOffered);
+        assert(observation.ntlmMechanismIndex ==
+               kStandaloneSpnegoNoMechanismIndex);
+        assert(observation.rejectionReason ==
+               StandaloneSpnegoRejectionReason::None);
+
+        EphemeralNtlmV2Credential credential;
+        auto mutablePassword = password();
+        assert(credential.configure(u"User", mutablePassword));
+        const auto completed = acceptor.acceptContinuationToken(
+            kMicrosoftAuthenticateMessage, credential, reply);
+        assert(completed.status ==
+               StandaloneSpnegoStatus::MechanismVerified);
+        assert(completed.bytesWritten == 0U);
+        assert(acceptor.stage() ==
+               StandaloneSpnegoStage::MechanismVerified);
+        assert(acceptor.negotiationEnvelope() ==
+               StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+
+        StandaloneSpnegoNtlmAcceptor directSwitch;
+        assert(configure(directSwitch));
+        assert(directSwitch.acceptInitialToken(negotiate, reply));
+        const auto wrappedTypeThree =
+            continuationToken(kMicrosoftAuthenticateMessage);
+        assert(directSwitch.acceptContinuationToken(
+                   wrappedTypeThree, credential, reply).status ==
+               StandaloneSpnegoStatus::InvalidToken);
+        assert(directSwitch.stage() == StandaloneSpnegoStage::Failed);
+
+        StandaloneSpnegoNtlmAcceptor spnegoSwitch;
+        assert(configure(spnegoSwitch));
+        const auto spnegoInitial = initialToken(
+            {Bytes(kNtlmOid.begin(), kNtlmOid.end())}, negotiate);
+        assert(spnegoSwitch.acceptInitialToken(spnegoInitial, reply));
+        assert(spnegoSwitch.negotiationEnvelope() ==
+               StandaloneNtlmNegotiationEnvelope::Spnego);
+        assert(spnegoSwitch.acceptContinuationToken(
+                   kMicrosoftAuthenticateMessage, credential, reply).status ==
+               StandaloneSpnegoStatus::InvalidToken);
+        assert(spnegoSwitch.stage() == StandaloneSpnegoStage::Failed);
+        return 0;
+    }
 
     if (testCase == "r9-microsoft-neginit2-ntlm-challenge")
     {
@@ -249,6 +318,8 @@ int main(int argc, char **argv)
 
         const auto observation = acceptor.initialTokenObservation();
         assert(observation.observed);
+        assert(observation.negotiationEnvelope ==
+               StandaloneNtlmNegotiationEnvelope::Spnego);
         assert(observation.tokenBytes == initial.size());
         assert(observation.topLevelTag == 0x60U);
         assert(observation.gssInitialContextToken);

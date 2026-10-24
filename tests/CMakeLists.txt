@@ -419,6 +419,27 @@ if(TARGET rdp-server-linux-host-control)
         LABELS "runtime;security;r8-bootstrap;r10-host-control;gui;offline")
 endif()
 
+if(TARGET rdp-server-macos-host-control)
+    add_executable(test_macos_runtime_host_control
+        test_macos_runtime_host_control.cpp)
+    target_link_libraries(test_macos_runtime_host_control PRIVATE
+        rdp-server-macos-host-control)
+    target_compile_options(test_macos_runtime_host_control PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    foreach(mac_host_control_case IN ITEMS
+            macos-host-control-initial-product-projection
+            macos-host-control-standalone-password-lifecycle
+            macos-host-control-sharing-permission-lifecycle
+            macos-host-control-stop-revoke-retirement
+            macos-portable-gui-bootstrap-readiness)
+        add_test(NAME "runtime.${mac_host_control_case}"
+            COMMAND test_macos_runtime_host_control "${mac_host_control_case}")
+        set_tests_properties("runtime.${mac_host_control_case}" PROPERTIES
+            LABELS "runtime;security;macos;offline"
+            SKIP_RETURN_CODE 77)
+    endforeach()
+endif()
+
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.
 add_executable(test_runtime_host_control test_runtime_host_control.cpp)
 target_link_libraries(test_runtime_host_control PRIVATE rdp-server-protocol)

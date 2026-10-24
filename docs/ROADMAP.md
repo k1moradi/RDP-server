@@ -1,3 +1,36 @@
+## macOS portable GUI native host control and session evidence (2026-10-24)
+
+Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.
+
+Prepared the native macOS GUI hosting stack for first remote desktop connection tests
+from Microsoft Remote Desktop (`mstsc.exe`) over local LAN:
+- Implemented `MacRuntimeHostControl` and `MacPortableDesktopRuntime` in
+  `src/server/runtime/mac_runtime_host_control.h` and
+  `src/server/runtime/mac_runtime_host_control.cpp`, wiring the serialized owner-thread
+  host control to `OwnedLanListener` (R1 TCP listener on port 3389), `RuntimeServerTlsContext`,
+  `RuntimeLicensingContext`, `EphemeralNtlmV2Credential` / `StandalonePasswordCredentialOwner`,
+  and native desktop capture/input via `RuntimePlatformNativeDesktop`.
+- Implemented native macOS session evidence `MacConsoleOsEvidenceSource` in
+  `src/server/security/mac_console_evidence.h` and `src/server/security/mac_console_evidence.cpp`
+  using `SCDynamicStoreCopyConsoleUser`, `CGSessionCopyCurrentDictionary`, `audit_addr_t`,
+  and `SessionGetInfo`, providing non-synthetic console UID and session identity to
+  `CurrentOwnerSharingAuthority`.
+- Integrated `MacPortableDesktopRuntime` into `rdp-server-desktop` on macOS (`src/gui/main.cpp`),
+  replacing `UnavailableRuntimeHostControl` ("Hosting is not available on this platform").
+  Connected 25ms `runtimeServiceTimer` for socket acceptance and preauth progress, and
+  250ms `statusRefreshTimer` for GUI status synchronization.
+- Fixed `.gitignore` formatting so newline delimiters properly ignore `build*`, `.DS_Store`,
+  `__pycache__`, and IDE folders.
+- Registered 5 new behavior-named CTests in `tests/CMakeLists.txt`:
+  `runtime.macos-host-control-initial-product-projection`,
+  `runtime.macos-host-control-standalone-password-lifecycle`,
+  `runtime.macos-host-control-sharing-permission-lifecycle`,
+  `runtime.macos-host-control-stop-revoke-retirement`, and
+  `runtime.macos-portable-gui-bootstrap-readiness`.
+
+Verification: 741/741 tests **PASS** on macOS Debug. Physical Microsoft Remote Desktop client
+connection over local network to macOS desktop is unblocked and ready for live owner testing.
+
 ## R7 owner-acceptance credential-change consent revalidation (2026-10-23)
 
 Starting exact-main parent: `c2d9f13c898813b0229416b8af94df427a25d393`.

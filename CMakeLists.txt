@@ -1103,7 +1103,8 @@ if(APPLE)
     # the caller's console UID, audit session and Security session as candidate
     # native evidence only; no TCC/AppKit fact can mint authentication.
     add_library(rdp-server-macos-native-session-evidence STATIC
-        src/server/security/macos_native_session_evidence.cpp)
+        src/server/security/macos_native_session_evidence.cpp
+        src/server/security/mac_console_evidence.cpp)
     target_compile_features(
         rdp-server-macos-native-session-evidence PUBLIC cxx_std_23)
     target_include_directories(
@@ -1112,6 +1113,7 @@ if(APPLE)
     target_link_libraries(
         rdp-server-macos-native-session-evidence PRIVATE
         "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
+        "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}"
         "${RDP_SERVER_SECURITY_FRAMEWORK}"
         "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}")
     target_compile_options(
@@ -1223,6 +1225,30 @@ if(WIN32 OR APPLE)
         RDP_SERVER_HAVE_PLATFORM_NATIVE_DESKTOP=1)
 endif()
 
+# macOS native HostControl composition for the portable Qt GUI application.
+if(APPLE)
+    add_library(rdp-server-macos-host-control STATIC
+        src/server/runtime/mac_runtime_host_control.cpp)
+    target_compile_features(
+        rdp-server-macos-host-control PUBLIC cxx_std_23)
+    target_include_directories(
+        rdp-server-macos-host-control PUBLIC
+        "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+    target_link_libraries(
+        rdp-server-macos-host-control PUBLIC
+        rdp-server-protocol
+        rdp-server-runtime-tls
+        rdp-server-runtime-licensing
+        rdp-server-standalone-ntlmv2
+        rdp-server-macos-native-session-evidence
+        rdp-server-macos-capture
+        rdp-server-runtime-platform-native-desktop
+        rdp-server-native-desktop-authorization)
+    target_compile_options(
+        rdp-server-macos-host-control PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # Windows R6 launcher reuses R7's Qt DesktopWindow; no R2/R10 authority.
 if(WIN32)
     find_package(Qt6 6.4 QUIET COMPONENTS Widgets)
@@ -1310,6 +1336,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         target_link_libraries(rdp-server-desktop PRIVATE
             rdp-server-linux-host-control)
+    elseif(APPLE)
+        target_link_libraries(rdp-server-desktop PRIVATE
+            rdp-server-macos-host-control)
     endif()
     if(APPLE)
         set_target_properties(rdp-server-desktop PROPERTIES MACOSX_BUNDLE TRUE)

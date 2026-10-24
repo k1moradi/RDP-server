@@ -1,1 +1,7 @@
-build*/\nCMakeUserPresets.json\n.DS_Store\n.idea/\n.vscode/\n
+build*/
+CMakeUserPresets.json
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.pyc

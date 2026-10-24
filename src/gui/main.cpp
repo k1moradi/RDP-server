@@ -10,6 +10,8 @@
 #include "server/runtime/runtime_licensing_context.h"
 #include "server/runtime/runtime_tls_context.h"
 #endif
+#elif defined(__APPLE__)
+#include "server/runtime/mac_runtime_host_control.h"
 #endif
 
 #include <QApplication>
@@ -172,6 +174,11 @@ int main(int argc, char** argv)
     // owner permission and endpoint revalidation.
     rdp_server::server::runtime::LinuxPortableDesktopRuntime applicationRuntime;
     auto& runtime = applicationRuntime.hostControl();
+#elif defined(__APPLE__)
+    if (configurationPath != nullptr)
+        return 2;
+    rdp_server::server::runtime::MacPortableDesktopRuntime applicationRuntime;
+    auto& runtime = applicationRuntime.hostControl();
 #else
     if (configurationPath != nullptr)
         return 2;
@@ -179,7 +186,7 @@ int main(int argc, char** argv)
 #endif
     rdp::gui::HostControl control(runtime);
     rdp::gui::DesktopWindow window(control);
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
     // The canonical no-argument product path owns the same bounded R10 service
     // loop as the expert --config path. Construction/provisioning alone never
     // opens a listener; only the user's explicit Sharing action can do that.

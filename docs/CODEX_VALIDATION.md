@@ -1,3 +1,23 @@
+## macOS portable GUI native host control and session evidence (2026-10-24)
+
+Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.
+
+Validation evidence on macOS arm64:
+- Canonical build command:
+  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+- Build outcome: **PASS** (100% built cleanly with zero warnings under `-Wall -Wextra -Wpedantic -Werror`).
+- Test outcome: **PASS** (741/741 tests passed in 18.99s).
+- Dedicated new macOS runtime host control behavior suite:
+  - `runtime.macos-host-control-initial-product-projection`: **PASS** (1.48s)
+  - `runtime.macos-host-control-standalone-password-lifecycle`: **PASS** (0.09s)
+  - `runtime.macos-host-control-sharing-permission-lifecycle`: **PASS** (0.06s)
+  - `runtime.macos-host-control-stop-revoke-retirement`: **PASS** (0.07s)
+  - `runtime.macos-portable-gui-bootstrap-readiness`: **PASS** (0.04s)
+- GUI offline and offscreen test suite:
+  - 30/30 tests **PASS** (4.32s), confirming owner consent, credential setting, endpoint selection, and offline UI state projection operate correctly.
+- Application executable smoke test:
+  - `build/rdp-server-desktop.app/Contents/MacOS/rdp-server-desktop` launches cleanly into the Qt event loop, initializes `MacPortableDesktopRuntime`, wires `MacConsoleOsEvidenceSource` and `MacNativeDesktopOwner`, and runs 25ms runtime service timers for incoming network connections.
+
 ## R7 owner-acceptance credential-change consent revalidation (2026-10-23)
 
 Starting exact-main parent: `c2d9f13c898813b0229416b8af94df427a25d393`.

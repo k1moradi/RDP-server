@@ -353,6 +353,19 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;r10-host-control;offline"
             SKIP_RETURN_CODE 77)
     endforeach()
+
+    # Production/default native-evidence observation is intentionally separate
+    # from the deterministic offline cases above. It skips on headless hosts
+    # and never requests consent, opens a listener, captures or injects input.
+    add_test(NAME runtime.linux-host-control-default-native-evidence-projection
+        COMMAND test_linux_runtime_host_control
+            linux-host-control-default-native-evidence-projection)
+    set_tests_properties(
+        runtime.linux-host-control-default-native-evidence-projection
+        PROPERTIES
+            LABELS "runtime;security;r2-owner-consent;r10-host-control;linux;native-observation"
+            SKIP_RETURN_CODE 77)
+
     add_test(NAME runtime.linux-host-control-r2-authority-lifetime-handoff
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"

@@ -77,6 +77,28 @@ private:
     std::uint32_t uid_{};
     std::uint64_t now_{10'000U};
 };
+
+class OfflineUnavailableEvidence final
+    : public rdp_server::server::security::ConsoleOsEvidenceSource
+{
+public:
+    rdp_server::server::security::ConsoleAccountObservation readUnixAccount(
+        std::string_view) noexcept override
+    {
+        return {};
+    }
+
+    rdp_server::server::security::ConsoleSessionObservation
+    readActiveConsole() noexcept override
+    {
+        return {};
+    }
+
+    std::optional<std::uint64_t> readMonotonicMilliseconds() noexcept override
+    {
+        return 10'000U;
+    }
+};
 } // namespace
 
 int main(int argc, char** argv)
@@ -84,9 +106,10 @@ int main(int argc, char** argv)
     if (argc != 2 || argv[1] == nullptr)
         return 2;
     const std::string_view testCase{argv[1]};
-    LinuxRuntimeHostControl control;
     if (testCase == "linux-host-control-no-consent-start-denials")
     {
+        OfflineUnavailableEvidence evidence;
+        LinuxRuntimeHostControl control(evidence);
         assert(control.status().stage == RuntimeHostStage::Stopped);
         assert(!control.status().listenerAvailable);
         assert(control.status().selectedEndpoint.empty());
@@ -108,6 +131,8 @@ int main(int argc, char** argv)
     }
     if (testCase == "linux-host-control-product-status-projection")
     {
+        OfflineUnavailableEvidence evidence;
+        LinuxRuntimeHostControl control(evidence);
         const auto status = control.status();
         assert(status.product.state == RuntimeProductHostState::Stopped);
         assert(status.product.controlAvailable);
@@ -172,6 +197,8 @@ int main(int argc, char** argv)
     if (testCase ==
         "linux-host-control-sharing-permission-product-projection")
     {
+        OfflineUnavailableEvidence evidence;
+        LinuxRuntimeHostControl control(evidence);
         auto status = control.status();
         assert(status.product.controlAvailable);
         assert(!status.product.sharingPermission.canRequest);
@@ -322,6 +349,34 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (testCase ==
+        "linux-host-control-default-native-evidence-projection")
+    {
+        LinuxRuntimeHostControl productionControl;
+        const auto status = productionControl.status();
+        if (!status.product.nativeDesktopTargetAvailable)
+            return 77;
+
+        // This is the separate production/default evidence observation gate.
+        // It performs no consent request, listener bind, capture or input.
+        assert(status.product.sharingPermission.canRequest);
+        assert(!status.product.sharingPermission.activeGrant);
+        assert(status.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::PermissionRequired);
+        assert(!status.product.ownerAuthorized);
+        assert(!status.listenerAvailable);
+        assert(status.boundEndpoint.empty());
+
+        // Native evidence alone cannot manufacture any R4/live-client state.
+        assert(!status.firstLiveGraphicsTrace.firstFramebufferAvailable);
+        assert(!status.firstLiveGraphicsTrace.firstClearCodecFramePrepared);
+        assert(!status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
+        assert(status.firstLiveGraphicsTrace.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
+        return 0;
+    }
+
+    LinuxRuntimeHostControl control;
     if (testCase == "linux-host-control-revalidated-interface-denials")
     {
         RuntimeHostOptions options{"missing#0", "0.0.0.0", 3389U, true, false};

@@ -1,3 +1,35 @@
+## R10 P0 Linux HostControl offline evidence isolation (2026-10-24)
+
+Starting exact-main parent: `d5e6d35d7c1e3fa73ec53b47b7ef91e1654606fd`.
+
+R2's preceding review confirmed the first owner-local failures at the permission
+boundary and kept production consent semantics unchanged. R10 now applies the
+owned test correction: the three offline HostControl permission/status cases
+construct `LinuxRuntimeHostControl` with deterministic unavailable
+`ConsoleOsEvidenceSource` instead of the production default logind/X11 source.
+This keeps their expected `canRequest == false`,
+`RuntimeSharingPermissionDenial::Unavailable` and non-granting permission
+request independent of the runner's real desktop.
+
+A separate
+`runtime.linux-host-control-default-native-evidence-projection` CTest retains
+production/default HostControl coverage. It uses genuine native evidence,
+returns the registered skip code when no eligible physical X11 target exists,
+and otherwise proves requestable-but-not-granted owner permission without
+requesting consent or opening a listener. It also pins all first-live graphics
+facts false/zero before any client.
+
+Production R10/R2 source, zero-config portable composition and RDP wire behavior:
+**UNCHANGED**. R4 codec/frame/ACK source: **UNCHANGED**. Connector source review:
+**PASS**. Connector-local build/CTest: **NOT RUN** because the local build
+environment cannot resolve GitHub to obtain the approved checkout. Owner
+physical-X11 focused rerun and exact-publication-SHA hosted CI: **PENDING**.
+
+Next gate: run the canonical three-test selector on the owner physical unlocked
+Linux/X11 desktop and require the same three PASS in hosted headless CI. If any
+first-live graphics fact becomes nonzero without a client, escalate to R10/R5;
+do not modify R4.
+
 ## R7 GUI owner-permission projection consistency correction (2026-10-24)
 
 Starting exact-main parent: `b5d2d72267744928eb4336fddea8c3f7f7ab61f7`.

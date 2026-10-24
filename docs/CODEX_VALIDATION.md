@@ -1,3 +1,35 @@
+## R10 Linux HostControl deterministic offline evidence — 2026-10-24
+
+Starting exact-main parent: `d5e6d35d7c1e3fa73ec53b47b7ef91e1654606fd`.
+
+R2 already recorded the exact first divergent assertions from assignment parent
+`77270d4354791ceddd922e4cf2f8deb0be13766c`: the no-consent case's
+`requestHostPermissionSetup()` expectation and the two projection cases'
+`!sharingPermission.canRequest` expectations. R10's correction changes only
+test composition and CTest registration.
+
+`tests/test_linux_runtime_host_control.cpp` now supplies deterministic
+unavailable console evidence to exactly those three offline cases. The existing
+production/default controller is no longer constructed before them. A separate
+`runtime.linux-host-control-default-native-evidence-projection` case exercises
+the genuine default evidence path read-only and skips when no eligible physical
+X11 owner is observable.
+
+R4 first-live assertions remain deterministic and unchanged in the original
+product-status regression: framebuffer false, ClearCodec prepared false, exact
+TLS frame write false, outstanding ACKs zero and genuine matching ACK false.
+The new native-evidence case independently asserts the same zero state before
+any accepted client. No ClearCodec, AVC420, frame-ID, FRAME_ACK or frame-credit
+code changed.
+
+Canonical focused owner command:
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-(no-consent-start-denials|product-status-projection|sharing-permission-product-projection)$' --output-on-failure --verbose`
+
+Source/diff review: **PASS**. Connector-local build/CTest: **NOT RUN** (local
+GitHub DNS unavailable for obtaining the approved checkout). Owner physical
+Linux/X11 focused run: **PENDING**. Hosted exact-publication-SHA CI:
+**PENDING**. No listener, capture, input injection or live RDP client was used.
+
 ## R7 GUI permission requestability projection review (2026-10-24)
 
 Starting exact-main parent: `b5d2d72267744928eb4336fddea8c3f7f7ab61f7`.

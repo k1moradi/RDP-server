@@ -1,3 +1,15 @@
+## R2 P0 standalone native admission on current product graph — 2026-10-23
+
+**Starting exact-main parent:** `c2d9f13c898813b0229416b8af94df427a25d393`.
+
+Current main linked the Linux desktop product to the production native/security graph and added deterministic owner-evidence acceptance fixtures, but its standalone bootstrap still manufactured a local account rule and generated `LinuxRuntimeSecurityConfiguration` / admission configuration before accepting a Session Password. That coupling is the P0 defect addressed here.
+
+Production R2 now exposes a policyless `issueStandaloneCurrentOwner()` route. The standalone `LinuxRuntimeConnection` constructor accepts no Linux runtime security configuration. Positive admission requires the exact standalone CredSSP/R1/TLS/credential-generation proof, current owner-consent epoch, a real logind change monitor and fresh active physical unlocked `seat0` evidence. The observed local UID is retained only as native-owner fingerprint; it is never derived from or compared with the remote username. ExistingOsAccount keeps the original GSS/Kerberos/PAM/NSS policy route.
+
+R10 no longer requires or generates OS-account security/admission objects for StandalonePassword readiness, Start, accepted-client construction or post-CredSSP admission. The normal no-config runtime can reach `CredentialsConfigured` after consuming and scrubbing Session Password, while listener creation still requires explicit Sharing and current owner consent. Password replacement and Stop remain terminal for old consent/session state; view versus input permission remains separate.
+
+Canonical owner `~/rdp-server/build/` execution: **NOT RUN** in this connector environment. Exact branch-head hosted CI is required before PASS. Physical Linux owner acceptance and Microsoft-client interoperability remain **NOT RUN**. R7's Release UI qualification gate remains unchanged.
+
 ## 2026-10-23 — macOS Release acceptance-only CTest configuration correction
 
 Starting exact-main parent: `96beacf72d19ad95029e5cabe5a2d3cc455a08c3`.

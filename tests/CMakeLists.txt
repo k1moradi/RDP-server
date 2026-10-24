@@ -1303,6 +1303,7 @@ endif()
 foreach(runtime_licensing_autoprovision_case IN ITEMS
         deterministic-product-identity
         microsoft-x509-chain-shape
+        microsoft-temporary-certificate-marker
         server-license-request-generated-identity
         distinct-from-r1-tls)
     add_test(

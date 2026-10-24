@@ -1,3 +1,28 @@
+## R3 P0 generated licensing temporary-marker correction — 2026-10-23
+
+Starting exact-main parent: `c40ca657b6332f24697caeee52b237aeed113df3`.
+
+Current-main dependency review is **RESOLVED** for R3 automatic licensing:
+R1's generated TLS owner is present but remains cryptographically distinct;
+normal Linux HostControl owns the generated R3 context before Start; R8 and
+R10 consume that seam without external licensing files.
+
+Microsoft-protocol review found the generated process-local
+`SERVER_CERTIFICATE` encoded `dwVersion = 0x00000002`, whose MS-RDPBCGR
+`t=0` meaning is permanently issued. R3 now writes `0x80000002`, preserving
+`CERT_CHAIN_VERSION_2` while marking the generated certificate temporary.
+The new
+`runtime.licensing-autoprovision-microsoft-temporary-certificate-marker`
+CTest verifies that exact split. Existing production-backed tests still cover
+the MS-RDPELE root-first two-certificate chain/padding, RSA key binding,
+Server License Request consumption, distinct R1 TLS identity and no-listener
+HostControl construction.
+
+Connector/source review: **PASS**. Owner-local canonical configure/build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. No live listener/client or native desktop action was run, and
+no MCS/Share/RDPGFX behavior was changed.
+
 ## R10 P0 Linux desktop production-graph correction — 2026-10-23
 
 Starting exact-main parent: `d30efc66a092b24a06538a2860af2cb89e80f38c`.

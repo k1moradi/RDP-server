@@ -1,3 +1,31 @@
+## R3 P0 generated licensing temporary-certificate marker correction — 2026-10-23
+
+Starting exact-main parent: `c40ca657b6332f24697caeee52b237aeed113df3`.
+
+Dependency recheck: the original R3 blocker is **RESOLVED** on current main.
+Normal zero-argument Linux GUI composition already owns the generated
+`RuntimeLicensingContext` before Start eligibility and R10 consumes that
+production owner without external licensing files or user-facing licensing
+configuration.
+
+A Microsoft Open Specifications review found one R3 provisioning metadata
+mismatch. MS-RDPBCGR `SERVER_CERTIFICATE.dwVersion` reserves its high `t`
+bit for temporary issuance; the process-local generated X.509 licensing
+identity previously emitted bare `CERT_CHAIN_VERSION_2` and therefore
+advertised permanent issuance. The generator now emits
+`0x80000002` (temporary + `CERT_CHAIN_VERSION_2`). The two-certificate
+root-first MS-RDPELE chain, padding, deterministic ProductInfo/scope, fresh
+RSA-2048 material, private-key ownership and R1 TLS separation are unchanged.
+
+New ordinary CTest
+`runtime.licensing-autoprovision-microsoft-temporary-certificate-marker`
+pins both the X.509 version bits and the temporary marker. Existing chain,
+Server License Request, R1-distinctness and pre-Start/no-listener tests remain
+in place. Connector/source review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. No listener/client, desktop,
+input, clipboard, MCS, Share or RDPGFX behavior was changed or exercised.
+
 ## R10 P0 Linux desktop build composition correction (2026-10-23)
 
 Post-publication audit of the zero-argument aggregate found the remaining

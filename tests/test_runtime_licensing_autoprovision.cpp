@@ -204,6 +204,23 @@ void testMicrosoftX509ChainShape()
     assert(credential->matches(*identity));
 }
 
+
+void testMicrosoftTemporaryCertificateMarker()
+{
+    RuntimeLicensingContext context;
+    assert(context.configureGeneratedApplicationIdentity());
+    const auto* identity = context.identity();
+    assert(identity != nullptr);
+
+    const auto bytes = identity->serverCertificate();
+    assert(bytes.size() >= 8U);
+    constexpr std::uint32_t kCertificateVersionMask = 0x7fffffffU;
+    constexpr std::uint32_t kTemporaryCertificateFlag = 0x80000000U;
+    const std::uint32_t rawVersion = readLe32(bytes, 0U);
+    assert((rawVersion & kCertificateVersionMask) == 2U);
+    assert((rawVersion & kTemporaryCertificateFlag) != 0U);
+}
+
 void testServerLicenseRequestConsumesGeneratedIdentity()
 {
     RuntimeLicensingContext context;
@@ -259,7 +276,7 @@ void testLicensingIdentityIsDistinctFromR1Tls()
     // TLS leaf is neither the right wire shape nor the licensing key owner.
     const auto licensingBytes = licensing.identity()->serverCertificate();
     assert(licensingBytes.size() > 8U);
-    assert(readLe32(licensingBytes, 0U) == 2U);
+    assert((readLe32(licensingBytes, 0U) & 0x7fffffffU) == 2U);
     assert(readLe32(licensingBytes, 4U) == 2U);
     assert(::X509_cmp(chain.leaf.get(), tlsCertificate) != 0);
 }
@@ -274,6 +291,8 @@ int main(int argc, char** argv)
         testDeterministicProductIdentity();
     else if (testCase == "microsoft-x509-chain-shape")
         testMicrosoftX509ChainShape();
+    else if (testCase == "microsoft-temporary-certificate-marker")
+        testMicrosoftTemporaryCertificateMarker();
     else if (testCase == "server-license-request-generated-identity")
         testServerLicenseRequestConsumesGeneratedIdentity();
     else if (testCase == "distinct-from-r1-tls")

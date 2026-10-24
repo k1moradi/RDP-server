@@ -271,6 +271,10 @@ void writeLe32(
     // MS-RDPBCGR SERVER_CERTIFICATE / CERT_CHAIN_VERSION_2: root-first X.509
     // chain, followed by 8 + 4*NumCertBlobs zero padding bytes.
     constexpr std::uint32_t kX509ChainVersion = 0x00000002U;
+    // MS-RDPBCGR SERVER_CERTIFICATE.dwVersion uses its high bit to mark a
+    // temporarily issued certificate. This generated identity is process-local,
+    // so it must not advertise the permanent-issuance form.
+    constexpr std::uint32_t kTemporaryCertificateFlag = 0x80000000U;
     constexpr std::uint32_t kCertificateCount = 2U;
     constexpr std::size_t kPaddingBytes =
         8U + 4U * static_cast<std::size_t>(kCertificateCount);
@@ -278,7 +282,9 @@ void writeLe32(
     std::size_t offset = 0U;
     if (output.serverCertificate.size() < 8U)
         return false;
-    writeLe32(output.serverCertificate, offset, kX509ChainVersion);
+    writeLe32(
+        output.serverCertificate, offset,
+        kX509ChainVersion | kTemporaryCertificateFlag);
     offset += 4U;
     writeLe32(output.serverCertificate, offset, kCertificateCount);
     offset += 4U;

@@ -1,3 +1,17 @@
+## Generated licensing temporary-certificate marker regression (2026-10-23)
+
+The automatic R3 licensing identity is process-local, so its MS-RDPBCGR
+`SERVER_CERTIFICATE.dwVersion` must combine `CERT_CHAIN_VERSION_2` with the
+temporary-certificate `t` bit. Keep
+`runtime.licensing-autoprovision-microsoft-temporary-certificate-marker` in
+ordinary full CTest and verify both fields independently: mask the low 31 bits
+for the X.509 chain version and require the high temporary marker. Do not
+weaken the existing root-first MS-RDPELE two-certificate/padding regression or
+the R1 TLS separation test.
+
+This is R3 provisioning metadata coverage only. It does not authorize a
+listener, desktop, CAL issuer, Share transition or unrelated wire change.
+
 ## R8 no-config standalone/owner-acceptance boundary regression (2026-10-23)
 
 `runtime.linux-gui-bootstrap-clipboard-dormancy` must consume the landed

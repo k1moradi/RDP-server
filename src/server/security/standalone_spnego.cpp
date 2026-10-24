@@ -670,6 +670,7 @@ void StandaloneSpnegoNtlmAcceptor::reset() noexcept
     computerNameLength_ = 0;
     timestampFileTime_ = 0;
     negotiationEnvelope_ = StandaloneNtlmNegotiationEnvelope::Undetermined;
+    lastNtlmMessageType_ = 0U;
     stage_ = StandaloneSpnegoStage::Unconfigured;
     failureStage_ = StandaloneSpnegoFailureStage::None;
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
@@ -810,6 +811,7 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
         negotiateMessage.end(),
         negotiateMessage_.begin());
     negotiateMessageLength_ = negotiateMessage.size();
+    lastNtlmMessageType_ = 1U;
     challengeMessageLength_ = challenge.bytesWritten;
     failureStage_ = StandaloneSpnegoFailureStage::None;
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
@@ -856,27 +858,21 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
     if (stage_ != StandaloneSpnegoStage::AwaitInitialToken)
         return fail(StandaloneSpnegoStatus::InvalidState);
 
-    const bool directNtlmCandidate =
+    const bool hasNtlmSignature =
         token.size() >= kNtlmSignature.size() &&
         std::equal(
             kNtlmSignature.begin(), kNtlmSignature.end(), token.begin());
-    if (directNtlmCandidate)
+    NtlmNegotiateMessage directNegotiate;
+    const bool validDirectTypeOne =
+        hasNtlmSignature &&
+        parseNtlmNegotiateMessage(token, directNegotiate) ==
+            NtlmMessageParseResult::Parsed;
+    if (validDirectTypeOne)
     {
         initialTokenObservation_ = {};
         initialTokenObservation_.observed = true;
         initialTokenObservation_.tokenBytes = token.size();
         initialTokenObservation_.topLevelTag = token.front();
-
-        NtlmNegotiateMessage negotiate;
-        failureStage_ = StandaloneSpnegoFailureStage::NtlmNegotiation;
-        rejectionReason_ = StandaloneSpnegoRejectionReason::NtlmNegotiate;
-        if (parseNtlmNegotiateMessage(token, negotiate) !=
-            NtlmMessageParseResult::Parsed)
-        {
-            initialTokenObservation_.rejectionReason = rejectionReason_;
-            return fail(StandaloneSpnegoStatus::InvalidToken);
-        }
-
         negotiationEnvelope_ =
             StandaloneNtlmNegotiationEnvelope::DirectNtlm;
         initialTokenObservation_.negotiationEnvelope = negotiationEnvelope_;
@@ -886,6 +882,9 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
         return issueChallenge(token, false, output);
     }
 
+    // Direct NTLM is selected only after both the complete signature and the
+    // strict Type-1 parser succeed. Every other first token still traverses
+    // the existing strict GSS/SPNEGO parser and fails closed there.
     ParsedInitialToken parsed;
     if (!parseInitialToken(token, parsed, initialTokenObservation_))
     {
@@ -955,6 +954,18 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
     {
         if (stage_ != StandaloneSpnegoStage::AwaitNtlmAuthenticate)
             return fail(StandaloneSpnegoStatus::InvalidState);
+        // Diagnostic-only message-kind observation. It never makes the token
+        // valid: the strict Type-3 parser below still owns acceptance.
+        if (token.size() >= 12U &&
+            std::equal(
+                kNtlmSignature.begin(), kNtlmSignature.end(), token.begin()))
+        {
+            lastNtlmMessageType_ =
+                static_cast<std::uint32_t>(token[8]) |
+                (static_cast<std::uint32_t>(token[9]) << 8U) |
+                (static_cast<std::uint32_t>(token[10]) << 16U) |
+                (static_cast<std::uint32_t>(token[11]) << 24U);
+        }
         mechanismToken = token;
     }
     else
@@ -982,6 +993,7 @@ StandaloneSpnegoNtlmAcceptor::acceptContinuationToken(
         return fail(StandaloneSpnegoStatus::InvalidToken);
     }
     failureStage_ = StandaloneSpnegoFailureStage::None;
+    lastNtlmMessageType_ = 3U;
 
     if (credential.verifyAndDeriveSecurityContext(
             authenticate.verificationRequest(serverChallenge_),

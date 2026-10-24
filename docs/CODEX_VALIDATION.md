@@ -1,3 +1,34 @@
+## R2 P0 strict DirectNtlm envelope hardening authoring receipt (2026-10-24)
+
+**Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.
+
+Reviewed the current R2 mechanism together with the concurrent R1, R7, R8 and
+R10 DirectNtlm work. The implementation keeps their transport, reconnect,
+failure-retention, clipboard-dormancy and Stop/Start ownership intact.
+
+Authoring changes:
+- DirectNtlm first-token selection now requires exact `NTLMSSP\0` plus a
+  successful existing Type-1 parser result; all other initial shapes use the
+  strict SPNEGO parser.
+- Raw continuation diagnostics retain only the four-byte NTLM MessageType after
+  an exact signature; validity is still decided solely by the existing Type-3
+  parser/NTLMv2/MIC path.
+- R10's existing authentication-progress state remains authoritative. Direct
+  fail-only output uses the requested redacted envelope/MessageType/token-length
+  fields and stage names without token contents or credential/key material.
+- Added behavior gates for prefix-only/malformed input, Type 2 before/after
+  Type 1, Type 3 before Type 1, duplicate Type 1, oversized initial input,
+  wrong StandalonePassword failure classification and zero-negoToken direct
+  server binding completion.
+- Existing SPNEGO tests remain registered and are still executed by the R9
+  owner-candidate lane.
+
+Canonical local configure/build/full CTest: **NOT RUN**; this connector runtime
+has no existing `~/rdp-server` checkout and outbound Git clone is unavailable,
+so repository policy forbids fabricating an alternate build root. Hosted
+exact-publication-SHA CI: **PENDING**. Physical Microsoft Windows App rerun:
+**NOT RUN / NEXT GATE**.
+
 ## R10 direct-NTLM reconnect and Stop/Start authoring receipt (2026-10-24)
 
 **Starting reconciled main:** `c278dc97772424751d023a5206563636ad583c27`.

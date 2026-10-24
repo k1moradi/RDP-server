@@ -1,3 +1,41 @@
+## R2 P0 — strict DirectNtlm envelope classification and retained diagnostics (2026-10-24)
+
+**Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.
+
+Standalone CredSSP keeps one connection-scoped immutable negotiation envelope.
+`DirectNtlm` is selected only when the first `negoToken` has the complete
+eight-byte `NTLMSSP\0` signature **and** the existing strict
+`parseNtlmNegotiateMessage()` accepts it as a Type-1 NEGOTIATE_MESSAGE.
+Every other initial token, including a first-byte-only `0x4e`, malformed
+NTLM-looking bytes, raw Type 2, raw Type 3 or oversized input, still traverses
+the existing strict GSS/SPNEGO parser and fails closed without selecting the raw
+envelope.
+
+Direct mode remains one NTLM implementation: the accepted Type 1 is retained
+for MIC transcript verification, `encodeNtlmChallengeMessage()` emits the raw
+Type 2 inside `TSRequest.negoTokens`, and the next raw token is required to be
+a Type 3 before the existing NTLMv2/password/MIC/session-key/SIGN-SEAL owner can
+become active. The final valid raw Type 3 shares its TSRequest with
+`clientNonce` and `pubKeyAuth`; no SPNEGO AcceptCompleted token is invented.
+Both envelopes then converge on the same TLS channel binding, authInfo and
+StandalonePassword proof.
+
+R10's existing `LinuxRuntimeAuthenticationProgress` remains the sole retained
+cross-connection diagnostic progression owner. R2 contributes only redacted
+parser facts: immutable envelope, initial token length/type-1 acceptance and
+last observed raw NTLM MessageType. Direct fail-only diagnostics therefore use
+`credssp=ntlm-direct-initial`, `ntlm-message-type=1`,
+`ntlm-token-bytes=<bounded length>`,
+`negotiation-envelope=direct-ntlm`, and the progress names
+`direct-ntlm-type1-accepted`, `direct-ntlm-type2-sent`,
+`direct-ntlm-type3-received`, `ntlm-verified`, `pubkeyauth`, `authinfo`
+or `credentials-verified`. No token body, username, password, response, MIC,
+session key or delegated authInfo bytes are logged.
+
+OS/GSS fallback remains disabled for StandalonePassword, and the remote
+application username is never translated into a host OS identity. Existing
+Start -> Stop -> Start/reconnect credential and consent lifetimes are unchanged.
+
 ## R10 accepted-client lifetime is subordinate to Sharing lifetime (2026-10-24)
 
 R10 owns two different lifetimes and must never conflate them. The Sharing

@@ -255,6 +255,13 @@ public:
         return negotiationEnvelope_;
     }
 
+    // Redacted message kind from the last successfully parsed NTLM Type 1/3.
+    // It carries no token material and is reset with the connection owner.
+    [[nodiscard]] std::uint32_t lastNtlmMessageType() const noexcept
+    {
+        return lastNtlmMessageType_;
+    }
+
     [[nodiscard]] StandaloneSpnegoRejectionReason rejectionReason() const noexcept
     {
         return rejectionReason_;
@@ -299,6 +306,7 @@ private:
     bool ntlmWasFirstMechanism_{};
     StandaloneNtlmNegotiationEnvelope negotiationEnvelope_{
         StandaloneNtlmNegotiationEnvelope::Undetermined};
+    std::uint32_t lastNtlmMessageType_{};
     NtlmV2SecurityContext securityContext_{};
     StandaloneSpnegoStage stage_{StandaloneSpnegoStage::Unconfigured};
     StandaloneSpnegoFailureStage failureStage_{

@@ -1,3 +1,42 @@
+## R2 P0 — strict DirectNtlm classifier and failure-boundary hardening (2026-10-24)
+
+**Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.
+
+The core DirectNtlm interoperability path is present and this pass tightens the
+remaining P0 acceptance boundary. Raw mode is now selected only by exact
+`NTLMSSP\0` plus a successfully parsed Type-1 NEGOTIATE_MESSAGE; malformed
+NTLM-looking input is not granted a raw envelope and falls through the existing
+strict SPNEGO parser. The immutable-envelope rule is retained.
+
+The raw path continues to reuse the one NTLM transcript/security owner:
+Type 1 -> raw Type 2 -> raw Type 3 -> NTLMv2/MIC/session key/SIGN-SEAL ->
+same-request pubKeyAuth -> TLS channel binding -> authInfo ->
+StandalonePassword credential proof. There is no OS/GSS fallback, no remote
+username-to-host-identity mapping and no synthetic SPNEGO completion response.
+
+P0 behavior gates now additionally cover malformed/prefix-only classification,
+Type 2 from the client, Type 3 before Type 1, duplicate Type 1, oversized input,
+wrong-password `ntlm-negotiation` classification and the no-fake-SPNEGO
+server binding reply. R9's owner-candidate lane runs those direct negatives
+alongside the full direct flow, R10 reconnect/Stop->Start lifecycle and every
+ordinary SPNEGO case.
+
+R10 remains the sole retained authentication-progress owner; direct diagnostics
+are fail-only and redacted. The expected owner trace can now distinguish
+`direct-ntlm-type1-accepted` -> `direct-ntlm-type2-sent` ->
+`direct-ntlm-type3-received` -> `ntlm-verified` -> `pubkeyauth` ->
+`authinfo` -> `credentials-verified` without retaining secret bytes.
+
+Connector source/test/workflow review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector session.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next P0 gate:** after exact-SHA hosted CI is green, repeat the physical
+Microsoft Windows App attempt against that exact SHA. Confirm receipt of the
+raw Type 2 and record the first later redacted failure boundary. Do not reopen
+TLS, enable OS/GSS fallback or widen a per-peer authentication failure into
+service/Sharing teardown.
+
 ## R10 P0 — direct-NTLM reconnect + Stop/Start lifetime composition (2026-10-24)
 
 **Starting reconciled main:** `c278dc97772424751d023a5206563636ad583c27`.

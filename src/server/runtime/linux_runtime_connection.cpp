@@ -159,6 +159,77 @@ template <std::size_t Size>
     return "admission";
 }
 
+[[nodiscard]] constexpr const char *directNtlmProgressName(
+    LinuxRuntimeAuthenticationProgress progress,
+    rdp_server::server::security::StandaloneAuthenticationFailureStage
+        failureStage) noexcept
+{
+    using Progress = LinuxRuntimeAuthenticationProgress;
+    using Failure = rdp_server::server::security::
+        StandaloneAuthenticationFailureStage;
+    switch (progress)
+    {
+    case Progress::CredSspDirectNtlm:
+        return "direct-ntlm-type1-accepted";
+    case Progress::NtlmChallenge:
+        return "direct-ntlm-type2-sent";
+    case Progress::NtlmAuthenticate:
+        return failureStage == Failure::PubKeyAuth ||
+                       failureStage == Failure::SignSeal
+            ? "ntlm-verified"
+            : "direct-ntlm-type3-received";
+    case Progress::CredSspBinding:
+        return "pubkeyauth";
+    case Progress::CredentialDelegation:
+        return "authinfo";
+    case Progress::Authenticated:
+    case Progress::Mcs:
+        return "credentials-verified";
+    case Progress::Transport:
+    case Progress::Tls:
+    case Progress::CredSsp:
+    case Progress::CredSspSpnego:
+        return "await-direct-ntlm";
+    }
+    return "await-direct-ntlm";
+}
+
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::None)} ==
+              "direct-ntlm-type1-accepted");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::NtlmChallenge,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::None)} ==
+              "direct-ntlm-type2-sent");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::NtlmAuthenticate,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::NtlmNegotiation)} ==
+              "direct-ntlm-type3-received");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::NtlmAuthenticate,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::PubKeyAuth)} ==
+              "ntlm-verified");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::CredSspBinding,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::None)} ==
+              "pubkeyauth");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::CredentialDelegation,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::None)} ==
+              "authinfo");
+static_assert(std::string_view{directNtlmProgressName(
+                  LinuxRuntimeAuthenticationProgress::Authenticated,
+                  rdp_server::server::security::
+                      StandaloneAuthenticationFailureStage::None)} ==
+              "credentials-verified");
+
 } // namespace
 
 LinuxRuntimeMcsTpktFrameResult
@@ -1007,21 +1078,18 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         std::fprintf(
             stderr,
             "rdp-server: standalone authentication failed: stage=%s; "
-            "tls=%s; credssp=direct-ntlm; os-gss-fallback=disabled; "
-            "tsrequest-version=%u; nego-token-count=%zu; token-bytes=%zu; "
-            "top-tag=0x%02x; gss-initial-context-token=%s; "
-            "mechanism-count=%zu; ntlm-offered=%s; "
-            "direct-ntlm-type1=%s; spnego=not-used\n",
+            "tls=%s; credssp=ntlm-direct-initial; "
+            "os-gss-fallback=disabled; tsrequest-version=%u; "
+            "nego-token-count=%zu; ntlm-message-type=1; "
+            "ntlm-token-bytes=%zu; negotiation-envelope=direct-ntlm; "
+            "credssp-progress=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             static_cast<unsigned int>(initial.tsRequestVersion),
             initial.tokenCount,
             spnego.tokenBytes,
-            static_cast<unsigned int>(spnego.topLevelTag),
-            yesNo(spnego.gssInitialContextToken),
-            spnego.mechanismCount,
-            yesNo(spnego.ntlmOffered),
-            spnego.directNtlmType1Accepted ? "accepted" : "rejected");
+            directNtlmProgressName(
+                authenticationProgress_, failureStage));
         return;
     }
 
@@ -1039,7 +1107,8 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         stderr,
         "rdp-server: standalone authentication failed: stage=%s; "
         "tls=%s; credssp=spnego-initial; os-gss-fallback=disabled; "
-        "nego-envelope=%s; tsrequest-version=%u; nego-token-count=%zu; "
+        "negotiation-envelope=%s; tsrequest-version=%u; "
+        "nego-token-count=%zu; "
         "token-bytes=%zu; "
         "top-tag=0x%02x; gss-initial-context-token=%s; "
         "neg-token-init=%s; neg-token-init2=%s; req-flags=%s; "
@@ -1153,6 +1222,16 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             if (!credSspReplyWriter_.releaseReply())
                 return fail(Step::Invalid, 0U, written.plaintextBytesWritten);
             standaloneReplyPending_ = false;
+            if (!standaloneBindingReplyPending_ &&
+                standaloneNegotiationEnvelope_ ==
+                    rdp_server::server::security::
+                        StandaloneNtlmNegotiationEnvelope::DirectNtlm &&
+                authenticationProgress_ ==
+                    LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm)
+            {
+                authenticationProgress_ =
+                    LinuxRuntimeAuthenticationProgress::NtlmChallenge;
+            }
             if (standaloneBindingReplyPending_)
             {
                 standaloneBindingReplyPending_ = false;
@@ -1221,18 +1300,6 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             rdp_server::server::security::StandaloneCredSspStage::NegoContinue &&
         standaloneNegotiationEnvelope_ ==
             rdp_server::server::security::
-                StandaloneNtlmNegotiationEnvelope::DirectNtlm)
-    {
-        // Type 2 has already been emitted. Preserve this boundary if the next
-        // raw token fails Type-3 syntax/proof verification.
-        authenticationProgress_ =
-            LinuxRuntimeAuthenticationProgress::NtlmAuthenticate;
-    }
-    else if (
-        standaloneCredSspAcceptor_.stage() ==
-            rdp_server::server::security::StandaloneCredSspStage::NegoContinue &&
-        standaloneNegotiationEnvelope_ ==
-            rdp_server::server::security::
                 StandaloneNtlmNegotiationEnvelope::Spnego)
     {
         authenticationProgress_ =
@@ -1274,6 +1341,14 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         return fail(Step::Invalid, bytesRead, 0U);
     }
     captureNegotiationEnvelope();
+    if (standaloneNegotiationEnvelope_ ==
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm &&
+        standaloneCredSspAcceptor_.lastNtlmMessageType() == 3U)
+    {
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::NtlmAuthenticate;
+    }
     if (authenticationProgress_ ==
             LinuxRuntimeAuthenticationProgress::CredSsp)
     {
@@ -1304,7 +1379,7 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             standaloneNegotiationEnvelope_ ==
                     rdp_server::server::security::
                         StandaloneNtlmNegotiationEnvelope::DirectNtlm
-                ? LinuxRuntimeAuthenticationProgress::NtlmChallenge
+                ? LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm
                 : LinuxRuntimeAuthenticationProgress::CredSspSpnego;
         return {bytesRead, 0U, Step::NeedWrite};
     case FrameStatus::BindingReplyQueued:

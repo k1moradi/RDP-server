@@ -205,6 +205,22 @@ set_tests_properties(
     PROPERTIES LABELS
         "security;credentials;ntlmv2;credssp;authentication-envelope;r6;offline")
 
+add_test(NAME security.direct-ntlm-envelope-classification-denials
+    COMMAND test_standalone_spnego
+        direct-ntlm-envelope-classification-denials)
+set_tests_properties(
+    security.direct-ntlm-envelope-classification-denials
+    PROPERTIES LABELS
+        "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;r6;offline")
+
+add_test(NAME security.direct-ntlm-wrong-password-stage
+    COMMAND test_standalone_spnego
+        direct-ntlm-wrong-password-stage)
+set_tests_properties(
+    security.direct-ntlm-wrong-password-stage
+    PROPERTIES LABELS
+        "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;r6;offline")
+
 foreach(spnego_case IN ITEMS
         spnego-ntlm-first-negotiate-challenge
         spnego-ntlm-authenticate-known-answer
@@ -307,6 +323,14 @@ set_tests_properties(
     security.r9-standalone-credssp-direct-ntlm-v6-full-flow
     PROPERTIES LABELS
         "r9;security;credentials;ntlmv2;credssp;tls;authentication-envelope;r6;offline")
+
+add_test(NAME security.standalone-credssp-direct-ntlm-wrong-password-stage
+    COMMAND test_standalone_credssp
+        standalone-credssp-direct-ntlm-wrong-password-stage)
+set_tests_properties(
+    security.standalone-credssp-direct-ntlm-wrong-password-stage
+    PROPERTIES LABELS
+        "security;credentials;ntlmv2;ntlmssp;credssp;tls;authentication-envelope;r6;offline")
 
 add_test(NAME security.standalone-credssp-portable-envelope-modes-converge
     COMMAND test_standalone_credssp

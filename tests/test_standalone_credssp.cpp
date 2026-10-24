@@ -628,6 +628,7 @@ void prepareDirectNtlmNegotiation(
            StandaloneCredSspFrameStatus::NegoReplyQueued);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::NegoContinue);
+    assert(acceptor.lastNtlmMessageType() == 1U);
 
     const auto initialObservation = acceptor.initialNegoObservation();
     assert(initialObservation.observed);
@@ -775,6 +776,8 @@ void completeBindingForAuthInfo(
     const auto reply = tls.flushServerReply(writer);
     const auto parsed = parseCredSspTsRequest(reply);
     assert(parsed && parsed.value.hasPubKeyAuth);
+    if (envelope == StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+        assert(parsed.value.tokenCount == 0U);
     const auto protectedServer =
         parsed.value.encryptedPubKeyAuth;
     assert(protectedServer.size() ==
@@ -987,6 +990,7 @@ void testDirectNtlmEnvelopeFullCredentialFlow()
                StandaloneCredSspFrameStatus::Rejected);
         assert(missingBindingAcceptor.failureStage() ==
                StandaloneAuthenticationFailureStage::PubKeyAuth);
+        assert(missingBindingAcceptor.lastNtlmMessageType() == 3U);
     }
 
     MemoryTlsPair tls;
@@ -1014,9 +1018,50 @@ void testDirectNtlmEnvelopeFullCredentialFlow()
            StandaloneCredSspFrameStatus::CredentialsVerified);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::CredentialsVerified);
+    assert(acceptor.lastNtlmMessageType() == 3U);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
     assert(serverCredential.configured());
+}
+
+void testDirectNtlmWrongPasswordFailureStage()
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential challengeCredential;
+    configureServerCredential(challengeCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    prepareDirectNtlmNegotiation(
+        acceptor, challengeCredential, tls, reader, writer);
+
+    NtlmV2SecurityContext clientSecurity;
+    configureClientMirror(clientSecurity);
+    const auto clientNonce = nonce();
+    const auto protectedBinding =
+        protectClientBinding(tls, clientSecurity, clientNonce);
+    const Bytes directTypeThree{
+        kMicrosoftAuthenticateMessage.begin(),
+        kMicrosoftAuthenticateMessage.end()};
+    const auto finalRequest = combinedFinalRequest(
+        directTypeThree, protectedBinding, clientNonce);
+
+    EphemeralNtlmV2Credential wrongCredential;
+    std::array<char16_t, 8> wrongPassword{
+        u'P',u'a',u's',u's',u'w',u'0',u'r',u'd'};
+    assert(wrongCredential.configure(u"User", wrongPassword));
+
+    tls.sendClient(finalRequest);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, wrongCredential) ==
+           StandaloneCredSspFrameStatus::Rejected);
+    assert(acceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::NtlmNegotiation);
+    assert(acceptor.lastSpnegoStatus() ==
+           StandaloneSpnegoStatus::CredentialRejected);
+    assert(acceptor.lastNtlmMessageType() == 3U);
+    assert(acceptor.stage() == StandaloneCredSspStage::Failed);
 }
 
 void testPortableEnvelopeModesConverge()
@@ -1220,6 +1265,12 @@ int main(int argc, char **argv)
         "r9-standalone-credssp-direct-ntlm-v6-full-flow")
     {
         testDirectNtlmEnvelopeFullCredentialFlow();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-direct-ntlm-wrong-password-stage")
+    {
+        testDirectNtlmWrongPasswordFailureStage();
         return 0;
     }
     if (testCase ==

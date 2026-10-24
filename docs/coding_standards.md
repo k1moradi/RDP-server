@@ -1,3 +1,25 @@
+## Direct NTLM envelope classification is parser-gated, not prefix-gated (2026-10-24)
+
+For standalone CredSSP, never classify a peer token as `DirectNtlm` merely
+because byte zero is `0x4e` or because an `NTLMSSP\0` prefix is present.
+The first token selects `DirectNtlm` only after both the complete signature
+and the existing Type-1 `parseNtlmNegotiateMessage()` succeed. Otherwise feed
+the unchanged bytes to the strict SPNEGO initial-token parser. Once a valid
+envelope is selected it is immutable for that accepted connection.
+
+Do not create a second raw-NTLM parser or crypto path. Raw Type 1/2/3 must reuse
+the same transcript buffers, challenge encoder, NTLMv2 proof verification, MIC,
+exported session key and directional SIGN/SEAL context used by the SPNEGO NTLM
+path. A diagnostic-only MessageType observation may inspect the exact NTLM
+signature and four-byte MessageType after the envelope is already DirectNtlm,
+but it must never make malformed bytes acceptable.
+
+Keep one authoritative retained authentication-progress owner. R2 parser state
+may expose bounded, non-secret facts to R10, but it must not introduce a
+parallel lifecycle controller. Fail-only diagnostics may report envelope,
+MessageType, token length and named stage; never log token contents or
+credential/key material.
+
 ## R10 peer-failure and authentication-status ownership (2026-10-24)
 
 Treat remote authentication failure as an accepted-connection terminal event,

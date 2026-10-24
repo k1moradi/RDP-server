@@ -125,6 +125,11 @@ public:
         return failureStage_;
     }
 
+    [[nodiscard]] std::uint32_t lastNtlmMessageType() const noexcept
+    {
+        return lastNtlmMessageType_;
+    }
+
     // Redacted parser outcome captured before terminal mechanism cleansing.
     // This is diagnostic only and never authorizes fallback or admission.
     [[nodiscard]] StandaloneSpnegoStatus lastSpnegoStatus() const noexcept
@@ -197,6 +202,7 @@ private:
     StandaloneCredSspStage stage_{StandaloneCredSspStage::Unconfigured};
     StandaloneAuthenticationFailureStage failureStage_{
         StandaloneAuthenticationFailureStage::None};
+    std::uint32_t lastNtlmMessageType_{};
     StandaloneCredSspInitialNegoObservation initialNegoObservation_{};
 };
 

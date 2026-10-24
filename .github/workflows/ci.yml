@@ -850,8 +850,14 @@ jobs:
           # then CredentialsVerified through the production CredSSP code.
           build/tests/test_standalone_spnego \
             direct-ntlm-envelope-negotiate-authenticate
+          build/tests/test_standalone_spnego \
+            direct-ntlm-envelope-classification-denials
+          build/tests/test_standalone_spnego \
+            direct-ntlm-wrong-password-stage
           build/tests/test_standalone_credssp \
             r9-standalone-credssp-direct-ntlm-v6-full-flow
+          build/tests/test_standalone_credssp \
+            standalone-credssp-direct-ntlm-wrong-password-stage
 
           # Preserve both the TLS-backed SPNEGO challenge bridge and every
           # ordinary SPNEGO behavior/denial case in the qualification gate.

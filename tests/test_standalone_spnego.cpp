@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -244,6 +245,7 @@ int main(int argc, char **argv)
         assert(challenged.bytesWritten > 12U);
         assert(acceptor.negotiationEnvelope() ==
                StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+        assert(acceptor.lastNtlmMessageType() == 1U);
         assert(acceptor.stage() ==
                StandaloneSpnegoStage::AwaitNtlmAuthenticate);
         constexpr std::array<std::uint8_t, 12> typeTwoSignature{
@@ -282,6 +284,7 @@ int main(int argc, char **argv)
                StandaloneSpnegoStage::MechanismVerified);
         assert(acceptor.negotiationEnvelope() ==
                StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+        assert(acceptor.lastNtlmMessageType() == 3U);
 
         StandaloneSpnegoNtlmAcceptor directSwitch;
         assert(configure(directSwitch));
@@ -304,6 +307,115 @@ int main(int argc, char **argv)
                    kMicrosoftAuthenticateMessage, credential, reply).status ==
                StandaloneSpnegoStatus::InvalidToken);
         assert(spnegoSwitch.stage() == StandaloneSpnegoStage::Failed);
+        return 0;
+    }
+
+    if (testCase == "direct-ntlm-envelope-classification-denials")
+    {
+        const auto negotiate = negotiateMessage();
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+
+        const auto expectStrictSpnegoInitialRejection =
+            [&](std::span<const std::uint8_t> token,
+                StandaloneSpnegoRejectionReason reason) {
+                StandaloneSpnegoNtlmAcceptor acceptor;
+                assert(configure(acceptor));
+                const auto rejected = acceptor.acceptInitialToken(token, reply);
+                assert(rejected.status == StandaloneSpnegoStatus::InvalidToken);
+                assert(acceptor.negotiationEnvelope() ==
+                       StandaloneNtlmNegotiationEnvelope::Undetermined);
+                assert(acceptor.rejectionReason() == reason);
+                assert(acceptor.stage() == StandaloneSpnegoStage::Failed);
+            };
+
+        auto firstByteOnly = negotiate;
+        firstByteOnly.fill(0U);
+        firstByteOnly[0] = 0x4eU;
+        expectStrictSpnegoInitialRejection(
+            firstByteOnly,
+            StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+
+        auto malformedSignature = negotiate;
+        malformedSignature[1] ^= 0x01U;
+        expectStrictSpnegoInitialRejection(
+            malformedSignature,
+            StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+
+        expectStrictSpnegoInitialRejection(
+            kMicrosoftAuthenticateMessage,
+            StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+
+        Bytes oversized(
+            kMaximumStandaloneSpnegoTokenBytes + 1U, 0U);
+        std::copy(
+            negotiate.begin(), negotiate.end(), oversized.begin());
+        expectStrictSpnegoInitialRejection(
+            oversized,
+            StandaloneSpnegoRejectionReason::TokenTooLarge);
+
+        StandaloneSpnegoNtlmAcceptor typeTwoClient;
+        assert(configure(typeTwoClient));
+        const auto typeTwoStep =
+            typeTwoClient.acceptInitialToken(negotiate, reply);
+        assert(typeTwoStep.status == StandaloneSpnegoStatus::Continue);
+        const Bytes rawTypeTwo{
+            reply.begin(),
+            reply.begin() +
+                static_cast<std::ptrdiff_t>(typeTwoStep.bytesWritten)};
+        constexpr std::array<std::uint8_t, 12> typeTwoSignature{
+            'N','T','L','M','S','S','P',0,2,0,0,0};
+        assert(rawTypeTwo.size() >= typeTwoSignature.size());
+        assert(std::equal(
+            typeTwoSignature.begin(), typeTwoSignature.end(),
+            rawTypeTwo.begin()));
+
+        // A server Challenge is never a valid first client message. Even with
+        // the exact NTLMSSP signature it must not select the raw envelope.
+        expectStrictSpnegoInitialRejection(
+            rawTypeTwo,
+            StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+
+        assert(typeTwoClient.acceptContinuationToken(
+                   rawTypeTwo, EphemeralNtlmV2Credential{}, reply).status ==
+               StandaloneSpnegoStatus::InvalidToken);
+        assert(typeTwoClient.failureStage() ==
+               StandaloneSpnegoFailureStage::NtlmNegotiation);
+        assert(typeTwoClient.lastNtlmMessageType() == 2U);
+
+        StandaloneSpnegoNtlmAcceptor duplicateTypeOne;
+        assert(configure(duplicateTypeOne));
+        assert(duplicateTypeOne.acceptInitialToken(negotiate, reply));
+        assert(duplicateTypeOne.acceptContinuationToken(
+                   negotiate, EphemeralNtlmV2Credential{}, reply).status ==
+               StandaloneSpnegoStatus::InvalidToken);
+        assert(duplicateTypeOne.failureStage() ==
+               StandaloneSpnegoFailureStage::NtlmNegotiation);
+        assert(duplicateTypeOne.lastNtlmMessageType() == 1U);
+        return 0;
+    }
+
+    if (testCase == "direct-ntlm-wrong-password-stage")
+    {
+        const auto negotiate = negotiateMessage();
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+        StandaloneSpnegoNtlmAcceptor acceptor;
+        assert(configure(acceptor));
+        assert(acceptor.acceptInitialToken(negotiate, reply));
+
+        EphemeralNtlmV2Credential wrongCredential;
+        std::array<char16_t, 8> wrongPassword{
+            u'P',u'a',u's',u's',u'w',u'0',u'r',u'd'};
+        assert(wrongCredential.configure(u"User", wrongPassword));
+        const auto rejected = acceptor.acceptContinuationToken(
+            kMicrosoftAuthenticateMessage, wrongCredential, reply);
+        assert(rejected.status ==
+               StandaloneSpnegoStatus::CredentialRejected);
+        assert(acceptor.failureStage() ==
+               StandaloneSpnegoFailureStage::NtlmNegotiation);
+        assert(acceptor.negotiationEnvelope() ==
+               StandaloneNtlmNegotiationEnvelope::DirectNtlm);
+        assert(acceptor.lastNtlmMessageType() == 3U);
+        assert(acceptor.stage() == StandaloneSpnegoStage::Failed);
         return 0;
     }
 

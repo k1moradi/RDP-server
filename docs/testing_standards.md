@@ -1,3 +1,24 @@
+## Direct-NTLM strict-envelope negative matrix (2026-10-24)
+
+The production-linked DirectNtlm gates must prove the classifier requires both
+the exact `NTLMSSP\0` signature and a valid Type-1 structure. Keep explicit
+denials for: first-byte-only `0x4e`, malformed signature, raw Type 2 as the
+first client token, raw Type 3 before Type 1, oversized initial input, client
+Type 2 after the challenge, duplicate Type 1 after the challenge, and
+SPNEGO/raw envelope switching.
+
+Known-answer coverage must continue through raw Type 1 -> raw Type 2 -> raw
+Type 3 using the existing NTLM implementation, then through the same NTLM
+security context for CredSSP pubKeyAuth wrap/unwrap, TLS channel binding and
+protected authInfo. The direct final server binding reply must contain
+`pubKeyAuth` and zero negotiation tokens; no synthetic SPNEGO completion is
+allowed. A valid Type 3 without same-request pubKeyAuth remains a fail-closed
+PubKeyAuth boundary for the supported CredSSP v5/v6 sequence.
+
+Wrong StandalonePassword verification must report the R2
+`ntlm-negotiation` boundary rather than generic SPNEGO. Preserve every
+existing SPNEGO behavior/denial test in the same R9 qualification lane.
+
 ## R10 reconnect + Stop/Start authentication lifetime gate (2026-10-24)
 
 Production HostControl changes that affect standalone authentication lifetime

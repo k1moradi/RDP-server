@@ -110,6 +110,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     initialNegoObservation_ = {};
     failureStage_ = StandaloneAuthenticationFailureStage::None;
+    lastNtlmMessageType_ = 0U;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
 }
@@ -128,6 +129,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
+    lastNtlmMessageType_ = 0U;
     initialNegoObservation_ = {};
 }
 
@@ -515,6 +517,8 @@ StandaloneCredSspNtlmAcceptor::processNego(
     // The diagnostic never contains peer token bytes or credentials.
     lastSpnegoStatus_ = step.status;
     spnegoRejectionReason_ = mechanism_.rejectionReason();
+    if (mechanism_.lastNtlmMessageType() != 0U)
+        lastNtlmMessageType_ = mechanism_.lastNtlmMessageType();
     const bool directNtlmVerifiedWithoutReply =
         step.status == StandaloneSpnegoStatus::MechanismVerified &&
         mechanism_.negotiationEnvelope() ==

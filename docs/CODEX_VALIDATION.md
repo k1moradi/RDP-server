@@ -1,3 +1,35 @@
+## R7 owner-acceptance credential-change consent revalidation (2026-10-23)
+
+Starting exact-main parent: `c2d9f13c898813b0229416b8af94df427a25d393`.
+
+Dependency recheck: R9's acceptance-only Linux ZIP handoff is hosted-green and
+there is no repository-side R1/R2/R3/R5/R9/R10 blocker for the no-argument
+consumer acceptance path. Public Release StandalonePassword exposure remains
+correctly gated pending the real unmodified Microsoft-client receipt.
+
+R7 found one remaining Start-orchestration race in its own layer. Production R2
+revokes the prior owner-consent generation when
+`configureStandaloneApplicationPassword()` replaces the standalone credential,
+but `DesktopWindow::requestStart()` could still consult the pre-credential GUI
+snapshot and skip the fresh View/Input permission request. R10 would then fail
+closed at Start, but a valid consumer password-change Sharing action could
+unnecessarily fail instead of completing the required credential -> permission
+-> endpoint -> listener transaction.
+
+The GUI now re-reads authoritative R10 status immediately after credential
+configuration before deciding whether owner permission must be requested. The
+offline fake mirrors production credential-change consent revocation, and new
+behavior CTest
+`gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission`
+proves an initially authorized host still performs credential -> fresh permission
+-> endpoint -> listener in order after the Session Password generation changes.
+
+Source review: **PASS**. Owner-local canonical build/full CTest: **NOT RUN** in
+this connector environment. Exact publication-SHA hosted CI: **PENDING**.
+Real Windows App / Windows 11 `mstsc.exe` owner/native qualification remains
+**NOT RUN** and is still the external product gate; this change does not promote
+`kStandalonePasswordProductCapabilityApproved`.
+
 ## 2026-10-23 — macOS Release acceptance-only CTest configuration correction
 
 Starting exact-main parent: `96beacf72d19ad95029e5cabe5a2d3cc455a08c3`.

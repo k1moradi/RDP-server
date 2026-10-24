@@ -181,7 +181,13 @@ public:
             *volatileCodeUnit = u'\0';
         }
         if (valid)
+        {
             snapshot.credentialsConfigured = true;
+            // Production R2 revokes owner consent whenever the standalone
+            // credential generation changes. Model that authority boundary so
+            // GUI orchestration cannot accidentally rely on a stale snapshot.
+            snapshot.hostOwnerAuthorized = false;
+        }
         return valid;
     }
 
@@ -963,6 +969,48 @@ int main(int argc, char** argv)
         assert(address->text() ==
                QStringLiteral("Connect to: 192.168.0.10:3389"));
         assert(copy->isEnabled());
+        return 0;
+    }
+
+    if (mode == "consumer-password-change-rerequests-permission")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        return 77;
+#endif
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+
+        DesktopWindow window(host);
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(password && confirmation);
+        password->setText(QStringLiteral("replacement-owner-password"));
+        confirmation->setText(password->text());
+
+        sharingToggle(window)->click();
+
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.permissionSetupCalls == 1);
+        assert(runtime.lastPermissionRequest.allowInput);
+        assert((runtime.commandOrder ==
+                std::vector<std::string>{
+                    "credential", "permission", "endpoint", "listener"}));
+        assert(runtime.configureCalls == 1);
+        assert(runtime.startCalls == 1);
         return 0;
     }
 

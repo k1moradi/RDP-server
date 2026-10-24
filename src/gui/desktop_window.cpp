@@ -764,7 +764,11 @@ void DesktopWindow::requestStart()
         }
     }
 
-    if (!snapshot.desktopAuthorized)
+    // Standalone credential replacement revokes the prior R2 owner-consent
+    // generation. Re-read R10 after credential setup so an earlier GUI
+    // snapshot can never skip the fresh local View/Input permission request.
+    const HostStatus permissionSnapshot = host_.status();
+    if (!permissionSnapshot.desktopAuthorized)
     {
         rdp_server::server::runtime::RuntimeHostPermissionRequest permission;
         permission.allowInput = allowRemoteInput_->isChecked();

@@ -3960,6 +3960,17 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
+        COMMAND test_desktop_gui_offline consumer-password-change-rerequests-permission)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;consent;lifecycle;security"
+        CONFIGURATIONS Debug
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-owner-acceptance-start-failure-rolls-back
         COMMAND test_desktop_gui_offline consumer-workflow-failure)
     set_tests_properties(

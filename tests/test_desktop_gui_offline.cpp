@@ -6,6 +6,9 @@
 #if defined(__linux__)
 #include "server/runtime/linux_runtime_host_control.h"
 #endif
+#if defined(__APPLE__)
+#include "server/runtime/mac_runtime_host_control.h"
+#endif
 
 #include <QAbstractButton>
 #include <QAction>
@@ -766,6 +769,113 @@ int main(int argc, char** argv)
         controller.stopAndRevoke();
         window.refresh();
         assert(controller.status().stage == RuntimeHostStage::Revoked);
+        return 0;
+    }
+#endif
+
+#if defined(__APPLE__)
+    if (mode == "macos-real-host-control")
+    {
+        MacRuntimeHostControl realRuntime;
+        HostControl controller(realRuntime);
+        DesktopWindow window(controller);
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation = window.findChild<QLineEdit*>("sessionPasswordConfirm");
+
+        assert(controller.status().controlAvailable);
+        assert(username && password && confirmation);
+        assert(username->isEnabled() && !username->isReadOnly());
+        assert(password->isEnabled() && !password->isReadOnly());
+        assert(confirmation->isEnabled() && !confirmation->isReadOnly());
+        assert(!window.canStart());
+        assert(!toggle->isEnabled() && !toggle->isChecked());
+        assert(!copy->isEnabled());
+
+        controller.stopAndRevoke();
+        window.refresh();
+        assert(controller.status().stage == RuntimeHostStage::Revoked);
+        return 0;
+    }
+
+    if (mode == "macos-gui-parity")
+    {
+        MacRuntimeHostControl realRuntime;
+        HostControl host(realRuntime);
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation = window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* toggle = sharingToggle(window);
+        auto* copy = requiredButton(window, "copyLanAddress");
+        auto* address = requiredLabel(window, "connectionAddress");
+
+        assert(username && password && confirmation && toggle && copy && address);
+
+        // 1. Exact widget properties
+        assert(username->isVisible());
+        assert(username->isEnabled());
+        assert(!username->isReadOnly());
+        assert(username->echoMode() == QLineEdit::Normal);
+        assert(username->focusPolicy() == Qt::StrongFocus);
+        assert(username->text() == QStringLiteral("rdp"));
+
+        assert(password->isVisible());
+        assert(password->isEnabled());
+        assert(!password->isReadOnly());
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(password->focusPolicy() == Qt::StrongFocus);
+        assert(password->text().isEmpty());
+
+        assert(confirmation->isVisible());
+        assert(confirmation->isEnabled());
+        assert(!confirmation->isReadOnly());
+        assert(confirmation->echoMode() == QLineEdit::Password);
+        assert(confirmation->focusPolicy() == Qt::StrongFocus);
+        assert(confirmation->text().isEmpty());
+
+        // 2. Keyboard entry simulation
+        username->clear();
+        QKeyEvent userKey(QEvent::KeyPress, Qt::Key_U, Qt::NoModifier, QStringLiteral("u"));
+        QApplication::sendEvent(username, &userKey);
+        assert(username->text() == QStringLiteral("u"));
+
+        QKeyEvent passKey(QEvent::KeyPress, Qt::Key_P, Qt::NoModifier, QStringLiteral("p"));
+        QApplication::sendEvent(password, &passKey);
+        assert(password->text() == QStringLiteral("p"));
+        assert(password->echoMode() == QLineEdit::Password);
+
+        QKeyEvent confKey(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("x"));
+        QApplication::sendEvent(confirmation, &confKey);
+        assert(confirmation->text() == QStringLiteral("x"));
+        assert(confirmation->echoMode() == QLineEdit::Password);
+
+        // Mismatched passwords: canStart is false, toggle remains disabled and unchecked
+        assert(!window.canStart());
+        assert(!toggle->isEnabled());
+        assert(!toggle->isChecked());
+
+        // Matching passwords
+        confirmation->clear();
+        QKeyEvent confMatchKey(QEvent::KeyPress, Qt::Key_P, Qt::NoModifier, QStringLiteral("p"));
+        QApplication::sendEvent(confirmation, &confMatchKey);
+        assert(confirmation->text() == password->text());
+        assert(window.canStart());
+        assert(toggle->isEnabled());
+        assert(!toggle->isChecked());
+
+        // 3. Focus / tab order verification
+        username->setFocus();
+        assert(username->hasFocus());
+        password->setFocus();
+        assert(password->hasFocus());
+        confirmation->setFocus();
+        assert(confirmation->hasFocus());
+
         return 0;
     }
 #endif

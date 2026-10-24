@@ -841,18 +841,22 @@ void DesktopWindow::requestStart()
             60'000U;
         if (!host_.requestHostPermission(permission))
         {
-            userFacingError_ = QStringLiteral(
-                "Local View/Input permission could not be granted. "
-                "Check that this computer is unlocked and locally owned.");
+            userFacingError_ = host_.status().failure.isEmpty()
+                ? QStringLiteral(
+                    "Local View/Input permission could not be granted. "
+                    "Check that this computer is unlocked and locally owned.")
+                : host_.status().failure;
             refresh();
             return;
         }
     }
 
     if (!host_.start(currentHostRequest()))
-        userFacingError_ = QStringLiteral(
-            "The LAN endpoint could not be prepared or the listener could "
-            "not be started.");
+        userFacingError_ = host_.status().failure.isEmpty()
+            ? QStringLiteral(
+                "The LAN endpoint could not be prepared or the listener could "
+                "not be started.")
+            : host_.status().failure;
     refresh();
 }
 

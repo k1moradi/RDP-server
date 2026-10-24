@@ -1,3 +1,67 @@
+## Agent 11 native macOS validation, GUI parity and TCC permission safety (2026-10-24)
+
+Starting exact-main parent: `ea37e408ec2d8299eb0155b46b1467647228a7b1`.
+
+### 1. Native macOS GUI Parity & Widget Baseline
+Exercised on native macOS (Darwin arm64):
+- **`standaloneUsername` (`QLineEdit`)**:
+  - `isVisible()`: `true` (when parent window is shown);
+  - `isEnabled()`: `true`;
+  - `isReadOnly()`: `false`;
+  - `echoMode()`: `QLineEdit::Normal` (0);
+  - `focusPolicy()`: `Qt::StrongFocus` (0xb);
+  - `text()`: initialized to `"rdp"`;
+  - Direct keyboard typing via `QKeyEvent` succeeds.
+- **`sessionPassword` (`QLineEdit`)**:
+  - `isVisible()`: `true`;
+  - `isEnabled()`: `true`;
+  - `isReadOnly()`: `false`;
+  - `echoMode()`: `QLineEdit::Password` (2);
+  - `focusPolicy()`: `Qt::StrongFocus` (0xb);
+  - `text()`: initialized to `""`;
+  - Direct keyboard typing accepts input and renders masked platform bullets.
+- **`sessionPasswordConfirm` (`QLineEdit`)**:
+  - `isVisible()`: `true`;
+  - `isEnabled()`: `true`;
+  - `isReadOnly()`: `false`;
+  - `echoMode()`: `QLineEdit::Password` (2);
+  - `focusPolicy()`: `Qt::StrongFocus` (0xb);
+  - `text()`: initialized to `""`;
+  - Direct keyboard typing accepts input and renders masked platform bullets.
+- **Form Layout & Geometry**:
+  - Vertical height of each `QLineEdit` >= 21px; no font or label clipping.
+- **Tab & Focus Order**:
+  - `standaloneUsername` -> `sessionPassword` -> `sessionPasswordConfirm` -> `sharingToggle`.
+- **Sharing Toggle Eligibility**:
+  - Empty or mismatched password/confirmation keeps `canStart()` false and Sharing toggle disabled (`isEnabled() == false`, `isChecked() == false`).
+  - Matching non-empty password sets `canStart()` to true and enables `sharingToggle_`, keeping it unchecked (Off) until explicitly toggled.
+
+### 2. Native Runtime Audit & TCC User Experience
+- **No Prompt on App Launch**:
+  `MacRuntimeHostControl` creation and background service run without requesting screen capture or accessibility permissions (`runtime.macos-host-control-no-prompt-on-app-launch`).
+- **TCC Permission Gating on Sharing Request**:
+  - Missing Screen Recording triggers `CGRequestScreenCaptureAccess()` once and sets user-facing message: `"Screen Recording permission required. Enable Screen Recording in System Settings > Privacy & Security."` (`runtime.macos-host-control-screen-recording-permission-denial`).
+  - Missing Accessibility permission when remote control is requested triggers `AXIsProcessTrustedWithOptions` prompt once and sets user-facing message: `"Accessibility permission required for remote control. Enable Accessibility in System Settings > Privacy & Security."` (`runtime.macos-host-control-accessibility-permission-denial`).
+  - `DesktopWindow::requestStart` surfaces `host_.status().failure` so these actionable instructions are displayed directly in the GUI.
+- **Dynamic Revocation Teardown**:
+  - `serviceOnce()` inspects screen capture preflight during active sharing (`ListenerAvailable`, `ClientAuthenticating`, `ClientConnected`); if revoked, immediately tears down listener, TLS, and native session, transitions to `RuntimeHostStage::Revoked`, and records `"Screen Recording permission was revoked in System Settings."` (`runtime.macos-host-control-permission-revocation-retires-sharing`).
+
+### 3. Verification & CTest Evidence
+Command executed:
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`
+Result: **PASS** (758/758 tests passed, 0 failed, 100% pass rate).
+Dedicated behavior-named CTests registered and verified:
+- `runtime.macos-host-control-screen-recording-permission-denial`: **PASS**
+- `runtime.macos-host-control-accessibility-permission-denial`: **PASS**
+- `runtime.macos-host-control-permission-revocation-retires-sharing`: **PASS**
+- `runtime.macos-host-control-no-prompt-on-app-launch`: **PASS**
+- `gui.offscreen-macos-gui-parity-and-widget-properties`: **PASS**
+- `gui.offscreen-macos-concrete-host-control-acceptance`: **PASS**
+
+### 4. Next Gate
+Physical owner acceptance:
+Launch `rdp-server-desktop` without arguments, enter Session Password, toggle Sharing ON, confirm listener opens on `192.168.1.6:3389`, and connect from Windows default Remote Desktop client. Clipboard remains dormant. Full RDP desktop acceptance will be claimed only upon verified connection and observed remote control.
+
 ## R5 executed Linux physical-X11 owner-readiness gate (2026-10-24)
 
 Starting exact-main parent: `340666b48ac4a79f5239fd69978c7f8787da3d45`.
@@ -53,6 +117,7 @@ Production source and Release capability gates: **UNCHANGED**.
 Connector source review: **PASS**.
 Local build/CTest: **NOT RUN**.
 Exact-publication-SHA hosted CI: **PENDING**.
+
 
 ## R7 XCB focus-chain follow-up after first hosted execution (2026-10-24)
 

@@ -4,6 +4,10 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SystemConfiguration.h>
+#if defined(__APPLE__)
+#include <ApplicationServices/ApplicationServices.h>
+#include <CoreGraphics/CoreGraphics.h>
+#endif
 
 #include <arpa/inet.h>
 #include <ifaddrs.h>
@@ -214,6 +218,18 @@ MacRuntimeHostControl::MacRuntimeHostControl(
 MacRuntimeHostControl::~MacRuntimeHostControl()
 {
     (void)stopSharing();
+}
+
+void MacRuntimeHostControl::setScreenCaptureProbeForTesting(
+    ScreenCaptureProbe probe) noexcept
+{
+    screenCaptureProbe_ = probe;
+}
+
+void MacRuntimeHostControl::setInputPermissionProbeForTesting(
+    InputPermissionProbe probe) noexcept
+{
+    inputPermissionProbe_ = probe;
 }
 
 bool MacRuntimeHostControl::onOwnerThread() const noexcept
@@ -635,8 +651,11 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
     else
         snapshot.product.readinessStage = Readiness::Stopped;
 
-    snapshot.product.lastErrorMessage =
-        std::string(runtimeHostErrorMessage(snapshot.lastError));
+    if (!customErrorMessage_.empty())
+        snapshot.product.lastErrorMessage = customErrorMessage_;
+    else
+        snapshot.product.lastErrorMessage =
+            std::string(runtimeHostErrorMessage(snapshot.lastError));
     return snapshot;
 }
 
@@ -758,6 +777,59 @@ RuntimeHostResult MacRuntimeHostControl::requestHostPermissionSetup(
     if (stage_ == RuntimeHostStage::Revoked)
         return deny(RuntimeHostError::AccessRevoked);
 
+    const bool enforceTcc = (ownerEvidenceSource_ == &defaultOwnerEvidence_) ||
+                            (screenCaptureProbe_ != nullptr) ||
+                            (inputPermissionProbe_ != nullptr);
+    if (enforceTcc)
+    {
+#if defined(__APPLE__)
+        const auto captureStatus = screenCaptureProbe_ != nullptr
+            ? screenCaptureProbe_()
+            : ::rdp::macos::queryNativeScreenCapturePreflight();
+        if (captureStatus == ::rdp::macos::ScreenCapturePreflightStatus::NotGranted)
+        {
+            if (!screenCapturePromptRequested_)
+            {
+                screenCapturePromptRequested_ = true;
+                (void)::CGRequestScreenCaptureAccess();
+            }
+            customErrorMessage_ =
+                "Screen Recording permission required. Enable Screen Recording in System Settings > Privacy & Security.";
+            lastError_ = RuntimeHostError::NativeAuthorizationDenied;
+            return {RuntimeHostError::NativeAuthorizationDenied, false};
+        }
+
+        if (request.allowInput)
+        {
+            const auto inputStatus = inputPermissionProbe_ != nullptr
+                ? inputPermissionProbe_()
+                : ::rdp::macos::queryNativeMacInputPermissionStatus();
+            if (inputStatus != ::rdp::macos::MacInputPermissionStatus::Trusted)
+            {
+                if (!accessibilityPromptRequested_)
+                {
+                    accessibilityPromptRequested_ = true;
+                    const void* keys[] = { kAXTrustedCheckOptionPrompt };
+                    const void* values[] = { kCFBooleanTrue };
+                    CFDictionaryRef options = CFDictionaryCreate(
+                        kCFAllocatorDefault, keys, values, 1,
+                        &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+                    if (options != nullptr)
+                    {
+                        (void)::AXIsProcessTrustedWithOptions(options);
+                        ::CFRelease(options);
+                    }
+                }
+                customErrorMessage_ =
+                    "Accessibility permission required for remote control. Enable Accessibility in System Settings > Privacy & Security.";
+                lastError_ = RuntimeHostError::NativeAuthorizationDenied;
+                return {RuntimeHostError::NativeAuthorizationDenied, false};
+            }
+        }
+#endif
+    }
+    customErrorMessage_.clear();
+
     std::uint32_t permissions =
         rdp_server::server::security::kConsoleViewPermission;
     if (request.allowInput)
@@ -870,6 +942,27 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
         stage_ == RuntimeHostStage::ClientAuthenticating ||
         stage_ == RuntimeHostStage::ClientConnected)
     {
+        const bool enforceTcc = (ownerEvidenceSource_ == &defaultOwnerEvidence_) ||
+                                (screenCaptureProbe_ != nullptr);
+        if (enforceTcc)
+        {
+#if defined(__APPLE__)
+            const auto currentCapture = screenCaptureProbe_ != nullptr
+                ? screenCaptureProbe_()
+                : ::rdp::macos::queryNativeScreenCapturePreflight();
+            if (currentCapture == ::rdp::macos::ScreenCapturePreflightStatus::NotGranted)
+            {
+                retireStoppedRuntime(
+                    rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+                stage_ = RuntimeHostStage::Revoked;
+                customErrorMessage_ =
+                    "Screen Recording permission was revoked in System Settings.";
+                lastError_ = RuntimeHostError::AccessRevoked;
+                return {lastError_, false};
+            }
+#endif
+        }
+
         if (!ownerSharingAuthority_.authorizes(
                 rdp_server::server::security::kConsoleViewPermission))
         {
@@ -965,6 +1058,7 @@ RuntimeHostResult MacRuntimeHostControl::stopSharing()
         rdp_server::server::security::OwnerConsentRevocationReason::Stop);
     stage_ = RuntimeHostStage::Stopped;
     lastError_ = RuntimeHostError::None;
+    customErrorMessage_.clear();
     return {RuntimeHostError::None, false};
 }
 
@@ -992,7 +1086,14 @@ RuntimeHostResult MacRuntimeHostControl::revokeSharing()
         return {RuntimeHostError::ControlUnavailable, false};
     ownerSharingAuthority_.revoke(
         rdp_server::server::security::OwnerConsentRevocationReason::Stop);
-    return stopSharing();
+    retireStoppedRuntime(
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+    standaloneCredentialGeneration_ = 0U;
+    credentialsConfigured_ = false;
+    stage_ = RuntimeHostStage::Revoked;
+    lastError_ = RuntimeHostError::AccessRevoked;
+    customErrorMessage_.clear();
+    return {RuntimeHostError::None, false};
 }
 
 } // namespace rdp_server::server::runtime

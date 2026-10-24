@@ -1245,7 +1245,9 @@ if(APPLE)
         rdp-server-runtime-platform-native-desktop
         rdp-server-native-desktop-authorization
         "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
-        "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}")
+        "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}"
+        "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}"
+        "${RDP_SERVER_APPLICATIONSERVICES_FRAMEWORK}")
     target_compile_options(
         rdp-server-macos-host-control PRIVATE
         -Wall -Wextra -Wpedantic -Werror)

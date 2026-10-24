@@ -265,6 +265,103 @@ void testMacLanEndpointRecommendation()
     return true;
 }
 
+void testScreenRecordingPermissionDenial()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"testuser", password));
+
+    control.setScreenCaptureProbeForTesting([]() noexcept {
+        return rdp::macos::ScreenCapturePreflightStatus::NotGranted;
+    });
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowInput = true;
+    permission.allowClipboard = false;
+    permission.requestedLifetimeMilliseconds = 60'000U;
+
+    const auto result = control.requestHostPermissionSetup(permission);
+    assert(!result.succeeded());
+    assert(result.error == RuntimeHostError::NativeAuthorizationDenied);
+
+    const auto status = control.status();
+    assert(!status.hostOwnerAuthorized);
+    assert(!status.product.ownerAuthorized);
+    assert(status.product.lastErrorMessage.find("Screen Recording permission required") != std::string::npos);
+}
+
+void testAccessibilityPermissionDenial()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"testuser", password));
+
+    control.setScreenCaptureProbeForTesting([]() noexcept {
+        return rdp::macos::ScreenCapturePreflightStatus::Granted;
+    });
+    control.setInputPermissionProbeForTesting([]() noexcept {
+        return rdp::macos::MacInputPermissionStatus::NotTrusted;
+    });
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowInput = true;
+    permission.allowClipboard = false;
+    permission.requestedLifetimeMilliseconds = 60'000U;
+
+    const auto result = control.requestHostPermissionSetup(permission);
+    assert(!result.succeeded());
+    assert(result.error == RuntimeHostError::NativeAuthorizationDenied);
+
+    const auto status = control.status();
+    assert(!status.hostOwnerAuthorized);
+    assert(!status.product.ownerAuthorized);
+    assert(status.product.lastErrorMessage.find("Accessibility permission required") != std::string::npos);
+}
+
+void testPermissionRevocationRetiresSharing()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"testuser", password));
+
+    control.setScreenCaptureProbeForTesting([]() noexcept {
+        return rdp::macos::ScreenCapturePreflightStatus::Granted;
+    });
+    control.setInputPermissionProbeForTesting([]() noexcept {
+        return rdp::macos::MacInputPermissionStatus::Trusted;
+    });
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowInput = true;
+    permission.allowClipboard = false;
+    permission.requestedLifetimeMilliseconds = 60'000U;
+
+    const auto result = control.requestHostPermissionSetup(permission);
+    assert(result.succeeded());
+    assert(control.status().hostOwnerAuthorized);
+
+    assert(control.revokeSharing().succeeded());
+    assert(!control.status().hostOwnerAuthorized);
+    assert(!control.status().product.ownerAuthorized);
+    assert(control.status().stage == RuntimeHostStage::Revoked);
+}
+
+void testNoPromptOnAppLaunch()
+{
+    MacRuntimeHostControl control;
+    const auto status = control.status();
+    assert(status.stage == RuntimeHostStage::Stopped);
+    assert(!status.listenerAvailable);
+    assert(status.lastError == RuntimeHostError::None);
+    assert(control.serviceOnce().succeeded());
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -303,6 +400,22 @@ int main(int argc, char** argv)
     {
         if (!testMacNativeLanEndpointObservation())
             return 77;
+    }
+    else if (selected == "macos-host-control-screen-recording-permission-denial")
+    {
+        testScreenRecordingPermissionDenial();
+    }
+    else if (selected == "macos-host-control-accessibility-permission-denial")
+    {
+        testAccessibilityPermissionDenial();
+    }
+    else if (selected == "macos-host-control-permission-revocation-retires-sharing")
+    {
+        testPermissionRevocationRetiresSharing();
+    }
+    else if (selected == "macos-host-control-no-prompt-on-app-launch")
+    {
+        testNoPromptOnAppLaunch();
     }
     else
     {

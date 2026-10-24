@@ -134,6 +134,9 @@ string(FIND "${ci_workflow}"
 string(FIND "${ci_workflow}" "  r7-macos-session-sanitizers:" mac_public_end)
 string(FIND "${ci_workflow}" "  r5-linux-gui-zip:" linux_public_begin)
 string(FIND "${ci_workflow}"
+    "      - name: Run R5 physical-X11 precredential owner-readiness gate"
+    linux_r5_readiness_begin)
+string(FIND "${ci_workflow}"
     "  r9-portable-gui-bootstrap-acceptance:" linux_acceptance_begin)
 if(mac_public_begin LESS 0 OR mac_acceptance_begin LESS 0 OR
    mac_public_end LESS 0 OR linux_public_begin LESS 0 OR
@@ -152,8 +155,13 @@ math(EXPR mac_acceptance_length
     "${mac_public_end} - ${mac_acceptance_begin}")
 string(SUBSTRING "${ci_workflow}" ${mac_acceptance_begin}
     ${mac_acceptance_length} mac_acceptance_source)
+if(linux_r5_readiness_begin GREATER -1 AND linux_r5_readiness_begin LESS linux_acceptance_begin)
+    set(linux_public_end "${linux_r5_readiness_begin}")
+else()
+    set(linux_public_end "${linux_acceptance_begin}")
+endif()
 math(EXPR linux_public_length
-    "${linux_acceptance_begin} - ${linux_public_begin}")
+    "${linux_public_end} - ${linux_public_begin}")
 string(SUBSTRING "${ci_workflow}" ${linux_public_begin}
     ${linux_public_length} linux_public_source)
 string(SUBSTRING "${ci_workflow}" ${linux_acceptance_begin}

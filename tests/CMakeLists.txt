@@ -498,7 +498,11 @@ if(TARGET rdp-server-macos-host-control)
             macos-host-control-sharing-permission-lifecycle
             macos-host-control-stop-revoke-retirement
             macos-portable-gui-bootstrap-readiness
-            macos-host-control-lan-endpoint-recommendation)
+            macos-host-control-lan-endpoint-recommendation
+            macos-host-control-screen-recording-permission-denial
+            macos-host-control-accessibility-permission-denial
+            macos-host-control-permission-revocation-retires-sharing
+            macos-host-control-no-prompt-on-app-launch)
         add_test(NAME "runtime.${mac_host_control_case}"
             COMMAND test_macos_runtime_host_control "${mac_host_control_case}")
         set_tests_properties("runtime.${mac_host_control_case}" PROPERTIES
@@ -3892,6 +3896,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         # Verify real R10 denial/retirement through the shared R7 Qt view.
         target_link_libraries(test_desktop_gui_offline PRIVATE
             rdp-server-linux-host-control)
+    elseif(APPLE)
+        target_link_libraries(test_desktop_gui_offline PRIVATE
+            rdp-server-macos-host-control)
     endif()
     if(MSVC)
         target_compile_options(test_desktop_gui_offline PRIVATE /W4 /UNDEBUG)
@@ -4070,6 +4077,18 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         set_tests_properties(gui.offscreen-linux-concrete-host-control-denials
             PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
             LABELS "gui;linux;offline;security;runtime" TIMEOUT 30)
+    elseif(APPLE)
+        add_test(NAME gui.offscreen-macos-gui-parity-and-widget-properties
+            COMMAND test_desktop_gui_offline macos-gui-parity)
+        set_tests_properties(gui.offscreen-macos-gui-parity-and-widget-properties
+            PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS "gui;macos;offline;acceptance;round2" TIMEOUT 30)
+
+        add_test(NAME gui.offscreen-macos-concrete-host-control-acceptance
+            COMMAND test_desktop_gui_offline macos-real-host-control)
+        set_tests_properties(gui.offscreen-macos-concrete-host-control-acceptance
+            PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS "gui;macos;offline;security;runtime" TIMEOUT 30)
     endif()
     # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
     add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials

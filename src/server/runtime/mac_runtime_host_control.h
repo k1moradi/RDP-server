@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "platform/macos/mac_input_controller.h"
+#include "platform/macos/screen_capture_preflight.h"
 #include "server/runtime/runtime_deployment_policy.h"
 #include "server/runtime/runtime_host_control.h"
 #include "server/runtime/runtime_licensing_context.h"
@@ -96,6 +98,12 @@ public:
 
     [[nodiscard]] RuntimeHostResult revokeSharing() override;
 
+    using ScreenCaptureProbe = ::rdp::macos::ScreenCapturePreflightStatus (*)() noexcept;
+    using InputPermissionProbe = ::rdp::macos::MacInputPermissionStatus (*)() noexcept;
+
+    void setScreenCaptureProbeForTesting(ScreenCaptureProbe probe) noexcept;
+    void setInputPermissionProbeForTesting(InputPermissionProbe probe) noexcept;
+
 private:
     [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] RuntimeHostResult deny(RuntimeHostError error) noexcept;
@@ -127,6 +135,12 @@ private:
     bool credentialsConfigured_{false};
     RuntimeHostStage stage_{RuntimeHostStage::Stopped};
     RuntimeHostError lastError_{RuntimeHostError::None};
+
+    ScreenCaptureProbe screenCaptureProbe_{nullptr};
+    InputPermissionProbe inputPermissionProbe_{nullptr};
+    bool screenCapturePromptRequested_{false};
+    bool accessibilityPromptRequested_{false};
+    std::string customErrorMessage_{};
 
     // Client tracking
     std::uint64_t nextClientId_{1U};

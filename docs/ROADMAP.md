@@ -1,3 +1,38 @@
+## Agent 11 native macOS validation, GUI parity and TCC permission safety (2026-10-24)
+
+Starting exact-main parent: `ea37e408ec2d8299eb0155b46b1467647228a7b1`.
+
+Agent 11 completed native macOS validation and integration as assigned (P0):
+
+1. **A. GUI parity confirmed on native macOS:**
+   - `standaloneUsername`: editable `QLineEdit`, visible, enabled, `QLineEdit::Normal` (0), `Qt::StrongFocus`, initialized to `"rdp"`, direct keyboard text entry works.
+   - `sessionPassword`: editable `QLineEdit`, visible, enabled, masked with `QLineEdit::Password` (2), `Qt::StrongFocus`, initialized empty, keyboard text entry works and is masked with platform bullets.
+   - `sessionPasswordConfirm`: editable `QLineEdit`, visible, enabled, masked with `QLineEdit::Password` (2), `Qt::StrongFocus`, initialized empty, keyboard text entry works and is masked.
+   - Tab and focus progression works deterministically: `standaloneUsername` -> `sessionPassword` -> `sessionPasswordConfirm` -> `sharingToggle`.
+   - Sharing action eligibility: empty or mismatched passwords keep `canStart()` false and Sharing toggle disabled and unchecked (Off). Matching non-empty password makes `canStart()` true, enabling the Sharing toggle while remaining Off until explicit user interaction.
+   - Exact widget properties and behavioral keyboard entry pinned in `gui.offscreen-macos-gui-parity-and-widget-properties`.
+
+2. **B. Native runtime audit and exercise:**
+   - Exercised `MacRuntimeHostControl`, `MacPortableDesktopRuntime`, native local-owner evidence, ScreenCaptureKit preflight readiness, Accessibility/Input Monitoring readiness, generated TLS identity, generated licensing identity, route-aware LAN address, listener lifecycle without requiring `--config`.
+   - Real concrete host control lifecycle verified in `gui.offscreen-macos-concrete-host-control-acceptance`.
+
+3. **C. TCC User Experience & Revocation:**
+   - Application launch remains idle and does NOT prompt for permissions (`runtime.macos-host-control-no-prompt-on-app-launch`).
+   - On first explicit Sharing request, missing Screen Recording triggers system prompt once and surfaces concise actionable message: `"Screen Recording permission required. Enable Screen Recording in System Settings > Privacy & Security."` (`runtime.macos-host-control-screen-recording-permission-denial`).
+   - Missing Accessibility permission when remote control is requested triggers system prompt once and surfaces concise actionable message: `"Accessibility permission required for remote control. Enable Accessibility in System Settings > Privacy & Security."` (`runtime.macos-host-control-accessibility-permission-denial`).
+   - Prompts do not loop or spam. Revocation is detected dynamically in `serviceOnce()` during active sharing; tearing down listener, TLS, and native session into `RuntimeHostStage::Revoked` with `"Screen Recording permission was revoked in System Settings."` (`runtime.macos-host-control-permission-revocation-retires-sharing`).
+   - `DesktopWindow::requestStart` surfaces `host_.status().failure` so actionable platform permission messages reach the user.
+
+4. **D. Native owner safety:**
+   - macOS native desktop remains strictly bound to authenticated standalone session, explicit local owner grant, fresh native console evidence, and TCC capability. Revocation drops state to `Revoked` and denies access.
+
+5. **E. Acceptance preparation:**
+   - Clipboard remains dormant.
+   - macOS Debug test suite: 758/758 tests passed (**PASS**).
+   - Real desktop acceptance remains pending until unmodified Microsoft client completes authentication and desktop/control behavior is observed.
+
+**Next gate:** Physical owner verification: launch `rdp-server-desktop` with no arguments -> enter Session Password -> Sharing ON -> listener confirmed on LAN IP -> connect from Windows default Remote Desktop app.
+
 ## R5 P1 dependency recheck and executed owner-readiness qualification (2026-10-24)
 
 Starting exact-main parent: `340666b48ac4a79f5239fd69978c7f8787da3d45`.
@@ -81,6 +116,7 @@ Exact-publication-SHA hosted CI: **PENDING**.
 **Next gate:** hosted Ubuntu full CTest and R9 portable owner-acceptance
 inventory must pass the repaired source contract; physical Linux/macOS
 no-argument owner acceptance remains required for final product evidence.
+
 
 ## R7 Linux XCB focus-chain qualification correction (2026-10-24)
 

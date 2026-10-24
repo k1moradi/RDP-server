@@ -1,3 +1,42 @@
+## R10 P0 — explicit Stop scope and standalone SPNEGO diagnostic ownership (2026-10-24)
+
+**Starting exact-main parent:** `b8a0bb8e97e6b36114ad2495b0c75a5ca3a649cd`.
+
+R10's Start -> Stop -> Start ownership boundary now uses an explicit
+keep-vs-revoke credential policy. Ordinary Stop preserves the exact memory-only
+standalone credential generation/authentication mode/configured state while
+revoking owner consent and retiring native/R8/R3 connection, listener,
+generated TLS and deployment-policy state. Terminal revoke and destruction
+clear the credential. The concurrent R7 lifecycle patch already routes ordinary
+Sharing OFF through Stop, retains Stop+Revoke for Quit, and covers cleared-field
+credential reuse.
+
+R10 also projects the accepted connection's pre-auth snapshot without changing
+meaning: pre-auth stage, TLS stage, CredSSP transition, standalone failure stage
+and transport termination stay separate. The current owner trace is therefore
+representable as established TLS / CredSSP / standalone `Spnego` failure,
+rather than generic password failure or `TlsFailure`.
+
+Dedicated R10 regressions:
+- `runtime.linux-host-control-preauth-diagnostic-projection`;
+- `runtime.linux-host-control-stop-start-retains-standalone-credential`;
+- the existing standalone credential lifecycle regression remains aligned with
+  ordinary Stop retention and terminal Revoke erasure.
+
+The R9 Microsoft-style SPNEGO/TSRequest fixtures remain the interoperability
+prerequisite owner; R10 does not enable GSS fallback or rewrite SPNEGO/NTLM
+wire behavior.
+
+**Next owner-test gate:** no real-client retry merely because CI is green.
+Require both lifecycle restart without Session Password re-entry and an
+automated Microsoft-compatible standalone path that reaches at least NTLM
+negotiation/challenge. The next owner trace may then classify NTLMv2,
+mechListMIC, pubKeyAuth, authInfo or later composition.
+
+Connector/source review: **PASS**. Canonical local configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA CI:
+**PENDING**. Owner retry: **NOT REQUESTED** by this change.
+
 ## R9 P0 — precise initial SPNEGO structural diagnostics (2026-10-24)
 
 Follow-up refinement of the exact-owner failure log: the standalone
@@ -122,32 +161,19 @@ Do not call standalone password Microsoft-client interoperability PASS
 until actual owner evidence shows it. The upstream TLS fixture alone is
 insufficient, and R2/R3/R4 protocol rewrites remain unapproved absent evidence.
 
-## R9 P0 — start/stop/start and TLS interop exact-SHA pre-owner gate (2026-10-24)
+## R9 P0 — local TLS/restart prerequisite, not current owner blocker (2026-10-24)
 
-**Gate:** `r9-start-stop-start-and-tls-interop`. **State: NOT RUN / NOT QUALIFIED.**
-This adds a production-linked Linux native-environment CTest that configures
-the generation-fenced memory-only password once, performs three Start/Stop
-cycles on the same actual LAN port, requires a fresh local-owner grant each
-time, observes different listener generations, and asserts Stop retires
-listener, accepted client, native desktop, TLS identity and consent but
-does not retire the selected standalone credential. Explicit Revoke still
-cleanses the credential. Ordinary Stop preserves only credential state; full
-security loss, Quit and destruction continue to erase it.
+`r9-start-stop-start-and-tls-interop` remains a required exact-SHA
+native-environment prerequisite for same-port restart, retained credential,
+fresh consent/listener generations and local X.224/TLS identity. Its local
+OpenSSL peer is not Microsoft-client interoperability evidence.
 
-The first Start additionally drives real TCP/X.224 HYBRID negotiation,
-checks the negotiation confirmation, completes an OpenSSL TLS client
-handshake, checks the server certificate's exact numeric-IP SAN, and proves
-TLS initialization completed. No CredSSP is sent. Native-environment SKIP (77)
-is NOT qualifying PASS; CI and owner must record an executed PASS at the exact
-source SHA. This fixture may expose the owner's currently failing R1 boundary.
-It does not prove unmodified Microsoft-client interoperability.
-
-**Next owner gate:** on the identical tested SHA, capture redacted server-side
-R1 handshake phase/version/failure diagnostics together with the Microsoft
-Windows App client log. Require an explicit `TLS established` receipt
-before exploring CredSSP. Standalone Password interoperability remains
-**NOT QUALIFIED** until actual unmodified Microsoft-client admission evidence.
-Do not modify R2/R3/R4 protocol behavior to address the TLS-first report.
+Owner evidence has already crossed that boundary into a standalone CredSSP
+SPNEGO rejection. The owner gate is therefore the Microsoft-style standalone
+SPNEGO/TSRequest path reaching NTLM negotiation/challenge, together with the
+R10 restart result. Do not require a new owner TLS proof before investigating
+CredSSP, and do not change R2/R3/R4 later protocol stages until the trace
+actually reaches them.
 
 ## R8 P2 repeated Stop/restart stale clipboard lifetime assertions — 2026-10-24
 

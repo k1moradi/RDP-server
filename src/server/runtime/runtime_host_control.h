@@ -412,6 +412,73 @@ struct RuntimeHostClient
     bool desktopVisible{};
 };
 
+// Exact, redacted R10 projection of the accepted connection's pre-auth
+// diagnostics. These enums mirror the owning R1/R2 categories one-for-one;
+// presentation must not rewrite TLS, SPNEGO or NTLM failures into each other.
+enum class RuntimeAcceptedClientPreauthStage : std::uint8_t
+{
+    AwaitConnectionRequest,
+    AwaitTls,
+    AwaitCredSsp,
+    AwaitMcsConnectInitial,
+    Closed,
+};
+
+enum class RuntimeAcceptedClientTlsHandshakeStage : std::uint8_t
+{
+    NotStarted,
+    Handshaking,
+    Established,
+    Closed,
+};
+
+enum class RuntimeAcceptedClientCredSspTransition : std::uint8_t
+{
+    NotStarted,
+    AwaitingToken,
+    BindingVerified,
+    CredentialsVerified,
+    Failed,
+    Closed,
+};
+
+enum class RuntimeAcceptedClientStandaloneFailureStage : std::uint8_t
+{
+    None,
+    NtlmNegotiation,
+    Mic,
+    SignSeal,
+    Spnego,
+    PubKeyAuth,
+    AuthInfo,
+    Admission,
+};
+
+enum class RuntimeAcceptedClientTermination : std::uint8_t
+{
+    Open,
+    OrderlyTlsClose,
+    TransportError,
+    TlsFailure,
+    ProtocolError,
+    Cancelled,
+};
+
+struct RuntimeAcceptedClientPreauthDiagnostics final
+{
+    bool available{};
+    RuntimeAcceptedClientPreauthStage preauthStage{
+        RuntimeAcceptedClientPreauthStage::Closed};
+    RuntimeAcceptedClientTlsHandshakeStage tlsHandshakeStage{
+        RuntimeAcceptedClientTlsHandshakeStage::Closed};
+    RuntimeAcceptedClientCredSspTransition credSspTransition{
+        RuntimeAcceptedClientCredSspTransition::NotStarted};
+    RuntimeAcceptedClientStandaloneFailureStage standaloneFailureStage{
+        RuntimeAcceptedClientStandaloneFailureStage::None};
+    RuntimeAcceptedClientTermination termination{
+        RuntimeAcceptedClientTermination::Cancelled};
+};
+
 struct RuntimeHostPermissionRequest final
 {
     // View is always implicit. Input/clipboard are independently
@@ -720,6 +787,10 @@ struct RuntimeHostStatus
     // R10-owned product projection. R7 must not rebuild lifecycle from the
     // protocol/native diagnostics above.
     RuntimeProductHostStatus product{};
+
+    // Current/last accepted-client pre-auth observation for diagnostics only.
+    // It contains no protocol bytes, credential material or authority.
+    RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics{};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.

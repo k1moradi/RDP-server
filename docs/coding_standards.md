@@ -1,3 +1,24 @@
+## R10 explicit Stop credential policy and diagnostic preservation (2026-10-24)
+
+Do not derive standalone credential lifetime from an owner-consent revocation
+reason. Linux R10 teardown takes an explicit credential policy. Ordinary
+`stopSharing()` is the sole keep-credentials caller; terminal loss,
+`revokeSharing()` and destruction use the fail-closed default that clears the
+credential generation, StandalonePassword mode and configured state.
+
+A stopped configured standalone host may restart without password re-entry, but
+never without fresh local-owner consent and fresh endpoint/TLS preparation.
+R7's cleared-editor reuse remains valid only while R10 authoritatively reports
+the production standalone credential configured; newly typed password text is
+always replacement.
+
+Preserve accepted-client diagnostic categories exactly. R10 may mirror bounded
+R1/R2 enums, but must not collapse TLS failure, transport/protocol close,
+standalone SPNEGO rejection, NTLM negotiation/credential rejection, MIC,
+sign/seal, pubKeyAuth, authInfo or admission into one another. The generic
+product `AuthenticationRejected` code is presentation summary only. Never
+enable OS GSS fallback as a standalone Session Password workaround.
+
 ## R9 precise SPNEGO parser categories (2026-10-24)
 
 At the parser's initial-token boundary, distinguish outer GSS/SPNEGO DER,

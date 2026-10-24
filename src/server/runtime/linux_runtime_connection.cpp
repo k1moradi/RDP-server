@@ -852,6 +852,8 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                     StandaloneAuthenticationFailureStage::Admission;
         }
         recordStandaloneAuthenticationFailure(failureStage);
+        credSspDiagnosticTransition_ =
+            LinuxRuntimeCredSspDiagnosticTransition::Failed;
         credSspFrameReader_.close();
         credSspReplyWriter_.close();
         if (principalProof_ != nullptr)

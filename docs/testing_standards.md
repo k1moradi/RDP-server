@@ -1,3 +1,30 @@
+## R10 Start/Stop/Start and pre-auth diagnostic gates (2026-10-24)
+
+The direct production Linux HostControl regression configures one standalone
+credential generation G1, then runs at least three
+permission -> endpoint/TLS -> Start -> Stop cycles without re-entering the
+password. After each Stop require Stopped/None,
+`credentialsConfigured == true`, the same visitable G1, no current owner
+grant, no listener/bound endpoint and no prepared/bound TLS identity. The
+recommended LAN endpoint remains available. Final `revokeSharing()` must make
+G1 unconfigured/unvisitable and enter Revoked.
+
+Keep a deterministic R10 diagnostic mapping test that separately pins
+AwaitTls/handshaking, AwaitCredSsp/TLS-established, terminal TLS failure,
+terminal standalone SPNEGO failure and terminal NTLM-negotiation failure. A
+generic `AuthenticationRejected` result cannot replace these diagnostics.
+
+R7 separately owns the cleared-editor GUI round-trip and must continue proving
+that ordinary Sharing OFF uses Stop rather than terminal Revoke, while Quit and
+terminal host-session loss still clear the credential.
+
+Do not request another real Microsoft-client owner test merely because CI is
+green. The next owner-test gate requires both: (1) Start -> Stop -> Start works
+without Session Password re-entry; and (2) the Microsoft-compatible automated
+standalone path reaches at least NTLM negotiation/challenge instead of generic
+SPNEGO rejection. Only then should the next owner trace classify a later
+NTLMv2, mechListMIC, pubKeyAuth, authInfo or post-auth composition failure.
+
 ## R9 SPNEGO owner rejection precision (2026-10-24)
 
 Record redacted `tls`, `credssp`, and categorized `spnego`
@@ -60,24 +87,22 @@ client logs. Do not nominate owner acceptance on a generic SPNEGO stage;
 capture the redacted `tls`, `credssp` and `spnego` fields and correlate
 the exact SHA and real client trace. Preserve GSS fallback disabled.
 
-## R9 TLS-first and repeated Sharing qualification (2026-10-24)
+## R9 local TLS prerequisite and repeated Sharing qualification (2026-10-24)
 
-Run `r9-start-stop-start-and-tls-interop` against the exact commit. A native
-environment skip is not PASS. Assert three real same-port listener lifetimes
-with no password re-entry, distinct listener generations, no stale owner grant,
-accepted client, native desktop or TLS identity, and a still-configured exact
-credential generation after each ordinary Stop. Full Revoke must erase it.
-Drive TCP/X.224 HYBRID and the real OpenSSL TLS handshake against the listener;
-validate the certificate's numeric IP SAN and TLS-established state. Do not
-treat the local TLS peer as Microsoft-client admission evidence.
+Run `r9-start-stop-start-and-tls-interop` against the exact commit as a local
+listener/TLS and credential-retention prerequisite. A native-environment skip
+is not PASS. Assert three real same-port listener lifetimes with no password
+re-entry, distinct listener generations, no stale owner grant, accepted client,
+native desktop or TLS identity, and the same configured credential generation
+after each ordinary Stop. Full Revoke must erase it.
 
-Real owner qualification pairs bounded server TLS/CredSSP/SPNEGO diagnostics
-with Microsoft-client logs on the same SHA. A standalone `stage=spnego`
-diagnostic already proves established TLS application transport and an owned
-TSRequest; do not wait for or require a separate TLS-primary failure receipt
-before investigating CredSSP. Standalone-password interoperability remains
-unqualified until the real client crosses `CredentialsVerified`. Preserve
-secrets and plaintext out of logs.
+The local OpenSSL peer proves X.224 HYBRID, certificate numeric-IP SAN and TLS
+establishment only. It is no longer the first demonstrated Microsoft-client
+failure boundary: owner evidence has reached standalone SPNEGO through a
+TLS-derived CredSSP TSRequest. Pair this prerequisite with the Microsoft-style
+standalone SPNEGO/NTLM challenge fixtures; do not enable GSS fallback and do not
+nominate another owner attempt until the automated path reaches NTLM
+negotiation/challenge.
 
 ## R8 repeated Stop/restart stale-lifetime gate (2026-10-24)
 
@@ -96,40 +121,32 @@ fresh replacement construction and independence from standalone credential
 readiness. These are ordinary full-CTest regressions and intentionally remain
 outside the fixed clipboard sanitizer-count selection.
 
-## R3 TLS-gated real-client trace and fresh-session rule (2026-10-24)
+## R3 post-auth handoff and fresh-session rule (2026-10-24)
 
-Do not change MCS, Share, licensing or RDPGFX wire behavior while the first
-demonstrated real-client failure is R1 TLS. Real-client triage must classify the
-same monotonic evidence chain: **TLS established -> first complete CredSSP
-TSRequest -> CredentialsVerified -> admitted MCS Connect-Initial -> fully
-delivered MCS Connect-Response**.
+The demonstrated Microsoft-client failure is before R3 but after TLS:
+TCP/X.224 HYBRID -> established TLS application traffic -> owned CredSSP
+TSRequest -> standalone SPNEGO -> SPNEGO rejection. Do not change MCS, Share,
+licensing or RDPGFX wire behavior for this failure. R3 becomes the first failing
+owner only after standalone CredSSP reaches `CredentialsVerified` and a later
+MCS transition fails.
 
-“First CredSSP TSRequest” requires a completed owner-bound DER frame from the
-established R1 TLS stream. Do not infer it from
-`LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken`, because that value
-is set as soon as TLS establishes and means the server is waiting for a token.
-`CredentialsVerified` remains the stronger production proof-binding
-milestone. For R3, `AwaitVerifiedR2Admission -> AwaitConnectResponse` is the
-successful Connect-Initial boundary and
-`AwaitConnectResponse -> AwaitErectDomain` is the completed Connect-Response
-boundary.
+Preserve the evidence chain:
+**TLS established -> complete CredSSP TSRequest -> standalone SPNEGO/NTLM ->
+CredentialsVerified -> admitted MCS Connect-Initial -> fully delivered MCS
+Connect-Response**. `AwaitingToken` alone means only that TLS is waiting for
+CredSSP; the observed SPNEGO failure is stronger evidence because the standalone
+mechanism processed the owned frame. Never log TSRequest/SPNEGO/NTLM material,
+passwords, hashes, session keys or delegated credentials.
 
-When a real trace first crosses `CredentialsVerified`, assign ownership to
-the first transition that does not complete; otherwise R3 stays blocked for
-wire changes. Capture only bounded non-secret status/provenance. Never log raw
-TSRequest/SPNEGO/NTLM material, passwords, hashes, session keys or delegated
-credentials.
+For R3, `AwaitVerifiedR2Admission -> AwaitConnectResponse` is the successful
+Connect-Initial boundary and `AwaitConnectResponse -> AwaitErectDomain` is the
+completed Connect-Response boundary. Until `CredentialsVerified` is crossed,
+R3 remains blocked for wire changes.
 
-Stop/restart tests must distinguish **service-lifetime bootstrap material** from
-**connection-lifetime R3 state**. Ordinary Stop must revoke and destroy the
-accepted connection's complete MCS/Share/channel session before R1 listener
-teardown. A later accepted client must construct a new
-`LinuxRuntimeConnection` and a new value-owned `McsSessionLifecycle`; no
-MCS phase, admission/session generation, Connect-Response write state, join,
-licensing, Share or DVC state may be reused. The production-level
-Start->Stop->Start test additionally requires the separate Session Password
-retention contract to be working; do not weaken or bypass that prerequisite to
-manufacture R3 evidence.
+Ordinary Stop must still destroy the accepted connection's complete
+MCS/Share/channel session before listener teardown. A later accept constructs a
+fresh `LinuxRuntimeConnection` and value-owned `McsSessionLifecycle`; no MCS,
+licensing, Share or DVC state may be reused.
 
 ## R5 owner-situation readiness must execute in Release+acceptance CI (2026-10-24)
 

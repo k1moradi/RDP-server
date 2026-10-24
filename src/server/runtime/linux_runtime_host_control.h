@@ -25,6 +25,7 @@ class LinuxRuntimeSecurityConfiguration;
 class LinuxRuntimeAdmissionConfiguration;
 class LinuxRuntimeConnection;
 struct LinuxRuntimeAuthenticationSelection;
+struct LinuxRuntimeConnectionAcceptanceDiagnostics;
 #endif
 class RuntimeLicensingContext;
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -55,6 +56,14 @@ recommendLinuxPrivateLanEndpoint(
     const std::vector<RuntimeHostInterface>& interfaces,
     std::span<const LinuxRuntimeDefaultRoutePreference> defaultRoutes,
     std::uint16_t port = kRuntimeDefaultListenPort);
+
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+// Pure one-for-one diagnostic projection. It is non-authorizing and never
+// translates a transport/TLS failure into a credential failure or vice versa.
+[[nodiscard]] RuntimeAcceptedClientPreauthDiagnostics
+projectLinuxAcceptedClientPreauthDiagnostics(
+    const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept;
+#endif
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.
@@ -172,8 +181,16 @@ private:
     void retireAcceptedClient(RuntimeHostError error) noexcept;
     void clearAcceptedClient() noexcept;
 #endif
+    enum class StoppedRuntimeCredentialPolicy : std::uint8_t
+    {
+        KeepCredentials,
+        RevokeCredentials,
+    };
+
     void retireStoppedRuntime(
-        rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
+        rdp_server::server::security::OwnerConsentRevocationReason reason,
+        StoppedRuntimeCredentialPolicy credentialPolicy =
+            StoppedRuntimeCredentialPolicy::RevokeCredentials) noexcept;
 
     const std::thread::id ownerThread_;
     RuntimeHostOptions selection_{};
@@ -216,6 +233,7 @@ private:
     bool acceptedClientReadable_{};
     bool acceptedClientWritable_{};
     bool clientDisconnected_{};
+    RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics_{};
     ConfiguredAuthenticationMode authenticationMode_{
         ConfiguredAuthenticationMode::Unconfigured};
     std::uint64_t standaloneCredentialGeneration_{};

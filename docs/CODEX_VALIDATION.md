@@ -1,3 +1,29 @@
+## R10 Stop/Start lifecycle and SPNEGO diagnostic authoring receipt — 2026-10-24
+
+**Starting exact-main parent:** `b8a0bb8e97e6b36114ad2495b0c75a5ca3a649cd`.
+
+Source review: **PASS**. Linux HostControl teardown now has an explicit
+credential policy: ordinary Stop opts into preserving the selected standalone
+credential generation, while terminal revoke/destruction take the default
+credential-clearing path. The concurrent R7 GUI lifecycle work remains the
+presentation owner for ordinary Stop, cleared-field reuse and terminal Quit.
+
+R10's accepted-client status projection preserves R1 pre-auth/TLS/termination
+categories and the standalone CredSSP transition/failure category. A TLS
+failure, SPNEGO rejection and NTLM-negotiation failure remain distinct. The
+concurrent R9 redacted SPNEGO reason logging is preserved and GSS fallback
+remains disabled.
+
+Dedicated/strengthened R10 tests cover exact diagnostic projection, three
+repeated direct HostControl Start/Stop cycles with G1 retained, and terminal G1
+revocation.
+
+Canonical `~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector-only environment. Exact-publication-SHA hosted CI: **PENDING**.
+No new owner Microsoft-client attempt is requested until the restart regression
+passes and the automated Microsoft-compatible standalone path reaches NTLM
+negotiation/challenge.
+
 ## R3 owner evidence correction — 2026-10-24
 
 **Starting exact-main parent:** `fb27691eb0b77425fedde6e7a64d8f4b60165010`.

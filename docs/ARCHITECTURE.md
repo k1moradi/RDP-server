@@ -1,3 +1,31 @@
+## R10 Stop/Start credential scope and exact pre-auth diagnostics (2026-10-24)
+
+R10 owns two distinct Linux teardown scopes. Ordinary Sharing OFF explicitly
+selects a keep-credentials policy: current-owner consent is revoked, R8/R5
+native state and the accepted R3/R2/R1 connection are retired, the listener is
+closed, selection-bound generated TLS identity is retired and deployment policy
+is reset. The host then reports Stopped with no error while preserving only the
+memory-only standalone credential owner, its selected generation,
+StandalonePassword authentication mode and `credentialsConfigured`.
+
+Terminal security loss, `revokeSharing()` and object destruction use the
+default revoke-credentials policy. Credential replacement/mode change remains
+its own transaction and revokes prior owner consent plus the old credential
+generation. R7 already routes ordinary Sharing OFF through Stop and explicit
+Quit through Stop+Revoke.
+
+R10 also exposes one bounded current/last accepted-client diagnostic snapshot.
+Linux projects the existing R1 pre-auth stage, TLS handshake stage and transport
+termination plus the standalone CredSSP transition and failure stage one-for-one.
+`TlsFailure`, `Spnego`, `NtlmNegotiation`, MIC/sign-seal, pubKeyAuth,
+authInfo and admission remain distinct. A redacted product
+`AuthenticationRejected` result never replaces this first-failing-boundary
+diagnostic.
+
+The owner trace reached an owned CredSSP TSRequest and standalone SPNEGO, so
+the current Microsoft-client interoperability blocker is standalone SPNEGO
+compatibility, not R1 TLS. OS-GSS fallback remains disabled.
+
 ## R8 Stop/restart lifetime is independent of the service credential (2026-10-24)
 
 The Linux R8 owner is a child of one accepted native desktop/session lifetime,

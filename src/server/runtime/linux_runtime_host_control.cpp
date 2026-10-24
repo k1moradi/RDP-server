@@ -544,6 +544,153 @@ struct LinuxHostFramePublicationContext final
 #endif
 } // namespace
 
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+RuntimeAcceptedClientPreauthDiagnostics
+projectLinuxAcceptedClientPreauthDiagnostics(
+    const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept
+{
+    RuntimeAcceptedClientPreauthDiagnostics projected;
+    projected.available = true;
+
+    using SourcePreauth = rdp_server::server::transport::PreauthStage;
+    switch (source.preauthStage)
+    {
+    case SourcePreauth::AwaitConnectionRequest:
+        projected.preauthStage =
+            RuntimeAcceptedClientPreauthStage::AwaitConnectionRequest;
+        break;
+    case SourcePreauth::AwaitTls:
+        projected.preauthStage = RuntimeAcceptedClientPreauthStage::AwaitTls;
+        break;
+    case SourcePreauth::AwaitCredSsp:
+        projected.preauthStage =
+            RuntimeAcceptedClientPreauthStage::AwaitCredSsp;
+        break;
+    case SourcePreauth::AwaitMcsConnectInitial:
+        projected.preauthStage =
+            RuntimeAcceptedClientPreauthStage::AwaitMcsConnectInitial;
+        break;
+    case SourcePreauth::Closed:
+        projected.preauthStage = RuntimeAcceptedClientPreauthStage::Closed;
+        break;
+    }
+
+    switch (source.tlsHandshakeStage)
+    {
+    case LinuxRuntimeTlsHandshakeDiagnosticStage::NotStarted:
+        projected.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::NotStarted;
+        break;
+    case LinuxRuntimeTlsHandshakeDiagnosticStage::Handshaking:
+        projected.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::Handshaking;
+        break;
+    case LinuxRuntimeTlsHandshakeDiagnosticStage::Established:
+        projected.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::Established;
+        break;
+    case LinuxRuntimeTlsHandshakeDiagnosticStage::Closed:
+        projected.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::Closed;
+        break;
+    }
+
+    switch (source.credSspTransition)
+    {
+    case LinuxRuntimeCredSspDiagnosticTransition::NotStarted:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::NotStarted;
+        break;
+    case LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::AwaitingToken;
+        break;
+    case LinuxRuntimeCredSspDiagnosticTransition::BindingVerified:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::BindingVerified;
+        break;
+    case LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        break;
+    case LinuxRuntimeCredSspDiagnosticTransition::Failed:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        break;
+    case LinuxRuntimeCredSspDiagnosticTransition::Closed:
+        projected.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        break;
+    }
+
+    using SourceFailure = rdp_server::server::security::
+        StandaloneAuthenticationFailureStage;
+    switch (source.standaloneAuthenticationFailureStage)
+    {
+    case SourceFailure::None:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::None;
+        break;
+    case SourceFailure::NtlmNegotiation:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
+        break;
+    case SourceFailure::Mic:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::Mic;
+        break;
+    case SourceFailure::SignSeal:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::SignSeal;
+        break;
+    case SourceFailure::Spnego:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::Spnego;
+        break;
+    case SourceFailure::PubKeyAuth:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::PubKeyAuth;
+        break;
+    case SourceFailure::AuthInfo:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::AuthInfo;
+        break;
+    case SourceFailure::Admission:
+        projected.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        break;
+    }
+
+    using SourceTermination =
+        rdp_server::server::transport::TcpConnectionTermination;
+    switch (source.termination)
+    {
+    case SourceTermination::Open:
+        projected.termination = RuntimeAcceptedClientTermination::Open;
+        break;
+    case SourceTermination::OrderlyTlsClose:
+        projected.termination =
+            RuntimeAcceptedClientTermination::OrderlyTlsClose;
+        break;
+    case SourceTermination::TransportError:
+        projected.termination =
+            RuntimeAcceptedClientTermination::TransportError;
+        break;
+    case SourceTermination::TlsFailure:
+        projected.termination = RuntimeAcceptedClientTermination::TlsFailure;
+        break;
+    case SourceTermination::ProtocolError:
+        projected.termination =
+            RuntimeAcceptedClientTermination::ProtocolError;
+        break;
+    case SourceTermination::Cancelled:
+        projected.termination = RuntimeAcceptedClientTermination::Cancelled;
+        break;
+    }
+    return projected;
+}
+#endif
+
 RuntimeHostRecommendedEndpoint recommendLinuxPrivateLanEndpoint(
     const std::vector<RuntimeHostInterface>& interfaces,
     const std::span<const LinuxRuntimeDefaultRoutePreference> defaultRoutes,
@@ -982,6 +1129,14 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             std::string(currentDesktop.display());
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured = selectedCredentialConfigured();
+    snapshot.acceptedClientPreauthDiagnostics =
+        acceptedClientPreauthDiagnostics_;
+    if (acceptedClient_ != nullptr)
+    {
+        snapshot.acceptedClientPreauthDiagnostics =
+            projectLinuxAcceptedClientPreauthDiagnostics(
+                acceptedClient_->acceptanceDiagnostics());
+    }
 #endif
     if (tlsContext_ != nullptr)
     {
@@ -1425,6 +1580,7 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     }
 
     listener_ = std::move(candidate);
+    acceptedClientPreauthDiagnostics_ = {};
     stage_ = RuntimeHostStage::ListenerAvailable;
     lastError_ = RuntimeHostError::None;
     return {RuntimeHostError::None, false};
@@ -1840,7 +1996,12 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
     retireNativeDesktop();
 #endif
     if (acceptedClient_ != nullptr)
+    {
         acceptedClient_->revoke();
+        acceptedClientPreauthDiagnostics_ =
+            projectLinuxAcceptedClientPreauthDiagnostics(
+                acceptedClient_->acceptanceDiagnostics());
+    }
     clearAcceptedClient();
     clientDisconnected_ = hadAcceptedClient && listener_.valid();
     stage_ = listener_.valid()
@@ -1964,6 +2125,9 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
     }
 
     acceptedClient_ = std::move(connection);
+    acceptedClientPreauthDiagnostics_ =
+        projectLinuxAcceptedClientPreauthDiagnostics(
+            acceptedClient_->acceptanceDiagnostics());
     acceptedClientDeadline_ = now + std::chrono::seconds{30};
     acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;
     acceptedClientId_ = nextClientId_++;
@@ -2473,27 +2637,22 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept
 }
 
 void LinuxRuntimeHostControl::retireStoppedRuntime(
-    rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept
+    rdp_server::server::security::OwnerConsentRevocationReason reason,
+    StoppedRuntimeCredentialPolicy credentialPolicy) noexcept
 {
     // Security-significant host teardown order: invalidate host-owner R2
     // first, then retire the accepted R3/R2/R1 aggregate, then close R1's
     // listener. No accepted TLS/socket or later native owner may outlive Stop.
+    // Credential lifetime is explicit: ordinary Stop opts into preservation;
+    // terminal loss and destruction take the default revoke policy.
     ownerSharingAuthority_.revoke(reason);
-    // Ordinary Stop ends every authorization and connection lifetime, but
-    // the memory-only application credential belongs to the host lifetime.
-    // Terminal security loss and destruction still erase that owner.
-    if (reason !=
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop)
+    if (credentialPolicy == StoppedRuntimeCredentialPolicy::RevokeCredentials)
     {
         standalonePasswordCredential_.revoke();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-        if (authenticationMode_ ==
-            ConfiguredAuthenticationMode::StandalonePassword)
-        {
-            authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
-            standaloneCredentialGeneration_ = 0U;
-            credentialsConfigured_ = false;
-        }
+        authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+        standaloneCredentialGeneration_ = 0U;
+        credentialsConfigured_ = false;
 #endif
     }
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
@@ -2501,7 +2660,12 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     retireNativeDesktop();
 #endif
     if (acceptedClient_ != nullptr)
+    {
         acceptedClient_->revoke();
+        acceptedClientPreauthDiagnostics_ =
+            projectLinuxAcceptedClientPreauthDiagnostics(
+                acceptedClient_->acceptanceDiagnostics());
+    }
     clearAcceptedClient();
     clientDisconnected_ = false;
 #endif
@@ -2518,7 +2682,8 @@ RuntimeHostResult LinuxRuntimeHostControl::stopSharing()
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
     retireStoppedRuntime(
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop,
+        StoppedRuntimeCredentialPolicy::KeepCredentials);
     if (stage_ != RuntimeHostStage::Revoked)
     {
         stage_ = RuntimeHostStage::Stopped;

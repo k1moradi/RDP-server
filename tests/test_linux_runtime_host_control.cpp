@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_host_control.h"
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+#include "server/runtime/linux_runtime_connection.h"
+#endif
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -259,6 +262,7 @@ int main(int argc, char** argv)
         assert(status.product.clientCount == 0U);
         assert(status.product.activeClientIds.empty());
         assert(status.product.boundEndpoint.empty());
+        assert(!status.acceptedClientPreauthDiagnostics.available);
         assert(!status.firstLiveGraphicsTrace.firstFramebufferAvailable);
         assert(!status.firstLiveGraphicsTrace.firstClearCodecFramePrepared);
         assert(!status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
@@ -291,6 +295,85 @@ int main(int argc, char** argv)
                        RuntimeHostRecommendationSource::Unavailable);
         }
         return 0;
+    }
+
+    if (testCase == "linux-host-control-preauth-diagnostic-projection")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        using SourcePreauth =
+            rdp_server::server::transport::PreauthStage;
+        using SourceTls = LinuxRuntimeTlsHandshakeDiagnosticStage;
+        using SourceCredSsp = LinuxRuntimeCredSspDiagnosticTransition;
+        using SourceFailure = rdp_server::server::security::
+            StandaloneAuthenticationFailureStage;
+        using SourceTermination =
+            rdp_server::server::transport::TcpConnectionTermination;
+
+        LinuxRuntimeConnectionAcceptanceDiagnostics source{};
+        source.preauthStage = SourcePreauth::AwaitTls;
+        source.tlsHandshakeStage = SourceTls::Handshaking;
+        source.credSspTransition = SourceCredSsp::NotStarted;
+        source.termination = SourceTermination::Open;
+        auto projected =
+            projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.available);
+        assert(projected.preauthStage ==
+               RuntimeAcceptedClientPreauthStage::AwaitTls);
+        assert(projected.tlsHandshakeStage ==
+               RuntimeAcceptedClientTlsHandshakeStage::Handshaking);
+        assert(projected.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::NotStarted);
+        assert(projected.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::None);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::Open);
+
+        source.preauthStage = SourcePreauth::AwaitCredSsp;
+        source.tlsHandshakeStage = SourceTls::Established;
+        source.credSspTransition = SourceCredSsp::AwaitingToken;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.preauthStage ==
+               RuntimeAcceptedClientPreauthStage::AwaitCredSsp);
+        assert(projected.tlsHandshakeStage ==
+               RuntimeAcceptedClientTlsHandshakeStage::Established);
+        assert(projected.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::AwaitingToken);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::Open);
+
+        source.preauthStage = SourcePreauth::Closed;
+        source.tlsHandshakeStage = SourceTls::Closed;
+        source.credSspTransition = SourceCredSsp::Closed;
+        source.standaloneAuthenticationFailureStage = SourceFailure::None;
+        source.termination = SourceTermination::TlsFailure;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::TlsFailure);
+        assert(projected.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::None);
+
+        source.credSspTransition = SourceCredSsp::Failed;
+        source.standaloneAuthenticationFailureStage = SourceFailure::Spnego;
+        source.termination = SourceTermination::Cancelled;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::Failed);
+        assert(projected.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::Spnego);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::Cancelled);
+
+        source.standaloneAuthenticationFailureStage =
+            SourceFailure::NtlmNegotiation;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::Cancelled);
+        return 0;
+#endif
     }
 
     if (testCase ==
@@ -1042,6 +1125,137 @@ int main(int argc, char** argv)
         assert(stopped.boundEndpoint.empty());
         assert(!stopped.hostOwnerAuthorized);
         assert(!stopped.product.ownerAuthorized);
+        return 0;
+#endif
+    }
+
+
+    if (testCase ==
+        "linux-host-control-stop-start-retains-standalone-credential")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U)
+            return 77;
+        PortableBootstrapEvidence evidence(processUid);
+        LinuxRuntimeHostControl control(evidence);
+
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+        assert(std::ranges::all_of(
+            password, [](char16_t value) { return value == u'\0'; }));
+        const auto generationOne =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationOne.configured && generationOne.generation != 0U);
+
+        const auto recommendation = control.status().product.recommendedEndpoint;
+        if (!recommendation.valid())
+            return 77;
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+
+        std::uint16_t nextPort = 34200U;
+        for (std::size_t cycle = 0U; cycle < 3U; ++cycle)
+        {
+            const auto beforePermission = control.status();
+            assert(beforePermission.credentialsConfigured);
+            assert(beforePermission.product.credentialsConfigured);
+            assert(!beforePermission.hostOwnerAuthorized);
+            assert(!beforePermission.listenerAvailable);
+            assert(control.requestHostPermissionSetup(permission).succeeded());
+
+            bool started = false;
+            std::uint16_t selectedPort = 0U;
+            for (std::size_t attempt = 0U; attempt < 30U; ++attempt)
+            {
+                const RuntimeHostOptions options{
+                    recommendation.interfaceId, recommendation.address,
+                    nextPort++, true, false};
+                assert(control.configure(options).succeeded());
+                const auto prepared = control.status();
+                assert(prepared.credentialsConfigured);
+                assert(prepared.product.credentialsConfigured);
+                assert(prepared.hostOwnerAuthorized);
+                assert(prepared.product.ownerAuthorized);
+                assert(prepared.tlsIdentityReady);
+                assert(!prepared.listenerAvailable);
+
+                const RuntimeHostResult start = control.startSharing();
+                if (start.succeeded())
+                {
+                    started = true;
+                    selectedPort = options.port;
+                    break;
+                }
+                assert(start.error == RuntimeHostError::PortUnavailable);
+            }
+            assert(started);
+
+            const auto live = control.status();
+            assert(live.stage == RuntimeHostStage::ListenerAvailable);
+            assert(live.listenerAvailable);
+            assert(live.listenerGeneration != 0U);
+            assert(live.credentialsConfigured);
+            assert(live.product.credentialsConfigured);
+            assert(live.hostOwnerAuthorized);
+            assert(live.product.ownerAuthorized);
+            assert(live.product.state == RuntimeProductHostState::Listening);
+            assert(control.standaloneApplicationPasswordObservation().generation ==
+                   generationOne.generation);
+
+            assert(control.stopSharing().succeeded());
+            const auto stopped = control.status();
+            assert(stopped.stage == RuntimeHostStage::Stopped);
+            assert(stopped.lastError == RuntimeHostError::None);
+            assert(stopped.product.state == RuntimeProductHostState::Stopped);
+            assert(stopped.credentialsConfigured);
+            assert(stopped.product.credentialsConfigured);
+            assert(!stopped.hostOwnerAuthorized);
+            assert(!stopped.product.ownerAuthorized);
+            assert(!stopped.listenerAvailable);
+            assert(stopped.listenerGeneration == 0U);
+            assert(stopped.boundEndpoint.empty());
+            assert(stopped.product.boundEndpoint.empty());
+            assert(!stopped.tlsIdentityReady);
+            assert(!stopped.product.tlsIdentityReady);
+            assert(stopped.product.recommendedEndpoint.valid());
+            assert(stopped.product.recommendedEndpoint.interfaceId ==
+                   recommendation.interfaceId);
+            assert(stopped.product.recommendedEndpoint.address ==
+                   recommendation.address);
+            assert(stopped.product.recommendedEndpoint.port == selectedPort);
+
+            const auto retained =
+                control.standaloneApplicationPasswordObservation();
+            assert(retained.configured);
+            assert(retained.generation == generationOne.generation);
+            StandaloneVisitObservation visited;
+            assert(control.visitStandaloneApplicationPassword(
+                generationOne.generation, &observeStandaloneCredential,
+                &visited));
+            assert(visited.visited);
+        }
+
+        assert(control.revokeSharing().succeeded());
+        const auto revoked = control.status();
+        assert(revoked.stage == RuntimeHostStage::Revoked);
+        assert(!revoked.credentialsConfigured);
+        assert(!revoked.product.credentialsConfigured);
+        assert(!revoked.hostOwnerAuthorized);
+        assert(!revoked.listenerAvailable);
+        const auto afterRevoke =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterRevoke.configured);
+        assert(afterRevoke.generation > generationOne.generation);
+        StandaloneVisitObservation revokedVisit;
+        assert(!control.visitStandaloneApplicationPassword(
+            generationOne.generation, &observeStandaloneCredential,
+            &revokedVisit));
         return 0;
 #endif
     }

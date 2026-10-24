@@ -1,3 +1,31 @@
+## R7 Linux XCB focus-chain qualification correction (2026-10-24)
+
+Starting exact-main parent: `8c94f9fffe5172f7e149c69d5f01afa80d7d6d45`.
+
+The first hosted Linux XCB execution of
+`owner-gui-credential-parity` reached the strengthened R7 test only after the
+same Release+ON offscreen CTest had already passed. Under bare `xvfb-run`
+there is no X11 window manager, so the top-level window cannot become the
+system-active X11 window and `QWidget::hasFocus()` remains false even after
+Qt records the requested child focus target.
+
+The test now distinguishes those two layers without weakening the product
+requirement. A credential editor qualifies as the Qt focus target when it has
+active keyboard focus or when the top-level QWidget's `focusWidget()` is that
+editor. Offscreen/normal active-window execution continues to exercise real
+`hasFocus()`; bare Xvfb uses the deterministic internal Qt focus-chain target.
+Tab events must still advance Username -> Password -> Confirm, and the same
+direct QKeyEvents must still change each focused editor.
+
+This is test-environment handling only. Production focus policy, credential
+editing authority, authentication, owner consent, listener ownership and RDP
+wire behavior are unchanged.
+
+Validation of parent `50f22a5…`: Release+ON offscreen owner-GUI parity
+**PASS** before the extra XCB invocation; the added XCB invocation failed only
+at the active-window `hasFocus()` assertion. Exact-SHA XCB requalification for
+this correction: **PENDING**.
+
 ## R7 P0 owner credential editor interaction/presentation completion (2026-10-24)
 
 Starting exact-main parent: `f50cf957eb6df01ed4fb3f0b3b4fb21836c8d6c3`.

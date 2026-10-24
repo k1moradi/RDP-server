@@ -1,3 +1,30 @@
+## R7 XCB focus-chain follow-up after first hosted execution (2026-10-24)
+
+Starting exact-main parent: `8c94f9fffe5172f7e149c69d5f01afa80d7d6d45`.
+
+GitHub Actions for R7 commit `50f22a5baf47bd42955a0680a029c022ec0cdda6`
+proved the Release+ON Linux offscreen credential parity CTest **PASS**. The
+additional qxcb/Xvfb invocation then aborted at
+`assert(username->hasFocus())`. This is attributable to the test environment:
+bare Xvfb has no window manager to activate the top-level X11 window, while Qt
+still records the child selected by `setFocus()` as the top-level
+`focusWidget()`.
+
+The correction accepts either actual active-window focus or that exact internal
+Qt focus target. It does not bypass the tab chain or input path: Username must
+remain the selected focus target, a synthesized Tab must select Password,
+another Tab must select Confirm, and direct QKeyEvents must modify those exact
+editors.
+
+The same Actions run also showed the Ubuntu full-suite /
+`runtime.linux-gui-bootstrap-clipboard-dormancy` failure already present on
+parent `f50cf957eb6df01ed4fb3f0b3b4fb21836c8d6c3`; it is not introduced by
+R7's GUI interaction patch and remains outside this direct R7 file ownership.
+
+Source/diff review: **PASS**.
+Corrected Linux qxcb parity execution: **PENDING**.
+macOS Release+ON parity: **PENDING** on the current run.
+
 ## R7 P0 credential editor keyboard/focus and Linux presentation validation (2026-10-24)
 
 Starting exact-main parent: `f50cf957eb6df01ed4fb3f0b3b4fb21836c8d6c3`.

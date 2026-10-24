@@ -1,3 +1,33 @@
+## R1 automatic TLS same-SHA hosted qualification — 2026-10-23
+
+Exact qualified SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.
+Actions run: `40070183496`.
+
+Hosted R1 evidence:
+- Windows `protocol (windows-latest)`, job `120801757647`: mismatched
+  file-backed private key plus generated IPv4 SAN, IPv6 SAN, generic-subject /
+  IP-SAN authority, wrong-endpoint denial, Stop retirement and no-listener
+  side-effect all **PASS**.
+- Ubuntu `protocol (ubuntu-latest)`, job `120801757716`: the same seven
+  cases **PASS**, and
+  `runtime.linux-host-control-automatic-tls-identity-lifecycle` **PASS**.
+- macOS `protocol (macos-latest)`, job `120801757678`: the same seven
+  cases **PASS**, including the OpenSSL-4 subject-observation regression.
+
+The protocol jobs had unrelated aggregate failures on this SHA; those are
+recorded by their owning GUI/R2 work and do not invalidate the explicit R1
+case results above. A compare from the qualified SHA through current parent
+`270b282b793e4bd2cc28aa25170ba801ad267c8b` changes only documentation,
+GUI projection and GUI/offline test files; no R1 TLS source or generated-TLS
+test file changed. Current-head Ubuntu/macOS independently repeat the R1
+generated TLS PASS set, and current-head macOS full protocol/project CTest is
+green.
+
+Classification: **R1 HOSTED QUALIFICATION PASS** for automatic endpoint-bound
+TLS across Windows/Linux/macOS at one exact SHA. Owner-native canonical full
+CTest: **NOT ESTABLISHED by this receipt**. Physical Microsoft-client
+acceptance: **NOT RUN / separate product gate**.
+
 ## 2026-10-23 — R7/R10 offline desktop GUI portability and product listener-readiness
 
 Starting exact-main parent: `b055a3b86455da5ee78d7950a0d8b58af122029c`.

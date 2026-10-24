@@ -1,3 +1,36 @@
+## R1 automatic TLS hosted qualification closure — 2026-10-23
+
+Qualified exact SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.
+Actions run `40070183496` supplied same-SHA hosted evidence on all three
+protocol platforms after the OpenSSL subject/API and HostControl lifecycle
+test corrections.
+
+R1-specific results:
+- Windows job `120801757647`: **PASS** for
+  `runtime.rejects-live-tls-context-private-key-mismatch` and all six
+  generated TLS identity cases.
+- Ubuntu job `120801757716`: **PASS** for the same seven TLS cases plus
+  `runtime.linux-host-control-automatic-tls-identity-lifecycle`.
+- macOS job `120801757678`: **PASS** for the same seven TLS cases,
+  including `runtime.generated-tls-identity-generic-subject-ip-san-authority`
+  against the hosted OpenSSL 4 toolchain.
+
+Those three protocol jobs were not aggregate-green because unrelated GUI/R2
+product tests still failed on that SHA; that does not convert those failures
+into R1 failures. Current main is a descendant and, through
+`270b282b793e4bd2cc28aa25170ba801ad267c8b`, has no changes to the R1 TLS
+source or generated-TLS regression files. Current-head Ubuntu and macOS again
+report the R1 generated TLS set **PASS**; macOS protocol is fully green there.
+
+R1 automatic endpoint-bound TLS therefore has **PASS** hosted compile/test
+qualification across Windows, Ubuntu and macOS at one exact SHA. Canonical
+owner-native `~/rdp-server/build/` acceptance and physical Microsoft-client
+end-to-end product acceptance remain separate and are not claimed here.
+
+**R1 next gate:** none at the automatic TLS implementation boundary. Reopen R1
+only for a new transport/TLS defect, endpoint-identity regression, or evidence
+from owner-native/client qualification that specifically implicates R1.
+
 ## R7/R10 offline desktop GUI portability and product listener-readiness (2026-10-23)
 
 Starting exact-main parent: `b055a3b86455da5ee78d7950a0d8b58af122029c`.

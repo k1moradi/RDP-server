@@ -1911,9 +1911,9 @@ if(TARGET rdp-server-linux-runtime-security)
     # R3 containment: no protocol bytes are changed. Pin the production
     # TLS -> CredSSP CredentialsVerified -> successful native R2 admission ->
     # first-MCS handoff, and prove Stop destroys the accepted connection/MCS
-    # owner before R1 listener teardown. A full product
-    # Start->Stop->Start receipt remains gated by the independent credential
-    # retention defect tracked in the roadmap.
+    # owner before R1 listener teardown. The already-qualified
+    # Start->Stop->Start credential lifecycle remains independent of this R3
+    # boundary gate.
     add_test(NAME runtime.linux-host-control-stop-retires-r3-session-state
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"

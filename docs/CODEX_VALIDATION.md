@@ -1,3 +1,15 @@
+## R3 post-publication registration-comment correction (2026-10-24)
+
+**Starting exact-main parent:** `c88b4132a8cdfc9422ab5be809ed7fb9041f99de`.
+
+Post-publication source review of the R3 P2 gate found one stale CTest
+registration comment that still described the standalone credential
+Start -> Stop -> Start lifecycle as blocked. The underlying gate logic already
+required `CredentialsVerified` plus successful native admission before first
+MCS and was unaffected. The comment now reflects the already-qualified
+Stop/restart lifecycle. No test behavior, production source or wire behavior
+changed. Connector source review: **PASS**; canonical CTest: **NOT RUN**.
+
 ## R3 P2 gate hardening after direct-NTLM owner evidence (2026-10-24)
 
 **Starting exact-main parent:** `dac291c38f294e1a181572c959db454e10d7021a`.

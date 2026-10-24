@@ -1,3 +1,19 @@
+## R8 boundary after no-config R2/R5/R7 composition landing (2026-10-23)
+
+The no-argument consumer path now has a real pre-listener standalone
+composition: R5 supplies the current trusted physical X11 target; R10 creates
+standalone R2 security/admission policy from that target; R7 forwards the
+Session Password into the one production generation-fenced credential owner;
+the explicit Sharing transaction requests local View/Input permission before
+R1 endpoint/listener Start. None of those facts grants clipboard authority.
+
+R8 remains subordinate to the later admitted native-desktop generation.
+Automatic standalone policy replacement must not construct or preserve a native
+clipboard owner, and the GUI Sharing transaction must continue requesting
+`allowClipboard = false`. Password presentation fields are cleared immediately
+after the production credential call. Only a later fresh admitted
+admission/session pair may prepare the still-dormant R8 owner.
+
 ## R7/R10 no-argument consumer composition and qualification seam — 2026-10-23
 
 The normal Linux desktop entrypoint now composes existing owners instead of

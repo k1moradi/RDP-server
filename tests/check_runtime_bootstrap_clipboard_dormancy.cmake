@@ -88,6 +88,54 @@ foreach(forbidden_text IN ITEMS
     endif()
 endforeach()
 
+# R5/R2 no-config standalone preparation now derives one native-target policy
+# from trusted physical X11 evidence before the standalone credential is
+# installed. That preparation may replace security/admission configuration, but
+# it must remain pre-listener and completely outside R8/native clipboard state.
+string(FIND "${host_source}"
+    "bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept"
+    standalone_admission_begin)
+string(FIND "${host_source}"
+    "bool LinuxRuntimeHostControl::buildAuthenticationSelection("
+    standalone_admission_end)
+if(standalone_admission_begin LESS 0 OR
+   standalone_admission_end LESS_EQUAL standalone_admission_begin)
+    message(FATAL_ERROR
+        "unable to isolate automatic standalone admission preparation")
+endif()
+math(EXPR standalone_admission_length
+    "${standalone_admission_end} - ${standalone_admission_begin}")
+string(SUBSTRING "${host_source}" ${standalone_admission_begin}
+    ${standalone_admission_length} standalone_admission_source)
+foreach(required_text IN ITEMS
+        "selectCurrentPhysicalX11Desktop("
+        "configureStandalonePersonalDesktop(rule)"
+        "configureStandalonePersonalDesktop(rule, *security)"
+        "generatedAdmissionConfiguration_ = std::move(admission)"
+        "generatedSecurityConfiguration_ = std::move(security)")
+    string(FIND "${standalone_admission_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "automatic standalone admission lost required no-config seam: ${required_text}")
+    endif()
+endforeach()
+foreach(forbidden_text IN ITEMS
+        "listener_."
+        "startSharing("
+        "nativeDesktop_"
+        "clipboard.prepare("
+        "kConsoleClipboardPermission"
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite(")
+    string(FIND "${standalone_admission_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "automatic standalone admission must stay outside listener/R8 authority: ${forbidden_text}")
+    endif()
+endforeach()
+
 # Automatic GUI bootstrap may provision local TLS/licensing/authentication
 # prerequisites, but it is not an R8 authority boundary and must not activate
 # CLIPRDR or construct/dispatch the prepared clipboard owner.
@@ -170,6 +218,58 @@ foreach(forbidden_text IN ITEMS
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
             "automatic endpoint preparation must stay outside R8: ${forbidden_text}")
+    endif()
+endforeach()
+
+# R7's owner-acceptance Session Password surface now drives the exact
+# production credential -> View/Input permission -> endpoint/listener
+# transaction. Clipboard remains explicitly denied in that transaction, and
+# password presentation storage is cleared before any later network step.
+string(FIND "${desktop_window_source}"
+    "void DesktopWindow::requestStart()" gui_start_begin)
+string(FIND "${desktop_window_source}"
+    "void DesktopWindow::requestStop()" gui_start_end)
+if(gui_start_begin LESS 0 OR gui_start_end LESS_EQUAL gui_start_begin)
+    message(FATAL_ERROR "unable to isolate Session Password Sharing transaction")
+endif()
+math(EXPR gui_start_length "${gui_start_end} - ${gui_start_begin}")
+string(SUBSTRING "${desktop_window_source}" ${gui_start_begin}
+    ${gui_start_length} gui_start_source)
+string(FIND "${gui_start_source}"
+    "host_.configureStandalonePassword(" gui_credential)
+string(FIND "${gui_start_source}"
+    "sessionPassword_->clear()" gui_password_clear)
+string(FIND "${gui_start_source}"
+    "sessionPasswordConfirm_->clear()" gui_confirmation_clear)
+string(FIND "${gui_start_source}"
+    "permission.allowClipboard = false" gui_permission_clipboard_denial)
+string(FIND "${gui_start_source}"
+    "host_.requestHostPermission(permission)" gui_permission)
+string(FIND "${gui_start_source}"
+    "host_.start(currentHostRequest())" gui_start)
+if(gui_credential LESS 0 OR gui_password_clear LESS 0 OR
+   gui_confirmation_clear LESS 0 OR gui_permission_clipboard_denial LESS 0 OR
+   gui_permission LESS 0 OR gui_start LESS 0 OR
+   NOT gui_credential LESS gui_password_clear OR
+   NOT gui_password_clear LESS gui_permission OR
+   NOT gui_confirmation_clear LESS gui_permission OR
+   NOT gui_permission_clipboard_denial LESS gui_permission OR
+   NOT gui_permission LESS gui_start)
+    message(FATAL_ERROR
+        "Session Password Sharing must clear secrets and keep clipboard denied before Start")
+endif()
+foreach(forbidden_text IN ITEMS
+        "allowClipboard = true"
+        "kConsoleClipboardPermission"
+        "clipboard.prepare("
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite(")
+    string(FIND "${gui_start_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Session Password Sharing transaction must not activate R8: ${forbidden_text}")
     endif()
 endforeach()
 

@@ -1,3 +1,14 @@
+## Standalone bootstrap/Sharing must remain clipboard-free (2026-10-23)
+
+When no-config standalone security/admission policy is regenerated from current
+physical-X11 evidence, keep that helper limited to R2 policy ownership. It must
+not open the listener, create the native desktop, grant clipboard permission or
+touch CLIPRDR/prepared clipboard APIs. In the GUI's explicit Sharing
+transaction, configure the production Session Password first, immediately clear
+both password widgets, request only View/Input with `allowClipboard = false`,
+then prepare/start the endpoint. Do not infer clipboard freshness from the
+credential, policy, TLS or licensing generation.
+
 ## Portable host-control deny fallbacks must be backend-link independent (2026-10-23)
 
 A cross-platform `RuntimeHostControl` default denial path must not introduce a

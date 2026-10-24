@@ -1,3 +1,31 @@
+## R8 P2 consumes no-config standalone/owner-acceptance composition (2026-10-23)
+
+Dependency recheck at starting main `12bfbdbfd684d79fe21119e88b5ab3815eba4f74`: the prior R1
+OpenSSL subject-observation test blocker is **RESOLVED**, R5 now selects the
+current trusted physical X11 desktop without configuration, and R7/R10 now
+expose a compile-time owner-acceptance Session Password surface that forwards
+into the exact production standalone credential owner. Normal no-argument Linux
+composition also installs the bounded runtime service/status timers and creates
+R2 standalone security/admission policy from the selected physical X11 target
+when Sharing is requested.
+
+R8 therefore continues across those concrete boundaries. The existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` regression now isolates
+`prepareAutomaticStandaloneAdmission()` and requires the trusted X11 selector
+plus generated R2 security/admission owners while rejecting listener, native
+desktop and all R8/CLIPRDR authority there. It also isolates
+`DesktopWindow::requestStart()` and pins the production transaction:
+Session Password configuration -> immediate password/confirmation clearing ->
+explicit `allowClipboard = false` View/Input permission -> endpoint/listener
+Start. No clipboard permission, prepared-owner, route, dispatch, queue or write
+operation may enter that path.
+
+This does not promote StandalonePassword or clipboard. The public Release
+standalone-password capability remains literal false until the owner-authorized
+real Microsoft-client qualification succeeds. R8 activation remains separately
+**BLOCKED** until the first real desktop/video/input/Stop PASS; offline and
+owner-acceptance UI tests are not that evidence.
+
 ## R5 P1 dependency recheck and end-to-end offline closure — 2026-10-23
 
 Starting exact-main parent: `8d4a476b404ef3bef1d70705a913bc19e28a0fee`.

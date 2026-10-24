@@ -1,3 +1,19 @@
+## R8 no-config standalone/owner-acceptance boundary regression (2026-10-23)
+
+`runtime.linux-gui-bootstrap-clipboard-dormancy` must consume the landed
+no-config standalone composition. Isolate
+`LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission()`: require the
+trusted current physical-X11 selector and generated standalone security/admission
+owners, but reject listener access, native desktop ownership and every
+clipboard/CLIPRDR authority token. Isolate `DesktopWindow::requestStart()`:
+require production standalone credential configuration, immediate clearing of
+both password widgets, literal clipboard denial on the owner-permission request,
+then endpoint/listener Start in that order.
+
+This is source/lifetime evidence only. Debug/owner-acceptance GUI execution does
+not qualify public StandalonePassword and does not satisfy R8's physical
+desktop/video/input/Stop activation gate.
+
 ## R5 no-config StandalonePassword end-to-end offline state machine — 2026-10-23
 
 `runtime.linux-no-config-standalone-current-x11-selection` must not stop at

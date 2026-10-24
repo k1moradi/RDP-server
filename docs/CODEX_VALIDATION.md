@@ -1,3 +1,30 @@
+## R8 P2 dependency recheck after owner-acceptance composition — 2026-10-23
+
+Starting exact-main parent: `12bfbdbfd684d79fe21119e88b5ab3815eba4f74`.
+
+Resolved upstream source blockers consumed by R8:
+- R1's OpenSSL test portability failure is corrected.
+- R5 `346f5933d47778599aa67c77052e4025040d0230` plus the current R5 closure
+  provides trusted no-config physical X11 targeting through production
+  standalone admission evidence.
+- R7/R10 `8001d148678b8106ac0953bba70be01ab1af38ee` adds the production-backed
+  owner-acceptance Session Password transaction and no-argument runtime timers;
+  subsequent corrections preserve that composition.
+
+R8 continued rather than waiting. The bootstrap dormancy source regression now
+guards both automatic standalone R2 policy preparation and the exact GUI
+credential -> permission -> endpoint/listener transaction. It requires
+password-field cleanup and literal clipboard denial before Start, and rejects
+listener/native/R8 authority from automatic admission preparation.
+
+Remaining blockers are evidence/product gates, not an R8 source-integration
+blocker. `kStandalonePasswordProductCapabilityApproved` remains false until
+the real unmodified Microsoft-client owner-acceptance run qualifies it. R8
+production activation remains **BLOCKED** until the first owner-authorized real
+desktop/video/input/Stop PASS. Exact publication-SHA hosted CI for this
+continuation is **PENDING**; owner-local canonical full CTest and physical
+client acceptance are **NOT RUN** here.
+
 ## 2026-10-23 — R5 P1 dependency recheck after R7 no-config provisioning
 
 Starting exact-main parent: `8d4a476b404ef3bef1d70705a913bc19e28a0fee`.

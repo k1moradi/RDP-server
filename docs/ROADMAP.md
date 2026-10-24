@@ -1,3 +1,62 @@
+## R6 P1 Linux/macOS owner-acceptance GUI build/config parity — 2026-10-24
+
+Starting exact-main parent: `60186ea10eeb2be0bcaa5c66302f40db98b50623`.
+
+Owner evidence showed the same no-argument product surface diverging: Linux
+recommended the correct `192.168.1.5` endpoint but the visible Username /
+Session Password / Confirm editors could not be used, while macOS editors were
+usable. Source review found no production `DesktopWindow` call that disables
+these editors, makes them read-only or removes focus. R5 independently landed
+`runtime.linux-gui-physical-x11-precredential-readiness` on this parent and
+likewise found no Linux native-prerequisite/ancestor enablement cause. That R5
+case is valuable Linux native-environment coverage, but it does not prove that
+Linux and macOS acceptance binaries were compiled with equivalent intent.
+
+The intended prequalification rule remains unchanged: Debug via `!NDEBUG`, or
+explicit `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI`. Before R6, the Linux owner
+artifact lane used Debug plus explicit acceptance ON; ordinary Linux/macOS
+package lanes used Release with the option implicit/default OFF; and macOS had
+no explicit Release+ON parity check. The existing cross-platform Qt acceptance
+regression asserted only that the editors were not hidden, so it could not
+catch enabled/read-only/focus or parent-state failures. The exact owner binaries
+from the report cannot be identified from the report alone; proving their
+definitions requires the artifact SHA/digest.
+
+Concurrent R8 workflow corruption observed earlier in this task is resolved on
+the starting parent. Structure guard run `40081020454` is **PASS**, and the
+recovered Linux acceptance inventory contains R8's ninth clipboard-dormancy
+case. R6 continues from that recovered baseline and preserves both R8 and R5
+coverage.
+
+R6 makes public package intent explicit `Release + acceptance OFF` on both
+Linux and macOS. Owner-acceptance validation uses `Release + acceptance ON`
+on both, so neither platform relies on Debug to expose the surface. New behavior
+CTest `gui.offscreen-owner-acceptance-editor-properties` shows the real
+`DesktopWindow`, processes Qt events and checks Username / Password / Confirm
+for visibility, enablement, non-read-only state, focusability, enabled parent
+state and correct echo modes. Matching non-empty values must make Sharing
+eligible under an otherwise-ready deterministic snapshot, while this property
+test itself issues no credential, consent, endpoint or listener command.
+Existing production-backed orchestration tests continue to pin exact credential
+-> fresh owner consent -> endpoint -> listener ordering and R8 clipboard
+dormancy. Linux's exact acceptance inventory becomes ten tests; macOS runs the
+same editor-property case plus four existing acceptance
+orchestration/failure cases in Release+ON.
+
+Public `kStandalonePasswordProductCapabilityApproved` and the independent R8
+activation gate remain false/unchanged. No production GUI, authentication,
+listener/TLS or RDP wire source changed.
+
+Connector source/config review: **PASS**. Owner-local configure/build/CTest:
+**NOT RUN**. Exact-publication-SHA workflow structure, Linux Release+ON
+ten-test inventory, macOS Release+ON five-test parity selector and public
+Release+OFF package lanes: **PENDING**.
+
+**Next gate:** require those publication-SHA hosted checks to PASS, then retry
+the owner no-argument GUI using an exact candidate SHA/digest. If Linux still
+cannot edit a field, record the first failing Qt property from the parity set
+instead of changing authentication, logind/X11 policy or Release qualification.
+
 ## R5 P1 Linux physical-X11 pre-credential GUI readiness (2026-10-24)
 
 Starting exact-main parent: `09504727838f0e1182022bad490e3c6cecc5b08b`.

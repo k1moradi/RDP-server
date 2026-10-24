@@ -885,6 +885,63 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "owner-acceptance-editor-properties")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        // This mode is registered in Release only for an explicit
+        // owner-acceptance build. Missing compile intent must fail visibly.
+        return 2;
+#else
+        static_assert(!kStandalonePasswordProductCapabilityApproved);
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.1.5"}, false, true}};
+        runtime.snapshot.product.credentialCapabilities.standalonePassword = false;
+
+        DesktopWindow window(host);
+        window.show();
+        application.processEvents();
+
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(username && password && confirmation);
+
+        for (QLineEdit* editor : {username, password, confirmation})
+        {
+            assert(editor->isVisible());
+            assert(editor->isEnabled());
+            assert(!editor->isReadOnly());
+            assert(editor->focusPolicy() != Qt::NoFocus);
+            assert(editor->parentWidget() != nullptr);
+            assert(editor->parentWidget()->isEnabled());
+        }
+        assert(username->echoMode() == QLineEdit::Normal);
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(confirmation->echoMode() == QLineEdit::Password);
+
+        username->setText(QStringLiteral("owner"));
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(password->text());
+        application.processEvents();
+        assert(username->text() == QStringLiteral("owner"));
+        assert(password->text() == QStringLiteral("owner-test-password"));
+        assert(confirmation->text() == password->text());
+        assert(window.canStart());
+        assert(sharingToggle(window)->isEnabled());
+
+        // Property/editability observation is non-authorizing.
+        assert(runtime.standaloneCredentialCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        return 0;
+#endif
+    }
+
     if (mode == "debug-owner-acceptance-release-gate")
     {
 #if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)

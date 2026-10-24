@@ -1,3 +1,25 @@
+## R6 owner-acceptance editor-property parity (2026-10-24)
+
+Do not infer editability from palette, styling or a field merely being present.
+The same behavior-named Qt regression must run for Linux and macOS under an
+explicit `Release + RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` acceptance
+intent. Show the real `DesktopWindow`, process pending Qt events, and require
+the Username, Session Password and Confirm `QLineEdit` instances to be
+`isVisible()`, `isEnabled()`, not `isReadOnly()`, focusable
+(`focusPolicy() != Qt::NoFocus`), and parented beneath an enabled widget.
+Username uses normal echo; both password editors use
+`QLineEdit::Password`. Writing matching non-empty values must make the
+Sharing action eligible only when the injected product snapshot otherwise
+satisfies the genuine permission/network prerequisites.
+
+This property regression is offline and non-authorizing: it may not configure a
+credential, request owner permission, configure an endpoint or start a
+listener. Separate orchestration coverage continues to prove production
+credential -> fresh owner consent -> endpoint -> listener ordering. Public
+Release Linux/macOS packaging must explicitly set the owner-acceptance option
+`OFF`; the acceptance test must never change
+`kStandalonePasswordProductCapabilityApproved`.
+
 ## Linux pre-credential physical-X11 GUI readiness (2026-10-24)
 
 The owner-acceptance Session Password surface must remain independent of live
@@ -116,9 +138,11 @@ The owner-acceptance bootstrap gate must include the password-replacement consen
 regression. After `configureStandalonePassword()`, production GUI Start logic
 must re-read authoritative HostControl status before evaluating owner permission;
 a pre-credential GUI snapshot cannot authorize a new credential generation.
-The exact R9 acceptance inventory is nine tests while this regression and the
-listener-Start clipboard-dormancy failure case are part of the consumer path. Any owner ZIP candidate must be built from an exact SHA
-that passes that inventory plus the packaged no-argument smoke.
+The exact Linux R9 acceptance inventory is ten tests while this regression,
+the listener-Start clipboard-dormancy failure case, and the cross-platform
+editor-property parity case are part of the consumer path. Any owner ZIP
+candidate must be built from an exact SHA that passes that inventory plus the
+packaged no-argument smoke.
 
 ## R3 platform HostControl automatic-licensing consumption (2026-10-24)
 

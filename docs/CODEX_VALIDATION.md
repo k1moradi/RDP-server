@@ -1,3 +1,42 @@
+## R6 owner-acceptance GUI parity authoring receipt — 2026-10-24
+
+**Authoring parent:** `60186ea10eeb2be0bcaa5c66302f40db98b50623`.
+
+Source/config review: **PASS**. Production editor construction has no explicit
+disable/read-only/NoFocus operation for Username, Session Password or Confirm.
+R5's newly landed Linux physical-X11 precredential integration test reaches the
+same conclusion for the Linux native-prerequisite path. The remaining missing
+coverage is cross-platform build/config parity, so the owner report is not used
+as justification to change production authentication or promote the public
+Release standalone-password capability.
+
+New behavior CTest
+`gui.offscreen-owner-acceptance-editor-properties` shows the real window,
+processes Qt events and checks `isVisible()`, `isEnabled()`,
+`!isReadOnly()`, focus policy, enabled parent state, normal Username echo and
+masked Password/Confirm echo. Matching non-empty values must make Sharing
+eligible in an otherwise-ready synthetic product snapshot, with zero credential,
+permission, endpoint or listener calls from this property-only case.
+
+Build parity is explicit. Public Linux/macOS GUI package lanes are
+`Release + RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=OFF`. Linux owner acceptance
+changes from Debug-dependent validation to
+`Release + RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`, preserves R8's ninth
+clipboard-dormancy case, and adds the editor-property case for an exact ten-test
+inventory. macOS keeps its already-built public Release+OFF archive, then
+reconfigures the same build root to Release+ON and runs the editor-property case
+plus four existing acceptance orchestration/failure tests before upload.
+No test-only authentication implementation is added.
+
+Earlier concurrent R8 workflow corruption was independently recovered before
+this authoring parent; `40081020454` is **PASS** for workflow structure at
+`09504727838f0e1182022bad490e3c6cecc5b08b`. R5 then advanced main to this
+parent without changing the recovered workflow. R6 preserves both increments.
+
+Production `DesktopWindow`, HostControl credential owners, R1 listener/TLS and
+RDP wire source: **UNCHANGED**. Connector-local build/CTest: **NOT RUN**.
+Publication-SHA hosted checks: **PENDING**.
+
 ## R5 Linux physical-X11 pre-credential GUI readiness (2026-10-24)
 
 Starting exact-main parent: `09504727838f0e1182022bad490e3c6cecc5b08b`.

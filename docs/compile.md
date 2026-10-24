@@ -1,3 +1,26 @@
+## R6 owner-acceptance GUI build-intent parity (2026-10-24)
+
+Linux and macOS owner-acceptance validation must use the same explicit build
+intent: `CMAKE_BUILD_TYPE=Release`,
+`RDP_SERVER_BUILD_DESKTOP_GUI=ON`, and
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`. This exercises the explicit
+prequalification mechanism instead of relying on Debug's `!NDEBUG` side of the
+same source gate. Ordinary public Linux/macOS GUI packaging remains
+`Release` with `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=OFF`; do not promote
+the public standalone-password capability before its separate Microsoft-client
+qualification.
+
+Reuse the one canonical build root. For an owner-acceptance build, configure:
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON \
+  -DRDP_SERVER_BUILD_DESKTOP_GUI=ON \
+  -DRDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON
+cmake --build build --config Release --parallel 2
+```
+Platform-specific Qt/OpenSSL discovery arguments remain those already required
+by this document. Reconfiguring the same build root back to a public package
+must set the acceptance option explicitly `OFF`.
+
 ## OpenSSL 4 generated-subject portability (2026-10-23)
 
 The R1 automatic TLS generator must compile with supported OpenSSL headers where

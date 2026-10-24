@@ -60,6 +60,7 @@ add_test(NAME gui.owner-acceptance-release-gate-and-production-path
         "-DRDP_RUNTIME_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_host_control.h"
         "-DRDP_DESKTOP_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
         "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
+        "-DRDP_CI_WORKFLOW=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_owner_acceptance_gate.cmake")
 set_tests_properties(gui.owner-acceptance-release-gate-and-production-path
     PROPERTIES LABELS "gui;r7;r2;r10;acceptance;security;offline")
@@ -4078,13 +4079,20 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;credentials;acceptance" TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-owner-acceptance-editor-properties
+        COMMAND test_desktop_gui_offline owner-acceptance-editor-properties)
+    set_tests_properties(
+        gui.offscreen-owner-acceptance-editor-properties PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;editability;parity"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
         COMMAND test_desktop_gui_offline debug-owner-acceptance-release-gate)
     set_tests_properties(
         gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;release-gate;security"
-        CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4094,7 +4102,6 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-acceptance-consumer-start-orchestration PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;lifecycle"
-        CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4105,7 +4112,6 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;consent;lifecycle;security"
-        CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4115,7 +4121,6 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-acceptance-start-failure-rolls-back PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;failure"
-        CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4127,9 +4132,22 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;failure;clipboard;r8"
-        CONFIGURATIONS Debug
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
+    # Public Release keeps the prequalification surface disabled. Debug uses
+    # !NDEBUG; an explicit owner-acceptance Release build uses the CMake option
+    # and must execute the same behavior suite rather than silently skipping it.
+    if(NOT RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+        set_tests_properties(
+            gui.offscreen-owner-acceptance-editor-properties
+            gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
+            gui.offscreen-owner-acceptance-consumer-start-orchestration
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
+            gui.offscreen-owner-acceptance-start-failure-rolls-back
+            gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant
+            PROPERTIES CONFIGURATIONS Debug)
+    endif()
+
     # R10 client authentication cannot be presented as a connected desktop.
     # Stale endpoint/peer fields are cleared by the Qt projection on Stop.
     add_test(NAME gui.offscreen-r10-client-stage-and-retirement-status-denials

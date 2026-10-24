@@ -1,3 +1,28 @@
+## R8 P2 dependency recheck after R1/R6 bootstrap landing — 2026-10-23
+
+Starting exact-main parent: `6ac5a1519617d672ce773d6fc628ae28e6e9fd8f`.
+
+R1 automatic endpoint-bound TLS is **RESOLVED** on main and R6's portable
+no-config/no-autostart bootstrap contract is **RESOLVED** on main. R8 continued
+rather than waiting for the remaining product bootstrap owners. The existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` source guard now reads the
+R6 bootstrap policy, verifies explicit Sharing/no automatic listener and
+nonpersistent Session Password, forbids clipboard bootstrap material, isolates
+R10's generated-TLS endpoint preparation from all R8/CLIPRDR operations, and
+pins Stop ordering through generated TLS retirement.
+
+Remaining full-workflow blockers are outside R8: R3 has no automatic licensing
+producer; `kStandalonePasswordProductCapabilityApproved` is still false;
+R7 exposes no Session Password field/action; and zero-argument
+`rdp-server-desktop` still constructs an unprovisioned Linux HostControl.
+Those gaps do not justify clipboard activation or a rollback to required
+`--config`. Clipboard remains **BLOCKED** on the first real
+desktop/video/input/Stop PASS.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No live listener,
+desktop, input or clipboard operation was performed.
+
 ## R6 P1 portable automatic-bootstrap contract receipt — 2026-10-23
 
 Starting exact-main parent: `89c9895d86c28dc5338548b910ca46ed1e0a0386`.

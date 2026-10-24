@@ -1,3 +1,17 @@
+## R8 boundary after automatic TLS/bootstrap policy landing (2026-10-23)
+
+R1 endpoint-bound TLS preparation and R6 portable bootstrap policy are now
+concrete upstream dependencies. Neither becomes R8 authority. R10 may prepare a
+generated TLS identity for the selected LAN address before the user turns
+Sharing on, and R6 may define per-user bootstrap storage, but neither may create
+clipboard permission, a native clipboard owner or CLIPRDR traffic. Clipboard
+remains subordinate to the admitted native desktop lifetime.
+
+Terminal ordering extends through generated bootstrap material: revoke owner
+authority, retire R8 before R5, retire the accepted connection, close the
+listener, then retire the generated TLS identity. A nonterminal tray hide
+changes none of those owners.
+
 ## R6 P1 portable automatic application bootstrap contract (2026-10-23)
 
 The normal consumer entry point is **`rdp-server-desktop` with no required

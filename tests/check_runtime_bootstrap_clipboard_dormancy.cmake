@@ -6,7 +6,8 @@ foreach(required_var IN ITEMS
         RDP_DESKTOP_WINDOW_HEADER
         RDP_DESKTOP_WINDOW_SOURCE
         RDP_LINUX_HOST_CONTROL_SOURCE
-        RDP_LINUX_PREPARED_CLIPBOARD_HEADER)
+        RDP_LINUX_PREPARED_CLIPBOARD_HEADER
+        RDP_RUNTIME_BOOTSTRAP_HEADER)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
     endif()
@@ -17,7 +18,33 @@ file(READ "${RDP_DESKTOP_WINDOW_HEADER}" desktop_window_header)
 file(READ "${RDP_DESKTOP_WINDOW_SOURCE}" desktop_window_source)
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
+file(READ "${RDP_RUNTIME_BOOTSTRAP_HEADER}" bootstrap_header)
 set(gui_source "${desktop_window_header}\n${desktop_window_source}")
+
+# R6 may define where automatic bootstrap state lives, but that policy cannot
+# make clipboard a bootstrap material or relax the explicit-Sharing boundary.
+foreach(required_text IN ITEMS
+        "configurationFileRequired{false}"
+        "explicitSharingRequiredBeforeListen{true}"
+        "automaticListenerStart{false}"
+        "sessionPasswordPersisted{false}"
+        "RuntimeBootstrapMaterial::SessionPassword")
+    string(FIND "${bootstrap_header}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "portable bootstrap policy lost R8-safe lifecycle fact: ${required_text}")
+    endif()
+endforeach()
+foreach(forbidden_text IN ITEMS
+        "RuntimeBootstrapMaterial::Clipboard"
+        "automaticListenerStart{true}"
+        "explicitSharingRequiredBeforeListen{false}")
+    string(FIND "${bootstrap_header}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "portable bootstrap policy must not manufacture clipboard/listener authority: ${forbidden_text}")
+    endif()
+endforeach()
 
 # Automatic GUI bootstrap may provision local TLS/licensing/authentication
 # prerequisites, but it is not an R8 authority boundary and must not activate
@@ -69,6 +96,40 @@ if(gui_clipboard_denial LESS 0)
     message(FATAL_ERROR
         "GUI owner-permission request must keep clipboard disabled")
 endif()
+
+# R1 endpoint-bound TLS preparation is now part of R10 configure(). That newly
+# resolved bootstrap edge must stay independent of R8: preparing an identity
+# before explicit Sharing cannot prepare/dispatch native clipboard state.
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::configure("
+    configure_begin)
+string(FIND "${host_source}"
+    "bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword("
+    configure_end)
+if(configure_begin LESS 0 OR configure_end LESS_EQUAL configure_begin)
+    message(FATAL_ERROR "unable to isolate automatic endpoint preparation")
+endif()
+math(EXPR configure_length "${configure_end} - ${configure_begin}")
+string(SUBSTRING "${host_source}" ${configure_begin}
+    ${configure_length} configure_source)
+string(FIND "${configure_source}"
+    "prepareTlsIdentityForSelection(options.localAddress)" generated_tls_prepare)
+if(generated_tls_prepare LESS 0)
+    message(FATAL_ERROR
+        "R8 audit expects the landed R1 endpoint-bound TLS preparation seam")
+endif()
+foreach(forbidden_text IN ITEMS
+        "clipboard.prepare("
+        "nativeDesktop_->clipboard"
+        "kConsoleClipboardPermission"
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu(")
+    string(FIND "${configure_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "automatic endpoint preparation must stay outside R8: ${forbidden_text}")
+    endif()
+endforeach()
 
 # Session-password replacement cannot carry a live native/R8 generation across
 # the credential boundary. The current implementation rejects replacement while
@@ -157,10 +218,14 @@ string(SUBSTRING "${host_source}" ${retire_stopped_begin}
 string(FIND "${retire_stopped_source}" "retireNativeDesktop()" stop_native)
 string(FIND "${retire_stopped_source}" "acceptedClient_->revoke()" stop_client)
 string(FIND "${retire_stopped_source}" "listener_.close()" stop_listener)
+string(FIND "${retire_stopped_source}"
+    "retireGeneratedTlsIdentity()" stop_generated_tls)
 if(stop_native LESS 0 OR stop_client LESS 0 OR stop_listener LESS 0 OR
-   NOT stop_native LESS stop_client OR NOT stop_client LESS stop_listener)
+   stop_generated_tls LESS 0 OR
+   NOT stop_native LESS stop_client OR NOT stop_client LESS stop_listener OR
+   NOT stop_listener LESS stop_generated_tls)
     message(FATAL_ERROR
-        "Stop/Revoke must retire R8/R5 before connection/listener")
+        "Stop/Revoke must retire R8/R5 before connection/listener and generated TLS")
 endif()
 
 # Every post-Stop/reconnect native lifetime creates a new aggregate and prepares

@@ -1,3 +1,19 @@
+## R8 regression consumes R1/R6 automatic-bootstrap contracts (2026-10-23)
+
+The ordinary `runtime.linux-gui-bootstrap-clipboard-dormancy` source-policy
+test must now consume the concrete R6 bootstrap header and R1 endpoint-bound
+TLS preparation. Require configuration-file-free policy, explicit Sharing
+before listen, no automatic listener and nonpersistent Session Password; reject
+clipboard as a bootstrap material. Isolate
+`LinuxRuntimeHostControl::configure()`: generated TLS preparation is allowed,
+but clipboard permission, owner preparation, dispatch and outbound CLIPRDR
+queueing are forbidden there. On terminal Stop, require R8/R5 retirement before
+connection/listener teardown and generated TLS retirement after listener close.
+
+This remains source/lifetime evidence only. It does not enter the fixed
+executable-backed clipboard sanitizer census and does not satisfy FIRST or
+clipboard activation.
+
 ## Portable GUI canonical no-argument bootstrap smoke (2026-10-23)
 
 Packaging acceptance must launch the extracted desktop application in its

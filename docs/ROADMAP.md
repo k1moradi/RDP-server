@@ -1,3 +1,28 @@
+## R8 P2 consumes landed R1/R6 bootstrap boundaries (2026-10-23)
+
+Dependency recheck at starting main `6ac5a1519617d672ce773d6fc628ae28e6e9fd8f`: R1's no-file,
+endpoint-bound TLS identity and R6's portable no-argument bootstrap/storage
+contract are **RESOLVED**. R8 therefore extends
+`runtime.linux-gui-bootstrap-clipboard-dormancy` across those concrete
+surfaces instead of treating the older TLS-file dependency as a blocker.
+
+The guard now requires R6 to retain no-config startup, explicit Sharing before
+listen, no automatic listener and memory-only Session Password policy while
+forbidding clipboard as bootstrap material. It isolates R10's newly landed
+`configure()` TLS preparation and forbids that pre-listener transaction from
+preparing, dispatching or granting clipboard state. Stop ordering is extended
+through the generated R1 identity: dormant/prepared R8 retires before R5,
+accepted connection and listener; the generated TLS identity retires only
+after the listener.
+
+This continuation does not activate clipboard and does not block the remaining
+bootstrap owners. The full consumer workflow is still independently blocked by
+the absent automatic R3 licensing producer, the public standalone-password
+capability remaining false, no Session Password GUI surface, and zero-argument
+`main.cpp` still constructing an unprovisioned Linux HostControl. R8
+activation itself remains separately blocked on the first real
+desktop/video/input/Stop PASS.
+
 ## R1 P0 automatic endpoint-bound TLS identity — 2026-10-23
 
 Starting exact-main parent: `878d7d1678f15a776199028c9d6a21297cdf3bc6`.

@@ -44,6 +44,7 @@ struct StandaloneVisitObservation final
     // while an eligible physical X11 owner session reaches the still-
     // unprovisioned credential-provider gate. Both are pre-listener denials.
     return error == RuntimeHostError::NativeAuthorizationDenied ||
+           error == RuntimeHostError::CredentialNotConfigured ||
            error == RuntimeHostError::CredentialProviderUnavailable;
 }
 
@@ -102,7 +103,7 @@ int main(int argc, char** argv)
                RuntimeHostError::CredentialProviderUnavailable);
         assert(control.requestCredentialSetup(
                    LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+               RuntimeHostError::CredentialNotConfigured);
         assert(control.status().activeClients.empty());
         return 0;
     }
@@ -485,9 +486,9 @@ int main(int argc, char** argv)
             control.standaloneApplicationPasswordObservation();
         assert(first.configured && first.generation != 0U);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-        // With deterministic eligible native evidence this is now the normal
-        // no-config production state: the standalone credential and generated
-        // R2 policy are ready, but no consent or listener exists yet.
+        // With deterministic eligible native evidence this is the normal
+        // no-config product state: standalone credentials are ready with no
+        // GSS/keytab/PAM or OS-account policy; consent/listening remain separate.
         assert(control.status().credentialsConfigured);
         assert(control.status().stage ==
                RuntimeHostStage::CredentialsConfigured);
@@ -506,11 +507,23 @@ int main(int argc, char** argv)
             first.generation + 1U,
             &observeStandaloneCredential, &observed));
 
-        // Switching to any product credential mode revokes the alternate
-        // standalone credential even when that product request later denies.
+        // Re-selecting StandalonePassword consumes the current generation
+        // without GSS/keytab provisioning and does not mint owner consent.
         assert(control.requestCredentialSetup(
-                   LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+                   LanCredentialChoice::IndependentApplicationPassword)
+                   .succeeded());
+        const auto afterStandaloneSelection =
+            control.standaloneApplicationPasswordObservation();
+        assert(afterStandaloneSelection.configured);
+        assert(afterStandaloneSelection.generation == first.generation);
+        assert(!control.status().hostOwnerAuthorized);
+        assert(!control.status().listenerAvailable);
+
+        // Switching to the expert ExistingOsAccount mode retires the
+        // standalone generation even though no GSS provider is configured.
+        assert(control.requestCredentialSetup(
+                   LanCredentialChoice::ExistingOsAccount).error ==
+               RuntimeHostError::CredentialProviderUnavailable);
         const auto afterModeRequest =
             control.standaloneApplicationPasswordObservation();
         assert(!afterModeRequest.configured);
@@ -577,8 +590,14 @@ int main(int argc, char** argv)
         assert(bootstrap.configureStandaloneApplicationPassword(u"rdp", firstPassword));
         assert(std::ranges::all_of(firstPassword,
             [](char16_t value) { return value == u'\0'; }));
-        const auto firstCredential = bootstrap.standaloneApplicationPasswordObservation();
+        const auto firstCredential =
+            bootstrap.standaloneApplicationPasswordObservation();
         assert(firstCredential.configured && firstCredential.generation != 0U);
+        const auto credentialsReady = bootstrap.status();
+        assert(credentialsReady.credentialsConfigured);
+        assert(credentialsReady.stage == RuntimeHostStage::CredentialsConfigured);
+        assert(!credentialsReady.hostOwnerAuthorized);
+        assert(!credentialsReady.listenerAvailable);
 
         auto replacementPassword = standalonePassword();
         replacementPassword.back() = u'2';
@@ -594,12 +613,17 @@ int main(int argc, char** argv)
             &obsoleteVisit));
 
         RuntimeHostPermissionRequest permission;
-        permission.allowInput = true;
+        // View-only consent must be sufficient to host while keeping native
+        // input independently unauthorized.
+        permission.allowInput = false;
         permission.allowClipboard = false;
         permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
         assert(bootstrap.requestHostPermissionSetup(permission).succeeded());
-        assert(bootstrap.status().hostOwnerAuthorized);
-        assert(!bootstrap.status().listenerAvailable);
+        const auto consentReady = bootstrap.status();
+        assert(consentReady.hostOwnerAuthorized);
+        assert(consentReady.product.sharingPermission.viewAllowed);
+        assert(!consentReady.product.sharingPermission.inputAllowed);
+        assert(!consentReady.listenerAvailable);
 
         const auto recommendation = bootstrap.status().product.recommendedEndpoint;
         assert(recommendation.valid());

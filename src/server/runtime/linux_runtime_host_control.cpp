@@ -54,6 +54,7 @@ struct LinuxHostNativeDesktopState final
     std::uint32_t nextFrameId{1U};
     bool graphicsWritePending{};
     bool framePublicationPending{};
+    bool firstFramebufferAvailable{};
     bool nativeWorkMayRemain{true};
     std::optional<std::chrono::steady_clock::time_point> resizeDeadline{};
     std::chrono::steady_clock::time_point nextCapture{};
@@ -476,6 +477,7 @@ struct LinuxHostFramePublicationContext final
     const RuntimeDeploymentPolicy* policy{};
     std::uint32_t frameId{};
     std::uint64_t expectedGeneration{};
+    bool* firstFramebufferAvailable{};
 };
 
 [[nodiscard]] bool publishHostCapturedFrame(
@@ -484,12 +486,18 @@ struct LinuxHostFramePublicationContext final
 {
     auto* context =
         static_cast<LinuxHostFramePublicationContext*>(rawContext);
-    return context != nullptr && context->connection != nullptr &&
-           context->policy != nullptr && context->frameId != 0U &&
-           captureGeneration == context->expectedGeneration &&
-           context->connection->
-               startPersonalDesktopClearCodecFramePublication(
-                   *context->policy, context->frameId, framebuffer);
+    if (context == nullptr || context->connection == nullptr ||
+        context->policy == nullptr || context->frameId == 0U ||
+        context->firstFramebufferAvailable == nullptr ||
+        captureGeneration != context->expectedGeneration)
+        return false;
+
+    // R5 invoked the synchronous current-generation framebuffer callback.
+    // This sticky bit is diagnostic only and cannot authorize R3/R4 work.
+    *context->firstFramebufferAvailable = true;
+    return context->connection->
+        startPersonalDesktopClearCodecFramePublication(
+            *context->policy, context->frameId, framebuffer);
 }
 #endif
 } // namespace
@@ -834,6 +842,24 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.nativeDesktopInitializing =
         snapshot.graphicsReady && !snapshot.nativeDesktopReady;
 #endif
+    if (acceptedClient_ != nullptr)
+    {
+        const auto acceptance =
+            acceptedClient_->firstClientAcceptanceObservability();
+        bool firstFramebufferAvailable = false;
+#if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
+        firstFramebufferAvailable =
+            nativeDesktop_ != nullptr &&
+            nativeDesktop_->firstFramebufferAvailable;
+#endif
+        snapshot.firstLiveGraphicsTrace =
+            projectRuntimeFirstLiveGraphicsTrace(
+                firstFramebufferAvailable,
+                acceptance.firstClearCodecFramePrepared,
+                acceptance.firstExactFrameWriteCommitted,
+                acceptance.outstandingFrameAcknowledgements,
+                acceptance.firstGenuineFrameAcknowledge);
+    }
     snapshot.clientDisconnected =
         listenerCurrent && acceptedClient_ == nullptr && clientDisconnected_;
     if (acceptedClient_ != nullptr && acceptedClientId_ != 0U)
@@ -1547,7 +1573,8 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept
 
     LinuxHostFramePublicationContext frameContext{
         acceptedClient_.get(), &*deploymentPolicy_,
-        nativeDesktop_->nextFrameId, geometry.captureGeneration};
+        nativeDesktop_->nextFrameId, geometry.captureGeneration,
+        &nativeDesktop_->firstFramebufferAvailable};
     if (!nativeDesktop_->desktop->consumeR4Frame(
             geometry, currentNativeSessionGeneration,
             X11R4BgraFrameConsumer{

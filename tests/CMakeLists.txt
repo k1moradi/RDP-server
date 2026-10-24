@@ -287,6 +287,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-no-consent-start-denials
             linux-host-control-product-status-projection
             linux-host-control-sharing-permission-product-projection
+            linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-revalidated-interface-denials
             linux-host-control-rejected-selection-retires-previous

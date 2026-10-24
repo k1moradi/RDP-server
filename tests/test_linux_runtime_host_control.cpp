@@ -81,6 +81,11 @@ int main(int argc, char** argv)
         assert(status.product.clientCount == 0U);
         assert(status.product.activeClientIds.empty());
         assert(status.product.boundEndpoint.empty());
+        assert(!status.firstLiveGraphicsTrace.firstFramebufferAvailable);
+        assert(!status.firstLiveGraphicsTrace.firstClearCodecFramePrepared);
+        assert(!status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
+        assert(status.firstLiveGraphicsTrace.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
         assert(status.product.lastErrorMessage ==
                "Sharing permission required");
 
@@ -129,6 +134,34 @@ int main(int argc, char** argv)
                RuntimeSharingPermissionDenial::Unavailable);
         assert(status.product.lastErrorMessage ==
                "Sharing permission required");
+        return 0;
+    }
+
+    if (testCase == "linux-host-control-first-live-graphics-trace-projection")
+    {
+        const auto framebufferOnly = projectRuntimeFirstLiveGraphicsTrace(
+            true, false, false, 0U, false);
+        assert(framebufferOnly.firstFramebufferAvailable);
+        assert(!framebufferOnly.firstClearCodecFramePrepared);
+        assert(!framebufferOnly.firstExactTlsWriteCommitted);
+        assert(framebufferOnly.outstandingFrameAcknowledgements == 0U);
+        assert(!framebufferOnly.firstGenuineMatchingFrameAcknowledge);
+
+        const auto awaitingAck = projectRuntimeFirstLiveGraphicsTrace(
+            true, true, true, 1U, false);
+        assert(awaitingAck.firstFramebufferAvailable);
+        assert(awaitingAck.firstClearCodecFramePrepared);
+        assert(awaitingAck.firstExactTlsWriteCommitted);
+        assert(awaitingAck.outstandingFrameAcknowledgements == 1U);
+        assert(!awaitingAck.firstGenuineMatchingFrameAcknowledge);
+
+        const auto acknowledged = projectRuntimeFirstLiveGraphicsTrace(
+            true, true, true, 0U, true);
+        assert(acknowledged.firstFramebufferAvailable);
+        assert(acknowledged.firstClearCodecFramePrepared);
+        assert(acknowledged.firstExactTlsWriteCommitted);
+        assert(acknowledged.outstandingFrameAcknowledgements == 0U);
+        assert(acknowledged.firstGenuineMatchingFrameAcknowledge);
         return 0;
     }
 

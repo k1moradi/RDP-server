@@ -591,6 +591,33 @@ struct RuntimeProductHostStatus final
     std::string lastErrorMessage;
 };
 
+struct RuntimeFirstLiveGraphicsTrace final
+{
+    // Read-only first-client correlation facts. These fields never authorize
+    // capture, frame publication, transport progress or ACK credit.
+    bool firstFramebufferAvailable{};
+    bool firstClearCodecFramePrepared{};
+    bool firstExactTlsWriteCommitted{};
+    std::size_t outstandingFrameAcknowledgements{};
+    bool firstGenuineMatchingFrameAcknowledge{};
+};
+
+[[nodiscard]] constexpr RuntimeFirstLiveGraphicsTrace
+projectRuntimeFirstLiveGraphicsTrace(
+    const bool firstFramebufferAvailable,
+    const bool firstClearCodecFramePrepared,
+    const bool firstExactTlsWriteCommitted,
+    const std::size_t outstandingFrameAcknowledgements,
+    const bool firstGenuineMatchingFrameAcknowledge) noexcept
+{
+    return {
+        firstFramebufferAvailable,
+        firstClearCodecFramePrepared,
+        firstExactTlsWriteCommitted,
+        outstandingFrameAcknowledgements,
+        firstGenuineMatchingFrameAcknowledge};
+}
+
 struct RuntimeHostStatus
 {
     RuntimeHostStage stage{RuntimeHostStage::Stopped};
@@ -622,6 +649,9 @@ struct RuntimeHostStatus
     // They are presentation facts only and cannot grant Share/native authority.
     bool graphicsReady{};
     bool nativeDesktopInitializing{};
+    // R10-only read-only correlation for the first physical graphics trace.
+    // R4 remains the sole frame/ACK owner; this projection cannot advance it.
+    RuntimeFirstLiveGraphicsTrace firstLiveGraphicsTrace{};
     // True only after an accepted client was actually retired while the
     // current listener remains active. Cleared on a new accept/host teardown.
     bool clientDisconnected{};

@@ -1,3 +1,25 @@
+## R10 P0 Linux desktop build composition correction (2026-10-23)
+
+Post-publication audit of the zero-argument aggregate found the remaining
+product-level build defect: `RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY` still
+defaulted OFF independently of the default-ON desktop GUI, so a normal packaged
+Linux GUI could compile without the R2 standalone/native graph and remain
+presentation-only. Linux desktop builds now automatically enable that production
+graph; explicit headless protocol/SDK configurations still disable the GUI and
+retain their existing opt-out behavior.
+
+This does **not** make Kerberos/keytab/PAM configuration part of the Session
+Password workflow. Those libraries are build/runtime dependencies of the shared
+production security target, while the no-config standalone path continues to
+use `configureStandalonePersonalDesktop` and an explicit
+`StandalonePassword` admission request with no Kerberos principal and no PAM
+service selection. The hosted Linux GUI producer now installs the compile-time
+GSS/PAM development dependencies needed by the production graph.
+
+The existing desktop-configuration source contract now also pins this automatic
+CMake composition so the normal product cannot silently regress to a
+presentation-only build. Exact correction-SHA hosted CI: **PENDING**.
+
 ## R10 P0 automatic zero-argument application runtime composition (2026-10-23)
 
 Normal Linux GUI startup is now the product path: `rdp-server-desktop` with no

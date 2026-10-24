@@ -5,7 +5,8 @@ foreach(required_var IN ITEMS
         RDP_RUNTIME_CONFIGURATION_HEADER
         RDP_RUNTIME_CONFIGURATION_SOURCE
         RDP_RUNTIME_MAIN_SOURCE
-        RDP_GUI_MAIN_SOURCE)
+        RDP_GUI_MAIN_SOURCE
+        RDP_ROOT_CMAKE)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
     endif()
@@ -15,6 +16,7 @@ file(READ "${RDP_RUNTIME_CONFIGURATION_HEADER}" configuration_header)
 file(READ "${RDP_RUNTIME_CONFIGURATION_SOURCE}" configuration_source)
 file(READ "${RDP_RUNTIME_MAIN_SOURCE}" runtime_main)
 file(READ "${RDP_GUI_MAIN_SOURCE}" gui_main)
+file(READ "${RDP_ROOT_CMAKE}" root_cmake)
 
 foreach(required_text IN ITEMS
         "RuntimeConfigurationView"
@@ -117,3 +119,18 @@ if(NOT bare_unprovisioned_runtime EQUAL -1)
     message(FATAL_ERROR
         "zero-argument desktop startup regressed to unprovisioned HostControl")
 endif()
+
+
+# Product builds must not require a user to discover the production-security
+# CMake switch. A normal Linux desktop build composes that graph automatically;
+# headless SDK/protocol jobs remain able to opt out by disabling the GUI.
+foreach(required_text IN ITEMS
+        "option(RDP_SERVER_BUILD_DESKTOP_GUI"
+        "if(CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND RDP_SERVER_BUILD_DESKTOP_GUI)"
+        "set(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY ON)")
+    string(FIND "${root_cmake}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "Linux desktop product lost automatic runtime-security composition: ${required_text}")
+    endif()
+endforeach()

@@ -2381,6 +2381,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             qt6-base-dev qt6-qpa-plugins libssl-dev libsystemd-dev pkg-config \
+            libkrb5-dev libpam0g-dev \
             xvfb xauth unzip python3
       - name: R5 offline GUI packaging negative tests
         run: |

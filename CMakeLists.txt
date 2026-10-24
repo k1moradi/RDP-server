@@ -108,6 +108,11 @@ if(RDP_SERVER_BUILD_FUZZERS)
 endif()
 # Explicit Linux-only developer gate; no GSS dependency in the portable
 # protocol SDK, macOS/Windows builds or default downstream consumers.
+# The normal desktop product is built by default. On Linux this declaration
+# must precede runtime-security composition so a GUI build can automatically
+# include the production standalone/native admission graph.
+option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" ON)
+
 option(RDP_SERVER_TEST_LINUX_GSSAPI
        "Compile/test the first-party Linux GSSAPI provider (no admission)" OFF)
 option(RDP_SERVER_TEST_LINUX_PAM
@@ -116,6 +121,15 @@ option(RDP_SERVER_TEST_REAL_KERBEROS
        "Opt-in REAL external FILE: keytab+ticket SPNEGO validation (no OS admission)" OFF)
 option(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY
        "Build production Linux GSS/PAM/logind runtime security support" OFF)
+
+# A Linux desktop GUI is the consumer product, not a presentation-only shell.
+# Its no-argument runtime needs the production R2/native graph even though the
+# StandalonePassword path itself does not require keytab/PAM configuration.
+# Headless protocol/SDK jobs opt out with RDP_SERVER_BUILD_DESKTOP_GUI=OFF.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RDP_SERVER_BUILD_DESKTOP_GUI)
+    set(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY ON)
+endif()
+
 if(RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY AND
    NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
     message(FATAL_ERROR
@@ -1267,8 +1281,8 @@ endif()
 
 
 # R7: ordinary desktop shell; deliberate headless builds opt out explicitly.
-# No protocol/runtime/native authorization link is implied by building the GUI.
-option(RDP_SERVER_BUILD_DESKTOP_GUI "Build Qt Widgets desktop GUI shell" ON)
+# Linux GUI builds now include R10/R2 production runtime composition; building
+# the UI still does not itself grant consent, open a listener or admit a peer.
 option(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI
     "Expose pre-qualification Session Password UI for owner acceptance builds" OFF)
 if(RDP_SERVER_BUILD_DESKTOP_GUI)

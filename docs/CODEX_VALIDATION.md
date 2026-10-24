@@ -1,3 +1,26 @@
+## R10 P0 Linux desktop production-graph correction — 2026-10-23
+
+Starting exact-main parent: `d30efc66a092b24a06538a2860af2cb89e80f38c`.
+
+Post-publication review found that the first zero-argument runtime commit fixed
+object ownership but not the default Linux build graph:
+`RDP_SERVER_ENABLE_LINUX_RUNTIME_SECURITY` remained OFF when the desktop GUI
+was ON. This correction moves the GUI option early enough for composition and
+automatically enables the production Linux runtime-security target for a Linux
+desktop build. Headless jobs remain explicit via
+`RDP_SERVER_BUILD_DESKTOP_GUI=OFF`.
+
+The normal Session Password path still does not configure or require a Kerberos
+service principal/keytab or PAM service at runtime. The shared production target
+is linked so its standalone R2/native admission implementation is available;
+the standalone configuration path remains the already-landed keytab/PAM-free
+branch. The Linux GUI Actions producer now installs `libkrb5-dev` and
+`libpam0g-dev` alongside its existing libsystemd development dependency.
+
+Source-contract validation was updated to fail if the desktop build again loses
+automatic production-runtime composition. Exact correction-SHA build/CTest and
+Actions: **PENDING** in this connector session.
+
 ## R10 P0 automatic application runtime authoring receipt — 2026-10-23
 
 Starting exact-main parent: `4a9ff40e3f33a6286e4e7869d573fc10127a2377`.

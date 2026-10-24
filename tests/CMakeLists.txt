@@ -209,6 +209,7 @@ add_test(NAME runtime.desktop-shared-configuration-feed
         "-DRDP_RUNTIME_CONFIGURATION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/runtime_configuration.cpp"
         "-DRDP_RUNTIME_MAIN_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
         "-DRDP_GUI_MAIN_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
+        "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_desktop_configuration_feed.cmake")
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
     LABELS "runtime;configuration;gui;r10-host-control;offline")

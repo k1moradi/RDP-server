@@ -134,6 +134,33 @@ enum class TlsHandshakeStatus : std::uint8_t
     Closed,
 };
 
+// Non-secret provider diagnostics captured by the sole R1 TLS owner.
+// SSL_get_error() is sampled immediately after SSL_do_handshake(); the
+// OpenSSL queue is reduced to its numeric top error/reason only. No wire
+// token, certificate private material or application plaintext is retained.
+enum class TlsHandshakeResultClass : std::uint8_t
+{
+    NotAttempted,
+    NeedRead,
+    NeedWrite,
+    Established,
+    PeerEof,
+    PeerTlsAlert,
+    TransportFailure,
+    LocalTlsFailure,
+    InvalidState,
+};
+
+struct TlsHandshakeDiagnostics final
+{
+    std::uint64_t step{};
+    TlsHandshakeResultClass resultClass{
+        TlsHandshakeResultClass::NotAttempted};
+    int sslError{};
+    std::uint64_t opensslError{};
+    std::uint32_t opensslReason{};
+};
+
 // MS-RDPBCGR 2.2.1.3: decrypted TPKT/X.224 Data TPDU encapsulating
 // an MCS Connect Initial with GCC Conference Create Request.
 enum class McsIntakeStatus : std::uint8_t
@@ -209,6 +236,12 @@ public:
     [[nodiscard]] TlsHandshakeStatus advanceTlsHandshake(
         SSL *serverTls) noexcept;
 
+    [[nodiscard]] TlsHandshakeDiagnostics tlsHandshakeDiagnostics()
+        const noexcept
+    {
+        return tlsHandshakeDiagnostics_;
+    }
+
     // Feed bytes returned by a TLS provider *after* a successful TLS
     // transition. Decrypted fragments may split/coalesce TPKTs.
     // Validate the entire first MCS/GCC envelope and close the diagnostic.
@@ -259,6 +292,7 @@ private:
     const SSL *activeServerTls_{};
     // Borrowed handshake identity; no second TLS or RDP state controller.
     const SSL *handshakingServerTls_{};
+    TlsHandshakeDiagnostics tlsHandshakeDiagnostics_{};
     // Pin the SHA-256 fingerprint of the selected completed TLS server
     // certificate for subsequent MCS reads. SSL* identity alone can
     // survive SSL_use_certificate() reconfiguration on the same object.

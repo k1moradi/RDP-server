@@ -5,11 +5,43 @@
 
 #include <openssl/ssl.h>
 #include <openssl/crypto.h>
+#include <openssl/err.h>
+#include <openssl/sslerr.h>
 
 #include <algorithm>
+#include <string_view>
 
 namespace rdp_server::server::transport
 {
+namespace
+{
+[[nodiscard]] bool opensslReasonIsUnexpectedEof(
+    std::uint64_t opensslError) noexcept
+{
+#ifdef SSL_R_UNEXPECTED_EOF_WHILE_READING
+    return opensslError != 0U &&
+           ERR_GET_LIB(static_cast<unsigned long>(opensslError)) == ERR_LIB_SSL &&
+           ERR_GET_REASON(static_cast<unsigned long>(opensslError)) ==
+               SSL_R_UNEXPECTED_EOF_WHILE_READING;
+#else
+    (void)opensslError;
+    return false;
+#endif
+}
+
+[[nodiscard]] bool opensslReasonIsPeerAlert(
+    std::uint64_t opensslError) noexcept
+{
+    if (opensslError == 0U ||
+        ERR_GET_LIB(static_cast<unsigned long>(opensslError)) != ERR_LIB_SSL)
+        return false;
+
+    const char *const reason =
+        ERR_reason_error_string(static_cast<unsigned long>(opensslError));
+    return reason != nullptr &&
+           std::string_view{reason}.find("alert") != std::string_view::npos;
+}
+} // namespace
 
 SecurityReply PreauthSession::onConnectionRequest(
     const ConnectionParseResult &request) noexcept
@@ -274,29 +306,76 @@ TlsHandshakeStatus PreauthConnectionStream::advanceTlsHandshake(
     // One provider operation per event-loop callback. Do not read raw
     // socket bytes here or spin on a nonblocking WANT_READ/WANT_WRITE.
     handshakingServerTls_ = serverTls;
+    ERR_clear_error();
     const int completed = SSL_do_handshake(serverTls);
+    ++tlsHandshakeDiagnostics_.step;
     if (completed != 1)
     {
-        // SSL_get_error must be called immediately, without touching the
-        // thread's OpenSSL error queue after SSL_do_handshake.
+        // SSL_get_error MUST remain the first provider query after the failed
+        // handshake operation. Only then snapshot the numeric top queue entry.
         const int error = SSL_get_error(serverTls, completed);
+        const std::uint64_t opensslError =
+            static_cast<std::uint64_t>(ERR_peek_last_error());
+        tlsHandshakeDiagnostics_.sslError = error;
+        tlsHandshakeDiagnostics_.opensslError = opensslError;
+        tlsHandshakeDiagnostics_.opensslReason =
+            opensslError == 0U
+                ? 0U
+                : static_cast<std::uint32_t>(
+                      ERR_GET_REASON(static_cast<unsigned long>(opensslError)));
+
         if (error == SSL_ERROR_WANT_READ)
         {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::NeedRead;
             return TlsHandshakeStatus::NeedRead;
         }
         if (error == SSL_ERROR_WANT_WRITE)
         {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::NeedWrite;
             return TlsHandshakeStatus::NeedWrite;
+        }
+        if (error == SSL_ERROR_ZERO_RETURN ||
+            opensslReasonIsPeerAlert(opensslError))
+        {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::PeerTlsAlert;
+        }
+        else if (opensslReasonIsUnexpectedEof(opensslError))
+        {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::PeerEof;
+        }
+        else if (error == SSL_ERROR_SYSCALL)
+        {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::TransportFailure;
+        }
+        else
+        {
+            tlsHandshakeDiagnostics_.resultClass =
+                TlsHandshakeResultClass::LocalTlsFailure;
         }
         close(); // TLS alerts/EOF/provider errors never authorize MCS.
         return TlsHandshakeStatus::Invalid;
     }
 
+    tlsHandshakeDiagnostics_.sslError = SSL_ERROR_NONE;
+    tlsHandshakeDiagnostics_.opensslError = 0U;
+    tlsHandshakeDiagnostics_.opensslReason = 0U;
+
     // Reuse the existing server-role, cipher, TLS-version and certificate
     // gate; only the same completed SSL can become the MCS record source.
-    return onTlsHandshake(serverTls)
-               ? TlsHandshakeStatus::Established
-               : TlsHandshakeStatus::Invalid;
+    if (onTlsHandshake(serverTls))
+    {
+        tlsHandshakeDiagnostics_.resultClass =
+            TlsHandshakeResultClass::Established;
+        return TlsHandshakeStatus::Established;
+    }
+    tlsHandshakeDiagnostics_.resultClass =
+        TlsHandshakeResultClass::InvalidState;
+    return TlsHandshakeStatus::Invalid;
 }
 
 std::size_t PreauthConnectionStream::connectionRequestBytesNeeded()

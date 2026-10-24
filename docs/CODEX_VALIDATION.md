@@ -1,3 +1,27 @@
+## R1 Microsoft-client TLS diagnostic implementation (2026-10-24)
+
+Starting reconciled main: `0a6301e8673d84789cfc12ba0483da3ceb36e482`.
+
+R1 source review: **PASS**. The sole preauth owner captures the immediate
+OpenSSL handshake result/error/reason and preserves distinct terminal transport
+classification. Linux HostControl emits one bounded fail-only terminal record
+before accepted-owner destruction and keeps credentials/tokens/key material out
+of diagnostics. Runtime TLS certificate generation is unchanged.
+
+New dedicated coverage:
+- `runtime.generated-tls-identity-owner-ipv4-san-der`;
+- `transport.tcp-owned-generated-ip-hybrid-tls-client-verification`.
+
+The latter is a real loopback socket path through X.224 HYBRID selection and
+OpenSSL certificate verification against a numeric IP, including exact DER,
+same-context reconnect fingerprint continuity and no premature close after
+verification. Existing semantic R1 cases cover partial writes, WANT_READ,
+WANT_WRITE, EOF/reset, timeout and cancellation.
+
+Connector-local build/full CTest: **NOT RUN**. Hosted exact-SHA CI and the
+owner Microsoft-client retry: **PENDING**. No CredSSP/R2, R3 or R4 acceptance is
+claimed.
+
 ## R9 combined lifecycle/SPNEGO owner-candidate gate authoring — 2026-10-24
 
 R9 now treats standalone SPNEGO as the demonstrated owner blocker. The sanitizer

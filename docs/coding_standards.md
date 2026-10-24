@@ -1,3 +1,20 @@
+## R1 Microsoft-client TLS failure diagnostics (2026-10-24)
+
+When a real client reaches X.224 Enhanced Security but TLS does not establish,
+R1 is the first failing boundary. The sole preauth/TLS owner records one
+non-secret handshake-step counter, immediate `SSL_get_error()`, numeric OpenSSL
+top error/reason, configured certificate fingerprint, exact numeric-IP identity
+self-check, selected-SSL certificate continuity and terminal transport class.
+Keep peer EOF, peer reset, peer TLS alert, local TLS failure, timeout and owner
+cancellation distinct; do not rewrite those transport facts as an R2/R3
+authentication diagnosis. Never log passwords, NT hashes/responses, TLS key
+material or CredSSP token bytes.
+
+The generated endpoint certificate remains exact-IP SAN authority. Do not
+change its subject for client compatibility without real-client evidence that
+a standards-compliant IP-SAN client succeeds and the isolated Microsoft
+variant changes the observed result.
+
 ## R2 retained Session Password and standalone SPNEGO structural diagnostics (2026-10-24)
 
 Ordinary user-requested Stop is a nonterminal credential boundary. It revokes the

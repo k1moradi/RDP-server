@@ -375,6 +375,12 @@ private:
      TlsFailure,
      ProtocolError,
      Cancelled,
+     PeerEof,
+     PeerReset,
+     PeerTlsAlert,
+     LocalTlsFailure,
+     Timeout,
+     OwnerCancellation,
  };
 
  struct TcpConnectionPollResult
@@ -458,6 +464,11 @@ private:
      [[nodiscard]] TcpConnectionTermination termination() const noexcept
      {
          return termination_;
+     }
+     [[nodiscard]] TlsHandshakeDiagnostics tlsHandshakeDiagnostics()
+         const noexcept
+     {
+         return adapter_.connection().tlsHandshakeDiagnostics();
      }
 
      // Only for plaintext X.224 socket readiness. Subsequent TLS/MCS

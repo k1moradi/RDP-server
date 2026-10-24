@@ -21,6 +21,7 @@
 #include <array>
 #include <charconv>
 #include <cerrno>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <fstream>
@@ -376,6 +377,85 @@ readLinuxDefaultRoutePreferences()
     return endpointText(buffer.data(), endpoint.port);
 }
 
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+[[nodiscard]] constexpr const char *tlsHandshakeResultName(
+    rdp_server::server::transport::TlsHandshakeResultClass result) noexcept
+{
+    using Result = rdp_server::server::transport::TlsHandshakeResultClass;
+    switch (result)
+    {
+    case Result::NotAttempted: return "not-attempted";
+    case Result::NeedRead: return "want-read";
+    case Result::NeedWrite: return "want-write";
+    case Result::Established: return "established";
+    case Result::PeerEof: return "peer-eof";
+    case Result::PeerTlsAlert: return "peer-tls-alert";
+    case Result::TransportFailure: return "transport-failure";
+    case Result::LocalTlsFailure: return "local-tls-failure";
+    case Result::InvalidState: return "invalid-state";
+    }
+    return "invalid-state";
+}
+
+[[nodiscard]] constexpr const char *terminationName(
+    rdp_server::server::transport::TcpConnectionTermination termination)
+    noexcept
+{
+    using Termination =
+        rdp_server::server::transport::TcpConnectionTermination;
+    switch (termination)
+    {
+    case Termination::Open: return "open";
+    case Termination::OrderlyTlsClose: return "peer-tls-alert";
+    case Termination::TransportError: return "transport-error";
+    case Termination::TlsFailure: return "tls-failure";
+    case Termination::ProtocolError: return "protocol-error";
+    case Termination::Cancelled: return "owner-cancellation";
+    case Termination::PeerEof: return "peer-eof";
+    case Termination::PeerReset: return "peer-reset";
+    case Termination::PeerTlsAlert: return "peer-tls-alert";
+    case Termination::LocalTlsFailure: return "local-tls-failure";
+    case Termination::Timeout: return "timeout";
+    case Termination::OwnerCancellation: return "owner-cancellation";
+    }
+    return "transport-error";
+}
+
+[[nodiscard]] constexpr const char *endpointIdentityStatusName(
+    RuntimeTlsEndpointIdentityStatus status) noexcept
+{
+    switch (status)
+    {
+    case RuntimeTlsEndpointIdentityStatus::Match: return "match";
+    case RuntimeTlsEndpointIdentityStatus::Mismatch: return "mismatch";
+    case RuntimeTlsEndpointIdentityStatus::InvalidEndpoint: return "invalid";
+    case RuntimeTlsEndpointIdentityStatus::CertificateUnavailable:
+        return "certificate-unavailable";
+    }
+    return "invalid";
+}
+
+[[nodiscard]] std::array<char, 65> tlsFingerprintText(
+    const RuntimeTlsCertificateFingerprint &fingerprint,
+    bool available) noexcept
+{
+    constexpr char kHex[] = "0123456789abcdef";
+    std::array<char, 65> text{};
+    if (!available)
+    {
+        constexpr std::string_view unavailable{"unavailable"};
+        std::copy(unavailable.begin(), unavailable.end(), text.begin());
+        return text;
+    }
+    for (std::size_t index = 0; index < fingerprint.size(); ++index)
+    {
+        text[index * 2U] = kHex[fingerprint[index] >> 4U];
+        text[index * 2U + 1U] = kHex[fingerprint[index] & 0x0fU];
+    }
+    return text;
+}
+#endif
+
 [[nodiscard]] std::string numericAddress(const sockaddr* address)
 {
     if (!isEligibleAddress(address))
@@ -685,6 +765,26 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     case SourceTermination::Cancelled:
         projected.termination = RuntimeAcceptedClientTermination::Cancelled;
+        break;
+    case SourceTermination::PeerEof:
+        projected.termination = RuntimeAcceptedClientTermination::PeerEof;
+        break;
+    case SourceTermination::PeerReset:
+        projected.termination = RuntimeAcceptedClientTermination::PeerReset;
+        break;
+    case SourceTermination::PeerTlsAlert:
+        projected.termination = RuntimeAcceptedClientTermination::PeerTlsAlert;
+        break;
+    case SourceTermination::LocalTlsFailure:
+        projected.termination =
+            RuntimeAcceptedClientTermination::LocalTlsFailure;
+        break;
+    case SourceTermination::Timeout:
+        projected.termination = RuntimeAcceptedClientTermination::Timeout;
+        break;
+    case SourceTermination::OwnerCancellation:
+        projected.termination =
+            RuntimeAcceptedClientTermination::OwnerCancellation;
         break;
     }
     return projected;
@@ -2031,10 +2131,55 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
 #endif
     if (acceptedClient_ != nullptr)
     {
-        acceptedClient_->revoke();
+        // Snapshot before the explicit owner cancellation below. R1 may
+        // already have classified peer EOF/reset/alert, local TLS failure or
+        // timeout; a later aggregate revoke must not overwrite that evidence.
+        const auto diagnostics = acceptedClient_->acceptanceDiagnostics();
         acceptedClientPreauthDiagnostics_ =
-            projectLinuxAcceptedClientPreauthDiagnostics(
-                acceptedClient_->acceptanceDiagnostics());
+            projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
+
+        if (acceptedClientId_ != 0U &&
+            (error != RuntimeHostError::None ||
+             diagnostics.termination !=
+                 rdp_server::server::transport::TcpConnectionTermination::Open))
+        {
+            const auto fingerprint = tlsFingerprintText(
+                diagnostics.certificateSha256,
+                diagnostics.certificateFingerprintAvailable);
+            const std::string selectedEndpoint =
+                boundEndpointText(listener_.boundEndpoint());
+            const char *const selectedCertificateCheck =
+                !diagnostics.selectedCertificateIdentityChecked
+                    ? "not-run"
+                    : diagnostics.selectedCertificateMatchesRuntimeIdentity
+                        ? "match"
+                        : "mismatch";
+
+            // One bounded fail-only record. Never add credentials, hashes,
+            // NTLM/TSRequest bytes, TLS secrets or certificate private data.
+            std::fprintf(
+                stderr,
+                "rdp-server: r1 tls terminal: connection=%llu endpoint=%s "
+                "fingerprint=%s ip-self-check=%s selected-cert=%s "
+                "handshake-step=%llu handshake-result=%s ssl-error=%d "
+                "openssl-reason=%u termination=%s host-error=%u\n",
+                static_cast<unsigned long long>(acceptedClientId_),
+                selectedEndpoint.empty() ? "unavailable"
+                                         : selectedEndpoint.c_str(),
+                fingerprint.data(),
+                endpointIdentityStatusName(
+                    diagnostics.certificateExactIpSelfCheck),
+                selectedCertificateCheck,
+                static_cast<unsigned long long>(
+                    diagnostics.tlsHandshake.step),
+                tlsHandshakeResultName(
+                    diagnostics.tlsHandshake.resultClass),
+                diagnostics.tlsHandshake.sslError,
+                diagnostics.tlsHandshake.opensslReason,
+                terminationName(diagnostics.termination),
+                static_cast<unsigned int>(error));
+        }
+        acceptedClient_->revoke();
     }
     clearAcceptedClient();
     clientDisconnected_ = hadAcceptedClient && listener_.valid();
@@ -2158,6 +2303,8 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
         return {lastError_, false};
     }
 
+    connection->configureTlsIdentityDiagnostics(
+        *tlsContext_, selection_.localAddress);
     acceptedClient_ = std::move(connection);
     acceptedClientPreauthDiagnostics_ =
         projectLinuxAcceptedClientPreauthDiagnostics(

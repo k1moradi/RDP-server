@@ -2537,6 +2537,13 @@ foreach(runtime_transport_case IN ITEMS
         TIMEOUT 30)
 endforeach()
 
+add_test(NAME transport.tcp-owned-generated-ip-hybrid-tls-client-verification
+    COMMAND test_owned_preauth_session
+        tcp-owned-generated-ip-hybrid-tls-client-verification)
+set_tests_properties(
+    transport.tcp-owned-generated-ip-hybrid-tls-client-verification
+    PROPERTIES LABELS "protocol;transport;runtime;security;offline" TIMEOUT 30)
+
 # R10 production TLS-context ownership. These tests exercise the runtime-only
 # component directly; they never bind/listen and use only synthetic credentials.
 add_executable(test_runtime_tls_context test_runtime_tls_context.cpp)
@@ -2576,6 +2583,7 @@ foreach(generated_tls_context_case IN ITEMS
         generated-tls-identity-ipv4-san
         generated-tls-identity-ipv6-san
         generated-tls-identity-generic-subject-ip-san-authority
+        generated-tls-identity-owner-ipv4-san-der
         generated-tls-identity-wrong-endpoint-denial
         generated-tls-identity-stop-retirement
         generated-tls-identity-no-listener-side-effect)

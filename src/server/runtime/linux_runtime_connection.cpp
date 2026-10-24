@@ -10,6 +10,7 @@
 #include <string_view>
 #include <utility>
 
+#include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
 #include <poll.h>
@@ -393,9 +394,15 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         snapshot.mcsPhase ==
         rdp_server::server::transport::McsSessionPhase::ShareActivated;
     snapshot.termination = connection_.termination();
+    snapshot.tlsHandshake = connection_.tlsHandshakeDiagnostics();
     snapshot.certificateSha256 = negotiatedCertificateSha256_;
     snapshot.certificateFingerprintAvailable =
         negotiatedCertificateFingerprintAvailable_;
+    snapshot.certificateExactIpSelfCheck = certificateExactIpSelfCheck_;
+    snapshot.selectedCertificateIdentityChecked =
+        selectedCertificateIdentityChecked_;
+    snapshot.selectedCertificateMatchesRuntimeIdentity =
+        selectedCertificateMatchesRuntimeIdentity_;
 
     if (!connection_.active())
         snapshot.tlsHandshakeStage =
@@ -861,6 +868,19 @@ LinuxRuntimeConnection::onWritable() noexcept
     return result;
 }
 
+void LinuxRuntimeConnection::configureTlsIdentityDiagnostics(
+    const RuntimeServerTlsContext &tlsContext,
+    std::string_view numericEndpoint) noexcept
+{
+    certificateExactIpSelfCheck_ =
+        tlsContext.validateEndpointIdentity(numericEndpoint);
+    RuntimeTlsCertificateFingerprint fingerprint{};
+    negotiatedCertificateFingerprintAvailable_ =
+        tlsContext.certificateSha256Fingerprint(fingerprint);
+    if (negotiatedCertificateFingerprintAvailable_)
+        negotiatedCertificateSha256_ = fingerprint;
+}
+
 bool LinuxRuntimeConnection::attachServerTls(
     const RuntimeServerTlsContext &tlsContext) noexcept
 {
@@ -870,7 +890,27 @@ bool LinuxRuntimeConnection::attachServerTls(
     }
 
     auto serverTls = tlsContext.createServerTls();
-    if (!serverTls ||
+    if (serverTls)
+    {
+        selectedCertificateIdentityChecked_ = true;
+        RuntimeTlsCertificateFingerprint selectedFingerprint{};
+        unsigned int selectedFingerprintBytes = 0U;
+        X509 *const selectedCertificate = ::SSL_get_certificate(serverTls.get());
+        selectedCertificateMatchesRuntimeIdentity_ =
+            negotiatedCertificateFingerprintAvailable_ &&
+            selectedCertificate != nullptr &&
+            ::X509_digest(
+                selectedCertificate, ::EVP_sha256(),
+                selectedFingerprint.data(), &selectedFingerprintBytes) == 1 &&
+            selectedFingerprintBytes == selectedFingerprint.size() &&
+            ::CRYPTO_memcmp(
+                selectedFingerprint.data(),
+                negotiatedCertificateSha256_.data(),
+                selectedFingerprint.size()) == 0;
+        ::OPENSSL_cleanse(
+            selectedFingerprint.data(), selectedFingerprint.size());
+    }
+    if (!serverTls || !selectedCertificateMatchesRuntimeIdentity_ ||
         !connection_.attachServerTls(std::move(serverTls)))
     {
         revoke();

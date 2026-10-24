@@ -462,6 +462,12 @@ enum class RuntimeAcceptedClientTermination : std::uint8_t
     TlsFailure,
     ProtocolError,
     Cancelled,
+    PeerEof,
+    PeerReset,
+    PeerTlsAlert,
+    LocalTlsFailure,
+    Timeout,
+    OwnerCancellation,
 };
 
 struct RuntimeAcceptedClientPreauthDiagnostics final

@@ -1,3 +1,35 @@
+## R1 P0 Microsoft-client TLS first-failure instrumentation (2026-10-24)
+
+Owner evidence reaches TCP, X.224 HYBRID selection and receipt of the server
+certificate, then disconnects before TLS establishment. R1 therefore owns the
+first demonstrated failure; R2/R3/R4 behavior is unchanged.
+
+This increment adds authoritative fail-only server diagnostics on the existing
+single accepted TLS owner: connection ID, selected endpoint, certificate
+fingerprint, exact-IP self-check, selected SSL/certificate continuity,
+handshake-step count, immediate `SSL_get_error()`, numeric OpenSSL reason and
+terminal classification (peer EOF/reset/TLS alert, local TLS failure, timeout,
+owner cancellation). Concurrent R2/R9 credential/SPNEGO changes through
+`0a6301e8673d84789cfc12ba0483da3ceb36e482` are preserved.
+
+Certificate generation is deliberately unchanged. Offline coverage inspects
+the owner fixture `192.168.1.5` SAN as exactly one `GEN_IPADD` containing
+`C0 A8 01 05`, and a real loopback RDP-aware client performs
+TCP -> X.224 HYBRID -> TLS, trusts the generated leaf, verifies the numeric IP,
+compares the exact presented DER, stays connected after verification and
+reconnects through the same TLS context with an unchanged fingerprint.
+
+**Source review:** PASS. **Owner-local build/full CTest:** NOT RUN by this
+connector. **Exact-publication-SHA hosted CI:** PENDING.
+
+**Next P0 gate:** rerun the physical Microsoft Windows App connection and
+capture the new R1 terminal record. Do not make another certificate/TLS
+compatibility change until that record answers whether the Microsoft client or
+the server closes first. If the standards-compliant IP-SAN test remains green
+while Windows App still reports name mismatch, test exact numeric IP in CN plus
+the same IP SAN as an isolated compatibility variant before considering any
+format change.
+
 ## R9 P0 — owner-candidate gate requires standalone SPNEGO challenge entry (2026-10-24)
 
 Owner evidence now places the first demonstrated failure at standalone SPNEGO,

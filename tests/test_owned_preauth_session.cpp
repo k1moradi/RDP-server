@@ -207,16 +207,41 @@ struct RuntimeTlsClientFixture final
     ContextPointer context{SSL_CTX_new(TLS_client_method()), SSL_CTX_free};
     SslPointer connection{nullptr, SSL_free};
 
-    RuntimeTlsClientFixture()
+    explicit RuntimeTlsClientFixture(
+        const X509 *trustedCertificate = nullptr,
+        std::string_view expectedIp = {})
     {
         assert(context);
         assert(SSL_CTX_set_min_proto_version(context.get(),
                                              TLS1_2_VERSION) == 1);
-        // This loopback client verifies the server identity explicitly with
-        // X509_cmp after the handshake; no CA store or external trust exists.
-        SSL_CTX_set_verify(context.get(), SSL_VERIFY_NONE, nullptr);
+        if (trustedCertificate == nullptr)
+        {
+            // Legacy loopback cases compare the exact peer certificate after
+            // the handshake and intentionally have no external trust store.
+            SSL_CTX_set_verify(context.get(), SSL_VERIFY_NONE, nullptr);
+        }
+        else
+        {
+            assert(!expectedIp.empty() && expectedIp.size() < 64U);
+            X509_STORE *const store = SSL_CTX_get_cert_store(context.get());
+            assert(store != nullptr);
+            assert(X509_STORE_add_cert(
+                       store, const_cast<X509 *>(trustedCertificate)) == 1);
+            SSL_CTX_set_verify(context.get(), SSL_VERIFY_PEER, nullptr);
+        }
+
         connection.reset(SSL_new(context.get()));
         assert(connection);
+        if (trustedCertificate != nullptr)
+        {
+            std::array<char, 64> ipText{};
+            std::copy(expectedIp.begin(), expectedIp.end(), ipText.begin());
+            X509_VERIFY_PARAM *const parameters =
+                SSL_get0_param(connection.get());
+            assert(parameters != nullptr);
+            assert(X509_VERIFY_PARAM_set1_ip_asc(
+                       parameters, ipText.data()) == 1);
+        }
         SSL_set_connect_state(connection.get());
     }
 };
@@ -2974,6 +2999,155 @@ void testOwnedRuntimeTlsHandshake(const char *certificatePath,
     }
 }
 
+void testOwnedGeneratedIpHybridTlsClientVerification()
+{
+    using Interest = TcpConnectionIoInterest;
+
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress("127.0.0.1");
+    assert(context);
+    assert(context.certificate() != nullptr);
+
+    rdp_server::server::runtime::RuntimeTlsCertificateFingerprint expectedFingerprint{};
+    assert(context.certificateSha256Fingerprint(expectedFingerprint));
+
+    const int expectedDerBytes =
+        i2d_X509(const_cast<X509 *>(context.certificate()), nullptr);
+    assert(expectedDerBytes > 0);
+    std::vector<std::uint8_t> expectedDer(
+        static_cast<std::size_t>(expectedDerBytes));
+    unsigned char *expectedDerCursor = expectedDer.data();
+    assert(i2d_X509(
+               const_cast<X509 *>(context.certificate()),
+               &expectedDerCursor) == expectedDerBytes);
+
+    for (int reconnect = 0; reconnect < 2; ++reconnect)
+    {
+        LoopbackSocketPair pair{false};
+        OwnedNativeTcpSocket accepted =
+            acceptRuntimeLoopbackWithDeadline(pair);
+        OwnedPreauthTcpConnection owner{
+            std::move(accepted), SecurityNegotiationPolicy::HybridNla};
+        NativeTcpIo clientIo{
+            static_cast<std::uintptr_t>(pair.client.value)};
+
+        const auto request = tlsAndHybridRequestWire();
+        const auto parsed = parseConnectionRequest(request);
+        assert(parsed);
+        const auto expectedReply =
+            negotiateSecurity(parsed, SecurityNegotiationPolicy::HybridNla);
+        assert(expectedReply.decision == SecurityDecision::Tls);
+        assert(expectedReply.selectedProtocol == kRdpProtocolHybrid);
+
+        const auto deadline = runtimeTlsFixtureDeadline();
+        nativeSendAllBefore(clientIo, request, deadline);
+        while (owner.ioInterest() != Interest::ConfigureTls &&
+               RuntimeClock::now() < deadline)
+        {
+            const auto polled =
+                owner.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                   polled.outcome == TcpConnectionPollOutcome::NoEvent);
+        }
+        assert(owner.ioInterest() == Interest::ConfigureTls);
+
+        std::array<std::uint8_t, 19> confirm{};
+        nativeReadAllBefore(clientIo, confirm, deadline);
+        assert(confirm == expectedReply.packet);
+        assert(confirm[15] == kRdpProtocolHybrid);
+
+        RuntimeTlsClientFixture client{
+            context.certificate(), "127.0.0.1"};
+        assert(owner.attachServerTls(context.createServerTls()));
+        assert(attachNonblockingTcpBio(client.connection.get(), clientIo));
+
+        const auto firstServerStep = owner.onTlsIoReady();
+        assert(firstServerStep == TlsHandshakeStatus::NeedRead ||
+               firstServerStep == TlsHandshakeStatus::NeedWrite);
+        const auto firstDiagnostics = owner.tlsHandshakeDiagnostics();
+        assert(firstDiagnostics.step == 1U);
+        assert(firstDiagnostics.resultClass ==
+                   TlsHandshakeResultClass::NeedRead ||
+               firstDiagnostics.resultClass ==
+                   TlsHandshakeResultClass::NeedWrite);
+
+        bool clientEstablished = false;
+        const auto handshakeDeadline = runtimeTlsFixtureDeadline();
+        while (RuntimeClock::now() < handshakeDeadline)
+        {
+            if (!clientEstablished)
+            {
+                const int result =
+                    SSL_do_handshake(client.connection.get());
+                if (result == 1)
+                {
+                    clientEstablished = true;
+                }
+                else
+                {
+                    const int error =
+                        SSL_get_error(client.connection.get(), result);
+                    assert(error == SSL_ERROR_WANT_READ ||
+                           error == SSL_ERROR_WANT_WRITE);
+                }
+            }
+            if (owner.establishedTls() == nullptr)
+            {
+                const auto polled = owner.pollSocketOnce(
+                    handshakeDeadline, kMaximumTcpPollWait);
+                assert(polled.outcome ==
+                           TcpConnectionPollOutcome::Dispatched ||
+                       polled.outcome ==
+                           TcpConnectionPollOutcome::NoEvent);
+            }
+            if (clientEstablished && owner.establishedTls() != nullptr)
+                break;
+        }
+
+        assert(clientEstablished);
+        assert(owner.establishedTls() != nullptr);
+        assert(owner.stage() == PreauthStage::AwaitCredSsp);
+        assert(SSL_get_verify_result(client.connection.get()) == X509_V_OK);
+
+        const CertificatePointer peerCertificate{
+            SSL_get1_peer_certificate(client.connection.get()), X509_free};
+        assert(peerCertificate);
+        assert(X509_check_ip_asc(
+                   peerCertificate.get(), "127.0.0.1", 0U) == 1);
+
+        const int peerDerBytes =
+            i2d_X509(peerCertificate.get(), nullptr);
+        assert(peerDerBytes == expectedDerBytes);
+        std::vector<std::uint8_t> peerDer(
+            static_cast<std::size_t>(peerDerBytes));
+        unsigned char *peerDerCursor = peerDer.data();
+        assert(i2d_X509(
+                   peerCertificate.get(), &peerDerCursor) == peerDerBytes);
+        assert(peerDer == expectedDer);
+
+        rdp_server::server::runtime::RuntimeTlsCertificateFingerprint observedFingerprint{};
+        unsigned int observedBytes = 0U;
+        assert(X509_digest(
+                   peerCertificate.get(), EVP_sha256(),
+                   observedFingerprint.data(), &observedBytes) == 1);
+        assert(observedBytes == observedFingerprint.size());
+        assert(observedFingerprint == expectedFingerprint);
+
+        const auto establishedDiagnostics = owner.tlsHandshakeDiagnostics();
+        assert(establishedDiagnostics.resultClass ==
+               TlsHandshakeResultClass::Established);
+        assert(establishedDiagnostics.sslError == SSL_ERROR_NONE);
+
+        // Certificate verification must not trigger a premature server close.
+        std::array<std::uint8_t, 1> pending{};
+        const auto read = owner.readTlsApplicationData(pending);
+        assert(read.outcome == TlsApplicationIoOutcome::NeedRead ||
+               read.outcome == TlsApplicationIoOutcome::NeedWrite);
+        assert(owner.active());
+        owner.cancel();
+    }
+}
+
 void testOwnedRuntimeTlsIdentityContinuity(
     const char *certificatePath,
     const char *privateKeyPath,
@@ -5295,6 +5469,7 @@ void testOwnedTlsApplicationTerminalReadiness()
 
         assert(result.outcome == Outcome::TlsClosed);
         assert(result.bytes == 0);
+        assert(owner.termination() == TcpConnectionTermination::PeerTlsAlert);
         assert(!owner.active());
         assert(owner.ioInterest() == Interest::Closed);
         owner.cancel();
@@ -5341,6 +5516,7 @@ void testOwnedTlsApplicationTerminalReadiness()
 
         assert(result.outcome == Outcome::TransportClosed);
         assert(result.bytes == 0);
+        assert(owner.termination() == TcpConnectionTermination::PeerEof);
         assert(!owner.active());
         assert(owner.ioInterest() == Interest::Closed);
         assert(owner.readTlsApplicationData(buffer).outcome ==
@@ -5412,6 +5588,8 @@ void testOwnedTlsApplicationTcpResetTerminal()
     assert(result.outcome == Outcome::TransportClosed ||
            result.outcome == Outcome::FatalTlsFailure);
     assert(result.bytes == 0);
+    assert(owner.termination() == TcpConnectionTermination::PeerReset ||
+           owner.termination() == TcpConnectionTermination::LocalTlsFailure);
     assert(!owner.active());
     assert(owner.ioInterest() == Interest::Closed);
     assert(!owner.tlsApplicationReadReady());
@@ -11215,6 +11393,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},
     {"tcp-owned-security-negotiation-provenance", &testOwnedSecurityNegotiationProvenance},
     {"tcp-owned-hybrid-nla-negotiation", &testOwnedHybridNlaNegotiation},
+    {"tcp-owned-generated-ip-hybrid-tls-client-verification",
+     &testOwnedGeneratedIpHybridTlsClientVerification},
     {"tcp-owned-hybrid-credssp-first-record", &testOwnedHybridCredSspFirstRecord},
     {"tcp-owned-buffered-tls-credssp-mcs-readiness",
      &testOwnedBufferedTlsCredSspThenMcsReadiness},

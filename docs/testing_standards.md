@@ -1,3 +1,19 @@
+## R1 real-socket X.224 -> TLS interoperability gate (2026-10-24)
+
+A production-linked compatibility regression must perform TCP, X.224 Connection
+Request with HYBRID offered/selected, X.224 Confirm, then an OpenSSL client
+handshake that trusts the generated leaf and verifies the exact numeric IP.
+The connection must remain open after certificate verification. Reconnects
+within one Sharing-session TLS context must observe the identical leaf DER and
+fingerprint. Keep the existing partial-write, WANT_READ/WANT_WRITE, EOF/reset
+and cancellation tests in the same semantic R1 suite.
+
+For owner Microsoft-client captures, record the exact server SHA/client build,
+configured/bound endpoint, certificate fingerprint/IP self-check, every R1
+handshake step and the terminal class. The next physical run must answer whether
+the peer closed/reset/alerted first or the server produced a local TLS failure
+before any R2/R3/R4 diagnosis proceeds.
+
 ## R9 combined lifecycle and standalone-SPNEGO owner-candidate gate (2026-10-24)
 
 Before another owner candidate, directly run the three production-linked R9

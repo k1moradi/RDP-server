@@ -3,6 +3,7 @@
 #include "server/transport/lan_listener.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
+#include <algorithm>
 #include <array>
 #include <concepts>
 #include <cstdio>
@@ -470,6 +471,47 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+[[nodiscard]] bool validateGeneratedOwnerIpv4SanDer() noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+    constexpr std::array<unsigned char, 4> kOwnerIpv4{
+        0xc0U, 0xa8U, 0x01U, 0x05U};
+
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress("192.168.1.5");
+    if (!context || context.certificate() == nullptr)
+        return fail("owner IPv4 generated certificate unavailable");
+
+    GENERAL_NAMES *rawNames = static_cast<GENERAL_NAMES *>(
+        ::X509_get_ext_d2i(
+            const_cast<X509 *>(context.certificate()),
+            NID_subject_alt_name, nullptr, nullptr));
+    std::unique_ptr<GENERAL_NAMES, decltype(&GENERAL_NAMES_free)>
+        names{rawNames, GENERAL_NAMES_free};
+    if (!names || ::sk_GENERAL_NAME_num(names.get()) != 1)
+        return fail("owner IPv4 SAN count mismatch");
+
+    const GENERAL_NAME *const name =
+        ::sk_GENERAL_NAME_value(names.get(), 0);
+    if (name == nullptr || name->type != GEN_IPADD ||
+        name->d.iPAddress == nullptr ||
+        ::ASN1_STRING_length(name->d.iPAddress) !=
+            static_cast<int>(kOwnerIpv4.size()))
+        return fail("owner IPv4 SAN is not one GEN_IPADD");
+
+    const unsigned char *const bytes =
+        ::ASN1_STRING_get0_data(name->d.iPAddress);
+    if (bytes == nullptr ||
+        !std::equal(kOwnerIpv4.begin(), kOwnerIpv4.end(), bytes))
+        return fail("owner IPv4 SAN bytes are not C0 A8 01 05");
+
+    if (context.validateEndpointIdentity("192.168.1.5") !=
+            RuntimeTlsEndpointIdentityStatus::Match)
+        return fail("owner IPv4 self-check failed");
+    return true;
+}
+
 [[nodiscard]] bool validateGeneratedRetirement() noexcept
 {
     using rdp_server::server::runtime::RuntimeServerTlsContext;
@@ -510,6 +552,8 @@ int main(int argumentCount, char **argumentValues)
             "2001:db8::40", "2001:db8::41") ? 0 : 1;
     if (testCase == "generated-tls-identity-generic-subject-ip-san-authority")
         return validateGeneratedGenericSubject() ? 0 : 1;
+    if (testCase == "generated-tls-identity-owner-ipv4-san-der")
+        return validateGeneratedOwnerIpv4SanDer() ? 0 : 1;
     if (testCase == "generated-tls-identity-wrong-endpoint-denial")
     {
         RuntimeServerTlsContext context =

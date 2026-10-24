@@ -1,3 +1,20 @@
+## R1 first-failure TLS observability boundary (2026-10-24)
+
+The accepted Linux connection still has exactly one R1 socket/BIO/SSL owner.
+R1 preserves numeric handshake diagnostics across terminal teardown and R10
+logs one fail-only record before destroying that owner. The record contains the
+accepted connection ID, selected bound endpoint, public leaf SHA-256,
+exact-IP self-check, selected-SSL identity continuity, handshake step/result,
+immediate SSL error, numeric OpenSSL reason and peer/local/timeout/cancellation
+classification. It contains no credential or token material and grants no
+authentication authority.
+
+The generated certificate format is unchanged: generic CN `RDP Server` plus
+the exact numeric address as one `GEN_IPADD` SAN. A real-socket HYBRID
+OpenSSL-client regression verifies that model, exact DER presentation and
+same-context reconnect fingerprint continuity. Microsoft-specific CN changes
+remain unimplemented pending physical evidence.
+
 ## R10 Stop/Start credential scope and exact pre-auth diagnostics (2026-10-24)
 
 R10 owns two distinct Linux teardown scopes. Ordinary Sharing OFF explicitly

@@ -427,8 +427,13 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     bool shareActivated{};
     rdp_server::server::transport::TcpConnectionTermination termination{
         rdp_server::server::transport::TcpConnectionTermination::Cancelled};
+    rdp_server::server::transport::TlsHandshakeDiagnostics tlsHandshake{};
     RuntimeTlsCertificateFingerprint certificateSha256{};
     bool certificateFingerprintAvailable{};
+    RuntimeTlsEndpointIdentityStatus certificateExactIpSelfCheck{
+        RuntimeTlsEndpointIdentityStatus::CertificateUnavailable};
+    bool selectedCertificateIdentityChecked{};
+    bool selectedCertificateMatchesRuntimeIdentity{};
 };
 
 namespace detail
@@ -677,6 +682,13 @@ public:
     onReadable() noexcept;
     [[nodiscard]] rdp_server::server::transport::TcpPreauthEvent
     onWritable() noexcept;
+
+    // Snapshot only the public configured leaf fingerprint and exact numeric
+    // endpoint self-check before TLS begins. This is descriptive listener
+    // identity evidence only and never peer/user authorization.
+    void configureTlsIdentityDiagnostics(
+        const RuntimeServerTlsContext &tlsContext,
+        std::string_view numericEndpoint) noexcept;
 
     // Create a fresh SSL from the service-owned R10 context and transfer it
     // exactly once into R1. The SSL_CTX remains service-owned by tlsContext.
@@ -1188,6 +1200,10 @@ private:
                 StandaloneAuthenticationFailureStage::None};
     RuntimeTlsCertificateFingerprint negotiatedCertificateSha256_{};
     bool negotiatedCertificateFingerprintAvailable_{};
+    RuntimeTlsEndpointIdentityStatus certificateExactIpSelfCheck_{
+        RuntimeTlsEndpointIdentityStatus::CertificateUnavailable};
+    bool selectedCertificateIdentityChecked_{};
+    bool selectedCertificateMatchesRuntimeIdentity_{};
     std::uint32_t negotiatedSecurityProtocol_{};
     int negotiatedTlsProtocolVersion_{};
     bool tlsEverEstablished_{};

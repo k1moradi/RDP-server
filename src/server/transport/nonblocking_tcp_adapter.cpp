@@ -90,6 +90,39 @@ namespace
                 ? TcpIoOutcome::WouldBlock : TcpIoOutcome::Failure, 0};
 #endif
 }
+
+[[nodiscard]] bool nativePeerResetObserved() noexcept
+{
+#ifdef _WIN32
+    const int code = WSAGetLastError();
+    return code == WSAECONNRESET || code == WSAECONNABORTED;
+#else
+    return errno == ECONNRESET || errno == EPIPE;
+#endif
+}
+
+[[nodiscard]] bool nativeSocketHasPeerReset(
+    std::uintptr_t nativeSocket) noexcept
+{
+    int socketError = 0;
+#ifdef _WIN32
+    int length = static_cast<int>(sizeof(socketError));
+    if (::getsockopt(
+            static_cast<SOCKET>(nativeSocket), SOL_SOCKET, SO_ERROR,
+            reinterpret_cast<char *>(&socketError), &length) != 0)
+        return nativePeerResetObserved();
+    return socketError == WSAECONNRESET || socketError == WSAECONNABORTED;
+#else
+    socklen_t length = static_cast<socklen_t>(sizeof(socketError));
+    if (nativeSocket >
+            static_cast<std::uintptr_t>((std::numeric_limits<int>::max)()) ||
+        ::getsockopt(
+            static_cast<int>(nativeSocket), SOL_SOCKET, SO_ERROR,
+            &socketError, &length) != 0)
+        return nativePeerResetObserved();
+    return socketError == ECONNRESET || socketError == EPIPE;
+#endif
+}
 }
 
 // OpenSSL invokes these callbacks synchronously during SSL_do_handshake,
@@ -679,6 +712,11 @@ TcpConnectionPollResult OwnedPreauthTcpConnection::pollSocketOnce(
 
     if ((ready.revents & (POLLERR | POLLNVAL)) != 0)
     {
+        termination_ =
+            (ready.revents & POLLERR) != 0 &&
+                    nativeSocketHasPeerReset(nativeSocket())
+                ? TcpConnectionTermination::PeerReset
+                : TcpConnectionTermination::TransportError;
         cancel();
         return {Outcome::Failure, Interest::Closed};
     }
@@ -802,6 +840,7 @@ bool OwnedPreauthTcpConnection::cancelIfExpired(
     std::chrono::steady_clock::time_point deadline) noexcept
 {
     if (!active() || now < deadline) return false;
+    termination_ = TcpConnectionTermination::Timeout;
     cancel();
     return true;
 }
@@ -874,23 +913,27 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
         pendingApplicationBytes_ = attemptedBytes;
         return {Outcome::NeedWrite, 0};
     case SSL_ERROR_ZERO_RETURN:
-        termination_ = TcpConnectionTermination::OrderlyTlsClose;
+        termination_ = TcpConnectionTermination::PeerTlsAlert;
         cancel();
         return {Outcome::TlsClosed, 0};
     case SSL_ERROR_SYSCALL:
-        termination_ = TcpConnectionTermination::TransportError;
+        termination_ =
+            nativePeerResetObserved() ||
+                    nativeSocketHasPeerReset(nativeSocket())
+                ? TcpConnectionTermination::PeerReset
+                : TcpConnectionTermination::PeerEof;
         cancel();
         return {Outcome::TransportClosed, 0};
     case SSL_ERROR_SSL:
         if (isUnexpectedTlsEof())
         {
-            termination_ = TcpConnectionTermination::TransportError;
+            termination_ = TcpConnectionTermination::PeerEof;
             cancel();
             return {Outcome::TransportClosed, 0};
         }
         [[fallthrough]];
     default:
-        termination_ = TcpConnectionTermination::TlsFailure;
+        termination_ = TcpConnectionTermination::LocalTlsFailure;
         cancel();
         return {Outcome::FatalTlsFailure, 0};
     }
@@ -977,7 +1020,7 @@ OwnedPreauthTcpConnection::OwnedPreauthTcpConnection(
 void OwnedPreauthTcpConnection::cancel() noexcept
 {
     if (termination_ == TcpConnectionTermination::Open)
-        termination_ = TcpConnectionTermination::Cancelled;
+        termination_ = TcpConnectionTermination::OwnerCancellation;
     // No borrowed application buffer is stored, but pending readiness must
     // become inert before SSL/BIO teardown. The BIO borrows io_; free its
     // SSL before closing the native socket.
@@ -1057,7 +1100,32 @@ TlsHandshakeStatus OwnedPreauthTcpConnection::onTlsIoReady() noexcept
     const auto result = adapter_.onAttachedTlsIoReady();
     if (result == TlsHandshakeStatus::Invalid)
     {
-        termination_ = TcpConnectionTermination::TlsFailure;
+        const auto diagnostics = tlsHandshakeDiagnostics();
+        switch (diagnostics.resultClass)
+        {
+        case TlsHandshakeResultClass::PeerEof:
+            termination_ = TcpConnectionTermination::PeerEof;
+            break;
+        case TlsHandshakeResultClass::PeerTlsAlert:
+            termination_ = TcpConnectionTermination::PeerTlsAlert;
+            break;
+        case TlsHandshakeResultClass::TransportFailure:
+            termination_ = nativePeerResetObserved() ||
+                                   nativeSocketHasPeerReset(nativeSocket())
+                ? TcpConnectionTermination::PeerReset
+                : TcpConnectionTermination::PeerEof;
+            break;
+        case TlsHandshakeResultClass::LocalTlsFailure:
+        case TlsHandshakeResultClass::InvalidState:
+            termination_ = TcpConnectionTermination::LocalTlsFailure;
+            break;
+        case TlsHandshakeResultClass::NotAttempted:
+        case TlsHandshakeResultClass::NeedRead:
+        case TlsHandshakeResultClass::NeedWrite:
+        case TlsHandshakeResultClass::Established:
+            termination_ = TcpConnectionTermination::TlsFailure;
+            break;
+        }
         cancel();
     }
     else if (result == TlsHandshakeStatus::Closed)

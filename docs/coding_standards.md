@@ -1,3 +1,19 @@
+## Keep standalone credential, native admission and consent as separate owners (2026-10-24)
+
+Do not make production standalone credential configuration depend on current
+native desktop/admission-policy readiness. The credential owner validates and
+generation-fences the username/password; platform-native admission is rebuilt
+from fresh evidence at the protected Start boundary. Likewise,
+`credentialsConfigured` means the selected production credential generation
+is current and valid, not that owner consent, native admission, endpoint/TLS or
+listener readiness has already succeeded.
+
+Credential replacement must revoke the prior current-owner consent generation
+before consuming the replacement password, and the mutable password must be
+scrubbed on success and failure. Keep the public Release qualification bit
+separate from the internal production configuration-availability fact; neither
+bit is authorization.
+
 ## R7 permission requestability is not owner authorization (2026-10-24)
 
 R7 may use R10's redacted `sharingPermission.canRequest` fact only to decide

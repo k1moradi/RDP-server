@@ -32,6 +32,8 @@ int main(int argumentCount, char** argumentValues)
         const auto state = host.status();
         assert(state.stage == RuntimeHostStage::Stopped);
         assert(!state.packageInstalled && !state.credentialsConfigured);
+        assert(!state.product.credentialCapabilities
+                    .standalonePasswordConfigurationAvailable);
         assert(!state.tlsIdentityReady && !state.hostOwnerAuthorized);
         assert(!state.listenerAvailable && !state.nativeDesktopReady);
         assert(state.clipboardState == RuntimeClipboardState::Unavailable);

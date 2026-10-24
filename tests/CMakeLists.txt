@@ -116,6 +116,8 @@ foreach(ntlmv2_case IN ITEMS
         ntlmv2-microsoft-known-answer-and-session-keys
         ntlmv2-proof-blob-and-flag-denials
         ntlmv2-credential-owner-generation-revocation
+        standalone-credential-unconfigured-consent-independence
+        standalone-credential-replacement-revokes-owner-consent
         ntlmv2-ephemeral-secret-revocation)
     add_test(NAME "security.${ntlmv2_case}"
         COMMAND test_standalone_ntlmv2 "${ntlmv2_case}")
@@ -340,6 +342,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-product-status-projection
             linux-host-control-sharing-permission-product-projection
             linux-host-control-injected-owner-evidence-permission-determinism
+            linux-host-control-standalone-credential-native-admission-separation
             linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-stop-revoke-retirement)

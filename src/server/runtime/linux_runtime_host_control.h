@@ -155,6 +155,7 @@ private:
     };
 
     [[nodiscard]] bool selectedStandaloneCredentialReady() const noexcept;
+    [[nodiscard]] bool selectedCredentialConfigured() const noexcept;
     [[nodiscard]] bool prepareAutomaticStandaloneAdmission() noexcept;
     [[nodiscard]] bool buildAuthenticationSelection(
         LinuxRuntimeAuthenticationSelection& selection) const noexcept;

@@ -1,3 +1,53 @@
+## R2 P0 standalone credential / owner-consent state parity (2026-10-24)
+
+Starting exact-main parent: `c6f2a116c9ffba47f804b5e970c99f8450969400`.
+
+Owner acceptance reports Linux Username / Session Password / Confirm visible but
+effectively unusable while macOS is editable. Concurrent R5/R6 source and UI
+tests found no Linux X11 prerequisite or Qt ancestor that intentionally disables
+those editors. R2 found the platform semantic mismatch one layer earlier:
+Linux treated native admission-policy readiness as part of the
+`credentialsConfigured` fact and attempted to create that native policy before
+accepting the standalone credential; macOS treated the production credential
+generation independently.
+
+This increment separates the five facts required by the owner workflow:
+production standalone credential configuration availability, configured
+credential generation, owner-permission requestability, active owner grant, and
+listener readiness. `RuntimeCredentialCapabilities` gains
+`standalonePasswordConfigurationAvailable`; the public Release
+`standalonePassword` qualification remains literal false.
+
+Linux now accepts/scrubs a valid production standalone credential and reports its
+exact selected generation as configured without requiring logind/X11/NSS
+admission to be ready. Fresh native standalone admission remains mandatory and
+is rebuilt at explicit `startSharing()` before service credential readiness and
+listener bind. macOS and Linux share one R2 credential-replacement transaction:
+replacement revokes prior owner consent first, then the production credential
+owner consumes/scrubs input. A replacement therefore always requires fresh
+owner consent.
+
+Dedicated ordinary regressions:
+- `security.standalone-credential-unconfigured-consent-independence`;
+- `security.standalone-credential-replacement-revokes-owner-consent`;
+- `runtime.linux-host-control-standalone-credential-native-admission-separation`.
+
+The Linux regression uses deterministic unavailable native evidence and proves a
+valid credential can be configured while permission remains non-requestable,
+grant/listener remain absent, and Release qualification remains false. macOS
+lifecycle coverage pins the same pre-grant credential state. No test-only
+authentication implementation, listener, capture, input injection or RDP wire
+behavior is introduced.
+
+Connector source/control-flow review: **PASS**. Connector-local build/CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** R7/R9 owner-acceptance builds consume the separated production
+configuration-availability fact while retaining compile-time prequalification
+gating, then owner Linux and macOS rerun the no-argument credential -> fresh
+View/Input consent -> recommended endpoint -> authoritative listener workflow.
+Do not promote the public Release capability from this evidence.
+
 ## R8 hosted qualification after owner-acceptance credential/start dormancy audit — 2026-10-24
 
 **Tested SHA:** `09504727838f0e1182022bad490e3c6cecc5b08b`.

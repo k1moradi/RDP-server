@@ -1382,6 +1382,7 @@ install(DIRECTORY src/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/rdp-server"
     PATTERN "native_desktop_authorization.h" EXCLUDE
     PATTERN "runtime_platform_native_desktop.h" EXCLUDE
     PATTERN "standalone_ntlmv2.h" EXCLUDE
+    PATTERN "standalone_credential_consent.h" EXCLUDE
     PATTERN "standalone_ntlmssp.h" EXCLUDE
     PATTERN "standalone_spnego.h" EXCLUDE
     PATTERN "standalone_credssp.h" EXCLUDE

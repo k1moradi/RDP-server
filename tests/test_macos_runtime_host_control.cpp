@@ -87,6 +87,9 @@ void testInitialProductProjection()
     assert(snapshot.product.automaticRuntimeProvisioned);
     assert(snapshot.product.nativeDesktopTargetAvailable);
     assert(snapshot.product.nativeDesktopTarget == "macOS ScreenCaptureKit Desktop");
+    assert(snapshot.product.credentialCapabilities
+               .standalonePasswordConfigurationAvailable);
+    assert(!snapshot.product.credentialCapabilities.standalonePassword);
     assert(!snapshot.credentialsConfigured);
     assert(!snapshot.hostOwnerAuthorized);
     assert(!snapshot.listenerAvailable);
@@ -124,6 +127,15 @@ void testStandalonePasswordLifecycle()
     PortableBootstrapEvidence evidence(501U);
     MacRuntimeHostControl control(evidence);
 
+    const auto before = control.status();
+    assert(before.product.credentialCapabilities
+               .standalonePasswordConfigurationAvailable);
+    assert(!before.product.credentialCapabilities.standalonePassword);
+    assert(!before.credentialsConfigured);
+    assert(before.product.sharingPermission.canRequest);
+    assert(!before.product.sharingPermission.activeGrant);
+    assert(!before.listenerAvailable);
+
     auto password = standalonePassword();
     assert(control.configureStandaloneApplicationPassword(u"testuser", password));
     for (const char16_t codeUnit : password)
@@ -135,6 +147,11 @@ void testStandalonePasswordLifecycle()
     assert(snapshot.credentialsConfigured);
     assert(snapshot.stage == RuntimeHostStage::CredentialsConfigured);
     assert(snapshot.product.readinessStage == RuntimeProductReadinessStage::CredentialsConfigured);
+    assert(snapshot.product.sharingPermission.canRequest);
+    assert(!snapshot.product.sharingPermission.activeGrant);
+    assert(snapshot.product.sharingPermission.denial ==
+           RuntimeSharingPermissionDenial::PermissionRequired);
+    assert(!snapshot.listenerAvailable);
 
     StandaloneVisitObservation observed;
     assert(control.visitStandaloneApplicationPassword(

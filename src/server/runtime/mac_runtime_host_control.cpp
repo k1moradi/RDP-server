@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mac_runtime_host_control.h"
+#include "server/security/standalone_credential_consent.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SystemConfiguration.h>
@@ -584,6 +585,8 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
     snapshot.product.credentialCapabilities.existingOsAccount = false;
     snapshot.product.credentialCapabilities.standalonePassword =
         kStandalonePasswordProductCapabilityApproved;
+    snapshot.product.credentialCapabilities
+        .standalonePasswordConfigurationAvailable = true;
     snapshot.product.automaticRuntimeProvisioned =
         licensingContext_.configured();
 
@@ -699,23 +702,15 @@ bool MacRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
-    ownerSharingAuthority_.revoke(
-        rdp_server::server::security::OwnerConsentRevocationReason::CredentialChange);
     standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 
-    if (!standalonePasswordCredential_.configure(username, password))
-    {
-        cleansePassword(password);
-        lastError_ = RuntimeHostError::CredentialNotConfigured;
-        return false;
-    }
-    cleansePassword(password);
-
-    const auto observation = standalonePasswordCredential_.observation();
+    const auto observation =
+        rdp_server::server::security::replaceStandaloneApplicationCredential(
+            standalonePasswordCredential_, ownerSharingAuthority_,
+            username, password);
     if (!observation.configured || observation.generation == 0U)
     {
-        standalonePasswordCredential_.revoke();
         lastError_ = RuntimeHostError::CredentialNotConfigured;
         return false;
     }

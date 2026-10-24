@@ -143,11 +143,15 @@ int main(int argc, char** argv)
         assert(!status.product.credentialCapabilities.existingOsAccount);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         assert(!status.product.credentialCapabilities.standalonePassword);
+        assert(status.product.credentialCapabilities
+                   .standalonePasswordConfigurationAvailable);
         assert(status.product.automaticRuntimeProvisioned);
         assert(status.product.readinessStage ==
                RuntimeProductReadinessStage::Provisioned);
 #else
         assert(!status.product.credentialCapabilities.standalonePassword);
+        assert(!status.product.credentialCapabilities
+                    .standalonePasswordConfigurationAvailable);
         assert(!status.product.automaticRuntimeProvisioned);
         assert(status.product.readinessStage ==
                RuntimeProductReadinessStage::Stopped);
@@ -292,6 +296,52 @@ int main(int argc, char** argv)
                RuntimeHostError::InvalidConfiguration);
         assert(!eligible.status().listenerAvailable);
         return 0;
+    }
+
+    if (testCase ==
+        "linux-host-control-standalone-credential-native-admission-separation")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        OfflineUnavailableEvidence evidence;
+        LinuxRuntimeHostControl control(evidence);
+        const auto before = control.status();
+        assert(before.product.credentialCapabilities
+                   .standalonePasswordConfigurationAvailable);
+        assert(!before.product.credentialCapabilities.standalonePassword);
+        assert(!before.credentialsConfigured);
+        assert(!before.product.credentialsConfigured);
+        assert(!before.product.sharingPermission.canRequest);
+        assert(!before.product.sharingPermission.activeGrant);
+        assert(!before.listenerAvailable);
+
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(u"User", password));
+        assert(std::ranges::all_of(
+            password, [](char16_t value) { return value == u'\0'; }));
+
+        const auto credential =
+            control.standaloneApplicationPasswordObservation();
+        const auto configured = control.status();
+        assert(credential.configured && credential.generation != 0U);
+        assert(configured.credentialsConfigured);
+        assert(configured.product.credentialsConfigured);
+        assert(configured.stage == RuntimeHostStage::CredentialsConfigured);
+        assert(!configured.product.sharingPermission.canRequest);
+        assert(!configured.product.sharingPermission.activeGrant);
+        assert(configured.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
+        assert(!configured.hostOwnerAuthorized);
+        assert(!configured.listenerAvailable);
+        assert(configured.boundEndpoint.empty());
+
+        assert(control.requestHostPermissionSetup().error ==
+               RuntimeHostError::HostConsentRequired);
+        assert(control.status().credentialsConfigured);
+        assert(!control.status().listenerAvailable);
+        return 0;
+#endif
     }
 
     if (testCase == "linux-host-control-first-live-graphics-trace-projection")
@@ -621,9 +671,8 @@ int main(int argc, char** argv)
             control.standaloneApplicationPasswordObservation();
         assert(first.configured && first.generation != 0U);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-        // With deterministic eligible native evidence this is now the normal
-        // no-config production state: the standalone credential and generated
-        // R2 policy are ready, but no consent or listener exists yet.
+        // Credential validity is independent of the later native-admission
+        // and owner-consent Start prerequisites.
         assert(control.status().credentialsConfigured);
         assert(control.status().stage ==
                RuntimeHostStage::CredentialsConfigured);

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/standalone_ntlmv2.h"
+#include "server/security/standalone_credential_consent.h"
 
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -131,6 +133,40 @@ struct CredentialVisitObservation final
     return credential.deriveResponseKeyNt(
         u"Domain", observation->responseKey);
 }
+
+class EligibleOwnerEvidence final : public ConsoleOsEvidenceSource
+{
+public:
+    ConsoleAccountObservation readUnixAccount(std::string_view) noexcept override
+    {
+        return {};
+    }
+
+    ConsoleSessionObservation readActiveConsole() noexcept override
+    {
+        return {
+            ConsoleEvidenceReadStatus::Observed,
+            "r2-credential-session",
+            "seat0",
+            ":0",
+            1000U,
+            7U,
+            now_,
+            true,
+            true,
+            1000U,
+            ConsoleDesktopLockState::Unlocked,
+            false};
+    }
+
+    std::optional<std::uint64_t> readMonotonicMilliseconds() noexcept override
+    {
+        return now_;
+    }
+
+private:
+    std::uint64_t now_{10'000U};
+};
 
 } // namespace
 
@@ -285,6 +321,86 @@ int main(int argc, char **argv)
         assert(revoked.generation > second.generation);
         assert(!owner.visit(
             second.generation, &observeCredential, &observed));
+        return 0;
+    }
+
+    if (testCase == "standalone-credential-unconfigured-consent-independence")
+    {
+        StandalonePasswordCredentialOwner owner;
+        EligibleOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+
+        const auto credential = owner.observation();
+        assert(credential.generation == 0U);
+        assert(!credential.configured);
+
+        const auto permission = authority.permissionObservation();
+        assert(permission.canRequest);
+        assert(!permission.activeGrant);
+        assert(permission.denial ==
+               OwnerSharingReadOnlyDenial::PermissionRequired);
+        assert(!authority.authorizes(kConsoleViewPermission));
+        return 0;
+    }
+
+    if (testCase == "standalone-credential-replacement-revokes-owner-consent")
+    {
+        StandalonePasswordCredentialOwner owner;
+        EligibleOwnerEvidence evidence;
+        CurrentOwnerSharingAuthority authority(evidence);
+        const OwnerSharingIntent intent{
+            kConsoleViewPermission | kConsoleInputPermission, 60'000U};
+
+        assert(authority.requestConsent(intent) ==
+               OwnerConsentRequestResult::Granted);
+        assert(authority.authorizes(kConsoleViewPermission));
+
+        auto firstPassword = password();
+        const auto first = replaceStandaloneApplicationCredential(
+            owner, authority, u"User", firstPassword);
+        assert(first.configured && first.generation != 0U);
+        assert(std::ranges::all_of(
+            firstPassword, [](char16_t value) { return value == u'\0'; }));
+        assert(owner.observation().generation == first.generation);
+        assert(owner.observation().configured);
+
+        auto permission = authority.permissionObservation();
+        assert(permission.canRequest);
+        assert(!permission.activeGrant);
+        assert(permission.denial ==
+               OwnerSharingReadOnlyDenial::PermissionRevoked);
+        assert(!authority.authorizes(kConsoleViewPermission));
+
+        assert(authority.requestConsent(intent) ==
+               OwnerConsentRequestResult::Granted);
+        auto secondPassword = password();
+        secondPassword.back() = u'2';
+        const auto second = replaceStandaloneApplicationCredential(
+            owner, authority, u"User", secondPassword);
+        assert(second.configured);
+        assert(second.generation > first.generation);
+        assert(std::ranges::all_of(
+            secondPassword, [](char16_t value) { return value == u'\0'; }));
+        CredentialVisitObservation staleVisit;
+        assert(!owner.visit(
+            first.generation, &observeCredential, &staleVisit));
+        assert(!authority.authorizes(kConsoleViewPermission));
+
+        assert(authority.requestConsent(intent) ==
+               OwnerConsentRequestResult::Granted);
+        std::array<char16_t, 2> rejectedPassword{u'x', u'y'};
+        const auto rejected = replaceStandaloneApplicationCredential(
+            owner, authority, u"Us\u00e9r", rejectedPassword);
+        assert(!rejected.configured);
+        assert(rejected.generation > second.generation);
+        assert(std::ranges::all_of(
+            rejectedPassword, [](char16_t value) { return value == u'\0'; }));
+        assert(!owner.observation().configured);
+        permission = authority.permissionObservation();
+        assert(permission.canRequest);
+        assert(!permission.activeGrant);
+        assert(permission.denial ==
+               OwnerSharingReadOnlyDenial::PermissionRevoked);
         return 0;
     }
 

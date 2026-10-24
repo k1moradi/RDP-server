@@ -584,7 +584,12 @@ enum class RuntimeProductReadinessStage : std::uint8_t
 struct RuntimeCredentialCapabilities final
 {
     bool existingOsAccount{};
+    // Public Release qualification. Keep false until the required real-client
+    // acceptance receipt exists.
     bool standalonePassword{};
+    // Availability of the production generation-fenced credential owner is
+    // independent of public qualification and configured credential state.
+    bool standalonePasswordConfigurationAvailable{};
 };
 
 inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;

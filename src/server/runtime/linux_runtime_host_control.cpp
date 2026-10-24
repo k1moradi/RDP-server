@@ -2,6 +2,7 @@
 #include "linux_runtime_host_control.h"
 #include "runtime_licensing_context.h"
 #include "runtime_tls_context.h"
+#include "server/security/standalone_credential_consent.h"
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 #include "linux_runtime_connection.h"
 #include "linux_runtime_security.h"
@@ -738,6 +739,23 @@ bool LinuxRuntimeHostControl::selectedStandaloneCredentialReady() const noexcept
            visited;
 }
 
+bool LinuxRuntimeHostControl::selectedCredentialConfigured() const noexcept
+{
+    if (!credentialsConfigured_)
+        return false;
+
+    switch (authenticationMode_)
+    {
+    case ConfiguredAuthenticationMode::StandalonePassword:
+        return selectedStandaloneCredentialReady();
+    case ConfiguredAuthenticationMode::ExistingOsAccount:
+        return serviceCredentialsReady();
+    case ConfiguredAuthenticationMode::Unconfigured:
+        return false;
+    }
+    return false;
+}
+
 bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept
 {
     if (externalSecurityConfiguration_)
@@ -962,8 +980,7 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         snapshot.product.nativeDesktopTarget =
             std::string(currentDesktop.display());
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-    snapshot.credentialsConfigured =
-        credentialsConfigured_ && serviceCredentialsReady();
+    snapshot.credentialsConfigured = selectedCredentialConfigured();
 #endif
     if (tlsContext_ != nullptr)
     {
@@ -1068,6 +1085,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.product.credentialCapabilities.standalonePassword =
         kStandalonePasswordProductCapabilityApproved;
+    snapshot.product.credentialCapabilities
+        .standalonePasswordConfigurationAvailable = true;
     snapshot.product.automaticRuntimeProvisioned =
         !externalSecurityConfiguration_ &&
         generatedLicensingContext_ != nullptr &&
@@ -1075,6 +1094,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         licensingContext_->configured();
 #else
     snapshot.product.credentialCapabilities.standalonePassword = false;
+    snapshot.product.credentialCapabilities
+        .standalonePasswordConfigurationAvailable = false;
     snapshot.product.automaticRuntimeProvisioned = false;
 #endif
     snapshot.product.credentialsConfigured = snapshot.credentialsConfigured;
@@ -1175,43 +1196,25 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
-    // Every explicit Sharing attempt reuses R5's current physical X11 target
-    // to create the production R2 standalone admission policy. Failure is
-    // pre-listener and scrubs caller-owned password bytes.
-#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-    if (!prepareAutomaticStandaloneAdmission())
-    {
-        cleanseStandalonePasswordInput(password);
-        lastError_ = RuntimeHostError::NativeAuthorizationDenied;
-        return false;
-    }
-#endif
-
-    // Credential replacement invalidates prior owner approval and selects the
-    // exact production standalone authentication owner/generation.
-    ownerSharingAuthority_.revoke(
-        OwnerConsentRevocationReason::CredentialChange);
+    // Credential configuration is independent of native admission readiness.
+    // Replacement always revokes the previous owner-consent generation and
+    // consumes/scrubs caller input through the production credential owner.
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
     standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
 
-    if (!standalonePasswordCredential_.configure(username, password))
+    const auto observation = replaceStandaloneApplicationCredential(
+        standalonePasswordCredential_, ownerSharingAuthority_,
+        username, password);
+    if (!observation.configured || observation.generation == 0U)
     {
         lastError_ = RuntimeHostError::CredentialNotConfigured;
         return false;
     }
 
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-    const auto observation = standalonePasswordCredential_.observation();
-    if (!observation.configured || observation.generation == 0U)
-    {
-        standalonePasswordCredential_.revoke();
-        lastError_ = RuntimeHostError::CredentialNotConfigured;
-        return false;
-    }
-
     authenticationMode_ = ConfiguredAuthenticationMode::StandalonePassword;
     standaloneCredentialGeneration_ = observation.generation;
     credentialsConfigured_ = true;
@@ -1225,11 +1228,7 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
-    // Provisioned controllers may now reach the normal owner-consent/Start
-    // gates. Unprovisioned offline controllers remain visibly stopped.
-    stage_ = serviceCredentialsReady()
-        ? RuntimeHostStage::CredentialsConfigured
-        : RuntimeHostStage::Stopped;
+    stage_ = RuntimeHostStage::CredentialsConfigured;
 #else
     stage_ = RuntimeHostStage::Stopped;
 #endif
@@ -1354,6 +1353,11 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::NativeAuthorizationDenied);
     if (licensingContext_ == nullptr || !licensingContext_->configured())
         return deny(RuntimeHostError::InternalFailure);
+    // Native admission is a Start prerequisite, not a credential-configured
+    // fact. Rebuild it from fresh owner/X11 evidence at the explicit Start.
+    if (authenticationMode_ == ConfiguredAuthenticationMode::StandalonePassword &&
+        !prepareAutomaticStandaloneAdmission())
+        return deny(RuntimeHostError::NativeAuthorizationDenied);
     if (securityConfiguration_ == nullptr ||
         !securityConfiguration_->configured())
         return deny(RuntimeHostError::CredentialProviderUnavailable);

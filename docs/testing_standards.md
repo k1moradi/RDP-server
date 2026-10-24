@@ -1,3 +1,27 @@
+## R2 standalone credential state must be independent of native admission (2026-10-24)
+
+A production standalone credential owner being configurable is a distinct fact
+from public Release qualification, a configured credential, owner-permission
+requestability, an active grant and listener readiness. Keep
+`standalonePasswordConfigurationAvailable` descriptive only; it must never
+authorize admission or promote
+`kStandalonePasswordProductCapabilityApproved`.
+
+`configureStandaloneApplicationPassword()` must use the production
+generation-fenced credential owner, scrub the mutable caller password on every
+path, select a nonzero current generation only when the credential is valid,
+and revoke prior owner consent as `CredentialChange`. A valid credential must
+remain reportable as configured even when current native evidence is unavailable.
+Linux native X11/NSS admission is a later Start prerequisite and must be rebuilt
+from fresh evidence there rather than being folded into the credential fact.
+
+Keep
+`security.standalone-credential-unconfigured-consent-independence`,
+`security.standalone-credential-replacement-revokes-owner-consent` and
+`runtime.linux-host-control-standalone-credential-native-admission-separation`
+in ordinary CTest. These are offline state-boundary tests: no listener, capture,
+input, clipboard or live client is evidence for credential configuration.
+
 ## R6 owner-acceptance editor-property parity (2026-10-24)
 
 Do not infer editability from palette, styling or a field merely being present.

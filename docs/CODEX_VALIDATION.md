@@ -1,3 +1,36 @@
+## R2 standalone credential / consent parity validation (2026-10-24)
+
+Starting exact-main parent: `c6f2a116c9ffba47f804b5e970c99f8450969400`.
+
+Static cross-platform review identified the first semantic divergence:
+`LinuxRuntimeHostControl::status()` projected `credentialsConfigured` through
+`serviceCredentialsReady()`, which additionally requires security/admission
+policy and licensing readiness, and Linux
+`configureStandaloneApplicationPassword()` attempted automatic native
+admission before replacing the credential. macOS instead projects configured
+state from the exact selected standalone credential generation. The
+Linux/macOS owner-permission observations themselves come from the same R2
+authority semantics; the pre-password discrepancy was credential/native-policy
+coupling rather than a valid-grant permission mapping difference.
+
+The correction introduces a shared R2 replacement transaction and separates
+production credential-configuration availability from the still-false public
+Release qualification. Linux defers automatic native admission to explicit
+Start, where fresh physical-owner evidence remains mandatory before listener
+bind. Credential replacement scrubs caller input, advances/selects the exact
+production generation, revokes any previous owner grant, and leaves a fresh
+permission request necessary.
+
+Registered focused CTests:
+- `security.standalone-credential-unconfigured-consent-independence`;
+- `security.standalone-credential-replacement-revokes-owner-consent`;
+- `runtime.linux-host-control-standalone-credential-native-admission-separation`.
+
+Connector source review: **PASS**.
+Build/CTest in this connector: **NOT RUN**.
+Hosted exact-publication-SHA CI: **PENDING**.
+Owner physical Linux/macOS no-argument acceptance: **PENDING**.
+
 ## R8 hosted credential/start dormancy qualification — 2026-10-24
 
 **Tested SHA:** `09504727838f0e1182022bad490e3c6cecc5b08b`.

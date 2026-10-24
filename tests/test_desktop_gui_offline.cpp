@@ -324,6 +324,14 @@ void assertEnabledParentChain(const QWidget& widget)
     }
 }
 
+[[nodiscard]] bool isQtFocusTarget(const QWidget& widget)
+{
+    if (widget.hasFocus())
+        return true;
+    const QWidget* const topLevel = widget.window();
+    return topLevel != nullptr && topLevel->focusWidget() == &widget;
+}
+
 void assertInteractiveCredentialEditor(const QLineEdit& editor)
 {
     assert(editor.isVisible());
@@ -343,12 +351,15 @@ void typeWithKeyEvents(
 {
     assertInteractiveCredentialEditor(editor);
 
-    if (!editor.hasFocus())
+    if (!isQtFocusTarget(editor))
     {
         editor.setFocus(Qt::OtherFocusReason);
         application.processEvents();
     }
-    assert(editor.hasFocus());
+    // Bare Xvfb has no window manager to activate the top-level X11 window.
+    // In that environment QWidget::focusWidget() is the deterministic Qt
+    // focus-chain target even though QWidget::hasFocus() remains false.
+    assert(isQtFocusTarget(editor));
     for (const QChar character : text)
     {
         const QString input{character};
@@ -363,7 +374,7 @@ void typeWithKeyEvents(
 
 void sendTabKey(QApplication& application, QWidget& widget)
 {
-    assert(widget.hasFocus());
+    assert(isQtFocusTarget(widget));
     QKeyEvent press(
         QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier,
         QStringLiteral("\t"));
@@ -1022,17 +1033,17 @@ int main(int argc, char** argv)
         username->clear();
         username->setFocus(Qt::OtherFocusReason);
         application.processEvents();
-        assert(username->hasFocus());
+        assert(isQtFocusTarget(*username));
         typeWithKeyEvents(
             application, *username, QStringLiteral("owner"));
 
         sendTabKey(application, *username);
-        assert(password->hasFocus());
+        assert(isQtFocusTarget(*password));
         typeWithKeyEvents(
             application, *password, QStringLiteral("ownertest123"));
 
         sendTabKey(application, *password);
-        assert(confirmation->hasFocus());
+        assert(isQtFocusTarget(*confirmation));
         typeWithKeyEvents(
             application, *confirmation, QStringLiteral("different123"));
         assert(username->text() == QStringLiteral("owner"));

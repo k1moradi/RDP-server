@@ -1,3 +1,19 @@
+## R8 Stop/restart lifetime is independent of the service credential (2026-10-24)
+
+The Linux R8 owner is a child of one accepted native desktop/session lifetime,
+not of the service-lifetime standalone credential. Stop/Revoke retires the
+prepared R8 owner before R5 and the accepted connection/listener. Inside R8,
+X11 disconnect cancels selection/paste/INCR borrowing before bridge retirement
+clears route/outbound delivery identity; the owner then zeros admission/session
+generations and is destroyed with the old native aggregate.
+
+A subsequent Start may reuse a separately retained memory-only credential, but
+it cannot reuse any R8 object or generation. Native desktop initialization
+allocates a new aggregate from fresh admission/session authority. Delayed INCR
+callbacks and accepted-byte/TLS delivery observations from prior lifetimes
+cannot complete, retire or publish through the replacement. Clipboard activation
+remains false.
+
 ## Standalone product qualification is not R8 authority (2026-10-23)
 
 The normal Linux runtime may be fully composed while a public product capability

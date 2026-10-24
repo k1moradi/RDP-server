@@ -418,6 +418,131 @@ void retiredRoutePositiveReceiptIsolation()
     assert(currentRoute.idle() && bridge.pendingApplicationPdu().empty());
 }
 
+
+struct DeferredWriteReceipt final
+{
+    std::uint64_t routeGeneration{};
+    std::uint64_t replySequence{};
+    std::uint64_t writeSliceSequence{};
+    std::size_t offeredBytes{};
+    std::size_t acceptedBytes{};
+    RdpClipboardWriteOutcome outcome{RdpClipboardWriteOutcome::Rejected};
+};
+
+DeferredWriteReceipt commitDeliveredWithoutBridgeObservation(
+    RdpClipboardStaticChannelRoute &route,
+    R3ClipboardTransferBridge &bridge)
+{
+    DeferredWriteReceipt deliveredReceipt{};
+    bool delivered = false;
+    while (const auto write = route.pending())
+    {
+        assert(bridge.bindQueuedWrite(write));
+        DeferredWriteReceipt current{
+            write.routeGeneration,
+            write.replySequence,
+            write.writeSliceSequence,
+            write.wireBytes.size(),
+            write.wireBytes.size(),
+            RdpClipboardWriteOutcome::Rejected};
+        current.outcome = route.onAcceptedBytes(
+            current.routeGeneration, current.replySequence,
+            current.writeSliceSequence, current.acceptedBytes);
+        assert(current.outcome != RdpClipboardWriteOutcome::Rejected);
+        if (current.outcome == RdpClipboardWriteOutcome::Delivered)
+        {
+            deliveredReceipt = current;
+            delivered = true;
+            break;
+        }
+        assert(current.outcome == RdpClipboardWriteOutcome::Pending);
+    }
+    assert(delivered);
+    assert(route.idle());
+    return deliveredReceipt;
+}
+
+void repeatedRestartReceiptIsolation()
+{
+    R3ClipboardTransferBridge bridge(0U, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    constexpr RdpClipboardStaticChannelView firstView{1008U, 80U};
+    RdpClipboardStaticChannelRoute firstRoute;
+    assert(firstRoute.start(
+        1005U, firstView.channelId, firstView.generation, 1600U));
+    assert(visitor.visit(visitor.context, firstView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(firstRoute.queue(bridge.pendingApplicationPdu()));
+    const DeferredWriteReceipt firstReceipt =
+        commitDeliveredWithoutBridgeObservation(firstRoute, bridge);
+    bridge.retireR3ChannelState();
+    firstRoute.close();
+    const std::uint64_t firstRetiredSourceEpoch =
+        bridge.transfer().sourceEpoch();
+    assert(!bridge.active());
+
+    constexpr RdpClipboardStaticChannelView secondView{1008U, 81U};
+    RdpClipboardStaticChannelRoute secondRoute;
+    assert(secondRoute.start(
+        1005U, secondView.channelId, secondView.generation, 1600U));
+    assert(visitor.visit(visitor.context, secondView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    const std::uint64_t secondSourceEpoch = bridge.transfer().sourceEpoch();
+    const std::size_t secondPendingBytes =
+        bridge.pendingApplicationPdu().size();
+    assert(secondSourceEpoch > firstRetiredSourceEpoch);
+    assert(secondPendingBytes != 0U);
+
+    assert(!bridge.recordAcceptedWriteReceipt(
+        firstReceipt.routeGeneration, firstReceipt.replySequence,
+        firstReceipt.writeSliceSequence, firstReceipt.offeredBytes,
+        firstReceipt.acceptedBytes, firstReceipt.outcome));
+    assert(bridge.active());
+    assert(bridge.routeGeneration() == secondView.generation);
+    assert(bridge.transfer().sourceEpoch() == secondSourceEpoch);
+    assert(bridge.pendingApplicationPdu().size() == secondPendingBytes);
+
+    assert(secondRoute.queue(bridge.pendingApplicationPdu()));
+    const DeferredWriteReceipt secondReceipt =
+        commitDeliveredWithoutBridgeObservation(secondRoute, bridge);
+    bridge.retireR3ChannelState();
+    secondRoute.close();
+    const std::uint64_t secondRetiredSourceEpoch =
+        bridge.transfer().sourceEpoch();
+    assert(!bridge.active());
+
+    constexpr RdpClipboardStaticChannelView thirdView{1008U, 82U};
+    RdpClipboardStaticChannelRoute thirdRoute;
+    assert(thirdRoute.start(
+        1005U, thirdView.channelId, thirdView.generation, 1600U));
+    assert(visitor.visit(visitor.context, thirdView));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    const std::uint64_t thirdSourceEpoch = bridge.transfer().sourceEpoch();
+    const std::size_t thirdPendingBytes =
+        bridge.pendingApplicationPdu().size();
+    assert(thirdSourceEpoch > secondRetiredSourceEpoch);
+    assert(thirdPendingBytes != 0U);
+
+    for (const DeferredWriteReceipt &stale :
+         std::array{firstReceipt, secondReceipt})
+    {
+        assert(!bridge.recordAcceptedWriteReceipt(
+            stale.routeGeneration, stale.replySequence,
+            stale.writeSliceSequence, stale.offeredBytes,
+            stale.acceptedBytes, stale.outcome));
+        assert(bridge.active());
+        assert(bridge.routeGeneration() == thirdView.generation);
+        assert(bridge.transfer().sourceEpoch() == thirdSourceEpoch);
+        assert(bridge.pendingApplicationPdu().size() == thirdPendingBytes);
+    }
+
+    deliverPendingApplicationPdu(bridge, thirdRoute);
+    assert(thirdRoute.idle());
+    assert(bridge.pendingApplicationPdu().empty());
+}
+
 struct FileSink final
 {
     bool called{};
@@ -529,6 +654,8 @@ int main(int argc, char **argv)
         stableScalarReceiptAfterR3Mutation();
     else if (behavior == "retired-route-positive-receipt-isolation")
         retiredRoutePositiveReceiptIsolation();
+    else if (behavior == "repeated-restart-receipt-isolation")
+        repeatedRestartReceiptIsolation();
     else if (behavior == "filecontents-request-receipt")
         fileContentsRequestReceipt();
     else

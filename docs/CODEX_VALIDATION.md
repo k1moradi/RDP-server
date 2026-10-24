@@ -1,3 +1,27 @@
+## R8 repeated Stop/restart stale clipboard lifetime authoring receipt — 2026-10-24
+
+Starting exact-main parent: `03473b1dfa2bf180c05996fc044b0f7393e19f64`.
+
+Source/lifetime review: **PASS**. Existing production teardown order is
+unchanged and now more explicitly asserted: X11 disconnect before R8/R3 bridge
+retirement, clipboard before R5, R5 before old native-owner reset, and native
+retirement before accepted connection/listener teardown. The source contract
+also rejects conditioning R8 teardown on standalone credential readiness or
+generation.
+
+Added ordinary CTests:
+- `runtime.r8-x11-restart-incr-isolation`;
+- `runtime.r8-r3-repeated-restart-receipt-isolation`.
+
+Both remain outside the fixed clipboard sanitizer census.
+`kLinuxProductionClipboardActivationApproved` remains false. Production code,
+GUI, credentials and RDP wire behavior are **UNCHANGED**.
+
+Canonical local configure/build/full CTest: **NOT RUN**; a fresh clone to the
+required local checkout could not start because this tool environment could not
+resolve `github.com`. Exact-publication-SHA hosted CI: **PENDING**. No live
+listener, desktop, clipboard, input or Microsoft-client operation was run.
+
 ## R3 source-guard final list-token cleanup — 2026-10-24
 
 Starting parent `a393042ddcd1b47899b4a45ddb75416044469c5d`. Two remaining semicolon-ended CMake match

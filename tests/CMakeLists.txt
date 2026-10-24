@@ -1401,6 +1401,12 @@ add_test(NAME runtime.r8-r3-retired-route-positive-receipt-isolation
 set_tests_properties(runtime.r8-r3-retired-route-positive-receipt-isolation
     PROPERTIES LABELS "runtime;security;r8-receipt;offline")
 
+add_test(NAME runtime.r8-r3-repeated-restart-receipt-isolation
+    COMMAND test_r8_r3_clipboard_bridge
+        repeated-restart-receipt-isolation)
+set_tests_properties(runtime.r8-r3-repeated-restart-receipt-isolation
+    PROPERTIES LABELS "runtime;security;r8-lifetime;r8-receipt;offline")
+
 # R3 portable licensing bootstrap: exercise the production no-file generator,
 # the normative MS-RDPBCGR X.509 chain shape, and the existing MS-RDPELE
 # Server License Request serializer. This target opens no listener and owns no
@@ -3731,6 +3737,12 @@ if(TARGET rdp-server-linux-x11-clipboard)
     set_tests_properties(
         clipboard.x11-selection-ownership-generation
         PROPERTIES LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
+
+    add_test(NAME runtime.r8-x11-restart-incr-isolation
+        COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
+            x11-disconnect-restart-stale-incr-isolation)
+    set_tests_properties(runtime.r8-x11-restart-incr-isolation PROPERTIES
+        LABELS "runtime;security;r8-lifetime;x11;native;offline")
 endif()
 
 # R9 opt-in bounded coverage-guided wire fuzzing. This is deliberately

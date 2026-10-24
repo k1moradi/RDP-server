@@ -1,3 +1,35 @@
+## R8 P2 repeated Stop/restart stale clipboard lifetime assertions — 2026-10-24
+
+Starting exact-main parent: `03473b1dfa2bf180c05996fc044b0f7393e19f64`.
+
+Scope is strictly R8 stale-lifetime containment. Production clipboard activation
+remains **BLOCKED** and the literal activation gate remains false. No product UI,
+credential policy, R1/R2/R3/R4 wire behavior, native capture/input or listener
+behavior changes.
+
+The existing teardown is pinned more tightly rather than replaced. Stop/Revoke
+must retire the prepared clipboard owner before R5, destroy the old native
+owner/generation, then retire the accepted connection/listener. Prepared-owner
+retirement must disconnect X11 first (canceling paste/INCR), retire the R8/R3
+bridge and queued delivery identity, clear write-pending state and zero
+admission/session generations. The Stop path may not consult standalone
+credential readiness/generation to decide whether R8 is retired.
+
+New ordinary CTests:
+- `runtime.r8-x11-restart-incr-isolation`;
+- `runtime.r8-r3-repeated-restart-receipt-isolation`.
+
+The first proves a stale INCR property callback cannot publish through a
+replacement native owner. The second crosses two retirement boundaries and
+proves delayed positive delivery receipts from both older routes cannot mutate
+the third route/source while the third route still completes its own receipt.
+Both stay outside the fixed clipboard sanitizer census.
+
+Connector source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** because this tool environment cannot resolve `github.com`
+to materialize the required `~/rdp-server/` checkout. Exact-publication-SHA
+hosted CI: **PENDING**. R8 activation remains **BLOCKED**.
+
 ## R3 source-guard final CMake list-token cleanup — 2026-10-24
 
 **Starting exact-main parent:** `a393042ddcd1b47899b4a45ddb75416044469c5d`.

@@ -1099,6 +1099,77 @@ void r3RetirementStaleIncrFence()
     assert(adapter.ownershipEpoch() == retiredOwnershipEpoch + 1U);
 }
 
+
+void disconnectRestartStaleIncrIsolation()
+{
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    RemoteTransfer transfer;
+    FakeNative native;
+    const Clock::time_point start{std::chrono::seconds{10}};
+
+    assert(transfer.receiveFormatList(formats));
+    X11ClipboardAdapter first(transfer, native.operations(), kRootWindow);
+    assert(first.publishCurrentRemoteOffer(start));
+
+    const std::string firstLargeText(
+        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 's');
+    storeText(transfer, firstLargeText);
+    dispatchRequest(first, requestFor(kUtf8Atom, 867, 67), start);
+    assert(first.incrTransferActive());
+
+    const std::uint64_t retiredSourceEpoch = transfer.sourceEpoch();
+    const std::size_t restoresBeforeStop = native.restoreEventMaskCalls;
+    first.disconnect();
+    assert(!first.valid());
+    assert(!first.incrTransferActive());
+    assert(native.restoreEventMaskCalls == restoresBeforeStop + 1U);
+    assert(native.destroyWindowCalls == 1U);
+    const std::size_t writesAfterStop = native.propertyWrites.size();
+
+    // The separately retained process credential must not preserve R8 state.
+    transfer.retireR3ChannelState();
+    assert(transfer.generation() == 0U);
+
+    assert(transfer.receiveFormatList(formats));
+    assert(transfer.sourceEpoch() > retiredSourceEpoch);
+    X11ClipboardAdapter replacement(
+        transfer, native.operations(), kRootWindow);
+    assert(native.createWindowCalls == 2U);
+    assert(replacement.publishCurrentRemoteOffer(
+        start + std::chrono::milliseconds{1}));
+
+    // A stale property callback from the retired INCR transfer is inert.
+    dispatchPropertyDelete(
+        replacement, 867, start + std::chrono::milliseconds{2});
+    assert(native.propertyWrites.size() == writesAfterStop);
+    assert(!replacement.incrTransferActive());
+
+    const std::string replacementLargeText(
+        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'n');
+    storeText(transfer, replacementLargeText);
+    dispatchRequest(
+        replacement, requestFor(kUtf8Atom, 868, 68),
+        start + std::chrono::milliseconds{3});
+    assert(replacement.incrTransferActive());
+    const std::size_t replacementWrites = native.propertyWrites.size();
+
+    dispatchPropertyDelete(
+        replacement, 867, start + std::chrono::milliseconds{4});
+    assert(replacement.incrTransferActive());
+    assert(native.propertyWrites.size() == replacementWrites);
+
+    dispatchPropertyDelete(
+        replacement, 868, start + std::chrono::milliseconds{5});
+    assert(replacement.incrTransferActive());
+    assert(native.propertyWrites.size() == replacementWrites + 1U);
+
+    replacement.disconnect();
+    assert(!replacement.incrTransferActive());
+    assert(native.destroyWindowCalls == 2U);
+    assert(native.restoreEventMaskCalls == restoresBeforeStop + 2U);
+}
+
 void selectionRequestNonblocking()
 {
     RemoteTransfer transfer;
@@ -1396,6 +1467,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-r3-retirement-stale-incr-fence")
     {
         r3RetirementStaleIncrFence();
+        return 0;
+    }
+    if (behavior == "x11-disconnect-restart-stale-incr-isolation")
+    {
+        disconnectRestartStaleIncrIsolation();
         return 0;
     }
     if (behavior == "x11-disconnect-late-paste-fence")

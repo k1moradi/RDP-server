@@ -43,6 +43,32 @@ foreach(required_text IN ITEMS
     endif()
 endforeach()
 
+
+# A retained service credential never extends the prepared R8 owner lifetime.
+string(FIND "${owner_header}" "void retire() noexcept" owner_retire_begin)
+string(FIND "${owner_header}" "private:" owner_retire_end)
+if(owner_retire_begin LESS 0 OR owner_retire_end LESS_EQUAL owner_retire_begin)
+    message(FATAL_ERROR "unable to isolate prepared R8 owner retirement")
+endif()
+math(EXPR owner_retire_length "${owner_retire_end} - ${owner_retire_begin}")
+string(SUBSTRING "${owner_header}" ${owner_retire_begin}
+    ${owner_retire_length} owner_retire_source)
+string(FIND "${owner_retire_source}" "adapter_->disconnect()" owner_adapter_disconnect)
+string(FIND "${owner_retire_source}" "bridge_->retireR3ChannelState()" owner_bridge_retire)
+string(FIND "${owner_retire_source}" "writePending_ = false" owner_write_clear)
+string(FIND "${owner_retire_source}" "admissionGeneration_ = 0U" owner_admission_clear)
+string(FIND "${owner_retire_source}" "sessionGeneration_ = 0U" owner_session_clear)
+if(owner_adapter_disconnect LESS 0 OR owner_bridge_retire LESS 0 OR
+   owner_write_clear LESS 0 OR owner_admission_clear LESS 0 OR
+   owner_session_clear LESS 0 OR
+   NOT owner_adapter_disconnect LESS owner_bridge_retire OR
+   NOT owner_bridge_retire LESS owner_write_clear OR
+   NOT owner_write_clear LESS owner_admission_clear OR
+   NOT owner_admission_clear LESS owner_session_clear)
+    message(FATAL_ERROR
+        "R8 retirement must clear X11/INCR, receipt identity and old native generations before restart")
+endif()
+
 foreach(forbidden_text IN ITEMS
         "publishCompletedFile("
         "publishCompletedFiles("
@@ -94,10 +120,14 @@ string(SUBSTRING "${host_source}" ${retire_native_begin}
 string(FIND "${retire_native_source}" "clipboard.retire()" clipboard_retire)
 string(FIND "${retire_native_source}"
     "desktop->retireAfterAuthorizationLoss()" desktop_retire)
+string(FIND "${retire_native_source}"
+    "nativeDesktop_.reset()" native_owner_reset)
 if(clipboard_retire LESS 0 OR desktop_retire LESS 0 OR
-   NOT clipboard_retire LESS desktop_retire)
+   native_owner_reset LESS 0 OR
+   NOT clipboard_retire LESS desktop_retire OR
+   NOT desktop_retire LESS native_owner_reset)
     message(FATAL_ERROR
-        "HostControl must retire R8 selection/INCR state before the R5 X11 owner")
+        "HostControl Stop must retire R8, then R5, then the old native generation")
 endif()
 
 string(FIND "${host_source}"
@@ -177,6 +207,18 @@ if(stopped_authority_revoke LESS 0 OR stopped_native_retire LESS 0 OR
     message(FATAL_ERROR
         "Stop/Revoke must retire authority then R8/R5 before connection/listener")
 endif()
+
+# Credential retention is orthogonal to R8 lifetime.
+foreach(forbidden_text IN ITEMS
+        "selectedStandaloneCredentialReady()"
+        "standalonePasswordCredential_.visit("
+        "standaloneCredentialGeneration_ ==")
+    string(FIND "${retire_stopped_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Stop must retire R8 independently of retained credential state: ${forbidden_text}")
+    endif()
+endforeach()
 
 string(FIND "${host_source}"
     "LinuxRuntimeHostControl::~LinuxRuntimeHostControl()" destructor_begin)

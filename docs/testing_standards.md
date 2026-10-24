@@ -1,3 +1,20 @@
+## R8 repeated Stop/restart stale-lifetime gate (2026-10-24)
+
+Keep production clipboard activation disabled while testing teardown. Repeated
+Start -> Stop -> Start coverage must prove that the old prepared clipboard/
+native owner is destroyed, pending X11 INCR is canceled before replacement,
+old admission/session native generations are not reused, and delayed positive
+clipboard delivery receipts cannot alter a replacement route/source.
+
+`runtime.r8-x11-restart-incr-isolation` exercises the production X11 adapter
+through its injected native seam. `runtime.r8-r3-repeated-restart-receipt-isolation`
+preserves copied scalar receipts across two route retirements and injects both
+while a third route owns its own pending PDU. The Linux HostControl source
+contract separately pins clipboard-before-R5 teardown, native-owner reset,
+fresh replacement construction and independence from standalone credential
+readiness. These are ordinary full-CTest regressions and intentionally remain
+outside the fixed clipboard sanitizer-count selection.
+
 ## R3 TLS-gated real-client trace and fresh-session rule (2026-10-24)
 
 Do not change MCS, Share, licensing or RDPGFX wire behavior while the first

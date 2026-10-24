@@ -1,3 +1,18 @@
+## R8 clipboard lifetime never follows retained credentials (2026-10-24)
+
+Credential ownership and clipboard ownership have different lifetimes. Whether
+ordinary Stop retains or retires the memory-only standalone credential, every
+Stop/Revoke retires the current R8/native lifetime: cancel native paste/INCR,
+retire the R8/R3 route and queued/accepted delivery-receipt identity, clear
+write-pending state, zero R8 admission/session generations, retire R5, and
+destroy the old native owner before a later Start constructs a replacement.
+
+A retained credential generation is never permission to keep or revive a
+clipboard owner. A later Start must obtain fresh owner/native/session authority
+and create a fresh R8 owner. Stale X11 callbacks, native generations and old
+R1/R2/R3 delivery receipts remain non-authorizing. This rule does not activate
+clipboard and does not change the literal production activation gate.
+
 ## Credential editability is R10 lifecycle authority (2026-10-24)
 
 Credential configuration, native admission, owner consent and credential-editor

@@ -2519,7 +2519,344 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build --config Debug --parallel 2
-          bootstrap_selector='^(runtime[.]bootstrap-portable-storage-and-no-autostart-contract|runtime[.]desktop-shared-configuration-feed|runtime[.]linux-no-config-standalone-current-x11-selection|runtime[.]linux-portable-gui-bootstrap-listener-acceptance|runtime[.]linux-gui-bootstrap-clipboard-dormancy|gui[.]offscreen-owner-acceptance-consumer-start-orchestration|gui[.]offscreen-owner-acceptance-password-change-rerequests-owner-permission|gui[.]offscreen-owner-acceptance-start-failure-rolls-back|gui[.]offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant)"$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
+          bootstrap_selector='^(runtime[.]bootstrap-portable-storage-and-no-autostart-contract|runtime[.]desktop-shared-configuration-feed|runtime[.]linux-no-config-standalone-current-x11-selection|runtime[.]linux-portable-gui-bootstrap-listener-acceptance|runtime[.]linux-gui-bootstrap-clipboard-dormancy|gui[.]offscreen-owner-acceptance-consumer-start-orchestration|gui[.]offscreen-owner-acceptance-password-change-rerequests-owner-permission|gui[.]offscreen-owner-acceptance-start-failure-rolls-back|gui[.]offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant)          printf '%s\n' "$bootstrap_tests"
+          for required_test in \
+            runtime.bootstrap-portable-storage-and-no-autostart-contract \
+            runtime.desktop-shared-configuration-feed \
+            runtime.linux-no-config-standalone-current-x11-selection \
+            runtime.linux-portable-gui-bootstrap-listener-acceptance \
+            runtime.linux-gui-bootstrap-clipboard-dormancy \
+            gui.offscreen-owner-acceptance-consumer-start-orchestration \
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission \
+            gui.offscreen-owner-acceptance-start-failure-rolls-back \
+            gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant; do
+            grep -Fq ": $required_test" <<< "$bootstrap_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 9
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Debug --timeout 45 \
+            -R "$bootstrap_selector" --output-on-failure
+      - name: Canonical no-argument launch remains pre-listener and secret-free
+        run: |
+          set -euo pipefail
+          QT_QPA_PLATFORM=offscreen ./build/rdp-server-desktop \
+            >build/r9-portable-gui-bootstrap.log 2>&1 &
+          desktop_pid=$!
+          cleanup() {
+            kill "$desktop_pid" 2>/dev/null || true
+            wait "$desktop_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+          kill -0 "$desktop_pid"
+          if ss -ltnp 2>/dev/null | grep -Fq "pid=$desktop_pid,"; then
+            echo "no-argument GUI opened a listener before explicit Sharing" >&2
+            exit 1
+          fi
+          if grep -Eiq '(password|secret|ntlm|keytab|private[-_ ]?key)[[:space:]]*[:=]' \
+              build/r9-portable-gui-bootstrap.log; then
+            echo "bootstrap log exposed secret-bearing material" >&2
+            exit 1
+          fi
+      - name: Package exact owner-acceptance ZIP and verify canonical launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          unzip -q "$archive" -d build/r9-owner-acceptance-extracted
+          test -x build/r9-owner-acceptance-extracted/run-gui.sh
+          (
+            cd build/r9-owner-acceptance-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../r9-owner-acceptance-package-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../r9-owner-acceptance-package-smoke.log
+              echo "owner-acceptance ZIP failed canonical no-argument startup smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload exact owner-acceptance Linux ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: |
+            build/rdp-server-owner-acceptance-*.zip
+            build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+
+          bootstrap_tests="$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
+          printf '%s\n' "$bootstrap_tests"
+          for required_test in \
+            runtime.bootstrap-portable-storage-and-no-autostart-contract \
+            runtime.desktop-shared-configuration-feed \
+            runtime.linux-no-config-standalone-current-x11-selection \
+            runtime.linux-portable-gui-bootstrap-listener-acceptance \
+            runtime.linux-gui-bootstrap-clipboard-dormancy \
+            gui.offscreen-owner-acceptance-consumer-start-orchestration \
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission \
+            gui.offscreen-owner-acceptance-start-failure-rolls-back; do
+            grep -Fq ": $required_test" <<< "$bootstrap_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 8
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Debug --timeout 45 \
+            -R "$bootstrap_selector" --output-on-failure
+      - name: Canonical no-argument launch remains pre-listener and secret-free
+        run: |
+          set -euo pipefail
+          QT_QPA_PLATFORM=offscreen ./build/rdp-server-desktop \
+            >build/r9-portable-gui-bootstrap.log 2>&1 &
+          desktop_pid=$!
+          cleanup() {
+            kill "$desktop_pid" 2>/dev/null || true
+            wait "$desktop_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+          kill -0 "$desktop_pid"
+          if ss -ltnp 2>/dev/null | grep -Fq "pid=$desktop_pid,"; then
+            echo "no-argument GUI opened a listener before explicit Sharing" >&2
+            exit 1
+          fi
+          if grep -Eiq '(password|secret|ntlm|keytab|private[-_ ]?key)[[:space:]]*[:=]' \
+              build/r9-portable-gui-bootstrap.log; then
+            echo "bootstrap log exposed secret-bearing material" >&2
+            exit 1
+          fi
+      - name: Package exact owner-acceptance ZIP and verify canonical launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          unzip -q "$archive" -d build/r9-owner-acceptance-extracted
+          test -x build/r9-owner-acceptance-extracted/run-gui.sh
+          (
+            cd build/r9-owner-acceptance-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../r9-owner-acceptance-package-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../r9-owner-acceptance-package-smoke.log
+              echo "owner-acceptance ZIP failed canonical no-argument startup smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload exact owner-acceptance Linux ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: |
+            build/rdp-server-owner-acceptance-*.zip
+            build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+
+          bootstrap_tests="$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
+          printf '%s\n' "$bootstrap_tests"
+          for required_test in \
+            runtime.bootstrap-portable-storage-and-no-autostart-contract \
+            runtime.desktop-shared-configuration-feed \
+            runtime.linux-no-config-standalone-current-x11-selection \
+            runtime.linux-portable-gui-bootstrap-listener-acceptance \
+            runtime.linux-gui-bootstrap-clipboard-dormancy \
+            gui.offscreen-owner-acceptance-consumer-start-orchestration \
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission \
+            gui.offscreen-owner-acceptance-start-failure-rolls-back \
+            gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant; do
+            grep -Fq ": $required_test" <<< "$bootstrap_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 9
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Debug --timeout 45 \
+            -R "$bootstrap_selector" --output-on-failure
+      - name: Canonical no-argument launch remains pre-listener and secret-free
+        run: |
+          set -euo pipefail
+          QT_QPA_PLATFORM=offscreen ./build/rdp-server-desktop \
+            >build/r9-portable-gui-bootstrap.log 2>&1 &
+          desktop_pid=$!
+          cleanup() {
+            kill "$desktop_pid" 2>/dev/null || true
+            wait "$desktop_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+          kill -0 "$desktop_pid"
+          if ss -ltnp 2>/dev/null | grep -Fq "pid=$desktop_pid,"; then
+            echo "no-argument GUI opened a listener before explicit Sharing" >&2
+            exit 1
+          fi
+          if grep -Eiq '(password|secret|ntlm|keytab|private[-_ ]?key)[[:space:]]*[:=]' \
+              build/r9-portable-gui-bootstrap.log; then
+            echo "bootstrap log exposed secret-bearing material" >&2
+            exit 1
+          fi
+      - name: Package exact owner-acceptance ZIP and verify canonical launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          unzip -q "$archive" -d build/r9-owner-acceptance-extracted
+          test -x build/r9-owner-acceptance-extracted/run-gui.sh
+          (
+            cd build/r9-owner-acceptance-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../r9-owner-acceptance-package-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../r9-owner-acceptance-package-smoke.log
+              echo "owner-acceptance ZIP failed canonical no-argument startup smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload exact owner-acceptance Linux ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: |
+            build/rdp-server-owner-acceptance-*.zip
+            build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+
+          bootstrap_tests="$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
+          printf '%s\n' "$bootstrap_tests"
+          for required_test in \
+            runtime.bootstrap-portable-storage-and-no-autostart-contract \
+            runtime.desktop-shared-configuration-feed \
+            runtime.linux-no-config-standalone-current-x11-selection \
+            runtime.linux-portable-gui-bootstrap-listener-acceptance \
+            runtime.linux-gui-bootstrap-clipboard-dormancy \
+            gui.offscreen-owner-acceptance-consumer-start-orchestration \
+            gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission \
+            gui.offscreen-owner-acceptance-start-failure-rolls-back; do
+            grep -Fq ": $required_test" <<< "$bootstrap_tests"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$bootstrap_tests")" -eq 8
+          QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Debug --timeout 45 \
+            -R "$bootstrap_selector" --output-on-failure
+      - name: Canonical no-argument launch remains pre-listener and secret-free
+        run: |
+          set -euo pipefail
+          QT_QPA_PLATFORM=offscreen ./build/rdp-server-desktop \
+            >build/r9-portable-gui-bootstrap.log 2>&1 &
+          desktop_pid=$!
+          cleanup() {
+            kill "$desktop_pid" 2>/dev/null || true
+            wait "$desktop_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+          sleep 2
+          kill -0 "$desktop_pid"
+          if ss -ltnp 2>/dev/null | grep -Fq "pid=$desktop_pid,"; then
+            echo "no-argument GUI opened a listener before explicit Sharing" >&2
+            exit 1
+          fi
+          if grep -Eiq '(password|secret|ntlm|keytab|private[-_ ]?key)[[:space:]]*[:=]' \
+              build/r9-portable-gui-bootstrap.log; then
+            echo "bootstrap log exposed secret-bearing material" >&2
+            exit 1
+          fi
+      - name: Package exact owner-acceptance ZIP and verify canonical launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          unzip -q "$archive" -d build/r9-owner-acceptance-extracted
+          test -x build/r9-owner-acceptance-extracted/run-gui.sh
+          (
+            cd build/r9-owner-acceptance-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../r9-owner-acceptance-package-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../r9-owner-acceptance-package-smoke.log
+              echo "owner-acceptance ZIP failed canonical no-argument startup smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload exact owner-acceptance Linux ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: |
+            build/rdp-server-owner-acceptance-*.zip
+            build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+
+          bootstrap_tests="$(ctest --test-dir build -C Debug -N -R "$bootstrap_selector")"
           printf '%s\n' "$bootstrap_tests"
           for required_test in \
             runtime.bootstrap-portable-storage-and-no-autostart-contract \

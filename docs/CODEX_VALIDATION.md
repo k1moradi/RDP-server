@@ -1,3 +1,16 @@
+## R8 CI selector follow-up correction — 2026-10-24
+
+Starting exact-main parent: `93ff5dc87083854f2035124dcb807a129ae3bdec`.
+
+The first quoting correction still combined the selector assignment with the
+`bootstrap_tests` command substitution. GitHub again rejected the workflow
+before jobs (run `40080859929`: **FAIL**, zero jobs). This follow-up restores
+the two exact shell lines from the last known-good structure and changes only
+the selector contents/count for the ninth R8 test.
+
+No production, authentication, clipboard, listener or RDP wire source changes.
+Connector diff review: **PASS**. Corrective hosted CI: **PENDING**.
+
 ## R8 CI selector quotation correction — 2026-10-24
 
 Starting exact-main parent: `55b062bb468e93875fd2f8b4aa9532c00db0d703`.

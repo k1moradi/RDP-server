@@ -1,3 +1,13 @@
+## R2 P0 portable StandalonePassword admission — 2026-10-23
+
+**Current-main parent:** `d30efc66a092b24a06538a2860af2cb89e80f38c`.
+
+Standalone NTLMv2/SPNEGO/CredSSP is split from the GSS-configured `LinuxRuntimeSecurityConfiguration` path. The dedicated R2 current-owner route accepts no remote/local account mapping and joins exact R1 HYBRID/TLS ownership, exact standalone credential generation, successful standalone CredSSP verification, exact local sharing consent and fresh physical logind session evidence. ExistingOsAccount stays on the stronger GSS/Kerberos/PAM/NSS policy route.
+
+R10 consumes that split directly. Normal `LinuxPortableDesktopRuntime` / `LinuxRuntimeHostControl` construction may report local application prerequisites provisioned from automatic TLS/licensing ownership, then reach `CredentialsConfigured` after Session Password setup with no keytab, service principal, PAM service or OS-account policy. Owner consent stays separate and `startSharing()` opens a listener only after explicit Sharing plus fresh view authorization. Password replacement while Sharing is active retires the old connection/listener/consent before installing a new credential generation. Slow-path input remains gated by fresh input permission, not authentication mode.
+
+Coverage includes the no-keytab standalone connection selector, dedicated policyless R2 admission source guard, a guard forbidding synthetic no-config OS-account bootstrap, plaintext password scrubbing, and the HostControl progression Session Password → `CredentialsConfigured` → owner-consent gate → Start eligibility with no pre-Start listener. Physical-owner and real Microsoft-client acceptance remain **NOT RUN**; prior GUI Round 2 remains presentation qualification only.
+
 ## R10 P0 automatic zero-argument application runtime composition (2026-10-23)
 
 Normal Linux GUI startup is now the product path: `rdp-server-desktop` with no

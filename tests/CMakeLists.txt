@@ -3897,6 +3897,34 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     # separately so Release tests do not mistake -UNDEBUG for a Debug UI.
     target_compile_definitions(test_desktop_gui_offline PRIVATE
         "$<$<OR:$<CONFIG:Debug>,$<BOOL:${RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI}>>:RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI=1>")
+
+    # R5 owner-situation integration: production Linux HostControl plus
+    # deterministic physical-X11 evidence, with the machine's real LAN
+    # recommendation. It never authenticates, binds, captures or injects input.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
+       TARGET rdp-server-linux-host-control)
+        add_executable(test_linux_gui_physical_x11_precredential_readiness
+            test_linux_gui_physical_x11_precredential_readiness.cpp)
+        target_link_libraries(
+            test_linux_gui_physical_x11_precredential_readiness PRIVATE
+            rdp-server-desktop-ui rdp-server-linux-host-control)
+        target_compile_options(
+            test_linux_gui_physical_x11_precredential_readiness PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+        target_compile_definitions(
+            test_linux_gui_physical_x11_precredential_readiness PRIVATE
+            "$<$<OR:$<CONFIG:Debug>,$<BOOL:${RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI}>>:RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI=1>")
+        add_test(
+            NAME runtime.linux-gui-physical-x11-precredential-readiness
+            COMMAND test_linux_gui_physical_x11_precredential_readiness)
+        set_tests_properties(
+            runtime.linux-gui-physical-x11-precredential-readiness PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+            LABELS "runtime;gui;linux;r5-native-desktop;acceptance;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 30)
+    endif()
+
     add_test(NAME gui.offscreen-first-run-authorization-revocation
         COMMAND test_desktop_gui_offline)
     set_tests_properties(gui.offscreen-first-run-authorization-revocation PROPERTIES

@@ -1,3 +1,37 @@
+## R5 Linux physical-X11 pre-credential GUI readiness (2026-10-24)
+
+Starting exact-main parent: `09504727838f0e1182022bad490e3c6cecc5b08b`.
+
+Source/control-flow review found no Linux native-prerequisite code that disables
+Username, Session Password or Confirm, and no parent Main-tab disablement.
+The prequalification UI remains the existing Debug /
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` mechanism; the Release standalone
+capability literal remains false.
+
+New CTest:
+`runtime.linux-gui-physical-x11-precredential-readiness`.
+
+The fixture uses the production Linux HostControl and Qt adapter with only
+read-only synthetic physical-X11 evidence (`seat0`, `:42`, active, physical,
+local/non-remote and unlocked). A genuine current LAN recommendation is required
+or the native-environment test skips. It asserts native target availability and
+owner permission requestability while credentials, owner grant, listener,
+graphics/native desktop and framebuffer remain absent. The same state must leave
+all three credential edits enabled/not-read-only, keep Password/Confirm masked,
+keep Copy disabled, preserve edit values across refresh, and make Sharing
+eligible only after matching non-empty input.
+
+No authentication backend is replaced. No consent request, listener bind,
+desktop capture, XTEST/input injection, config file or RDP wire operation is
+performed.
+
+Verification:
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-gui-physical-x11-precredential-readiness$' --output-on-failure --verbose`
+
+Connector-local execution: **NOT RUN**.
+Hosted exact-publication-SHA execution: **PENDING**.
+Owner physical Linux/X11 no-argument acceptance: **PENDING**.
+
 ## R8 CI workflow recovery after literal-replacement corruption — 2026-10-24
 
 Starting exact-main parent: `7acd0ab4fe108340c08ebd9efbcbd6e5a336b160`.

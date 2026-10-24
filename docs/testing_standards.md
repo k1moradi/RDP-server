@@ -1,3 +1,29 @@
+## Linux pre-credential physical-X11 GUI readiness (2026-10-24)
+
+The owner-acceptance Session Password surface must remain independent of live
+native-desktop creation. An eligible read-only physical-X11 observation may make
+local owner consent requestable and expose the selected display, but it must not
+create a credential, consent grant, listener, accepted client, framebuffer or
+XTEST owner merely because the GUI is open.
+
+Keep `runtime.linux-gui-physical-x11-precredential-readiness` as the Linux
+integration regression for this boundary. It uses the production
+`LinuxRuntimeHostControl` and Qt `HostControl`, injects only deterministic
+active/physical/local/non-remote/unlocked seat0 X11 evidence, and consumes the
+machine's genuine LAN recommendation. In Debug or explicit owner-acceptance
+builds, Username, Session Password and Confirm must be visible, enabled and not
+read-only before credential configuration; both password edits must use
+`QLineEdit::Password`. Matching non-empty input may make the explicit Sharing
+action eligible when the genuine LAN recommendation and owner requestability are
+present. It must not mint owner consent or start native capture as a side
+effect. Hosts without one valid LAN recommendation may use the registered skip
+code rather than fabricating an interface.
+
+This test does not promote `kStandalonePasswordProductCapabilityApproved`;
+the Release product capability remains a separate qualification gate. It also
+does not substitute a fake authentication backend, open a listener, capture a
+desktop or exercise XTEST.
+
 ## R8 owner-acceptance credential/start clipboard-dormancy rule (2026-10-24)
 
 The prequalification Session Password workflow must keep R8 dormant through the

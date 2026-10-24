@@ -1,3 +1,52 @@
+## R5 P1 Linux physical-X11 pre-credential GUI readiness (2026-10-24)
+
+Starting exact-main parent: `09504727838f0e1182022bad490e3c6cecc5b08b`.
+
+Owner acceptance reports a correct Linux LAN recommendation
+(`192.168.1.5`) but Username / Session Password / Confirm appear
+disabled/uneditable. R5 source tracing found no native-prerequisite path that
+disables those controls or their Main-tab ancestors: `DesktopWindow::refresh()`
+only changes their visibility, `linux_prerequisites.cpp` is diagnostic
+label-only, and the normal no-argument Linux entrypoint constructs
+`LinuxPortableDesktopRuntime` without a config file. Password and Confirm are
+already configured with `QLineEdit::Password`. Therefore R5 does not weaken
+physical-X11 selection or invent a native readiness bypass to repair a GUI
+symptom.
+
+Added
+`runtime.linux-gui-physical-x11-precredential-readiness`. The integration
+fixture uses the production `LinuxRuntimeHostControl` and Qt `HostControl`,
+injecting only deterministic active/physical/local/non-remote/unlocked seat0 X11
+owner evidence at display `:42`. It requires the machine's genuine recommended
+LAN endpoint; otherwise it uses the documented native-environment skip. Before
+any credential exists it proves `nativeDesktopTargetAvailable == true`, target
+`:42`, owner permission requestability, no active grant, no listener, no
+graphics/native desktop, and no first framebuffer. In the Debug/owner-acceptance
+surface it additionally requires Username/Password/Confirm to be enabled and
+not read-only, both password fields masked, Copy disabled, and matching
+non-empty input to make Sharing eligible while the separate permission button
+remains unavailable until credentials exist.
+
+No fake authentication implementation, config file, listener, capture, XTEST or
+RDP wire path is used. The Release
+`kStandalonePasswordProductCapabilityApproved == false` gate is asserted and
+unchanged. Production R5/R2/R10/GUI source is unchanged by this increment.
+The concurrent R8 workflow corruption is resolved on the starting parent and is
+not modified here.
+
+Verification command:
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-gui-physical-x11-precredential-readiness$' --output-on-failure --verbose`
+
+Connector-local build/CTest: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**. R5 source/ownership review: **PASS**.
+
+**R7/R10 handoff:** current GUI source contains no R5 native prerequisite or
+ancestor enablement that can explain disabled credential edits. If this
+integration case passes on the owner build while the extracted no-argument GUI
+still cannot edit the fields, inspect the exact packaged Qt/widget state and
+artifact SHA in R7/R9 rather than changing logind/X11 consent semantics. Owner
+physical Linux acceptance remains the final evidence gate.
+
 ## R8 CI workflow recovery after literal-replacement corruption — 2026-10-24
 
 Starting exact-main parent: `7acd0ab4fe108340c08ebd9efbcbd6e5a336b160`.

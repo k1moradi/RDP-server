@@ -76,8 +76,17 @@ starts a listener, capture or input path. A token-based source-contract guard
 was intentionally not added because it would overfit spelling rather than the
 environment-dependence class.
 
-Connector source/registration review: **PASS**. Owner-local build/full CTest:
-**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**.
+Connector source/registration review: **PASS**. Exact-publication
+SHA `dc72ae4321b1f5672cb38f10a100247b544fc931` has hosted qualification for
+the R6 scope in Actions run `40077611410`: Ubuntu/macOS/Windows protocol jobs,
+Windows CLANG64/Clang 23, and both Linux production-runtime-security variants
+all **PASS**. Ubuntu Debug and Release full CTest each report **892/892 PASS**;
+the deterministic HostControl permission/status cases pass and the genuine
+default/native observation skips on the headless runner as designed.
+
+Owner-local build/full CTest: **NOT RUN** here. The remaining physical unlocked
+Linux/X11 focused selector is external R10 P0 acceptance evidence, not an
+unresolved R6 code dependency. R6 repository-side status: **PASS / COMPLETE**.
 
 ## R10 P0 HostControl permission-fixture matrix completion (2026-10-24)
 

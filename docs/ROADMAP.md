@@ -97,14 +97,27 @@ while missing semantically equivalent native reads. Explicit CTest
 classification plus the separated macOS native integration case directly cover
 the observed defect class.
 
-Connector source/registration review: **PASS**. Owner-local canonical
-configure/build/full CTest: **NOT RUN** in this connector environment.
-Exact-publication-SHA hosted CI: **PENDING**.
+Connector source/registration review: **PASS**. Exact-publication
+SHA `dc72ae4321b1f5672cb38f10a100247b544fc931` is now hosted-qualified for
+this R6 scope by Actions run `40077611410`: Ubuntu protocol
+`120824301641` **PASS**, macOS protocol `120824301581` **PASS**, Windows
+protocol `120824301604` **PASS**, Windows CLANG64/Clang 23
+`120824301515` **PASS**, and both Linux production-runtime-security jobs
+`120824301577` / `120824301528` **PASS**. Ubuntu Debug and Release full
+CTest each reported **892/892 PASS**; the four deterministic HostControl cases
+passed and the genuine default/native-evidence observation used its registered
+headless skip. The workflow's later clean-Windows portable-GUI job was unrelated
+to this HostControl hermeticity increment and is not an R6 dependency gate.
 
-**Next gate:** owner physical Linux/X11 reruns the canonical three-test P0
-selector; hosted CI must pass the same deterministic cases and the fixed injected
-permission matrix. Native-environment tests may PASS or use only their
-documented prerequisite skip.
+Owner-local canonical configure/build/full CTest: **NOT RUN** in this connector
+environment. The owner physical unlocked Linux/X11 focused selector remains
+**PENDING** as project-level R10 P0 acceptance evidence, but it is no longer a
+repository-side blocker for the R6 portability-testing correction.
+
+**R6 P1 status:** repository-side implementation and hosted qualification
+**COMPLETE**. Reopen R6 only if the physical Linux/X11 receipt exposes a new
+environment-coupling defect; otherwise the next action is the external owner
+receipt already tracked by R10.
 
 ## R10 P0 HostControl permission-fixture matrix completion (2026-10-24)
 

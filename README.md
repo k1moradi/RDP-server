@@ -34,6 +34,35 @@ The former xrdp-console GitHub repository was deleted. Its historical
 code is not a dependency of the maintained native C++23 protocol library.
 No automated legacy-source import workflow is part of this repository.
 
+## Desktop startup contract
+
+The normal consumer application command is:
+
+```text
+rdp-server-desktop
+```
+
+with **no required arguments**. The intended product workflow is portable ZIP
+→ extract → double-click → set Session Password → explicit Sharing ON → connect
+over the LAN. Normal startup must not require a user-authored `server.conf`,
+`--config`, TLS/licensing key files, Kerberos/keytab/PAM setup or native
+UID/seat/display/listener policy files. `--config` remains an expert/legacy
+override.
+
+Portable persistent state belongs in OS per-user application-data/config
+storage; Session Password is memory-only by default. R1 already supports an
+endpoint-bound process-memory TLS identity for the no-file Linux HostControl
+path. Starting the GUI may bootstrap local prerequisites but never starts a
+listener, installs a service or changes firewall/Windows RDP/macOS system
+configuration. The extracted ZIP may be read-only.
+
+**Current limitation:** this is the required product/bootstrap contract, not an
+end-to-end readiness claim. Automatic TLS preparation has landed, but the
+no-argument GUI still needs the remaining R2/R3/R10 Session Password, native
+owner-authority and licensing/runtime provisioning path before the workflow
+above is a working RDP host. Earlier GUI Round 2 PASS evidence qualifies
+presentation only.
+
 ## Build the standalone C++23 protocol foundation
 
 The library has **no xrdp source download, patched chansrv, VNC/RFB daemon or

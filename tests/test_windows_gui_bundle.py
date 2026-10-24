@@ -71,6 +71,11 @@ class WindowsGuiBundleTests(unittest.TestCase):
         self.assertFalse(manifest["startup_enabled"])
         self.assertFalse(manifest["native_host_ready"])
         self.assertFalse(manifest["r2_windows_admission_included"])
+        self.assertEqual(manifest["canonical_startup_arguments"], [])
+        self.assertFalse(manifest["configuration_required"])
+        self.assertEqual(manifest["session_password_storage"], "memory-only")
+        self.assertFalse(manifest["automatic_listener_start"])
+        self.assertTrue(manifest["read_only_extraction_supported"])
         checksum = self.output.with_suffix(".zip.sha256")
         self.assertTrue(checksum.is_file())
         self.assertIn(

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""R7 macOS LaunchServices smoke for the extracted, deny-only Qt Cocoa app.
+"""R7 macOS LaunchServices smoke for canonical no-argument desktop startup.
 
 This runs only on a macOS CI runner with an available Aqua login session.
 LaunchServices is an automated approximation, not a human Finder double-click,
@@ -72,7 +72,7 @@ def smoke(app: Path) -> None:
             raise ValueError(
                 "extracted GUI opened a TCP listener or listener audit failed: "
                 + listeners.stdout.strip() + " " + listeners.stderr.strip())
-        print("macOS extracted Cocoa LaunchServices/no-TCP-listener smoke PASS; "
+        print("macOS canonical no-argument Cocoa LaunchServices/no-TCP-listener smoke PASS; "
               "normal human Finder double-click and Gatekeeper trust NOT VERIFIED")
     finally:
         if launched_pid is not None:

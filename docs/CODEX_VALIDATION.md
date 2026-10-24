@@ -1,3 +1,48 @@
+## R6 P1 portable automatic-bootstrap contract receipt — 2026-10-23
+
+Starting exact-main parent: `89c9895d86c28dc5338548b910ca46ed1e0a0386`.
+
+R6 defines one platform-neutral bootstrap storage/lifetime policy for generated
+TLS identity, optional persistent licensing identity, non-secret preferences
+and Session Password. The shortest safe lifetime is the default: current R1 TLS
+bootstrap is process-memory-only; persistent TLS/licensing identity, if used,
+is restricted to private per-user application data; preferences use per-user
+configuration; Session Password cannot be persisted by the default contract.
+The policy explicitly requires no config file, no admin, read-only ZIP support,
+fail-closed path replacement and explicit Sharing before any listener;
+service/firewall/Windows-RDP/macOS-system mutation remains forbidden.
+
+R1's immediately preceding parent resolves automatic TLS preparation:
+`RuntimeServerTlsContext::fromGeneratedIpAddress()` generates an IP-SAN
+identity entirely in memory and Linux HostControl owns it across endpoint
+prepare/Start/Stop without opening a listener during preparation. R6 does not
+duplicate or persist that private key. R3 licensing material remains separate
+and has no automatic persistence producer in this increment.
+
+PORTABLE-GUI manifests on Linux, Windows and macOS now carry the same
+no-argument/bootstrap facts and the common verifier requires them. Native
+Windows and macOS smoke already launch the ordinary first screen without
+arguments and now label that as canonical consumer startup. Linux archive
+coverage additionally launches with no arguments from a read-only extraction
+tree and requires synthetic mutable marker/preferences files to be created only
+below isolated per-user data/config roots with mode 0600 under mode-0700
+parents.
+
+R2's standalone password owner is already memory-only, but the public
+Session Password/product admission path remains separately gated. Therefore
+GUI Round 2 remains presentation evidence, not end-to-end product readiness.
+R6 source/API review: **PASS**. Canonical owner `~/rdp-server/build/`
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Full packaging CTests and exact-publication-SHA hosted CI:
+**PENDING / NOT RUN**. No listener, desktop capture/input, credential file or
+system configuration was activated.
+
+Next gate: R3 decides/implements any required generated PersonalDesktop
+licensing identity persistence under the private app-data contract, while
+R2/R10 complete the no-config Session Password, local-owner authority and
+runtime composition. Linux proceeds independently of Windows/macOS native-host
+acceptance.
+
 ## R1 P0 automatic TLS identity authoring receipt — 2026-10-23
 
 Starting exact-main parent: `878d7d1678f15a776199028c9d6a21297cdf3bc6`.

@@ -118,6 +118,8 @@ function Assert-NoProcessSockets([int]$ProcessId) {
 }
 
 function Invoke-FirstScreenSmoke {
+    # Canonical consumer startup is the extracted desktop application with no
+    # arguments. Hidden argument modes above are diagnostics only.
     $process = Start-Process -FilePath $Exe -WorkingDirectory $Root -PassThru
     try {
         $deadline = [DateTime]::UtcNow.AddSeconds(10)
@@ -159,4 +161,4 @@ Invoke-FirstScreenSmoke
 $systemStateAfter = Get-OfflineSystemState
 Assert-UnchangedSystemState $systemStateBefore $systemStateAfter
 
-Write-Host "Windows extracted GUI offline first-screen/no-socket/rerun and native system-state smoke: PASS"
+Write-Host "Windows canonical no-argument extracted GUI first-screen/no-socket/rerun and native system-state smoke: PASS"

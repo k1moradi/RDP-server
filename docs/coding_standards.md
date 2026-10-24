@@ -1,3 +1,23 @@
+## Portable automatic bootstrap state is outside the extracted app (2026-10-23)
+
+Normal desktop startup has no required arguments. Prefer the shortest safe
+lifetime: the current R1 generated TLS identity is process-memory-only; Session
+Password is always memory-only by default. If TLS identity or licensing
+identity is persisted, it belongs in the OS per-user private application-data
+root. Non-secret preferences belong in the per-user configuration root. Never
+derive a writable secret path from `argv[0]`, the current working directory or
+the ZIP extraction directory; read-only extraction is a supported condition.
+
+Persistent private creation/replacement must be atomic and fail closed across
+symlinks, reparse points and parent/final path substitution, using restrictive
+POSIX modes or Windows ACLs before material becomes authoritative. Reuse the
+existing R1/R3 secure credential readers after generation instead of adding a
+weaker parallel loader. Bootstrap may run before the GUI appears, but it owns
+no listener, service, firewall/system-RDP mutation, R2 admission, R3 Share or
+native permission. Explicit Sharing remains the only product route to
+listening. The expert `--config` route may select supplied material but must
+not become the normal consumer dependency.
+
 ## R1 generated TLS identity and secret lifetime (2026-10-23)
 
 The portable GUI may prepare an R1 server identity in memory from an exact

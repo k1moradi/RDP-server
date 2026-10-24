@@ -86,6 +86,11 @@ class MacGuiBundleTests(unittest.TestCase):
         self.assertFalse(manifest["startup_enabled"])
         self.assertFalse(manifest["native_host_ready"])
         self.assertFalse(manifest["r2_macos_admission_included"])
+        self.assertEqual(manifest["canonical_startup_arguments"], [])
+        self.assertFalse(manifest["configuration_required"])
+        self.assertEqual(manifest["session_password_storage"], "memory-only")
+        self.assertFalse(manifest["automatic_listener_start"])
+        self.assertTrue(manifest["read_only_extraction_supported"])
 
         extracted = self.root / "Extracted RDP GUI Ω"
         extracted.mkdir()

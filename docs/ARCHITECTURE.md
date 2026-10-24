@@ -1,3 +1,48 @@
+## R6 P1 portable automatic application bootstrap contract (2026-10-23)
+
+The normal consumer entry point is **`rdp-server-desktop` with no required
+arguments**. Portable applications must obtain writable state from operating
+system per-user application-data/config locations when persistence is needed,
+never from the ZIP/executable directory. The shared
+`RuntimeApplicationBootstrapPolicy` classifies bootstrap material and
+lifetime: R1's current endpoint-bound TLS identity is process-memory-only by
+default; any future persistent TLS identity and any persistent licensing
+identity belong in private per-user application data; non-secret preferences
+such as port belong in per-user configuration; Session Password is volatile
+memory only and has no default persistence path.
+
+No normal-startup `server.conf`, `--config`, TLS/key path, licensing-key
+path, Kerberos/keytab, PAM, UID/seat/display or listener file is a product
+prerequisite. `--config` remains an explicit expert/legacy override.
+Bootstrap is not Start: application launch may create or validate local
+runtime prerequisites but may not open a listener, install a service, mutate
+firewall/Windows RDP/macOS system configuration, request elevation, or grant
+R2/R3/native authority. The extracted application tree may be read-only.
+Persistent private storage creation/open/replacement must use native
+no-follow/reparse and permission/ACL checks and fail closed on path replacement.
+
+R1 dependency review is now **RESOLVED for automatic TLS preparation** on
+Linux: `RuntimeServerTlsContext::fromGeneratedIpAddress()` generates an
+endpoint-bound process-owned key/certificate in memory, and R10's Linux
+HostControl prepares/retires it around endpoint configuration without opening
+a listener. If a future product chooses TLS persistence for identity continuity,
+that producer must store only under the private application-data contract above
+and then reuse R1's existing secure credential loader.
+
+R3 licensing remains deliberately separate from the TLS key. R3/R10 must decide
+whether PersonalDesktop needs a generated persistent licensing identity; if so,
+its generator/serializer must produce the existing validated RDP certificate
+shape into private application data rather than asking the consumer for files.
+R2's standalone password owner already keeps password-derived material in
+memory and scrubs replacement/revocation state, but the normal GUI Session
+Password/product-admission path remains a separate R2/R10 gate.
+
+This R6 contract and packaging qualification do **not** claim the current
+no-argument GUI is end-to-end provisioned. The prior GUI Round 2 result was
+presentation qualification. Linux no-config Session Password, owner authority,
+licensing/runtime provisioning and live-client acceptance remain separate gates
+and do not wait for Windows or macOS native-host activation.
+
 ## R1 automatic endpoint-bound TLS identity (2026-10-23)
 
 `RuntimeServerTlsContext` is the single R1 server-TLS identity owner. In

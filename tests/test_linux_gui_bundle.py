@@ -47,6 +47,12 @@ with tempfile.TemporaryDirectory() as directory:
     assert manifest["source_sha"] == source_sha
     assert manifest["auto_share"] is False
     assert manifest["r2_admission_included"] is False
+    assert manifest["canonical_startup_arguments"] == []
+    assert manifest["configuration_required"] is False
+    assert manifest["session_password_storage"] == "memory-only"
+    assert manifest["automatic_listener_start"] is False
+    assert manifest["read_only_extraction_supported"] is True
+    assert manifest["mutable_state_location"] == "user-private-os-location"
     assert manifest["fuse_required"] is False
     assert manifest["systemd_install"] is False
     assert not any("systemd/" in name or "server.conf" in name
@@ -88,22 +94,54 @@ with tempfile.TemporaryDirectory() as directory:
     private_home.mkdir(mode=0o700)
     executable.write_text(
         "#!/bin/sh\n"
-        "mkdir -p \"$HOME/.config/rdp-server-desktop\"\n"
-        ": > \"$HOME/.config/rdp-server-desktop/settings.json\"\n"
+        "if [ \"$#\" -ne 0 ]; then\n"
+        "  printf 'unexpected consumer arguments\\n' >&2\n"
+        "  exit 64\n"
+        "fi\n"
+        "mkdir -p \"$XDG_DATA_HOME/RDP-server\" \"$XDG_CONFIG_HOME/RDP-server\"\n"
+        ": > \"$XDG_DATA_HOME/RDP-server/bootstrap.marker\"\n"
+        ": > \"$XDG_CONFIG_HOME/RDP-server/preferences.conf\"\n"
         "printf 'GUI_LAUNCH_OK:%s\\n' \"$LD_LIBRARY_PATH\"\n")
     executable.chmod(0o755)
-    launch = subprocess.run(
-        [str(extracted / "run-gui.sh")], capture_output=True,
-        text=True, timeout=5,
-        env={**os.environ, "QT_QPA_PLATFORM": "xcb",
-             "HOME": str(private_home)})
+    private_data_root = root / "private-data"
+    private_config_root = root / "private-config"
+    extracted_before = {
+        path.relative_to(extracted) for path in extracted.rglob("*")
+    }
+
+    # Canonical consumer launch is no-argument and must work when the ZIP
+    # extraction tree itself is read-only. Mutable state belongs outside it.
+    for path in extracted.rglob("*"):
+        if path.is_dir():
+            path.chmod(0o555)
+        else:
+            path.chmod(0o555 if os.access(path, os.X_OK) else 0o444)
+    extracted.chmod(0o555)
+    try:
+        launch = subprocess.run(
+            [str(extracted / "run-gui.sh")], capture_output=True,
+            text=True, timeout=5,
+            env={**os.environ, "QT_QPA_PLATFORM": "xcb",
+                 "HOME": str(private_home),
+                 "XDG_DATA_HOME": str(private_data_root),
+                 "XDG_CONFIG_HOME": str(private_config_root)})
+    finally:
+        extracted.chmod(0o755)
+        for path in extracted.rglob("*"):
+            if path.is_dir():
+                path.chmod(0o755)
     assert launch.returncode == 0, launch.stderr
     assert "GUI_LAUNCH_OK:" + str(extracted / "lib") in launch.stdout
-    # run-gui.sh must propagate umask 077 into the GUI process, so a
-    # newly created config file and its parent cannot be world-readable.
-    private_config = private_home / ".config/rdp-server-desktop/settings.json"
+    assert {path.relative_to(extracted) for path in extracted.rglob("*")} == \
+        extracted_before
+
+    private_data = private_data_root / "RDP-server/bootstrap.marker"
+    private_config = private_config_root / "RDP-server/preferences.conf"
+    assert private_data.is_file() and not private_data.is_symlink()
     assert private_config.is_file() and not private_config.is_symlink()
+    assert stat.S_IMODE(private_data.stat().st_mode) == 0o600
     assert stat.S_IMODE(private_config.stat().st_mode) == 0o600
+    assert stat.S_IMODE(private_data.parent.stat().st_mode) == 0o700
     assert stat.S_IMODE(private_config.parent.stat().st_mode) == 0o700
 
     # Broken archive, metadata or runtime closure never passes verify.

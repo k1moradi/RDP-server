@@ -126,6 +126,12 @@ def bundle(output, gui, xcb_plugin, source_sha, version, resolver=linked_librari
         "files": records, "system_abi": sorted(SYSTEM_ABI),
         "fuse_required": False, "systemd_install": False,
         "auto_share": False, "r2_admission_included": False,
+        "canonical_startup_arguments": [],
+        "configuration_required": False,
+        "session_password_storage": "memory-only",
+        "automatic_listener_start": False,
+        "read_only_extraction_supported": True,
+        "mutable_state_location": "user-private-os-location",
     }
     try:
         with zipfile.ZipFile(output, "x") as archive:
@@ -167,7 +173,14 @@ def verify(archive_path):
                 or manifest.get("fuse_required") is not False
                 or manifest.get("systemd_install") is not False
                 or manifest.get("auto_share") is not False
-                or manifest.get("r2_admission_included") is not False):
+                or manifest.get("r2_admission_included") is not False
+                or manifest.get("canonical_startup_arguments") != []
+                or manifest.get("configuration_required") is not False
+                or manifest.get("session_password_storage") != "memory-only"
+                or manifest.get("automatic_listener_start") is not False
+                or manifest.get("read_only_extraction_supported") is not True
+                or manifest.get("mutable_state_location") !=
+                    "user-private-os-location"):
             raise ValueError("invalid Linux GUI manifest")
         required = {"run-gui.sh", "RDP Server.desktop",
                     "bin/rdp-server-desktop", "bin/qt.conf",

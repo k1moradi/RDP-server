@@ -176,6 +176,12 @@ def verify_archive(path: Path, expected_git_sha: str,
                     "GUI shell without production runtime or startup-disabled policy")
             require(manifest.get("mutable_state_location") == "user-private-os-location",
                     "mutable state must not reside in ZIP install tree")
+            require(manifest.get("canonical_startup_arguments") == []
+                    and manifest.get("configuration_required") is False
+                    and manifest.get("session_password_storage") == "memory-only"
+                    and manifest.get("automatic_listener_start") is False
+                    and manifest.get("read_only_extraction_supported") is True,
+                    "portable automatic-bootstrap contract mismatch")
             require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+",
                                  str(manifest.get("version", ""))) is not None,
                     "missing semantic version")

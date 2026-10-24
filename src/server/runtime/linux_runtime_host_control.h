@@ -54,7 +54,7 @@ struct LinuxRuntimeDefaultRoutePreference final
 recommendLinuxPrivateLanEndpoint(
     const std::vector<RuntimeHostInterface>& interfaces,
     std::span<const LinuxRuntimeDefaultRoutePreference> defaultRoutes,
-    std::uint16_t port = 3389U);
+    std::uint16_t port = kRuntimeDefaultListenPort);
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.

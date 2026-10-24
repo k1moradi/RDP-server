@@ -1,3 +1,27 @@
+## Portable GUI canonical no-argument bootstrap smoke (2026-10-23)
+
+Packaging acceptance must launch the extracted desktop application in its
+canonical consumer mode with **no arguments**. Hidden diagnostic arguments may
+remain separate tests, but they do not substitute for normal startup. The
+canonical smoke must prove no TCP/UDP listener exists before Sharing and must
+not mutate services, firewall, Windows RDP/TermService or macOS system
+configuration.
+
+Where the host permits it, make the extracted payload read-only and point the
+test at isolated per-user application-data/config roots. Any persistent mutable
+bootstrap state must appear only under those roots with private permissions;
+creation beside the executable is a failure. Portable manifests on Linux,
+Windows and macOS must declare no required configuration file, an empty
+canonical argument list, memory-only Session Password persistence, no automatic
+listener, per-user mutable state and read-only-extraction support.
+
+R1's current generated TLS identity is expected to remain process memory and
+therefore need not create a file in this smoke. A future persistent TLS or
+licensing identity needs a separate native path-replacement/permission test in
+the private application-data root. These are packaging/bootstrap facts only:
+a window appearing with no arguments is not authenticated RDP desktop
+acceptance.
+
 ## R1 automatic TLS identity offline gates (2026-10-23)
 
 Automatic TLS provisioning tests must exercise the production in-memory

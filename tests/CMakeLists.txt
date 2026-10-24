@@ -201,6 +201,24 @@ add_test(NAME runtime.desktop-shared-configuration-feed
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
     LABELS "runtime;configuration;gui;r10-host-control;offline")
 
+# R6 portable automatic-bootstrap storage/lifetime policy. This pure
+# cross-platform contract opens no listener and performs no filesystem I/O.
+add_executable(test_runtime_bootstrap_contract
+    test_runtime_bootstrap_contract.cpp)
+target_include_directories(test_runtime_bootstrap_contract PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+target_compile_features(test_runtime_bootstrap_contract PRIVATE cxx_std_23)
+if(MSVC)
+    target_compile_options(test_runtime_bootstrap_contract PRIVATE /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(test_runtime_bootstrap_contract PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME runtime.bootstrap-portable-storage-and-no-autostart-contract
+    COMMAND test_runtime_bootstrap_contract)
+set_tests_properties(runtime.bootstrap-portable-storage-and-no-autostart-contract
+    PROPERTIES LABELS "runtime;bootstrap;r6;security;packaging;offline")
+
 # R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
 # these tests cannot grant native admission or enable a listener.
 add_executable(test_standalone_credssp test_standalone_credssp.cpp)

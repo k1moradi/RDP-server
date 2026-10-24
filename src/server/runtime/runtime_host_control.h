@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include "server/runtime/runtime_application_bootstrap.h"
 #include "server/security/standalone_credential_policy.h"
 #include "server/runtime/runtime_tls_identity_status.h"
 
@@ -110,7 +111,7 @@ struct RuntimeHostOptions
     // Non-secret preferences only. R10 must verify with R1 at bind/accept.
     std::string interfaceId;
     std::string localAddress;
-    std::uint16_t port{3389U};
+    std::uint16_t port{kRuntimeDefaultListenPort};
     bool lanRequested{};
     bool afterLoginLaunchRequested{};
 };
@@ -234,7 +235,7 @@ struct RuntimeHostRecommendedEndpoint final
 [[nodiscard]] inline RuntimeHostRecommendedEndpoint
 recommendRuntimePrivateLanEndpoint(
     const std::vector<RuntimeHostLanEndpointCandidate>& candidates,
-    const std::uint16_t port = 3389U)
+    const std::uint16_t port = kRuntimeDefaultListenPort)
 {
     RuntimeHostRecommendedEndpoint recommended;
     recommended.port = port;
@@ -374,7 +375,7 @@ recommendRuntimePrivateLanEndpoint(
 [[nodiscard]] inline RuntimeHostRecommendedEndpoint
 recommendRuntimePrivateLanEndpoint(
     const std::vector<RuntimeHostInterface>& interfaces,
-    const std::uint16_t port = 3389U)
+    const std::uint16_t port = kRuntimeDefaultListenPort)
 {
     std::vector<RuntimeHostLanEndpointCandidate> candidates;
     for (const RuntimeHostInterface& runtimeInterface : interfaces)

@@ -10,6 +10,7 @@
 #include "server/runtime/runtime_tls_context.h"
 #include "server/security/authentication_attempt_limiter.h"
 #include "server/security/current_owner_sharing_authority.h"
+#include "server/security/standalone_credential_consent.h"
 #include "server/security/mac_console_evidence.h"
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
@@ -119,6 +120,8 @@ private:
     rdp_server::server::security::ConsoleOsEvidenceSource* ownerEvidenceSource_{};
     mutable rdp_server::server::security::CurrentOwnerSharingAuthority ownerSharingAuthority_;
     rdp_server::server::security::StandalonePasswordCredentialOwner standalonePasswordCredential_{};
+    rdp_server::server::security::StandaloneCredentialSessionBinding
+        standaloneCredentialSessionBinding_{};
     std::uint64_t standaloneCredentialGeneration_{0U};
     rdp_server::server::security::AuthenticationAttemptLimiter authAttempts_{};
 

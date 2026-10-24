@@ -291,10 +291,11 @@ void MacRuntimeHostControl::retireStoppedRuntime(
     // Match Linux service-lifetime semantics: ordinary Stop retains the
     // memory-only credential, while terminal authority loss/destruction
     // securely retires the exact generation.
-    if (reason !=
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop)
+    if (rdp_server::server::security::
+            shouldRetireStandaloneApplicationCredential(reason))
     {
         standalonePasswordCredential_.revoke();
+        standaloneCredentialSessionBinding_.clear();
         standaloneCredentialGeneration_ = 0U;
         credentialsConfigured_ = false;
     }
@@ -713,6 +714,7 @@ RuntimeHostResult MacRuntimeHostControl::requestCredentialSetup(
     ownerSharingAuthority_.revoke(
         rdp_server::server::security::OwnerConsentRevocationReason::CredentialChange);
     standalonePasswordCredential_.revoke();
+    standaloneCredentialSessionBinding_.clear();
     standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
 
@@ -739,6 +741,7 @@ bool MacRuntimeHostControl::configureStandaloneApplicationPassword(
 
     standaloneCredentialGeneration_ = 0U;
     credentialsConfigured_ = false;
+    standaloneCredentialSessionBinding_.clear();
 
     const auto observation =
         rdp_server::server::security::replaceStandaloneApplicationCredential(
@@ -761,6 +764,10 @@ bool MacRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
+    (void)rdp_server::server::security::
+        refreshStandaloneCredentialSessionBinding(
+            standaloneCredentialSessionBinding_,
+            *ownerEvidenceSource_, true);
     stage_ = RuntimeHostStage::CredentialsConfigured;
     lastError_ = RuntimeHostError::None;
     return true;
@@ -788,6 +795,32 @@ RuntimeHostResult MacRuntimeHostControl::requestHostPermissionSetup(
         return {RuntimeHostError::ControlUnavailable, false};
     if (stage_ == RuntimeHostStage::Revoked)
         return deny(RuntimeHostError::AccessRevoked);
+
+    if (selectedStandaloneCredentialReady())
+    {
+        using StandaloneCredentialSessionState =
+            rdp_server::server::security::StandaloneCredentialSessionState;
+        const auto sessionState =
+            rdp_server::server::security::
+                refreshStandaloneCredentialSessionBinding(
+                    standaloneCredentialSessionBinding_,
+                    *ownerEvidenceSource_, true);
+        if (sessionState == StandaloneCredentialSessionState::LockOrUnknown ||
+            sessionState ==
+                StandaloneCredentialSessionState::TerminalSessionChanged)
+        {
+            retireStoppedRuntime(
+                sessionState ==
+                        StandaloneCredentialSessionState::LockOrUnknown
+                    ? rdp_server::server::security::
+                          OwnerConsentRevocationReason::LockOrUnknown
+                    : rdp_server::server::security::
+                          OwnerConsentRevocationReason::SessionReplacement);
+            stage_ = RuntimeHostStage::Stopped;
+            lastError_ = RuntimeHostError::CredentialNotConfigured;
+            return {lastError_, false};
+        }
+    }
 
     const bool enforceTcc = (ownerEvidenceSource_ == &defaultOwnerEvidence_) ||
                             (screenCaptureProbe_ != nullptr) ||
@@ -947,6 +980,32 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
         return deny(RuntimeHostError::ControlUnavailable);
     if (stage_ == RuntimeHostStage::Revoked)
         return deny(RuntimeHostError::AccessRevoked);
+
+    if (selectedStandaloneCredentialReady())
+    {
+        using StandaloneCredentialSessionState =
+            rdp_server::server::security::StandaloneCredentialSessionState;
+        const auto sessionState =
+            rdp_server::server::security::
+                refreshStandaloneCredentialSessionBinding(
+                    standaloneCredentialSessionBinding_,
+                    *ownerEvidenceSource_, true);
+        if (sessionState != StandaloneCredentialSessionState::Matches)
+        {
+            retireStoppedRuntime(
+                sessionState ==
+                        StandaloneCredentialSessionState::LockOrUnknown
+                    ? rdp_server::server::security::
+                          OwnerConsentRevocationReason::LockOrUnknown
+                    : rdp_server::server::security::
+                          OwnerConsentRevocationReason::SessionReplacement);
+            stage_ = RuntimeHostStage::Stopped;
+            lastError_ = RuntimeHostError::CredentialNotConfigured;
+            customErrorMessage_.clear();
+            return {lastError_, false};
+        }
+    }
+
     if (!listener_.valid())
         return {RuntimeHostError::None, true};
 

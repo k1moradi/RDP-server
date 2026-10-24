@@ -176,36 +176,72 @@ struct ParsedInitialToken final
     bool ntlmFirst{};
 };
 
+[[nodiscard]] bool rejectInitialToken(
+    StandaloneSpnegoInitialTokenObservation &observation,
+    StandaloneSpnegoRejectionReason reason) noexcept
+{
+    observation.rejectionReason = reason;
+    return false;
+}
+
 [[nodiscard]] bool parseMechanismList(
     ByteSpan encoded,
-    ParsedInitialToken &result) noexcept
+    ParsedInitialToken &result,
+    StandaloneSpnegoInitialTokenObservation &observation) noexcept
 {
     ByteSpan sequence;
     if (!unwrapSingle(encoded, 0x30U, sequence))
-        return false;
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::MalformedMechList);
 
-    std::size_t offset = 0;
-    std::size_t mechanismIndex = 0;
+    std::size_t offset = 0U;
+    std::size_t mechanismIndex = 0U;
     bool sawNtlm = false;
     while (offset < sequence.size())
     {
+        if (mechanismIndex >= kMaximumStandaloneSpnegoMechanisms)
+            return rejectInitialToken(
+                observation, StandaloneSpnegoRejectionReason::MalformedMechList);
+
         DerElement oid;
-        if (!readDerElement(sequence, offset, oid) || oid.tag != 0x06U)
-            return false;
+        if (!readDerElement(sequence, offset, oid) ||
+            oid.tag != 0x06U || oid.content.empty())
+        {
+            return rejectInitialToken(
+                observation, StandaloneSpnegoRejectionReason::MalformedMechList);
+        }
+
+        auto &mechanism = observation.mechanisms[mechanismIndex];
+        const std::size_t capturedOidBytes = std::min(
+            oid.content.size(), kMaximumStandaloneSpnegoMechanismOidBytes);
+        std::copy_n(
+            oid.content.begin(), capturedOidBytes, mechanism.oid.begin());
+        mechanism.oidBytes = capturedOidBytes;
+        mechanism.oidTruncated = capturedOidBytes != oid.content.size();
+
         if (oidEquals(oid.content, kNtlmOid))
         {
             if (sawNtlm)
-                return false;
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::DuplicateNtlm);
             sawNtlm = true;
             result.ntlmOffered = true;
             result.ntlmFirst = mechanismIndex == 0U;
+            observation.ntlmOffered = true;
+            observation.ntlmMechanismIndex =
+                static_cast<std::uint8_t>(mechanismIndex);
         }
         ++mechanismIndex;
-        if (mechanismIndex > 16U)
-            return false;
     }
-    if (mechanismIndex == 0U || !sawNtlm)
-        return false;
+
+    observation.mechanismCount = mechanismIndex;
+    if (mechanismIndex == 0U)
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::MalformedMechList);
+    if (!sawNtlm)
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::NtlmNotOffered);
+
     result.mechanismListEncoded = encoded;
     return true;
 }
@@ -216,7 +252,7 @@ struct ParsedInitialToken final
     if (!unwrapSingle(encoded, 0x30U, sequence))
         return false;
 
-    std::size_t offset = 0;
+    std::size_t offset = 0U;
     std::uint8_t previousTag = 0x9fU;
     while (offset < sequence.size())
     {
@@ -224,9 +260,7 @@ struct ParsedInitialToken final
         if (!readDerElement(sequence, offset, field) ||
             field.tag < 0xa0U || field.tag > 0xa1U ||
             field.tag <= previousTag)
-        {
             return false;
-        }
         previousTag = field.tag;
 
         ByteSpan nested;
@@ -248,11 +282,9 @@ struct ParsedInitialToken final
 [[nodiscard]] bool validContextFlags(ByteSpan encoded) noexcept
 {
     ByteSpan bits;
-    if (!unwrapSingle(encoded, 0x03U, bits) || bits.empty() ||
-        bits[0] > 7U)
-    {
+    if (!unwrapSingle(encoded, 0x03U, bits) ||
+        bits.empty() || bits[0] > 7U)
         return false;
-    }
 
     const std::uint8_t unusedBits = bits[0];
     if (unusedBits != 0U && bits.size() > 1U)
@@ -268,110 +300,142 @@ struct ParsedInitialToken final
 [[nodiscard]] bool parseInitialToken(
     ByteSpan token,
     ParsedInitialToken &result,
-    StandaloneSpnegoRejectionReason &rejectionReason) noexcept
+    StandaloneSpnegoInitialTokenObservation &observation) noexcept
 {
     result = {};
-    rejectionReason = StandaloneSpnegoRejectionReason::InitialEnvelope;
-    if (token.empty() ||
-        token.size() > kMaximumStandaloneSpnegoTokenBytes)
-    {
-        return false;
-    }
+    observation = {};
+    observation.observed = true;
+    observation.tokenBytes = token.size();
+    if (!token.empty())
+        observation.topLevelTag = token.front();
+
+    if (token.size() > kMaximumStandaloneSpnegoTokenBytes)
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::TokenTooLarge);
+    if (token.empty())
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::InvalidGssWrapper);
 
     ByteSpan initialContext;
     if (!unwrapSingle(token, 0x60U, initialContext))
-        return false;
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+    observation.gssInitialContextToken = true;
 
-    std::size_t outerOffset = 0;
+    std::size_t outerOffset = 0U;
     DerElement mechanismOid;
-    DerElement negotiationToken;
     if (!readDerElement(initialContext, outerOffset, mechanismOid) ||
-        mechanismOid.tag != 0x06U ||
-        !oidEquals(mechanismOid.content, kSpnegoOid) ||
-        !readDerElement(initialContext, outerOffset, negotiationToken) ||
+        mechanismOid.tag != 0x06U)
+    {
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+    }
+    if (!oidEquals(mechanismOid.content, kSpnegoOid))
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::UnexpectedMechanismOid);
+
+    DerElement negotiationToken;
+    if (!readDerElement(initialContext, outerOffset, negotiationToken) ||
         negotiationToken.tag != 0xa0U ||
         outerOffset != initialContext.size())
     {
-        return false;
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::InvalidNegTokenChoice);
     }
+    observation.negTokenInit = true;
 
     ByteSpan sequence;
     if (!unwrapSingle(negotiationToken.content, 0x30U, sequence))
-        return false;
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::InvalidNegTokenChoice);
 
-    std::size_t offset = 0;
+    std::size_t offset = 0U;
     std::uint8_t previousTag = 0x9fU;
     bool sawMechanisms = false;
     while (offset < sequence.size())
     {
-        rejectionReason = StandaloneSpnegoRejectionReason::InitialNegotiationField;
         DerElement field;
         if (!readDerElement(sequence, offset, field) ||
-            field.tag < 0xa0U || field.tag > 0xa4U ||
-            field.tag <= previousTag)
+            field.tag < 0xa0U || field.tag > 0xa4U)
         {
-            return false;
+            return rejectInitialToken(
+                observation, StandaloneSpnegoRejectionReason::InvalidNegTokenChoice);
         }
+        if (field.tag <= previousTag)
+            return rejectInitialToken(
+                observation, StandaloneSpnegoRejectionReason::UnsupportedFieldOrder);
         previousTag = field.tag;
 
         ByteSpan nested;
         switch (field.tag)
         {
         case 0xa0U:
-            if (sawMechanisms ||
-                !parseMechanismList(field.content, result))
-            {
-                rejectionReason = StandaloneSpnegoRejectionReason::MechanismList;
+            if (sawMechanisms)
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::UnsupportedFieldOrder);
+            if (!parseMechanismList(field.content, result, observation))
                 return false;
-            }
             sawMechanisms = true;
             break;
         case 0xa1U:
+            observation.reqFlagsPresent = true;
             if (!validContextFlags(field.content))
-                return false;
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::MalformedContextFlags);
             break;
         case 0xa2U:
-            if (!unwrapSingle(field.content, 0x04U, nested) ||
-                nested.empty() ||
-                nested.size() > kMaximumStandaloneNtlmMessageBytes)
-            {
-                return false;
-            }
+            observation.optimisticMechanismTokenPresent = true;
+            if (!unwrapSingle(field.content, 0x04U, nested) || nested.empty())
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::OptimisticTokenShape);
+            if (nested.size() > kMaximumStandaloneNtlmMessageBytes)
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::TokenTooLarge);
+            observation.optimisticMechanismTokenBytes = nested.size();
             result.mechanismToken = nested;
             break;
         case 0xa3U:
-            // RFC 4178 NegTokenInit uses [3] for mechListMIC. Microsoft
-            // NegTokenInit2 reuses [3] for negHints and moves MIC to [4].
-            if (unwrapSingle(field.content, 0x04U, nested))
+            if (!field.content.empty() && field.content.front() == 0x04U)
             {
-                if (!result.mechListMic.empty())
-                    return false;
+                observation.mechListMicPresent = true;
+                if (!unwrapSingle(field.content, 0x04U, nested) ||
+                    !result.mechListMic.empty())
+                {
+                    return rejectInitialToken(
+                        observation, StandaloneSpnegoRejectionReason::UnsupportedIntegrityShape);
+                }
                 result.mechListMic = nested;
             }
-            else if (!validNegHints(field.content))
+            else
             {
-                return false;
+                observation.negHintsPresent = true;
+                observation.negTokenInit2 = true;
+                if (!validNegHints(field.content))
+                    return rejectInitialToken(
+                        observation, StandaloneSpnegoRejectionReason::MalformedNegHints);
             }
             break;
         case 0xa4U:
+            observation.negTokenInit2 = true;
+            observation.mechListMicPresent = true;
             if (!unwrapSingle(field.content, 0x04U, nested) ||
                 !result.mechListMic.empty())
             {
-                return false;
+                return rejectInitialToken(
+                    observation, StandaloneSpnegoRejectionReason::UnsupportedIntegrityShape);
             }
             result.mechListMic = nested;
             break;
         default:
-            return false;
+            return rejectInitialToken(
+                observation, StandaloneSpnegoRejectionReason::InvalidNegTokenChoice);
         }
     }
-    if (!sawMechanisms || !result.ntlmOffered ||
-        result.mechanismListEncoded.empty())
-    {
-        rejectionReason = StandaloneSpnegoRejectionReason::MechanismList;
-        return false;
-    }
-    rejectionReason = StandaloneSpnegoRejectionReason::None;
+
+    if (!sawMechanisms || result.mechanismListEncoded.empty())
+        return rejectInitialToken(
+            observation, StandaloneSpnegoRejectionReason::MalformedMechList);
+    observation.rejectionReason = StandaloneSpnegoRejectionReason::None;
     return true;
 }
 
@@ -602,6 +666,7 @@ void StandaloneSpnegoNtlmAcceptor::reset() noexcept
     stage_ = StandaloneSpnegoStage::Unconfigured;
     failureStage_ = StandaloneSpnegoFailureStage::None;
     rejectionReason_ = StandaloneSpnegoRejectionReason::None;
+    initialTokenObservation_ = {};
 }
 
 StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::fail(
@@ -767,13 +832,18 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
         return fail(StandaloneSpnegoStatus::InvalidState);
 
     ParsedInitialToken parsed;
-    if (!parseInitialToken(token, parsed, rejectionReason_))
+    if (!parseInitialToken(token, parsed, initialTokenObservation_))
+    {
+        rejectionReason_ = initialTokenObservation_.rejectionReason;
         return fail(StandaloneSpnegoStatus::InvalidToken);
+    }
+    rejectionReason_ = StandaloneSpnegoRejectionReason::None;
     if (!parsed.mechListMic.empty() ||
         parsed.mechanismListEncoded.size() > mechanismList_.size())
     {
         rejectionReason_ =
-            StandaloneSpnegoRejectionReason::UnsupportedInitialMic;
+            StandaloneSpnegoRejectionReason::UnsupportedIntegrityShape;
+        initialTokenObservation_.rejectionReason = rejectionReason_;
         return fail(
             StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
     }

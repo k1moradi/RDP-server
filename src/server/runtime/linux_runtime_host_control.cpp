@@ -1359,6 +1359,7 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
     // Credential configuration is independent of native admission readiness.
     // Replacement always revokes the previous owner-consent generation and
     // consumes/scrubs caller input through the production credential owner.
+    standaloneCredentialSessionBinding_.clear();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
     standaloneCredentialGeneration_ = 0U;
@@ -1388,6 +1389,8 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
         return false;
     }
 
+    (void)refreshStandaloneCredentialSessionBinding(
+        standaloneCredentialSessionBinding_, *ownerEvidenceSource_, true);
     stage_ = RuntimeHostStage::CredentialsConfigured;
 #else
     stage_ = RuntimeHostStage::Stopped;
@@ -1427,6 +1430,7 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
     ownerSharingAuthority_.revoke(
         OwnerConsentRevocationReason::CredentialChange);
     standalonePasswordCredential_.revoke();
+    standaloneCredentialSessionBinding_.clear();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
     standaloneCredentialGeneration_ = 0U;
@@ -1464,6 +1468,36 @@ RuntimeHostResult LinuxRuntimeHostControl::requestHostPermissionSetup(
         return {RuntimeHostError::ControlUnavailable, false};
     if (stage_ == RuntimeHostStage::Revoked)
         return deny(RuntimeHostError::AccessRevoked);
+
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (authenticationMode_ ==
+            ConfiguredAuthenticationMode::StandalonePassword &&
+        selectedStandaloneCredentialReady())
+    {
+        using StandaloneCredentialSessionState =
+            rdp_server::server::security::StandaloneCredentialSessionState;
+        const auto sessionState =
+            rdp_server::server::security::
+                refreshStandaloneCredentialSessionBinding(
+                    standaloneCredentialSessionBinding_,
+                    *ownerEvidenceSource_, true);
+        if (sessionState == StandaloneCredentialSessionState::LockOrUnknown ||
+            sessionState ==
+                StandaloneCredentialSessionState::TerminalSessionChanged)
+        {
+            retireStoppedRuntime(
+                sessionState ==
+                        StandaloneCredentialSessionState::LockOrUnknown
+                    ? rdp_server::server::security::
+                          OwnerConsentRevocationReason::LockOrUnknown
+                    : rdp_server::server::security::
+                          OwnerConsentRevocationReason::SessionReplacement);
+            stage_ = RuntimeHostStage::Stopped;
+            lastError_ = RuntimeHostError::CredentialNotConfigured;
+            return {lastError_, false};
+        }
+    }
+#endif
 
     // This call is reachable from the locally running GUI, never from an
     // accepted peer. M1 trusts that explicit click, then R2 binds it to fresh
@@ -2608,6 +2642,32 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return {RuntimeHostError::CredentialProviderUnavailable, false};
 #else
+    if (authenticationMode_ ==
+            ConfiguredAuthenticationMode::StandalonePassword &&
+        selectedStandaloneCredentialReady())
+    {
+        using StandaloneCredentialSessionState =
+            rdp_server::server::security::StandaloneCredentialSessionState;
+        const auto sessionState =
+            rdp_server::server::security::
+                refreshStandaloneCredentialSessionBinding(
+                    standaloneCredentialSessionBinding_,
+                    *ownerEvidenceSource_, true);
+        if (sessionState != StandaloneCredentialSessionState::Matches)
+        {
+            retireStoppedRuntime(
+                sessionState ==
+                        StandaloneCredentialSessionState::LockOrUnknown
+                    ? rdp_server::server::security::
+                          OwnerConsentRevocationReason::LockOrUnknown
+                    : rdp_server::server::security::
+                          OwnerConsentRevocationReason::SessionReplacement);
+            stage_ = RuntimeHostStage::Stopped;
+            lastError_ = RuntimeHostError::CredentialNotConfigured;
+            return {lastError_, false};
+        }
+    }
+
     if (!listener_.valid())
         return {RuntimeHostError::None, true};
     if (!listener_.interfaceStillMatches())
@@ -2649,6 +2709,7 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     if (credentialPolicy == StoppedRuntimeCredentialPolicy::RevokeCredentials)
     {
         standalonePasswordCredential_.revoke();
+        standaloneCredentialSessionBinding_.clear();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
         standaloneCredentialGeneration_ = 0U;

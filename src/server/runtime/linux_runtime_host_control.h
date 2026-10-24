@@ -5,6 +5,7 @@
 #include "server/runtime/runtime_tls_context.h"
 #include "server/security/authentication_attempt_limiter.h"
 #include "server/security/current_owner_sharing_authority.h"
+#include "server/security/standalone_credential_consent.h"
 #include "server/security/linux_logind_console_evidence.h"
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
@@ -252,6 +253,8 @@ private:
     // the public GUI remains fail-closed until Microsoft-client acceptance.
     rdp_server::server::security::StandalonePasswordCredentialOwner
         standalonePasswordCredential_{};
+    rdp_server::server::security::StandaloneCredentialSessionBinding
+        standaloneCredentialSessionBinding_{};
     // R1's sole verified bind owner. Unopened until R2/R1 authority exists.
     rdp_server::server::transport::OwnedLanListener listener_{};
 };

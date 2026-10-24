@@ -1,3 +1,42 @@
+## R2 P0 — retained credential session fence and Microsoft SPNEGO evidence (2026-10-24)
+
+**Starting exact-main parent:** `cf6ba9aac61354f841cf66802eca10683c33d392`.
+
+New owner evidence supersedes every earlier note that treated TLS as the primary
+Microsoft-client blocker. The server's
+`stage=spnego; os-gss-fallback=disabled` diagnostic can only occur after the
+owned HYBRID connection has established TLS sufficiently to carry a CredSSP
+TSRequest into the standalone acceptor. The first demonstrated interoperability
+failure is therefore **standalone Session Password SPNEGO**, before
+`CredentialsVerified`; R3/MCS wire work remains blocked.
+
+This increment keeps the already-landed three-cycle Start/Stop/Start behavior and
+closes the remaining terminal-authorization gap. Ordinary Stop preserves only
+G1 and a non-secret native-session fingerprint. The stopped service loop now
+erases the credential on lock/unknown state, stale/unavailable bound evidence,
+logout/user switch or native-session generation replacement. The selected lock
+contract is re-entry: unlock never reuses a credential that survived into the
+locked state. Full revoke, Quit, replacement, terminal native loss and
+destruction remain credential-terminal.
+
+Standalone SPNEGO diagnostics are upgraded from coarse parser categories to one
+bounded first-token structural record: TSRequest version/count/length, ASN.1
+wrapper/choice facts, mechanism OIDs/count, NTLM index, optimistic token
+presence/length, NegTokenInit2/reqFlags/negHints/mechListMIC facts and exact
+secret-safe rejection taxonomy. Raw authentication material is never logged and
+OS-GSS fallback remains disabled.
+
+The Microsoft published NegTokenInit2 structural fixture is qualified with
+NEGOEX first, NTLM second, an optimistic NEGOEX token and negHints; the server
+selects NTLM and accepts the subsequent Type 1 far enough to emit Type 2.
+That is synthetic evidence only. The actual macOS token representation remains
+**UNKNOWN until the next redacted live diagnostic is captured**; do not weaken
+bounds or ASN.1 validation speculatively.
+
+Source/diff review: **PASS**. Canonical local build/full CTest: **NOT RUN in this
+connector environment**. Exact-publication-SHA hosted CI: **PENDING**.
+Real Microsoft-client SPNEGO structural capture/acceptance: **PENDING**.
+
 ## R10 P0 — explicit Stop scope and standalone SPNEGO diagnostic ownership (2026-10-24)
 
 **Starting exact-main parent:** `b8a0bb8e97e6b36114ad2495b0c75a5ca3a649cd`.

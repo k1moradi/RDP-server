@@ -1,3 +1,37 @@
+## R2 P0 credential retention, native-session retirement and SPNEGO evidence (2026-10-24)
+
+Pin the exact lifecycle sequence: configure G1 -> obtain A1 -> ordinary Stop ->
+G1 remains configured and visitable at the same generation while A1, accepted
+client/admission/native state, listener and TLS identity are gone -> request a
+fresh owner grant A2 -> replace the password -> G2 is newer and G1 is
+unvisitable. Keep the existing three-cycle direct HostControl and Qt
+Start/Stop/Start regressions; ordinary GUI OFF must never call full revoke, while
+Quit/full revoke must erase the credential.
+
+Lock behavior is explicit and fail-closed: after ordinary Stop, an observed
+locked/unknown bound session must erase G1; unlocking cannot reuse it and
+requires password re-entry. A changed native `sessionGeneration` must likewise
+erase the retained replacement credential, covering logout/user-switch/session
+replacement. The stopped service loop must enforce this fence before any
+listener exists.
+
+The owner evidence
+`stage=spnego; os-gss-fallback=disabled` supersedes earlier TLS-first blocker
+language. The demonstrated sequence is TCP -> X.224 HYBRID -> established TLS
+application transport -> CredSSP TSRequest -> standalone SPNEGO -> rejection.
+R3/MCS remains blocked until `CredentialsVerified`, but R2 standalone SPNEGO
+is now the first demonstrated interoperability owner.
+
+Keep a bounded initial-token taxonomy test covering malformed GSS wrapper,
+unexpected mechanism OID, invalid NegToken choice, malformed mechanism list,
+NTLM absent/duplicate, unsupported field order, malformed context flags,
+malformed negHints, invalid optimistic token, oversized token and unsupported
+initial integrity shape. The Microsoft-style synthetic NegTokenInit2 gate must
+cover NEGOEX before NTLM, an optimistic non-NTLM token, negHints, NTLM
+selection, a client NTLM Type 1 continuation and a server Type 2 challenge.
+This synthetic fixture does not claim the unmodified macOS client's exact token
+shape; only the new redacted live structural record may establish that.
+
 ## R10 Start/Stop/Start and pre-auth diagnostic gates (2026-10-24)
 
 The direct production Linux HostControl regression configures one standalone

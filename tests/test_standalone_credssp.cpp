@@ -564,6 +564,24 @@ void prepareInitialNegotiation(
     assert(acceptor.stage() ==
            StandaloneCredSspStage::NegoContinue);
 
+    const auto initialObservation = acceptor.initialNegoObservation();
+    assert(initialObservation.observed);
+    assert(initialObservation.tsRequestVersion == requestVersion);
+    assert(initialObservation.tokenCount == 1U);
+    assert(initialObservation.spnego.observed);
+    assert(initialObservation.spnego.tokenBytes == spnego.size());
+    assert(initialObservation.spnego.topLevelTag == 0x60U);
+    assert(initialObservation.spnego.gssInitialContextToken);
+    assert(initialObservation.spnego.negTokenInit);
+    assert(initialObservation.spnego.mechanismCount == 1U);
+    assert(initialObservation.spnego.ntlmOffered);
+    assert(initialObservation.spnego.ntlmMechanismIndex == 0U);
+    assert(initialObservation.spnego.optimisticMechanismTokenPresent);
+    assert(initialObservation.spnego.optimisticMechanismTokenBytes ==
+           negotiate.size());
+    assert(initialObservation.spnego.rejectionReason ==
+           StandaloneSpnegoRejectionReason::None);
+
     const auto reply = tls.flushServerReply(writer);
     const auto parsed = parseCredSspTsRequest(reply);
     assert(parsed && parsed.value.tokenCount == 1);

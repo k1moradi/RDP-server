@@ -75,8 +75,8 @@ public:
     {
         using namespace rdp_server::server::security;
         return {ConsoleEvidenceReadStatus::Observed, "portable-bootstrap",
-                "seat0", ":42", uid_, 91U, now_, true, true, uid_,
-                ConsoleDesktopLockState::Unlocked, false};
+                "seat0", ":42", uid_, sessionGeneration_, now_, true, true,
+                uid_, lockState_, false};
     }
 
     std::optional<std::uint64_t> readMonotonicMilliseconds() noexcept override
@@ -84,9 +84,24 @@ public:
         return now_;
     }
 
+    void setLockState(
+        rdp_server::server::security::ConsoleDesktopLockState state) noexcept
+    {
+        lockState_ = state;
+    }
+
+    void advanceSessionGeneration() noexcept
+    {
+        ++sessionGeneration_;
+        ++now_;
+    }
+
 private:
     std::uint32_t uid_{};
+    std::uint64_t sessionGeneration_{91U};
     std::uint64_t now_{10'000U};
+    rdp_server::server::security::ConsoleDesktopLockState lockState_{
+        rdp_server::server::security::ConsoleDesktopLockState::Unlocked};
 };
 
 class OfflineUnavailableEvidence final
@@ -513,6 +528,71 @@ int main(int argc, char** argv)
                RuntimeHostError::HostConsentRequired);
         assert(control.status().credentialsConfigured);
         assert(!control.status().listenerAvailable);
+        return 0;
+#endif
+    }
+
+    if (testCase ==
+        "linux-host-control-retained-credential-lock-session-loss")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        using rdp_server::server::security::ConsoleDesktopLockState;
+        PortableBootstrapEvidence evidence(1000U);
+        LinuxRuntimeHostControl control(evidence);
+
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", password));
+        const auto generationOne =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationOne.configured && generationOne.generation != 0U);
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 60'000U;
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(control.stopSharing().succeeded());
+        assert(control.status().credentialsConfigured);
+        assert(!control.status().hostOwnerAuthorized);
+
+        // Lock policy is explicitly credential-terminal, even after an
+        // ordinary Stop. Unlock therefore requires Session Password re-entry.
+        evidence.setLockState(ConsoleDesktopLockState::Locked);
+        const auto locked = control.serviceOnce();
+        assert(locked.error == RuntimeHostError::CredentialNotConfigured);
+        assert(control.status().stage == RuntimeHostStage::Stopped);
+        assert(!control.status().credentialsConfigured);
+        const auto afterLock =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterLock.configured);
+        assert(afterLock.generation > generationOne.generation);
+
+        evidence.setLockState(ConsoleDesktopLockState::Unlocked);
+        auto replacementPassword = standalonePassword();
+        replacementPassword.back() = u'2';
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", replacementPassword));
+        const auto generationTwo =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationTwo.configured);
+        assert(generationTwo.generation > afterLock.generation);
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(control.stopSharing().succeeded());
+
+        // sessionGeneration is the provider's logout/user-switch/session
+        // replacement discriminator. A later native session cannot inherit G2.
+        evidence.advanceSessionGeneration();
+        const auto replacedSession = control.serviceOnce();
+        assert(replacedSession.error ==
+               RuntimeHostError::CredentialNotConfigured);
+        assert(!control.status().credentialsConfigured);
+        const auto afterSessionChange =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterSessionChange.configured);
+        assert(afterSessionChange.generation > generationTwo.generation);
         return 0;
 #endif
     }

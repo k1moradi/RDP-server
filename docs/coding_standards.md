@@ -1,3 +1,36 @@
+## R2 retained Session Password and standalone SPNEGO structural diagnostics (2026-10-24)
+
+Ordinary user-requested Stop is a nonterminal credential boundary. It revokes the
+current owner View/Input grant, retires every accepted client/admission/native
+desktop lifetime, closes the listener, retires generated/connection-bound TLS
+state and deployment policy, and prevents all remote access. It may retain only
+the existing generation-fenced memory-only standalone credential plus a bounded
+non-secret native-session fingerprint. No prior owner grant, admission lease,
+native owner, listener, TLS binding or R3 state may survive Stop.
+
+The retained credential is session-fenced. Any observed lock/unknown lock state,
+logout, local-user switch, native-session generation replacement, stale or
+unavailable bound-session evidence is credential-terminal. The standalone
+credential and its non-secret fingerprint are erased and unlock requires
+Session Password re-entry. Password replacement, full `revokeSharing()`,
+explicit Quit, native authorization loss and object/process destruction are also
+terminal. Ordinary restart may reuse G1 only while the same unlocked native
+session remains current, and it must obtain a fresh owner grant before Start.
+
+The independent Session Password path must never authenticate through the
+ExistingOsAccount/OS-GSS owner as fallback. `os-gss-fallback=disabled` is the
+required product state.
+
+For the first incoming standalone CredSSP nego token, fail-only diagnostics may
+record only bounded structural metadata: TSRequest version/token count/token
+length, top ASN.1 tag, GSS InitialContextToken presence, offered mechanism OIDs
+and count, NTLM presence/index, optimistic token presence/length,
+NegTokenInit/NegTokenInit2 field presence, reqFlags, negHints, mechListMIC and a
+stable structural rejection reason. Never log raw SPNEGO or NTLM token bodies,
+usernames/passwords, hashes, challenges/responses, MIC bytes, session keys or
+authInfo. Unknown OIDs may be represented only by a bounded DER-OID prefix; this
+diagnostic must never broaden authentication authority or ASN.1 acceptance.
+
 ## R10 explicit Stop credential policy and diagnostic preservation (2026-10-24)
 
 Do not derive standalone credential lifetime from an owner-consent revocation

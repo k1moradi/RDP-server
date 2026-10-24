@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cstdio>
 #include <limits>
+#include <string_view>
 #include <utility>
 
 #include <openssl/evp.h>
@@ -18,24 +19,113 @@ namespace rdp_server::server::runtime
 namespace
 {
 
-[[nodiscard]] constexpr const char *standaloneSpnegoReasonName(
-    rdp_server::server::security::StandaloneSpnegoRejectionReason reason) noexcept
+[[nodiscard]] constexpr const char *yesNo(bool value) noexcept
 {
-    using Reason = rdp_server::server::security::StandaloneSpnegoRejectionReason;
-    switch (reason)
+    return value ? "yes" : "no";
+}
+
+template <std::size_t Size>
+[[nodiscard]] bool mechanismOidEquals(
+    const rdp_server::server::security::
+        StandaloneSpnegoMechanismOidObservation &observation,
+    const std::array<std::uint8_t, Size> &expected) noexcept
+{
+    return !observation.oidTruncated &&
+           observation.oidBytes == expected.size() &&
+           std::equal(
+               expected.begin(), expected.end(),
+               observation.oid.begin());
+}
+
+[[nodiscard]] std::string_view knownMechanismOid(
+    const rdp_server::server::security::
+        StandaloneSpnegoMechanismOidObservation &observation) noexcept
+{
+    constexpr std::array<std::uint8_t, 10> ntlm{
+        0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
+    constexpr std::array<std::uint8_t, 10> negoEx{
+        0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x1e};
+    constexpr std::array<std::uint8_t, 9> kerberos{
+        0x2a,0x86,0x48,0x86,0xf7,0x12,0x01,0x02,0x02};
+    constexpr std::array<std::uint8_t, 9> microsoftKerberos{
+        0x2a,0x86,0x48,0x82,0xf7,0x12,0x01,0x02,0x02};
+
+    if (mechanismOidEquals(observation, ntlm))
+        return "1.3.6.1.4.1.311.2.2.10";
+    if (mechanismOidEquals(observation, negoEx))
+        return "1.3.6.1.4.1.311.2.2.30";
+    if (mechanismOidEquals(observation, kerberos))
+        return "1.2.840.113554.1.2.2";
+    if (mechanismOidEquals(observation, microsoftKerberos))
+        return "1.2.840.48018.1.2.2";
+    return {};
+}
+
+[[nodiscard]] bool appendDiagnosticText(
+    std::span<char> output,
+    std::size_t &offset,
+    std::string_view text) noexcept
+{
+    if (offset > output.size() ||
+        text.size() > output.size() - offset)
+        return false;
+    std::copy(
+        text.begin(), text.end(),
+        output.begin() + static_cast<std::ptrdiff_t>(offset));
+    offset += text.size();
+    return true;
+}
+
+[[nodiscard]] std::string_view formatMechanismOids(
+    const rdp_server::server::security::
+        StandaloneSpnegoInitialTokenObservation &observation,
+    std::array<char, 2048> &storage) noexcept
+{
+    constexpr std::string_view hexDigits{"0123456789abcdef"};
+    std::size_t offset = 0U;
+    const std::size_t mechanismCount = std::min(
+        observation.mechanismCount, observation.mechanisms.size());
+    if (mechanismCount == 0U)
     {
-    case Reason::None: return "accepted-or-not-rejected";
-    case Reason::InitialEnvelope: return "invalid-initial-der-envelope";
-    case Reason::MechanismList: return "invalid-or-unsupported-mechanism-list";
-    case Reason::InitialNegotiationField: return "invalid-neg-token-init-field";
-    case Reason::UnsupportedInitialMic: return "unsupported-initial-mechlistmic";
-    case Reason::NtlmNegotiate: return "invalid-ntlm-type1-or-challenge";
-    case Reason::ContinuationEnvelope: return "invalid-continuation-envelope";
-    case Reason::InvalidState: return "invalid-mechanism-state";
-    case Reason::OutputExhausted: return "bounded-output-exhausted";
-    case Reason::CredentialRejected: return "ntlm-credential-rejected";
+        (void)appendDiagnosticText(storage, offset, "-");
+        return {storage.data(), offset};
     }
-    return "unknown-rejection";
+
+    for (std::size_t index = 0U; index < mechanismCount; ++index)
+    {
+        if (index != 0U &&
+            !appendDiagnosticText(storage, offset, ","))
+            break;
+
+        const auto &mechanism = observation.mechanisms[index];
+        const std::string_view known = knownMechanismOid(mechanism);
+        if (!known.empty())
+        {
+            if (!appendDiagnosticText(storage, offset, known))
+                break;
+            continue;
+        }
+
+        if (!appendDiagnosticText(storage, offset, "derhex:"))
+            break;
+        for (std::size_t byteIndex = 0U;
+             byteIndex < mechanism.oidBytes;
+             ++byteIndex)
+        {
+            if (offset > storage.size() ||
+                2U > storage.size() - offset)
+                return {storage.data(), offset};
+            const std::uint8_t value = mechanism.oid[byteIndex];
+            storage[offset++] =
+                hexDigits[static_cast<std::size_t>(value >> 4U)];
+            storage[offset++] =
+                hexDigits[static_cast<std::size_t>(value & 0x0fU)];
+        }
+        if (mechanism.oidTruncated &&
+            !appendDiagnosticText(storage, offset, "..."))
+            break;
+    }
+    return {storage.data(), offset};
 }
 
 [[nodiscard]] constexpr const char *standaloneFailureStageName(
@@ -819,15 +909,68 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
     }
 
     standaloneAuthenticationFailureStage_ = failureStage;
+    const auto initial =
+        standaloneCredSspAcceptor_.initialNegoObservation();
+    if (!initial.observed)
+    {
+        std::fprintf(
+            stderr,
+            "rdp-server: standalone authentication failed: stage=%s; "
+            "tls=%s; credssp=spnego-initial; "
+            "os-gss-fallback=disabled; spnego-initial=unobserved; "
+            "spnego-reason=%s\n",
+            standaloneFailureStageName(failureStage),
+            tlsEverEstablished_ ? "established" : "not-established",
+            rdp_server::server::security::
+                standaloneSpnegoRejectionReasonName(
+                    standaloneCredSspAcceptor_.spnegoRejectionReason()));
+        return;
+    }
+
+    const auto &spnego = initial.spnego;
+    std::array<char, 2048> mechanismOidStorage{};
+    const std::string_view mechanismOids =
+        formatMechanismOids(spnego, mechanismOidStorage);
+    const int ntlmMechanismIndex =
+        spnego.ntlmMechanismIndex ==
+                rdp_server::server::security::
+                    kStandaloneSpnegoNoMechanismIndex
+            ? -1
+            : static_cast<int>(spnego.ntlmMechanismIndex);
+
     std::fprintf(
         stderr,
         "rdp-server: standalone authentication failed: stage=%s; "
-        "tls=%s; credssp=spnego-initial; spnego=%s; "
-        "os-gss-fallback=disabled\n",
+        "tls=%s; credssp=spnego-initial; os-gss-fallback=disabled; "
+        "tsrequest-version=%u; nego-token-count=%zu; token-bytes=%zu; "
+        "top-tag=0x%02x; gss-initial-context-token=%s; "
+        "neg-token-init=%s; neg-token-init2=%s; req-flags=%s; "
+        "neg-hints=%s; mech-list-mic=%s; mechanism-count=%zu; "
+        "mechanism-oids=%.*s; ntlm-offered=%s; ntlm-index=%d; "
+        "optimistic-token=%s; optimistic-token-bytes=%zu; "
+        "spnego-reason=%s\n",
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
-        standaloneSpnegoReasonName(
-            standaloneCredSspAcceptor_.spnegoRejectionReason()));
+        static_cast<unsigned int>(initial.tsRequestVersion),
+        initial.tokenCount,
+        spnego.tokenBytes,
+        static_cast<unsigned int>(spnego.topLevelTag),
+        yesNo(spnego.gssInitialContextToken),
+        yesNo(spnego.negTokenInit),
+        yesNo(spnego.negTokenInit2),
+        yesNo(spnego.reqFlagsPresent),
+        yesNo(spnego.negHintsPresent),
+        yesNo(spnego.mechListMicPresent),
+        spnego.mechanismCount,
+        static_cast<int>(mechanismOids.size()),
+        mechanismOids.data(),
+        yesNo(spnego.ntlmOffered),
+        ntlmMechanismIndex,
+        yesNo(spnego.optimisticMechanismTokenPresent),
+        spnego.optimisticMechanismTokenBytes,
+        rdp_server::server::security::
+            standaloneSpnegoRejectionReasonName(
+                spnego.rejectionReason));
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept

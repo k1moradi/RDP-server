@@ -47,6 +47,14 @@ enum class StandaloneAuthenticationFailureStage : std::uint8_t
     Admission,
 };
 
+struct StandaloneCredSspInitialNegoObservation final
+{
+    bool observed{};
+    std::uint32_t tsRequestVersion{};
+    std::size_t tokenCount{};
+    StandaloneSpnegoInitialTokenObservation spnego{};
+};
+
 // Connection-scoped, noncopyable CredSSP wrapper for the standalone
 // application-password NTLM mechanism.
 //
@@ -128,6 +136,12 @@ public:
         return spnegoRejectionReason_;
     }
 
+    [[nodiscard]] StandaloneCredSspInitialNegoObservation
+    initialNegoObservation() const noexcept
+    {
+        return initialNegoObservation_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -182,6 +196,7 @@ private:
     StandaloneCredSspStage stage_{StandaloneCredSspStage::Unconfigured};
     StandaloneAuthenticationFailureStage failureStage_{
         StandaloneAuthenticationFailureStage::None};
+    StandaloneCredSspInitialNegoObservation initialNegoObservation_{};
 };
 
 

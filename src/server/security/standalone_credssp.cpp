@@ -108,6 +108,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     }
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
+    initialNegoObservation_ = {};
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
@@ -127,6 +128,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
+    initialNegoObservation_ = {};
 }
 
 bool StandaloneCredSspNtlmAcceptor::matchesPinnedTls(
@@ -433,7 +435,7 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     // keys and framing helpers immediately; the caller may use only the outer
     // CredentialsVerified state as non-authorizing evidence for later R2
     // composition. The configured credential itself remains owned by the GUI
-    // service lifetime and is revoked separately on Stop.
+    // service lifetime and follows the separate Stop/terminal-retirement policy.
     mechanism_.reset();
     reader.close();
     writer.close();
@@ -449,14 +451,44 @@ StandaloneCredSspNtlmAcceptor::processNego(
     const TsRequestResult &request,
     const EphemeralNtlmV2Credential &credential) noexcept
 {
+    if (stage_ == StandaloneCredSspStage::AwaitInitialNego &&
+        !initialNegoObservation_.observed)
+    {
+        initialNegoObservation_.observed = true;
+        if (request)
+        {
+            initialNegoObservation_.tsRequestVersion = request.value.version;
+            initialNegoObservation_.tokenCount = request.value.tokenCount;
+            if (request.value.tokenCount != 0U)
+            {
+                const auto firstToken = request.value.tokens[0];
+                initialNegoObservation_.spnego.observed = true;
+                initialNegoObservation_.spnego.tokenBytes = firstToken.size();
+                if (!firstToken.empty())
+                    initialNegoObservation_.spnego.topLevelTag =
+                        firstToken.front();
+            }
+        }
+    }
+
     const bool tokenOnly =
-        request.value.initialNegoTokenOnly() &&
+        request && request.value.initialNegoTokenOnly() &&
         request.value.tokenCount == 1;
     const bool combinedFinal =
+        request &&
         stage_ == StandaloneCredSspStage::NegoContinue &&
         request.value.finalNegoAndBindingOnly();
     if (!tokenOnly && !combinedFinal)
+    {
+        if (stage_ == StandaloneCredSspStage::AwaitInitialNego)
+        {
+            initialNegoObservation_.spnego.rejectionReason =
+                StandaloneSpnegoRejectionReason::InvalidNegTokenChoice;
+            spnegoRejectionReason_ =
+                StandaloneSpnegoRejectionReason::InvalidNegTokenChoice;
+        }
         return reject(reader, writer);
+    }
 
     std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes>
         mechanismReply{};
@@ -464,10 +496,10 @@ StandaloneCredSspNtlmAcceptor::processNego(
     StandaloneSpnegoStep step;
     if (stage_ == StandaloneCredSspStage::AwaitInitialNego)
     {
-        if (!tokenOnly)
-            return reject(reader, writer);
         step = mechanism_.acceptInitialToken(
             token, mechanismReply);
+        initialNegoObservation_.spnego =
+            mechanism_.initialTokenObservation();
     }
     else if (stage_ == StandaloneCredSspStage::NegoContinue)
     {

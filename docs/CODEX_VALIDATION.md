@@ -1,3 +1,39 @@
+## R2 P0 retained-credential fence and SPNEGO structural diagnostic authoring receipt (2026-10-24)
+
+**Starting exact-main parent:** `cf6ba9aac61354f841cf66802eca10683c33d392`.
+
+The existing ordinary Stop/restart implementation is retained: G1 survives only
+ordinary Stop while owner consent, accepted connection/admission/native state,
+listener, generated TLS identity and deployment policy retire. This increment
+adds a bounded non-secret session fingerprint and validates it from the normal
+service loop even while Stopped. Lock/unknown state and native-session
+replacement are credential-terminal and return the host to recoverable Stopped
+with `CredentialNotConfigured`; unlock therefore requires password re-entry.
+Full revoke/Quit/destruction remain terminal.
+
+The first standalone CredSSP negotiation now exposes bounded first-token
+structure through the existing fail-only path. The diagnostic records no raw
+SPNEGO/NTLM/MIC/authInfo or credential material. The rejection taxonomy
+distinguishes the requested GSS-wrapper, mechanism-list/selection, optional
+field, optimistic-token, bounds and integrity failures. Existing OS-GSS fallback
+remains disabled and cannot become Session Password authority.
+
+The R9 Microsoft-style fixture is aligned with the published NegTokenInit2
+structure: NEGOEX first, NTLM second, optimistic NEGOEX token and negHints, then
+explicit NTLM continuation to a server Type 2 challenge. CredSSP v5/v6 tests
+also assert the captured structural observation.
+
+Owner evidence correction: the observed
+`stage=spnego; os-gss-fallback=disabled` is post-TLS/post-TSRequest evidence,
+so standalone SPNEGO is the current real-client blocker. Earlier TLS-first
+wording is superseded. The exact live macOS token shape is not claimed until a
+rerun emits the new structural record.
+
+Connector source/diff review: **PASS**.
+Canonical local configure/build/full CTest: **NOT RUN**.
+Hosted exact-SHA CI: **PENDING**.
+Real Microsoft-client rerun: **NOT RUN in this connector session**.
+
 ## R10 Stop/Start lifecycle and SPNEGO diagnostic authoring receipt — 2026-10-24
 
 **Starting exact-main parent:** `b8a0bb8e97e6b36114ad2495b0c75a5ca3a649cd`.

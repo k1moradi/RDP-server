@@ -23,6 +23,8 @@ constexpr std::array<std::uint8_t, 10> kNtlmOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
 constexpr std::array<std::uint8_t, 9> kKerberosOid{
     0x2a,0x86,0x48,0x86,0xf7,0x12,0x01,0x02,0x02};
+constexpr std::array<std::uint8_t, 10> kNegoExOid{
+    0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x1e};
 constexpr std::array<std::uint8_t, 6> kSpnegoOid{
     0x2b,0x06,0x01,0x05,0x05,0x02};
 
@@ -102,6 +104,18 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     message[14] = static_cast<std::uint8_t>(flags >> 16U);
     message[15] = static_cast<std::uint8_t>(flags >> 24U);
     return message;
+}
+
+[[nodiscard]] Bytes initialTokenFromFields(
+    std::span<const std::uint8_t> fields,
+    std::span<const std::uint8_t> wrapperOid,
+    std::uint8_t negotiationChoiceTag = 0xa0U)
+{
+    const auto choice = tlv(
+        negotiationChoiceTag, tlv(0x30U, fields));
+    Bytes body = oid(wrapperOid);
+    body.insert(body.end(), choice.begin(), choice.end());
+    return tlv(0x60U, body);
 }
 
 [[nodiscard]] Bytes initialToken(
@@ -210,22 +224,52 @@ int main(int argc, char **argv)
 
     if (testCase == "r9-microsoft-neginit2-ntlm-challenge")
     {
-        // Windows-compatible synthetic token structure, not an owner capture:
-        // Kerberos-first MechTypeList, optimistic Kerberos mechToken,
-        // Microsoft's NegTokenInit2 negHints, then explicit NTLM Type 1.
+        // MS-SPNG's published NegTokenInit2 shape offers NEGOEX before NTLM,
+        // carries an optimistic NEGOEX token and includes negHints. This
+        // qualifies structure only; the owner macOS token still needs a
+        // redacted live diagnostic capture.
         const std::vector<Bytes> mechanisms{
-            Bytes(kKerberosOid.begin(), kKerberosOid.end()),
+            Bytes(kNegoExOid.begin(), kNegoExOid.end()),
             Bytes(kNtlmOid.begin(), kNtlmOid.end())};
-        const std::array<std::uint8_t, 1> optimisticKerberos{0x01U};
+        constexpr std::array<std::uint8_t, 12> optimisticNegoEx{
+            'N','E','G','O','E','X','T','S',1U,0U,0U,0U};
         StandaloneSpnegoNtlmAcceptor acceptor;
         assert(configure(acceptor));
         const auto initial = initialToken(
-            mechanisms, optimisticKerberos, true);
+            mechanisms, optimisticNegoEx, true);
         std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
         const auto selected = acceptor.acceptInitialToken(initial, reply);
         assert(selected.status == StandaloneSpnegoStatus::Continue);
         assert(acceptor.stage() ==
                StandaloneSpnegoStage::AwaitNtlmNegotiate);
+
+        const auto observation = acceptor.initialTokenObservation();
+        assert(observation.observed);
+        assert(observation.tokenBytes == initial.size());
+        assert(observation.topLevelTag == 0x60U);
+        assert(observation.gssInitialContextToken);
+        assert(observation.negTokenInit);
+        assert(observation.negTokenInit2);
+        assert(observation.negHintsPresent);
+        assert(!observation.reqFlagsPresent);
+        assert(!observation.mechListMicPresent);
+        assert(observation.mechanismCount == 2U);
+        assert(observation.ntlmOffered);
+        assert(observation.ntlmMechanismIndex == 1U);
+        assert(observation.optimisticMechanismTokenPresent);
+        assert(observation.optimisticMechanismTokenBytes ==
+               optimisticNegoEx.size());
+        assert(observation.rejectionReason ==
+               StandaloneSpnegoRejectionReason::None);
+        assert(observation.mechanisms[0].oidBytes == kNegoExOid.size());
+        assert(std::equal(
+            kNegoExOid.begin(), kNegoExOid.end(),
+            observation.mechanisms[0].oid.begin()));
+        assert(observation.mechanisms[1].oidBytes == kNtlmOid.size());
+        assert(std::equal(
+            kNtlmOid.begin(), kNtlmOid.end(),
+            observation.mechanisms[1].oid.begin()));
+
         const auto expectedSelection = expectedServerResponse(3U, true);
         assert(selected.bytesWritten == expectedSelection.size());
         assert(std::equal(expectedSelection.begin(),
@@ -239,8 +283,6 @@ int main(int argc, char **argv)
         assert(acceptor.stage() ==
                StandaloneSpnegoStage::AwaitNtlmAuthenticate);
         assert(challenged.bytesWritten > 0U);
-        // The challenge contains NTLMSSP Type 2 only inside a strict
-        // NegTokenResp: do not accept a naked NTLM downgrade.
         const auto challengeEnvelope = expectedServerResponse(
             1U, false, {});
         assert(challenged.bytesWritten > challengeEnvelope.size());
@@ -251,28 +293,96 @@ int main(int argc, char **argv)
 
     if (testCase == "r9-spnego-initial-rejection-categories")
     {
-        // These exact redacted categories distinguish a malformed GSS
-        // envelope from the unsupported mechanism list. No fallback occurs.
-        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
-        StandaloneSpnegoNtlmAcceptor malformed;
-        assert(configure(malformed));
-        constexpr std::array<std::uint8_t, 3> invalidEnvelope{
-            0x60U, 0x01U, 0xffU};
-        const auto badEnvelope =
-            malformed.acceptInitialToken(invalidEnvelope, reply);
-        assert(badEnvelope.status == StandaloneSpnegoStatus::InvalidToken);
-        assert(malformed.rejectionReason() ==
-               StandaloneSpnegoRejectionReason::InitialEnvelope);
+        const auto reasonFor =
+            [](const Bytes &token) {
+                StandaloneSpnegoNtlmAcceptor acceptor;
+                assert(configure(acceptor));
+                std::array<
+                    std::uint8_t,
+                    kMaximumStandaloneSpnegoTokenBytes> reply{};
+                (void)acceptor.acceptInitialToken(token, reply);
+                return acceptor.rejectionReason();
+            };
 
-        StandaloneSpnegoNtlmAcceptor unsupported;
-        assert(configure(unsupported));
-        const auto kerberosOnly = initialToken(
+        assert(reasonFor(Bytes{0xa0U,0x00U}) ==
+               StandaloneSpnegoRejectionReason::InvalidGssWrapper);
+
+        Bytes ntlmMechanismList = oid(kNtlmOid);
+        const Bytes ntlmMechanismField =
+            tlv(0xa0U, tlv(0x30U, ntlmMechanismList));
+        assert(reasonFor(initialTokenFromFields(
+                   ntlmMechanismField, kKerberosOid)) ==
+               StandaloneSpnegoRejectionReason::UnexpectedMechanismOid);
+        assert(reasonFor(initialTokenFromFields(
+                   ntlmMechanismField, kSpnegoOid, 0xa1U)) ==
+               StandaloneSpnegoRejectionReason::InvalidNegTokenChoice);
+
+        const auto noNtlm = initialToken(
             {Bytes(kKerberosOid.begin(), kKerberosOid.end())}, {});
-        const auto badMechanism =
-            unsupported.acceptInitialToken(kerberosOnly, reply);
-        assert(badMechanism.status == StandaloneSpnegoStatus::InvalidToken);
-        assert(unsupported.rejectionReason() ==
-               StandaloneSpnegoRejectionReason::MechanismList);
+        assert(reasonFor(noNtlm) ==
+               StandaloneSpnegoRejectionReason::NtlmNotOffered);
+
+        const auto duplicateNtlm = initialToken(
+            {Bytes(kNtlmOid.begin(), kNtlmOid.end()),
+             Bytes(kNtlmOid.begin(), kNtlmOid.end())},
+            negotiateMessage());
+        assert(reasonFor(duplicateNtlm) ==
+               StandaloneSpnegoRejectionReason::DuplicateNtlm);
+
+        Bytes outOfOrder =
+            tlv(0xa2U, tlv(0x04U, negotiateMessage()));
+        outOfOrder.insert(
+            outOfOrder.end(),
+            ntlmMechanismField.begin(), ntlmMechanismField.end());
+        assert(reasonFor(initialTokenFromFields(
+                   outOfOrder, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::UnsupportedFieldOrder);
+
+        const auto malformedInteger =
+            tlv(0x02U, std::array<std::uint8_t, 1>{1U});
+        const Bytes malformedMechList =
+            tlv(0xa0U, tlv(0x30U, malformedInteger));
+        assert(reasonFor(initialTokenFromFields(
+                   malformedMechList, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::MalformedMechList);
+
+        Bytes badFlags = ntlmMechanismField;
+        const auto flags = tlv(
+            0xa1U, tlv(0x03U, std::array<std::uint8_t, 1>{8U}));
+        badFlags.insert(badFlags.end(), flags.begin(), flags.end());
+        assert(reasonFor(initialTokenFromFields(
+                   badFlags, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::MalformedContextFlags);
+
+        Bytes emptyOptimistic = ntlmMechanismField;
+        const auto emptyToken = tlv(0xa2U, tlv(0x04U, Bytes{}));
+        emptyOptimistic.insert(
+            emptyOptimistic.end(), emptyToken.begin(), emptyToken.end());
+        assert(reasonFor(initialTokenFromFields(
+                   emptyOptimistic, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::OptimisticTokenShape);
+
+        Bytes badHints = ntlmMechanismField;
+        const auto emptyHint =
+            tlv(0xa0U, tlv(0x1bU, Bytes{}));
+        const auto hints = tlv(0xa3U, tlv(0x30U, emptyHint));
+        badHints.insert(badHints.end(), hints.begin(), hints.end());
+        assert(reasonFor(initialTokenFromFields(
+                   badHints, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::MalformedNegHints);
+
+        Bytes initialMic = ntlmMechanismField;
+        const auto mic = tlv(
+            0xa3U, tlv(0x04U, std::array<std::uint8_t, 1>{1U}));
+        initialMic.insert(initialMic.end(), mic.begin(), mic.end());
+        assert(reasonFor(initialTokenFromFields(
+                   initialMic, kSpnegoOid)) ==
+               StandaloneSpnegoRejectionReason::UnsupportedIntegrityShape);
+
+        const Bytes oversized(
+            kMaximumStandaloneSpnegoTokenBytes + 1U, 0U);
+        assert(reasonFor(oversized) ==
+               StandaloneSpnegoRejectionReason::TokenTooLarge);
         return 0;
     }
 

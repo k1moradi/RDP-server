@@ -13,6 +13,9 @@ namespace rdp_server::server::security
 {
 
 inline constexpr std::size_t kMaximumStandaloneSpnegoTokenBytes = 8192U;
+inline constexpr std::size_t kMaximumStandaloneSpnegoMechanisms = 16U;
+inline constexpr std::size_t kMaximumStandaloneSpnegoMechanismOidBytes = 32U;
+inline constexpr std::uint8_t kStandaloneSpnegoNoMechanismIndex = 0xffU;
 
 enum class StandaloneSpnegoStage : std::uint8_t
 {
@@ -50,15 +53,97 @@ enum class StandaloneSpnegoFailureStage : std::uint8_t
 enum class StandaloneSpnegoRejectionReason : std::uint8_t
 {
     None,
-    InitialEnvelope,
-    MechanismList,
-    InitialNegotiationField,
-    UnsupportedInitialMic,
+    InvalidGssWrapper,
+    UnexpectedMechanismOid,
+    InvalidNegTokenChoice,
+    MalformedMechList,
+    NtlmNotOffered,
+    DuplicateNtlm,
+    UnsupportedFieldOrder,
+    MalformedNegHints,
+    MalformedContextFlags,
+    OptimisticTokenShape,
+    TokenTooLarge,
+    UnsupportedIntegrityShape,
     NtlmNegotiate,
     ContinuationEnvelope,
     InvalidState,
     OutputExhausted,
     CredentialRejected,
+};
+
+[[nodiscard]] constexpr const char *standaloneSpnegoRejectionReasonName(
+    StandaloneSpnegoRejectionReason reason) noexcept
+{
+    switch (reason)
+    {
+    case StandaloneSpnegoRejectionReason::None: return "none";
+    case StandaloneSpnegoRejectionReason::InvalidGssWrapper:
+        return "invalid-gss-wrapper";
+    case StandaloneSpnegoRejectionReason::UnexpectedMechanismOid:
+        return "unexpected-mechanism-oid";
+    case StandaloneSpnegoRejectionReason::InvalidNegTokenChoice:
+        return "invalid-neg-token-choice";
+    case StandaloneSpnegoRejectionReason::MalformedMechList:
+        return "malformed-mech-list";
+    case StandaloneSpnegoRejectionReason::NtlmNotOffered:
+        return "ntlm-not-offered";
+    case StandaloneSpnegoRejectionReason::DuplicateNtlm:
+        return "duplicate-ntlm";
+    case StandaloneSpnegoRejectionReason::UnsupportedFieldOrder:
+        return "unsupported-field-order";
+    case StandaloneSpnegoRejectionReason::MalformedNegHints:
+        return "malformed-neg-hints";
+    case StandaloneSpnegoRejectionReason::MalformedContextFlags:
+        return "malformed-context-flags";
+    case StandaloneSpnegoRejectionReason::OptimisticTokenShape:
+        return "optimistic-token-shape";
+    case StandaloneSpnegoRejectionReason::TokenTooLarge:
+        return "token-too-large";
+    case StandaloneSpnegoRejectionReason::UnsupportedIntegrityShape:
+        return "unsupported-integrity-shape";
+    case StandaloneSpnegoRejectionReason::NtlmNegotiate:
+        return "ntlm-negotiate";
+    case StandaloneSpnegoRejectionReason::ContinuationEnvelope:
+        return "invalid-continuation-envelope";
+    case StandaloneSpnegoRejectionReason::InvalidState:
+        return "invalid-mechanism-state";
+    case StandaloneSpnegoRejectionReason::OutputExhausted:
+        return "bounded-output-exhausted";
+    case StandaloneSpnegoRejectionReason::CredentialRejected:
+        return "ntlm-credential-rejected";
+    }
+    return "invalid-neg-token-choice";
+}
+
+struct StandaloneSpnegoMechanismOidObservation final
+{
+    std::array<std::uint8_t, kMaximumStandaloneSpnegoMechanismOidBytes> oid{};
+    std::size_t oidBytes{};
+    bool oidTruncated{};
+};
+
+struct StandaloneSpnegoInitialTokenObservation final
+{
+    bool observed{};
+    std::size_t tokenBytes{};
+    std::uint8_t topLevelTag{};
+    bool gssInitialContextToken{};
+    bool negTokenInit{};
+    bool negTokenInit2{};
+    bool reqFlagsPresent{};
+    bool negHintsPresent{};
+    bool mechListMicPresent{};
+    std::size_t mechanismCount{};
+    bool ntlmOffered{};
+    std::uint8_t ntlmMechanismIndex{kStandaloneSpnegoNoMechanismIndex};
+    bool optimisticMechanismTokenPresent{};
+    std::size_t optimisticMechanismTokenBytes{};
+    std::array<
+        StandaloneSpnegoMechanismOidObservation,
+        kMaximumStandaloneSpnegoMechanisms> mechanisms{};
+    StandaloneSpnegoRejectionReason rejectionReason{
+        StandaloneSpnegoRejectionReason::None};
 };
 
 struct StandaloneSpnegoStep final
@@ -144,6 +229,12 @@ public:
         return rejectionReason_;
     }
 
+    [[nodiscard]] StandaloneSpnegoInitialTokenObservation
+    initialTokenObservation() const noexcept
+    {
+        return initialTokenObservation_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -181,6 +272,7 @@ private:
         StandaloneSpnegoFailureStage::None};
     StandaloneSpnegoRejectionReason rejectionReason_{
         StandaloneSpnegoRejectionReason::None};
+    StandaloneSpnegoInitialTokenObservation initialTokenObservation_{};
 };
 
 } // namespace rdp_server::server::security

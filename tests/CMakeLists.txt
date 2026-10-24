@@ -369,6 +369,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-sharing-permission-product-projection
             linux-host-control-injected-owner-evidence-permission-determinism
             linux-host-control-standalone-credential-native-admission-separation
+            linux-host-control-retained-credential-lock-session-loss
             linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-stop-revoke-retirement)

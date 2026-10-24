@@ -1,3 +1,26 @@
+## Authentication failure presentation is product-safe (2026-10-24)
+
+R7 must never project protocol parser strings or wire observations onto Main.
+A remote authentication failure is presented there only as
+`Remote client authentication failed.`. Advanced Diagnostics may classify the
+failure from redacted R10 enums, for example
+`Authentication: CredSSP — Direct NTLM — negotiation failed`.
+
+Keep the diagnostic data model scalar and closed: negotiation envelope enum,
+CredSSP transition enum and authentication failure-stage enum only. Do not pass
+token bytes, NTLMSSP signatures, DER tags, token lengths, usernames, passwords,
+hashes, keys or parser rejection strings into Qt.
+
+Per-peer failure is not credential or listener lifetime authority. The accepted
+connection may be revoked while the configured memory-only Session Password and
+listener remain active. Only explicit Stop/revoke or an existing security-policy
+terminal condition may widen teardown. R7 must not require password re-entry
+after an ordinary failed client attempt.
+
+R10 product state remains authoritative for lifecycle labels. In particular,
+`CredentialsVerified` is an R2 milestone while product state may still be
+`Authenticating`; R7 may show Connected only after R10 publishes Connected.
+
 ## R8 authentication-envelope changes must have zero clipboard authority (2026-10-24)
 
 R2 authentication envelope selection is not R8 authority. A failed SPNEGO or

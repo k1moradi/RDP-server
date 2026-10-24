@@ -380,6 +380,9 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedSecurityProtocol = negotiatedSecurityProtocol_;
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
+    snapshot.standaloneNegotiationEnvelope =
+        standaloneCredSspAcceptor_.initialNegoObservation()
+            .spnego.negotiationEnvelope;
     snapshot.standalonePasswordSelected =
         authenticationMode_ ==
         LinuxRuntimeAuthenticationMode::StandalonePassword;

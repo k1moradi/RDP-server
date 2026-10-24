@@ -1,3 +1,25 @@
+## R7 redacted authentication presentation boundary (2026-10-24)
+
+R2 and R10 retain ownership of authentication classification. The connection
+records the immutable NTLM negotiation envelope as a redacted enum alongside
+the existing CredSSP transition/failure stage. R10 projects those enums without
+wire material. R7 consumes only that projection.
+
+Main is deliberately mechanism-agnostic: peer failure is
+`Remote client authentication failed.`. Advanced Diagnostics may identify
+CredSSP plus SPNEGO or Direct NTLM and a product-safe failure category. Parser
+rejection names and token evidence remain fail-only server diagnostics and
+never cross into normal GUI presentation.
+
+A failed accepted client is not host teardown. The connection is retired while
+the listener and configured Session Password stay owned, unless an explicit
+security-policy terminal condition requires wider revocation. This is
+independent from ordinary Stop -> Start, which continues to retain the same
+memory-only credential while requiring fresh owner consent/native evidence.
+
+R10 remains authoritative for `Authenticating` and `Connected`; an R2
+`CredentialsVerified` diagnostic alone cannot promote the GUI.
+
 ## R1 provenance beneath SPNEGO and DirectNtlm (2026-10-24)
 
 R1 owns one accepted socket/BIO/SSL lifetime after X.224 HYBRID. Each valid

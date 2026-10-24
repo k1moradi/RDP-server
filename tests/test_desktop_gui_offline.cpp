@@ -1475,6 +1475,104 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "authentication-failure-product-language")
+    {
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        return 77;
+#endif
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        runtime.snapshot.acceptedClientPreauthDiagnostics.available = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+
+        DesktopWindow window(host);
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* diagnostic =
+            requiredLabel(window, "hostErrorExplanation");
+        auto* readiness =
+            requiredLabel(window, "sharingReadinessStatus");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(mainTab && password && confirmation);
+
+        const HostStatus failed = host.status();
+        assert(failed.productState == RuntimeProductHostState::Listening);
+        assert(failed.listenerReady);
+        assert(failed.credentialsConfigured);
+        assert(sharingToggle(window)->isChecked());
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        assert(!availability->isHidden());
+        assert(availability->text() ==
+               QStringLiteral("Remote client authentication failed."));
+
+        for (QLabel* item : mainTab->findChildren<QLabel*>())
+        {
+            assert(!item->text().contains(
+                QStringLiteral("invalid-gss-wrapper"),
+                Qt::CaseInsensitive));
+            assert(!item->text().contains(
+                QStringLiteral("NTLMSSP"), Qt::CaseInsensitive));
+            assert(!item->text().contains(
+                QStringLiteral("Direct NTLM"), Qt::CaseInsensitive));
+        }
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Authentication: CredSSP — Direct NTLM — negotiation failed"));
+        assert(!diagnostic->text().contains(
+            QStringLiteral("invalid-gss-wrapper"), Qt::CaseInsensitive));
+        assert(!diagnostic->text().contains(
+            QStringLiteral("NTLMSSP"), Qt::CaseInsensitive));
+
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::None;
+        window.refresh();
+        assert(host.status().productState ==
+               RuntimeProductHostState::Authenticating);
+        assert(readiness->text() ==
+               QStringLiteral("A remote device is authenticating."));
+        assert(availability->isHidden());
+
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{
+                42U, "192.168.0.44", false, true, true}};
+        window.refresh();
+        assert(host.status().productState ==
+               RuntimeProductHostState::Connected);
+        assert(readiness->text() == QStringLiteral("Sharing is on."));
+        assert(host.status().credentialsConfigured);
+        assert(host.status().listenerReady);
+        return 0;
+    }
+
     if (mode == "consumer-password-change-rerequests-permission")
     {
 #if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)

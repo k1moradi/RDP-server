@@ -1185,12 +1185,15 @@ void DesktopWindow::refresh()
         !mayStillBeHosting(snapshot));
 
     const QString denial = blockedReason(snapshot);
-    const QString sharingUnavailableReason =
-        !mayStillBeHosting(snapshot) && snapshot.controlAvailable
-        ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
-        : QString{};
-    sharingAvailabilityStatus_->setText(sharingUnavailableReason);
-    sharingAvailabilityStatus_->setVisible(!sharingUnavailableReason.isEmpty());
+    const QString sharingAvailabilityMessage =
+        snapshot.remoteAuthenticationFailed
+            ? QStringLiteral("Remote client authentication failed.")
+            : (!mayStillBeHosting(snapshot) && snapshot.controlAvailable
+                ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
+                : QString{});
+    sharingAvailabilityStatus_->setText(sharingAvailabilityMessage);
+    sharingAvailabilityStatus_->setVisible(
+        !sharingAvailabilityMessage.isEmpty());
 
     sharingToggle_->setEnabled(
         snapshot.productState != ProductState::Starting &&
@@ -1281,9 +1284,13 @@ void DesktopWindow::refresh()
     errorStatus_->setText(
         !userFacingError_.isEmpty()
             ? QStringLiteral("Last action: ") + userFacingError_
-            : (snapshot.failure.isEmpty()
-                   ? QStringLiteral("Diagnostics: no host error reported.")
-                   : QStringLiteral("Diagnostics: ") + snapshot.failure));
+            : (!snapshot.authenticationDiagnostic.isEmpty()
+                   ? snapshot.authenticationDiagnostic
+                   : (snapshot.failure.isEmpty()
+                          ? QStringLiteral(
+                                "Diagnostics: no host error reported.")
+                          : QStringLiteral("Diagnostics: ") +
+                                snapshot.failure)));
 
     const bool clientActionsEnabled =
         snapshot.controlAvailable &&

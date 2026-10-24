@@ -454,6 +454,13 @@ enum class RuntimeAcceptedClientStandaloneFailureStage : std::uint8_t
     Admission,
 };
 
+enum class RuntimeAcceptedClientNtlmEnvelope : std::uint8_t
+{
+    Undetermined,
+    Spnego,
+    DirectNtlm,
+};
+
 enum class RuntimeAcceptedClientTermination : std::uint8_t
 {
     Open,
@@ -479,6 +486,8 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
         RuntimeAcceptedClientTlsHandshakeStage::Closed};
     RuntimeAcceptedClientCredSspTransition credSspTransition{
         RuntimeAcceptedClientCredSspTransition::NotStarted};
+    RuntimeAcceptedClientNtlmEnvelope ntlmEnvelope{
+        RuntimeAcceptedClientNtlmEnvelope::Undetermined};
     RuntimeAcceptedClientStandaloneFailureStage standaloneFailureStage{
         RuntimeAcceptedClientStandaloneFailureStage::None};
     RuntimeAcceptedClientTermination termination{

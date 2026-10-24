@@ -1,3 +1,31 @@
+## R7 authentication-failure GUI/status authoring receipt (2026-10-24)
+
+**Starting reconciled main:** `ae7d8d1c0bf18fddbd87b1c5e1bdc83b5144a9c3`.
+
+Implemented a product-safe R7 projection for failed remote authentication. The
+runtime acceptance snapshot now exports the selected NTLM envelope only as a
+closed enum. HostControl combines that with the existing CredSSP/failure-stage
+enums to produce optional Advanced Diagnostics text; no protocol bytes or
+parser rejection strings are passed to Qt.
+
+Main shows `Remote client authentication failed.` while an active listener
+remains authoritative. Advanced may show
+`Authentication: CredSSP — Direct NTLM — negotiation failed`. The existing
+raw runtime error remains internal to the R10 product snapshot and is no longer
+used as Main's peer-failure wording.
+
+Added an owner-GUI regression proving concise Main text, redacted Advanced
+classification, credential/listener retention, and R10 lifecycle authority
+across `CredentialsVerified -> Authenticating -> Connected`. Added a Linux
+production source-contract proving per-peer retirement cannot revoke the
+standalone credential or close the listener. The focused owner-GUI Release gate
+now includes this regression; the existing Stop -> Start reuse test remains
+unchanged.
+
+Connector authoring/source review: **PASS**. Canonical local build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Physical owner test:
+**NOT RUN**.
+
 ## R8 DirectNtlm dormancy verification — 2026-10-24
 
 **Starting exact-main parent:** `f23eb358c977654a51c38a5ecc8d2d0484dd25f6`.

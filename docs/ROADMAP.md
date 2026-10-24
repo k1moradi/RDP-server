@@ -1,3 +1,35 @@
+## R7 P1 authentication-failure product language and retained host state (2026-10-24)
+
+**Starting reconciled main:** `ae7d8d1c0bf18fddbd87b1c5e1bdc83b5144a9c3`.
+
+R7 now treats a failed remote authentication as a per-client event rather than
+a host-configuration failure. Main receives only the concise product message
+`Remote client authentication failed.`; it never receives parser rejection
+names, NTLM token shapes or negotiation-token content. Advanced Diagnostics may
+show a redacted classification such as
+`Authentication: CredSSP — Direct NTLM — negotiation failed`, derived only
+from R10 enums.
+
+The accepted-client diagnostic projection carries only the immutable
+SPNEGO/direct-NTLM envelope enum plus the existing authentication failure stage.
+No NTLMSSP bytes, DER tags, token lengths, usernames, passwords, hashes or
+session-key material enter Qt.
+
+The existing Stop -> Start credential-reuse behavior remains unchanged.
+Per-peer authentication retirement keeps the configured memory-only Session
+Password and active listener; explicit Stop, revoke or security-policy/session
+loss remains the authority for wider teardown. A production source-contract
+pins that boundary, and the owner-GUI regression proves password editors are
+not repopulated or required after peer failure.
+
+R10 remains the lifecycle authority. Reaching R2 `CredentialsVerified` does
+not let R7 synthesize Connected: the GUI remains Authenticating until R10
+publishes Connected, then updates normally.
+
+Connector source/test review: **PASS**. Canonical local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Physical owner Microsoft-client retry: **NOT RUN**.
+
 ## R8 P2 remains dormant across DirectNtlm authentication — 2026-10-24
 
 **Starting exact-main parent:** `f23eb358c977654a51c38a5ecc8d2d0484dd25f6`.

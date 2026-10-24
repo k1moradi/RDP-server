@@ -1,3 +1,28 @@
+## R7 authentication-failure status/retention gates (2026-10-24)
+
+Keep an offscreen owner-acceptance regression that starts from an active
+listener with a configured Session Password and a redacted direct-NTLM
+negotiation failure. It must prove Main shows exactly
+`Remote client authentication failed.`, Main contains no
+`invalid-gss-wrapper`, `NTLMSSP` or `Direct NTLM` text, and Advanced
+Diagnostics shows only
+`Authentication: CredSSP — Direct NTLM — negotiation failed`.
+
+The same regression must prove the listener and configured credential survive
+the peer failure with cleared password editors, then set the accepted-client
+CredSSP transition to `CredentialsVerified` while R10 remains
+`Authenticating` and assert R7 does not synthesize Connected. Only an
+authoritative R10 Connected state may produce the Connected presentation.
+
+Keep a production Linux source-contract around
+`retireAcceptedClient()`: it must revoke/clear only the accepted client and
+return to ListenerAvailable when the listener is valid. The function must not
+call host-wide retirement, revoke the standalone credential, zero its
+generation/configured flag or close the listener.
+
+The focused owner-GUI Release qualification inventory includes this regression
+alongside credential-editor parity and Stop -> Start credential reuse.
+
 ## R8 blocked-state testing after DirectNtlm support (2026-10-24)
 
 DirectNtlm support does not create a new R8 acceptance lane. While production

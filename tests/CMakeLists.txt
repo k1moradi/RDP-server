@@ -4023,6 +4023,17 @@ add_test(NAME transport.lan-listener-native-bind-denials
 set_tests_properties(transport.lan-listener-native-bind-denials PROPERTIES
     LABELS "protocol;transport;native;security" TIMEOUT 20)
 
+# R7 per-peer authentication failure is not host teardown. Pin the production
+# Linux retirement boundary so a rejected remote client cannot revoke the
+# configured Session Password or close the listener.
+add_test(NAME runtime.linux-authentication-failure-retains-listener-and-credential-source
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_linux_auth_failure_retention.cmake")
+set_tests_properties(
+    runtime.linux-authentication-failure-retains-listener-and-credential-source
+    PROPERTIES LABELS "runtime;linux;r2;r7;credentials;authentication;security;offline")
+
 # R7 layout/state tests run offscreen and never authorize real host start.
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_executable(test_desktop_gui_offline test_desktop_gui_offline.cpp)
@@ -4289,6 +4300,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-owner-authentication-failure-product-language-and-retention
+        COMMAND test_desktop_gui_offline authentication-failure-product-language)
+    set_tests_properties(
+        gui.offscreen-owner-authentication-failure-product-language-and-retention
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;authentication;diagnostics;lifecycle;r7"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
         COMMAND test_desktop_gui_offline consumer-password-change-rerequests-permission)
     set_tests_properties(
@@ -4328,6 +4349,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
             gui.offscreen-owner-acceptance-consumer-start-orchestration
             gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential
+            gui.offscreen-owner-authentication-failure-product-language-and-retention
             gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission
             gui.offscreen-owner-acceptance-start-failure-rolls-back
             gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant

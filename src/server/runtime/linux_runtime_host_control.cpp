@@ -703,6 +703,24 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     }
 
+    using SourceEnvelope = rdp_server::server::security::
+        StandaloneNtlmNegotiationEnvelope;
+    switch (source.standaloneNegotiationEnvelope)
+    {
+    case SourceEnvelope::Undetermined:
+        projected.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::Undetermined;
+        break;
+    case SourceEnvelope::Spnego:
+        projected.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::Spnego;
+        break;
+    case SourceEnvelope::DirectNtlm:
+        projected.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        break;
+    }
+
     using SourceFailure = rdp_server::server::security::
         StandaloneAuthenticationFailureStage;
     switch (source.standaloneAuthenticationFailureStage)

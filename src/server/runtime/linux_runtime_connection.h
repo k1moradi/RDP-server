@@ -413,6 +413,10 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     int negotiatedTlsProtocolVersion{};
     LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    rdp_server::server::security::StandaloneNtlmNegotiationEnvelope
+        standaloneNegotiationEnvelope{
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::Undetermined};
     bool standalonePasswordSelected{};
     // Exact non-secret service credential generation pinned when R10 selected
     // StandalonePassword for this accepted connection. Zero for every other

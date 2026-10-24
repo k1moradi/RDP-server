@@ -29,6 +29,62 @@ using rdp_server::server::runtime::RuntimeHostError;
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
 }
 
+[[nodiscard]] QString authenticationDiagnosticText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
+{
+    using namespace rdp_server::server::runtime;
+    if (!diagnostics.available ||
+        diagnostics.credSspTransition !=
+            RuntimeAcceptedClientCredSspTransition::Failed)
+        return {};
+
+    QString envelope;
+    switch (diagnostics.ntlmEnvelope)
+    {
+    case RuntimeAcceptedClientNtlmEnvelope::Undetermined:
+        break;
+    case RuntimeAcceptedClientNtlmEnvelope::Spnego:
+        envelope = QStringLiteral("SPNEGO");
+        break;
+    case RuntimeAcceptedClientNtlmEnvelope::DirectNtlm:
+        envelope = QStringLiteral("Direct NTLM");
+        break;
+    }
+
+    QString failure;
+    switch (diagnostics.standaloneFailureStage)
+    {
+    case RuntimeAcceptedClientStandaloneFailureStage::None:
+        failure = QStringLiteral("authentication failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation:
+    case RuntimeAcceptedClientStandaloneFailureStage::Spnego:
+        failure = QStringLiteral("negotiation failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::Mic:
+        failure = QStringLiteral("integrity check failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::SignSeal:
+        failure = QStringLiteral("message protection failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::PubKeyAuth:
+        failure = QStringLiteral("TLS binding failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::AuthInfo:
+        failure = QStringLiteral("credential verification failed");
+        break;
+    case RuntimeAcceptedClientStandaloneFailureStage::Admission:
+        failure = QStringLiteral("session admission failed");
+        break;
+    }
+
+    return envelope.isEmpty()
+        ? QStringLiteral("Authentication: CredSSP — ") + failure
+        : QStringLiteral("Authentication: CredSSP — ") + envelope +
+              QStringLiteral(" — ") + failure;
+}
+
 } // namespace
 
 HostControl::HostControl(
@@ -192,8 +248,14 @@ HostStatus HostControl::status() const
 
     if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited)
+    {
+        view.remoteAuthenticationFailed = true;
         view.authenticationFailures.push_back(
-            toQString(runtimeHostErrorMessage(runtimeStatus.lastError)));
+            QStringLiteral("Remote client authentication failed."));
+    }
+    view.authenticationDiagnostic =
+        authenticationDiagnosticText(
+            runtimeStatus.acceptedClientPreauthDiagnostics);
     if (view.clientDisconnected)
         view.disconnected.push_back(
             QStringLiteral("Client disconnected; listener remains active"));

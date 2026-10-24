@@ -81,6 +81,10 @@ struct HostStatus
     // R10 lifecycle permission only; independent of credentialsConfigured.
     // Appended to preserve existing aggregate-initializer field positions.
     bool credentialEditingAllowed{};
+    // Product-safe per-peer authentication presentation. The detailed string
+    // is derived only from redacted R10 enums and never from token/parser text.
+    bool remoteAuthenticationFailed{};
+    QString authenticationDiagnostic;
 };
 
 struct HostRequest

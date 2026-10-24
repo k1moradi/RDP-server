@@ -1,3 +1,15 @@
+## CI structural guards must move with exact-count qualification pins (2026-10-24)
+
+When a workflow's exact test inventory or focused qualification target list is
+changed intentionally, update the repository's structural validator in the
+same publication. Do not make the workflow green by deleting a validator
+requirement; replace the old expected token with the new exact value and add
+the newly required behavior/build target so future drift remains fail-closed.
+
+For the R8/R9 shared DirectNtlm lifetime increment, the structural validator
+must require the 89-test clipboard inventory, the shared lifecycle test, the
+same-port rebind gate, and `test_lan_listener` in the focused sanitizer build.
+
 ## Shared labeled-fixture inventories must be updated atomically (2026-10-24)
 
 When an existing production-backed integration CTest is intentionally reused

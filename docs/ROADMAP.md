@@ -1,3 +1,22 @@
+## R9 CI-structure guard reconciled with the 89-test clipboard inventory (2026-10-24)
+
+**Starting exact-main parent:** `efa3638c8146fe0bc10bdb27cfc334123ba5f4b5`.
+
+The workflow itself was correctly updated to 89 clipboard-labeled tests, but
+the repository's fail-closed structural validator still required the old
+literal `clipboard_expected_test_count=88`. Exact-SHA run
+`40130223135` therefore stopped at `ci-workflow-structure` before protocol
+and sanitizer jobs could execute.
+
+The validator now requires the 89-test inventory, the intentionally shared
+DirectNtlm lifecycle test, the new same-port server-active-close gate, and the
+`test_lan_listener` sanitizer build target. This keeps the structure guard
+synchronized with the actual qualification workflow instead of weakening or
+bypassing it.
+
+No production or protocol behavior changes. Exact-SHA hosted qualification is
+the next gate.
+
 ## R8/R9 hosted inventory reconciliation after shared DirectNtlm lifetime label (2026-10-24)
 
 **Starting exact-main parent:** `db4039c73de88c972bf33576d891ebabac0d3192`.

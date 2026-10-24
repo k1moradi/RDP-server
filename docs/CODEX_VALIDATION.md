@@ -1,3 +1,21 @@
+## CI-structure reconciliation for R8/R9 shared inventory — 2026-10-24
+
+**Starting exact-main parent:** `efa3638c8146fe0bc10bdb27cfc334123ba5f4b5`.
+
+Actions run `40130223135` did not reach the protocol matrix because
+`scripts/validate_ci_workflow.py --self-test` still required
+`clipboard_expected_test_count=88` after the workflow had intentionally
+moved to 89. The guard failed with exactly:
+`CI workflow validation FAIL: missing required workflow token:
+clipboard_expected_test_count=88`.
+
+The structural policy is updated rather than bypassed. It now pins the new
+89-test count, requires the shared DirectNtlm lifecycle and same-port rebind
+tokens, and requires `test_lan_listener` in the sanitizer build target set.
+
+Connector log/source review: **PASS**. Local canonical build/full CTest:
+**NOT RUN**. Exact-publication-SHA hosted qualification: **PENDING**.
+
 ## R8 clipboard inventory pin reconciliation — 2026-10-24
 
 **Starting exact-main parent:** `db4039c73de88c972bf33576d891ebabac0d3192`.

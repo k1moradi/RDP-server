@@ -1,3 +1,13 @@
+## R2 P0 corrective candidate on latest main — 2026-10-24
+
+**Starting exact-main parent:** `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.
+
+The policyless standalone-native admission implementation is rebased over the current macOS host-control/product graph. Linux production files changed here do not overlap the macOS runtime owner. Standalone positive authority is exact R1 HYBRID/TLS + exact credential generation + successful standalone CredSSP + exact local owner-consent epoch + fresh physical `seat0` session evidence; no `ConsoleIdentityPolicy`, GSS service credential, keytab, PAM service or remote-to-local account mapping participates.
+
+First candidate `19b509f3bb6989f9c821b07d5c4850dd1d94cfd7` compiled Linux Debug and passed the dedicated standalone lifecycle, portable GUI bootstrap-listener acceptance, standalone connection selectors, native-authorization standalone cases, production Linux-security builds and the distinct portable bootstrap acceptance job (including canonical no-argument pre-listener launch and packaged owner-acceptance ZIP). Ubuntu full Debug CTest failed only two stale assurance expectations: the no-consent test still expected standalone password to be globally unsupported, and the verified-account PAM source fence searched the pre-split reference-form GSS constructor. The correction changes tests/source guards only: a missing configured standalone password now expects `CredentialNotConfigured`, and the GSS/PAM order fence is scoped to the ExistingOsAccount pointer-form constructor and policy-bound broker.
+
+Canonical owner `~/rdp-server/build/` execution: **NOT RUN** in this connector environment. Corrective exact-head hosted CI is **PENDING**. Physical Linux owner acceptance and Microsoft-client interoperability remain **NOT RUN**. R7's Release UI qualification gate remains unchanged.
+
 ## macOS portable GUI native host control and session evidence (2026-10-24)
 
 Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.

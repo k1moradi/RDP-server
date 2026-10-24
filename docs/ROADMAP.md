@@ -1,3 +1,13 @@
+## R2 P0 portable StandalonePassword admission — 2026-10-24
+
+**Current-main parent:** `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.
+
+Standalone NTLMv2/SPNEGO/CredSSP is decoupled from GSS-configured `LinuxRuntimeSecurityConfiguration`. The dedicated R2 current-owner admission route accepts no caller account, UID, seat or display selector. It joins exact R1 HYBRID/TLS ownership, exact standalone credential generation, successful standalone CredSSP verification, the exact locally minted sharing-consent epoch and fresh physical logind session evidence. ExistingOsAccount remains unchanged on the GSS/Kerberos/PAM/NSS policy path.
+
+R10 consumes this split directly. Normal `rdp-server-desktop` / `LinuxPortableDesktopRuntime` keeps automatic production graph linkage and generated local TLS/licensing prerequisites, but StandalonePassword no longer synthesizes or requires an OS-account security policy. Session Password can advance the runtime to `CredentialsConfigured`; owner consent remains a separate local action; `startSharing()` opens a listener only after explicit Sharing. Password replacement while Sharing is active retires the old connection/listener/consent before a new credential generation can be used. A view-only grant remains view-only and does not authorize native input.
+
+R7's public Release presentation gate remains separately owned and is not promoted by this R2 change. Current macOS host-control additions remain independent. Prior GUI Round 2 PASS remains presentation qualification only. Physical-owner and real Microsoft-client interoperability evidence remain **NOT RUN**.
+
 ## macOS portable GUI native host control and session evidence (2026-10-24)
 
 Starting exact-main parent: `7b8db8864a557062534c25fe1e9bc7d626ad03ee`.

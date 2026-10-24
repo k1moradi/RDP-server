@@ -752,7 +752,8 @@ public:
             rdp_server::server::security::assessLanCredentialChoice(choice);
         if (decision == LanCredentialDecision::UnsupportedIndependentPasswordCredSsp)
             return {RuntimeHostError::UnsupportedIndependentPasswordNla, false};
-        if (decision == LanCredentialDecision::CredentialNotConfigured)
+        if (decision == LanCredentialDecision::CredentialNotConfigured ||
+            decision == LanCredentialDecision::RequiresStandalonePasswordAndHostConsent)
             return {RuntimeHostError::CredentialNotConfigured, false};
         return {};
     }

@@ -625,6 +625,18 @@ public:
             *ownerSharingAuthority,
         const LinuxRuntimeAuthenticationSelection &authenticationSelection)
         noexcept;
+
+    // StandalonePassword construction deliberately has no GSS/keytab/policy
+    // provider. Positive native admission still requires ownerSharingAuthority.
+    LinuxRuntimeConnection(
+        rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+        rdp_server::server::security::AuthenticationAttemptLimiter
+            *attemptLimiter,
+        const rdp_server::server::security::CurrentOwnerSharingAuthority
+            *ownerSharingAuthority,
+        const LinuxRuntimeAuthenticationSelection &authenticationSelection)
+        noexcept;
+
     ~LinuxRuntimeConnection();
 
     LinuxRuntimeConnection(const LinuxRuntimeConnection &) = delete;
@@ -700,6 +712,10 @@ public:
     [[nodiscard]] bool issueAdmission(
         const rdp_server::server::security::ConsoleEvidenceRequest &request)
         noexcept;
+
+    // StandalonePassword accepts no caller-shaped account/UID/seat/display
+    // request. R2 derives the current physical owner under local consent.
+    [[nodiscard]] bool issueStandaloneAdmission() noexcept;
 
     // R2 is the only positive entry into R3. Failure is terminal and invokes
     // the same ordered aggregate teardown.
@@ -1121,7 +1137,16 @@ private:
         noexcept;
     void captureEstablishedTlsDiagnostics() noexcept;
 
-    LinuxRuntimeSecurityConfiguration &securityConfiguration_;
+    struct InternalConstructionTag final {};
+    LinuxRuntimeConnection(
+        LinuxRuntimeSecurityConfiguration *securityConfiguration,
+        rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+        rdp_server::server::security::AuthenticationAttemptLimiter
+            *attemptLimiter,
+        const rdp_server::server::security::CurrentOwnerSharingAuthority
+            *ownerSharingAuthority,
+        const LinuxRuntimeAuthenticationSelection &authenticationSelection,
+        InternalConstructionTag) noexcept;
 
     // Declaration order is deliberate. Explicit revoke() performs the
     // security ordering; reverse member destruction is also safe if a future

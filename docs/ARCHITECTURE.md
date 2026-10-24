@@ -1,3 +1,13 @@
+## R2 P0 StandalonePassword native authority split (2026-10-23)
+
+`StandalonePassword` is a first-party R2 authentication mode, not an ExistingOsAccount/GSS alias. Positive Linux authority requires the exact accepted R1 HYBRID/TLS connection, the exact `StandalonePasswordCredentialOwner` generation, successful NTLMv2/SPNEGO/CredSSP verification, the current locally approved `CurrentOwnerSharingAuthority` epoch and fresh physical-session evidence. No GUI state, remote username, UID scalar or logind observation is authority by itself.
+
+ExistingOsAccount retains the stronger service-owned `LinuxRuntimeSecurityConfiguration`, `ConsoleIdentityPolicy`, GSS/Kerberos, PAM, NSS and logind correlation. StandalonePassword has no `ConsoleIdentityPolicy`, service principal, keytab, GSS credential, PAM service or remote-to-local account mapping. R2 samples the current active physical unlocked `seat0` owner only after standalone authentication and owner consent are both current, then pins that native session/display/generation into the ordinary move-only admission lease.
+
+Standalone revalidation repeats exact authentication, consent-epoch and native-session checks before protected transitions. Password replacement, Stop, consent replacement/expiry, lock, logout, user switch or session replacement revoke the old route. View, input and clipboard permissions stay independent.
+
+The normal Linux desktop build still links the production R2/native graph automatically. Build availability is not GSS configuration and does not open a listener. The no-argument application may reach `CredentialsConfigured` after Session Password consumption with no expert config; network listening still requires explicit Sharing and current local owner consent.
+
 ## Standalone product qualification is not R8 authority (2026-10-23)
 
 The normal Linux runtime may be fully composed while a public product capability

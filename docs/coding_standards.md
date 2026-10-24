@@ -88,10 +88,10 @@ their exact `iPAddress` SAN and must never fall back to the Common Name.
 ## Portable automatic bootstrap state is outside the extracted app (2026-10-23)
 
 Normal desktop startup has no required arguments. Prefer the shortest safe
-lifetime: the current R1 generated TLS identity is process-memory-only; Session
-Password is always memory-only by default. If TLS identity or licensing
-identity is persisted, it belongs in the OS per-user private application-data
-root. Non-secret preferences belong in the per-user configuration root. Never
+lifetime: the current R1 generated TLS identity and R3 generated licensing
+identity are process-memory-only; Session Password is always memory-only by
+default. If TLS identity or licensing identity is explicitly persisted, it
+belongs in the OS per-user private application-data root. Non-secret preferences belong in the per-user configuration root. Never
 derive a writable secret path from `argv[0]`, the current working directory or
 the ZIP extraction directory; read-only extraction is a supported condition.
 

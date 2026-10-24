@@ -232,6 +232,26 @@ add_test(NAME runtime.bootstrap-portable-storage-and-no-autostart-contract
 set_tests_properties(runtime.bootstrap-portable-storage-and-no-autostart-contract
     PROPERTIES LABELS "runtime;bootstrap;r6;security;packaging;offline")
 
+add_executable(test_runtime_bootstrap_generated_identity_lifetimes
+    test_runtime_bootstrap_generated_identity_lifetimes.cpp)
+target_include_directories(test_runtime_bootstrap_generated_identity_lifetimes PRIVATE
+    "${PROJECT_SOURCE_DIR}/src")
+target_compile_features(
+    test_runtime_bootstrap_generated_identity_lifetimes PRIVATE cxx_std_23)
+if(MSVC)
+    target_compile_options(
+        test_runtime_bootstrap_generated_identity_lifetimes PRIVATE
+        /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(
+        test_runtime_bootstrap_generated_identity_lifetimes PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+endif()
+add_test(NAME runtime.bootstrap-generated-identities-default-memory-only
+    COMMAND test_runtime_bootstrap_generated_identity_lifetimes)
+set_tests_properties(runtime.bootstrap-generated-identities-default-memory-only
+    PROPERTIES LABELS "runtime;bootstrap;r6;security;offline")
+
 # R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
 # these tests cannot grant native admission or enable a listener.
 add_executable(test_standalone_credssp test_standalone_credssp.cpp)

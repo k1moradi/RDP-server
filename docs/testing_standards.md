@@ -256,6 +256,12 @@ canonical smoke must prove no TCP/UDP listener exists before Sharing and must
 not mutate services, firewall, Windows RDP/TermService or macOS system
 configuration.
 
+The portable bootstrap contract must independently pin both generated identity
+defaults to volatile memory: R1 TLS and R3 licensing. It must also preserve
+private per-user application data as the only allowed target if either identity
+is explicitly persisted later, so a future persistence feature cannot silently
+turn today's process-local licensing identity into a default disk secret.
+
 Where the host permits it, make the extracted payload read-only and point the
 test at isolated per-user application-data/config roots. Any persistent mutable
 bootstrap state must appear only under those roots with private permissions;

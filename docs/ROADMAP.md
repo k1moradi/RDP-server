@@ -1,3 +1,36 @@
+## R6 generated-identity default lifetime contract correction — 2026-10-24
+
+Starting exact-main parent: `364ec0b7df2d92219ea9b0cec1e9f533067396ee`.
+
+Dependency recheck: R1 automatic TLS and R3 automatic licensing are hosted-qualified,
+R10 owns the normal no-argument Linux runtime, R9 has published the hosted-green
+owner-acceptance Linux ZIP, and the later macOS portable runtime is now in source.
+There is no repository-side dependency blocker for this R6 portability increment.
+
+The platform-neutral bootstrap header still had one internal contradiction:
+`RuntimeApplicationBootstrapPolicy::licensingIdentityPersistedByDefault` was false
+and R3 actually generates the licensing identity in process memory, but
+`runtimeBootstrapDefaultStorage(LicensingIdentity)` returned
+`PrivateApplicationData`. Correct the default to `VolatileMemoryOnly` while
+retaining `PrivateApplicationData` as the explicit future persistence target.
+
+New dedicated ordinary CTest:
+`runtime.bootstrap-generated-identities-default-memory-only`. It pins both R1 TLS
+and R3 licensing generated identities to volatile default storage and separately
+pins their allowed explicit persistent target to private per-user application data.
+The existing broad bootstrap contract now also asserts the licensing default.
+
+Source/contract review: **PASS**. Owner-local canonical build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. This correction opens no listener, writes no file, changes no
+authentication/wire behavior, and does not promote the public StandalonePassword
+or clipboard gates. Physical Microsoft-client acceptance remains a separate
+downstream product gate.
+
+**R6 next gate:** hosted execution of the new cross-platform contract CTest, then
+continue platform-specific private storage implementations only when persistence
+is actually introduced.
+
 ## R3 consumes macOS automatic licensing host boundary — 2026-10-24
 
 Starting exact-main parent: `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.

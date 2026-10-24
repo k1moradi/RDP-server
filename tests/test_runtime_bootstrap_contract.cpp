@@ -11,6 +11,9 @@ int main()
            RuntimeBootstrapStorage::VolatileMemoryOnly);
     assert(runtimeBootstrapPersistentStorage(RuntimeBootstrapMaterial::TlsIdentity) ==
            RuntimeBootstrapStorage::PrivateApplicationData);
+    assert(runtimeBootstrapDefaultStorage(
+               RuntimeBootstrapMaterial::LicensingIdentity) ==
+           RuntimeBootstrapStorage::VolatileMemoryOnly);
     assert(runtimeBootstrapPersistentStorage(
                RuntimeBootstrapMaterial::LicensingIdentity) ==
            RuntimeBootstrapStorage::PrivateApplicationData);

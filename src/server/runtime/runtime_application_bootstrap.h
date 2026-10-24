@@ -31,10 +31,9 @@ enum class RuntimeBootstrapStorage : std::uint8_t
     switch (material)
     {
     case RuntimeBootstrapMaterial::TlsIdentity:
+    case RuntimeBootstrapMaterial::LicensingIdentity:
     case RuntimeBootstrapMaterial::SessionPassword:
         return RuntimeBootstrapStorage::VolatileMemoryOnly;
-    case RuntimeBootstrapMaterial::LicensingIdentity:
-        return RuntimeBootstrapStorage::PrivateApplicationData;
     case RuntimeBootstrapMaterial::Preferences:
         return RuntimeBootstrapStorage::NonSecretConfiguration;
     }

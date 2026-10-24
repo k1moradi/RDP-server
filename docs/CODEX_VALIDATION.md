@@ -1,3 +1,26 @@
+## R6 generated-identity default lifetime contract correction — 2026-10-24
+
+Starting exact-main parent: `364ec0b7df2d92219ea9b0cec1e9f533067396ee`.
+
+Dependency review found no remaining repository-side R1/R3/R9/R10 bootstrap
+blocker. The remaining R6 issue was local to the platform-neutral policy:
+generated R3 licensing was implemented and documented as process-local, but the
+default-storage helper still classified it as private persistent application data.
+
+The helper now returns `VolatileMemoryOnly` for both generated TLS and generated
+licensing identities. `runtimeBootstrapPersistentStorage()` remains unchanged:
+an explicit future persistence feature must place either identity only in private
+per-user application data. Session Password remains non-persistent.
+
+Added dedicated behavior CTest
+`runtime.bootstrap-generated-identities-default-memory-only` and strengthened
+the existing portable bootstrap contract assertion.
+
+Source/contract review: **PASS**. Canonical owner-local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. No listener, filesystem mutation, authentication, desktop or
+Microsoft-client operation was performed.
+
 ## R3 macOS automatic licensing HostControl consumption — 2026-10-24
 
 Starting exact-main parent: `96b3f4422c0da9c76b9862ec4a4f180a6007d4cc`.

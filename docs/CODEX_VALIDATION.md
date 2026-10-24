@@ -1,3 +1,28 @@
+## R7 exact-SHA hosted credential-editor qualification (2026-10-24)
+
+**Tested SHA:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.
+
+Actions run `40083958306` confirms the formerly blocking R7/macOS
+Release-gate mismatch is fixed. Relevant exact-SHA jobs are **PASS**:
+`r9-owner-gui-credential-parity` on Ubuntu and macOS,
+`r7-macos-portable-gui`, `r5-linux-gui-zip`, Ubuntu/macOS/Windows protocol,
+R2 Linux security, R7 macOS native lifecycle/session sanitizers, R9 security
+sanitizers, portable owner bootstrap and GUI Round 2 acceptance.
+
+This provides hosted evidence for the requested credential-editor contract:
+the acceptance surface is editable and keyboard-focusable on Linux/macOS,
+password fields remain masked, matching input unlocks only the genuine Sharing
+prerequisite path, and the public Release gate remains closed when the
+acceptance surface is not compiled.
+
+No production GUI/authentication/listener change is made in this receipt.
+The separate `r9-clean-windows-portable-gui` job is still queued and is not
+part of this Linux/macOS credential-editor dependency.
+
+Physical owner Linux/X11 no-argument verification: **PENDING / BLOCKED on
+owner-machine execution**. That is now the only unresolved gate for the
+original Linux field-editability report.
+
 ## R7 acceptance-only macOS GUI test gating correction (2026-10-24)
 
 Starting exact-main parent: `5058fefe03b3fe611d5c39a52cb724375933a519`.

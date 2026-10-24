@@ -1,3 +1,36 @@
+## R7 hosted credential-editor qualification complete; physical Linux owner gate remains (2026-10-24)
+
+**Tested SHA:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.
+
+The repository-side dependency chain for the Linux credential-editor regression
+is now closed. GitHub Actions run `40083958306` reports **PASS** for:
+- `r9-owner-gui-credential-parity (ubuntu-latest)`;
+- `r9-owner-gui-credential-parity (macos-latest)`;
+- `r7-macos-portable-gui`, including its explicit owner-acceptance parity step;
+- `r5-linux-gui-zip`, including the production-backed physical-X11
+  precredential-readiness fixture;
+- Ubuntu, macOS and Windows protocol jobs;
+- R2 Linux production-security complete/missing-systemd jobs;
+- R7 macOS native lifecycle and session sanitizer jobs;
+- R9 security sanitizers, portable GUI bootstrap acceptance and GUI Round 2.
+
+The preceding R7 acceptance-only test-gating correction is therefore
+hosted-qualified. It preserves the public Release gate while Debug/explicit
+owner-acceptance builds exercise the real production Session Password path.
+No further repository-side R7 source change is justified by current evidence.
+
+The workflow still has the separate
+`r9-clean-windows-portable-gui` job queued at this observation point; that
+job is not a dependency for the Linux/macOS credential-editor P0 and does not
+block its hosted qualification.
+
+**Remaining P0 gate:** physical owner Linux/X11 acceptance. On freshly pulled
+current `main`, launch `rdp-server-desktop` with no arguments using an
+owner-acceptance build and verify Username / Session Password / Confirm accept
+real keyboard input. With matching non-empty password, explicitly turn Sharing
+ON and record the first genuine owner-consent/platform/listener outcome. Hosted
+Xvfb/offscreen evidence cannot close this real-desktop gate.
+
 ## R7 owner-acceptance test-gate alignment after credential editor repair (2026-10-24)
 
 Starting exact-main parent: `5058fefe03b3fe611d5c39a52cb724375933a519`.

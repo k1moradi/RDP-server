@@ -1,3 +1,31 @@
+## R9 owner-acceptance ZIP exact-SHA PASS / physical handoff (2026-10-23)
+
+**OWNER PRODUCT-TEST CANDIDATE:** `c0cbcc7b86171be6b53b0cd3361029886c06d9ca`.
+
+Actions run `40072075785`, job `120807509610`
+(`r9-portable-gui-bootstrap-acceptance`): **PASS**. The effective Debug Linux
+production graph configured successfully; the exact portable-bootstrap inventory
+passed **7/7**; canonical direct `rdp-server-desktop` no-argument launch remained
+pre-listener and secret-free; the acceptance-only ZIP was created with the normal
+Linux GUI bundler, verified, extracted and its `run-gui.sh` no-argument launch
+smoke passed; artifact upload also **PASS**.
+
+Uploaded Actions artifact: `rdp-server-owner-acceptance-linux`, artifact ID
+`12551249587`, size 36,558,808 bytes, Actions artifact digest
+`sha256:e3fae64649bffff815d79e0bcb5ca138445d57d32f9e876bb84e53c49e3e8c3c`.
+The artifact's manifest records the exact source SHA. This is acceptance-only:
+`kStandalonePasswordProductCapabilityApproved = false` remains unchanged and
+R8's clipboard activation gate remains false.
+
+There is now **no repository-side dependency blocker** in the R9 portable GUI
+bootstrap chain. The remaining product gate is external/physical evidence:
+run this exact artifact on the eligible owner Linux X11 desktop, set Session
+Password, explicitly enable Sharing, connect with an unmodified Windows App or
+Windows 11 `mstsc.exe`, prove visible desktop + mouse + keyboard + Stop, and
+record the exact-SHA receipt. Hosted CI cannot manufacture that owner/native
+Microsoft-client evidence. Do not promote the public Release standalone flag or
+R8 clipboard gate before their required physical receipts.
+
 ## R9 owner-acceptance ZIP version-extraction correction — 2026-10-23
 
 Exact source `6a0dd29a6197fb2588b721771f875181f29ab72d`, Actions run `40071783325`, job

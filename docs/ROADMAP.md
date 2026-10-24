@@ -1,3 +1,31 @@
+## R3 gate corrected to TLS Established + CredentialsVerified — 2026-10-24
+
+**Starting exact-main parent:** `fb27691eb0b77425fedde6e7a64d8f4b60165010`.
+
+Owner evidence now proves the unmodified Microsoft client crossed TCP/X.224,
+HYBRID selection, established TLS application transport, and an owned CredSSP
+TSRequest before the standalone implementation rejected SPNEGO. The generic
+client “handshake” message must not be reclassified as TLS failure.
+
+R3 remains blocked because its entry gate is **TLS Established AND CredSSP
+CredentialsVerified**. Current evidence reaches standalone SPNEGO but not
+`CredentialsVerified`, so there is no demonstrated MCS Connect-Initial and no
+basis for MCS/Share/licensing/RDPGFX wire changes.
+
+The product must continue authenticating the independent GUI-configured Session
+Password. ExistingOsAccount/OS-GSS fallback remains forbidden and the runtime
+diagnostic stays `os-gss-fallback=disabled`.
+
+The separate Start -> Stop -> Start P0 is now source-complete on shared main:
+ordinary Sharing OFF retains the sole memory-only credential while fresh
+consent, listener, accepted connection/R3, native state and TLS identity are
+required for the next Start; terminal Revoke/Quit/session loss still cleanse
+the credential. R7 and R9 now carry multi-cycle regressions for that behavior.
+
+R3 next action is evidence-triggered only: if a future real-client trace reaches
+`CredentialsVerified`, immediately own the first failing Connect-Initial or
+Connect-Response transition. Until then, SPNEGO is the active blocker.
+
 ## R7 P0 GUI Session Password round-trip after R9 retention landing (2026-10-24)
 
 Starting exact-main parent: `ec2ec0482830a8fb0ca20f1b20d8e026c9a4a7d3`.
@@ -35,8 +63,8 @@ Canonical local configure/build/full CTest: **NOT RUN** in this connector
 environment.
 Exact-publication-SHA hosted CI: **PENDING**.
 Physical owner Linux/X11 GUI round-trip: **PENDING**.
-Microsoft-client TLS establishment remains the first R1 acceptance boundary and
-is **NOT CLAIMED**.
+Microsoft-client standalone SPNEGO interoperability is the first demonstrated
+security blocker and is **NOT CLAIMED** by this R7 lifecycle receipt.
 
 ## R9 P0 — TLS-record TSRequest v5/v6 challenge addition (2026-10-24)
 

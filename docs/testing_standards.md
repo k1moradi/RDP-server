@@ -1,3 +1,18 @@
+## R3 ownership gate after standalone SPNEGO evidence (2026-10-24)
+
+Treat `stage=spnego; os-gss-fallback=disabled` as post-TLS/post-TSRequest but
+pre-`CredentialsVerified`. R3/MCS ownership requires both **TLS Established**
+and **CredSSP CredentialsVerified**. A TSRequest receipt, SPNEGO entry, or
+synthetic Type 2 challenge does not authorize MCS investigation.
+
+While the real client fails in standalone SPNEGO, keep MCS/Share/licensing/
+RDPGFX wire behavior unchanged. The standalone Session Password path must not
+invoke the ExistingOsAccount OS-GSS handshake owner as fallback.
+
+Start -> Stop -> Start coverage must continue to require memory-only credential
+reuse with fresh consent/session/listener state and terminal credential erasure
+only on full revoke, Quit, native-session loss or destruction.
+
 ## R7 Qt Session Password Stop/restart round-trip (2026-10-24)
 
 The owner-acceptance Qt regression must enter Username, Password and Confirm once,
@@ -46,10 +61,13 @@ Drive TCP/X.224 HYBRID and the real OpenSSL TLS handshake against the listener;
 validate the certificate's numeric IP SAN and TLS-established state. Do not
 treat the local TLS peer as Microsoft-client admission evidence.
 
-Real owner qualification additionally pairs server R1 diagnostics and Microsoft
-client logs on the same SHA. A logged `TLS established` transition is required
-before any CredSSP investigation; standalone-password interoperability remains
-unqualified. Preserve secrets and plaintext out of logs.
+Real owner qualification pairs bounded server TLS/CredSSP/SPNEGO diagnostics
+with Microsoft-client logs on the same SHA. A standalone `stage=spnego`
+diagnostic already proves established TLS application transport and an owned
+TSRequest; do not wait for or require a separate TLS-primary failure receipt
+before investigating CredSSP. Standalone-password interoperability remains
+unqualified until the real client crosses `CredentialsVerified`. Preserve
+secrets and plaintext out of logs.
 
 ## R8 repeated Stop/restart stale-lifetime gate (2026-10-24)
 

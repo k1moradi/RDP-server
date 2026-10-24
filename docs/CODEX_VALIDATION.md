@@ -1,3 +1,25 @@
+## R3 owner evidence correction — 2026-10-24
+
+**Starting exact-main parent:** `fb27691eb0b77425fedde6e7a64d8f4b60165010`.
+
+The demonstrated real-client boundary is standalone SPNEGO, not TLS. Production
+diagnostics now report bounded TLS/CredSSP/SPNEGO state with
+`os-gss-fallback=disabled`; source inspection keeps the standalone owner
+separate from the OS-GSS handshake path.
+
+The R3 source guard now pins the owner-bound TSRequest handoff, requires
+`CredentialsVerified` before HostControl can enter MCS, and fails if the
+standalone function calls the OS-GSS handshake owner. No MCS/Share/licensing/
+RDPGFX wire source changed.
+
+Start/Stop/Start P0 source and GUI lifecycle corrections are present on the
+parent, including retained memory-only credential state on ordinary Stop and
+terminal erase on revoke/session loss/destruction. Hosted and physical
+qualification remain separate evidence.
+
+Connector/source review: **PASS**. Exact-SHA hosted CI and real-client rerun:
+**PENDING / NOT RUN here**.
+
 ## R7 P0 GUI Session Password round-trip implementation receipt (2026-10-24)
 
 Starting exact-main parent: `ec2ec0482830a8fb0ca20f1b20d8e026c9a4a7d3`.
@@ -21,7 +43,7 @@ Connector source/diff validation: **PASS**.
 Local canonical build/CTest: **NOT RUN**.
 Hosted exact-publication-SHA CI: **PENDING**.
 Physical owner GUI round-trip: **PENDING**.
-R1 Microsoft-client TLS establishment: **UNCHANGED / NOT CLAIMED**.
+Microsoft-client standalone SPNEGO interoperability: **ACTIVE BLOCKER / NOT CLAIMED**.
 
 ## R8 repeated Stop/restart stale clipboard lifetime authoring receipt — 2026-10-24
 

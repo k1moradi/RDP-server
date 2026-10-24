@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# R3 source contract: classify the first post-TLS boundary without changing
-# wire behavior, and prove Stop destroys the accepted R3/MCS owner before R1.
+# R3 source contract: require TLS Established AND CredSSP CredentialsVerified
+# before R3/MCS ownership, classify standalone SPNEGO rejection as pre-R3,
+# and prove Stop destroys the accepted R3/MCS owner before R1.
 if(NOT DEFINED RDP_LINUX_HOST_CONTROL_SOURCE OR
    "${RDP_LINUX_HOST_CONTROL_SOURCE}" STREQUAL "" OR
    NOT DEFINED RDP_LINUX_CONNECTION_HEADER OR
@@ -69,6 +70,48 @@ require_order(preauth_source
     "case Step::CredentialsVerified:"
     "acceptedClient_->issueAdmission(*request)"
     "acceptedClientPhase_ = AcceptedClientPhase::McsConnectInitial")
+
+# Owner evidence now reaches standalone SPNEGO. That proves established TLS
+# application traffic plus an owned TSRequest, but remains pre-CredentialsVerified
+# and therefore pre-R3.
+string(FIND "${connection_source}"
+    "LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept"
+    standalone_begin)
+string(FIND "${connection_source}"
+    "LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept"
+    standalone_end)
+if(standalone_begin EQUAL -1 OR standalone_end EQUAL -1 OR
+   NOT standalone_begin LESS standalone_end)
+    message(FATAL_ERROR "Cannot isolate standalone CredSSP owner")
+endif()
+math(EXPR standalone_length "${standalone_end} - ${standalone_begin}")
+string(SUBSTRING "${connection_source}" ${standalone_begin}
+    ${standalone_length} standalone_source)
+require_order(standalone_source
+    "Owned TLS TSRequest must reach standalone processing before any R3 handoff"
+    "credSspFrameReader_.readOneTlsStep(connection_)"
+    "case ReadStatus::Complete:"
+    "processCompleteOwnedFrame(")
+require_order(standalone_source
+    "CredentialsVerified is the only standalone promotion boundary"
+    "case FrameStatus::CredentialsVerified:"
+    "standalonePrincipalProof_.bind("
+    "LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified")
+require_token(connection_source
+    "case Stage::Spnego: return \"spnego\""
+    "Standalone SPNEGO diagnostic classification")
+require_token(connection_source
+    "credssp=spnego-initial"
+    "Standalone CredSSP diagnostic boundary")
+require_token(connection_source
+    "os-gss-fallback=disabled"
+    "Standalone product must keep OS GSS fallback disabled")
+string(FIND "${standalone_source}"
+    "acceptor_.advanceOwnedCredSspHandshake" os_gss_fallback)
+if(NOT os_gss_fallback EQUAL -1)
+    message(FATAL_ERROR
+        "Standalone password path must not fall back to OS GSS authentication")
+endif()
 
 # The first R3 transition after CredentialsVerified is Connect-Initial;
 # Connect-Response is owned only after that exact intake is admitted.

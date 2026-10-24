@@ -1,3 +1,26 @@
+## StandalonePassword must not inherit OS-account authority (2026-10-23)
+
+Keep StandalonePassword and ExistingOsAccount as separate R2 authority paths.
+Standalone code must not manufacture a Kerberos principal, Unix account, UID,
+PAM result, `ConsoleIdentityPolicy` or configured GSS service merely to
+reuse the ExistingOsAccount broker. The remote application username is
+credential correlation only and must never select a Linux user/session.
+
+A positive standalone native lease must require all of: exact R1 HYBRID/TLS
+owner, exact standalone credential generation, completed standalone CredSSP,
+fresh exact local sharing-consent epoch and fresh physical-session evidence.
+Native evidence is a freshness/identity input, never a shortcut around the
+authentication or consent checks. Recheck authority on both sides of native
+sampling and before every downstream protected transition.
+
+Session Password APIs take a mutable plaintext span. The R2 credential owner
+must consume and cleanse that buffer synchronously before returning and retain
+only password-derived credential material. Replacing the password is terminal
+for the old generation and consent; if Sharing is active, retire the accepted
+connection and listener before installing the replacement. Keep view/input/
+clipboard permissions independent and derive protocol/native feature exposure
+only from freshly authorized permission bits.
+
 ## OpenSSL generated-certificate mutable-object portability (2026-10-23)
 
 Do not assume an accessor returning an X509-owned subobject remains mutable

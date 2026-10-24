@@ -1,3 +1,45 @@
+## R2 P0 standalone-password native admission authoring receipt — 2026-10-23
+
+**Starting exact-main parent:** `b3260d50d6c58e837fa726bf15f4e01b80da6882`.
+
+Dependency reconciliation consumed the newly landed automatic bootstrap
+owners rather than overwriting them: normal Linux HostControl already owns an
+in-memory endpoint-bound R1 TLS identity and a separately generated in-memory
+R3 licensing identity. This R2/R10 increment changes only authentication/native
+admission and the typed Session Password command. No certificate/key file,
+`server.conf`, listener file, keytab, service principal, PAM service or
+OS-account policy becomes a normal-startup prerequisite.
+
+Production R2 now has an explicit standalone-current-owner admission route.
+The remote username is never resolved through NSS and no fake principal/UID is
+created. The route requires exact standalone CredSSP/TLS/credential-generation
+proof, exact current owner-consent epoch, a concrete logind change monitor and
+fresh active physical `seat0` evidence before the existing lease can be
+issued. Revalidation repeats the consent/session/proof fences. ExistingOsAccount
+continues to use the unchanged GSS/Kerberos/PAM/NSS policy path.
+
+R10 no longer asks `LinuxRuntimeSecurityConfiguration` or the expert
+admission-request provider for StandalonePassword. The default no-config
+controller can reach `CredentialsConfigured` after the mutable Session
+Password is consumed and scrubbed, but still cannot listen until an explicit
+Sharing action succeeds against local owner consent. Password replacement
+during Sharing retires old consent/client/listener before a new generation is
+installed. Input capability selection now comes from fresh R2 input permission
+rather than an OS-account request.
+
+Dedicated/updated coverage includes
+`runtime.linux-host-control-standalone-no-config-start-gate`,
+the no-keytab standalone runtime selector/provenance tests, the standalone
+credential-policy decision, the abstract HostControl plaintext-scrub check and
+the R2/R10 source guard. These tests do not synthesize physical desktop
+authority.
+
+Canonical owner `~/rdp-server/build/` configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact branch/publication-SHA hosted
+CI: **PENDING** until the branch is published and Actions reports. Physical
+Linux owner acceptance and a real Microsoft RDP client: **NOT RUN**. No
+end-to-end readiness is inferred from prior GUI Round 2 presentation evidence.
+
 ## R1 OpenSSL 4 generated-subject portability receipt — 2026-10-23
 
 Starting exact-main parent: `0a602aab1b0ae1668122d5c4327361ba2df4d62a`.

@@ -10,6 +10,8 @@
 #undef RDP_SERVER_TEST_DEFINED_RPC_INTERFACE_MACRO
 #endif
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <string_view>
@@ -41,6 +43,13 @@ int main(int argumentCount, char** argumentValues)
         const RuntimeHostOptions untrusted{
             "gui-interface", "0.0.0.0", 3389U, true, true};
         assert(!host.configure(untrusted).succeeded());
+        std::array<char16_t, 8> password{
+            u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+        assert(!host.configureStandaloneApplicationPassword(
+            u"User", password));
+        assert(std::ranges::all_of(
+            password,
+            [](char16_t value) { return value == u'\0'; }));
         assert(!host.requestHostPermissionSetup().succeeded());
         assert(!host.startSharing().succeeded());
         assert(!host.stopSharing().succeeded());
@@ -469,7 +478,7 @@ int main(int argumentCount, char** argumentValues)
         assert(host.requestCredentialSetup(LanCredentialChoice::ExistingOsAccount).error ==
                RuntimeHostError::ControlUnavailable);
         assert(host.requestCredentialSetup(LanCredentialChoice::IndependentApplicationPassword).error ==
-               RuntimeHostError::UnsupportedIndependentPasswordNla);
+               RuntimeHostError::CredentialNotConfigured);
         assert(host.requestCredentialSetup(LanCredentialChoice::Unconfigured).error ==
                RuntimeHostError::CredentialNotConfigured);
         assert(host.requestCredentialSetup(static_cast<LanCredentialChoice>(255U)).error ==

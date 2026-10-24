@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -571,7 +572,9 @@ struct RuntimeCredentialCapabilities final
     bool standalonePassword{};
 };
 
-inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;
+// Credential capability only: this does not imply a listener, native desktop
+// authority, Share activation, or end-to-end Microsoft-client acceptance.
+inline constexpr bool kStandalonePasswordProductCapabilityApproved = true;
 
 struct RuntimeProductHostStatus final
 {
@@ -674,6 +677,21 @@ public:
     [[nodiscard]] virtual RuntimeHostStatus status() const = 0;
     [[nodiscard]] virtual RuntimeHostResult configure(
         const RuntimeHostOptions& options) = 0;
+
+    // Product Session Password command. The mutable plaintext buffer is
+    // consumed synchronously and must be scrubbed before this call returns.
+    // A configured credential is authentication material only: it never opens
+    // a listener, grants owner consent or authorizes a native desktop.
+    [[nodiscard]] virtual bool configureStandaloneApplicationPassword(
+        std::u16string_view,
+        std::span<char16_t> password) noexcept
+    {
+        // Deny-only/default implementations still consume the caller buffer so
+        // presentation/test adapters cannot accidentally retain plaintext.
+        std::fill(password.begin(), password.end(), u'\0');
+        return false;
+    }
+
     [[nodiscard]] virtual RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) = 0;
     [[nodiscard]] virtual RuntimeHostResult requestHostPermissionSetup(
@@ -710,7 +728,8 @@ public:
             rdp_server::server::security::assessLanCredentialChoice(choice);
         if (decision == LanCredentialDecision::UnsupportedIndependentPasswordCredSsp)
             return {RuntimeHostError::UnsupportedIndependentPasswordNla, false};
-        if (decision == LanCredentialDecision::CredentialNotConfigured)
+        if (decision == LanCredentialDecision::CredentialNotConfigured ||
+            decision == LanCredentialDecision::RequiresStandalonePasswordAndHostConsent)
             return {RuntimeHostError::CredentialNotConfigured, false};
         return {};
     }

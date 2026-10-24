@@ -1,3 +1,44 @@
+## R2 P0 portable StandalonePassword admission — 2026-10-23
+
+Starting exact-main parent: `b3260d50d6c58e837fa726bf15f4e01b80da6882`.
+
+The standalone NTLMv2/SPNEGO/CredSSP implementation is no longer coupled to a
+GSS-configured `LinuxRuntimeSecurityConfiguration`. R2 adds a dedicated
+current-owner admission route that accepts no remote/local account mapping and
+joins five independently required facts: exact R1 HYBRID/TLS ownership, exact
+standalone credential generation, successful standalone CredSSP verification,
+an exact locally minted sharing-consent epoch, and fresh physical logind
+session evidence. ExistingOsAccount remains unchanged as the stronger
+GSS/Kerberos/PAM/NSS policy route.
+
+R10 consumes that split directly. Normal `LinuxRuntimeHostControl`
+construction already owns automatic R1 TLS and R3 licensing identities; a
+Session Password can now advance the no-config product state to
+`CredentialsConfigured` without a keytab, service principal, PAM service
+or policy file. Owner consent remains a separate local action. `startSharing()`
+continues to open the listener only after explicit Sharing and fresh view
+authorization. Password replacement while Sharing is active first retires the
+old consent, accepted connection and listener; Stop also retires the standalone
+credential generation. Demand Active advertises slow-path input only when the
+current owner grant independently authorizes input.
+
+New/updated ordinary coverage removes the synthetic keytab from the standalone
+runtime selector, requires the standalone connection constructor and R2 broker
+route to have no OS-security configuration, verifies plaintext password
+scrubbing, and exercises the normal typed HostControl progression:
+Session Password -> `CredentialsConfigured` -> owner-consent gate ->
+Start eligibility, with no pre-Start listener. A view-only consent case proves
+input permission remains separate. Ordinary CI does not fabricate a positive
+physical desktop admission.
+
+**Authoring status:** source/test/docs authored on this branch; canonical
+owner-local `~/rdp-server/build/` configure/build/full CTest **NOT RUN**
+in this connector environment; exact publication-SHA hosted CI **PENDING**.
+Real physical-owner admission and Microsoft-client acceptance remain
+**NOT RUN**. R7 still owns the visible Session Password widget/action; it must
+call the R10 typed password command rather than create another credential
+store. The previous GUI Round 2 PASS remains presentation qualification only.
+
 ## R3 OpenSSL 4 licensing-issuer accessor correction — 2026-10-23
 
 Starting exact-main parent: `22457da64499fd1b2f333e0dd7624649f0de42a1`.

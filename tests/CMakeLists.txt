@@ -312,6 +312,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
             linux-host-control-standalone-password-lifecycle
+            linux-host-control-standalone-no-config-start-gate
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")
@@ -356,7 +357,7 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_LINUX_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
-            "-DRDP_GUI_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+            "-DRDP_CONSOLE_ADMISSION_HEADER=${PROJECT_SOURCE_DIR}/src/server/security/linux_console_admission.h"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_standalone_authentication_selector.cmake")
     set_tests_properties(
         runtime.linux-host-control-standalone-authentication-selector PROPERTIES

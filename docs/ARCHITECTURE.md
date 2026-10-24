@@ -1,3 +1,44 @@
+## R2 P0 standalone-password native admission boundary (2026-10-23)
+
+`StandalonePassword` is a first-party authentication mode, not an alias for
+the ExistingOsAccount/GSS path. Its positive Linux authority is the conjunction
+of the exact accepted R1 HYBRID/TLS connection, the exact
+`StandalonePasswordCredentialOwner` generation, successful
+NTLMv2/SPNEGO/CredSSP verification, the current locally approved
+`CurrentOwnerSharingAuthority` epoch and fresh physical-session evidence.
+No individual scalar, GUI state, username, UID or logind observation is
+authority by itself.
+
+R2's Linux admission broker therefore has two intentionally distinct positive
+routes. ExistingOsAccount still requires the service-owned
+`LinuxRuntimeSecurityConfiguration`, exact OS-account policy,
+GSS/Kerberos provenance, PAM verification and NSS/logind correlation. The new
+StandalonePassword route has no `ConsoleIdentityPolicy` and accepts no
+caller account, UID, seat or display selector. After standalone CredSSP has
+verified the exact configured credential generation, R2 samples the current
+physical `seat0` X11 owner, verifies that the server process runs as that
+same non-root UID, pins session/display/generation facts, and rechecks the exact
+local-consent epoch before issuing the existing move-only Linux admission
+lease. The locally observed UID is only a native-owner fingerprint; it is never
+derived from, compared to or exported as the remote application username.
+
+Revalidation preserves the same conjunction on every protected transition:
+exact TLS/authentication generation, unchanged consent epoch and permission
+scope, unchanged physical session/display/owner UID, an unchanged native
+session-change watch and the existing R3 generation fences. Lock, logout, user
+switch, session replacement, consent replacement/expiry, Stop and password
+replacement all retire the route. View, input and clipboard remain distinct
+permission bits; a view-only grant cannot advertise or post native input.
+
+R10's normal no-argument Linux controller may now mark a configured Session
+Password as `CredentialsConfigured` without a keytab, service principal,
+PAM service or OS-account policy. R1 endpoint TLS and R3 licensing identities
+are separately auto-provisioned in memory. This preparation still opens no
+listener: only the explicit Sharing action may request owner consent and bind
+the selected LAN endpoint. The R10 typed HostControl surface now carries the
+mutable Session Password command so R7 can consume this route without a
+parallel credential owner.
+
 ## R8 boundary after automatic TLS/bootstrap policy landing (2026-10-23)
 
 R1 endpoint-bound TLS preparation and R6 portable bootstrap policy are now

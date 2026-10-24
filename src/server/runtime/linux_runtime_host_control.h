@@ -86,13 +86,12 @@ public:
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) override;
 
-    // Internal R2P service-lifetime preparation seam. It consumes/scrubs the
-    // mutable password and retains only the bounded username/NT hash. A valid
-    // configuration selects the standalone mode for this R10 owner, but the
-    // public GUI still exposes no IndependentApplicationPassword action.
+    // R10 product Session Password seam. It consumes/scrubs the mutable
+    // plaintext synchronously and retains only the bounded username/NT hash
+    // inside the generation-fenced R2 credential owner.
     [[nodiscard]] bool configureStandaloneApplicationPassword(
         std::u16string_view username,
-        std::span<char16_t> password) noexcept;
+        std::span<char16_t> password) noexcept override;
     [[nodiscard]]
     rdp_server::server::security::StandalonePasswordCredentialObservation
     standaloneApplicationPasswordObservation() const noexcept;

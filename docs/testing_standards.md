@@ -1,3 +1,31 @@
+## StandalonePassword no-config and native-admission regressions (2026-10-23)
+
+The standalone authentication selector must construct its production
+`LinuxRuntimeConnection` without a `LinuxRuntimeSecurityConfiguration`,
+keytab, service principal or fake local account request. It must still fail
+closed before completed CredSSP/current-owner admission and must prove stale
+credential generations and invalid challenges cannot revive the connection.
+Do not introduce a test-only positive Linux admission lease to make this path
+green.
+
+Keep `runtime.linux-host-control-standalone-no-config-start-gate` in the
+ordinary Linux HostControl set. It must call the typed
+`RuntimeHostControl` Session Password API, verify the caller plaintext is
+zeroed, require `CredentialsConfigured`, and prove no listener exists
+before explicit Sharing. It then exercises the real local owner-consent gate.
+On hosts without an eligible physical owner, `HostConsentRequired` with
+zero listener is the correct result; on an authorized physical owner host, a
+view-only grant may Start but must still report input disabled. Replacing the
+password while Sharing is active must close the listener, revoke owner consent
+and advance the credential generation.
+
+The source-policy guard must require the dedicated R2
+`issueStandaloneCurrentOwner()` seam and the R10
+`issueStandaloneAdmission()` call. It must not require or forbid a GUI
+password widget: R7 presentation is a separate road, while R2/R10 remain the
+only credential/admission owners. ExistingOsAccount tests and sanitizer
+selectors stay unchanged.
+
 ## Generated TLS subject/SAN portability regression (2026-10-23)
 
 Keep

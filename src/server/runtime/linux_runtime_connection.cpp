@@ -141,8 +141,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     const rdp_server::server::security::CurrentOwnerSharingAuthority
         *ownerSharingAuthority) noexcept
     : LinuxRuntimeConnection(
-          securityConfiguration, std::move(acceptedSocket), attemptLimiter,
-          ownerSharingAuthority, LinuxRuntimeAuthenticationSelection{})
+          &securityConfiguration, std::move(acceptedSocket), attemptLimiter,
+          ownerSharingAuthority, LinuxRuntimeAuthenticationSelection{},
+          InternalConstructionTag{})
 {
 }
 
@@ -153,14 +154,40 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     const rdp_server::server::security::CurrentOwnerSharingAuthority
         *ownerSharingAuthority,
     const LinuxRuntimeAuthenticationSelection &authenticationSelection) noexcept
-    : securityConfiguration_(securityConfiguration),
-      connection_(
+    : LinuxRuntimeConnection(
+          &securityConfiguration, std::move(acceptedSocket), attemptLimiter,
+          ownerSharingAuthority, authenticationSelection,
+          InternalConstructionTag{})
+{
+}
+
+LinuxRuntimeConnection::LinuxRuntimeConnection(
+    rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter,
+    const rdp_server::server::security::CurrentOwnerSharingAuthority
+        *ownerSharingAuthority,
+    const LinuxRuntimeAuthenticationSelection &authenticationSelection) noexcept
+    : LinuxRuntimeConnection(
+          nullptr, std::move(acceptedSocket), attemptLimiter,
+          ownerSharingAuthority, authenticationSelection,
+          InternalConstructionTag{})
+{
+}
+
+LinuxRuntimeConnection::LinuxRuntimeConnection(
+    LinuxRuntimeSecurityConfiguration *securityConfiguration,
+    rdp_server::server::transport::OwnedNativeTcpSocket acceptedSocket,
+    rdp_server::server::security::AuthenticationAttemptLimiter *attemptLimiter,
+    const rdp_server::server::security::CurrentOwnerSharingAuthority
+        *ownerSharingAuthority,
+    const LinuxRuntimeAuthenticationSelection &authenticationSelection,
+    InternalConstructionTag) noexcept
+    : connection_(
           std::move(acceptedSocket),
           rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla),
       authenticationMode_(authenticationSelection.mode)
 {
-    const auto *const policy = securityConfiguration_.policy();
-    if (!connection_.active() || policy == nullptr)
+    if (!connection_.active())
     {
         session_.close();
         connection_.cancel();
@@ -171,8 +198,20 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
     switch (authenticationMode_)
     {
     case Mode::ExistingOsAccount:
+    {
+        const auto *const policy =
+            securityConfiguration != nullptr
+                ? securityConfiguration->policy()
+                : nullptr;
+        if (securityConfiguration == nullptr || policy == nullptr)
+        {
+            session_.close();
+            connection_.cancel();
+            return;
+        }
+
         principalProof_ = &acceptor_;
-        if (!securityConfiguration_.configureAcceptor(acceptor_))
+        if (!securityConfiguration->configureAcceptor(acceptor_))
         {
             session_.close();
             acceptor_.reject();
@@ -181,9 +220,6 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
             return;
         }
 
-        // The real serialized listener always supplies the service-wide peer
-        // and account budget. Offline fixtures may omit it, but no service
-        // invocation can bypass it.
         if (attemptLimiter != nullptr &&
             !acceptor_.bindVerifiedAccountAttemptLimiter(*attemptLimiter))
         {
@@ -193,7 +229,9 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
             principalProof_ = nullptr;
             return;
         }
+        broker_.emplace(*policy, ownerSharingAuthority);
         break;
+    }
 
     case Mode::StandalonePassword:
     {
@@ -220,14 +258,12 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
         standaloneCredentialOwner_ = credentialOwner;
         standaloneCredentialGeneration_ = credentialGeneration;
         principalProof_ = &standalonePrincipalProof_;
+        broker_.emplace(ownerSharingAuthority);
         break;
     }
     }
 
-    // The host-level R2 authority is borrowed for the complete connection
-    // lifetime. nullptr deliberately preserves the legacy deny-only caller.
-    broker_.emplace(*policy, ownerSharingAuthority);
-    provisioned_ = true;
+    provisioned_ = broker_.has_value();
 }
 
 LinuxRuntimeConnection::~LinuxRuntimeConnection()
@@ -1049,29 +1085,16 @@ bool LinuxRuntimeConnection::issueAdmission(
 {
     auto *const proof = authenticatedPrincipalProof();
     const bool mechanismReady =
-        authenticationMode_ == LinuxRuntimeAuthenticationMode::ExistingOsAccount
-            ? acceptor_.stage() ==
-                  rdp_server::server::security::SpnegoStage::ServerBindingPrepared
-            : standaloneCredSspAcceptor_.stage() ==
-                  rdp_server::server::security::StandaloneCredSspStage::
-                      CredentialsVerified;
-    const auto expectedAuthenticationKind =
-        authenticationMode_ == LinuxRuntimeAuthenticationMode::ExistingOsAccount
-            ? rdp_server::server::security::
-                  ConsoleEvidenceAuthenticationKind::KerberosPrincipal
-            : rdp_server::server::security::
-                  ConsoleEvidenceAuthenticationKind::StandalonePassword;
+        authenticationMode_ ==
+            LinuxRuntimeAuthenticationMode::ExistingOsAccount &&
+        acceptor_.stage() ==
+            rdp_server::server::security::SpnegoStage::ServerBindingPrepared;
     if (!ready() || credSspReplyPending() || !broker_ || lease_ ||
         proof == nullptr || !mechanismReady ||
-        request.authenticationKind != expectedAuthenticationKind)
+        request.authenticationKind !=
+            rdp_server::server::security::
+                ConsoleEvidenceAuthenticationKind::KerberosPrincipal)
     {
-        if (authenticationMode_ ==
-            LinuxRuntimeAuthenticationMode::StandalonePassword)
-        {
-            recordStandaloneAuthenticationFailure(
-                rdp_server::server::security::
-                    StandaloneAuthenticationFailureStage::Admission);
-        }
         revoke();
         return false;
     }
@@ -1079,13 +1102,39 @@ bool LinuxRuntimeConnection::issueAdmission(
     auto issued = broker_->issue(*proof, connection_, request);
     if (!issued)
     {
-        if (authenticationMode_ ==
-            LinuxRuntimeAuthenticationMode::StandalonePassword)
-        {
-            recordStandaloneAuthenticationFailure(
-                rdp_server::server::security::
-                    StandaloneAuthenticationFailureStage::Admission);
-        }
+        revoke();
+        return false;
+    }
+    lease_.emplace(std::move(*issued));
+    return true;
+}
+
+bool LinuxRuntimeConnection::issueStandaloneAdmission() noexcept
+{
+    auto *const proof = authenticatedPrincipalProof();
+    const bool mechanismReady =
+        authenticationMode_ ==
+            LinuxRuntimeAuthenticationMode::StandalonePassword &&
+        standaloneCredSspAcceptor_.stage() ==
+            rdp_server::server::security::StandaloneCredSspStage::
+                CredentialsVerified;
+    if (!ready() || credSspReplyPending() || !broker_ || lease_ ||
+        proof == nullptr || !mechanismReady)
+    {
+        recordStandaloneAuthenticationFailure(
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::Admission);
+        revoke();
+        return false;
+    }
+
+    auto issued =
+        broker_->issueStandaloneCurrentOwner(*proof, connection_);
+    if (!issued)
+    {
+        recordStandaloneAuthenticationFailure(
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::Admission);
         revoke();
         return false;
     }

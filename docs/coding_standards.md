@@ -1,3 +1,14 @@
+## R9 precise SPNEGO parser categories (2026-10-24)
+
+At the parser's initial-token boundary, distinguish outer GSS/SPNEGO DER,
+mechanism list, negotiation field, initial mechListMIC, and embedded NTLM
+Type 1/challenge failures. Preserve only a small enum across terminal
+mechanism cleanup, not a token or ASN.1 buffer. Map it to stable fail-only
+runtime strings; do not change authentication acceptance or retry another
+mechanism because of diagnostic classification. Tests must cover valid
+NTLM-first and Microsoft-style Kerberos-first NegTokenInit2 forms and
+negative malformed-envelope/mechanism inputs.
+
 ## R7 cleared Session Password fields are presentation, not credential state (2026-10-24)
 
 After a successful production credential transfer, R7 clears Password and

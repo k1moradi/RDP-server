@@ -267,9 +267,11 @@ struct ParsedInitialToken final
 
 [[nodiscard]] bool parseInitialToken(
     ByteSpan token,
-    ParsedInitialToken &result) noexcept
+    ParsedInitialToken &result,
+    StandaloneSpnegoRejectionReason &rejectionReason) noexcept
 {
     result = {};
+    rejectionReason = StandaloneSpnegoRejectionReason::InitialEnvelope;
     if (token.empty() ||
         token.size() > kMaximumStandaloneSpnegoTokenBytes)
     {
@@ -302,6 +304,7 @@ struct ParsedInitialToken final
     bool sawMechanisms = false;
     while (offset < sequence.size())
     {
+        rejectionReason = StandaloneSpnegoRejectionReason::InitialNegotiationField;
         DerElement field;
         if (!readDerElement(sequence, offset, field) ||
             field.tag < 0xa0U || field.tag > 0xa4U ||
@@ -318,6 +321,7 @@ struct ParsedInitialToken final
             if (sawMechanisms ||
                 !parseMechanismList(field.content, result))
             {
+                rejectionReason = StandaloneSpnegoRejectionReason::MechanismList;
                 return false;
             }
             sawMechanisms = true;
@@ -361,8 +365,14 @@ struct ParsedInitialToken final
             return false;
         }
     }
-    return sawMechanisms && result.ntlmOffered &&
-           !result.mechanismListEncoded.empty();
+    if (!sawMechanisms || !result.ntlmOffered ||
+        result.mechanismListEncoded.empty())
+    {
+        rejectionReason = StandaloneSpnegoRejectionReason::MechanismList;
+        return false;
+    }
+    rejectionReason = StandaloneSpnegoRejectionReason::None;
+    return true;
 }
 
 struct ParsedResponseToken final
@@ -591,11 +601,33 @@ void StandaloneSpnegoNtlmAcceptor::reset() noexcept
     timestampFileTime_ = 0;
     stage_ = StandaloneSpnegoStage::Unconfigured;
     failureStage_ = StandaloneSpnegoFailureStage::None;
+    rejectionReason_ = StandaloneSpnegoRejectionReason::None;
 }
 
 StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::fail(
     StandaloneSpnegoStatus status) noexcept
 {
+    if (rejectionReason_ == StandaloneSpnegoRejectionReason::None)
+    {
+        switch (status)
+        {
+        case StandaloneSpnegoStatus::InvalidState:
+            rejectionReason_ = StandaloneSpnegoRejectionReason::InvalidState;
+            break;
+        case StandaloneSpnegoStatus::OutputTooSmall:
+            rejectionReason_ = StandaloneSpnegoRejectionReason::OutputExhausted;
+            break;
+        case StandaloneSpnegoStatus::CredentialRejected:
+            rejectionReason_ = StandaloneSpnegoRejectionReason::CredentialRejected;
+            break;
+        case StandaloneSpnegoStatus::InvalidToken:
+        case StandaloneSpnegoStatus::UnsupportedMechanismIntegrity:
+        case StandaloneSpnegoStatus::Continue:
+        case StandaloneSpnegoStatus::MechanismVerified:
+            rejectionReason_ = StandaloneSpnegoRejectionReason::ContinuationEnvelope;
+            break;
+        }
+    }
     if (failureStage_ == StandaloneSpnegoFailureStage::None)
     {
         switch (status)
@@ -676,6 +708,7 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     std::span<std::uint8_t> output) noexcept
 {
     failureStage_ = StandaloneSpnegoFailureStage::NtlmNegotiation;
+    rejectionReason_ = StandaloneSpnegoRejectionReason::NtlmNegotiate;
     if (negotiateMessage.empty() ||
         negotiateMessage.size() > negotiateMessage_.size())
     {
@@ -707,6 +740,7 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     negotiateMessageLength_ = negotiateMessage.size();
     challengeMessageLength_ = challenge.bytesWritten;
     failureStage_ = StandaloneSpnegoFailureStage::None;
+    rejectionReason_ = StandaloneSpnegoRejectionReason::None;
 
     std::size_t bytesWritten = 0;
     if (!encodeServerResponse(
@@ -733,11 +767,13 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
         return fail(StandaloneSpnegoStatus::InvalidState);
 
     ParsedInitialToken parsed;
-    if (!parseInitialToken(token, parsed))
+    if (!parseInitialToken(token, parsed, rejectionReason_))
         return fail(StandaloneSpnegoStatus::InvalidToken);
     if (!parsed.mechListMic.empty() ||
         parsed.mechanismListEncoded.size() > mechanismList_.size())
     {
+        rejectionReason_ =
+            StandaloneSpnegoRejectionReason::UnsupportedInitialMic;
         return fail(
             StandaloneSpnegoStatus::UnsupportedMechanismIntegrity);
     }
@@ -760,6 +796,7 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::acceptInitialToken(
     }
 
     stage_ = StandaloneSpnegoStage::AwaitNtlmNegotiate;
+    rejectionReason_ = StandaloneSpnegoRejectionReason::None;
     return {StandaloneSpnegoStatus::Continue, bytesWritten};
 }
 

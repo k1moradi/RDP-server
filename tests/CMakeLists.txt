@@ -169,6 +169,13 @@ foreach(ntlm_security_case IN ITEMS
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
 endforeach()
 
+# R9 P0 rejection diagnostics preserve specific initial token categories.
+add_test(NAME r9-standalone-spnego-initial-rejection-categories
+    COMMAND test_standalone_spnego
+        r9-spnego-initial-rejection-categories)
+set_tests_properties(r9-standalone-spnego-initial-rejection-categories
+    PROPERTIES LABELS "r9;security;spnego;credssp;offline")
+
 # R9 P0 Microsoft-compatible synthetic NegTokenInit2 path through
 # Kerberos-first mechanism selection into NTLM challenge. This does not claim
 # that the unmodified owner client succeeded or that GSS fallback is enabled.

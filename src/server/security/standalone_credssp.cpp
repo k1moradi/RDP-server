@@ -107,6 +107,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
         return false;
     }
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
+    spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
@@ -124,6 +125,8 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     negotiatedVersion_ = 0;
     stage_ = StandaloneCredSspStage::Unconfigured;
     failureStage_ = StandaloneAuthenticationFailureStage::None;
+    lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
+    spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
 }
 
 bool StandaloneCredSspNtlmAcceptor::matchesPinnedTls(
@@ -479,6 +482,7 @@ StandaloneCredSspNtlmAcceptor::processNego(
     // Preserve the bounded cause before reject() clears the SPNEGO owner.
     // The diagnostic never contains peer token bytes or credentials.
     lastSpnegoStatus_ = step.status;
+    spnegoRejectionReason_ = mechanism_.rejectionReason();
     if (!step ||
         step.bytesWritten == 0 ||
         step.bytesWritten > mechanismReply.size())

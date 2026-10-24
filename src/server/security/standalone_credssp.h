@@ -122,6 +122,11 @@ public:
     {
         return lastSpnegoStatus_;
     }
+    [[nodiscard]] StandaloneSpnegoRejectionReason spnegoRejectionReason()
+        const noexcept
+    {
+        return spnegoRejectionReason_;
+    }
 
     void reset() noexcept;
 
@@ -165,6 +170,8 @@ private:
     StandaloneSpnegoNtlmAcceptor mechanism_{};
     StandaloneSpnegoStatus lastSpnegoStatus_{
         StandaloneSpnegoStatus::Continue};
+    StandaloneSpnegoRejectionReason spnegoRejectionReason_{
+        StandaloneSpnegoRejectionReason::None};
     TsRequestFrameReader *boundReader_{};
     TsRequestTlsReplyWriter *boundWriter_{};
     const SSL *boundServerTls_{};

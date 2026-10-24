@@ -19,19 +19,21 @@ namespace
 {
 
 [[nodiscard]] constexpr const char *standaloneSpnegoReasonName(
-    rdp_server::server::security::StandaloneSpnegoStatus status) noexcept
+    rdp_server::server::security::StandaloneSpnegoRejectionReason reason) noexcept
 {
-    using Status = rdp_server::server::security::StandaloneSpnegoStatus;
-    switch (status)
+    using Reason = rdp_server::server::security::StandaloneSpnegoRejectionReason;
+    switch (reason)
     {
-    case Status::Continue: return "initial-accepted-or-no-token";
-    case Status::MechanismVerified: return "mechanism-verified";
-    case Status::InvalidState: return "invalid-mechanism-state";
-    case Status::InvalidToken: return "invalid-der-or-ntlm-token";
-    case Status::UnsupportedMechanismIntegrity:
-        return "unsupported-mechanism-integrity";
-    case Status::CredentialRejected: return "ntlm-credential-rejected";
-    case Status::OutputTooSmall: return "bounded-output-exhausted";
+    case Reason::None: return "accepted-or-not-rejected";
+    case Reason::InitialEnvelope: return "invalid-initial-der-envelope";
+    case Reason::MechanismList: return "invalid-or-unsupported-mechanism-list";
+    case Reason::InitialNegotiationField: return "invalid-neg-token-init-field";
+    case Reason::UnsupportedInitialMic: return "unsupported-initial-mechlistmic";
+    case Reason::NtlmNegotiate: return "invalid-ntlm-type1-or-challenge";
+    case Reason::ContinuationEnvelope: return "invalid-continuation-envelope";
+    case Reason::InvalidState: return "invalid-mechanism-state";
+    case Reason::OutputExhausted: return "bounded-output-exhausted";
+    case Reason::CredentialRejected: return "ntlm-credential-rejected";
     }
     return "unknown-rejection";
 }
@@ -825,7 +827,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
         standaloneSpnegoReasonName(
-            standaloneCredSspAcceptor_.lastSpnegoStatus()));
+            standaloneCredSspAcceptor_.spnegoRejectionReason()));
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept

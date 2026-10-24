@@ -248,6 +248,34 @@ int main(int argc, char **argv)
         return 0;
     }
 
+
+    if (testCase == "r9-spnego-initial-rejection-categories")
+    {
+        // These exact redacted categories distinguish a malformed GSS
+        // envelope from the unsupported mechanism list. No fallback occurs.
+        std::array<std::uint8_t, kMaximumStandaloneSpnegoTokenBytes> reply{};
+        StandaloneSpnegoNtlmAcceptor malformed;
+        assert(configure(malformed));
+        constexpr std::array<std::uint8_t, 3> invalidEnvelope{
+            0x60U, 0x01U, 0xffU};
+        const auto badEnvelope =
+            malformed.acceptInitialToken(invalidEnvelope, reply);
+        assert(badEnvelope.status == StandaloneSpnegoStatus::InvalidToken);
+        assert(malformed.rejectionReason() ==
+               StandaloneSpnegoRejectionReason::InitialEnvelope);
+
+        StandaloneSpnegoNtlmAcceptor unsupported;
+        assert(configure(unsupported));
+        const auto kerberosOnly = initialToken(
+            {Bytes(kKerberosOid.begin(), kKerberosOid.end())}, {});
+        const auto badMechanism =
+            unsupported.acceptInitialToken(kerberosOnly, reply);
+        assert(badMechanism.status == StandaloneSpnegoStatus::InvalidToken);
+        assert(unsupported.rejectionReason() ==
+               StandaloneSpnegoRejectionReason::MechanismList);
+        return 0;
+    }
+
     if (testCase == "spnego-ntlm-first-negotiate-challenge")
     {
         StandaloneSpnegoNtlmAcceptor acceptor;

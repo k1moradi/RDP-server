@@ -1,3 +1,13 @@
+## R9 SPNEGO owner rejection precision (2026-10-24)
+
+Record redacted `tls`, `credssp`, and categorized `spnego`
+diagnostics when standalone authentication fails. An initial parser reject
+must distinguish malformed outer DER, mechanism selection and inner field
+or NTLM challenge handling. The test evidence must still show whether a
+Microsoft-compatible initial TSRequest actually reached NTLM Type 2.
+Synthetic NegTokenInit2 and in-memory TLS tests do not count as a live
+unmodified Microsoft-client receipt.
+
 ## R3 ownership gate after standalone SPNEGO evidence (2026-10-24)
 
 Treat `stage=spnego; os-gss-fallback=disabled` as post-TLS/post-TSRequest but

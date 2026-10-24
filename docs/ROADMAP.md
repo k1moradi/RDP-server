@@ -1,3 +1,15 @@
+## R9 P0 — precise initial SPNEGO structural diagnostics (2026-10-24)
+
+Follow-up refinement of the exact-owner failure log: the standalone
+parser retains bounded rejection categories `invalid-initial-der-envelope`,
+`invalid-or-unsupported-mechanism-list`,
+`invalid-neg-token-init-field`, `unsupported-initial-mechlistmic`,
+and `invalid-ntlm-type1-or-challenge`. Mechanism reset continues
+to cleanse protected state; only the category survives through
+CredSSP to runtime fail-only reporting. This does not log token bytes,
+enable OS GSS fallback, claim a captured Microsoft token, or promote
+any owner acceptance state. **CTest and real-client receipt NOT RUN.**
+
 ## R3 gate corrected to TLS Established + CredentialsVerified — 2026-10-24
 
 **Starting exact-main parent:** `fb27691eb0b77425fedde6e7a64d8f4b60165010`.

@@ -45,6 +45,22 @@ enum class StandaloneSpnegoFailureStage : std::uint8_t
     Mic,
 };
 
+// Non-secret, bounded structural rejection reason for owner diagnostics.
+// This is intentionally finer than the public protocol status.
+enum class StandaloneSpnegoRejectionReason : std::uint8_t
+{
+    None,
+    InitialEnvelope,
+    MechanismList,
+    InitialNegotiationField,
+    UnsupportedInitialMic,
+    NtlmNegotiate,
+    ContinuationEnvelope,
+    InvalidState,
+    OutputExhausted,
+    CredentialRejected,
+};
+
 struct StandaloneSpnegoStep final
 {
     StandaloneSpnegoStatus status{StandaloneSpnegoStatus::InvalidToken};
@@ -123,6 +139,11 @@ public:
         return failureStage_;
     }
 
+    [[nodiscard]] StandaloneSpnegoRejectionReason rejectionReason() const noexcept
+    {
+        return rejectionReason_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -158,6 +179,8 @@ private:
     StandaloneSpnegoStage stage_{StandaloneSpnegoStage::Unconfigured};
     StandaloneSpnegoFailureStage failureStage_{
         StandaloneSpnegoFailureStage::None};
+    StandaloneSpnegoRejectionReason rejectionReason_{
+        StandaloneSpnegoRejectionReason::None};
 };
 
 } // namespace rdp_server::server::security

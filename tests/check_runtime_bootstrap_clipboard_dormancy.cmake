@@ -177,51 +177,20 @@ foreach(forbidden_text IN ITEMS
     endif()
 endforeach()
 
-# R5/R2 no-config standalone preparation now derives one native-target policy
-# from trusted physical X11 evidence before the standalone credential is
-# installed. That preparation may replace security/admission configuration, but
-# it must remain pre-listener and completely outside R8/native clipboard state.
-string(FIND "${host_source}"
-    "bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept"
-    standalone_admission_begin)
-string(FIND "${host_source}"
-    "bool LinuxRuntimeHostControl::buildAuthenticationSelection("
-    standalone_admission_end)
-if(standalone_admission_begin LESS 0 OR
-   standalone_admission_end LESS_EQUAL standalone_admission_begin)
-    message(FATAL_ERROR
-        "unable to isolate automatic standalone admission preparation")
-endif()
-math(EXPR standalone_admission_length
-    "${standalone_admission_end} - ${standalone_admission_begin}")
-string(SUBSTRING "${host_source}" ${standalone_admission_begin}
-    ${standalone_admission_length} standalone_admission_source)
-foreach(required_text IN ITEMS
-        "selectCurrentPhysicalX11Desktop("
-        "configureStandalonePersonalDesktop(rule)"
-        "configureStandalonePersonalDesktop(rule, *security)"
-        "generatedAdmissionConfiguration_ = std::move(admission)"
-        "generatedSecurityConfiguration_ = std::move(security)")
-    string(FIND "${standalone_admission_source}" "${required_text}" found)
-    if(found LESS 0)
-        message(FATAL_ERROR
-            "automatic standalone admission lost required no-config seam: ${required_text}")
-    endif()
-endforeach()
+# StandalonePassword must not synthesize an OS-account security/admission
+# configuration merely to make no-config startup appear provisioned. The
+# ordinary desktop may link the production Linux security/native graph, but
+# positive standalone authority is minted later by R2 from exact CredSSP,
+# owner consent and fresh physical-session evidence.
 foreach(forbidden_text IN ITEMS
-        "listener_."
-        "startSharing("
-        "nativeDesktop_"
-        "clipboard.prepare("
-        "kConsoleClipboardPermission"
-        "visitPersonalDesktopClipboardChannel("
-        "dispatchPersonalDesktopClipboardTpkt("
-        "queuePersonalDesktopClipboardPdu("
-        "advancePersonalDesktopClipboardTlsWrite(")
-    string(FIND "${standalone_admission_source}" "${forbidden_text}" found)
+        "prepareAutomaticStandaloneAdmission"
+        "configureStandalonePersonalDesktop(rule)"
+        "generatedAdmissionConfiguration_"
+        "generatedSecurityConfiguration_")
+    string(FIND "${host_source}" "${forbidden_text}" found)
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
-            "automatic standalone admission must stay outside listener/R8 authority: ${forbidden_text}")
+            "standalone no-config bootstrap must not synthesize OS-account authority: ${forbidden_text}")
     endif()
 endforeach()
 

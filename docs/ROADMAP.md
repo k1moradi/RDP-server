@@ -1,3 +1,19 @@
+## R1 hosted compile repair after dependency correction (2026-10-24)
+
+The dependency graph is already corrected on shared main: R1 TLS is crossed,
+R2 standalone SPNEGO is the live interoperability blocker, R3 waits for
+`CredentialsVerified`, and R4 remains downstream.
+
+Exact-SHA hosted run `40094853545` for the R1 diagnostics commit exposed two
+test-only cross-platform compile defects before the new R1 cases could execute:
+OpenSSL `sk_GENERAL_NAME_*` macros were namespace-qualified, and the RDP-aware
+TLS client test omitted `<openssl/x509v3.h>` for `X509_check_ip_asc`.
+This follow-up repairs only those test portability defects. Production TLS,
+certificate generation, CredSSP/SPNEGO and later RDP stages are unchanged.
+
+**Source/CI-log diagnosis:** PASS. **Owner-local full CTest:** NOT RUN in this
+connector environment. **Corrected exact-SHA hosted CI:** PENDING.
+
 ## Dependency graph correction after owner SPNEGO evidence (2026-10-24)
 
 **Starting exact-main parent:** `8b42df4bffd3d071dc784ac27d8e7a17da7cf800`.

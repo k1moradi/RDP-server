@@ -1,3 +1,20 @@
+## R1 hosted compile repair after dependency correction (2026-10-24)
+
+Dependency classification from `050bfaf7d9ab7480980d7ba98abaceaef6a374ed`
+is retained: the real Microsoft path crossed R1 TLS and currently fails in R2
+standalone SPNEGO before `CredentialsVerified`.
+
+Hosted run `40094853545` for
+`8b42df4bffd3d071dc784ac27d8e7a17da7cf800` failed at test compilation:
+Linux/Windows reported invalid namespace qualification of
+`sk_GENERAL_NAME_num/value`, while Windows/macOS/Clang also showed
+`X509_check_ip_asc` undeclared because the test lacked
+`<openssl/x509v3.h>`. Both are test-only portability defects and are repaired
+without production protocol changes.
+
+Source/CI-log diagnosis: **PASS**. Owner-local full CTest: **NOT RUN**.
+Corrected exact-SHA hosted CI: **PENDING**.
+
 ## Dependency status correction: R2 SPNEGO remains the live blocker (2026-10-24)
 
 **Starting exact-main parent:** `8b42df4bffd3d071dc784ac27d8e7a17da7cf800`.

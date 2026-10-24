@@ -1,3 +1,13 @@
+## Strict-warning binary fixture construction (2026-10-24)
+
+Small protocol test serializers must remain warning-clean under the oldest
+hosted GCC/Clang toolchains with project `-Werror` enabled. When a chained
+`std::vector::insert` from short temporary ranges/span iterators triggers an
+optimizer-dependent bounds diagnostic, do not suppress the warning. Preserve
+the existing protocol bound, allocate the exact bounded result size, and use
+explicit indexed copies so both the compiler and reviewer can prove each write
+extent.
+
 ## R8 shares the DirectNtlm reconnect round trip only as a dormancy gate (2026-10-24)
 
 When the production-backed R10 DirectNtlm lifecycle already covers failed-peer

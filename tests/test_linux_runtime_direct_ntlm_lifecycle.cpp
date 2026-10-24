@@ -118,19 +118,39 @@ void storeLe32(std::uint8_t* bytes, std::uint32_t value) noexcept
 
 [[nodiscard]] Bytes wrap(std::uint8_t tag, ByteSpan value)
 {
-    Bytes output{tag};
     const auto encodedLength = derLength(value.size());
     if (encodedLength.empty())
         return {};
-    output.insert(
-        output.end(), encodedLength.begin(), encodedLength.end());
-    output.insert(output.end(), value.begin(), value.end());
+
+    const std::size_t prefixBytes = 1U + encodedLength.size();
+    if (value.size() >
+        kMaximumCredSspRequestBytes - prefixBytes)
+    {
+        return {};
+    }
+
+    Bytes output(prefixBytes + value.size());
+    output[0] = tag;
+    for (std::size_t index = 0U; index < encodedLength.size(); ++index)
+        output[1U + index] = encodedLength[index];
+    for (std::size_t index = 0U; index < value.size(); ++index)
+        output[prefixBytes + index] = value[index];
     return output;
 }
 
 [[nodiscard]] Bytes append(Bytes first, ByteSpan second)
 {
-    first.insert(first.end(), second.begin(), second.end());
+    if (first.size() > kMaximumCredSspRequestBytes ||
+        second.size() >
+            kMaximumCredSspRequestBytes - first.size())
+    {
+        return {};
+    }
+
+    const std::size_t originalBytes = first.size();
+    first.resize(originalBytes + second.size());
+    for (std::size_t index = 0U; index < second.size(); ++index)
+        first[originalBytes + index] = second[index];
     return first;
 }
 

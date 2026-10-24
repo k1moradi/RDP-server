@@ -1,3 +1,38 @@
+## R10 hosted compile correction for DirectNtlm lifecycle fixture — 2026-10-24
+
+**Starting exact-main parent:** `28f2caccd39881188c8f998ef471da29e77b7fa6`.
+
+Dependency recheck confirms the former R2 blocker is resolved: strict
+DirectNtlm envelope handling is on main, the R10 reconnect/Stop -> Start
+production fixture reaches CredentialsVerified plus fresh R2 admission/MCS,
+and R5/R8 have consumed that same connection lifetime without widening native
+or clipboard authority.
+
+Hosted descendant run `40128808843` exposed the first concrete remaining
+repository-side R10 blocker before the lifecycle test could execute. GCC 13
+compiled production HostControl/R2 code successfully, then rejected the test
+fixture's small DER helper at
+`tests/test_linux_runtime_direct_ntlm_lifecycle.cpp:127` with
+`-Werror=array-bounds` after inlining chained `std::vector::insert` calls.
+The failure is test-fixture construction, not production CredSSP/NTLM behavior.
+
+The fixture now uses one explicitly sized bounded output buffer plus indexed
+copies for DER wrapping, and bounded resize plus indexed copy for concatenation.
+The encoded bytes and behavioral assertions are unchanged. No production R1-R10
+source or wire behavior changes.
+
+Connector diagnosis/source review: **PASS**. Canonical owner-local build/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Next R10 gate:** require the focused R9 Microsoft-CSSP sanitizer step to
+compile and execute
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle` on
+the publication SHA. After hosted code qualification, the remaining P0 evidence
+is the external owner-authorized Microsoft Windows App/mstsc reconnect run.
+R3 Share/RDPGFX -> GraphicsReady remains the next downstream protocol boundary
+not yet demonstrated by the DirectNtlm production-backed fixture.
+
 ## R8 P2 consumes DirectNtlm reconnect lifetime while remaining dormant — 2026-10-24
 
 **Starting exact-main parent:** `350a56cbc57ae3f818cfc78ff4b6dfda61788fbc`.

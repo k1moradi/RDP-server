@@ -1,3 +1,31 @@
+## R10 DirectNtlm lifecycle GCC fixture compile correction — 2026-10-24
+
+**Starting exact-main parent:** `28f2caccd39881188c8f998ef471da29e77b7fa6`.
+
+GitHub Actions run `40128808843`, job `120975930758`, provided the first
+failing boundary for the R10 lifecycle gate. Production runtime and security
+targets compiled; compilation then failed in
+`test_linux_runtime_direct_ntlm_lifecycle.cpp` because GCC 13 promoted an
+inlined `std::vector::insert` `-Warray-bounds` diagnostic to an error under
+the repository's `-Werror` policy.
+
+The DER test serializer now pre-sizes its bounded buffer and writes tag,
+encoded length and payload by checked index. The companion concatenation helper
+uses the same bounded resize/indexed-copy shape. This avoids the optimizer-
+sensitive library insertion diagnostic without changing protocol bytes,
+assertions, production ownership or runtime behavior.
+
+Dependency state: R2 DirectNtlm classification/hardening is **RESOLVED**;
+R10 reaches authenticated R2 admission/MCS in source and fixture logic; R5/R8
+pre-GraphicsReady dormancy checks remain intact. The next code-validation
+boundary is execution of the focused lifecycle test under hosted sanitizer CI.
+The later physical Microsoft-client/X11 receipt remains external evidence and
+cannot be manufactured here.
+
+Connector source review: **PASS**.
+Canonical owner-local configure/build/full CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## R8 DirectNtlm reconnect dormancy follow-up — 2026-10-24
 
 **Starting exact-main parent:** `350a56cbc57ae3f818cfc78ff4b6dfda61788fbc`.

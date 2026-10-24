@@ -1,3 +1,23 @@
+## R8 bootstrap lifecycle remains outside clipboard authority (2026-10-23)
+
+The normal product entrypoint may now grow automatic local provisioning and a
+Session Password surface; that does not make bootstrap an R8 authority owner.
+This statement supersedes older GUI Round 2 text that required Session Password
+widgets to remain structurally absent. R8 places no restriction on generating
+local TLS, licensing or session prerequisites needed by the zero-argument GUI,
+provided startup itself still does not open a listener and the bootstrap path
+does not request clipboard permission or call CLIPRDR/R8 runtime APIs.
+
+Clipboard remains a child of the one admitted native desktop lifetime and stays
+dormant behind
+`kLinuxProductionClipboardActivationApproved = false`. Stop/Revoke destroys
+prepared clipboard state before R5 native desktop resources and before the
+accepted connection/listener. A replacement password or restarted/reconnected
+native lifetime cannot reuse the prior R8 generation: the next clipboard owner
+is freshly prepared from the replacement admission/session generations. Hiding
+the window preserves the current runtime; explicit Quit enters Stop/Revoke
+first. No file, image or directory clipboard scope is introduced by bootstrap.
+
 ## Route-aware product LAN recommendation (2026-10-22)
 
 R10's recommended endpoint is presentation policy, never listener authority.

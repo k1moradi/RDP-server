@@ -1,3 +1,39 @@
+## R8 P2 automatic-bootstrap clipboard dormancy audit (2026-10-23)
+
+Product requirement for this round makes `rdp-server-desktop` with no required
+arguments the normal consumer entry point. The bootstrap owner may generate
+local TLS/licensing/session prerequisites and expose Session Password without a
+`server.conf` workflow. R8 does not own or block that provisioning work.
+GUI Round 2 remains presentation qualification only and is not end-to-end host
+readiness.
+
+R8 adds ordinary offline source-contract CTest
+`runtime.linux-gui-bootstrap-clipboard-dormancy`. It deliberately permits
+Session Password and automatic local bootstrap state, but forbids the GUI
+entrypoint from touching the R8 activation gate, clipboard permission,
+CLIPRDR route/dispatch/write APIs or `LinuxPreparedClipboardOwner`. Product
+consent must still send `allowClipboard = false`, and the dormant production
+gate remains literal
+`kLinuxProductionClipboardActivationApproved = false`.
+
+The same guard pins lifecycle safety around the incoming bootstrap: Session
+Password replacement must either reject a live host or retire it before
+replacement and must install a fresh credential generation; Stop/Revoke retires
+the dormant/prepared clipboard owner before R5 native desktop destruction and
+before accepted connection/listener teardown; restart/reconnect constructs a
+fresh native/R8 owner from the replacement admission/session generations;
+hide-to-tray remains nonterminal; explicit Quit enters Stop/Revoke before
+process exit. Main may gain bootstrap/password controls but no clipboard
+checkbox while activation is false. File, image and directory clipboard paths
+remain excluded.
+
+Connector/source audit: **PASS** against starting main
+`512bd9ae5fe5c4918a28914a27af9cca5dbaa0f0`. Canonical owner-local configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact publication-SHA hosted CI:
+**PENDING**. No listener, native desktop, clipboard or client operation was
+performed. Clipboard activation remains **BLOCKED** until the first real
+desktop/video/input/Stop PASS.
+
 ## R2 focused-workflow reconstruction after transform corruption — 2026-10-22
 
 Starting exact-main parent: `24f393896dfad20f68b2bb60e93577347506e415`.

@@ -366,6 +366,21 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-dormant-unicode-clipboard-composition PROPERTIES
         LABELS "runtime;security;r8-r3;r10-host-control;x11;offline")
+
+    # R8 P2: automatic zero-argument GUI bootstrap may provision local runtime
+    # prerequisites, but must not activate CLIPRDR or preserve stale clipboard
+    # ownership across password replacement, Stop/restart, tray hide, or Quit.
+    add_test(NAME runtime.linux-gui-bootstrap-clipboard-dormancy
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_DESKTOP_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/main.cpp"
+            "-DRDP_DESKTOP_WINDOW_HEADER=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.h"
+            "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
+            "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_LINUX_PREPARED_CLIPBOARD_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_prepared_clipboard_owner.h"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_bootstrap_clipboard_dormancy.cmake")
+    set_tests_properties(
+        runtime.linux-gui-bootstrap-clipboard-dormancy PROPERTIES
+        LABELS "runtime;security;r8-bootstrap;r10-host-control;gui;offline")
 endif()
 
 # R10's single-owner GUI control contract: offline, no TCP or R2 positive lease.

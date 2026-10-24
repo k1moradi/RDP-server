@@ -1,3 +1,15 @@
+## R8 bootstrap must not manufacture clipboard authority (2026-10-23)
+
+Automatic GUI bootstrap may create local runtime prerequisites and Session
+Password state, but it must not set clipboard permission, flip the production
+clipboard activation gate, construct the prepared clipboard owner, or call
+CLIPRDR routing/write APIs. Keep bootstrap state and R8 state separate.
+Credential replacement must not carry a live native/R8 generation across the
+boundary: reject replacement while hosting or retire the host first, invalidate
+the old credential generation, and let any later native lifetime allocate a
+fresh generation-bound clipboard owner. Stop/Revoke remains clipboard-before-R5
+teardown; hide-to-tray remains nonterminal; Quit must Stop/Revoke before exit.
+
 ## Product permission status must be projected above R2 (2026-10-22)
 
 Do not make Qt decode owner-consent enums, native-session evidence or

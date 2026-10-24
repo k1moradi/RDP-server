@@ -1,3 +1,32 @@
+## R8 P2 zero-argument bootstrap clipboard-lifecycle audit — 2026-10-23
+
+Starting exact-main parent: `512bd9ae5fe5c4918a28914a27af9cca5dbaa0f0`.
+
+The product requirement now treats zero-argument `rdp-server-desktop` plus
+Session Password as the normal workflow and treats `--config` as an
+expert/legacy override. Current parent source still exposes the known functional
+gap: the zero-argument Linux GUI constructs an unprovisioned HostControl, while
+the `--config` branch constructs the security/TLS/admission/licensing context.
+That bootstrap implementation is owned outside R8; this audit intentionally
+does not block or duplicate it. The previous GUI Round 2 PASS remains
+presentation-only.
+
+R8 source review is **PASS** for the clipboard boundary. Added
+`runtime.linux-gui-bootstrap-clipboard-dormancy`, which permits automatic
+local provisioning and Session Password but fails if the GUI bootstrap touches
+the R8 activation gate, clipboard permission, CLIPRDR route/dispatch/write APIs
+or `LinuxPreparedClipboardOwner`. It also pins `allowClipboard = false`,
+no clipboard checkbox while dormant, safe Session Password replacement
+generation handling, clipboard-before-R5 Stop teardown, fresh R8 ownership on
+restart/reconnect, nonterminal tray hide, Stop/Revoke-before-Quit, and continued
+exclusion of file/image/directory production paths.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this connector
+environment. Exact publication-SHA hosted CI: **PENDING**. No live listener,
+clipboard, desktop, input or client action was performed. Clipboard production
+activation remains **BLOCKED** until the first real desktop/video/input/Stop
+PASS.
+
 ## R2 focused-workflow reconstruction receipt — 2026-10-22
 
 Starting exact-main parent: `24f393896dfad20f68b2bb60e93577347506e415`.

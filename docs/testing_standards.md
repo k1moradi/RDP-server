@@ -1,3 +1,24 @@
+## R8 automatic-bootstrap clipboard dormancy regression (2026-10-23)
+
+Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` in ordinary full CTest
+as a source-policy regression. It must allow zero-argument GUI bootstrap,
+generated local TLS/licensing/session prerequisites and a Session Password
+surface, while forbidding bootstrap code from touching the production clipboard
+activation gate, R2 clipboard permission, CLIPRDR route/dispatch/write APIs or
+the prepared R8 owner. The GUI owner-permission request remains
+`allowClipboard = false`; Main has no clipboard checkbox while activation is
+false.
+
+The regression must also pin terminal/nonterminal ownership: Stop/Revoke retires
+prepared clipboard state before R5 and before connection/listener teardown;
+replacement native lifetimes prepare a fresh owner from the new admission and
+session generations; Session Password replacement cannot carry a live native/R8
+generation across its credential boundary; window hide is presentation-only;
+explicit Quit calls Stop/Revoke before exit. Keep file/image/directory tokens
+out of the composed production owner. This source-only test is not part of the
+fixed executable-backed R8 clipboard sanitizer census and is never evidence of
+FIRST or live clipboard acceptance.
+
 ## Linux Round 2 sharing-permission focused qualification (2026-10-22)
 
 The `r5-linux-gui-zip` Round 2 selector must enumerate and execute exactly

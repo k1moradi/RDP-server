@@ -1,3 +1,21 @@
+## R3 source-contract CMake list-token correction — 2026-10-24
+
+**Starting exact-main parent:** `151183920571bd96a5ce1e30fc6b9b3017072ce9`.
+
+Post-publication review found a test-harness-only defect in
+`runtime.linux-host-control-stop-retires-r3-session-state`: several C++
+match needles ended in semicolons while `require_order()` iterates CMake
+`ARGN` as a list, so CMake would split those arguments at the semicolon.
+The guard now matches the same statement prefixes without trailing semicolons.
+No production source, TLS/CredSSP behavior, MCS/Share/licensing/RDPGFX wire
+behavior or Stop ownership changes.
+
+Connector source review of the corrected guard: **PASS**. Canonical build/full
+CTest and the source-contract execution remain **NOT RUN** in this connector
+environment. R3 remains **BLOCKED FOR WIRE CHANGES at R1 TLS** and the full
+product Start->Stop->Start receipt remains blocked by the independent Session
+Password retention defect.
+
 ## R3 P1 TLS-gated trace classification and Stop freshness guard — 2026-10-24
 
 **Starting exact-main parent:** `03121aab30c6807d611e0995aded9b0a50e395b2`.

@@ -62,13 +62,13 @@ require_token(preauth_source
     "case Step::Progress:
         case Step::TlsEstablished:
         case Step::BindingVerified:
-            return {RuntimeHostError::None, false};"
+            return {RuntimeHostError::None, false}"
     "TLS/Binding must not advance R3")
 require_order(preauth_source
     "CredentialsVerified must own the first R3 handoff"
     "case Step::CredentialsVerified:"
     "acceptedClient_->issueAdmission(*request)"
-    "acceptedClientPhase_ = AcceptedClientPhase::McsConnectInitial;")
+    "acceptedClientPhase_ = AcceptedClientPhase::McsConnectInitial")
 
 # The first R3 transition after CredentialsVerified is Connect-Initial;
 # Connect-Response is owned only after that exact intake is admitted.
@@ -93,12 +93,12 @@ require_order(mcs_initial_source
     "MCS Connect-Initial classification"
     "advancePostAdmissionMcsConnectInitial("
     "case Step::AdmittedConnectInitial:"
-    "acceptedClientPhase_ = AcceptedClientPhase::McsConnectResponse;")
+    "acceptedClientPhase_ = AcceptedClientPhase::McsConnectResponse")
 require_order(mcs_response_source
     "MCS Connect-Response classification"
     "advancePostAdmissionMcsConnectResponseWrite("
     "case Step::Delivered:"
-    "acceptedClientPhase_ = AcceptedClientPhase::McsErectDomain;")
+    "acceptedClientPhase_ = AcceptedClientPhase::McsErectDomain")
 
 # Stop must retire the accepted connection before R1 listener teardown.
 string(FIND "${host_source}"
@@ -114,9 +114,9 @@ string(SUBSTRING "${host_source}" ${stop_begin}
 require_order(stop_source
     "Stop must retire R3 before R1 listener"
     "if (acceptedClient_ != nullptr)"
-    "acceptedClient_->revoke();"
-    "clearAcceptedClient();"
-    "listener_.close();")
+    "acceptedClient_->revoke()"
+    "clearAcceptedClient()"
+    "listener_.close()")
 
 # clearAcceptedClient destroys the old aggregate and resets every HostControl
 # accepted-client phase/readiness field; no old MCS phase can be resumed.
@@ -132,12 +132,12 @@ math(EXPR clear_length "${clear_end} - ${clear_begin}")
 string(SUBSTRING "${host_source}" ${clear_begin}
     ${clear_length} clear_source)
 foreach(needle IN ITEMS
-    "acceptedClient_.reset();"
-    "acceptedClientPhase_ = AcceptedClientPhase::None;"
-    "acceptedClientId_ = 0U;"
-    "acceptedClientPeer_.clear();"
-    "acceptedClientReadable_ = false;"
-    "acceptedClientWritable_ = false;")
+    "acceptedClient_.reset()"
+    "acceptedClientPhase_ = AcceptedClientPhase::None"
+    "acceptedClientId_ = 0U"
+    "acceptedClientPeer_.clear()"
+    "acceptedClientReadable_ = false"
+    "acceptedClientWritable_ = false")
     require_token(clear_source "${needle}" "Accepted-client reset")
 endforeach()
 
@@ -161,7 +161,7 @@ require_order(accept_source
     "acceptedClient_ = std::move(connection);"
     "acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;")
 require_token(connection_header
-    "rdp_server::server::transport::McsSessionLifecycle session_{};"
+    "rdp_server::server::transport::McsSessionLifecycle session_{}"
     "LinuxRuntimeConnection must value-own one R3 session")
 
 # LinuxRuntimeConnection::revoke() closes all first-MCS framing and the R3
@@ -179,39 +179,39 @@ string(SUBSTRING "${connection_source}" ${revoke_begin}
     ${revoke_length} revoke_source)
 require_order(revoke_source
     "R3 framing must close before R1 cancellation"
-    "mcsConnectInitialFrameReader_.close();"
-    "connection_.cancel();")
+    "mcsConnectInitialFrameReader_.close()"
+    "connection_.cancel()")
 require_token(revoke_source
-    "broker_->revokeR3Session(*principalProof_, session_);"
+    "broker_->revokeR3Session(*principalProof_, session_)"
     "R2-backed R3 revoke")
 require_token(revoke_source
-    "session_.close();"
+    "session_.close()"
     "Fallback R3 revoke")
 require_order(revoke_source
     "R2-backed R3 revoke must precede R1 cancellation"
-    "broker_->revokeR3Session(*principalProof_, session_);"
-    "connection_.cancel();")
+    "broker_->revokeR3Session(*principalProof_, session_)"
+    "connection_.cancel()")
 require_order(revoke_source
     "Fallback R3 revoke must precede R1 cancellation"
-    "session_.close();"
-    "connection_.cancel();")
+    "session_.close()"
+    "connection_.cancel()")
 
 # McsSessionLifecycle::close() scrubs connection-specific MCS/Share/channel
 # state. A newly constructed R3 owner receives a distinct reconnect generation.
 foreach(needle IN ITEMS
-    "admissionGeneration_ = 0;"
-    "sessionGeneration_ = 0;"
-    "connectResponseDomain_ = {};"
-    "connectResponseClientSettings_ = {};"
-    "connectResponseAllocation_ = {};"
-    "allocatedUserId_ = 0;"
-    "connectResponseWrite_.close();"
-    "shareActivation_.close();"
-    "clipboardStaticChannel_.close();"
-    "graphicsDynamicVirtualChannel_.close();"
-    "dynamicVirtualChannels_.close();"
-    "joins_.close();"
-    "phase_ = McsSessionPhase::Closed;")
+    "admissionGeneration_ = 0"
+    "sessionGeneration_ = 0"
+    "connectResponseDomain_ = {}"
+    "connectResponseClientSettings_ = {}"
+    "connectResponseAllocation_ = {}"
+    "allocatedUserId_ = 0"
+    "connectResponseWrite_.close()"
+    "shareActivation_.close()"
+    "clipboardStaticChannel_.close()"
+    "graphicsDynamicVirtualChannel_.close()"
+    "dynamicVirtualChannels_.close()"
+    "joins_.close()"
+    "phase_ = McsSessionPhase::Closed")
     require_token(mcs_header "${needle}" "MCS terminal scrub")
 endforeach()
 require_token(mcs_source

@@ -1,3 +1,16 @@
+## R3 source-contract CMake list-token correction — 2026-10-24
+
+**Starting exact-main parent:** `151183920571bd96a5ce1e30fc6b9b3017072ce9`.
+
+Post-publication semantic review found that semicolon-terminated C++ needles
+passed through the CMake `ARGN` list helper would be split into separate list
+items. The source guard now uses the same unambiguous statement prefixes without
+trailing semicolons. Production code and protocol bytes are unchanged.
+
+Correction source review: **PASS**. Corrected source-contract execution:
+**NOT RUN** in this connector environment. R1 TLS remains the first real-client
+failure and R3 wire changes remain blocked.
+
 ## R3 TLS-gated trace/Stop-freshness containment — 2026-10-24
 
 **Starting exact-main parent:** `03121aab30c6807d611e0995aded9b0a50e395b2`.

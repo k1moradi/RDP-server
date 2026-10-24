@@ -1,3 +1,24 @@
+## R5 owner-situation readiness must execute in Release+acceptance CI (2026-10-24)
+
+The Linux physical-X11 precredential integration case is not satisfied by
+compiling its target. In the hosted R5 Linux GUI lane, first seal and verify the
+ordinary public Release artifact with
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=OFF`. Then reuse the same ephemeral
+`build/` root, reconfigure it as Release with the explicit owner-acceptance
+surface ON, build
+`test_linux_gui_physical_x11_precredential_readiness`, and execute exactly
+`runtime.linux-gui-physical-x11-precredential-readiness`.
+
+That hosted gate must observe an actual recommended private-LAN endpoint and
+report the test as Passed rather than accepting CTest's native-environment skip.
+The fixture itself still injects only read-only deterministic physical-X11 owner
+evidence; it must use the production Linux HostControl/Qt adapter and must not
+configure a credential, request consent, bind, capture or touch XTEST. Assert
+R2's production standalone-credential configuration availability and R10's
+lifecycle `credentialEditingAllowed` fact independently of the still-false
+public Release qualification bit. A successful hosted fixture is not a physical
+owner/X11 receipt and does not promote Release qualification.
+
 ## Shared source contracts must follow the R2 credential transaction (2026-10-24)
 
 Static lifecycle/security tests must validate the current ownership boundary,

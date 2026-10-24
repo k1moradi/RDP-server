@@ -2515,6 +2515,43 @@ jobs:
               exit 1
             fi
           )
+      - name: Run R5 physical-X11 precredential owner-readiness gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The public Release+OFF ZIP was already sealed in the previous step.
+          # Reuse this job's one build root for the explicit owner-acceptance
+          # surface; do not rebuild or repack the public archive after this.
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=ON -DRDP_SERVER_BUILD_TESTING=ON \
+            -DRDP_SERVER_BUILD_DESKTOP_GUI=ON \
+            -DRDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON
+          grep -Fx 'RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON' build/CMakeCache.txt
+          grep -Fx 'RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI:BOOL=ON' build/CMakeCache.txt
+          cmake --build build --config Release \
+            --target test_linux_gui_physical_x11_precredential_readiness --parallel 2
+          readiness_selector='^runtime[.]linux-gui-physical-x11-precredential-readiness$'
+          readiness_tests="$(ctest --test-dir build -C Release -N -R "$readiness_selector")"
+          printf '%s\n' "$readiness_tests"
+          grep -Fq ': runtime.linux-gui-physical-x11-precredential-readiness' \
+            <<< "$readiness_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$readiness_tests")" -eq 1
+
+          set +e
+          readiness_output="$(QT_QPA_PLATFORM=offscreen ctest \
+            --test-dir build -C Release --timeout 30 -V \
+            -R "$readiness_selector" 2>&1)"
+          readiness_result=$?
+          set -e
+          printf '%s\n' "$readiness_output"
+          test "$readiness_result" -eq 0
+          grep -Eq 'runtime[.]linux-gui-physical-x11-precredential-readiness .*Passed' \
+            <<< "$readiness_output"
+          if grep -Eq 'runtime[.]linux-gui-physical-x11-precredential-readiness .*Skipped' \
+              <<< "$readiness_output"; then
+            echo "R5 owner-situation readiness gate skipped instead of exercising a LAN recommendation" >&2
+            exit 1
+          fi
       - name: Upload Linux GUI preview ZIP and digest
         uses: actions/upload-artifact@v4
         with:

@@ -1,3 +1,37 @@
+## R5 executed Linux physical-X11 owner-readiness gate (2026-10-24)
+
+Starting exact-main parent: `340666b48ac4a79f5239fd69978c7f8787da3d45`.
+
+Dependency recheck found the former upstream GUI blocker resolved in hosted
+source behavior. Actions run `40082498143` at
+`8c94f9fffe5172f7e149c69d5f01afa80d7d6d45` has both Ubuntu and macOS
+`r9-owner-gui-credential-parity` matrix legs **PASS** with the landed
+R2/R9/R10/R7 credential-state, lifecycle-editability and keyboard/focus
+corrections. R7 follow-up `e190af5d...` repaired its documentation receipt,
+and current parent `340666b48ac4a79f5239fd69978c7f8787da3d45` fixes the separate stale R8 source contract that
+blocked owner-artifact inventory after those parity jobs.
+
+R5 now pins the authoritative upstream facts in its production-backed Linux
+fixture. Before local edits and after matching password input, the runtime must
+report production standalone credential configuration available and R10
+credential editing allowed while public
+`kStandalonePasswordProductCapabilityApproved` remains false. Native target
+`:42`, physical/local/non-remote/unlocked owner evidence and requestable
+View/Input consent remain independent facts.
+
+The hosted `r5-linux-gui-zip` lane is extended without changing the public
+artifact: it first packages/verifies Release+acceptance-OFF, then reconfigures
+the same `build/` root to Release+acceptance-ON, builds the dedicated R5 test
+target and runs exactly
+`runtime.linux-gui-physical-x11-precredential-readiness`. A CTest skip is
+treated as failure for this hosted gate so the runner must actually supply a
+valid private-LAN recommendation. The test performs no credential
+configuration, consent request, listener bind, native capture or XTEST.
+
+Connector-local execution: **NOT RUN**.
+Exact-publication-SHA workflow structure/full CI: **PENDING**.
+Physical owner Linux/X11 receipt: **PENDING**.
+
 ## R2 shared credential transaction source-contract follow-up (2026-10-24)
 
 Starting exact-main parent: `e190af5daecb2fa2cf8bd821f2235d378e36336b`.

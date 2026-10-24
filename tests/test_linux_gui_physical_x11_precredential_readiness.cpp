@@ -80,6 +80,9 @@ int main(int argc, char** argv)
     LinuxRuntimeHostControl runtime(evidence);
     const RuntimeHostStatus before = runtime.status();
     assert(before.product.controlAvailable);
+    assert(before.product.credentialEditingAllowed);
+    assert(before.product.credentialCapabilities
+               .standalonePasswordConfigurationAvailable);
     assert(before.product.nativeDesktopTargetAvailable);
     assert(before.product.nativeDesktopTarget == ":42");
     assert(!before.product.credentialsConfigured);
@@ -102,6 +105,9 @@ int main(int argc, char** argv)
     HostControl host(runtime);
     const HostStatus projected = host.status();
     assert(projected.desktop == QStringLiteral("Physical X11 desktop :42"));
+    assert(projected.credentialEditingAllowed);
+    assert(projected.credentialCapabilities
+               .standalonePasswordConfigurationAvailable);
     assert(projected.sharingPermission.canRequest);
     assert(!projected.desktopAuthorized);
     assert(projected.recommendedAddress ==
@@ -162,6 +168,9 @@ int main(int argc, char** argv)
     assert(sharing->isEnabled());
 
     const RuntimeHostStatus after = runtime.status();
+    assert(after.product.credentialEditingAllowed);
+    assert(after.product.credentialCapabilities
+               .standalonePasswordConfigurationAvailable);
     assert(after.product.nativeDesktopTargetAvailable);
     assert(after.product.nativeDesktopTarget == ":42");
     assert(after.product.sharingPermission.canRequest);

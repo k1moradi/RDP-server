@@ -1,3 +1,48 @@
+## R5 P1 dependency recheck and executed owner-readiness qualification (2026-10-24)
+
+Starting exact-main parent: `340666b48ac4a79f5239fd69978c7f8787da3d45`.
+
+The owner-reported Linux credential-editor dependency chain is now unblocked in
+repository source. R2 separates production credential configuration from native
+admission; R9 drives real Qt keyboard entry through the production credential /
+permission / endpoint / listener transaction; R10 owns lifecycle-only
+`credentialEditingAllowed`; and R7 explicitly consumes that fact for the
+credential widgets with StrongFocus/tab-order/Linux presentation hardening.
+Actions run `40082498143` on code SHA
+`8c94f9fffe5172f7e149c69d5f01afa80d7d6d45` reports both Ubuntu and macOS
+`r9-owner-gui-credential-parity` jobs **PASS**. R7 follow-up
+`e190af5daecb2fa2cf8bd821f2235d378e36336b` restored its Markdown receipt,
+and R2 follow-up `340666b48ac4a79f5239fd69978c7f8787da3d45` repaired the unrelated stale
+`runtime.linux-gui-bootstrap-clipboard-dormancy` source contract without
+production changes.
+
+R5 strengthens
+`runtime.linux-gui-physical-x11-precredential-readiness` to require both
+`standalonePasswordConfigurationAvailable == true` and
+`credentialEditingAllowed == true` through the production Linux and Qt
+projections before and after local text edits. The test continues to require an
+eligible active/physical/local/non-remote/unlocked seat0 X11 target, a genuine
+LAN recommendation, requestable-but-not-granted owner permission, editable
+masked fields, matching-password Sharing eligibility, and no credential,
+listener, native desktop, framebuffer or XTEST side effect.
+
+The R5 Linux GUI CI lane now seals the ordinary Release+acceptance-OFF public
+ZIP first, then reuses the same `build/` root as Release+acceptance-ON to
+execute this one R5 owner-situation case. The gate rejects a native-environment
+skip so hosted evidence proves the owner-like LAN prerequisite was actually
+present. It never clicks Sharing and therefore cannot configure a credential,
+request consent or bind a listener.
+
+No R7/R10 production source, R2 consent semantics, R1 listener, R8 clipboard
+or RDP wire behavior is modified here.
+
+Verification:
+`ctest --test-dir build -C Release -R '^runtime[.]linux-gui-physical-x11-precredential-readiness$' --output-on-failure --verbose`
+
+Connector-local execution: **NOT RUN**.
+Exact-publication-SHA hosted R5 gate: **PENDING**.
+Owner physical Linux/X11 no-argument acceptance: **PENDING**.
+
 ## R2 follow-up: shared credential transaction source-contract repair (2026-10-24)
 
 Starting exact-main parent: `e190af5daecb2fa2cf8bd821f2235d378e36336b`.

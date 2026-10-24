@@ -1,3 +1,39 @@
+## R8 P2 exact-SHA hosted stale-lifetime qualification — 2026-10-24
+
+**Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.
+
+The repository-side R8 regressions that were pending after the shared
+DirectNtlm lifetime work are now qualified. Workflow `40130463921` completed
+the R9 security/protocol sanitizer job `120980921182` successfully. That job
+passed the complete 89-test clipboard-labeled inventory, including the shared
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`, and
+also passed the focused R8 clipboard TLS-receipt denial step.
+
+Ubuntu protocol job `120980921253` completed the ordinary Debug suite
+**924/924 PASS**. The registered R8 stale-lifetime round trips
+`runtime.r8-x11-restart-incr-isolation` and
+`runtime.r8-r3-repeated-restart-receipt-isolation` are therefore green on the
+same qualified SHA. macOS and Windows shared protocol jobs are also PASS on
+that SHA. The current descendant `feb0866c720142e3b696e49bbc03c971b61a874a`
+changes documentation only, so no R8 production/test source differs from the
+qualified tree.
+
+**Dependency result:** there is no remaining repository-side blocker for R8's
+permitted dormant/stale-lifetime work. Do not add another synthetic integration
+path merely to manufacture progress.
+
+**Remaining R8 blocker:** production activation remains **P2 / BLOCKED** on the
+separate owner-authorized physical product receipt. The next upstream positive
+dependency is the nominated physical Microsoft Windows App or `mstsc.exe`
+run through genuine native R2 admission and later R3 progression. Until that
+physical authority/evidence exists, keep
+`kLinuxProductionClipboardActivationApproved = false`, create no live
+clipboard owner, and send no CLIPRDR traffic.
+
+Canonical owner-local `~/rdp-server/build` command: **NOT RUN** in this
+connector session. No live listener, desktop, input or clipboard action was
+performed.
+
 ## R1/R2/R9 exact-SHA hosted qualification — owner candidate nominated (2026-10-24)
 
 **Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.

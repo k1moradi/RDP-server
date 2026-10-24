@@ -1,3 +1,33 @@
+## R8 hosted stale-lifetime qualification receipt — 2026-10-24
+
+**Exact tested SHA:** `346f6afe59d4331664697da67a74de9d117cde60`  
+**Workflow:** `40130463921`
+
+R8's pending repository-side validation is now green:
+
+- R9 security/protocol sanitizer job `120980921182`: **PASS**;
+- all 89 clipboard-labeled CTests under ASan/UBSan: **PASS**;
+- focused R8 clipboard TLS-receipt denials: **PASS**;
+- Ubuntu protocol/full Debug CTest job `120980921253`: **924/924 PASS**;
+- macOS protocol job `120980921223`: **PASS**;
+- Windows protocol job `120980921247`: **PASS**.
+
+The ordinary full suite includes the registered stale-lifetime cases
+`runtime.r8-x11-restart-incr-isolation` and
+`runtime.r8-r3-repeated-restart-receipt-isolation`. The shared DirectNtlm
+reconnect/Stop->Start fixture also remains labeled `r8-lifetime;clipboard`
+and passed the sanitizer owner-candidate lane without creating native/graphics
+or clipboard authority.
+
+The current descendant `feb0866c720142e3b696e49bbc03c971b61a874a` is
+documentation-only relative to the qualified SHA. No R8 source/test behavior
+changed after qualification.
+
+Repository-side dormant/stale-lifetime qualification: **PASS**. Canonical
+owner-local build/full CTest: **NOT RUN**. Physical R8 product acceptance:
+**BLOCKED / NOT RUN — requires explicit owner live-test authorization**.
+No live clipboard action was performed.
+
 ## R1/R2/R9 hosted owner-candidate qualification receipt (2026-10-24)
 
 **Exact SHA:** `346f6afe59d4331664697da67a74de9d117cde60`  

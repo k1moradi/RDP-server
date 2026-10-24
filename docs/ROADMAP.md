@@ -1,3 +1,40 @@
+## R5 P1 authentication-envelope independence pinned (2026-10-24)
+
+**Starting exact-main parent:** `5c9d460adc759711b3e67502164cc2487a893a59`.
+
+Audit of the Linux R5 composition after the DirectNtlm, R9 Microsoft-CSSP and
+R6 portable-envelope hardening found no production envelope coupling.
+CredSSP/NTLM negotiation remains inside R2. HostControl stays in
+`PreAdmission` through authentication; only `CredentialsVerified` may call
+`issueAdmission()`. Native selection independently requires a live,
+non-revoked R2 lease and principal proof, and the X11 aggregate is constructed
+only after the accepted client reaches `GraphicsReady`.
+
+This increment adds the dedicated offline behavior gate
+`runtime.linux-r5-auth-envelope-independent-native-owner`. It proves failed
+authentication cannot reach native construction, fresh admitted R2 capability
+is mandatory, GraphicsReady precedes X11 creation, and the native construction/
+selection slices contain no DirectNtlm/SPNEGO-envelope knowledge. The existing
+three-cycle Start -> Stop -> Start and fresh-native-authorization tests are
+strengthened to keep native readiness false before any admitted GraphicsReady
+client.
+
+No production C++, CredSSP/NTLM wire behavior, native authorization policy or
+X11 implementation changed. DirectNtlm remains an R2 concern; R5 continues to
+consume only the admitted capability. Concurrent R9/R6 authentication-envelope
+qualification on the parent is preserved unchanged.
+
+**Connector source/test review:** PASS. **Canonical owner-local build/full
+CTest:** NOT RUN in this connector environment. **Exact-publication-SHA hosted
+CI:** PENDING. **Physical X11/Windows-client execution:** NOT RUN; no live
+desktop authorization was requested.
+
+**Next gate:** keep the new offline ownership regression and existing
+Start/Stop/Start gates green while R2/R9 completes exact-SHA hosted
+qualification and the owner repeats the real Microsoft-client path. A future
+DirectNtlm success must still reach fresh R2 admission and GraphicsReady before
+any X11 owner exists.
+
 ## R6 P1 portable authentication-envelope audit (2026-10-24)
 
 **Starting exact-main parent:** `627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9`.

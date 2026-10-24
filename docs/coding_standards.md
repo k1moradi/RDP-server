@@ -1,3 +1,23 @@
+## R5 native authority is independent of the R2 authentication envelope (2026-10-24)
+
+R5 must never branch on, store, or interpret CredSSP negotiation-envelope state.
+Whether StandalonePassword reached R2 through SPNEGO-wrapped NTLM or
+`DirectNtlm` is an R2 implementation detail. R5 consumes only the resulting
+live admitted native-desktop capability.
+
+Authentication failure of either envelope must terminate before any X11 owner
+can be constructed. Successful credentials are still insufficient: R2 must
+issue a fresh non-revoked admission lease from current owner/native evidence,
+R3 must reach `GraphicsReady`, and only then may HostControl obtain the native
+selection through `visitNativeDesktopSelection()` and construct the one X11
+owner. Native construction and service code must contain no NTLM/SPNEGO
+envelope knowledge.
+
+Ordinary Stop continues to revoke the current owner grant and destroy the X11
+aggregate while retaining only the permitted memory-only Session Password.
+Every later Start requires fresh owner authorization/native evidence exactly as
+before; authentication-envelope support must not weaken that lifecycle.
+
 ## CredSSP negotiation envelope is connection-scoped and immutable (2026-10-24)
 
 MS-CSSP `TSRequest.negoTokens` can carry SPNEGO tokens or direct

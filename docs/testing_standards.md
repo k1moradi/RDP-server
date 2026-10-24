@@ -1,3 +1,24 @@
+## R5 authentication-envelope independence gate (2026-10-24)
+
+Keep `runtime.linux-r5-auth-envelope-independent-native-owner` as an offline
+source-backed ownership regression. It must prove that PreAdmission
+authentication failures cannot call native construction, only
+`CredentialsVerified` can request R2 admission, native selection requires a
+live non-revoked lease plus authenticated principal proof, and X11 construction
+is reachable only from the `GraphicsReady` phase.
+
+The bounded R5 construction/selection slices must reject dependencies on
+`DirectNtlm`, SPNEGO/NTLM envelope selectors or token parsers. This is the
+architectural regression for both successful and failed direct-NTLM paths; do
+not add a DirectNtlm branch to R5 to make the test pass.
+
+Continue the existing three-cycle
+`runtime.linux-host-control-stop-start-retains-standalone-credential`,
+`runtime.linux-host-control-fresh-native-authorization-every-start`, and R9
+Start/Stop/TLS interop gates. While they have listener/credential/owner-consent
+readiness but no admitted GraphicsReady client, they must explicitly report no
+native desktop owner/initialization.
+
 ## R9 primary Microsoft-CSSP negotiation qualification gate (2026-10-24)
 
 The owner-candidate gate is no longer a generic "entered SPNEGO" check. The

@@ -1,3 +1,34 @@
+## R5 authentication-envelope independence verification (2026-10-24)
+
+**Starting exact-main parent:** `5c9d460adc759711b3e67502164cc2487a893a59`.
+
+Reviewed `LinuxRuntimeHostControl`, `LinuxRuntimeConnection` and the existing
+R5 lifecycle gates after the DirectNtlm/R9/R6 envelope increments. Production
+source already has the required separation: authentication failure remains in
+PreAdmission; `CredentialsVerified` must successfully issue R2 admission;
+native selection requires `ready()`, a live non-revoked lease, principal
+proof and broker revalidation; and `initializeNativeDesktop()` is called only
+from `AcceptedClientPhase::GraphicsReady`.
+
+No production fix was required. A new offline source-contract CTest,
+`runtime.linux-r5-auth-envelope-independent-native-owner`, pins those
+boundaries and rejects DirectNtlm/NTLM-envelope parser knowledge from the R5
+native construction/selection slices. The existing three-cycle Linux
+Start -> Stop -> Start and R9 Start/Stop/TLS cases additionally assert that
+listener, credential and owner-consent readiness alone leave both
+`nativeDesktopReady` and `nativeDesktopInitializing` false.
+
+DirectNtlm authentication failure therefore cannot create an X11 owner.
+Successful future DirectNtlm credentials still require the same fresh R2 lease
+and GraphicsReady transition as SPNEGO-wrapped NTLM. No OS/GSS fallback,
+username mapping, X11 runtime behavior or Start/Stop credential policy changed.
+The parent R9/R6 authentication-envelope qualification changes are retained.
+
+Connector source/test review: **PASS**. Canonical local configure/build/full
+CTest: **NOT RUN** because this connector does not expose the owner's
+`~/rdp-server` checkout; no alternate build root was created. Exact-SHA hosted
+CI: **PENDING**. Physical desktop/client execution: **NOT RUN**.
+
 ## R6 portable CredSSP envelope audit receipt (2026-10-24)
 
 **Starting exact-main parent:** `627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9`.

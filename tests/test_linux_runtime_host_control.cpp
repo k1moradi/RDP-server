@@ -1368,6 +1368,11 @@ int main(int argc, char** argv)
             assert(live.hostOwnerAuthorized);
             assert(live.product.ownerAuthorized);
             assert(live.product.state == RuntimeProductHostState::Listening);
+            // Listener/credential/consent readiness is not native desktop
+            // authority. R5 remains dormant until an admitted client reaches
+            // the GraphicsReady R2-selection gate.
+            assert(!live.nativeDesktopReady);
+            assert(!live.nativeDesktopInitializing);
             assert(control.standaloneApplicationPasswordObservation().generation ==
                    generationOne.generation);
 
@@ -1386,6 +1391,8 @@ int main(int argc, char** argv)
             assert(stopped.product.boundEndpoint.empty());
             assert(!stopped.tlsIdentityReady);
             assert(!stopped.product.tlsIdentityReady);
+            assert(!stopped.nativeDesktopReady);
+            assert(!stopped.nativeDesktopInitializing);
             assert(stopped.product.recommendedEndpoint.valid());
             assert(stopped.product.recommendedEndpoint.interfaceId ==
                    recommendation.interfaceId);
@@ -1633,6 +1640,8 @@ int main(int argc, char** argv)
             assert(live.tlsIdentityReady);
             assert(live.tlsIdentity.boundIdentityMatchesGeneration(
                 live.listenerGeneration));
+            assert(!live.nativeDesktopReady);
+            assert(!live.nativeDesktopInitializing);
             previousListenerGeneration = live.listenerGeneration;
 
             if (cycle == 0)
@@ -1664,6 +1673,7 @@ int main(int argc, char** argv)
             assert(stopped.boundEndpoint.empty());
             assert(stopped.activeClients.empty());
             assert(!stopped.nativeDesktopReady);
+            assert(!stopped.nativeDesktopInitializing);
             assert(!stopped.tlsIdentityReady);
             assert(!stopped.tlsIdentity.fingerprintAvailable);
             assert(!stopped.hostOwnerAuthorized);

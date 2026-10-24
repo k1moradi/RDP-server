@@ -1,3 +1,22 @@
+## R5 consumes capability, not CredSSP envelope (2026-10-24)
+
+The R2-to-R5 interface is the admitted native-desktop capability, not the
+authentication transcript. SPNEGO-wrapped NTLM and DirectNtlm both terminate
+inside R2 and, after successful credential verification, must pass through the
+same fresh native-admission lease.
+
+The Linux host creates no X11 resources during TLS/CredSSP, credential
+verification, owner-consent setup, listener Start or MCS/Share progression.
+After R3 graphics control is authorized and reaches `GraphicsReady`,
+HostControl asks the connection to `visitNativeDesktopSelection()`; that call
+requires a live lease, principal proof and broker revalidation. Only the
+returned generation-bound selection may construct the one R5 X11 aggregate.
+
+Consequently a DirectNtlm failure has no native owner to retire, while future
+successful DirectNtlm credentials gain no special native privilege. Stop and
+authorization loss continue to retire the same R5 aggregate independent of
+which R2 envelope established the authenticated principal.
+
 ## R2 direct-NTLM CredSSP negotiation envelope (2026-10-24)
 
 Owner Microsoft Windows App evidence on Linux establishes the first standalone

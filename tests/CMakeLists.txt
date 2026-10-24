@@ -515,6 +515,15 @@ if(TARGET rdp-server-linux-host-control)
         runtime.linux-host-control-native-desktop-bounded-post-share PROPERTIES
         LABELS "runtime;security;r1-transport;r2-admission;r3-graphics;r4-frame;r5-native;r10-host-control;x11;offline")
 
+    add_test(NAME runtime.linux-r5-auth-envelope-independent-native-owner
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_r5_auth_envelope_independence.cmake")
+    set_tests_properties(
+        runtime.linux-r5-auth-envelope-independent-native-owner PROPERTIES
+        LABELS "runtime;security;r2-admission;r3-graphics;r5-native;r10-host-control;x11;offline")
+
     add_test(NAME runtime.linux-host-control-dormant-unicode-clipboard-composition
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"

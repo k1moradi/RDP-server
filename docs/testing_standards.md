@@ -1,3 +1,22 @@
+## R9 combined lifecycle and standalone-SPNEGO owner-candidate gate (2026-10-24)
+
+Before another owner candidate, directly run the three production-linked R9
+fixtures on one exact SHA: `r9-start-stop-start-and-tls-interop`,
+`r9-microsoft-neginit2-ntlm-challenge`, and
+`r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge`. Native skip 77 is a
+failure for this gate, not qualifying evidence.
+
+Together they cover repeated same-port Start/Stop with retained memory-only
+credential plus fresh consent, real X.224 HYBRID/TLS, Microsoft-compatible
+SPNEGO selection into NTLM challenge, and TLS-record TSRequest v5/v6 challenge
+issuance. They remain focused fixtures and do not claim an unmodified client
+PASS.
+
+Real-client fail-only diagnostics must include `tls=`,
+`credssp=spnego-initial`, and `spnego=`, with `accepted` or a stable
+precise rejection reason. Never log token material and never enable OS-GSS
+fallback as a workaround.
+
 ## Cross-platform typed protocol-version fixture rule (2026-10-24)
 
 When iterating fixed-width protocol scalar fixtures, make the container element

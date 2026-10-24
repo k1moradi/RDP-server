@@ -1,3 +1,16 @@
+## R9 combined lifecycle/SPNEGO owner-candidate gate authoring — 2026-10-24
+
+R9 now treats standalone SPNEGO as the demonstrated owner blocker. The sanitizer
+job builds and directly runs the Start/Stop/X.224-TLS fixture, Microsoft-style
+NegTokenInit2 -> NTLM Type 2 fixture, and TLS-record TSRequest v5/v6 -> NTLM
+Type 2 fixture on one SHA. Runtime fail-only output now emits
+`tls=...`, `credssp=spnego-initial`, and
+`spnego=<accepted|precise-reason>`. OS-GSS fallback remains disabled.
+
+Connector/source review: **PASS**. Local compile/full CTest: **NOT RUN**.
+Hosted exact-SHA gate: **PENDING**. Real Microsoft-client retry:
+**NOT REQUESTED**. Standalone password interoperability: **NOT QUALIFIED**.
+
 ## Windows CredSSP fixture compile unblock — 2026-10-24
 
 Starting exact-main parent `fcff4a47513f3f04d23cf4a0e8505dea1187d7fb`. Hosted run `40091599368` reached the

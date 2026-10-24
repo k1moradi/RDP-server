@@ -800,6 +800,8 @@ jobs:
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
+            test_standalone_spnego test_standalone_credssp \
+            test_linux_runtime_host_control \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
             test_linux_logind_session_identity test_runtime_host_control \
             test_runtime_linux_security test_runtime_io_interest \
@@ -815,6 +817,22 @@ jobs:
             test_x11_desktop_resources \
             test_x11_authorized_input_route test_x11_rdp_slow_path_input \
             fuzz_mcs_cliprdr fuzz_credssp
+      - name: R9 Start-Stop-Start and standalone CredSSP-SPNEGO owner-candidate gate
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        shell: bash
+        run: |
+          set -euo pipefail
+          # One exact-SHA gate owns both owner regressions. Run binaries
+          # directly so native-environment skip code 77 is a hard failure.
+          build/tests/test_linux_runtime_host_control \
+            r9-start-stop-start-and-tls-interop
+          build/tests/test_standalone_spnego \
+            r9-microsoft-neginit2-ntlm-challenge
+          build/tests/test_standalone_credssp \
+            r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge
+
       - name: Run all registered clipboard CTests with sanitizers
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1

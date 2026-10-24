@@ -128,6 +128,16 @@ template <std::size_t Size>
     return {storage.data(), offset};
 }
 
+[[nodiscard]] constexpr const char *spnegoDiagnosticName(
+    rdp_server::server::security::StandaloneSpnegoRejectionReason reason) noexcept
+{
+    return reason ==
+            rdp_server::server::security::StandaloneSpnegoRejectionReason::None
+        ? "accepted"
+        : rdp_server::server::security::
+              standaloneSpnegoRejectionReasonName(reason);
+}
+
 [[nodiscard]] constexpr const char *standaloneFailureStageName(
     rdp_server::server::security::StandaloneAuthenticationFailureStage
         stage) noexcept
@@ -918,12 +928,11 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
             "rdp-server: standalone authentication failed: stage=%s; "
             "tls=%s; credssp=spnego-initial; "
             "os-gss-fallback=disabled; spnego-initial=unobserved; "
-            "spnego-reason=%s\n",
+            "spnego=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
-            rdp_server::server::security::
-                standaloneSpnegoRejectionReasonName(
-                    standaloneCredSspAcceptor_.spnegoRejectionReason()));
+            spnegoDiagnosticName(
+                standaloneCredSspAcceptor_.spnegoRejectionReason()));
         return;
     }
 
@@ -948,7 +957,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         "neg-hints=%s; mech-list-mic=%s; mechanism-count=%zu; "
         "mechanism-oids=%.*s; ntlm-offered=%s; ntlm-index=%d; "
         "optimistic-token=%s; optimistic-token-bytes=%zu; "
-        "spnego-reason=%s\n",
+        "spnego=%s\n",
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
         static_cast<unsigned int>(initial.tsRequestVersion),
@@ -968,9 +977,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         ntlmMechanismIndex,
         yesNo(spnego.optimisticMechanismTokenPresent),
         spnego.optimisticMechanismTokenBytes,
-        rdp_server::server::security::
-            standaloneSpnegoRejectionReasonName(
-                spnego.rejectionReason));
+        spnegoDiagnosticName(spnego.rejectionReason));
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept

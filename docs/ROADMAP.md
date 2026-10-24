@@ -1,3 +1,25 @@
+## R9 P0 — owner-candidate gate requires standalone SPNEGO challenge entry (2026-10-24)
+
+Owner evidence now places the first demonstrated failure at standalone SPNEGO,
+after HYBRID/TLS and an owned CredSSP TSRequest. The X.224/TLS fixture remains a
+prerequisite but is no longer sufficient.
+
+The hosted `r9-security-protocol-sanitizers` job now directly executes, on one
+exact SHA, the three-cycle Start/Stop/X.224-TLS fixture, the Microsoft-compatible
+NegTokenInit2 -> NTLM Type 1/Type 2 fixture, and the TLS-record TSRequest v5/v6
+-> NTLM Type 2 fixture. Direct execution makes native skip code 77 fail the
+candidate. OS-GSS fallback remains disabled.
+
+Fail-only owner diagnostics now include the literal structural fields
+`tls=<...>; credssp=spnego-initial; ...; spnego=<accepted|precise-reason>`.
+`accepted` means only that initial SPNEGO structure was accepted before a
+later failure. Generic `stage=spnego` is no longer sufficient for owner
+nomination. Standalone password interoperability remains **NOT QUALIFIED**.
+
+Connector/source review: **PASS**. Build/full CTest and hosted exact-SHA gate:
+**NOT RUN / PENDING** in this connector session. Real-client retry:
+**NOT REQUESTED**.
+
 ## Windows CredSSP v5/v6 fixture portability unblock — 2026-10-24
 
 **Starting exact-main parent:** `fcff4a47513f3f04d23cf4a0e8505dea1187d7fb`.

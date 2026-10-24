@@ -1,3 +1,25 @@
+## R2 SPNEGO structural-diagnostic audit follow-up (2026-10-24)
+
+Starting exact-main parent: `098527813cb678913a9ab7ddf84f451dfabdeae8`.
+
+The owner trace `stage=spnego; os-gss-fallback=disabled` remains the first
+demonstrated Microsoft-client failure boundary; TLS-first blocker wording stays
+superseded. RFC 4178 requires the initiator's first SPNEGO negotiation token to
+use the GSS InitialContextToken wrapper, while later negotiation tokens are
+unwrapped. Current MS-SPNG NegTokenInit2 keeps the same initial choice and adds
+optional negotiation hints/MIC fields.
+
+This follow-up does not broaden ASN.1 acceptance or authentication authority.
+It preserves already-parsed offered-mechanism count/OIDs when a later
+mechanism-list item is rejected, so fail-only diagnostics remain useful for
+duplicate-NTLM or malformed-tail cases. The Microsoft-style synthetic fixture
+now exercises NEGOEX plus Kerberos-family OIDs before NTLM, and the R2
+Stop/restart regression explicitly finishes with G2 replacement invalidating
+G1. OS-GSS fallback remains disabled. TLS/CredSSP wire framing is unchanged.
+
+Connector source review: **PASS**. Local build/full CTest and real-client rerun:
+**NOT RUN in this connector session**.
+
 ## R2 P0 — retained credential session fence and Microsoft SPNEGO evidence (2026-10-24)
 
 **Starting exact-main parent:** `cf6ba9aac61354f841cf66802eca10683c33d392`.

@@ -219,6 +219,11 @@ struct ParsedInitialToken final
         mechanism.oidBytes = capturedOidBytes;
         mechanism.oidTruncated = capturedOidBytes != oid.content.size();
 
+        // Publish each structurally valid offered OID as soon as it is parsed
+        // so a later duplicate/malformed field cannot erase useful bounded
+        // first-token diagnostics.
+        observation.mechanismCount = mechanismIndex + 1U;
+
         if (oidEquals(oid.content, kNtlmOid))
         {
             if (sawNtlm)
@@ -234,7 +239,6 @@ struct ParsedInitialToken final
         ++mechanismIndex;
     }
 
-    observation.mechanismCount = mechanismIndex;
     if (mechanismIndex == 0U)
         return rejectInitialToken(
             observation, StandaloneSpnegoRejectionReason::MalformedMechList);
@@ -388,10 +392,10 @@ struct ParsedInitialToken final
             if (!unwrapSingle(field.content, 0x04U, nested) || nested.empty())
                 return rejectInitialToken(
                     observation, StandaloneSpnegoRejectionReason::OptimisticTokenShape);
+            observation.optimisticMechanismTokenBytes = nested.size();
             if (nested.size() > kMaximumStandaloneNtlmMessageBytes)
                 return rejectInitialToken(
                     observation, StandaloneSpnegoRejectionReason::TokenTooLarge);
-            observation.optimisticMechanismTokenBytes = nested.size();
             result.mechanismToken = nested;
             break;
         case 0xa3U:

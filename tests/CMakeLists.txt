@@ -177,7 +177,8 @@ set_tests_properties(r9-standalone-spnego-initial-rejection-categories
     PROPERTIES LABELS "r9;security;spnego;credssp;offline")
 
 # R9 P0 Microsoft-compatible synthetic NegTokenInit2 path through
-# Kerberos-first mechanism selection into NTLM challenge. This does not claim
+# NEGOEX/Kerberos-family-first mechanism selection into NTLM challenge. This
+# does not claim
 # that the unmodified owner client succeeded or that GSS fallback is enabled.
 add_test(NAME r9-standalone-credssp-spnego-microsoft-negotiation
     COMMAND test_standalone_spnego

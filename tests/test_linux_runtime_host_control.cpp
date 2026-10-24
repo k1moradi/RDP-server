@@ -1321,6 +1321,22 @@ int main(int argc, char** argv)
             assert(visited.visited);
         }
 
+        // Replacement after ordinary Stop creates G2 and invalidates G1;
+        // replacement intent also cannot resurrect any prior owner grant.
+        auto replacementPassword = standalonePassword();
+        replacementPassword.back() = u'2';
+        assert(control.configureStandaloneApplicationPassword(
+            u"rdp", replacementPassword));
+        const auto generationTwo =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationTwo.configured);
+        assert(generationTwo.generation > generationOne.generation);
+        assert(!control.status().hostOwnerAuthorized);
+        StandaloneVisitObservation obsoleteGenerationVisit;
+        assert(!control.visitStandaloneApplicationPassword(
+            generationOne.generation, &observeStandaloneCredential,
+            &obsoleteGenerationVisit));
+
         assert(control.revokeSharing().succeeded());
         const auto revoked = control.status();
         assert(revoked.stage == RuntimeHostStage::Revoked);
@@ -1331,10 +1347,10 @@ int main(int argc, char** argv)
         const auto afterRevoke =
             control.standaloneApplicationPasswordObservation();
         assert(!afterRevoke.configured);
-        assert(afterRevoke.generation > generationOne.generation);
+        assert(afterRevoke.generation > generationTwo.generation);
         StandaloneVisitObservation revokedVisit;
         assert(!control.visitStandaloneApplicationPassword(
-            generationOne.generation, &observeStandaloneCredential,
+            generationTwo.generation, &observeStandaloneCredential,
             &revokedVisit));
         return 0;
 #endif

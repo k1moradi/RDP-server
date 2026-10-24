@@ -1,3 +1,23 @@
+## R2 SPNEGO diagnostic completeness follow-up (2026-10-24)
+
+Starting exact-main parent: `098527813cb678913a9ab7ddf84f451dfabdeae8`.
+
+Audited the new owner-evidence path against RFC 4178 and current MS-SPNG. The
+initial `0x60` GSS wrapper remains intentionally strict; no bare initial token
+acceptance was added. Diagnostic capture now retains every structurally valid
+offered OID/count parsed before an early mechanism-list rejection, while still
+logging no raw SPNEGO/NTLM/MIC/authInfo or credential material. The
+Microsoft-style NegTokenInit2 fixture covers NEGOEX, standard Kerberos,
+Microsoft Kerberos and NTLM with a non-NTLM optimistic token before explicit
+NTLM continuation/challenge.
+
+The lifecycle acceptance test now also asserts that password replacement after
+ordinary Stop/restart creates G2, invalidates G1 and leaves no owner grant.
+OS-GSS fallback remains disabled and cannot become Session Password authority.
+
+Source/diff review: **PASS**. Canonical local build/CTest: **NOT RUN**.
+Real Microsoft-client structural rerun: **PENDING**.
+
 ## R2 P0 retained-credential fence and SPNEGO structural diagnostic authoring receipt (2026-10-24)
 
 **Starting exact-main parent:** `cf6ba9aac61354f841cf66802eca10683c33d392`.

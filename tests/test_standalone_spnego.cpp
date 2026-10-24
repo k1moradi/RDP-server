@@ -23,6 +23,8 @@ constexpr std::array<std::uint8_t, 10> kNtlmOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
 constexpr std::array<std::uint8_t, 9> kKerberosOid{
     0x2a,0x86,0x48,0x86,0xf7,0x12,0x01,0x02,0x02};
+constexpr std::array<std::uint8_t, 9> kMicrosoftKerberosOid{
+    0x2a,0x86,0x48,0x82,0xf7,0x12,0x01,0x02,0x02};
 constexpr std::array<std::uint8_t, 10> kNegoExOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x1e};
 constexpr std::array<std::uint8_t, 6> kSpnegoOid{
@@ -230,6 +232,8 @@ int main(int argc, char **argv)
         // redacted live diagnostic capture.
         const std::vector<Bytes> mechanisms{
             Bytes(kNegoExOid.begin(), kNegoExOid.end()),
+            Bytes(kKerberosOid.begin(), kKerberosOid.end()),
+            Bytes(kMicrosoftKerberosOid.begin(), kMicrosoftKerberosOid.end()),
             Bytes(kNtlmOid.begin(), kNtlmOid.end())};
         constexpr std::array<std::uint8_t, 12> optimisticNegoEx{
             'N','E','G','O','E','X','T','S',1U,0U,0U,0U};
@@ -253,9 +257,9 @@ int main(int argc, char **argv)
         assert(observation.negHintsPresent);
         assert(!observation.reqFlagsPresent);
         assert(!observation.mechListMicPresent);
-        assert(observation.mechanismCount == 2U);
+        assert(observation.mechanismCount == 4U);
         assert(observation.ntlmOffered);
-        assert(observation.ntlmMechanismIndex == 1U);
+        assert(observation.ntlmMechanismIndex == 3U);
         assert(observation.optimisticMechanismTokenPresent);
         assert(observation.optimisticMechanismTokenBytes ==
                optimisticNegoEx.size());
@@ -265,10 +269,19 @@ int main(int argc, char **argv)
         assert(std::equal(
             kNegoExOid.begin(), kNegoExOid.end(),
             observation.mechanisms[0].oid.begin()));
-        assert(observation.mechanisms[1].oidBytes == kNtlmOid.size());
+        assert(observation.mechanisms[1].oidBytes == kKerberosOid.size());
+        assert(std::equal(
+            kKerberosOid.begin(), kKerberosOid.end(),
+            observation.mechanisms[1].oid.begin()));
+        assert(observation.mechanisms[2].oidBytes ==
+               kMicrosoftKerberosOid.size());
+        assert(std::equal(
+            kMicrosoftKerberosOid.begin(), kMicrosoftKerberosOid.end(),
+            observation.mechanisms[2].oid.begin()));
+        assert(observation.mechanisms[3].oidBytes == kNtlmOid.size());
         assert(std::equal(
             kNtlmOid.begin(), kNtlmOid.end(),
-            observation.mechanisms[1].oid.begin()));
+            observation.mechanisms[3].oid.begin()));
 
         const auto expectedSelection = expectedServerResponse(3U, true);
         assert(selected.bytesWritten == expectedSelection.size());
@@ -328,6 +341,25 @@ int main(int argc, char **argv)
             negotiateMessage());
         assert(reasonFor(duplicateNtlm) ==
                StandaloneSpnegoRejectionReason::DuplicateNtlm);
+        {
+            StandaloneSpnegoNtlmAcceptor duplicateObservation;
+            assert(configure(duplicateObservation));
+            std::array<
+                std::uint8_t,
+                kMaximumStandaloneSpnegoTokenBytes> reply{};
+            assert(duplicateObservation.acceptInitialToken(
+                       duplicateNtlm, reply).status ==
+                   StandaloneSpnegoStatus::InvalidToken);
+            const auto observed =
+                duplicateObservation.initialTokenObservation();
+            assert(observed.rejectionReason ==
+                   StandaloneSpnegoRejectionReason::DuplicateNtlm);
+            assert(observed.mechanismCount == 2U);
+            assert(observed.ntlmOffered);
+            assert(observed.ntlmMechanismIndex == 0U);
+            assert(observed.mechanisms[0].oidBytes == kNtlmOid.size());
+            assert(observed.mechanisms[1].oidBytes == kNtlmOid.size());
+        }
 
         Bytes outOfOrder =
             tlv(0xa2U, tlv(0x04U, negotiateMessage()));

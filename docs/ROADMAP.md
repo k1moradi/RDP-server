@@ -1,3 +1,15 @@
+## R9 P0 — TLS-record TSRequest v5/v6 challenge addition (2026-10-24)
+
+Added `r9-standalone-credssp-tsrequest-v5-v6-challenge`: reuse the
+production standalone CredSSP acceptor, in-memory OpenSSL TLS pair, genuine
+TLS-backed TSRequest frame reader and reply writer to test TSRequest 5
+and 6, NTLM-first SPNEGO negotiation and issuance of NTLM Type 2.
+This is paired with the Kerberos-first Microsoft-compatible NegTokenInit2
+selector fixture and the real R1 X.224/TLS listener fixture. They are
+separate focused tests, **not** one uninterrupted production-listener
+X.224→TLS→TSRequest→SPNEGO trace. Unmodified Microsoft-client
+interop remains NOT QUALIFIED. Exact-SHA CI/native execution NOT RUN.
+
 ## R9 P0 — SPNEGO-first owner evidence supersedes TLS-first diagnosis (2026-10-24)
 
 **NEW OWNER OBSERVATION:** `standalone authentication failed: stage=spnego; os-gss-fallback=disabled`.

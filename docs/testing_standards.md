@@ -1,3 +1,13 @@
+## R9 TSRequest 5/6 in-memory TLS fixture (2026-10-24)
+
+Run `r9-standalone-credssp-tsrequest-v5-v6-challenge` for two separate
+in-memory TLS sessions with the real TLS record frame reader and reply
+writer. Confirm that both versioned TSRequests issue a nonempty SPNEGO
+reply containing a properly tagged NTLMSSP Type 2 challenge. Pair with
+the Microsoft-style NegTokenInit2 selection fixture, and do not infer
+a complete real-listener chain or live-client acceptance from their
+separate simulated peers. An exact-SHA owner log remains mandatory.
+
 ## R9 SPNEGO-first acceptance correction (2026-10-24)
 
 A standalone `stage=spnego` failure after an owned TSRequest demonstrates

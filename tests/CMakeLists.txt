@@ -265,6 +265,14 @@ add_test(NAME runtime.bootstrap-generated-identities-default-memory-only
 set_tests_properties(runtime.bootstrap-generated-identities-default-memory-only
     PROPERTIES LABELS "runtime;bootstrap;r6;security;offline")
 
+# R9 P0 owned TLS-record TSRequest v5/v6 through standalone SPNEGO to
+# NTLM Type 2 challenge. This is not a real X.224/listener/client receipt.
+add_test(NAME r9-standalone-credssp-tsrequest-v5-v6-challenge
+    COMMAND test_standalone_credssp
+        r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge)
+set_tests_properties(r9-standalone-credssp-tsrequest-v5-v6-challenge
+    PROPERTIES LABELS "r9;security;tls;credssp;spnego;offline")
+
 # R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
 # these tests cannot grant native admission or enable a listener.
 add_executable(test_standalone_credssp test_standalone_credssp.cpp)

@@ -545,7 +545,8 @@ void prepareInitialNegotiation(
     EphemeralNtlmV2Credential &credential,
     MemoryTlsPair &tls,
     TsRequestFrameReader &reader,
-    TsRequestTlsReplyWriter &writer)
+    TsRequestTlsReplyWriter &writer,
+    std::uint8_t requestVersion = 6U)
 {
     assert(acceptor.configureChallenge(
         {kServerChallenge, u"Domain", u"Server",
@@ -553,7 +554,7 @@ void prepareInitialNegotiation(
     const auto negotiate = negotiateMessage();
     const auto spnego = initialSpnego(negotiate);
     const auto request =
-        wrap(0x30U, append(version(6U), tokens(spnego)));
+        wrap(0x30U, append(version(requestVersion), tokens(spnego)));
 
     tls.sendClient(request);
     tls.readServerFrame(reader);
@@ -567,6 +568,14 @@ void prepareInitialNegotiation(
     const auto parsed = parseCredSspTsRequest(reply);
     assert(parsed && parsed.value.tokenCount == 1);
     assert(!parsed.value.tokens[0].empty());
+    // Preserve a real NTLM Type 2 challenge in the SPNEGO reply, rather
+    // than accepting an empty/selection-only negotiation response.
+    constexpr std::array<std::uint8_t, 12> typeTwoSignature{
+        'N','T','L','M','S','S','P',0,2,0,0,0};
+    const auto replyToken = parsed.value.tokens[0];
+    assert(std::search(replyToken.begin(), replyToken.end(),
+                       typeTwoSignature.begin(), typeTwoSignature.end()) !=
+           replyToken.end());
 }
 
 void configureClientMirror(
@@ -1022,6 +1031,28 @@ int main(int argc, char **argv)
         return 2;
     const std::string_view testCase{argv[1]};
 
+    if (testCase == "r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge")
+    {
+        // Both CredSSP TSRequest versions cross the actual in-memory TLS
+        // record reader and R2 SPNEGO acceptor, including NTLM Type 2 output.
+        // This does not substitute for the listener's owned R1 socket or a
+        // captured unmodified Windows-client NegTokenInit2.
+        for (const std::uint8_t requestVersion : {5U, 6U})
+        {
+            MemoryTlsPair tls;
+            TsRequestFrameReader reader;
+            TsRequestTlsReplyWriter writer;
+            EphemeralNtlmV2Credential serverCredential;
+            configureServerCredential(serverCredential);
+            StandaloneCredSspNtlmAcceptor acceptor;
+            prepareInitialNegotiation(
+                acceptor, serverCredential, tls, reader, writer,
+                requestVersion);
+            assert(acceptor.lastSpnegoStatus() ==
+                   StandaloneSpnegoStatus::Continue);
+        }
+        return 0;
+    }
     if (testCase ==
         "standalone-credssp-tls-bound-combined-pubkeyauth")
     {

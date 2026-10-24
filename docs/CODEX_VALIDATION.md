@@ -1,3 +1,23 @@
+## R9 Portable GUI Bootstrap exact-SHA PASS and owner nomination (2026-10-23)
+
+**NOMINATED OWNER PRODUCT-TEST CANDIDATE:** `3cabe3ae0d384007eb14edd56890125f38256367`.
+
+Exact Actions run `40070183496`, job `120801757808`
+(`r9-portable-gui-bootstrap-acceptance`): **PASS**. The Debug product
+configuration built the effective Linux production runtime-security graph; the
+gate enumerated exactly seven required bootstrap/product CTests and passed
+**7/7**, including the real-listener
+`runtime.linux-portable-gui-bootstrap-listener-acceptance`. Canonical
+`rdp-server-desktop` no-argument launch remained alive without opening a TCP
+listener and the fail-only log scan found no secret-bearing material.
+
+This is the next SHA to give the owner for the ZIP/extract/double-click →
+Session Password → Sharing ON product test. It supersedes `8f2667b9…` only
+for owner GUI/product testing; that older SHA remains historical Track-A
+protocol/wizard evidence. GUI Round 2 remains presentation qualification and is
+not redefined by this result. CLEAN Windows is independent and did not gate this
+Linux acceptance.
+
 ## R9 Portable GUI Bootstrap fixture-field-order correction — 2026-10-23
 
 Exact source `2b1a66df2dcd94e3bb9357c3c47ea029f59cdbd0`, Actions run `40069964281`, bootstrap job

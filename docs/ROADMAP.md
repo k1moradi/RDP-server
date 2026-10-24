@@ -1,3 +1,35 @@
+## R8 hosted qualification after owner-acceptance credential/start dormancy audit — 2026-10-24
+
+**Tested SHA:** `09504727838f0e1182022bad490e3c6cecc5b08b`.
+
+R8's repository-side P2 audit now has hosted evidence. In Actions run
+`40081020525`, the R8-relevant jobs completed **PASS**:
+- Ubuntu protocol job `120834452309`: Debug project-policy/full CTest and
+  Release protocol tests passed;
+- portable GUI bootstrap job `120834452365`: the exact nine-test acceptance
+  inventory passed, including
+  `gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant`,
+  followed by the no-argument pre-listener smoke and exact owner-acceptance ZIP
+  packaging;
+- sanitizer job `120834452376`: all registered clipboard CTests and the
+  focused R8 clipboard TLS receipt denials passed;
+- macOS portable GUI job `120834452296`: PASS.
+
+The workflow as a whole was still in progress when this receipt was recorded,
+so no claim is made for unrelated unfinished jobs. Later descendants
+`60186ea10eeb2be0bcaa5c66302f40db98b50623` (R5) and
+`03c57b8eb44a13aa106dfb1b53899523ce0dbb10` (R6) preserve the R8 production
+gate and dormancy assertions while adding Linux native-readiness and
+cross-platform editor-property/build-parity coverage; their exact-SHA hosted
+requalification remains pending.
+
+R8 production activation remains **BLOCKED**. The GUI continues to request
+View/Input with `allowClipboard = false`,
+`kLinuxProductionClipboardActivationApproved` remains literal `false`, and
+no GUI clipboard control exists. The next R8 activation gate is still the
+separate owner-authorized physical FIRST/product receipt, not the Linux
+credential-editor usability investigation.
+
 ## R6 P1 Linux/macOS owner-acceptance GUI build/config parity — 2026-10-24
 
 Starting exact-main parent: `60186ea10eeb2be0bcaa5c66302f40db98b50623`.

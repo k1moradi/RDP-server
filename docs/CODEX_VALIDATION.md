@@ -1,3 +1,20 @@
+## R8 hosted credential/start dormancy qualification — 2026-10-24
+
+**Tested SHA:** `09504727838f0e1182022bad490e3c6cecc5b08b`.
+
+Actions run `40081020525` supplies hosted evidence for the R8 audit:
+Ubuntu protocol/full project-policy tests PASS (job `120834452309`), the exact
+nine-test portable GUI acceptance inventory plus no-argument smoke/package PASS
+(job `120834452365`), registered clipboard sanitizer CTests and focused R8
+TLS-receipt denials PASS (job `120834452376`), and macOS portable GUI PASS
+(job `120834452296`). The overall workflow still had unrelated jobs in
+progress when recorded, so its aggregate conclusion is not claimed.
+
+The later R5/R6 descendants preserve the R8 dormancy contract and add
+precredential/editability parity coverage; publication-SHA CI for those
+descendants is pending. Production clipboard activation remains false and
+physical FIRST remains **BLOCKED / NOT RUN**.
+
 ## R6 owner-acceptance GUI parity authoring receipt — 2026-10-24
 
 **Authoring parent:** `60186ea10eeb2be0bcaa5c66302f40db98b50623`.

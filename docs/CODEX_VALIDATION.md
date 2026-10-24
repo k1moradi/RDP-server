@@ -1,3 +1,45 @@
+## R1 OpenSSL 4 generated-subject portability receipt — 2026-10-23
+
+Starting exact-main parent: `0a602aab1b0ae1668122d5c4327361ba2df4d62a`.
+
+Dependency review: **PASS / RESOLVED** for R6 automatic-bootstrap policy and
+the subsequent R8 bootstrap-boundary consumer. R6 names R1's generated TLS
+identity as the process-memory TLS bootstrap owner and does not create a second
+TLS key/persistence path. R8 adds no TLS owner. R3 licensing material remains
+independent by design.
+
+Parent-line hosted evidence from Actions run `40064050755`:
+- Ubuntu full CTest compiled R1 and reported PASS for the mismatched-key case
+  and all five generated TLS identity cases.
+- Windows MSVC full CTest reported the same R1 cases PASS.
+- Windows CLANG64 reported the same R1 cases PASS in Debug and again in
+  Release.
+- macOS failed at **Compile Debug** before those CTests because
+  `X509_get_subject_name()` yielded `const X509_NAME*` under the installed
+  OpenSSL headers and R1 assigned it to a mutable pointer.
+
+Correction: generated certificate construction no longer mutates an
+X509-owned subject returned by an accessor. It RAII-owns a new mutable
+`X509_NAME`, adds the generic Common Name, and copies the name into the
+certificate's subject and issuer. No TLS options, key generation, SAN encoding,
+listener ownership, CredSSP behavior or R3 licensing behavior changes.
+
+Dedicated regression added:
+`runtime.generated-tls-identity-generic-subject-ip-san-authority`. It creates
+the production generated context without files, observes the generic
+`RDP Server` subject through the const accessor, and requires exact-IP SAN
+match plus adjacent-IP rejection.
+
+Source/API review: **PASS**. Owner-local `~/rdp-server/build/` build/full
+CTest: **NOT RUN**. Replacement exact-publication-SHA hosted CI: **PENDING**.
+No listener, desktop, input, clipboard or client operation was run.
+
+Independent parent-line failure: R6's portable bootstrap manifest verifier
+makes `packaging.portable-gui-macos-framework-link-verifier-denials` fail
+because that synthetic fixture lacks newly required canonical-bootstrap fields.
+R8's current bootstrap-boundary test does not resolve that packaging fixture.
+That failure is not an R1 TLS failure and remains outside this correction.
+
 ## R8 P2 dependency recheck after R1/R6 bootstrap landing — 2026-10-23
 
 Starting exact-main parent: `6ac5a1519617d672ce773d6fc628ae28e6e9fd8f`.

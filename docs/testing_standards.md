@@ -1,3 +1,18 @@
+## Generated TLS subject/SAN portability regression (2026-10-23)
+
+Keep
+`runtime.generated-tls-identity-generic-subject-ip-san-authority` in ordinary
+full CTest on every platform. It must use the production no-file generator,
+read the generated subject through the const X509 name API, require the generic
+`RDP Server` Common Name, require the selected numeric IP to match, and reject
+a different numeric IP. This complements the IPv4/IPv6 SAN tests by ensuring
+future OpenSSL API portability fixes cannot quietly turn the subject/Common
+Name into endpoint authority.
+
+A platform compile failure in the generated TLS source is an R1 failure even
+when other platforms execute the behavior tests successfully; record both facts
+rather than inferring cross-platform PASS.
+
 ## R8 regression consumes R1/R6 automatic-bootstrap contracts (2026-10-23)
 
 The ordinary `runtime.linux-gui-bootstrap-clipboard-dormancy` source-policy

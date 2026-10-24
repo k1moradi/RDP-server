@@ -60,6 +60,10 @@ struct X509Closer
 {
     void operator()(X509 *certificate) const noexcept { ::X509_free(certificate); }
 };
+struct X509NameCloser
+{
+    void operator()(X509_NAME *name) const noexcept { ::X509_NAME_free(name); }
+};
 struct PkeyCloser
 {
     void operator()(EVP_PKEY *key) const noexcept { ::EVP_PKEY_free(key); }
@@ -81,6 +85,7 @@ struct GeneralNamesCloser
 
 using OwnedBio = std::unique_ptr<BIO, BioCloser>;
 using OwnedCertificate = std::unique_ptr<X509, X509Closer>;
+using OwnedX509Name = std::unique_ptr<X509_NAME, X509NameCloser>;
 using OwnedPrivateKey = std::unique_ptr<EVP_PKEY, PkeyCloser>;
 using OwnedX509Extension = std::unique_ptr<X509_EXTENSION, X509ExtensionCloser>;
 using OwnedGeneralNames = std::unique_ptr<GENERAL_NAMES, GeneralNamesCloser>;
@@ -347,13 +352,17 @@ struct ParsedNumericIpAddress
         ::X509_set_pubkey(certificate.get(), privateKey.get()) != 1)
         return {};
 
-    X509_NAME *const subject = ::X509_get_subject_name(certificate.get());
+    // Build the mutable subject independently. OpenSSL 4 exposes certificate
+    // subject accessors as const; generated-certificate construction must not
+    // depend on mutating an X509-owned name through a legacy accessor.
+    OwnedX509Name subject{::X509_NAME_new()};
     constexpr unsigned char kCommonName[] = "RDP Server";
-    if (subject == nullptr ||
+    if (!subject ||
         ::X509_NAME_add_entry_by_NID(
-            subject, NID_commonName, MBSTRING_ASC,
+            subject.get(), NID_commonName, MBSTRING_ASC,
             kCommonName, -1, -1, 0) != 1 ||
-        ::X509_set_issuer_name(certificate.get(), subject) != 1)
+        ::X509_set_subject_name(certificate.get(), subject.get()) != 1 ||
+        ::X509_set_issuer_name(certificate.get(), subject.get()) != 1)
         return {};
 
     if (!addStaticCertificateExtension(

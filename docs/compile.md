@@ -1,3 +1,16 @@
+## OpenSSL 4 generated-subject portability (2026-10-23)
+
+The R1 automatic TLS generator must compile with supported OpenSSL headers where
+certificate-owned X509 name access is const. Generated certificate construction
+therefore creates its own mutable `X509_NAME` and installs it with setter
+APIs; it does not require a compatibility cast, deprecated mutating accessor,
+new library, temporary file or platform conditional.
+
+The existing `rdp-server-runtime-tls` linkage and one-build-root commands are
+unchanged. Hosted Linux/Windows success cannot substitute for macOS compilation;
+the exact-SHA macOS protocol lane must compile this target before R1 automatic
+TLS receives cross-platform qualification.
+
 ## R1 in-memory automatic TLS identity build boundary (2026-10-23)
 
 The existing noninstalled `rdp-server-runtime-tls` target now owns both

@@ -1,3 +1,47 @@
+## R1 OpenSSL 4 generated-subject portability correction — 2026-10-23
+
+Starting exact-main parent: `0a602aab1b0ae1668122d5c4327361ba2df4d62a`.
+
+Dependency recheck: R6's portable automatic-bootstrap contract has landed and
+explicitly consumes R1's process-memory-only generated TLS identity rather than
+duplicating or persisting it. That dependency is **RESOLVED**. R8's subsequent
+bootstrap-boundary test consumes the same automatic-bootstrap contract without
+changing R1 TLS ownership. R3 licensing identity remains intentionally
+separate, and R2/R10 Session Password/runtime composition remains a downstream
+product dependency rather than an R1 TLS implementation blocker.
+
+Hosted CI exposed one R1-owned portability failure. On parent-line Actions run
+`40064050755`, Linux and Windows compiled the automatic TLS path and the
+generated IPv4/IPv6 SAN, wrong-endpoint, Stop/no-listener and mismatched-key
+tests passed. macOS failed Debug compilation in
+`runtime_tls_context.cpp`: its current OpenSSL headers expose the
+certificate-owned subject accessor as `const X509_NAME*`, while the R1
+generator attempted to mutate that returned object.
+
+R1 now constructs a mutable `X509_NAME` as a separate RAII-owned object,
+populates the generic `RDP Server` Common Name there, and copies it into both
+subject and issuer with `X509_set_subject_name()` /
+`X509_set_issuer_name()`. Endpoint identity remains solely the exact numeric
+`iPAddress` SAN; no IP Common Name fallback is introduced. New ordinary CTest
+`runtime.generated-tls-identity-generic-subject-ip-san-authority` pins that
+the generic subject is not the LAN identity and the exact IP SAN remains the
+matching authority.
+
+Source review: **PASS**. Canonical owner-local configure/build/full CTest:
+**NOT RUN** in this connector environment. Replacement exact-SHA hosted CI:
+**PENDING**.
+
+A separate R6-owned packaging regression remains on the parent line:
+`packaging.portable-gui-macos-framework-link-verifier-denials` rejects a
+synthetic manifest missing the new automatic-bootstrap fields. R8's latest
+commit does not touch that verifier/fixture. That failure is outside R1 TLS
+ownership and may keep whole-workflow status red even after the macOS R1 compile
+correction.
+
+**Next gate:** exact-SHA macOS compilation plus the R1 generated-identity CTest
+set on Linux/Windows/macOS. Do not wait on R3 licensing identity or R2 Session
+Password work to qualify this R1 TLS portability correction.
+
 ## R8 P2 consumes landed R1/R6 bootstrap boundaries (2026-10-23)
 
 Dependency recheck at starting main `6ac5a1519617d672ce773d6fc628ae28e6e9fd8f`: R1's no-file,

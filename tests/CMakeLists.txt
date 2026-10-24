@@ -2329,6 +2329,7 @@ endforeach()
 foreach(generated_tls_context_case IN ITEMS
         generated-tls-identity-ipv4-san
         generated-tls-identity-ipv6-san
+        generated-tls-identity-generic-subject-ip-san-authority
         generated-tls-identity-wrong-endpoint-denial
         generated-tls-identity-stop-retirement
         generated-tls-identity-no-listener-side-effect)

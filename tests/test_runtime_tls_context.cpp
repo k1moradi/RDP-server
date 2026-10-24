@@ -421,6 +421,39 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+[[nodiscard]] bool validateGeneratedGenericSubject() noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+
+    constexpr std::string_view endpoint{"192.0.2.60"};
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress(endpoint);
+    if (!context || context.certificate() == nullptr)
+        return fail("generated subject context unavailable");
+
+    const X509_NAME *const subject =
+        ::X509_get0_subject_name(context.certificate());
+    std::array<char, 64> commonName{};
+    const int commonNameBytes = subject == nullptr
+        ? -1
+        : ::X509_NAME_get_text_by_NID(
+              subject, NID_commonName, commonName.data(),
+              static_cast<int>(commonName.size()));
+    if (commonNameBytes != 10 ||
+        std::string_view{
+            commonName.data(), static_cast<std::size_t>(commonNameBytes)} !=
+            "RDP Server")
+        return fail("generated certificate subject is not generic");
+
+    if (context.validateEndpointIdentity(endpoint) !=
+            RuntimeTlsEndpointIdentityStatus::Match ||
+        context.validateEndpointIdentity("192.0.2.61") !=
+            RuntimeTlsEndpointIdentityStatus::Mismatch)
+        return fail("IP SAN did not remain the endpoint identity authority");
+    return true;
+}
+
 [[nodiscard]] bool validateGeneratedRetirement() noexcept
 {
     using rdp_server::server::runtime::RuntimeServerTlsContext;
@@ -459,6 +492,8 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "generated-tls-identity-ipv6-san")
         return validateGeneratedIdentity(
             "2001:db8::40", "2001:db8::41") ? 0 : 1;
+    if (testCase == "generated-tls-identity-generic-subject-ip-san-authority")
+        return validateGeneratedGenericSubject() ? 0 : 1;
     if (testCase == "generated-tls-identity-wrong-endpoint-denial")
     {
         RuntimeServerTlsContext context =

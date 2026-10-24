@@ -1,3 +1,16 @@
+## OpenSSL generated-certificate mutable-object portability (2026-10-23)
+
+Do not assume an accessor returning an X509-owned subobject remains mutable
+across supported OpenSSL versions. In particular, generated-certificate code
+must not acquire a subject with `X509_get_subject_name()` and mutate it in
+place. Construct a fresh RAII-owned mutable `X509_NAME`, populate it, then
+copy it into the certificate through `X509_set_subject_name()` and
+`X509_set_issuer_name()`. Read-only observations should use const accessors.
+
+This rule does not change identity semantics: a generic certificate Common Name
+is descriptive only. Numeric R1 endpoints remain authorized exclusively by
+their exact `iPAddress` SAN and must never fall back to the Common Name.
+
 ## Portable automatic bootstrap state is outside the extracted app (2026-10-23)
 
 Normal desktop startup has no required arguments. Prefer the shortest safe

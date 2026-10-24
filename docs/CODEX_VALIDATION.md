@@ -1,3 +1,37 @@
+## R3 TLS-gated trace/Stop-freshness containment — 2026-10-24
+
+**Starting exact-main parent:** `03121aab30c6807d611e0995aded9b0a50e395b2`.
+
+Source review: **PASS** for R3 containment. The current production path already
+keeps TLS/CredSSP in `AcceptedClientPhase::PreAdmission`; only
+`CredentialsVerified` plus successful R2 admission moves HostControl to
+`McsConnectInitial`. Successful Connect-Initial moves to
+`McsConnectResponse`; only a fully delivered response moves to
+`McsErectDomain`. No MCS/Share/licensing/RDPGFX production source is changed
+by this increment.
+
+The new offline source-contract test
+`runtime.linux-host-control-stop-retires-r3-session-state` pins terminal
+ownership: HostControl Stop revokes and destroys the accepted connection before
+listener close; connection revoke retires MCS/R3 before R1 cancel; the MCS
+close path clears connection-specific state; and each later accept constructs a
+fresh connection/value-owned MCS session with a distinct reconnect-generation
+allocator.
+
+Canonical owner-local configure/build/full CTest: **NOT RUN** in this
+connector environment. The source-contract test itself is **NOT RUN** here.
+Full product Start->Stop->Start: **BLOCKED** by the independent current Stop
+behavior that revokes the standalone Session Password, preventing the second
+Start without re-entry. Real Microsoft-client trace remains **BLOCKED at R1
+TLS**; there is no evidence of a first CredSSP TSRequest or
+`CredentialsVerified`.
+
+Next R3 action is evidence-triggered, not speculative: after R1 proves TLS
+established, classify the first complete CredSSP TSRequest and
+`CredentialsVerified`. If and only if `CredentialsVerified` is reached,
+R3 immediately owns the first failed Connect-Initial/Connect-Response
+transition.
+
 ## R9 exact-SHA owner GUI credential parity qualification (2026-10-24)
 
 **Nominated candidate:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.

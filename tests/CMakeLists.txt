@@ -1840,6 +1840,23 @@ if(TARGET rdp-server-linux-runtime-security)
     set_tests_properties(runtime.linux-serve-cooperative-signal-stop-order
         PROPERTIES LABELS "runtime;security;r10-stop;offline")
 
+    # R3 P1 containment: no protocol bytes are changed. Pin the production
+    # TLS/CredSSP -> first-MCS handoff and prove Stop destroys the accepted
+    # connection/MCS owner before R1 listener teardown. A full product
+    # Start->Stop->Start receipt remains gated by the independent credential
+    # retention defect tracked in the roadmap.
+    add_test(NAME runtime.linux-host-control-stop-retires-r3-session-state
+        COMMAND "${CMAKE_COMMAND}"
+            "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_LINUX_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
+            "-DRDP_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
+            "-DRDP_MCS_SESSION_HEADER=${PROJECT_SOURCE_DIR}/src/server/transport/mcs_channel_connection.h"
+            "-DRDP_MCS_SESSION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/mcs_channel_connection.cpp"
+            -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_r3_tls_gate_stop_freshness.cmake")
+    set_tests_properties(
+        runtime.linux-host-control-stop-retires-r3-session-state PROPERTIES
+        LABELS "runtime;security;r3-mcs;r10-stop;offline")
+
     # Real production runtime owner contract, with no synthetic positive R2
     # admission, physical X11 host or auto-start. Source guards complement
     # the executable-backed missing-lease and R1 I/O tests above.

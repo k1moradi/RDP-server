@@ -1,3 +1,77 @@
+## R3 P1 TLS-gated trace classification and Stop freshness guard — 2026-10-24
+
+**Starting exact-main parent:** `03121aab30c6807d611e0995aded9b0a50e395b2`.
+
+Owner wire evidence still stops inside R1 TLS: TCP/X.224 succeeds, HYBRID is
+selected, the server certificate is presented, and the connection closes during
+the TLS handshake. There is no demonstrated client CredSSP TSRequest,
+`CredentialsVerified`, or MCS traffic. **R3 wire changes therefore remain
+BLOCKED.** This increment changes no MCS, Share, licensing or RDPGFX production
+wire code.
+
+The real-client classification order is now explicit:
+
+1. **TLS established** — require R1's established TLS diagnostic/transition.
+   Merely presenting the certificate, entering `AwaitTls`, or receiving TCP
+   bytes is not this boundary.
+2. **first CredSSP TSRequest** — require evidence that the owner-bound
+   `TsRequestFrameReader` completed the first DER TSRequest from established
+   R1 TLS. `LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken` means only
+   “TLS established and awaiting CredSSP”; it must not be reported as a received
+   TSRequest.
+3. **CredentialsVerified** — require the existing
+   `LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified`, which is
+   published only after the production authenticated-principal proof binds to
+   the same R1 TLS/CredSSP owner.
+4. **MCS Connect-Initial** — this becomes R3's first owned failure boundary only
+   after `CredentialsVerified`. Before successful intake the R3 phase is
+   `AwaitVerifiedR2Admission`; an admitted Connect-Initial advances it to
+   `AwaitConnectResponse`.
+5. **MCS Connect-Response** — a fully accepted response write advances the R3
+   phase from `AwaitConnectResponse` to `AwaitErectDomain`. R1 write
+   readiness or partial progress is not response completion.
+
+If a future owner-authorized Microsoft-client trace reaches
+`CredentialsVerified` and then fails before `AwaitConnectResponse`, R3 owns
+the first bad Connect-Initial transition. If it reaches
+`AwaitConnectResponse` and fails before `AwaitErectDomain`, R3 owns the
+Connect-Response transition. Until one of those facts exists, do not patch MCS,
+Share, licensing or RDPGFX wire behavior.
+
+Stop/reconnect source ownership is also pinned without fabricating a positive
+client. `retireStoppedRuntime()` revokes the accepted
+`LinuxRuntimeConnection` before clearing it and before closing the R1
+listener. `LinuxRuntimeConnection::revoke()` closes first-MCS framing and the
+R3 session/lease before cancelling R1. `McsSessionLifecycle::close()` clears
+admission/session generations, Connect-Response allocation/writer state,
+joins, licensing, Share, clipboard and Graphics lifetimes and ends in
+`Closed`. `clearAcceptedClient()` destroys that aggregate and resets the
+HostControl accepted-client phase to `None`; a later accept constructs a new
+`LinuxRuntimeConnection` with a new value-owned `McsSessionLifecycle` and
+fresh reconnect generation.
+
+Dedicated offline source-contract CTest:
+`runtime.linux-host-control-stop-retires-r3-session-state`. It does not open a
+listener, create credentials, read a desktop or generate protocol bytes.
+
+**R3 freshness result:** source ownership proves no R3/MCS session state can
+survive an ordinary Stop into a later accepted connection. The requested full
+product **Start -> Stop -> Start** execution is still **BLOCKED** by the
+independent HostControl credential-lifetime defect: current ordinary Stop also
+revokes the standalone memory-only credential, so a second Start cannot proceed
+without password re-entry. R3 must not “solve” that blocker by retaining MCS
+state or changing wire behavior.
+
+Author-side connector/source review: **PASS**. Canonical
+`~/rdp-server/build` configure/build/full CTest: **NOT RUN** in this
+connector-only environment. Real Microsoft-client post-TLS/CredSSP/MCS
+acceptance: **NOT RUN / BLOCKED at R1 TLS**.
+
+**R3 next gate:** wait for R1 evidence of TLS established. Then classify the
+first completed CredSSP TSRequest and `CredentialsVerified`; only if the trace
+crosses `CredentialsVerified` does R3 take immediate ownership of the first
+failing Connect-Initial/Connect-Response transition.
+
 ## R9 owner-GUI parity candidate nominated after Linux/macOS PASS (2026-10-24)
 
 **OWNER-GUI QUALIFICATION CANDIDATE:** `cde48249ad2758c6e0befd5c8ef351a36ecf6b0b`.

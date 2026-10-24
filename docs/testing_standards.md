@@ -1,3 +1,38 @@
+## R3 TLS-gated real-client trace and fresh-session rule (2026-10-24)
+
+Do not change MCS, Share, licensing or RDPGFX wire behavior while the first
+demonstrated real-client failure is R1 TLS. Real-client triage must classify the
+same monotonic evidence chain: **TLS established -> first complete CredSSP
+TSRequest -> CredentialsVerified -> admitted MCS Connect-Initial -> fully
+delivered MCS Connect-Response**.
+
+“First CredSSP TSRequest” requires a completed owner-bound DER frame from the
+established R1 TLS stream. Do not infer it from
+`LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken`, because that value
+is set as soon as TLS establishes and means the server is waiting for a token.
+`CredentialsVerified` remains the stronger production proof-binding
+milestone. For R3, `AwaitVerifiedR2Admission -> AwaitConnectResponse` is the
+successful Connect-Initial boundary and
+`AwaitConnectResponse -> AwaitErectDomain` is the completed Connect-Response
+boundary.
+
+When a real trace first crosses `CredentialsVerified`, assign ownership to
+the first transition that does not complete; otherwise R3 stays blocked for
+wire changes. Capture only bounded non-secret status/provenance. Never log raw
+TSRequest/SPNEGO/NTLM material, passwords, hashes, session keys or delegated
+credentials.
+
+Stop/restart tests must distinguish **service-lifetime bootstrap material** from
+**connection-lifetime R3 state**. Ordinary Stop must revoke and destroy the
+accepted connection's complete MCS/Share/channel session before R1 listener
+teardown. A later accepted client must construct a new
+`LinuxRuntimeConnection` and a new value-owned `McsSessionLifecycle`; no
+MCS phase, admission/session generation, Connect-Response write state, join,
+licensing, Share or DVC state may be reused. The production-level
+Start->Stop->Start test additionally requires the separate Session Password
+retention contract to be working; do not weaken or bypass that prerequisite to
+manufacture R3 evidence.
+
 ## R5 owner-situation readiness must execute in Release+acceptance CI (2026-10-24)
 
 The Linux physical-X11 precredential integration case is not satisfied by

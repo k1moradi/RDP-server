@@ -55,25 +55,47 @@ foreach(forbidden IN ITEMS
 endforeach()
 
 # The acceptor is cleansed on terminal failure, so cache only the redacted
-# envelope before reset. The published acceptance snapshot must use that cached
-# scalar rather than reading the reset mechanism owner.
+# envelope before reset. Isolate the standalone CredSSP function before checking
+# order so unrelated resets elsewhere in the connection cannot satisfy/fail it.
+string(FIND "${connection_source}"
+    "LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept"
+    credssp_begin)
+string(FIND "${connection_source}"
+    "LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept"
+    credssp_end)
+if(credssp_begin EQUAL -1 OR credssp_end EQUAL -1 OR
+   NOT credssp_begin LESS credssp_end)
+    message(FATAL_ERROR "Cannot isolate standalone CredSSP connection path")
+endif()
+math(EXPR credssp_length "${credssp_end} - ${credssp_begin}")
+string(SUBSTRING "${connection_source}" ${credssp_begin}
+    ${credssp_length} credssp_source)
+
 foreach(required IN ITEMS
     "const auto captureNegotiationEnvelope = [this]() noexcept"
     "standaloneNegotiationEnvelope_ ="
     "captureNegotiationEnvelope();"
-    "standaloneCredSspAcceptor_.reset();"
-    "snapshot.standaloneNegotiationEnvelope ="
-    "standaloneNegotiationEnvelope_;")
-    string(FIND "${connection_source}" "${required}" position)
+    "standaloneCredSspAcceptor_.reset();")
+    string(FIND "${credssp_source}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR
             "Authentication diagnostic envelope lifetime lost required token: ${required}")
     endif()
 endforeach()
 
-string(FIND "${connection_source}"
+foreach(required IN ITEMS
+    "snapshot.standaloneNegotiationEnvelope ="
+    "standaloneNegotiationEnvelope_;")
+    string(FIND "${connection_source}" "${required}" position)
+    if(position EQUAL -1)
+        message(FATAL_ERROR
+            "Acceptance diagnostic snapshot lost cached envelope: ${required}")
+    endif()
+endforeach()
+
+string(FIND "${credssp_source}"
     "captureNegotiationEnvelope();" capture_position)
-string(FIND "${connection_source}"
+string(FIND "${credssp_source}"
     "standaloneCredSspAcceptor_.reset();" reset_position)
 if(capture_position EQUAL -1 OR reset_position EQUAL -1 OR
    NOT capture_position LESS reset_position)

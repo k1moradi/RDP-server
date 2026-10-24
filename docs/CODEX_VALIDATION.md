@@ -1,3 +1,33 @@
+## R9 refreshed owner-acceptance candidate after consent-generation fix — 2026-10-24
+
+**OWNER PRODUCT-TEST CANDIDATE:** `c3cbe4450eff11a143b0f36e715cdf6a22113641`.
+
+Actions run `40074204105`, job `120814001877`
+(`r9-portable-gui-bootstrap-acceptance`): **PASS**. The Debug production graph
+configured successfully and the strengthened exact inventory enumerated and
+passed **8/8**, including
+`gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission`.
+Canonical no-argument direct startup remained pre-listener and secret-free; the
+acceptance-only Linux ZIP was created, verified, extracted, no-argument smoke
+launched, and uploaded successfully. Independent `r5-linux-gui-zip` on the same
+SHA also **PASS**. Aggregate protocol jobs were still running when this receipt
+was written and are not claimed green here.
+
+Uploaded Actions artifact: `rdp-server-owner-acceptance-linux`, artifact ID
+`12552124359`, size 36,559,016 bytes, Actions artifact digest
+`sha256:9fdf196f93a9a40091f6a36a57a36fdedb546463c69ee4701bfed72f0c007b5b`.
+This supersedes `c0cbcc7…` as the Linux owner product-test candidate because it
+contains R7's credential-replacement consent revalidation and R6's generated
+licensing memory-only correction. Public Release
+`kStandalonePasswordProductCapabilityApproved = false` and the independent R8
+clipboard activation gate remain unchanged.
+
+There is no repository-side blocker left in this Linux R9 handoff. The remaining
+qualification gate is external/physical: use this exact artifact on the eligible
+owner Linux X11 desktop, set Session Password, explicitly enable Sharing, connect
+with an unmodified Windows App or Windows 11 `mstsc.exe`, and prove visible
+desktop + mouse + keyboard + Stop. Hosted CI cannot manufacture that receipt.
+
 ## R9 consumes R7 credential-change consent revalidation — 2026-10-24
 
 Starting exact-main parent: `730825ac415405efe2bb4768601f11e1c0ac2b37`.

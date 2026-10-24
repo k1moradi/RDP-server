@@ -1,3 +1,26 @@
+## R9 owner-acceptance ZIP publication handoff (2026-10-23)
+
+The source dependency graph is complete for the no-argument Linux acceptance
+path, but public Release StandalonePassword exposure remains correctly closed
+until the real unmodified Microsoft-client receipt. R9 therefore publishes a
+separate **acceptance-only** Linux ZIP from the exact Debug/
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON` build already exercised by
+`r9-portable-gui-bootstrap-acceptance`.
+
+The artifact is named `rdp-server-owner-acceptance-linux`. It is not a Release
+promotion and must not change
+`kStandalonePasswordProductCapabilityApproved = false` or the independent R8
+clipboard gate. Packaging reuses the normal Linux GUI bundler, records the exact
+source SHA, verifies the archive, extracts it, and launches `run-gui.sh` with
+no arguments under Xvfb. The earlier direct process smoke still proves that
+application launch itself opens no TCP listener.
+
+Once this exact-SHA job is green, that artifact is the owner handoff for the
+ZIP → extract → double-click → Session Password → Sharing ON physical test.
+The remaining blocker after publication is external evidence: an owner-authorized
+unmodified Windows App / Windows 11 `mstsc.exe` connection against the real
+eligible Linux X11 desktop.
+
 ## R8 P2 consumes restored standalone Release qualification gate (2026-10-23)
 
 Dependency recheck at starting main `8f2c9241773e746999f42156b7fa44b3c8a5c100`: R7 has corrected the

@@ -1,3 +1,21 @@
+## R9 owner-acceptance ZIP publication authoring receipt — 2026-10-23
+
+Starting exact-main parent: `86099246bb7314dc95fc756648d083e5d6b2b037`.
+
+Dependency recheck: R1 automatic TLS, R3 automatic licensing, R5 trusted X11
+selection, R2 standalone admission, R10 zero-argument composition and the R9
+real-listener bootstrap are source-complete. R7/R8 correctly restored and pin
+the public StandalonePassword Release gate to false pending real Microsoft-client
+evidence. The remaining repository-side handoff gap was distribution: the R9
+acceptance-capable Debug binary was qualified but not downloadable as the ZIP
+workflow the owner is supposed to test.
+
+R9 now packages that exact binary with the existing Linux GUI bundler, verifies
+and extracts the archive, smoke-launches the extracted `run-gui.sh` with no
+arguments, writes a SHA-256 digest and uploads
+`rdp-server-owner-acceptance-linux`. Public Release behavior is unchanged.
+Exact publication-SHA hosted qualification: **PENDING**.
+
 ## R8 P2 dependency recheck after standalone acceptance-gate restoration — 2026-10-23
 
 Starting exact-main parent: `8f2c9241773e746999f42156b7fa44b3c8a5c100`.

@@ -211,6 +211,8 @@ REQUIRED_TOKENS = (
     "runtime.linux-portable-gui-bootstrap-listener-acceptance",
     "gui.offscreen-owner-acceptance-consumer-start-orchestration",
     "runtime.desktop-shared-configuration-feed",
+    "rdp-server-owner-acceptance-linux",
+    "owner-acceptance ZIP failed canonical no-argument startup smoke",
     "readelf -d build/rdp-server",
     "transport.tcp-owned-tls-terminal-readiness",
     "transport.tcp-owned-buffered-tls-credssp-mcs-readiness",

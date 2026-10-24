@@ -1,3 +1,14 @@
+## Owner-acceptance ZIP packaging rule (2026-10-23)
+
+Before physical StandalonePassword qualification, do not publish the Debug/
+acceptance surface as a normal Release artifact. The R9 bootstrap job may upload
+an artifact named `rdp-server-owner-acceptance-linux` only from a build with
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`. Reuse the ordinary Linux GUI
+bundler and require exact source SHA, archive verification, digest generation,
+and extracted `run-gui.sh` startup with **no arguments**. This artifact exists
+only to let the owner execute the physical qualification workflow; it does not
+promote the public capability or clipboard activation gates.
+
 ## R8 qualification-gate separation regression (2026-10-23)
 
 The bootstrap clipboard-dormancy CTest must pin both independent product gates:

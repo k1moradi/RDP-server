@@ -2504,7 +2504,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             qt6-base-dev qt6-qpa-plugins libssl-dev libsystemd-dev pkg-config \
-            libkrb5-dev libpam0g-dev xvfb xauth iproute2 python3
+            libkrb5-dev libpam0g-dev xvfb xauth iproute2 unzip python3
       - name: Configure Debug production bootstrap graph
         run: |
           set -euo pipefail
@@ -2557,4 +2557,48 @@ jobs:
             echo "bootstrap log exposed secret-bearing material" >&2
             exit 1
           fi
+      - name: Package exact owner-acceptance ZIP and verify canonical launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v qmake6
+          qt_plugin_root="$(qmake6 -query QT_INSTALL_PLUGINS)"
+          test -n "$qt_plugin_root"
+          qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
+          test -f "$qt_plugin"
+          version="$(sed -n 's/.*project(RDP_server VERSION \\([0-9.]*\\).*/\\1/p' CMakeLists.txt)"
+          test -n "$version"
+          short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
+          archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"
+          python3 packaging/linux/gui_bundle.py bundle \
+            --gui build/rdp-server-desktop \
+            --xcb-plugin "$qt_plugin" \
+            --source-sha "$GITHUB_SHA" \
+            --version "$version" \
+            --output "$archive"
+          python3 packaging/linux/gui_bundle.py verify --bundle "$archive"
+          sha256sum "$archive" > build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          unzip -q "$archive" -d build/r9-owner-acceptance-extracted
+          test -x build/r9-owner-acceptance-extracted/run-gui.sh
+          (
+            cd build/r9-owner-acceptance-extracted
+            set +e
+            timeout 5s xvfb-run -a ./run-gui.sh >../r9-owner-acceptance-package-smoke.log 2>&1
+            result=$?
+            set -e
+            if [ "$result" -ne 124 ]; then
+              cat ../r9-owner-acceptance-package-smoke.log
+              echo "owner-acceptance ZIP failed canonical no-argument startup smoke" >&2
+              exit 1
+            fi
+          )
+      - name: Upload exact owner-acceptance Linux ZIP and digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: |
+            build/rdp-server-owner-acceptance-*.zip
+            build/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
 

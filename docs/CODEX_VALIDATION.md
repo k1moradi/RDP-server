@@ -1,3 +1,18 @@
+## R9 owner-acceptance ZIP version-extraction correction — 2026-10-23
+
+Exact source `6a0dd29a6197fb2588b721771f875181f29ab72d`, Actions run `40071783325`, job
+`120806749708`: workflow structure, Debug production graph, exact seven-test
+portable bootstrap inventory (**7/7 PASS**) and direct no-argument/no-listener
+smoke all **PASS**. The newly added packaging step failed before bundling because
+its copy of the existing project-version `sed` expression was over-escaped,
+producing an empty version string. Qt plugin discovery had succeeded; no archive
+was created and no runtime/security behavior failed.
+
+The correction reuses the exact proven expression from the existing
+`r5-linux-gui-zip` packaging step. No product source, acceptance gate, listener,
+authorization, TLS/licensing or clipboard behavior changes. Replacement exact-SHA
+R9 packaging qualification: **PENDING**.
+
 ## R9 owner-acceptance ZIP publication authoring receipt — 2026-10-23
 
 Starting exact-main parent: `86099246bb7314dc95fc756648d083e5d6b2b037`.

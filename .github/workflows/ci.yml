@@ -2566,7 +2566,7 @@ jobs:
           test -n "$qt_plugin_root"
           qt_plugin="$qt_plugin_root/platforms/libqxcb.so"
           test -f "$qt_plugin"
-          version="$(sed -n 's/.*project(RDP_server VERSION \\([0-9.]*\\).*/\\1/p' CMakeLists.txt)"
+          version="$(sed -n 's/.*project(RDP_server VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
           test -n "$version"
           short_sha="$(printf '%s' "$GITHUB_SHA" | cut -c1-12)"
           archive="build/rdp-server-owner-acceptance-$version-linux-$RUNNER_ARCH-$short_sha.zip"

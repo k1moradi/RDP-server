@@ -3579,16 +3579,8 @@ void testConnectionAggregatePrematureAdmissionDenial(
 }
 
 void testStandaloneAuthenticationSelectorDenials(
-    const std::filesystem::path &fixtureDirectory)
+    const std::filesystem::path & /*fixtureDirectory*/)
 {
-    const auto keytab =
-        fixtureDirectory / "runtime-standalone-selector.keytab";
-    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
-
-    LinuxRuntimeSecurityConfiguration securityConfiguration;
-    assert(securityConfiguration.configure(
-        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
-
     rdp_server::server::security::StandalonePasswordCredentialOwner
         credentialOwner;
     std::array<char16_t, 8> password{
@@ -3613,8 +3605,7 @@ void testStandaloneAuthenticationSelectorDenials(
     int clientDescriptor = -1;
     auto acceptedSocket = acceptLoopbackConnection(clientDescriptor);
     LinuxRuntimeConnection standalone{
-        securityConfiguration, std::move(acceptedSocket),
-        nullptr, nullptr, selection};
+        std::move(acceptedSocket), nullptr, nullptr, selection};
     assert(standalone.ready());
     assert(standalone.gssStage() == SpnegoStage::Unconfigured);
     assert(!standalone.hasAdmissionLease());
@@ -3626,10 +3617,10 @@ void testStandaloneAuthenticationSelectorDenials(
 
     // Standalone selection must fail as standalone admission when presented
     // before CredSSP verification; it must never retry the GSS acceptor.
-    const ConsoleEvidenceRequest prematureAdmission{
-        {}, "alice", "seat0", ":0", kConsoleViewPermission,
-        ConsoleEvidenceAuthenticationKind::StandalonePassword};
-    assert(!standalone.issueAdmission(prematureAdmission));
+    // No local account, UID, seat or display request exists on the standalone
+    // route. Before CredSSP verification this native admission attempt is
+    // terminal and must never fall back to GSS.
+    assert(!standalone.issueStandaloneAdmission());
     assert(standalone.gssStage() == SpnegoStage::Unconfigured);
     standaloneDiagnostics = standalone.acceptanceDiagnostics();
     assert(standaloneDiagnostics.standalonePasswordSelected);
@@ -3647,8 +3638,7 @@ void testStandaloneAuthenticationSelectorDenials(
     auto staleAcceptedSocket =
         acceptLoopbackConnection(staleClientDescriptor);
     LinuxRuntimeConnection stale{
-        securityConfiguration, std::move(staleAcceptedSocket),
-        nullptr, nullptr, selection};
+        std::move(staleAcceptedSocket), nullptr, nullptr, selection};
     assert(!stale.ready());
     assert(stale.gssStage() == SpnegoStage::Unconfigured);
     assert(!stale.hasAdmissionLease());
@@ -3662,8 +3652,8 @@ void testStandaloneAuthenticationSelectorDenials(
     auto invalidChallengeAcceptedSocket =
         acceptLoopbackConnection(invalidChallengeClientDescriptor);
     LinuxRuntimeConnection invalidChallenge{
-        securityConfiguration, std::move(invalidChallengeAcceptedSocket),
-        nullptr, nullptr, selection};
+        std::move(invalidChallengeAcceptedSocket), nullptr, nullptr,
+        selection};
     assert(!invalidChallenge.ready());
     assert(invalidChallenge.gssStage() == SpnegoStage::Unconfigured);
     assert(!invalidChallenge.hasAdmissionLease());
@@ -3711,9 +3701,10 @@ void testStandaloneAuthenticationProvenanceGeneration(
     int standaloneClientDescriptor = -1;
     auto standaloneAcceptedSocket =
         acceptLoopbackConnection(standaloneClientDescriptor);
+    // The standalone connection does not consume the GSS fixture below; that
+    // fixture exists only for the independent ExistingOsAccount comparison.
     LinuxRuntimeConnection standalone{
-        securityConfiguration, std::move(standaloneAcceptedSocket),
-        nullptr, nullptr, selection};
+        std::move(standaloneAcceptedSocket), nullptr, nullptr, selection};
     assert(standalone.ready());
 
     auto diagnostics = standalone.acceptanceDiagnostics();

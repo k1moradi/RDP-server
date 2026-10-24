@@ -85,15 +85,18 @@ foreach(required IN ITEMS
     endif()
 endforeach()
 
-# The public product UI remains non-collecting until a genuine Microsoft-client
-# run accepts this exact production path.
-foreach(forbidden IN ITEMS
-        "standalonePassword"
-        "passwordConfirmation")
-    string(FIND "${gui_window_source}" "${forbidden}" position)
-    if(NOT position EQUAL -1)
+# Product exposure is governed by the separate owner-acceptance capability
+# gate. This selector contract only pins that the GUI can forward an explicitly
+# exposed Session Password into the production path; it must not duplicate
+# authentication policy here.
+foreach(required_gui IN ITEMS
+        "host_.configureStandalonePassword("
+        "sessionPassword_"
+        "sessionPasswordConfirm_")
+    string(FIND "${gui_window_source}" "${required_gui}" position)
+    if(position EQUAL -1)
         message(FATAL_ERROR
-            "Public GUI unexpectedly exposes standalone password input: ${forbidden}")
+            "GUI lost production standalone forwarding surface: ${required_gui}")
     endif()
 endforeach()
 

@@ -644,15 +644,16 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
 {
     if (!state.controlAvailable)
         return QStringLiteral("Remote hosting is unavailable in this build");
-    if (!standalonePasswordSurfaceAvailable(state))
-        return QStringLiteral("Session Password is not qualified for this Release build");
-    if (username_->text().isEmpty())
-        return QStringLiteral("Enter a username");
     const bool legacyCredentialReady =
         state.credentialsConfigured &&
         state.credentialCapabilities.existingOsAccount &&
         sessionPassword_->text().isEmpty() &&
         sessionPasswordConfirm_->text().isEmpty();
+    if (!legacyCredentialReady &&
+        !standalonePasswordSurfaceAvailable(state))
+        return QStringLiteral("Session Password is not qualified for this Release build");
+    if (!legacyCredentialReady && username_->text().isEmpty())
+        return QStringLiteral("Enter a username");
     if (!legacyCredentialReady)
     {
         if (sessionPassword_->text().isEmpty())

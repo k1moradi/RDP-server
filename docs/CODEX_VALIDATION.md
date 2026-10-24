@@ -1,3 +1,35 @@
+## 2026-10-23 — Standalone acceptance-gate restoration and hosted regression correction
+
+Starting exact-main parent: `e95e186406d0834229f8ed8b244f5b0af34441ef`.
+
+Dependency review found the source graph ready through R9 bootstrap acceptance,
+but no recorded real Windows App / Windows 11 `mstsc.exe` StandalonePassword
+PASS. Therefore the later `kStandalonePasswordProductCapabilityApproved =
+true` state was premature relative to the established acceptance contract.
+The public capability is restored to false; Debug/explicit owner-acceptance
+surfaces remain available for physical qualification.
+
+Actions run `40070635814` on parent `270b282b...` exposed fixable hosted
+regressions. Ubuntu Debug reached 889 CTests and failed two standalone tests:
+the credential lifecycle used the default headless native-evidence source, and
+the selector source contract still prohibited GUI standalone symbols even
+though the production owner-acceptance surface now exists. The lifecycle now
+injects only deterministic `ConsoleOsEvidenceSource` facts through the
+production `LinuxRuntimeHostControl` constructor; the source contract pins
+production forwarding instead of obsolete symbol absence.
+
+The same run's macOS portable-GUI job failed eight offscreen tests because
+`DesktopWindow::blockedReason()` rejected all configured Existing OS Account
+flows whenever the Session Password surface was unavailable. The legacy
+credential-ready path is now evaluated first; only a non-legacy start requires
+the standalone capability, username and matching Session Password fields.
+
+Source review: **PASS**. The existing behavior CTests remain the regression
+coverage. Owner-local canonical build/full CTest: **NOT RUN** in this connector
+environment. Replacement exact-SHA hosted CI: **PENDING**. Real Microsoft-client
+StandalonePassword acceptance remains **NOT RUN** and is the blocking product
+evidence.
+
 ## R8 P2 dependency recheck after portable-runtime/R9 bootstrap qualification — 2026-10-23
 
 Starting exact-main parent: `0657af06c7fcb48e8248fa0e411794d0c0423f6f`.

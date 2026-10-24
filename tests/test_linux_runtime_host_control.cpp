@@ -113,7 +113,7 @@ int main(int argc, char** argv)
         assert(status.product.controlAvailable);
         assert(!status.product.credentialCapabilities.existingOsAccount);
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-        assert(status.product.credentialCapabilities.standalonePassword);
+        assert(!status.product.credentialCapabilities.standalonePassword);
         assert(status.product.automaticRuntimeProvisioned);
         assert(status.product.readinessStage ==
                RuntimeProductReadinessStage::Provisioned);
@@ -464,6 +464,16 @@ int main(int argc, char** argv)
     }
     if (testCase == "linux-host-control-standalone-password-lifecycle")
     {
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U)
+            return 77;
+        PortableBootstrapEvidence evidence(processUid);
+        // The production standalone path now requires the same fresh native
+        // X11 evidence used by normal no-config composition. Inject only that
+        // read-only evidence while keeping the real R2 credential owner.
+        LinuxRuntimeHostControl control(evidence);
+#endif
         auto password = standalonePassword();
         assert(control.configureStandaloneApplicationPassword(
             u"User", password));

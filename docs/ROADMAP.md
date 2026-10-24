@@ -1,3 +1,37 @@
+## R5/R7 dependency recheck — restore acceptance gate and clear hosted regressions (2026-10-23)
+
+Starting exact-main parent: `e95e186406d0834229f8ed8b244f5b0af34441ef`.
+
+The no-config Linux source dependencies remain **RESOLVED**: R5 trusted X11
+selection, R2 standalone policy/admission, R10 zero-argument composition,
+generated TLS/licensing and the R9 real-listener bootstrap gate are present.
+R9 exact-SHA bootstrap acceptance is green and supplies an owner-test candidate,
+but it is not a real Windows App / Windows 11 `mstsc.exe` interoperability
+receipt.
+
+A later R10 change prematurely set
+`kStandalonePasswordProductCapabilityApproved = true` without that required
+physical-client evidence. This is not treated as dependency resolution. The
+public Release gate is restored to literal false; Debug/explicit
+owner-acceptance builds still expose the production Session Password workflow
+for the required owner test.
+
+Current hosted CI also exposed two independent test/projection regressions:
+headless Linux standalone lifecycle coverage used the default native evidence
+source after production no-config admission began requiring a fresh eligible
+X11 session, and macOS Release GUI tests routed already-configured Existing OS
+Account state through the Session Password capability gate. The Linux test now
+injects only deterministic read-only native evidence through the production R2
+owner, and GUI blocking logic preserves the existing-account path while
+requiring Session Password qualification only when that path is actually used.
+The standalone selector source contract is updated to test production
+forwarding rather than obsolete absence of password-field symbols.
+
+**Remaining blocker:** public StandalonePassword promotion still requires the
+owner-authorized unmodified Microsoft-client run on a real eligible Linux X11
+desktop. Offline/hosted CI cannot manufacture that evidence. Exact-SHA hosted
+qualification for this correction is pending after publication.
+
 ## R8 P2 consumes the portable application runtime and hosted bootstrap gate (2026-10-23)
 
 Dependency recheck at starting main `0657af06c7fcb48e8248fa0e411794d0c0423f6f`: R10 now uses one

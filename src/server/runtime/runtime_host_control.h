@@ -587,7 +587,7 @@ struct RuntimeCredentialCapabilities final
     bool standalonePassword{};
 };
 
-inline constexpr bool kStandalonePasswordProductCapabilityApproved = true;
+inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;
 
 struct RuntimeProductHostStatus final
 {

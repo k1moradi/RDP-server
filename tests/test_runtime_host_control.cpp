@@ -449,7 +449,7 @@ int main(int argumentCount, char** argumentValues)
             RuntimeProductHostState::Listening));
         assert(runtimeProductStateSharingToggleOn(
             RuntimeProductHostState::Stopping));
-        assert(kStandalonePasswordProductCapabilityApproved);
+        assert(!kStandalonePasswordProductCapabilityApproved);
 
         const auto unavailableStatus = host.status();
         assert(unavailableStatus.product.state ==

@@ -39,10 +39,10 @@ foreach(required_text IN ITEMS
 endforeach()
 
 string(FIND "${runtime_header}"
-    "kStandalonePasswordProductCapabilityApproved = true" release_gate)
+    "kStandalonePasswordProductCapabilityApproved = false" release_gate)
 if(release_gate LESS 0)
     message(FATAL_ERROR
-        "standalone-password product capability must be defined in runtime header")
+        "public standalone-password product capability must remain false before real Microsoft-client qualification")
 endif()
 
 string(FIND "${host_control_source}"

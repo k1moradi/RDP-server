@@ -1,3 +1,39 @@
+## R9/R10 hosted native-admission boundary correction — 2026-10-24
+
+**Starting exact-main parent:** `8b28b342b130efb1dc85a3e3049ce75efbccb205`.
+
+Dependency and Actions review established that the original R9 Microsoft-CSSP
+gate was already resolved: SHA `627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9`
+passed the R9 sanitizer job and all three shared protocol jobs. The subsequent
+R10 reconnect fixture introduced the current failure by expecting hosted
+positive native admission/MCS.
+
+On SHA `1d755c39cb0a36ed329a2effe8f698d5fcd4fa5f`, Ubuntu full CTest failed
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`.
+The valid second peer completed the direct NTLM/CredSSP exchange but HostControl
+recorded `stage=admission` and retired it before MCS. Source review confirms
+this is correct production behavior: the admission broker owns a real
+`LinuxLogindReadOnlyEvidenceSource` and real
+`LinuxLogindSessionChangeSource`; the fixture's synthetic owner evidence is
+not an admission provider. The same Ubuntu run also failed
+`runtime.linux-host-control-stop-retires-r3-session-state` only because its
+source contract still searched for the superseded literal
+`credssp=direct-ntlm` after R2 renamed the redacted diagnostic.
+
+Concurrent R10 work on parent `8b28b342...` fixed a separate GCC
+`-Werror=array-bounds` warning in the test fixture's DER construction; that
+compile correction is preserved here. This follow-up changes no production
+authorization or wire behavior. The lifecycle test now requires valid peers to
+reach `CredentialsVerified` and then the expected `Admission` denial, while
+preserving listener, consent, credential generation, fresh NTLM challenges,
+Stop -> Start reuse, and native/graphics/clipboard dormancy. The source contract
+now checks R2's current DirectNtlm diagnostic literals.
+
+Connector source/Actions-log review: **PASS**. Canonical local build/full
+CTest: **NOT RUN**. Exact-publication-SHA hosted R9 sanitizer and Linux/macOS/
+Windows protocol jobs: **PENDING**. Physical Microsoft Windows App/native
+admission receipt: **NOT RUN / REQUIRES EXPLICIT OWNER AUTHORIZATION**.
+
 ## R10 DirectNtlm lifecycle GCC fixture compile correction — 2026-10-24
 
 **Starting exact-main parent:** `28f2caccd39881188c8f998ef471da29e77b7fa6`.

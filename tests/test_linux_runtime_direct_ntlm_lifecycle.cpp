@@ -955,20 +955,21 @@ struct PeerResult final
            status.activeClients.empty();
 }
 
-[[nodiscard]] bool directClientAuthenticated(
+[[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
     const RuntimeHostStatus& status) noexcept
 {
     return status.listenerAvailable &&
-           status.activeClients.size() == 1U &&
+           status.clientDisconnected &&
+           status.activeClients.empty() &&
            status.acceptedClientPreauthDiagnostics.available &&
            status.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
                RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
            status.acceptedClientPreauthDiagnostics.authenticationStage ==
-               RuntimeAcceptedClientAuthenticationStage::Mcs &&
+               RuntimeAcceptedClientAuthenticationStage::Authenticated &&
            status.acceptedClientPreauthDiagnostics.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::CredentialsVerified &&
            status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
-               RuntimeAcceptedClientStandaloneFailureStage::None &&
+               RuntimeAcceptedClientStandaloneFailureStage::Admission &&
            !status.nativeDesktopReady &&
            !status.nativeDesktopInitializing;
 }
@@ -1121,7 +1122,11 @@ int main(int argc, char** argv)
 
     // The same listener accepts a new connection immediately. R10 creates a
     // fresh R2 CredSSP/NTLM owner and challenge while reusing only the current
-    // service credential generation.
+    // service credential generation. Hosted synthetic owner evidence may
+    // qualify Start and credential lifetime, but the production admission
+    // broker still requires real logind evidence/change monitoring. Therefore
+    // this peer must reach CredentialsVerified and then fail closed at the
+    // native Admission boundary without taking Sharing down.
     std::atomic<bool> releaseGoodOne{false};
     std::atomic<bool> goodOneFinished{false};
     PeerResult goodOneResult;
@@ -1132,14 +1137,27 @@ int main(int argc, char** argv)
         goodOneFinished.store(true, std::memory_order_release);
     });
     assert(pumpUntil(
-        control, goodOneFinished, &directClientAuthenticated));
+        control, goodOneFinished,
+        &directClientCredentialsVerifiedThenAdmissionDenied));
     const auto firstAuthenticated = control.status();
     assert(firstAuthenticated.listenerGeneration ==
            firstListenerGeneration);
     assert(firstAuthenticated.hostOwnerAuthorized);
-    // DirectNtlm has crossed CredentialsVerified and fresh R2 admission into
-    // MCS, but that is still not R5/X11 authority. Only GraphicsReady may
-    // create the native owner.
+    assert(firstAuthenticated.stage == RuntimeHostStage::ListenerAvailable);
+    assert(firstAuthenticated.clientDisconnected);
+    assert(firstAuthenticated.activeClients.empty());
+    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
+               .authenticationStage ==
+           RuntimeAcceptedClientAuthenticationStage::Authenticated);
+    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
+               .credSspTransition ==
+           RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
+               .standaloneFailureStage ==
+           RuntimeAcceptedClientStandaloneFailureStage::Admission);
+    // DirectNtlm crossed the complete CredSSP credential boundary. Hosted CI
+    // then correctly stopped at real native admission; no MCS or X11 authority
+    // may be inferred from synthetic owner evidence.
     assert(!firstAuthenticated.nativeDesktopReady);
     assert(!firstAuthenticated.nativeDesktopInitializing);
     assertClipboardDormant(firstAuthenticated);
@@ -1198,10 +1216,23 @@ int main(int argc, char** argv)
         goodTwoFinished.store(true, std::memory_order_release);
     });
     assert(pumpUntil(
-        control, goodTwoFinished, &directClientAuthenticated));
+        control, goodTwoFinished,
+        &directClientCredentialsVerifiedThenAdmissionDenied));
     const auto secondAuthenticated = control.status();
     assert(secondAuthenticated.listenerGeneration ==
            restarted.listenerGeneration);
+    assert(secondAuthenticated.stage == RuntimeHostStage::ListenerAvailable);
+    assert(secondAuthenticated.clientDisconnected);
+    assert(secondAuthenticated.activeClients.empty());
+    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
+               .authenticationStage ==
+           RuntimeAcceptedClientAuthenticationStage::Authenticated);
+    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
+               .credSspTransition ==
+           RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
+               .standaloneFailureStage ==
+           RuntimeAcceptedClientStandaloneFailureStage::Admission);
     assert(!secondAuthenticated.nativeDesktopReady);
     assert(!secondAuthenticated.nativeDesktopInitializing);
     assertClipboardDormant(secondAuthenticated);

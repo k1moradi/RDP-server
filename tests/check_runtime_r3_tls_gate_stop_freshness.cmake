@@ -129,11 +129,17 @@ require_token(connection_source
     "credssp=spnego-initial"
     "Standalone SPNEGO CredSSP diagnostic boundary")
 require_token(connection_source
-    "credssp=direct-ntlm"
+    "credssp=ntlm-direct-initial"
     "Standalone direct-NTLM CredSSP diagnostic boundary")
 require_token(connection_source
-    "direct-ntlm-type1="
+    "ntlm-message-type=1"
     "Standalone direct-NTLM Type-1 diagnostic checkpoint")
+require_token(connection_source
+    "negotiation-envelope=direct-ntlm"
+    "Standalone direct-NTLM immutable-envelope diagnostic")
+require_token(connection_source
+    "credssp-progress=%s"
+    "Standalone direct-NTLM progress diagnostic")
 require_token(connection_source
     "os-gss-fallback=disabled"
     "Standalone product must keep OS GSS fallback disabled")

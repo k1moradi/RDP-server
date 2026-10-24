@@ -413,10 +413,12 @@ if(TARGET rdp-server-linux-host-control)
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 
     # R10 production-backed reconnect/lifetime integration. The peer drives the
-    # real LAN listener, X.224 HYBRID/TLS and DirectNtlm CredSSP path, but the
-    # controlled native evidence stops at authenticated R2 -> MCS and never
-    # activates X11 capture/input. R8 also consumes this same round trip only
-    # to pin clipboard dormancy across failure, reconnect and Stop -> Start.
+    # real LAN listener, X.224 HYBRID/TLS and DirectNtlm CredSSP path through
+    # CredentialsVerified. Hosted synthetic owner evidence cannot replace the
+    # production broker's real logind evidence/change monitor, so the positive
+    # peer is expected to stop at native Admission before MCS. R5/R8 consume
+    # the same round trip only to pin native/clipboard dormancy across failure,
+    # reconnect and Stop -> Start.
     add_executable(test_linux_runtime_direct_ntlm_lifecycle
         test_linux_runtime_direct_ntlm_lifecycle.cpp)
     target_link_libraries(test_linux_runtime_direct_ntlm_lifecycle PRIVATE

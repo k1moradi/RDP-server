@@ -1,3 +1,47 @@
+## R9/R10 P0 — hosted native-admission boundary correction (2026-10-24)
+
+**Starting exact-main parent:** `8b28b342b130efb1dc85a3e3049ce75efbccb205`.
+
+The earlier Microsoft-CSSP negotiation blocker is resolved. Exact SHA
+`627fb23187f860b89f2f6ab8b9ed7c0eda3ff7e9` completed the R9 sanitizer
+gate and the shared Linux, macOS and Windows protocol jobs successfully.
+Later R10 work added a stronger failed-peer/reconnect/Stop->Start fixture, but
+that fixture incorrectly required hosted GitHub Actions to complete positive
+native R2 admission/MCS using synthetic owner evidence.
+
+Current production ownership deliberately does not permit that shortcut.
+`LinuxConsoleAdmissionBroker` samples the real
+`LinuxLogindReadOnlyEvidenceSource` and establishes a real
+`LinuxLogindSessionChangeSource` before issuing a native admission lease.
+Hosted Ubuntu has no qualifying physical graphical logind session, so a valid
+DirectNtlm peer reaches TLS, raw Type 1/2/3, pubKeyAuth, authInfo and
+`CredentialsVerified`, then correctly fails closed at
+`StandaloneAuthenticationFailureStage::Admission`. That is the first
+unresolved hosted/native boundary, not an NTLM/SPNEGO regression.
+
+The shared production-backed lifecycle fixture now treats that boundary as the
+hosted oracle: malformed DirectNtlm retires only the peer; subsequent valid
+peers on the real listener must reach `CredentialsVerified`, be denied native
+admission, leave the listener/owner consent/Session Password generation intact,
+receive fresh connection-local NTLM challenges, and repeat after ordinary
+Stop -> fresh consent -> Start. Native X11, MCS authority, graphics and
+clipboard remain absent. The stale R3 source guard is also aligned with R2's
+current redacted diagnostic vocabulary
+(`credssp=ntlm-direct-initial`, `ntlm-message-type=1`,
+`negotiation-envelope=direct-ntlm`, `credssp-progress=`).
+
+**Dependency result:** hosted DirectNtlm/CredSSP is no longer blocked. Positive
+native admission/MCS is a separate physical-owner dependency and MUST NOT be
+manufactured from synthetic evidence. The next Linux owner candidate may be
+nominated only after this correction's exact-SHA R9 sanitizer and shared
+Linux/macOS/Windows protocol jobs are green. The physical Microsoft Windows App
+retry/native-admission receipt still requires explicit owner authorization.
+
+Connector source/log review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Microsoft-client/native
+admission: **NOT RUN / BLOCKED ON OWNER AUTHORIZATION**.
+
 ## R10 hosted compile correction for DirectNtlm lifecycle fixture — 2026-10-24
 
 **Starting exact-main parent:** `28f2caccd39881188c8f998ef471da29e77b7fa6`.

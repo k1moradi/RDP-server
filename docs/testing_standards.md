@@ -1,3 +1,26 @@
+## Hosted DirectNtlm lifetime tests stop at the real native-admission boundary (2026-10-24)
+
+A hosted production-backed DirectNtlm lifecycle may use deterministic
+`ConsoleOsEvidenceSource` input to qualify explicit Start, consent,
+credential/session lifetime and listener behavior. It MUST NOT treat that
+synthetic source as a replacement for the production
+`LinuxConsoleAdmissionBroker`'s real logind evidence and real session-change
+monitor.
+
+On hosts without a qualifying physical graphical logind session, the positive
+peer is successful when the real listener/TLS/CredSSP path reaches
+`CredentialsVerified` and the subsequent native `Admission` step fails
+closed. The fixture must then prove the accepted peer is retired without
+revoking Sharing, consent or the configured Session Password, and that a fresh
+peer can repeat the full DirectNtlm credential exchange on the same listener.
+After ordinary Stop, fresh consent/Start must reuse only the retained credential
+generation and create fresh listener/TLS/NTLM connection state.
+
+Do not inject a fake logind lease merely to make hosted MCS assertions green.
+Positive native admission/MCS remains a separate physical/native acceptance
+gate. R5/R8 may consume the hosted fixture only for pre-native/pre-graphics
+dormancy assertions; they must not describe it as admitted MCS evidence.
+
 ## Strict-warning binary fixture construction (2026-10-24)
 
 Small protocol test serializers must remain warning-clean under the oldest

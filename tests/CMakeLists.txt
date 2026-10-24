@@ -367,6 +367,20 @@ if(TARGET rdp-server-linux-host-control)
             SKIP_RETURN_CODE 77)
     endforeach()
 
+    # Focused R1 native-environment proof: a real production standalone
+    # credential and R2 owner grant remain pre-listener until the selected
+    # endpoint is configured, then R1 must publish only the exact bound
+    # listener plus same-generation matched TLS identity.
+    add_test(
+        NAME runtime.linux-host-control-standalone-owner-grant-authoritative-listener
+        COMMAND test_linux_runtime_host_control
+            linux-host-control-standalone-owner-grant-authoritative-listener)
+    set_tests_properties(
+        runtime.linux-host-control-standalone-owner-grant-authoritative-listener
+        PROPERTIES
+            LABELS "runtime;security;r1-transport;r1-tls;r2-owner-consent;r2-standalone;r10-host-control;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Production/default native-evidence observation is intentionally separate
     # from the deterministic offline cases above. It skips on headless hosts
     # and never requests consent, opens a listener, captures or injects input.

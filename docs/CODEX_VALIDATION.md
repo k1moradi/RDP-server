@@ -1,3 +1,33 @@
+## R1 P1 Linux standalone owner-grant -> authoritative listener regression (2026-10-24)
+
+Starting exact-main parent: `15e4d479819e8a76e7ff563b67d681a5c3a2d49b`.
+
+Source/control-flow audit: **PASS**. No R1 production change is required for the
+reported disabled Linux credential widgets. The production sequence remains:
+standalone credential configuration -> owner consent -> selected endpoint
+configuration -> generated numeric-IP TLS identity -> fresh native
+interface/address revalidation -> exact R1 bind -> same-generation bound TLS
+identity -> listener publication. Wildcard addresses are rejected before bind,
+and GUI Copy/`Connect to:` presentation consumes authoritative bound-listener
+state rather than the pre-listener recommendation.
+
+New focused CTest:
+`runtime.linux-host-control-standalone-owner-grant-authoritative-listener`.
+The test uses production standalone credential/consent owners and a real R1 LAN
+listener. It asserts pre-listener generation zero and empty bound endpoint,
+`ConfiguredUnbound` TLS after endpoint preparation, exact
+`selectedEndpoint == boundEndpoint` after Start,
+`RuntimeTlsIdentityState::BoundAndMatched` with the same listener generation,
+and complete listener/TLS retirement on Stop.
+
+Verification command:
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-host-control-standalone-owner-grant-authoritative-listener$' --output-on-failure --verbose`
+
+Connector-local execution: **NOT RUN**. Hosted exact-publication-SHA execution:
+**PENDING**. Owner Linux no-argument GUI retry at `192.168.1.5:3389`:
+**BLOCKED on the R7/R10 credential-widget enablement reported by the owner**,
+not on R1 transport/TLS source. Release product qualification remains unchanged.
+
 ## R8 verification of R10 deterministic owner-evidence isolation (2026-10-24)
 
 Starting parent: `6ded7b1938bab3c029ef13041b3a46bc09612716`.

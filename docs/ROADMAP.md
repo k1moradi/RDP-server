@@ -1,3 +1,41 @@
+## R1 P1 authoritative listener readiness after Linux GUI unblock (2026-10-24)
+
+Starting exact-main parent: `15e4d479819e8a76e7ff563b67d681a5c3a2d49b`.
+
+Owner acceptance currently reports the correct Linux recommendation
+`192.168.1.5`, but the ordinary no-argument Linux GUI cannot yet edit the
+Session Password fields and therefore cannot reach the already-landed production
+Start transaction. R1 review found no production transport/TLS correction
+required: R7/R10 already route an explicit Sharing action through standalone
+credential configuration -> fresh owner consent -> exact endpoint configuration
+-> generated endpoint TLS identity -> R1 listener bind. R1 still revalidates the
+selected native interface/address immediately before bind, rejects wildcard
+selection, and publishes the listener only after the bound certificate matches
+that listener generation.
+
+Added focused native-environment CTest
+`runtime.linux-host-control-standalone-owner-grant-authoritative-listener`.
+It uses the production `LinuxRuntimeHostControl`, real standalone credential
+owner and real R1 listener. The regression begins with a configured standalone
+credential plus active local-owner grant and proves there is still no listener
+or TLS bind evidence; endpoint configuration creates only an unbound generated
+identity; successful Start makes the exact selected endpoint equal the
+authoritative bound endpoint, reports `BoundAndMatched` TLS evidence for the
+same nonzero listener generation, and Stop closes the listener and retires the
+generated identity. The test uses a bounded high-port range so ordinary CTest
+does not seize product port 3389; owner acceptance remains the real
+`192.168.1.5:3389` gate.
+
+Production R1 listener/TLS source: **UNCHANGED**. Credential widgets and Release
+StandalonePassword qualification gate: **UNCHANGED**. Connector-local build and
+CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
+Next gate: R7/R10 must make the Linux no-argument owner-acceptance credential
+fields editable through the existing prequalification mechanism. Then retry the
+owner flow at `192.168.1.5:3389`; Copy/`Connect to:` must appear only after
+authoritative listener bind. If that retry reaches Start but fails at bind/TLS,
+report the first R1 error boundary and reopen this increment.
+
 ## R8 current-main verification of R10 owner-evidence fixture isolation — 2026-10-24
 
 Starting exact-main parent: `6ded7b1938bab3c029ef13041b3a46bc09612716`.

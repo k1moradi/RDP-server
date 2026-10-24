@@ -693,6 +693,125 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (testCase ==
+        "linux-host-control-standalone-owner-grant-authoritative-listener")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U)
+            return 77;
+        PortableBootstrapEvidence evidence(processUid);
+        LinuxRuntimeHostControl control(evidence);
+
+        // R1 must remain dormant while R10 owns only a valid standalone
+        // credential plus an active local-owner grant.
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+        assert(std::ranges::all_of(
+            password, [](char16_t value) { return value == u'\0'; }));
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+
+        const auto granted = control.status();
+        assert(granted.credentialsConfigured);
+        assert(granted.hostOwnerAuthorized);
+        assert(granted.product.ownerAuthorized);
+        assert(!granted.listenerAvailable);
+        assert(granted.listenerGeneration == 0U);
+        assert(granted.boundEndpoint.empty());
+        assert(!granted.tlsIdentityReady);
+
+        const auto recommendation = granted.product.recommendedEndpoint;
+        if (!recommendation.valid())
+            return 77;
+        assert(recommendation.address != "0.0.0.0");
+        assert(recommendation.address != "::");
+        assert(recommendation.address != "[::]");
+
+        bool listenerStarted = false;
+        std::string selectedEndpoint;
+        for (std::uint16_t port = 34000U; port <= 34029U; ++port)
+        {
+            const RuntimeHostOptions options{
+                recommendation.interfaceId, recommendation.address,
+                port, true, false};
+            assert(control.configure(options).succeeded());
+
+            const auto prepared = control.status();
+            assert(prepared.credentialsConfigured);
+            assert(prepared.hostOwnerAuthorized);
+            assert(prepared.tlsIdentityReady);
+            assert(prepared.tlsIdentity.state ==
+                   RuntimeTlsIdentityState::ConfiguredUnbound);
+            assert(prepared.tlsIdentity.endpointGeneration == 0U);
+            assert(!prepared.listenerAvailable);
+            assert(prepared.listenerGeneration == 0U);
+            assert(prepared.boundEndpoint.empty());
+            assert(!prepared.selectedEndpoint.empty());
+
+            const RuntimeHostResult start = control.startSharing();
+            if (start.succeeded())
+            {
+                listenerStarted = true;
+                selectedEndpoint = prepared.selectedEndpoint;
+                break;
+            }
+            assert(start.error == RuntimeHostError::PortUnavailable);
+            const auto denied = control.status();
+            assert(!denied.listenerAvailable);
+            assert(denied.listenerGeneration == 0U);
+            assert(denied.boundEndpoint.empty());
+        }
+        assert(listenerStarted);
+
+        const auto listening = control.status();
+        assert(listening.listenerAvailable);
+        assert(listening.listenerGeneration != 0U);
+        assert(!selectedEndpoint.empty());
+        assert(listening.selectedEndpoint == selectedEndpoint);
+        assert(listening.boundEndpoint == selectedEndpoint);
+        assert(listening.product.boundEndpoint == selectedEndpoint);
+        assert(listening.product.state == RuntimeProductHostState::Listening);
+        assert(listening.product.readinessStage ==
+               RuntimeProductReadinessStage::Listening);
+        assert(listening.activeClients.empty());
+
+        // R1's authoritative listener evidence is inseparable from the
+        // generated certificate matching this exact bound numeric address.
+        assert(listening.tlsIdentityReady);
+        assert(listening.product.tlsIdentityReady);
+        assert(listening.tlsIdentity.state ==
+               RuntimeTlsIdentityState::BoundAndMatched);
+        assert(listening.tlsIdentity.endpointGeneration ==
+               listening.listenerGeneration);
+        assert(listening.tlsIdentity.boundIdentityMatchesGeneration(
+            listening.listenerGeneration));
+
+        assert(control.stopSharing().succeeded());
+        const auto stopped = control.status();
+        assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(!stopped.listenerAvailable);
+        assert(stopped.listenerGeneration == 0U);
+        assert(stopped.boundEndpoint.empty());
+        assert(stopped.product.boundEndpoint.empty());
+        assert(!stopped.tlsIdentityReady);
+        assert(!stopped.product.tlsIdentityReady);
+        assert(stopped.tlsIdentity.state ==
+               RuntimeTlsIdentityState::Unavailable);
+        assert(!stopped.tlsIdentity.fingerprintAvailable);
+        assert(stopped.tlsIdentity.endpointGeneration == 0U);
+        assert(!stopped.hostOwnerAuthorized);
+        assert(!stopped.product.ownerAuthorized);
+        return 0;
+#endif
+    }
+
     if (testCase == "linux-portable-gui-bootstrap-listener-acceptance")
     {
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

@@ -326,7 +326,7 @@ if(TARGET rdp-server-linux-serve-listener)
         PROPERTIES LABELS "runtime;security;r10-listener;offline")
 endif()
 
-# Three offline native R10 HostControl lifetime/denial regressions.
+# Deterministic offline R10 HostControl lifetime/status regressions.
 if(TARGET rdp-server-linux-host-control)
     add_executable(test_linux_runtime_host_control
         test_linux_runtime_host_control.cpp)
@@ -338,6 +338,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-no-consent-start-denials
             linux-host-control-product-status-projection
             linux-host-control-sharing-permission-product-projection
+            linux-host-control-injected-owner-evidence-permission-determinism
             linux-host-control-first-live-graphics-trace-projection
             linux-host-control-route-aware-lan-recommendation
             linux-host-control-revalidated-interface-denials

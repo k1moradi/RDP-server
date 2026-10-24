@@ -1,3 +1,42 @@
+## R10 P0 HostControl permission-fixture matrix completion (2026-10-24)
+
+Starting exact-main parent: `1bbadd5309ba21709069ab1144e4679d6932f103`.
+
+The preceding R10 fix isolated the three owner-reported offline failures from
+live logind/X11 state. This follow-up completes the requested HostControl-level
+fixture matrix without changing production code. New ordinary CTest
+`runtime.linux-host-control-injected-owner-evidence-permission-determinism`
+constructs the real R10 HostControl twice through the existing injected
+`ConsoleOsEvidenceSource` seam: deterministic unavailable evidence must remain
+non-requestable/non-authorizing, while deterministic eligible unlocked
+same-owner physical-seat/X11 evidence must project `canRequest == true` and
+mint a View+Input grant only after the explicit local permission request.
+
+Both injected paths assert generated automatic runtime provisioning remains
+intact where Linux host security is built. Neither configures an endpoint;
+attempted Start therefore fails before binding and the listener/bound endpoint
+remain absent. Clipboard is explicitly excluded from the permission request.
+The existing conditional
+`runtime.linux-host-control-default-native-evidence-projection` remains the
+separate read-only production/default-controller check against genuine native
+evidence.
+
+The test executable no longer constructs one shared production-default
+HostControl for all later cases. Each case that actually needs the default
+controller now creates it locally, while standalone/portable bootstrap cases
+retain their explicit evidence model. This makes native-evidence dependency
+visible and prevents unrelated dispatched cases from sampling host state.
+
+Production R1/R2/R5/R10 source, zero-config portable behavior and RDP wire:
+**UNCHANGED**. Source/control-flow review: **PASS**.
+Connector-local build/CTest: **NOT RUN** (approved checkout unavailable because
+the connector container cannot resolve GitHub). Owner physical-X11 focused
+rerun and exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** require the canonical three-test selector to PASS on the owner
+physical unlocked Linux/X11 desktop and on headless hosted CI, and require the
+new deterministic fixture CTest to PASS in ordinary full CTest.
+
 ## R10 P0 Linux HostControl offline evidence isolation (2026-10-24)
 
 Starting exact-main parent: `d5e6d35d7c1e3fa73ec53b47b7ef91e1654606fd`.

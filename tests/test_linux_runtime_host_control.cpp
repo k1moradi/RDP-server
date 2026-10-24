@@ -218,6 +218,67 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (testCase ==
+        "linux-host-control-injected-owner-evidence-permission-determinism")
+    {
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+
+        OfflineUnavailableEvidence unavailableEvidence;
+        LinuxRuntimeHostControl unavailable(unavailableEvidence);
+        auto unavailableStatus = unavailable.status();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        assert(unavailableStatus.product.automaticRuntimeProvisioned);
+#endif
+        assert(!unavailableStatus.product.sharingPermission.canRequest);
+        assert(!unavailableStatus.product.sharingPermission.activeGrant);
+        assert(unavailableStatus.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::Unavailable);
+        assert(!unavailableStatus.hostOwnerAuthorized);
+        assert(!unavailableStatus.listenerAvailable);
+        assert(unavailableStatus.boundEndpoint.empty());
+        assert(unavailable.requestHostPermissionSetup(permission).error ==
+               RuntimeHostError::HostConsentRequired);
+        assert(unavailable.startSharing().error ==
+               RuntimeHostError::InvalidConfiguration);
+        assert(!unavailable.status().listenerAvailable);
+
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U)
+            return 77;
+        PortableBootstrapEvidence eligibleEvidence(processUid);
+        LinuxRuntimeHostControl eligible(eligibleEvidence);
+        auto eligibleStatus = eligible.status();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        assert(eligibleStatus.product.automaticRuntimeProvisioned);
+#endif
+        assert(eligibleStatus.product.sharingPermission.canRequest);
+        assert(!eligibleStatus.product.sharingPermission.activeGrant);
+        assert(eligibleStatus.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::PermissionRequired);
+        assert(!eligibleStatus.hostOwnerAuthorized);
+        assert(!eligibleStatus.listenerAvailable);
+        assert(eligibleStatus.boundEndpoint.empty());
+
+        assert(eligible.requestHostPermissionSetup(permission).succeeded());
+        eligibleStatus = eligible.status();
+        assert(eligibleStatus.product.sharingPermission.canRequest);
+        assert(eligibleStatus.product.sharingPermission.activeGrant);
+        assert(eligibleStatus.product.sharingPermission.viewAllowed);
+        assert(eligibleStatus.product.sharingPermission.inputAllowed);
+        assert(eligibleStatus.product.sharingPermission.denial ==
+               RuntimeSharingPermissionDenial::None);
+        assert(eligibleStatus.hostOwnerAuthorized);
+        assert(!eligibleStatus.listenerAvailable);
+        assert(eligibleStatus.boundEndpoint.empty());
+        assert(eligible.startSharing().error ==
+               RuntimeHostError::InvalidConfiguration);
+        assert(!eligible.status().listenerAvailable);
+        return 0;
+    }
+
     if (testCase == "linux-host-control-first-live-graphics-trace-projection")
     {
         const auto framebufferOnly = projectRuntimeFirstLiveGraphicsTrace(
@@ -376,9 +437,9 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    LinuxRuntimeHostControl control;
     if (testCase == "linux-host-control-revalidated-interface-denials")
     {
+        LinuxRuntimeHostControl control;
         RuntimeHostOptions options{"missing#0", "0.0.0.0", 3389U, true, false};
         assert(control.configure(options).error ==
                RuntimeHostError::InvalidConfiguration);
@@ -408,6 +469,7 @@ int main(int argc, char** argv)
     }
     if (testCase == "linux-host-control-automatic-tls-identity-lifecycle")
     {
+        LinuxRuntimeHostControl control;
         const auto interfaces = control.enumerateLocalInterfaces();
         if (interfaces.empty() || interfaces.front().localAddresses.empty())
             return 77;
@@ -451,6 +513,7 @@ int main(int argc, char** argv)
 
     if (testCase == "linux-host-control-rejected-selection-retires-previous")
     {
+        LinuxRuntimeHostControl control;
         // No synthetic interfaces or socket/credential setup. The host must
         // supply one currently eligible private LAN adapter for this case.
         const auto interfaces = control.enumerateLocalInterfaces();
@@ -486,6 +549,7 @@ int main(int argc, char** argv)
     }
     if (testCase == "linux-host-control-native-interface-id-verification")
     {
+        LinuxRuntimeHostControl control;
         for (const std::string_view malformed : {
                  std::string_view{}, std::string_view{"lo"},
                  std::string_view{"#1"}, std::string_view{"lo#"},
@@ -528,6 +592,8 @@ int main(int argc, char** argv)
         // X11 evidence used by normal no-config composition. Inject only that
         // read-only evidence while keeping the real R2 credential owner.
         LinuxRuntimeHostControl control(evidence);
+#else
+        LinuxRuntimeHostControl control;
 #endif
         auto password = standalonePassword();
         assert(control.configureStandaloneApplicationPassword(
@@ -699,6 +765,7 @@ int main(int argc, char** argv)
 
     if (testCase == "linux-host-control-stop-revoke-retirement")
     {
+        LinuxRuntimeHostControl control;
         assert(control.stopSharing().succeeded());
         assert(control.stopSharing().succeeded());
         assert(control.disconnectClient(1U).error ==

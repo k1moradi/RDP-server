@@ -1,3 +1,40 @@
+## R10 accepted-client lifetime is subordinate to Sharing lifetime (2026-10-24)
+
+R10 owns two different lifetimes and must never conflate them. The Sharing
+lifetime owns current local-owner consent, listener/TLS endpoint state and the
+service-lifetime standalone credential generation. Each accepted peer owns a
+strict child lifetime containing one R1 socket/TLS owner, one R2 CredSSP/NTLM
+acceptor/security context and downstream R3/native descendants.
+
+A malformed or rejected remote authentication token is terminal only for that
+accepted-client child. R10 retires the child in dependency order and returns to
+`ListenerAvailable` when the listener and owner consent remain current. It
+does not call the stopped-runtime teardown path, close the listener, revoke
+owner consent, or revoke/replace the standalone credential generation merely
+because one remote peer failed. This permits bounded Microsoft-client automatic
+reconnects without a Sharing OFF/ON cycle.
+
+Every new accept constructs a fresh `LinuxRuntimeConnection`. Standalone mode
+therefore configures a fresh CredSSP/NTLM acceptor with a fresh random server
+challenge while borrowing only the same current service credential generation.
+The noncopyable NTLM SIGN/SEAL context remains inside that connection and is
+cleansed when the connection is revoked; no transcript, sequence counter or
+session key crosses reconnects.
+
+R10's accepted-client status is diagnostic, not authority. It projects R2's
+cached immutable negotiation envelope plus the last reached authentication
+boundary and credential generation. Termination is a separate dimension so a
+retired direct-NTLM Type-3 failure remains identifiable as
+`DirectNtlm / NtlmAuthenticate` rather than being rewritten as SPNEGO or
+generic Closed. Neither this projection nor GUI presentation may grant
+authentication, native admission or Share.
+
+Ordinary Stop is the wider lifetime boundary: revoke owner consent, retire the
+accepted/native/R3/R2/R1 child, close listener, retire generated TLS, but retain
+the memory-only standalone credential. A subsequent Start requires fresh
+owner consent and fresh listener/TLS state. Terminal revoke/Quit/session
+security loss destroys the credential.
+
 ## R7 redacted authentication presentation boundary (2026-10-24)
 
 R2 and R10 retain ownership of authentication classification. The connection

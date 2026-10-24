@@ -366,6 +366,8 @@ int main(int argc, char** argv)
         source.preauthStage = SourcePreauth::AwaitTls;
         source.tlsHandshakeStage = SourceTls::Handshaking;
         source.credSspTransition = SourceCredSsp::NotStarted;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::Transport;
         source.termination = SourceTermination::Open;
         auto projected =
             projectLinuxAcceptedClientPreauthDiagnostics(source);
@@ -376,6 +378,11 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientTlsHandshakeStage::Handshaking);
         assert(projected.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::NotStarted);
+        assert(projected.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::Undetermined);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Transport);
+        assert(projected.standaloneCredentialGeneration == 0U);
         assert(projected.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::None);
         assert(projected.termination ==
@@ -384,6 +391,12 @@ int main(int argc, char** argv)
         source.preauthStage = SourcePreauth::AwaitCredSsp;
         source.tlsHandshakeStage = SourceTls::Established;
         source.credSspTransition = SourceCredSsp::AwaitingToken;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::NtlmChallenge;
+        source.standaloneNegotiationEnvelope =
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm;
+        source.standaloneCredentialGeneration = 77U;
         projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
         assert(projected.preauthStage ==
                RuntimeAcceptedClientPreauthStage::AwaitCredSsp);
@@ -391,6 +404,11 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientTlsHandshakeStage::Established);
         assert(projected.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::AwaitingToken);
+        assert(projected.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+        assert(projected.standaloneCredentialGeneration == 77U);
         assert(projected.termination ==
                RuntimeAcceptedClientTermination::Open);
 
@@ -406,19 +424,37 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientStandaloneFailureStage::None);
 
         source.credSspTransition = SourceCredSsp::Failed;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::CredSspSpnego;
+        source.standaloneNegotiationEnvelope =
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::Spnego;
         source.standaloneAuthenticationFailureStage = SourceFailure::Spnego;
         source.termination = SourceTermination::Cancelled;
         projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
         assert(projected.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::Failed);
+        assert(projected.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::Spnego);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::CredSspSpnego);
         assert(projected.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::Spnego);
         assert(projected.termination ==
                RuntimeAcceptedClientTermination::Cancelled);
 
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::NtlmAuthenticate;
+        source.standaloneNegotiationEnvelope =
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm;
         source.standaloneAuthenticationFailureStage =
             SourceFailure::NtlmNegotiation;
         projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
         assert(projected.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
         assert(projected.termination ==

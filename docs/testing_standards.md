@@ -1,3 +1,27 @@
+## R10 reconnect + Stop/Start authentication lifetime gate (2026-10-24)
+
+Production HostControl changes that affect standalone authentication lifetime
+must cover the combined service/connection behavior, not only isolated parser
+or Stop tests. Keep a behavior-named integration CTest that drives the real
+R10 listener and R1 HYBRID/TLS path through:
+
+`Start -> bad DirectNtlm -> child retired/listener still usable -> good
+DirectNtlm through pubKeyAuth/authInfo -> Stop -> fresh consent + Start without
+password re-entry -> another good DirectNtlm authentication`.
+
+The gate must assert the same configured credential generation survives the bad
+peer and ordinary Stop, owner consent survives the bad peer but not Stop, the
+listener generation survives the bad peer but changes after Stop/Start, and
+every accepted connection gets a distinct NTLM server challenge. The failed
+peer's retained diagnostics must identify DirectNtlm and the exact last reached
+authentication boundary; generic `stage=spnego` is insufficient.
+
+Use controlled native-console evidence only to reach authenticated R2/MCS in
+hosted tests; do not activate X11 capture/input or claim physical desktop
+acceptance. Run this native-environment binary directly in the focused R9
+sanitizer owner-candidate gate so skip code 77 is a gate failure there.
+Physical Microsoft-client behavior remains separate owner acceptance evidence.
+
 ## R7 authentication-failure status/retention gates (2026-10-24)
 
 Keep an offscreen owner-acceptance regression that starts from an active

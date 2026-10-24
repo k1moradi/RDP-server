@@ -1,3 +1,26 @@
+## R10 peer-failure and authentication-status ownership (2026-10-24)
+
+Treat remote authentication failure as an accepted-connection terminal event,
+not a service-credential or Sharing terminal event. If the listener and local
+owner grant remain current, retire only the failed connection and its native/R3
+children; never revoke the configured standalone credential generation, close
+the listener or revoke owner consent because a peer sent a malformed/rejected
+CredSSP/NTLM token.
+
+Each accepted connection must construct a fresh CredSSP/NTLM owner and fresh
+random NTLM challenge. NTLM transcript bytes, derived keys, RC4/sign/seal
+sequence state and security context are connection-owned and must be cleansed
+before socket/TLS destruction; they must never be cached in R10 service state
+or reused by a reconnect. The service may borrow only the current
+generation-fenced standalone credential owner.
+
+Diagnostic state must preserve protocol truth without becoming authority. Cache
+only bounded redacted scalars needed after mechanism cleanup: immutable
+SPNEGO/DirectNtlm envelope, last reached authentication boundary and credential
+generation. Keep transport termination separate. Never rewrite a DirectNtlm
+failure as SPNEGO, and never retain/log raw tokens, hashes, session keys or
+delegated credentials to improve presentation.
+
 ## Authentication failure presentation is product-safe (2026-10-24)
 
 R7 must never project protocol parser strings or wire observations onto Main.

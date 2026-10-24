@@ -387,6 +387,27 @@ if(TARGET rdp-server-linux-host-control)
         rdp-server-linux-host-control OpenSSL::SSL)
     target_compile_options(test_linux_runtime_host_control PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+
+    # R10 production-backed reconnect/lifetime integration. The peer drives the
+    # real LAN listener, X.224 HYBRID/TLS and DirectNtlm CredSSP path, but the
+    # controlled native evidence stops at authenticated R2 -> MCS and never
+    # activates X11 capture/input.
+    add_executable(test_linux_runtime_direct_ntlm_lifecycle
+        test_linux_runtime_direct_ntlm_lifecycle.cpp)
+    target_link_libraries(test_linux_runtime_direct_ntlm_lifecycle PRIVATE
+        rdp-server-linux-host-control OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_options(test_linux_runtime_direct_ntlm_lifecycle PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(
+        NAME runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            r10-direct-ntlm-reconnect-stop-start-lifecycle)
+    set_tests_properties(
+        runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle
+        PROPERTIES
+            LABELS "r10;runtime;security;r1-tls;r2-standalone;r2-owner-consent;r2-admission;credssp;ntlmv2;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     foreach(host_control_case IN ITEMS
             linux-host-control-no-consent-start-denials
             linux-host-control-product-status-projection

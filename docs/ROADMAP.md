@@ -1,3 +1,50 @@
+## R10 P0 — direct-NTLM reconnect + Stop/Start lifetime composition (2026-10-24)
+
+**Starting reconciled main:** `c278dc97772424751d023a5206563636ad583c27`.
+
+R2 now owns the immutable per-connection `Spnego` / `DirectNtlm`
+negotiation envelope. R10 consumes that fact without duplicating
+authentication authority: accepted-client diagnostics now preserve the exact
+redacted envelope, the configured standalone credential generation, and the
+last authoritative authentication boundary reached (`TLS`, CredSSP,
+DirectNtlm/SPNEGO negotiation, NTLM challenge/authenticate, binding,
+credential delegation, authenticated, MCS). A retired direct-NTLM failure is
+therefore not rewritten as generic `stage=spnego`.
+
+Connection failure and service lifetime remain deliberately separate. A bad
+remote token retires only the accepted connection/native child. While the
+listener and local-owner grant remain current, Sharing stays ON, the listener
+continues accepting retries, and the memory-only Session Password generation
+is unchanged. Every accept constructs a fresh `LinuxRuntimeConnection`, fresh
+standalone CredSSP/NTLM owner and fresh random NTLM server challenge; NTLM
+SIGN/SEAL state cannot cross reconnects.
+
+The production-backed native-environment regression
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`
+drives the real R10 LAN listener through X.224 HYBRID/TLS and direct NTLM. It
+requires: Start -> malformed direct Type 3 -> accepted-client retirement with
+the same listener/consent/credential -> a second direct-NTLM client through
+pubKeyAuth/authInfo to authenticated R2/MCS -> ordinary Stop -> retained
+credential/fresh consent -> Start on a fresh listener/TLS generation -> a third
+direct-NTLM authentication. It also requires distinct NTLM server challenges
+across all three accepted connections.
+
+Ordinary Stop continues to revoke consent and retire accepted client/native
+owner/listener/generated TLS while retaining only the configured standalone
+credential. Terminal revoke/Quit/session-security loss still destroys the
+credential.
+
+Connector source/test/workflow review: **PASS**. Canonical owner-local
+configure/build/full CTest: **NOT RUN** in this connector session.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Microsoft Windows App
+retry: **NOT RUN**.
+
+**Next P0 gate:** require exact-SHA hosted PASS for the new lifecycle test and
+existing direct-NTLM/SPNEGO owner-candidate gates, then repeat the physical
+Windows App attempt without toggling Sharing between automatic reconnects.
+Record the first later failure boundary without reopening TLS or widening
+per-peer failure into service teardown.
+
 ## R7 P1 authentication-failure product language and retained host state (2026-10-24)
 
 **Starting reconciled main:** `ae7d8d1c0bf18fddbd87b1c5e1bdc83b5144a9c3`.

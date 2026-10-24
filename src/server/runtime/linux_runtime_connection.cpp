@@ -380,6 +380,7 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedSecurityProtocol = negotiatedSecurityProtocol_;
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
+    snapshot.authenticationProgress = authenticationProgress_;
     snapshot.standaloneNegotiationEnvelope =
         standaloneNegotiationEnvelope_;
     snapshot.standalonePasswordSelected =
@@ -955,6 +956,7 @@ LinuxRuntimeConnection::onTlsIoReady() noexcept
         captureEstablishedTlsDiagnostics();
         credSspDiagnosticTransition_ =
             LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken;
+        authenticationProgress_ = LinuxRuntimeAuthenticationProgress::Tls;
     }
     else if (
         result == rdp_server::server::transport::TlsHandshakeStatus::Invalid ||
@@ -1156,6 +1158,8 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                 standaloneBindingReplyPending_ = false;
                 credSspDiagnosticTransition_ =
                     LinuxRuntimeCredSspDiagnosticTransition::BindingVerified;
+                authenticationProgress_ =
+                    LinuxRuntimeAuthenticationProgress::CredentialDelegation;
                 return {0U, written.plaintextBytesWritten,
                         Step::BindingVerified};
             }
@@ -1206,6 +1210,35 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         return fail(Step::Invalid);
     }
 
+    if (standaloneCredSspAcceptor_.stage() ==
+        rdp_server::server::security::StandaloneCredSspStage::AwaitInitialNego)
+    {
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::CredSsp;
+    }
+    else if (
+        standaloneCredSspAcceptor_.stage() ==
+            rdp_server::server::security::StandaloneCredSspStage::NegoContinue &&
+        standaloneNegotiationEnvelope_ ==
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+    {
+        // Type 2 has already been emitted. Preserve this boundary if the next
+        // raw token fails Type-3 syntax/proof verification.
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::NtlmAuthenticate;
+    }
+    else if (
+        standaloneCredSspAcceptor_.stage() ==
+            rdp_server::server::security::StandaloneCredSspStage::NegoContinue &&
+        standaloneNegotiationEnvelope_ ==
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::Spnego)
+    {
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::CredSspSpnego;
+    }
+
     struct CredentialVisitContext final
     {
         rdp_server::server::security::StandaloneCredSspNtlmAcceptor *acceptor{};
@@ -1241,6 +1274,25 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         return fail(Step::Invalid, bytesRead, 0U);
     }
     captureNegotiationEnvelope();
+    if (authenticationProgress_ ==
+            LinuxRuntimeAuthenticationProgress::CredSsp)
+    {
+        if (standaloneNegotiationEnvelope_ ==
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+        {
+            authenticationProgress_ =
+                LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm;
+        }
+        else if (
+            standaloneNegotiationEnvelope_ ==
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::Spnego)
+        {
+            authenticationProgress_ =
+                LinuxRuntimeAuthenticationProgress::CredSspSpnego;
+        }
+    }
 
     switch (visitContext.status)
     {
@@ -1248,12 +1300,20 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         if (credSspReplyWriter_.status() != WriteStatus::NeedWrite)
             return fail(Step::Invalid, bytesRead, 0U);
         standaloneReplyPending_ = true;
+        authenticationProgress_ =
+            standaloneNegotiationEnvelope_ ==
+                    rdp_server::server::security::
+                        StandaloneNtlmNegotiationEnvelope::DirectNtlm
+                ? LinuxRuntimeAuthenticationProgress::NtlmChallenge
+                : LinuxRuntimeAuthenticationProgress::CredSspSpnego;
         return {bytesRead, 0U, Step::NeedWrite};
     case FrameStatus::BindingReplyQueued:
         if (credSspReplyWriter_.status() != WriteStatus::NeedWrite)
             return fail(Step::Invalid, bytesRead, 0U);
         standaloneReplyPending_ = true;
         standaloneBindingReplyPending_ = true;
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::CredSspBinding;
         return {bytesRead, 0U, Step::NeedWrite};
     case FrameStatus::CredentialsVerified:
         if (!standalonePrincipalProof_.bind(
@@ -1264,6 +1324,8 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         }
         credSspDiagnosticTransition_ =
             LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::Authenticated;
         return {bytesRead, 0U, Step::CredentialsVerified};
     case FrameStatus::Rejected:
         return fail(Step::Invalid, bytesRead, 0U);
@@ -1285,6 +1347,9 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
     using HandshakeStatus =
         rdp_server::server::security::OwnedCredSspHandshakeStatus;
 
+    if (authenticationProgress_ == LinuxRuntimeAuthenticationProgress::Tls)
+        authenticationProgress_ = LinuxRuntimeAuthenticationProgress::CredSsp;
+
     const auto result = acceptor_.advanceOwnedCredSspHandshake(
         connection_, credSspFrameReader_, credSspReplyWriter_);
     switch (result.status)
@@ -1301,11 +1366,15 @@ LinuxCredSspStepResult LinuxRuntimeConnection::onCredSspIoReady() noexcept
     case HandshakeStatus::BindingVerified:
         credSspDiagnosticTransition_ =
             LinuxRuntimeCredSspDiagnosticTransition::BindingVerified;
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::CredentialDelegation;
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::BindingVerified};
     case HandshakeStatus::CredentialsVerified:
         credSspDiagnosticTransition_ =
             LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
+        authenticationProgress_ =
+            LinuxRuntimeAuthenticationProgress::Authenticated;
         return {result.plaintextBytesRead, result.plaintextBytesWritten,
                 LinuxCredSspStepStatus::CredentialsVerified};
     case HandshakeStatus::UnsupportedFinalCredentials:
@@ -1407,6 +1476,7 @@ LinuxPostAdmissionMcsStepResult
 LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
     bool readable, bool writable) noexcept
 {
+    authenticationProgress_ = LinuxRuntimeAuthenticationProgress::Mcs;
     using Interest =
         rdp_server::server::transport::TcpConnectionIoInterest;
     using IoOutcome =

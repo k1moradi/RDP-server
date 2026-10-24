@@ -721,6 +721,57 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     }
 
+    using SourceProgress = LinuxRuntimeAuthenticationProgress;
+    switch (source.authenticationProgress)
+    {
+    case SourceProgress::Transport:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Transport;
+        break;
+    case SourceProgress::Tls:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Tls;
+        break;
+    case SourceProgress::CredSsp:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredSsp;
+        break;
+    case SourceProgress::CredSspSpnego:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredSspSpnego;
+        break;
+    case SourceProgress::CredSspDirectNtlm:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredSspDirectNtlm;
+        break;
+    case SourceProgress::NtlmChallenge:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        break;
+    case SourceProgress::NtlmAuthenticate:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate;
+        break;
+    case SourceProgress::CredSspBinding:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredSspBinding;
+        break;
+    case SourceProgress::CredentialDelegation:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredentialDelegation;
+        break;
+    case SourceProgress::Authenticated:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Authenticated;
+        break;
+    case SourceProgress::Mcs:
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Mcs;
+        break;
+    }
+    projected.standaloneCredentialGeneration =
+        source.standaloneCredentialGeneration;
+
     using SourceFailure = rdp_server::server::security::
         StandaloneAuthenticationFailureStage;
     switch (source.standaloneAuthenticationFailureStage)

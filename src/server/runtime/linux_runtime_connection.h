@@ -400,6 +400,24 @@ enum class LinuxRuntimeCredSspDiagnosticTransition : std::uint8_t
     Closed,
 };
 
+// Last protocol/authentication boundary reached by this exact accepted
+// connection. This scalar is diagnostic only and survives teardown solely so
+// R10 can report the failure boundary without retaining any token/key bytes.
+enum class LinuxRuntimeAuthenticationProgress : std::uint8_t
+{
+    Transport,
+    Tls,
+    CredSsp,
+    CredSspSpnego,
+    CredSspDirectNtlm,
+    NtlmChallenge,
+    NtlmAuthenticate,
+    CredSspBinding,
+    CredentialDelegation,
+    Authenticated,
+    Mcs,
+};
+
 // Bounded, non-authorizing first-client diagnostic snapshot. It contains only
 // protocol/lifecycle scalars plus the public certificate fingerprint; never
 // passwords, NTLM/GSS responses, session keys or delegated credentials.
@@ -413,6 +431,8 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     int negotiatedTlsProtocolVersion{};
     LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    LinuxRuntimeAuthenticationProgress authenticationProgress{
+        LinuxRuntimeAuthenticationProgress::Transport};
     rdp_server::server::security::StandaloneNtlmNegotiationEnvelope
         standaloneNegotiationEnvelope{
             rdp_server::server::security::
@@ -1198,6 +1218,8 @@ private:
     bool nativeChangeRegistrationUnregistered_{};
     LinuxRuntimeCredSspDiagnosticTransition credSspDiagnosticTransition_{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
+    LinuxRuntimeAuthenticationProgress authenticationProgress_{
+        LinuxRuntimeAuthenticationProgress::Transport};
     // Redacted connection-scoped envelope survives terminal CredSSP cleanup so
     // R10/R7 can classify the failed peer without retaining token material.
     rdp_server::server::security::StandaloneNtlmNegotiationEnvelope

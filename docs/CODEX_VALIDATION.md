@@ -1,3 +1,43 @@
+## R10 direct-NTLM reconnect and Stop/Start authoring receipt (2026-10-24)
+
+**Starting reconciled main:** `c278dc97772424751d023a5206563636ad583c27`.
+
+Source review confirms the existing production lifetime split is retained:
+`retireAcceptedClient()` revokes only the accepted/native child and returns
+to `ListenerAvailable` while the listener remains valid; it does not call
+`retireStoppedRuntime()`, revoke the standalone credential or revoke local
+owner consent. Ordinary `stopSharing()` separately uses
+`KeepCredentials` while retiring consent/client/native/listener/generated
+TLS. Terminal revoke continues to erase the credential.
+
+This increment adds redacted authoritative status from the connection owner:
+R2's cached immutable `Spnego`/`DirectNtlm` envelope, exact standalone
+credential generation and last reached authentication boundary through TLS,
+CredSSP negotiation, NTLM challenge/authenticate, binding, delegation,
+authenticated and MCS. These scalars survive child teardown as diagnostics only
+and contain no token/key/delegated-credential bytes.
+
+New production-backed CTest:
+`runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle`.
+It uses the real R10 listener, X.224 HYBRID/TLS and production direct-NTLM
+CredSSP path. The first peer receives raw Type 2 then sends a malformed raw Type
+3; R10 must retire only that client. A second peer on the unchanged listener
+completes raw Type 1/2/3, pubKeyAuth, server binding response and authInfo to
+authenticated R2/MCS. Ordinary Stop then retains the exact password generation,
+fresh consent restarts a new listener/TLS generation without password re-entry,
+and a third direct-NTLM peer authenticates. The fixture requires distinct
+server challenges across all three accepted connections, exercising fresh
+per-connection NTLM/SIGN-SEAL ownership.
+
+The focused R9 Microsoft-CSSP owner-candidate sanitizer job compiles and
+directly executes the new lifecycle binary in addition to existing
+Start/Stop/TLS, direct-NTLM and SPNEGO gates.
+
+Connector source/test/workflow review: **PASS**.
+Canonical owner-local configure/build/full CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+Physical Microsoft Windows App reconnect acceptance: **NOT RUN**.
+
 ## R7 terminal diagnostic-envelope lifetime correction (2026-10-24)
 
 **Starting exact-main parent:** `2b25b727b31c2d3a4acc3f3c4e139548d5678537`.

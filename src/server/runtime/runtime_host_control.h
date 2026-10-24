@@ -461,6 +461,24 @@ enum class RuntimeAcceptedClientNtlmEnvelope : std::uint8_t
     DirectNtlm,
 };
 
+// Last authoritative authentication phase reached by one accepted connection.
+// Termination is separate so a retired bad peer keeps the exact boundary that
+// failed instead of collapsing to a generic "closed" authentication state.
+enum class RuntimeAcceptedClientAuthenticationStage : std::uint8_t
+{
+    Transport,
+    Tls,
+    CredSsp,
+    CredSspSpnego,
+    CredSspDirectNtlm,
+    NtlmChallenge,
+    NtlmAuthenticate,
+    CredSspBinding,
+    CredentialDelegation,
+    Authenticated,
+    Mcs,
+};
+
 enum class RuntimeAcceptedClientTermination : std::uint8_t
 {
     Open,
@@ -488,6 +506,11 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
         RuntimeAcceptedClientCredSspTransition::NotStarted};
     RuntimeAcceptedClientNtlmEnvelope ntlmEnvelope{
         RuntimeAcceptedClientNtlmEnvelope::Undetermined};
+    RuntimeAcceptedClientAuthenticationStage authenticationStage{
+        RuntimeAcceptedClientAuthenticationStage::Transport};
+    // Non-secret service credential generation pinned by this connection.
+    // Zero for non-standalone authentication and never an authority token.
+    std::uint64_t standaloneCredentialGeneration{};
     RuntimeAcceptedClientStandaloneFailureStage standaloneFailureStage{
         RuntimeAcceptedClientStandaloneFailureStage::None};
     RuntimeAcceptedClientTermination termination{

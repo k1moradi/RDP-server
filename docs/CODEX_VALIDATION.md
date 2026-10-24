@@ -1,3 +1,18 @@
+## R6 macOS fresh-consent restart denial authoring receipt (2026-10-24)
+
+**Starting exact-main parent:** `3e67e4ff5c05fe5a81d10d7c1e52d9c465b34b65`.
+
+The R5 source-level dependency is resolved on this parent. R6 now explicitly
+proves on macOS that a retained memory-only credential is insufficient to
+restart sharing: cycles two and three prepare fresh endpoint/TLS state on the
+same port, call Start without a new grant and require
+`HostConsentRequired` with no listener, then obtain a fresh grant and start.
+The credential generation remains unchanged through the denial.
+
+Source review: **PASS**. No production or RDP wire source changed. Local/full
+CTest and native macOS execution: **NOT RUN**. Hosted exact-head CI remains
+queued/pending and is validation evidence only.
+
 ## R5 fresh native authorization restart authoring (2026-10-24)
 
 Starting exact-main parent: `7951436b82fe28a88a351300800405724fab05fa`.

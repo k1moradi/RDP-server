@@ -1,3 +1,16 @@
+## R6 macOS restart must deny retained credential without fresh consent (2026-10-24)
+
+The macOS production-listener round-trip must prove more than requesting consent
+on every successful cycle. After ordinary Stop, prepare a fresh endpoint-bound
+TLS identity on the same reusable port and call Start **before** requesting the
+next owner grant. Start must fail with `HostConsentRequired`, keep the listener
+closed and leave the retained Session Password generation unchanged. Only a new
+explicit owner-consent grant may make that prepared listener eligible to bind.
+
+This keeps the portable lifecycle semantics symmetric with Linux R5: credential
+retention is convenience only and can never become sticky native/listener
+authority. The denial/regrant sequence changes no RDP wire behavior.
+
 ## R5 fresh native authorization restart gate (2026-10-24)
 
 Keep `runtime.linux-host-control-fresh-native-authorization-every-start`

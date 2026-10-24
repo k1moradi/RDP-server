@@ -269,12 +269,13 @@ void testStopRevokeRetirement()
         assert(!beforePermission.hostOwnerAuthorized);
         assert(!beforePermission.listenerAvailable);
 
-        // The configured credential is reusable, but consent never is.
-        assert(control.requestHostPermissionSetup(permission).succeeded());
-        assert(control.status().hostOwnerAuthorized);
-
         if (cycle == 0U)
         {
+            // The first listener needs an owner grant before we can distinguish
+            // a genuinely occupied candidate port from an authorization denial.
+            assert(control.requestHostPermissionSetup(permission).succeeded());
+            assert(control.status().hostOwnerAuthorized);
+
             for (std::uint16_t port = 34300U; port < 34330U; ++port)
             {
                 const RuntimeHostOptions options{
@@ -300,17 +301,34 @@ void testStopRevokeRetirement()
         }
         else
         {
-            // Reuse the identical port immediately. Success proves the prior
-            // listener/socket owner was closed rather than leaked across Stop.
+            // Ordinary Stop must kill the previous consent grant. Prepare fresh
+            // endpoint-bound TLS state on the same port, then prove that the
+            // retained credential alone cannot authorize the next listener.
             const RuntimeHostOptions options{
                 recommendation.interfaceId, recommendation.address,
                 selectedPort, true, false};
             assert(control.configure(options).succeeded());
-            const auto prepared = control.status();
-            assert(prepared.tlsIdentityReady);
-            assert(prepared.tlsIdentity.state ==
+            const auto preparedWithoutConsent = control.status();
+            assert(preparedWithoutConsent.credentialsConfigured);
+            assert(!preparedWithoutConsent.hostOwnerAuthorized);
+            assert(preparedWithoutConsent.tlsIdentityReady);
+            assert(preparedWithoutConsent.tlsIdentity.state ==
                    RuntimeTlsIdentityState::ConfiguredUnbound);
-            assert(prepared.tlsIdentity.endpointGeneration == 0U);
+            assert(preparedWithoutConsent.tlsIdentity.endpointGeneration == 0U);
+            assert(!preparedWithoutConsent.listenerAvailable);
+
+            const auto deniedWithoutFreshConsent = control.startSharing();
+            assert(deniedWithoutFreshConsent.error ==
+                   RuntimeHostError::HostConsentRequired);
+            assert(!control.status().hostOwnerAuthorized);
+            assert(!control.status().listenerAvailable);
+            assert(control.standaloneApplicationPasswordObservation().generation ==
+                   original.generation);
+
+            // A2/A3 is explicit and fresh for this Start. The already-prepared
+            // TLS identity remains non-authorizing until this grant exists.
+            assert(control.requestHostPermissionSetup(permission).succeeded());
+            assert(control.status().hostOwnerAuthorized);
             assert(control.startSharing().succeeded());
         }
 

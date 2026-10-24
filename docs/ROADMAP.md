@@ -1,3 +1,25 @@
+## R6 P1 follow-up — macOS fresh-consent restart denial (2026-10-24)
+
+**Starting exact-main parent:** `3e67e4ff5c05fe5a81d10d7c1e52d9c465b34b65`.
+
+R5's concurrent restart work resolves the source-level native-authorization
+dependency and explicitly preserves the R6 cross-platform contract. The macOS
+three-cycle fixture is now strengthened to mirror that authority rule: after
+each ordinary Stop, it prepares fresh endpoint-bound TLS state on the same
+port, attempts Start with the retained Session Password but no new grant, and
+requires `HostConsentRequired` with no listener. A fresh owner grant is then
+required before the same prepared endpoint may bind.
+
+Linux already has the corresponding A1 -> Stop -> denied without A2 -> A2
+restart behavior. Windows remains a future consumer of the shared portable
+retirement matrix and must add equivalent native coverage when HostControl
+lands.
+
+RDP protocol semantics: **UNCHANGED**. Connector source review: **PASS**.
+Canonical local/full CTest and native macOS execution: **NOT RUN**. Exact-head
+hosted CI is currently a validation dependency, not an implementation
+dependency.
+
 ## R5 P1 — fresh Linux native authorization on every Start (2026-10-24)
 
 **Starting exact-main parent:** `7951436b82fe28a88a351300800405724fab05fa`.

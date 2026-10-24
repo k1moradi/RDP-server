@@ -3788,6 +3788,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         target_compile_options(test_desktop_gui_offline PRIVATE
             -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
+    # The test executable intentionally undefines NDEBUG so assertions remain
+    # active in Release. Carry the UI build's actual acceptance-surface state
+    # separately so Release tests do not mistake -UNDEBUG for a Debug UI.
+    target_compile_definitions(test_desktop_gui_offline PRIVATE
+        "$<$<OR:$<CONFIG:Debug>,$<BOOL:${RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI}>>:RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI=1>")
     add_test(NAME gui.offscreen-first-run-authorization-revocation
         COMMAND test_desktop_gui_offline)
     set_tests_properties(gui.offscreen-first-run-authorization-revocation PROPERTIES

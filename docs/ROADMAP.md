@@ -1,3 +1,36 @@
+## R7 hosted Release/acceptance test-build reconciliation (2026-10-23)
+
+Starting exact-main parent: `96beacf72d19ad95029e5cabe5a2d3cc455a08c3`.
+
+R9 has now closed the repository-side owner handoff: exact candidate
+`c0cbcc7b86171be6b53b0cd3361029886c06d9ca` passed the dedicated portable
+bootstrap gate, produced the acceptance-only Linux ZIP, verified/extracted it,
+and passed the no-argument launch smoke. The public StandalonePassword Release
+gate remains false. That resolves the packaging/bootstrap dependency and leaves
+the physical Microsoft-client run as the product gate.
+
+The same candidate exposed one unrelated macOS Release GUI-test mismatch. The
+`test_desktop_gui_offline` executable intentionally uses `-UNDEBUG` so
+assertions remain active even in Release, while the linked UI library correctly
+uses Release `NDEBUG` and hides the pre-qualification Session Password
+surface. The acceptance-only test guards incorrectly used the test executable's
+`NDEBUG`, so they ran instead of returning the registered skip code.
+
+CTest now passes an explicit configuration-aware
+`RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI` definition to the test executable only
+for Debug or `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=ON`. The three
+acceptance-only modes use that definition for their skip decision. This keeps
+Release fail-closed, keeps assertions enabled, and still forces the full
+production-backed owner-acceptance tests to execute in Debug/explicit
+acceptance builds.
+
+No production runtime, listener, authentication, native desktop, input,
+clipboard or package behavior changes. Replacement exact-SHA hosted
+qualification is pending after publication. The remaining product blocker is
+external: the owner-authorized unmodified Windows App / Windows 11
+`mstsc.exe` run against the exact acceptance artifact on the eligible Linux
+X11 desktop.
+
 ## R9 owner-acceptance ZIP exact-SHA PASS / physical handoff (2026-10-23)
 
 **OWNER PRODUCT-TEST CANDIDATE:** `c0cbcc7b86171be6b53b0cd3361029886c06d9ca`.

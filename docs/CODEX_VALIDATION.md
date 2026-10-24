@@ -1,3 +1,31 @@
+## 2026-10-23 — macOS Release acceptance-only CTest configuration correction
+
+Starting exact-main parent: `96beacf72d19ad95029e5cabe5a2d3cc455a08c3`.
+
+R9 exact candidate `c0cbcc7b86171be6b53b0cd3361029886c06d9ca`,
+Actions run `40072075785`, proved the repository-side owner artifact handoff:
+`r9-portable-gui-bootstrap-acceptance` **PASS**, Ubuntu protocol **PASS**,
+macOS protocol **PASS**, R2 complete/missing-systemd **PASS**, R5 Linux GUI ZIP
+**PASS**, security sanitizers **PASS**, and the acceptance-only ZIP artifact
+was uploaded successfully. The macOS portable-GUI lane alone failed three
+owner-acceptance-only cases.
+
+Root cause: `test_desktop_gui_offline` is compiled with `-UNDEBUG` in every
+configuration to keep assertions active. Its previous `NDEBUG` skip guard
+therefore described the test executable rather than the Release-built
+`rdp-server-desktop-ui` library. The test target now receives
+`RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI=1` only for Debug or explicit
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI`; acceptance-only modes return the
+existing skip code 77 otherwise.
+
+Source review: **PASS**. Existing registered CTests
+`gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed`,
+`gui.offscreen-owner-acceptance-consumer-start-orchestration`, and
+`gui.offscreen-owner-acceptance-start-failure-rolls-back` remain the behavior
+coverage. Owner-local canonical full CTest: **NOT RUN** here. Replacement
+exact-SHA hosted CI: **PENDING**. Real Microsoft-client StandalonePassword
+qualification remains **NOT RUN** and is the blocking product evidence.
+
 ## R9 owner-acceptance ZIP exact-SHA PASS / physical handoff (2026-10-23)
 
 **OWNER PRODUCT-TEST CANDIDATE:** `c0cbcc7b86171be6b53b0cd3361029886c06d9ca`.

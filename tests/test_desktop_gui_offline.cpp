@@ -881,10 +881,10 @@ int main(int argc, char** argv)
 
     if (mode == "debug-owner-acceptance-release-gate")
     {
-#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
-        // Release product builds intentionally hide the pre-qualification
-        // Session Password surface. CTest marks this owner-acceptance-only
-        // case skipped unless Debug or the explicit acceptance option is used.
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        // This test target keeps assertions enabled with -UNDEBUG even in a
+        // Release build, so NDEBUG cannot describe the linked UI library.
+        // CMake supplies this macro only for Debug or explicit acceptance UI.
         return 77;
 #endif
         static_assert(!kStandalonePasswordProductCapabilityApproved);
@@ -911,10 +911,10 @@ int main(int argc, char** argv)
 
     if (mode == "consumer-workflow")
     {
-#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
-        // Release product builds intentionally hide the pre-qualification
-        // Session Password surface. CTest marks this owner-acceptance-only
-        // case skipped unless Debug or the explicit acceptance option is used.
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        // This test target keeps assertions enabled with -UNDEBUG even in a
+        // Release build, so NDEBUG cannot describe the linked UI library.
+        // CMake supplies this macro only for Debug or explicit acceptance UI.
         return 77;
 #endif
         runtime.snapshot.lastError = RuntimeHostError::None;
@@ -968,10 +968,10 @@ int main(int argc, char** argv)
 
     if (mode == "consumer-workflow-failure")
     {
-#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
-        // Release product builds intentionally hide the pre-qualification
-        // Session Password surface. CTest marks this owner-acceptance-only
-        // case skipped unless Debug or the explicit acceptance option is used.
+#if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)
+        // This test target keeps assertions enabled with -UNDEBUG even in a
+        // Release build, so NDEBUG cannot describe the linked UI library.
+        // CMake supplies this macro only for Debug or explicit acceptance UI.
         return 77;
 #endif
         runtime.snapshot.lastError = RuntimeHostError::None;

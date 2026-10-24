@@ -27,7 +27,6 @@
 #include <limits>
 #include <memory>
 #include <new>
-#include <pwd.h>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -80,45 +79,6 @@ inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
         return false;
     *valid = true;
     return true;
-}
-
-struct CurrentConsoleAccount final
-{
-    std::array<char, 33> name{};
-    std::size_t length{};
-
-    [[nodiscard]] std::string_view view() const noexcept
-    {
-        return {name.data(), length};
-    }
-};
-
-[[nodiscard]] std::optional<CurrentConsoleAccount>
-currentConsoleAccount(const std::uint32_t uid) noexcept
-{
-    if (uid == 0U || !std::in_range<uid_t>(uid))
-        return std::nullopt;
-
-    constexpr std::size_t kPasswordDatabaseBufferBytes = 16U * 1024U;
-    std::array<char, kPasswordDatabaseBufferBytes> buffer{};
-    passwd record{};
-    passwd* result = nullptr;
-    if (::getpwuid_r(
-            static_cast<uid_t>(uid), &record, buffer.data(), buffer.size(),
-            &result) != 0 ||
-        result != &record || record.pw_name == nullptr)
-        return std::nullopt;
-
-    const std::string_view name{record.pw_name};
-    if (name.empty() || name.size() >= CurrentConsoleAccount{}.name.size() ||
-        name == "root")
-        return std::nullopt;
-
-    CurrentConsoleAccount account;
-    std::copy(name.begin(), name.end(), account.name.begin());
-    account.length = name.size();
-    account.name[account.length] = '\0';
-    return account;
 }
 
 [[nodiscard]] std::uint64_t currentWindowsFileTime() noexcept
@@ -738,47 +698,6 @@ bool LinuxRuntimeHostControl::selectedStandaloneCredentialReady() const noexcept
            visited;
 }
 
-bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept
-{
-    if (externalSecurityConfiguration_)
-    {
-        return securityConfiguration_ != nullptr &&
-               securityConfiguration_->configured() &&
-               admissionConfiguration_ != nullptr;
-    }
-
-    // R5 owns the one no-config physical X11 selector. Reuse that exact
-    // trusted logind observation instead of creating a second session policy.
-    const auto desktop =
-        rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            *ownerEvidenceSource_);
-    if (!desktop.eligible())
-        return false;
-
-    const auto account = currentConsoleAccount(desktop.ownerUid);
-    if (!account)
-        return false;
-
-    using namespace rdp_server::server::security;
-    const ConsoleIdentityRuleInput rule{
-        {}, account->view(), "seat0", desktop.display(), desktop.ownerUid,
-        kConsoleViewPermission | kConsoleInputPermission};
-
-    auto security =
-        std::make_unique<LinuxRuntimeSecurityConfiguration>();
-    auto admission =
-        std::make_unique<LinuxRuntimeAdmissionConfiguration>();
-    if (!security->configureStandalonePersonalDesktop(rule) ||
-        !admission->configureStandalonePersonalDesktop(rule, *security))
-        return false;
-
-    generatedAdmissionConfiguration_ = std::move(admission);
-    generatedSecurityConfiguration_ = std::move(security);
-    securityConfiguration_ = generatedSecurityConfiguration_.get();
-    admissionConfiguration_ = generatedAdmissionConfiguration_.get();
-    return true;
-}
-
 bool LinuxRuntimeHostControl::buildAuthenticationSelection(
     LinuxRuntimeAuthenticationSelection& selection) const noexcept
 {
@@ -827,35 +746,40 @@ bool LinuxRuntimeHostControl::buildAuthenticationSelection(
 
 bool LinuxRuntimeHostControl::serviceCredentialsReady() const noexcept
 {
-    if (securityConfiguration_ == nullptr ||
-        !securityConfiguration_->configured() ||
-        admissionConfiguration_ == nullptr ||
-        licensingContext_ == nullptr ||
-        !licensingContext_->configured())
+    if (licensingContext_ == nullptr || !licensingContext_->configured())
         return false;
 
-    using Kind =
-        rdp_server::server::security::ConsoleEvidenceAuthenticationKind;
-    Kind authenticationKind{};
     switch (authenticationMode_)
     {
     case ConfiguredAuthenticationMode::ExistingOsAccount:
-        authenticationKind = Kind::KerberosPrincipal;
-        break;
-    case ConfiguredAuthenticationMode::StandalonePassword:
-        if (!selectedStandaloneCredentialReady())
+    {
+        // Preserve the stronger expert ExistingOsAccount contract unchanged.
+        if (securityConfiguration_ == nullptr ||
+            !securityConfiguration_->configured() ||
+            admissionConfiguration_ == nullptr)
+        {
             return false;
-        authenticationKind = Kind::StandalonePassword;
-        break;
+        }
+
+        const auto *const policy = securityConfiguration_->policy();
+        return policy != nullptr && policy->size() != 0U &&
+               policy->generation() != 0U &&
+               admissionConfiguration_->request(
+                   *securityConfiguration_,
+                   rdp_server::server::security::
+                       ConsoleEvidenceAuthenticationKind::
+                           KerberosPrincipal).has_value();
+    }
+
+    case ConfiguredAuthenticationMode::StandalonePassword:
+        // No service principal, keytab, GSS credential, PAM verifier or
+        // local-account policy participates in standalone credential readiness.
+        return selectedStandaloneCredentialReady();
+
     case ConfiguredAuthenticationMode::Unconfigured:
         return false;
     }
-
-    const auto* policy = securityConfiguration_->policy();
-    return policy != nullptr && policy->size() != 0U &&
-           policy->generation() != 0U &&
-           admissionConfiguration_->request(
-               *securityConfiguration_, authenticationKind).has_value();
+    return false;
 }
 #endif
 

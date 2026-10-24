@@ -613,12 +613,17 @@ int main(int argc, char** argv)
             &obsoleteVisit));
 
         RuntimeHostPermissionRequest permission;
-        permission.allowInput = true;
+        // View-only consent must be sufficient to host while keeping native
+        // input independently unauthorized.
+        permission.allowInput = false;
         permission.allowClipboard = false;
         permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
         assert(bootstrap.requestHostPermissionSetup(permission).succeeded());
-        assert(bootstrap.status().hostOwnerAuthorized);
-        assert(!bootstrap.status().listenerAvailable);
+        const auto consentReady = bootstrap.status();
+        assert(consentReady.hostOwnerAuthorized);
+        assert(consentReady.product.sharingPermission.viewAllowed);
+        assert(!consentReady.product.sharingPermission.inputAllowed);
+        assert(!consentReady.listenerAvailable);
 
         const auto recommendation = bootstrap.status().product.recommendedEndpoint;
         assert(recommendation.valid());

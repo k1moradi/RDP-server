@@ -1,3 +1,40 @@
+## R1/R2/R9 exact-SHA hosted qualification — owner candidate nominated (2026-10-24)
+
+**Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.
+
+The repository-side blockers discovered after the DirectNtlm transport work are
+resolved. Exact-SHA workflow `40130463921` has the required dependency jobs
+green:
+
+- `r9-security-protocol-sanitizers` job `120980921182`: **PASS**;
+- `protocol (ubuntu-latest)` job `120980921253`: **PASS**;
+- `protocol (macos-latest)` job `120980921223`: **PASS**;
+- `protocol (windows-latest)` job `120980921247`: **PASS**.
+
+The sanitizer owner-candidate gate directly executes the R10 DirectNtlm
+reconnect/Stop->Start lifecycle, the R1 raw-Type-1 transport/provenance gates,
+the same-port restart regression, the direct NTLM mechanism/full CredSSP flow,
+and the ordinary SPNEGO cases. Hosted positive native admission is intentionally
+not manufactured: valid standalone peers reach `CredentialsVerified` and then
+fail closed at native admission when the runner lacks a qualifying physical
+logind desktop. That denial is the expected hosted boundary.
+
+Ubuntu full Debug CTest also reports **924/924 PASS**, including
+`transport.tcp-owned-hybrid-direct-ntlm-first-record`,
+`transport.credssp-r1-owned-transport-generation`, and
+`transport.lan-listener-same-port-rebind-after-server-close`.
+
+**Dependency result:** R1 established TLS/transport provenance, R2 DirectNtlm
+CredSSP, R10 peer-retry/Stop->Start lifetime and the required hosted
+cross-platform qualification are no longer repository-side blockers. The next
+P0 boundary is owner-authorized physical Microsoft Windows App or
+`mstsc.exe` against this exact SHA, followed by genuine native R2 admission
+and then R3 MCS/Share progression. No live client, listener, desktop, service,
+input or clipboard action was performed in this qualification.
+
+The overall workflow may still contain unrelated queued packaging jobs; those
+do not block this R1->R2->R10 owner-candidate dependency gate.
+
 ## R9 CI-structure guard reconciled with the 89-test clipboard inventory (2026-10-24)
 
 **Starting exact-main parent:** `efa3638c8146fe0bc10bdb27cfc334123ba5f4b5`.

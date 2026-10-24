@@ -1,3 +1,36 @@
+## R1/R2/R9 hosted owner-candidate qualification receipt (2026-10-24)
+
+**Exact SHA:** `346f6afe59d4331664697da67a74de9d117cde60`  
+**Workflow:** `40130463921`
+
+Required repository-side dependency jobs:
+
+- R9 security/protocol sanitizers `120980921182`: **PASS**.
+- Ubuntu protocol `120980921253`: **PASS**.
+- macOS protocol `120980921223`: **PASS**.
+- Windows protocol `120980921247`: **PASS**.
+- CI workflow structure guard: **PASS**.
+
+The exact-head sanitizer lane runs the production-linked DirectNtlm
+reconnect/Stop->Start lifecycle and the R1 provenance gates. The R1 raw
+Type-1 TLS fixture and stale accepted-transport generation fence pass, as do
+the same-port server-active-close restart regression and the direct
+Type1/Type2/Type3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` path.
+The hosted lifecycle then expects native admission denial because GitHub-hosted
+Ubuntu has no qualifying physical graphical logind owner session; this preserves
+the security rule that synthetic evidence cannot create positive native
+authority.
+
+Ubuntu full Debug CTest: **924/924 PASS**. Connector/Actions review: **PASS**.
+Canonical owner-local `~/rdp-server/build` command: **NOT RUN** in this
+connector session. Physical Microsoft-client/native admission: **NOT RUN /
+BLOCKED ON EXPLICIT OWNER LIVE-TEST AUTHORIZATION**.
+
+Repository-side owner-candidate nomination is therefore **PASS** for this SHA.
+The first unresolved positive dependency is physical Microsoft-client
+DirectNtlm through genuine native R2 admission; R3 MCS/Share, graphics and
+clipboard remain downstream and must not be inferred from hosted fixtures.
+
 ## CI-structure reconciliation for R8/R9 shared inventory — 2026-10-24
 
 **Starting exact-main parent:** `efa3638c8146fe0bc10bdb27cfc334123ba5f4b5`.

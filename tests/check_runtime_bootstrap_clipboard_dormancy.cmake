@@ -8,7 +8,8 @@ foreach(required_var IN ITEMS
         RDP_LINUX_HOST_CONTROL_SOURCE
         RDP_LINUX_HOST_CONTROL_HEADER
         RDP_LINUX_PREPARED_CLIPBOARD_HEADER
-        RDP_RUNTIME_BOOTSTRAP_HEADER)
+        RDP_RUNTIME_BOOTSTRAP_HEADER
+        RDP_RUNTIME_HOST_CONTROL_HEADER)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
     endif()
@@ -21,6 +22,7 @@ file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
 file(READ "${RDP_LINUX_HOST_CONTROL_HEADER}" host_header)
 file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
 file(READ "${RDP_RUNTIME_BOOTSTRAP_HEADER}" bootstrap_header)
+file(READ "${RDP_RUNTIME_HOST_CONTROL_HEADER}" runtime_host_header)
 set(gui_source "${desktop_window_header}\n${desktop_window_source}")
 
 # R6 may define where automatic bootstrap state lives, but that policy cannot
@@ -45,6 +47,35 @@ foreach(forbidden_text IN ITEMS
     if(NOT found EQUAL -1)
         message(FATAL_ERROR
             "portable bootstrap policy must not manufacture clipboard/listener authority: ${forbidden_text}")
+    endif()
+endforeach()
+
+# R7 restored the public standalone-password Release gate after R10 briefly
+# promoted it without the required real Microsoft-client receipt. R8 must keep
+# that product qualification boundary separate from clipboard authority:
+# Release stays closed, while Debug/explicit owner-acceptance builds may expose
+# the exact production Session Password path for physical qualification.
+string(FIND "${runtime_host_header}"
+    "kStandalonePasswordProductCapabilityApproved = false"
+    standalone_release_gate)
+if(standalone_release_gate LESS 0)
+    message(FATAL_ERROR
+        "public standalone-password capability must remain false before Microsoft-client qualification")
+endif()
+string(FIND "${runtime_host_header}"
+    "kStandalonePasswordProductCapabilityApproved = true"
+    premature_standalone_release_gate)
+if(NOT premature_standalone_release_gate EQUAL -1)
+    message(FATAL_ERROR
+        "owner-acceptance readiness must not silently promote standalone Release capability")
+endif()
+foreach(required_text IN ITEMS
+        "ownerAcceptancePasswordUiEnabled()"
+        "!defined(NDEBUG) || defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)")
+    string(FIND "${desktop_window_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "owner-acceptance Session Password surface lost compile-time qualification gate: ${required_text}")
     endif()
 endforeach()
 

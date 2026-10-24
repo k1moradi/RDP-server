@@ -1,3 +1,33 @@
+## R8 P2 dependency recheck after standalone acceptance-gate restoration — 2026-10-23
+
+Starting exact-main parent: `8f2c9241773e746999f42156b7fa44b3c8a5c100`.
+
+R7 resolved the inconsistency introduced after R10 zero-argument composition:
+the public standalone-password capability is again literal false because the
+required real Windows App / Windows 11 `mstsc.exe` StandalonePassword PASS has
+not occurred. Debug/explicit owner-acceptance builds retain the exact production
+Session Password path. The latest R7 continuation also reconciles hosted
+standalone lifecycle/acceptance tests without changing production listener,
+authentication, native desktop, input, or clipboard behavior.
+
+R8 continued. The bootstrap dormancy regression now consumes
+`runtime_host_control.h` and requires:
+- `kStandalonePasswordProductCapabilityApproved = false`;
+- absence of a simultaneous literal true promotion;
+- the compile-time Debug/`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` acceptance
+  surface;
+- the existing independent
+  `kLinuxProductionClipboardActivationApproved = false` FIRST gate.
+
+This closes the R8 source/audit dependency on the transient product-gate state.
+It does **not** resolve physical acceptance. Real Microsoft-client standalone
+qualification remains **NOT RUN**, and physical FIRST visible desktop + mouse +
+keyboard + Stop remains **NOT RUN/BLOCKED** for R8 activation. No production
+clipboard behavior is changed.
+
+Exact publication-SHA hosted CI for this R8 continuation is pending; owner-local
+canonical full CTest is not run in this connector environment.
+
 ## 2026-10-23 — Hosted lifecycle/owner-acceptance test-contract correction
 
 Starting exact-main parent: `14123b460043d14f0c3aef69af3f80a1a75be725`.

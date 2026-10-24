@@ -1,3 +1,19 @@
+## R8 qualification-gate separation regression (2026-10-23)
+
+The bootstrap clipboard-dormancy CTest must pin both independent product gates:
+the public standalone-password Release capability remains literal false until a
+real Microsoft-client qualification receipt exists, and the production
+clipboard activation capability remains literal false until FIRST. The test
+must also require the Debug/explicit
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` compile-time surface so owner
+qualification can exercise the exact production standalone credential path
+without promoting Release.
+
+Do not infer R8 authority from owner-acceptance availability, a hosted listener
+PASS, a product readiness state, or a future standalone Release promotion.
+Clipboard activation remains governed only by its own physical FIRST receipt
+and generation-fenced native lifetime.
+
 ## R8 portable-runtime composition regression (2026-10-23)
 
 Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` coupled to the normal

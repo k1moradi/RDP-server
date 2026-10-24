@@ -1,3 +1,13 @@
+## Keep qualification gates independent (2026-10-23)
+
+Do not use `kStandalonePasswordProductCapabilityApproved` as a proxy for
+clipboard readiness. Before real Microsoft-client qualification it must remain
+false while Debug/explicit acceptance builds still exercise the production
+standalone path. Likewise, later promotion of that flag must not alter
+`kLinuxProductionClipboardActivationApproved` or manufacture clipboard
+permission. Keep both gates literal, reviewable, and backed by their own
+acceptance evidence.
+
 ## Keep the portable desktop wrapper composition-only (2026-10-23)
 
 Do not add clipboard state or protected CLIPRDR operations directly to

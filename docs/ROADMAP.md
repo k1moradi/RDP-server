@@ -1,3 +1,31 @@
+## R8 P2 consumes restored standalone Release qualification gate (2026-10-23)
+
+Dependency recheck at starting main `8f2c9241773e746999f42156b7fa44b3c8a5c100`: R7 has corrected the
+premature R10 product promotion and restored
+`kStandalonePasswordProductCapabilityApproved = false` because no real
+unmodified Windows App / Windows 11 `mstsc.exe` StandalonePassword PASS is
+recorded. The no-config production path itself remains implemented and tested:
+Debug or explicit owner-acceptance builds expose the exact production Session
+Password workflow, R5/R2/R10 composition remains present, R1 automatic TLS and
+R3 automatic licensing have same-SHA hosted qualification, and R9's portable
+bootstrap acceptance remains green.
+
+R8 therefore continues by consuming the restored qualification boundary rather
+than treating it as a source blocker. The
+`runtime.linux-gui-bootstrap-clipboard-dormancy` source contract now reads the
+runtime HostControl header and requires the public standalone capability to
+remain literal false while the GUI keeps the compile-time
+Debug/`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` acceptance surface. A simultaneous
+literal true capability is a regression. This is independent of the existing
+hard R8 gate, which still requires
+`kLinuxProductionClipboardActivationApproved = false`.
+
+The remaining product evidence is unchanged: the owner-authorized real
+Microsoft-client StandalonePassword run is still **NOT RUN**, and R8 clipboard
+activation remains separately **BLOCKED** until the physical visible
+desktop + mouse + keyboard + Stop PASS. Hosted bootstrap/listener tests cannot
+satisfy either physical receipt.
+
 ## R5/R7 hosted regression continuation after acceptance-gate pin (2026-10-23)
 
 Starting exact-main parent: `14123b460043d14f0c3aef69af3f80a1a75be725`.

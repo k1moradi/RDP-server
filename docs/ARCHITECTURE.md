@@ -1,3 +1,18 @@
+## Standalone product qualification is not R8 authority (2026-10-23)
+
+The normal Linux runtime may be fully composed while a public product capability
+remains withheld for missing interoperability evidence. The current
+StandalonePassword path demonstrates this split: production owners and the
+acceptance UI exist, but Release exposure is false until the real
+Microsoft-client qualification. R8 is an independent authority layer and must
+not key clipboard availability to the standalone capability value in either
+direction.
+
+Debug/explicit owner-acceptance builds may drive the exact production credential
+and listener path with `allowClipboard = false`. Only a later freshly admitted
+native desktop may own the prepared R8 object, and the hard clipboard activation
+gate remains false until physical FIRST.
+
 ## R8 authority boundary at the portable application aggregate (2026-10-23)
 
 `LinuxPortableDesktopRuntime` is an application-lifetime composition wrapper,

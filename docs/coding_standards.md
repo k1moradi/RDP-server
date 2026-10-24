@@ -1,3 +1,9 @@
+## StandalonePassword must not inherit OS-account authority (2026-10-23)
+
+Keep StandalonePassword and ExistingOsAccount as separate R2 authority routes. Standalone code must not manufacture a Kerberos principal, Unix account, UID, PAM result, `ConsoleIdentityPolicy` or configured GSS service merely to reuse ExistingOsAccount admission. The remote application username is credential correlation only and must never select a Linux user/session.
+
+A positive standalone lease requires exact R1 HYBRID/TLS ownership, exact standalone credential generation, completed standalone CredSSP, the exact current local sharing-consent epoch and fresh physical-session evidence. Native evidence is freshness/identity, never authorization by itself. Recheck consent and native evidence before protected transitions. Session Password APIs consume mutable plaintext spans and scrub them synchronously before returning. Replacement is terminal for the old generation and consent. Keep view/input/clipboard permission bits independent.
+
 ## Keep qualification gates independent (2026-10-23)
 
 Do not use `kStandalonePasswordProductCapabilityApproved` as a proxy for

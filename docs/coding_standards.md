@@ -1,3 +1,14 @@
+## Ordinary Stop versus terminal credential revoke (2026-10-24)
+
+Linux HostControl ordinary Stop invalidates current-owner authorization first,
+retires native input/desktop, accepted R3/R2/R1 connection, listener and
+selection-scoped generated TLS identity, but retains the validated generation
+in its sole memory-only `StandalonePasswordCredentialOwner`. Subsequent
+Start must obtain fresh local owner consent; credential possession never grants
+authority. Explicit/full revoke, credential replacement, native-session loss,
+Quit and destruction securely retire the credential and generation. Do not
+store the password in GUI fields, persistent storage or a second cache.
+
 ## R8 clipboard lifetime never follows retained credentials (2026-10-24)
 
 Credential ownership and clipboard ownership have different lifetimes. Whether

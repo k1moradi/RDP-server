@@ -1,3 +1,30 @@
+## R9 P0 — start/stop/start and TLS interop exact-SHA pre-owner gate (2026-10-24)
+
+**Gate:** `r9-start-stop-start-and-tls-interop`. **State: NOT RUN / NOT QUALIFIED.**
+This adds a production-linked Linux native-environment CTest that configures
+the generation-fenced memory-only password once, performs three Start/Stop
+cycles on the same actual LAN port, requires a fresh local-owner grant each
+time, observes different listener generations, and asserts Stop retires
+listener, accepted client, native desktop, TLS identity and consent but
+does not retire the selected standalone credential. Explicit Revoke still
+cleanses the credential. Ordinary Stop preserves only credential state; full
+security loss, Quit and destruction continue to erase it.
+
+The first Start additionally drives real TCP/X.224 HYBRID negotiation,
+checks the negotiation confirmation, completes an OpenSSL TLS client
+handshake, checks the server certificate's exact numeric-IP SAN, and proves
+TLS initialization completed. No CredSSP is sent. Native-environment SKIP (77)
+is NOT qualifying PASS; CI and owner must record an executed PASS at the exact
+source SHA. This fixture may expose the owner's currently failing R1 boundary.
+It does not prove unmodified Microsoft-client interoperability.
+
+**Next owner gate:** on the identical tested SHA, capture redacted server-side
+R1 handshake phase/version/failure diagnostics together with the Microsoft
+Windows App client log. Require an explicit `TLS established` receipt
+before exploring CredSSP. Standalone Password interoperability remains
+**NOT QUALIFIED** until actual unmodified Microsoft-client admission evidence.
+Do not modify R2/R3/R4 protocol behavior to address the TLS-first report.
+
 ## R8 P2 repeated Stop/restart stale clipboard lifetime assertions — 2026-10-24
 
 Starting exact-main parent: `03473b1dfa2bf180c05996fc044b0f7393e19f64`.

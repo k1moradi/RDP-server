@@ -1,3 +1,19 @@
+## R9 TLS-first and repeated Sharing qualification (2026-10-24)
+
+Run `r9-start-stop-start-and-tls-interop` against the exact commit. A native
+environment skip is not PASS. Assert three real same-port listener lifetimes
+with no password re-entry, distinct listener generations, no stale owner grant,
+accepted client, native desktop or TLS identity, and a still-configured exact
+credential generation after each ordinary Stop. Full Revoke must erase it.
+Drive TCP/X.224 HYBRID and the real OpenSSL TLS handshake against the listener;
+validate the certificate's numeric IP SAN and TLS-established state. Do not
+treat the local TLS peer as Microsoft-client admission evidence.
+
+Real owner qualification additionally pairs server R1 diagnostics and Microsoft
+client logs on the same SHA. A logged `TLS established` transition is required
+before any CredSSP investigation; standalone-password interoperability remains
+unqualified. Preserve secrets and plaintext out of logs.
+
 ## R8 repeated Stop/restart stale-lifetime gate (2026-10-24)
 
 Keep production clipboard activation disabled while testing teardown. Repeated

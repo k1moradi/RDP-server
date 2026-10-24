@@ -675,7 +675,8 @@ LinuxRuntimeHostControl::~LinuxRuntimeHostControl()
     // The owning event-loop thread destroys this after GUI shutdown. R2 is
     // invalidated before any later-stage R1 listener retirement.
     retireStoppedRuntime(
-        rdp_server::server::security::OwnerConsentRevocationReason::Stop);
+        rdp_server::server::security::OwnerConsentRevocationReason::
+            NativeAuthorizationLost);
 }
 
 bool LinuxRuntimeHostControl::prepareTlsIdentityForSelection(
@@ -2478,15 +2479,24 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
     // first, then retire the accepted R3/R2/R1 aggregate, then close R1's
     // listener. No accepted TLS/socket or later native owner may outlive Stop.
     ownerSharingAuthority_.revoke(reason);
-    standalonePasswordCredential_.revoke();
-#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-    if (authenticationMode_ ==
-        ConfiguredAuthenticationMode::StandalonePassword)
+    // Ordinary Stop ends every authorization and connection lifetime, but
+    // the memory-only application credential belongs to the host lifetime.
+    // Terminal security loss and destruction still erase that owner.
+    if (reason !=
+        rdp_server::server::security::OwnerConsentRevocationReason::Stop)
     {
-        authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
-        standaloneCredentialGeneration_ = 0U;
-        credentialsConfigured_ = false;
+        standalonePasswordCredential_.revoke();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        if (authenticationMode_ ==
+            ConfiguredAuthenticationMode::StandalonePassword)
+        {
+            authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
+            standaloneCredentialGeneration_ = 0U;
+            credentialsConfigured_ = false;
+        }
+#endif
     }
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
     retireNativeDesktop();
 #endif

@@ -335,7 +335,7 @@ if(TARGET rdp-server-linux-host-control)
     add_executable(test_linux_runtime_host_control
         test_linux_runtime_host_control.cpp)
     target_link_libraries(test_linux_runtime_host_control PRIVATE
-        rdp-server-linux-host-control)
+        rdp-server-linux-host-control OpenSSL::SSL)
     target_compile_options(test_linux_runtime_host_control PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     foreach(host_control_case IN ITEMS
@@ -385,6 +385,16 @@ if(TARGET rdp-server-linux-host-control)
         PROPERTIES
             LABELS "runtime;security;r1-transport;r1-tls;r2-owner-consent;r2-standalone;r10-host-control;linux;native-environment"
             SKIP_RETURN_CODE 77)
+
+    # R9 P0 exact-SHA pre-owner gate: same-port three-cycle credential and
+    # consent lifecycle, plus a real X.224 HYBRID/SSL client against R1.
+    # Native environment skip is not a PASS receipt for owner qualification.
+    add_test(NAME r9-start-stop-start-and-tls-interop
+        COMMAND test_linux_runtime_host_control
+            r9-start-stop-start-and-tls-interop)
+    set_tests_properties(r9-start-stop-start-and-tls-interop PROPERTIES
+        LABELS "r9;security;r1-tls;r2-owner-consent;linux;native-environment"
+        SKIP_RETURN_CODE 77)
 
     # Production/default native-evidence observation is intentionally separate
     # from the deterministic offline cases above. It skips on headless hosts

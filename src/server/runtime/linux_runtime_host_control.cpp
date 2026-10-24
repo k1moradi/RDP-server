@@ -1044,8 +1044,18 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         securityConfiguration_ != nullptr && tlsContext_ != nullptr &&
         admissionConfiguration_ != nullptr && licensingContext_ != nullptr;
 #endif
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.product.credentialCapabilities.standalonePassword =
         kStandalonePasswordProductCapabilityApproved;
+    snapshot.product.automaticRuntimeProvisioned =
+        !externalSecurityConfiguration_ &&
+        generatedLicensingContext_ != nullptr &&
+        licensingContext_ == generatedLicensingContext_.get() &&
+        licensingContext_->configured();
+#else
+    snapshot.product.credentialCapabilities.standalonePassword = false;
+    snapshot.product.automaticRuntimeProvisioned = false;
+#endif
     snapshot.product.credentialsConfigured = snapshot.credentialsConfigured;
     snapshot.product.ownerAuthorized = snapshot.hostOwnerAuthorized;
     snapshot.product.sharingPermission =
@@ -1061,6 +1071,32 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     }
     snapshot.product.state = runtimeProductStateFor(
         snapshot.stage, snapshot.lastError, snapshot.nativeDesktopReady);
+
+    using Readiness = RuntimeProductReadinessStage;
+    if (snapshot.nativeDesktopReady &&
+        (snapshot.stage == RuntimeHostStage::DesktopVisible ||
+         snapshot.stage == RuntimeHostStage::ClientConnected))
+        snapshot.product.readinessStage = Readiness::Connected;
+    else if (snapshot.stage == RuntimeHostStage::ClientAuthenticating ||
+             snapshot.stage == RuntimeHostStage::ShareActivated ||
+             snapshot.stage == RuntimeHostStage::DesktopVisible ||
+             snapshot.stage == RuntimeHostStage::ClientConnected)
+        snapshot.product.readinessStage = Readiness::Authenticating;
+    else if (listenerCurrent)
+        snapshot.product.readinessStage = Readiness::Listening;
+    else if (selectionConfigured_ && snapshot.product.credentialsConfigured &&
+             snapshot.product.ownerAuthorized &&
+             snapshot.product.tlsIdentityReady)
+        snapshot.product.readinessStage = Readiness::Starting;
+    else if (snapshot.product.ownerAuthorized)
+        snapshot.product.readinessStage = Readiness::PermissionGranted;
+    else if (snapshot.product.credentialsConfigured)
+        snapshot.product.readinessStage = Readiness::CredentialsConfigured;
+    else if (snapshot.product.automaticRuntimeProvisioned)
+        snapshot.product.readinessStage = Readiness::Provisioned;
+    else
+        snapshot.product.readinessStage = Readiness::Stopped;
+
     snapshot.product.lastErrorMessage =
         snapshot.lastError == RuntimeHostError::None
         ? std::string{}

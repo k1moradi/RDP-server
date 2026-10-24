@@ -64,7 +64,9 @@ foreach(required_text IN ITEMS
         "configureLinuxRuntimeAdmissionFromConfiguration("
         "RuntimeServerTlsContext::"
         "configureRuntimeLicensingContextFromConfiguration("
-        "LinuxRuntimeHostControl runtime{")
+        "LinuxRuntimeHostControl runtime{"
+        "LinuxPortableDesktopRuntime applicationRuntime"
+        "applicationRuntime.hostControl()")
     string(FIND "${gui_main}" "${required_text}" found)
     if(found LESS 0)
         message(FATAL_ERROR "desktop configuration feed missing: ${required_text}")
@@ -96,4 +98,22 @@ if(linux_service_guard LESS 0 OR linux_service_context LESS linux_service_guard
    OR linux_service_entry LESS linux_service_context)
     message(FATAL_ERROR
         "serialized Linux serve block escaped its runtime-security guard")
+endif()
+
+
+# Expert --config remains supported, but ordinary startup must own the
+# automatic application runtime rather than a bare unprovisioned controller.
+string(FIND "${gui_main}"
+    "LinuxPortableDesktopRuntime applicationRuntime" portable_runtime)
+string(FIND "${gui_main}"
+    "auto& runtime = applicationRuntime.hostControl()" portable_control)
+string(FIND "${gui_main}"
+    "LinuxRuntimeHostControl runtime;" bare_unprovisioned_runtime)
+if(portable_runtime LESS 0 OR portable_control LESS 0)
+    message(FATAL_ERROR
+        "zero-argument desktop startup lost automatic application runtime")
+endif()
+if(NOT bare_unprovisioned_runtime EQUAL -1)
+    message(FATAL_ERROR
+        "zero-argument desktop startup regressed to unprovisioned HostControl")
 endif()

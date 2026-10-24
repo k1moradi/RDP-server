@@ -79,7 +79,17 @@ int main(int argc, char** argv)
         assert(status.product.state == RuntimeProductHostState::Stopped);
         assert(status.product.controlAvailable);
         assert(!status.product.credentialCapabilities.existingOsAccount);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        assert(status.product.credentialCapabilities.standalonePassword);
+        assert(status.product.automaticRuntimeProvisioned);
+        assert(status.product.readinessStage ==
+               RuntimeProductReadinessStage::Provisioned);
+#else
         assert(!status.product.credentialCapabilities.standalonePassword);
+        assert(!status.product.automaticRuntimeProvisioned);
+        assert(status.product.readinessStage ==
+               RuntimeProductReadinessStage::Stopped);
+#endif
         assert(!status.product.credentialsConfigured);
         assert(!status.product.ownerAuthorized);
         assert(!status.product.sharingPermission.canRequest);

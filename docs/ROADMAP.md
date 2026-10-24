@@ -1,3 +1,35 @@
+## R10 P0 automatic zero-argument application runtime composition (2026-10-23)
+
+Normal Linux GUI startup is now the product path: `rdp-server-desktop` with no
+arguments owns one application-lifetime `LinuxPortableDesktopRuntime`, whose
+single serialized `LinuxRuntimeHostControl` retains automatic process-local
+licensing, endpoint-bound generated TLS, standalone-password R2 bootstrap/owner
+authority, R1 listener, accepted-client and native-desktop lifetimes.
+Construction is preparation-only: no listener, owner consent, capture, input or
+client acceptance occurs. `--config FILE` remains an explicit expert/legacy
+override using externally validated security/TLS/admission/licensing owners.
+
+The Release product gate exposes Session Password when the Linux host-security
+graph is built. Standalone readiness uses the existing authentication-kind-aware
+R2 request and does not require a Kerberos principal/keytab or PAM credential
+path. Product status adds a non-authorizing readiness ladder: Stopped ->
+Provisioned -> CredentialsConfigured -> PermissionGranted -> Starting ->
+Listening -> Authenticating -> Connected. Starting means credentials, current
+owner permission, current LAN selection and endpoint-bound TLS preparation are
+present but R1 does not yet own the listener. Only successful R1 listener
+ownership produces Listening.
+
+Offline regression updates pin the product gate, default Provisioned
+projection, the zero-argument application aggregate, expert configuration
+retention and absence of the old bare unprovisioned normal-start object. No RDP
+protocol refactor, automatic listener start, clipboard activation or synthetic
+native admission is introduced.
+
+Owner-local configure/build/full CTest: **NOT RUN in this connector
+environment**. Exact publication-SHA hosted CI: **PENDING**. GUI Round 2 remains
+presentation qualification only; the next owner acceptance command is
+`./build/rdp-server-desktop` with no arguments.
+
 ## R8 P2 consumes no-config standalone/owner-acceptance composition (2026-10-23)
 
 Dependency recheck at starting main `12bfbdbfd684d79fe21119e88b5ab3815eba4f74`: the prior R1

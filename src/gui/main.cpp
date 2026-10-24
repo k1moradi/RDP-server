@@ -166,8 +166,12 @@ int main(int argc, char** argv)
         return 2;
 #endif
 
-    // Ordinary GUI-only builds remain explicitly unprovisioned and fail closed.
-    rdp_server::server::runtime::LinuxRuntimeHostControl runtime;
+    // Normal zero-argument startup owns the complete application-lifetime
+    // runtime aggregate. Construction provisions only local prerequisites;
+    // the R1 listener still requires explicit Sharing after credentials,
+    // owner permission and endpoint revalidation.
+    rdp_server::server::runtime::LinuxPortableDesktopRuntime applicationRuntime;
+    auto& runtime = applicationRuntime.hostControl();
 #else
     if (configurationPath != nullptr)
         return 2;
@@ -183,7 +187,7 @@ int main(int argc, char** argv)
     runtimeServiceTimer.setInterval(25);
     QObject::connect(
         &runtimeServiceTimer, &QTimer::timeout, &window,
-        [&runtime] { (void)runtime.serviceOnce(); });
+        [&applicationRuntime] { (void)applicationRuntime.serviceOnce(); });
     runtimeServiceTimer.start();
 
     QTimer statusRefreshTimer;

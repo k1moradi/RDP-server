@@ -229,4 +229,32 @@ private:
     rdp_server::server::transport::OwnedLanListener listener_{};
 };
 
+// Application-lifetime owner for the normal zero-argument desktop command.
+// The contained serialized R10 controller transitively owns automatic
+// licensing, endpoint-bound TLS, standalone R2 bootstrap/owner authority,
+// listener, accepted-client and native-desktop lifetimes. Construction is
+// preparation-only and cannot open a listener.
+class LinuxPortableDesktopRuntime final
+{
+public:
+    LinuxPortableDesktopRuntime() noexcept = default;
+    LinuxPortableDesktopRuntime(const LinuxPortableDesktopRuntime&) = delete;
+    LinuxPortableDesktopRuntime& operator=(const LinuxPortableDesktopRuntime&) = delete;
+    LinuxPortableDesktopRuntime(LinuxPortableDesktopRuntime&&) = delete;
+    LinuxPortableDesktopRuntime& operator=(LinuxPortableDesktopRuntime&&) = delete;
+
+    [[nodiscard]] LinuxRuntimeHostControl& hostControl() noexcept
+    {
+        return hostControl_;
+    }
+
+    [[nodiscard]] RuntimeHostResult serviceOnce() noexcept
+    {
+        return hostControl_.serviceOnce();
+    }
+
+private:
+    LinuxRuntimeHostControl hostControl_{};
+};
+
 } // namespace rdp_server::server::runtime

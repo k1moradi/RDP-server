@@ -471,6 +471,21 @@ enum class RuntimeProductHostState : std::uint8_t
     Error,
 };
 
+// Product-level acceptance instrumentation. This deliberately avoids R1/R2/R3
+// terminology so an owner test can observe normal application readiness
+// without treating a diagnostic as authorization.
+enum class RuntimeProductReadinessStage : std::uint8_t
+{
+    Stopped,
+    Provisioned,
+    CredentialsConfigured,
+    PermissionGranted,
+    Starting,
+    Listening,
+    Authenticating,
+    Connected,
+};
+
 [[nodiscard]] constexpr bool runtimeProductStateMayHost(
     RuntimeProductHostState state) noexcept
 {
@@ -572,12 +587,18 @@ struct RuntimeCredentialCapabilities final
     bool standalonePassword{};
 };
 
-inline constexpr bool kStandalonePasswordProductCapabilityApproved = false;
+inline constexpr bool kStandalonePasswordProductCapabilityApproved = true;
 
 struct RuntimeProductHostStatus final
 {
     RuntimeProductHostState state{RuntimeProductHostState::Error};
+    RuntimeProductReadinessStage readinessStage{
+        RuntimeProductReadinessStage::Stopped};
     bool controlAvailable{};
+    // Normal no-config construction owns the local application prerequisites
+    // needed to accept a Session Password later. This is preparation only:
+    // no consent, endpoint, listener, client or native desktop is implied.
+    bool automaticRuntimeProvisioned{};
     std::vector<RuntimeHostInterface> eligibleLanInterfaces;
     RuntimeHostRecommendedEndpoint recommendedEndpoint{};
     std::string boundEndpoint;

@@ -1,3 +1,32 @@
+## R10 P0 automatic application runtime authoring receipt — 2026-10-23
+
+Starting exact-main parent: `4a9ff40e3f33a6286e4e7869d573fc10127a2377`.
+
+The ordinary Linux GUI entry point now owns `LinuxPortableDesktopRuntime`
+instead of directly constructing the intentionally unprovisioned default
+HostControl. The aggregate remains owner-thread serialized and delegates to the
+existing R10 owner; it creates no second protocol, transport, listener,
+authorization or native-desktop owner.
+
+Existing no-config foundations are reused: generated R3 licensing identity at
+construction, endpoint-bound generated R1 TLS identity during endpoint
+configuration, R5/logind-backed standalone native selection, R2 standalone
+security/admission configuration, generation-fenced memory-only Session
+Password and the existing transactional R1 listener bind. R2 already accepts
+the explicit `StandalonePassword` authentication kind with an empty Kerberos
+principal, so no keytab/PAM service configuration is added to the normal path.
+
+Product-facing instrumentation now reports Provisioned, CredentialsConfigured,
+PermissionGranted, Starting, Listening, Authenticating and Connected without
+exposing R1/R2/R3 terminology. The standalone product capability gate is
+enabled for Linux host-security builds. Construction still opens no listener
+and explicit Sharing remains mandatory.
+
+Validation in this connector session is source/contract only; owner checkout
+build/full CTest and exact publication-SHA Actions are **PENDING**. The next
+acceptance command is exactly `./build/rdp-server-desktop` with no arguments;
+GUI Round 2 evidence is not promoted to end-to-end hosting evidence.
+
 ## R8 P2 dependency recheck after owner-acceptance composition — 2026-10-23
 
 Starting exact-main parent: `12bfbdbfd684d79fe21119e88b5ab3815eba4f74`.

@@ -92,10 +92,9 @@ public:
     [[nodiscard]] RuntimeHostResult requestCredentialSetup(
         rdp_server::server::security::LanCredentialChoice choice) override;
 
-    // Internal R2P service-lifetime preparation seam. It consumes/scrubs the
-    // mutable password and retains only the bounded username/NT hash. A valid
-    // configuration selects the standalone mode for this R10 owner, but the
-    // public GUI still exposes no IndependentApplicationPassword action.
+    // R10 Session Password seam. It consumes/scrubs the mutable plaintext
+    // synchronously and retains only the bounded username/NT hash inside the
+    // generation-fenced standalone credential owner.
     [[nodiscard]] bool configureStandaloneApplicationPassword(
         std::u16string_view username,
         std::span<char16_t> password) noexcept override;
@@ -155,7 +154,6 @@ private:
     };
 
     [[nodiscard]] bool selectedStandaloneCredentialReady() const noexcept;
-    [[nodiscard]] bool prepareAutomaticStandaloneAdmission() noexcept;
     [[nodiscard]] bool buildAuthenticationSelection(
         LinuxRuntimeAuthenticationSelection& selection) const noexcept;
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
@@ -187,10 +185,8 @@ private:
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     LinuxRuntimeSecurityConfiguration* securityConfiguration_{};
     const LinuxRuntimeAdmissionConfiguration* admissionConfiguration_{};
-    std::unique_ptr<LinuxRuntimeSecurityConfiguration>
-        generatedSecurityConfiguration_{};
-    std::unique_ptr<LinuxRuntimeAdmissionConfiguration>
-        generatedAdmissionConfiguration_{};
+    // True only for the expert ExistingOsAccount constructor. Normal
+    // StandalonePassword operation does not require or synthesize these owners.
     bool externalSecurityConfiguration_{};
 #endif
     // Normal GUI startup owns a process-local R3 licensing identity before

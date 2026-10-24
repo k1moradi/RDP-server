@@ -1,3 +1,29 @@
+## 2026-10-23 — Hosted lifecycle/owner-acceptance test-contract correction
+
+Starting exact-main parent: `14123b460043d14f0c3aef69af3f80a1a75be725`.
+
+Actions run `40071153569` for parent `03aa820a...` proved the R9 portable
+bootstrap gate and Linux GUI ZIP jobs green, but exposed two remaining
+regressions. Ubuntu Debug reached 889 tests and failed only
+`runtime.linux-host-control-standalone-password-lifecycle`: after injecting
+eligible native evidence, production no-config standalone provisioning correctly
+reported credentials configured, while the test still expected the historical
+unprovisioned Stopped state. The assertion now requires
+`CredentialsConfigured`, no owner authorization and no listener.
+
+The macOS Release portable-GUI lane failed only the two owner-acceptance
+consumer workflow cases. They are intentionally acceptance-only: a Release build
+without `RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` must hide that surface even
+though CTest may still enumerate tests marked `CONFIGURATIONS Debug` on a
+single-config generator. The three acceptance-only modes now return 77 in that
+configuration and their CTests register `SKIP_RETURN_CODE 77`; Debug and
+explicit acceptance builds still execute the full behavior.
+
+Source review: **PASS**. Owner-local canonical build/full CTest: **NOT RUN** in
+this connector environment. Replacement exact-SHA hosted CI: **PENDING**.
+Real Microsoft-client StandalonePassword qualification remains **NOT RUN** and
+is still the blocking product evidence.
+
 ## R3 automatic licensing same-SHA hosted qualification — 2026-10-23
 
 Exact qualified SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.

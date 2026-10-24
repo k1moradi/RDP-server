@@ -484,8 +484,19 @@ int main(int argc, char** argv)
         const auto first =
             control.standaloneApplicationPasswordObservation();
         assert(first.configured && first.generation != 0U);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        // With deterministic eligible native evidence this is now the normal
+        // no-config production state: the standalone credential and generated
+        // R2 policy are ready, but no consent or listener exists yet.
+        assert(control.status().credentialsConfigured);
+        assert(control.status().stage ==
+               RuntimeHostStage::CredentialsConfigured);
+        assert(!control.status().hostOwnerAuthorized);
+        assert(!control.status().listenerAvailable);
+#else
         assert(!control.status().credentialsConfigured);
         assert(control.status().stage == RuntimeHostStage::Stopped);
+#endif
 
         StandaloneVisitObservation observed;
         assert(control.visitStandaloneApplicationPassword(

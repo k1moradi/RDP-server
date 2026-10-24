@@ -1,3 +1,33 @@
+## R5/R7 hosted regression continuation after acceptance-gate pin (2026-10-23)
+
+Starting exact-main parent: `14123b460043d14f0c3aef69af3f80a1a75be725`.
+
+The dependency graph remains source-complete through R5 trusted X11 selection,
+R2 standalone admission, R10 zero-argument composition, automatic TLS/licensing
+and the R9 real-listener bootstrap acceptance gate. R7 also now has a dedicated
+regression proving the public StandalonePassword Release gate stays false while
+Debug/explicit owner-acceptance builds may expose the production Session
+Password surface.
+
+The preceding exact-SHA run still revealed two test-contract regressions, so
+work continues rather than waiting on the physical-client gate. First, the
+Linux standalone credential lifecycle test injects valid native X11 evidence;
+that now legitimately creates a generated R2 standalone policy and reaches
+`CredentialsConfigured`, so the old Stopped/unconfigured assertion was stale.
+The test now requires the production pre-consent/pre-listener state instead.
+Second, single-config Release CTest still executes tests carrying the
+`CONFIGURATIONS Debug` property. The three owner-acceptance-only GUI cases now
+return the registered skip code when both `NDEBUG` is set and
+`RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI` is absent, while continuing to run in
+Debug or explicit acceptance builds.
+
+No production listener, authentication, native desktop, input or clipboard
+behavior changes in this increment. The remaining product blocker is unchanged:
+an owner-authorized unmodified Windows App / Windows 11 `mstsc.exe`
+StandalonePassword run against the real eligible Linux X11 desktop. Hosted CI
+cannot manufacture that evidence. Replacement exact-SHA hosted qualification is
+pending after publication.
+
 ## R3 automatic licensing hosted qualification closure — 2026-10-23
 
 Qualified exact SHA: `3cabe3ae0d384007eb14edd56890125f38256367`.

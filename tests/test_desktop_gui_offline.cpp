@@ -881,6 +881,12 @@ int main(int argc, char** argv)
 
     if (mode == "debug-owner-acceptance-release-gate")
     {
+#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+        // Release product builds intentionally hide the pre-qualification
+        // Session Password surface. CTest marks this owner-acceptance-only
+        // case skipped unless Debug or the explicit acceptance option is used.
+        return 77;
+#endif
         static_assert(!kStandalonePasswordProductCapabilityApproved);
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.interfaces = {
@@ -905,6 +911,12 @@ int main(int argc, char** argv)
 
     if (mode == "consumer-workflow")
     {
+#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+        // Release product builds intentionally hide the pre-qualification
+        // Session Password surface. CTest marks this owner-acceptance-only
+        // case skipped unless Debug or the explicit acceptance option is used.
+        return 77;
+#endif
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.interfaces = {
             RuntimeHostInterface{
@@ -956,6 +968,12 @@ int main(int argc, char** argv)
 
     if (mode == "consumer-workflow-failure")
     {
+#if defined(NDEBUG) && !defined(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
+        // Release product builds intentionally hide the pre-qualification
+        // Session Password surface. CTest marks this owner-acceptance-only
+        // case skipped unless Debug or the explicit acceptance option is used.
+        return 77;
+#endif
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.interfaces = {
             RuntimeHostInterface{

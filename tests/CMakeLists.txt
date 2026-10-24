@@ -3934,6 +3934,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;credentials;acceptance" TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed
+        COMMAND test_desktop_gui_offline debug-owner-acceptance-release-gate)
+    set_tests_properties(
+        gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;acceptance;release-gate;security"
+        CONFIGURATIONS Debug
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-owner-acceptance-consumer-start-orchestration
         COMMAND test_desktop_gui_offline consumer-workflow)
     set_tests_properties(

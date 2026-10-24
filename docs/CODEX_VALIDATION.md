@@ -1,3 +1,23 @@
+## 2026-10-23 — R7 dedicated acceptance-surface gate regression
+
+Starting exact-main parent: `03aa820a8536a2dec42498072b2f1fc44d886ccf`.
+
+**Source/contract review: PASS.** Current main already has the product correction
+required by the owner: Release StandalonePassword capability is false, while
+Debug/explicit owner-acceptance UI remains available and forwards to the one
+production credential path. This increment adds the dedicated offscreen GUI
+CTest `gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed`, which
+statically requires the Release capability to remain false, verifies the Debug
+Session Password fields are presented despite that false product capability,
+and verifies Sharing is still disabled before valid credentials. The existing
+source contract is tightened to reject any simultaneous literal Release
+promotion.
+
+Owner-local canonical configure/build/full CTest: **NOT RUN** in this connector
+environment. Hosted exact-publication-SHA CI: **PENDING**. Real Windows App /
+Windows 11 `mstsc.exe` StandalonePassword qualification: **NOT RUN**. No live
+runtime side effect was exercised.
+
 ## 2026-10-23 — Standalone acceptance-gate restoration and hosted regression correction
 
 Starting exact-main parent: `e95e186406d0834229f8ed8b244f5b0af34441ef`.

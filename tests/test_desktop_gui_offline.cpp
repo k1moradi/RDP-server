@@ -879,6 +879,30 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "debug-owner-acceptance-release-gate")
+    {
+        static_assert(!kStandalonePasswordProductCapabilityApproved);
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.snapshot.product.credentialCapabilities.standalonePassword = false;
+
+        DesktopWindow window(host);
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(username && password && confirmation);
+        assert(!username->isHidden());
+        assert(!password->isHidden());
+        assert(!confirmation->isHidden());
+        assert(!runtime.snapshot.product.credentialCapabilities.standalonePassword);
+        assert(!sharingToggle(window)->isEnabled());
+        return 0;
+    }
+
     if (mode == "consumer-workflow")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

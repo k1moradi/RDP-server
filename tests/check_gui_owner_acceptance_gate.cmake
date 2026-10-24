@@ -44,6 +44,12 @@ if(release_gate LESS 0)
     message(FATAL_ERROR
         "public standalone-password product capability must remain false before real Microsoft-client qualification")
 endif()
+string(FIND "${runtime_header}"
+    "kStandalonePasswordProductCapabilityApproved = true" premature_release_gate)
+if(NOT premature_release_gate EQUAL -1)
+    message(FATAL_ERROR
+        "owner acceptance must not promote the public Release standalone-password capability")
+endif()
 
 string(FIND "${host_control_source}"
     "runtime_.configureStandaloneApplicationPassword(" production_forward)

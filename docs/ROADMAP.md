@@ -1,3 +1,29 @@
+## R7 P0 dedicated owner-acceptance/Release-gate GUI regression (2026-10-23)
+
+Starting exact-main parent: `03aa820a8536a2dec42498072b2f1fc44d886ccf`.
+
+The immediately preceding R7 correction restored
+`kStandalonePasswordProductCapabilityApproved = false` because no real
+unmodified Windows App / Windows 11 `mstsc.exe` StandalonePassword PASS is
+recorded. This follow-up adds dedicated GUI evidence for the required split:
+Debug/explicit acceptance builds may present the Session Password controls while
+the public Release capability remains false. Sharing remains disabled before a
+valid consumer transaction, and the existing acceptance source contract still
+pins forwarding to the exact production standalone credential owner, explicit
+Sharing intent, credential -> permission -> endpoint -> listener ordering,
+pre-bind `Local address`, post-bind `Connect to`, and Copy gating.
+
+New behavior CTest:
+`gui.offscreen-debug-owner-acceptance-keeps-release-gate-closed`.
+The source contract now also rejects a simultaneous literal
+`kStandalonePasswordProductCapabilityApproved = true` token, preventing an
+acceptance-only build surface from silently promoting Release capability.
+
+Verification in this connector environment: source review **PASS**; owner-local
+canonical full CTest **NOT RUN**; exact-publication-SHA hosted CI **PENDING**;
+real Microsoft-client qualification **NOT RUN**. No listener, desktop, input or
+clipboard operation was performed.
+
 ## R5/R7 dependency recheck — restore acceptance gate and clear hosted regressions (2026-10-23)
 
 Starting exact-main parent: `e95e186406d0834229f8ed8b244f5b0af34441ef`.

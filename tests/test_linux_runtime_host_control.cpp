@@ -64,7 +64,7 @@ public:
     {
         using namespace rdp_server::server::security;
         return {ConsoleEvidenceReadStatus::Observed, "portable-bootstrap",
-                "seat0", ":42", uid_, 91U, uid_, true, true, now_,
+                "seat0", ":42", uid_, 91U, now_, true, true, uid_,
                 ConsoleDesktopLockState::Unlocked, false};
     }
 

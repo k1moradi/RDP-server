@@ -1,3 +1,20 @@
+## R9 Portable GUI Bootstrap fixture-field-order correction — 2026-10-23
+
+Exact source `2b1a66df2dcd94e3bb9357c3c47ea029f59cdbd0`, Actions run `40069964281`, bootstrap job
+`120801099861`: Debug configuration and the concrete production
+`rdp-server-linux-runtime-security` target **PASS**. The full build then
+stopped at `-Werror=narrowing` in the new synthetic read-only evidence
+fixture because its aggregate initializer used the older
+`ConsoleSessionObservation` field order. Production HostControl, consent,
+TLS/licensing and listener code compiled through that point.
+
+The fixture now follows the current typed order exactly:
+owner UID, session generation, monotonic observation time, active/physical,
+local process UID, lock state and remote flag. No production behavior or
+authority rule changes.
+
+Replacement exact-SHA bootstrap gate: **PENDING**.
+
 ## R9 Portable GUI Bootstrap first exact-SHA configure correction — 2026-10-23
 
 Exact source `9bfc6b813e2fe8dfaeb09e0b0b4df00e3e2ab778`, Actions run `40069867854`, job

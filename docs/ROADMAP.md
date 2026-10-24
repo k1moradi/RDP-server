@@ -1,3 +1,16 @@
+## R3 source-guard final CMake list-token cleanup — 2026-10-24
+
+**Starting exact-main parent:** `a393042ddcd1b47899b4a45ddb75416044469c5d`.
+
+Exact-head review found two remaining semicolon-terminated match arguments in
+the fresh-connection ordering check. They are now matched by statement prefix,
+like the rest of the guard, so CMake list expansion cannot split them. No
+production source or wire behavior changes. R3 remains blocked at R1 TLS; the
+credential-retention blocker for full Start->Stop->Start is unchanged.
+
+Corrected guard source review: **PASS**. CTest execution: **NOT RUN** in this
+connector environment.
+
 ## R3 source-contract CMake list-token correction — 2026-10-24
 
 **Starting exact-main parent:** `151183920571bd96a5ce1e30fc6b9b3017072ce9`.

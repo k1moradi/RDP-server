@@ -158,8 +158,8 @@ string(SUBSTRING "${host_source}" ${accept_begin}
 require_order(accept_source
     "New accept must own a fresh connection aggregate"
     "auto connection = std::make_unique<LinuxRuntimeConnection>("
-    "acceptedClient_ = std::move(connection);"
-    "acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;")
+    "acceptedClient_ = std::move(connection)"
+    "acceptedClientPhase_ = AcceptedClientPhase::PreAdmission")
 require_token(connection_header
     "rdp_server::server::transport::McsSessionLifecycle session_{}"
     "LinuxRuntimeConnection must value-own one R3 session")

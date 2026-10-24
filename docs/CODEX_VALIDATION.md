@@ -1,3 +1,11 @@
+## R3 source-guard final list-token cleanup — 2026-10-24
+
+Starting parent `a393042ddcd1b47899b4a45ddb75416044469c5d`. Two remaining semicolon-ended CMake match
+arguments in the new-connection ordering assertion were removed after exact-head
+review. The guard now contains no quoted semicolon-bearing match needles.
+Production behavior is unchanged. Source review: **PASS**; CTest execution:
+**NOT RUN**.
+
 ## R3 source-contract CMake list-token correction — 2026-10-24
 
 **Starting exact-main parent:** `151183920571bd96a5ce1e30fc6b9b3017072ce9`.

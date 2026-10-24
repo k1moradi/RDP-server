@@ -11,6 +11,7 @@
 #include <memory>
 #include <string_view>
 
+#include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -433,17 +434,32 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
         return fail("generated subject context unavailable");
 
     const X509_NAME *const subject =
-        ::X509_get0_subject_name(context.certificate());
-    std::array<char, 64> commonName{};
-    const int commonNameBytes = subject == nullptr
+        ::X509_get_subject_name(context.certificate());
+    const int commonNameIndex = subject == nullptr
         ? -1
-        : ::X509_NAME_get_text_by_NID(
-              subject, NID_commonName, commonName.data(),
-              static_cast<int>(commonName.size()));
-    if (commonNameBytes != 10 ||
+        : ::X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+    const X509_NAME_ENTRY *const commonNameEntry =
+        commonNameIndex < 0 ? nullptr
+                            : ::X509_NAME_get_entry(subject, commonNameIndex);
+    const ASN1_STRING *const commonNameValue =
+        commonNameEntry == nullptr
+        ? nullptr
+        : ::X509_NAME_ENTRY_get_data(commonNameEntry);
+
+    unsigned char *commonNameUtf8 = nullptr;
+    const int commonNameBytes = commonNameValue == nullptr
+        ? -1
+        : ::ASN1_STRING_to_UTF8(&commonNameUtf8, commonNameValue);
+    const bool commonNameMatches =
+        commonNameBytes == 10 && commonNameUtf8 != nullptr &&
         std::string_view{
-            commonName.data(), static_cast<std::size_t>(commonNameBytes)} !=
-            "RDP Server")
+            reinterpret_cast<const char *>(commonNameUtf8),
+            static_cast<std::size_t>(commonNameBytes)} == "RDP Server";
+    ::OPENSSL_free(commonNameUtf8);
+
+    if (!commonNameMatches ||
+        ::X509_NAME_get_index_by_NID(
+            subject, NID_commonName, commonNameIndex) != -1)
         return fail("generated certificate subject is not generic");
 
     if (context.validateEndpointIdentity(endpoint) !=

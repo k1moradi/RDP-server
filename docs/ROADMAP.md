@@ -1,3 +1,39 @@
+## R1 generated-subject regression OpenSSL API correction — 2026-10-23
+
+Starting exact-main parent: `56c5371f6b421a9bb672011845b073afab3a9099`.
+
+Dependency recheck: R3 automatic portable licensing identity is now
+**RESOLVED** on main and remains cryptographically separate from R1 TLS as
+required. R8 now consumes that automatic licensing bootstrap as well as the
+previous R1/R6 bootstrap boundaries without changing R1 ownership. The next
+blocking evidence was R1-owned: exact-SHA Actions for
+`f184a077300c8b4fa46384891835cbf3a550a4b8` failed during compilation of
+`tests/test_runtime_tls_context.cpp` on Ubuntu, Windows and macOS because the
+new regression used nonexistent `X509_get0_subject_name()`; macOS also
+rejected deprecated `X509_NAME_get_text_by_NID()` under `-Werror`.
+
+The production R1 TLS generator is unchanged. The regression now observes the
+generated subject through the supported const `X509_get_subject_name()`,
+locates the Common Name with `X509_NAME_get_index_by_NID()` /
+`X509_NAME_get_entry()`, and converts the value with
+`ASN1_STRING_to_UTF8()`. It still requires exactly one generic
+`RDP Server` Common Name, exact selected-IP SAN match, and adjacent-IP
+rejection.
+
+Connector/source review: **PASS**. Canonical owner-local configure/build/full
+CTest: **NOT RUN** in this connector environment. Replacement exact-SHA hosted
+CI: **PENDING**.
+
+The separate R6 synthetic portable-GUI manifest fixture mismatch remains
+outside R1 ownership unless another agent updates
+`tests/test_portable_gui_archive.py` to emit the bootstrap fields now required
+by `scripts/verify_portable_gui.py`. R8's latest licensing-bootstrap consumer
+does not modify that fixture. That independent failure may keep the aggregate
+workflow red after R1 compile/test qualification.
+
+**Next R1 gate:** replacement exact-SHA Linux/Windows/macOS compilation and
+execution of the generated TLS identity CTests.
+
 ## R8 P2 consumes landed R3 automatic licensing bootstrap (2026-10-23)
 
 Dependency recheck at starting main `b3260d50d6c58e837fa726bf15f4e01b80da6882`: R3's external

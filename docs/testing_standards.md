@@ -1,3 +1,14 @@
+## OpenSSL name-observation test portability (2026-10-23)
+
+Tests that inspect X.509 subject/issuer names must use the supported const
+accessors available across the project's OpenSSL 3/4 matrix. Do not invent
+`X509_get0_subject_name()`, and do not use
+`X509_NAME_get_text_by_NID()` because OpenSSL 4 deprecates it and hosted
+macOS builds treat deprecation warnings as errors. Enumerate the desired entry
+with `X509_NAME_get_index_by_NID()` / `X509_NAME_get_entry()`, retrieve its
+ASN.1 value, and convert with `ASN1_STRING_to_UTF8()` when textual comparison
+is required. Keep duplicate-entry checks explicit.
+
 ## R8 regression consumes R3 automatic licensing construction (2026-10-23)
 
 Keep `runtime.linux-gui-bootstrap-clipboard-dormancy` coupled to the normal

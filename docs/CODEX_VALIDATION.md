@@ -1,3 +1,30 @@
+## R1 generated-subject test API portability receipt — 2026-10-23
+
+Starting exact-main parent: `56c5371f6b421a9bb672011845b073afab3a9099`.
+
+Dependency review: **PASS / RESOLVED** for R6 automatic-bootstrap policy, R3
+automatic licensing identity and the subsequent R8 consumers. Those owners now
+compose around R1 without duplicating or reusing its TLS private key.
+
+The prior production portability correction was sound, but its new behavior
+test used the wrong read-only OpenSSL API. Actions run `40065636525` failed
+all three protocol build lanes before full CTest:
+Ubuntu and Windows reported `X509_get0_subject_name` undeclared/not found;
+macOS reported the same and additionally rejected
+`X509_NAME_get_text_by_NID` as OpenSSL-4 deprecated under `-Werror`.
+This is an R1 test-source failure, not a TLS generator, listener, SAN,
+CredSSP or licensing failure.
+
+The test now uses `X509_get_subject_name(const X509*)`, enumerates the
+Common Name entry through `X509_NAME_get_index_by_NID()` and
+`X509_NAME_get_entry()`, decodes it with `ASN1_STRING_to_UTF8()`, and
+requires no duplicate Common Name. Exact-IP SAN match/adjacent-IP rejection is
+unchanged.
+
+Source review: **PASS**. Owner-local `~/rdp-server/build/` build/full CTest:
+**NOT RUN**. Replacement exact-publication-SHA hosted CI: **PENDING**. No live
+listener, desktop, input, clipboard or client action was run.
+
 ## R8 P2 dependency recheck after R3 licensing bootstrap — 2026-10-23
 
 Starting exact-main parent: `b3260d50d6c58e837fa726bf15f4e01b80da6882`.

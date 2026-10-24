@@ -52,7 +52,8 @@ enum class StandaloneCredentialSessionState : std::uint8_t
 // Non-secret native-session fingerprint associated with the current standalone
 // credential generation. It owns no password/hash/authentication capability.
 // R10 keeps it only so an ordinary Stop cannot let a later lock/logout/user
-// switch/session replacement inherit the retained credential.
+// switch/session, X11 DISPLAY, or native-generation replacement inherit the
+// retained credential.
 class StandaloneCredentialSessionBinding final
 {
 public:
@@ -60,6 +61,8 @@ public:
     {
         sessionId_.fill('\0');
         sessionIdLength_ = 0U;
+        display_.fill('\0');
+        displayLength_ = 0U;
         ownerUid_ = 0U;
         sessionGeneration_ = 0U;
         bound_ = false;
@@ -82,6 +85,10 @@ public:
             session.sessionId.begin(), session.sessionId.end(),
             sessionId_.begin());
         sessionIdLength_ = session.sessionId.size();
+        std::copy(
+            session.display.begin(), session.display.end(),
+            display_.begin());
+        displayLength_ = session.display.size();
         ownerUid_ = session.ownerUid;
         sessionGeneration_ = session.sessionGeneration;
         bound_ = true;
@@ -99,7 +106,10 @@ public:
             session.sessionGeneration != sessionGeneration_ ||
             session.sessionId.size() != sessionIdLength_ ||
             session.sessionId != std::string_view{
-                sessionId_.data(), sessionIdLength_})
+                sessionId_.data(), sessionIdLength_} ||
+            session.display.size() != displayLength_ ||
+            session.display != std::string_view{
+                display_.data(), displayLength_})
         {
             return StandaloneCredentialSessionState::TerminalSessionChanged;
         }
@@ -118,6 +128,8 @@ private:
                session.seat == "seat0" &&
                !session.sessionId.empty() &&
                session.sessionId.size() <= 64U &&
+               !session.display.empty() &&
+               session.display.size() <= 8U &&
                session.ownerUid != 0U &&
                session.localProcessUid == session.ownerUid &&
                session.sessionGeneration != 0U &&
@@ -129,6 +141,8 @@ private:
 
     std::array<char, 65> sessionId_{};
     std::size_t sessionIdLength_{};
+    std::array<char, 9> display_{};
+    std::size_t displayLength_{};
     std::uint32_t ownerUid_{};
     std::uint64_t sessionGeneration_{};
     bool bound_{};

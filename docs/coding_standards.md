@@ -1,3 +1,26 @@
+## R5 fresh native authorization on every Start (2026-10-24)
+
+Ordinary Stop may retain the generation-fenced memory-only standalone Session
+Password, but it must retain no native desktop authority. Stop revokes the
+current owner grant first, terminally retires the R5 X11 aggregate with
+no-XTEST cleanup, destroys its input/capture/damage/framebuffer resources,
+retires the accepted R3/R2/R1 owner and listener, and leaves no native
+generation usable by a later Start.
+
+The retained standalone credential is bound to the exact unlocked native
+session fingerprint: session ID, owner UID, X11 DISPLAY and native session
+generation. A lock/unknown state, local-user switch, DISPLAY replacement,
+logout/session-generation replacement or unavailable/stale bound evidence is
+credential-terminal. Ordinary Stop by itself is not: an unchanged unlocked
+physical session may request a fresh owner grant and restart without Session
+Password re-entry.
+
+Every Start must re-read current native/logind/X11 evidence and rebuild the
+standalone native admission policy from that observation. A prior grant A1
+cannot authorize Start #2 after Stop; a new explicit local grant A2 is required.
+Even after A2, native X11 ownership is created only for a later authenticated
+client that has reached the existing GraphicsReady/R2 native-selection gate.
+
 ## Portable HostControl Stop versus terminal credential lifetime (2026-10-24)
 
 Linux, macOS and future Windows HostControl implementations share one

@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.22)
 foreach(required_var IN ITEMS
         RDP_LINUX_HOST_CONTROL_HEADER
         RDP_LINUX_HOST_CONTROL_SOURCE
+        RDP_X11_DESKTOP_SOURCE
         RDP_ROOT_CMAKE)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
@@ -12,6 +13,7 @@ endforeach()
 
 file(READ "${RDP_LINUX_HOST_CONTROL_HEADER}" host_header)
 file(READ "${RDP_LINUX_HOST_CONTROL_SOURCE}" host_source)
+file(READ "${RDP_X11_DESKTOP_SOURCE}" x11_desktop_source)
 file(READ "${RDP_ROOT_CMAKE}" root_cmake)
 
 foreach(required_text IN ITEMS
@@ -131,6 +133,106 @@ if(geometry_observe LESS 0 OR geometry_first LESS 0 OR remap LESS 0 OR
    NOT geometry_last LESS frame_borrow)
     message(FATAL_ERROR "R10X RandR/remap/frame freshness order regressed")
 endif()
+
+# Ordinary Stop must destroy the complete R5 owner. Terminal desktop
+# retirement suppresses native input cleanup and removes the XTEST controller,
+# capture/damage/framebuffer resources and XCB owner before replacement.
+string(FIND "${host_source}"
+    "void LinuxRuntimeHostControl::retireNativeDesktop() noexcept"
+    retire_native_begin)
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept"
+    retire_native_end)
+if(retire_native_begin LESS 0 OR retire_native_end LESS_EQUAL retire_native_begin)
+    message(FATAL_ERROR "unable to isolate R5 native desktop retirement")
+endif()
+math(EXPR retire_native_length
+    "${retire_native_end} - ${retire_native_begin}")
+string(SUBSTRING "${host_source}" ${retire_native_begin}
+    ${retire_native_length} retire_native_source)
+foreach(required_text IN ITEMS
+        "desktop->retireAfterAuthorizationLoss()"
+        "nativeDesktop_.reset()")
+    string(FIND "${retire_native_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "R5 Stop must terminally destroy native owner state: ${required_text}")
+    endif()
+endforeach()
+
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::retireAfterAuthorizationLoss() noexcept"
+    x11_retire_begin)
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::fail(" x11_retire_end)
+if(x11_retire_begin LESS 0 OR x11_retire_end LESS_EQUAL x11_retire_begin)
+    message(FATAL_ERROR "unable to isolate X11 authorization-loss retirement")
+endif()
+math(EXPR x11_retire_length "${x11_retire_end} - ${x11_retire_begin}")
+string(SUBSTRING "${x11_desktop_source}" ${x11_retire_begin}
+    ${x11_retire_length} x11_retire_source)
+string(FIND "${x11_retire_source}"
+    "cancelNativeResources(InputRetirementMode::SuppressNativeInput)"
+    suppress_native_input)
+if(suppress_native_input LESS 0)
+    message(FATAL_ERROR
+        "authorization loss must suppress XTEST cleanup before owner destruction")
+endif()
+
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::cancelGeometryBoundResources("
+    cancel_geometry_begin)
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::rebuildGeometryBoundResources("
+    cancel_geometry_end)
+if(cancel_geometry_begin LESS 0 OR
+   cancel_geometry_end LESS_EQUAL cancel_geometry_begin)
+    message(FATAL_ERROR "unable to isolate geometry-bound R5 teardown")
+endif()
+math(EXPR cancel_geometry_length
+    "${cancel_geometry_end} - ${cancel_geometry_begin}")
+string(SUBSTRING "${x11_desktop_source}" ${cancel_geometry_begin}
+    ${cancel_geometry_length} cancel_geometry_source)
+set(native_child_retirement_tokens
+    "input_->retireWithoutNativeInput()"
+    "input_.reset()"
+    "damage_.reset()"
+    "capture_.reset()")
+set(previous -1)
+foreach(token IN LISTS native_child_retirement_tokens)
+    string(FIND "${cancel_geometry_source}" "${token}" position)
+    if(position LESS 0 OR position LESS_EQUAL previous)
+        message(FATAL_ERROR
+            "R5 native input/capture retirement order regressed at: ${token}")
+    endif()
+    set(previous ${position})
+endforeach()
+
+# Fresh X11 ownership remains post-authentication only.
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept"
+    initialize_native_begin)
+string(FIND "${host_source}"
+    "RuntimeHostResult LinuxRuntimeHostControl::serviceNativeDesktopOnce() noexcept"
+    initialize_native_end)
+math(EXPR initialize_native_length
+    "${initialize_native_end} - ${initialize_native_begin}")
+string(SUBSTRING "${host_source}" ${initialize_native_begin}
+    ${initialize_native_length} initialize_native_source)
+foreach(required_text IN ITEMS
+        "acceptedClient_ == nullptr"
+        "acceptedClientPhase_ != AcceptedClientPhase::GraphicsReady"
+        "nativeDesktop_ != nullptr"
+        "visitNativeDesktopSelection("
+        "candidate->admissionGeneration == 0U"
+        "candidate->sessionGeneration == 0U"
+        "nativeDesktop_ = std::move(candidate)")
+    string(FIND "${initialize_native_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "fresh post-authentication R5 construction gate missing: ${required_text}")
+    endif()
+endforeach()
 
 string(FIND "${host_source}"
     "void LinuxRuntimeHostControl::retireAcceptedClient(" retire_client_begin)

@@ -62,7 +62,10 @@ class PortableBootstrapEvidence final
     : public rdp_server::server::security::ConsoleOsEvidenceSource
 {
 public:
-    explicit PortableBootstrapEvidence(std::uint32_t uid) noexcept : uid_(uid) {}
+    explicit PortableBootstrapEvidence(std::uint32_t uid) noexcept
+        : processUid_(uid), ownerUid_(uid)
+    {
+    }
 
     rdp_server::server::security::ConsoleAccountObservation readUnixAccount(
         std::string_view) noexcept override
@@ -74,9 +77,10 @@ public:
     readActiveConsole() noexcept override
     {
         using namespace rdp_server::server::security;
-        return {ConsoleEvidenceReadStatus::Observed, "portable-bootstrap",
-                "seat0", ":42", uid_, sessionGeneration_, now_, true, true,
-                uid_, lockState_, false};
+        ++activeConsoleReadCount_;
+        return {ConsoleEvidenceReadStatus::Observed, sessionId_,
+                "seat0", display_, ownerUid_, sessionGeneration_, now_,
+                true, true, processUid_, lockState_, false};
     }
 
     std::optional<std::uint64_t> readMonotonicMilliseconds() noexcept override
@@ -84,10 +88,38 @@ public:
         return now_;
     }
 
+    [[nodiscard]] std::size_t activeConsoleReadCount() const noexcept
+    {
+        return activeConsoleReadCount_;
+    }
+
     void setLockState(
         rdp_server::server::security::ConsoleDesktopLockState state) noexcept
     {
         lockState_ = state;
+        ++now_;
+    }
+
+    void setDisplay(std::string_view display)
+    {
+        display_.assign(display);
+        ++now_;
+    }
+
+    void switchToDifferentUser() noexcept
+    {
+        ownerUid_ = processUid_ + 1U;
+        sessionId_ = "portable-switched";
+        ++sessionGeneration_;
+        ++now_;
+    }
+
+    void restoreProcessOwner() noexcept
+    {
+        ownerUid_ = processUid_;
+        sessionId_ = "portable-bootstrap";
+        ++sessionGeneration_;
+        ++now_;
     }
 
     void advanceSessionGeneration() noexcept
@@ -97,9 +129,13 @@ public:
     }
 
 private:
-    std::uint32_t uid_{};
+    std::uint32_t processUid_{};
+    std::uint32_t ownerUid_{};
+    std::string sessionId_{"portable-bootstrap"};
+    std::string display_{":42"};
     std::uint64_t sessionGeneration_{91U};
     std::uint64_t now_{10'000U};
+    std::size_t activeConsoleReadCount_{};
     rdp_server::server::security::ConsoleDesktopLockState lockState_{
         rdp_server::server::security::ConsoleDesktopLockState::Unlocked};
 };
@@ -571,10 +607,10 @@ int main(int argc, char** argv)
         assert(afterLock.generation > generationOne.generation);
 
         evidence.setLockState(ConsoleDesktopLockState::Unlocked);
-        auto replacementPassword = standalonePassword();
-        replacementPassword.back() = u'2';
+        auto displayPassword = standalonePassword();
+        displayPassword.back() = u'2';
         assert(control.configureStandaloneApplicationPassword(
-            u"User", replacementPassword));
+            u"User", displayPassword));
         const auto generationTwo =
             control.standaloneApplicationPasswordObservation();
         assert(generationTwo.configured);
@@ -582,8 +618,55 @@ int main(int argc, char** argv)
         assert(control.requestHostPermissionSetup(permission).succeeded());
         assert(control.stopSharing().succeeded());
 
-        // sessionGeneration is the provider's logout/user-switch/session
-        // replacement discriminator. A later native session cannot inherit G2.
+        // DISPLAY is part of the native desktop identity. A replacement X11
+        // server cannot inherit a credential retained by ordinary Stop even
+        // when UID/session generation are otherwise unchanged.
+        evidence.setDisplay(":43");
+        const auto displayChanged = control.serviceOnce();
+        assert(displayChanged.error ==
+               RuntimeHostError::CredentialNotConfigured);
+        assert(!control.status().credentialsConfigured);
+        const auto afterDisplayChange =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterDisplayChange.configured);
+        assert(afterDisplayChange.generation > generationTwo.generation);
+
+        evidence.setDisplay(":42");
+        auto switchedPassword = standalonePassword();
+        switchedPassword.back() = u'3';
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", switchedPassword));
+        const auto generationThree =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationThree.configured);
+        assert(generationThree.generation > afterDisplayChange.generation);
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(control.stopSharing().succeeded());
+
+        // A local-user switch is terminal before a new Start can reuse G3.
+        evidence.switchToDifferentUser();
+        const auto switchedUser = control.serviceOnce();
+        assert(switchedUser.error ==
+               RuntimeHostError::CredentialNotConfigured);
+        assert(!control.status().credentialsConfigured);
+        const auto afterUserSwitch =
+            control.standaloneApplicationPasswordObservation();
+        assert(!afterUserSwitch.configured);
+        assert(afterUserSwitch.generation > generationThree.generation);
+
+        evidence.restoreProcessOwner();
+        auto generationPassword = standalonePassword();
+        generationPassword.back() = u'4';
+        assert(control.configureStandaloneApplicationPassword(
+            u"User", generationPassword));
+        const auto generationFour =
+            control.standaloneApplicationPasswordObservation();
+        assert(generationFour.configured);
+        assert(generationFour.generation > afterUserSwitch.generation);
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(control.stopSharing().succeeded());
+
+        // sessionGeneration independently fences logout/session replacement.
         evidence.advanceSessionGeneration();
         const auto replacedSession = control.serviceOnce();
         assert(replacedSession.error ==
@@ -592,7 +675,7 @@ int main(int argc, char** argv)
         const auto afterSessionChange =
             control.standaloneApplicationPasswordObservation();
         assert(!afterSessionChange.configured);
-        assert(afterSessionChange.generation > generationTwo.generation);
+        assert(afterSessionChange.generation > generationFour.generation);
         return 0;
 #endif
     }
@@ -1352,6 +1435,128 @@ int main(int argc, char** argv)
         assert(!control.visitStandaloneApplicationPassword(
             generationTwo.generation, &observeStandaloneCredential,
             &revokedVisit));
+        return 0;
+#endif
+    }
+
+
+    if (testCase ==
+        "linux-host-control-fresh-native-authorization-every-start")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        if (processUid == 0U ||
+            processUid == (std::numeric_limits<std::uint32_t>::max)())
+            return 77;
+
+        PortableBootstrapEvidence evidence(processUid);
+        LinuxRuntimeHostControl control(evidence);
+
+        auto password = standalonePassword();
+        assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+        assert(std::ranges::all_of(
+            password, [](char16_t value) { return value == u'\0'; }));
+        const auto credentialGeneration =
+            control.standaloneApplicationPasswordObservation();
+        assert(credentialGeneration.configured &&
+               credentialGeneration.generation != 0U);
+
+        const auto recommendation = control.status().product.recommendedEndpoint;
+        if (!recommendation.valid())
+            return 77;
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+
+        const std::size_t readsBeforeA1 = evidence.activeConsoleReadCount();
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(evidence.activeConsoleReadCount() > readsBeforeA1);
+
+        bool firstStartSucceeded = false;
+        RuntimeHostOptions selectedOptions{};
+        for (std::uint16_t port = 34300U; port <= 34329U; ++port)
+        {
+            selectedOptions = {
+                recommendation.interfaceId, recommendation.address,
+                port, true, false};
+            assert(control.configure(selectedOptions).succeeded());
+
+            const std::size_t readsBeforeStart =
+                evidence.activeConsoleReadCount();
+            const RuntimeHostResult start = control.startSharing();
+            assert(evidence.activeConsoleReadCount() > readsBeforeStart);
+            if (start.succeeded())
+            {
+                firstStartSucceeded = true;
+                break;
+            }
+            assert(start.error == RuntimeHostError::PortUnavailable);
+        }
+        if (!firstStartSucceeded)
+            return 77;
+
+        assert(control.status().hostOwnerAuthorized);
+        assert(control.status().listenerAvailable);
+        // Native X11 ownership is still post-authenticated-client only.
+        assert(!control.status().nativeDesktopReady);
+
+        assert(control.stopSharing().succeeded());
+        const auto stoppedAfterA1 = control.status();
+        assert(stoppedAfterA1.stage == RuntimeHostStage::Stopped);
+        assert(stoppedAfterA1.credentialsConfigured);
+        assert(!stoppedAfterA1.hostOwnerAuthorized);
+        assert(!stoppedAfterA1.listenerAvailable);
+        assert(!stoppedAfterA1.nativeDesktopReady);
+        assert(!stoppedAfterA1.tlsIdentityReady);
+        const auto retainedAfterA1 =
+            control.standaloneApplicationPasswordObservation();
+        assert(retainedAfterA1.configured);
+        assert(retainedAfterA1.generation == credentialGeneration.generation);
+
+        // A1 is dead. Start #2 samples fresh native evidence but cannot proceed
+        // until a new explicit local grant A2 is requested.
+        const std::size_t readsBeforeUngrantStart =
+            evidence.activeConsoleReadCount();
+        const RuntimeHostResult withoutA2 = control.startSharing();
+        assert(withoutA2.error == RuntimeHostError::HostConsentRequired);
+        assert(evidence.activeConsoleReadCount() > readsBeforeUngrantStart);
+        assert(!control.status().listenerAvailable);
+        assert(!control.status().nativeDesktopReady);
+
+        const std::size_t readsBeforeA2 = evidence.activeConsoleReadCount();
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(evidence.activeConsoleReadCount() > readsBeforeA2);
+        assert(control.status().hostOwnerAuthorized);
+        const auto retainedWithA2 =
+            control.standaloneApplicationPasswordObservation();
+        assert(retainedWithA2.configured);
+        assert(retainedWithA2.generation == credentialGeneration.generation);
+
+        // Re-prepare only endpoint/TLS state. Session Password is not entered
+        // again merely to obtain A2 or restart the same physical session.
+        assert(control.configure(selectedOptions).succeeded());
+        const std::size_t readsBeforeSecondStart =
+            evidence.activeConsoleReadCount();
+        assert(control.startSharing().succeeded());
+        assert(evidence.activeConsoleReadCount() > readsBeforeSecondStart);
+        assert(control.status().listenerAvailable);
+        assert(control.status().hostOwnerAuthorized);
+        assert(!control.status().nativeDesktopReady);
+
+        assert(control.stopSharing().succeeded());
+        const auto stoppedAfterA2 = control.status();
+        assert(stoppedAfterA2.credentialsConfigured);
+        assert(!stoppedAfterA2.hostOwnerAuthorized);
+        assert(!stoppedAfterA2.listenerAvailable);
+        assert(!stoppedAfterA2.nativeDesktopReady);
+        const auto retainedAfterA2 =
+            control.standaloneApplicationPasswordObservation();
+        assert(retainedAfterA2.configured);
+        assert(retainedAfterA2.generation == credentialGeneration.generation);
         return 0;
 #endif
     }

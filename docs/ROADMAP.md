@@ -1,3 +1,33 @@
+## R5 P1 — fresh Linux native authorization on every Start (2026-10-24)
+
+**Starting exact-main parent:** `7951436b82fe28a88a351300800405724fab05fa`.
+
+R5 restart ownership is tightened without changing RDP wire behavior. Ordinary
+Stop still retains the sole memory-only standalone credential, but its
+non-secret session fence now includes the exact X11 DISPLAY in addition to
+session ID, UID and native session generation. DISPLAY replacement therefore
+fails closed like lock, user switch and session-generation replacement.
+
+The dedicated
+`runtime.linux-host-control-fresh-native-authorization-every-start` case
+pins A1 -> Start -> Stop -> denied Start without A2 -> fresh A2 -> Start using
+the unchanged credential generation. Its injected evidence counter proves the
+permission and Start paths re-read current native evidence. The deterministic
+retained-credential case now separately covers lock, DISPLAY replacement,
+local-user switch and session-generation replacement.
+
+The consolidated native-desktop source contract also pins terminal Stop
+retirement through `retireAfterAuthorizationLoss()`, no-XTEST input teardown,
+input/damage/capture destruction and `nativeDesktop_.reset()`. Replacement
+X11 ownership remains impossible until a later authenticated client reaches
+GraphicsReady and supplies fresh admission/session generations.
+
+The concurrent R6 cross-platform Stop/restart contract at this parent is
+preserved unchanged. Connector source review: **PASS**. Canonical local
+build/full CTest and the native-environment behavior test: **NOT RUN in this
+connector session**. No Microsoft-client, TLS/SPNEGO, R3/R4 wire or clipboard
+behavior is changed.
+
 ## R6 P1 cross-platform HostControl round-trip contract (2026-10-24)
 
 **Starting exact-main parent:** `86d8abc6d9cdffb96779ce872662abe8cf47793b`.

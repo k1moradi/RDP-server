@@ -392,6 +392,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-native-interface-id-verification
             linux-host-control-standalone-password-lifecycle
             linux-host-control-stop-start-retains-standalone-credential
+            linux-host-control-fresh-native-authorization-every-start
             linux-portable-gui-bootstrap-listener-acceptance)
         add_test(NAME "runtime.${native_host_control_case}"
             COMMAND test_linux_runtime_host_control "${native_host_control_case}")
@@ -483,6 +484,7 @@ if(TARGET rdp-server-linux-host-control)
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
+            "-DRDP_X11_DESKTOP_SOURCE=${PROJECT_SOURCE_DIR}/src/x11/x11_desktop_resources.cpp"
             "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_native_desktop_scheduler.cmake")
     set_tests_properties(

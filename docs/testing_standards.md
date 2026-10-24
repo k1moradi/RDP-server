@@ -1,3 +1,27 @@
+## R5 fresh native authorization restart gate (2026-10-24)
+
+Keep `runtime.linux-host-control-fresh-native-authorization-every-start`
+as the native-environment behavior gate for A1 -> Start -> Stop -> Start. It
+configures the Session Password once, proves Stop removes A1/listener/TLS/native
+readiness while retaining the exact credential generation, proves Start #2
+without A2 is denied after another native evidence read, then requests A2 and
+restarts the same physical session without password re-entry.
+
+The deterministic
+`runtime.linux-host-control-retained-credential-lock-session-loss`
+case must cover lock/unknown state, X11 DISPLAY replacement, local-user switch
+and session-generation replacement while stopped. Each changed/stale native
+identity is credential-terminal before any listener can exist. The existing
+`runtime.linux-host-control-native-desktop-bounded-post-share`
+source contract must additionally pin Stop -> `retireAfterAuthorizationLoss()`
+-> no-XTEST input retirement -> input/damage/capture destruction -> native owner
+reset, and require fresh native construction to remain behind an authenticated
+GraphicsReady client and nonzero admission/session generations.
+
+A native-environment skip does not qualify same-session restart on an owner
+machine. These gates prove lifecycle/ownership only; they do not qualify a real
+Microsoft client, R3 graphics visibility or physical XTEST input.
+
 ## R6 cross-platform Session Password Stop/Start round trip (2026-10-24)
 
 Keep a portable policy test for the complete credential retirement matrix and

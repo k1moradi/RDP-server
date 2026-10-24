@@ -1,3 +1,29 @@
+## R5 fresh native authorization restart authoring (2026-10-24)
+
+Starting exact-main parent: `7951436b82fe28a88a351300800405724fab05fa`.
+
+Source review confirms ordinary Stop retains only the standalone credential,
+while owner consent, accepted/native state, listener and generated TLS state are
+retired. This increment adds X11 DISPLAY to the retained credential's
+non-secret native-session fingerprint and strengthens proof that no R5/XTEST/
+capture owner survives Stop.
+
+New/strengthened coverage:
+- `runtime.linux-host-control-fresh-native-authorization-every-start`:
+  A1 is revoked by Stop, Start #2 re-samples native evidence and denies without
+  A2, A2 is obtained without password re-entry, and the same session restarts;
+- `runtime.linux-host-control-retained-credential-lock-session-loss`:
+  lock, DISPLAY replacement, user switch and session-generation replacement are
+  terminal before listener/native ownership;
+- `runtime.linux-host-control-native-desktop-bounded-post-share`:
+  terminal no-XTEST input/capture retirement and post-authentication-only fresh
+  X11 owner construction are source-pinned.
+
+The concurrent R6 cross-platform Stop/restart additions at this parent remain
+present. Connector/source review: **PASS**. Local build/full CTest:
+**NOT RUN**. Native owner-machine execution: **NOT RUN**. No real-client
+interoperability claim is made.
+
 ## R6 cross-platform HostControl Stop/Start contract authoring receipt (2026-10-24)
 
 **Starting exact-main parent:** `86d8abc6d9cdffb96779ce872662abe8cf47793b`.

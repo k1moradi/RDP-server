@@ -1,3 +1,29 @@
+## R9 P0 Portable GUI Bootstrap acceptance authoring receipt — 2026-10-23
+
+Starting exact-main parent: `d64fd6f1db9e13704f1c29c4afcd6b1b58a32100`.
+
+The no-argument Linux composition pieces have landed, but GUI Round 2 remains
+presentation-only. R9 adds an independent
+`r9-portable-gui-bootstrap-acceptance` job which does not depend on CLEAN
+Windows. It builds the Debug desktop product graph with the owner-acceptance
+surface enabled, requires exactly seven bootstrap/product CTests, and launches
+`rdp-server-desktop` with no arguments while proving launch itself owns no TCP
+listener.
+
+New production-backed CTest
+`runtime.linux-portable-gui-bootstrap-listener-acceptance` injects only
+read-only synthetic physical-session evidence into R10. Production R2 still
+issues/revalidates consent, the production StandalonePassword owner still
+fences credential generations, generated licensing/TLS owners are real, and R1
+opens the actual private-LAN `OwnedLanListener`. The fixture requires
+pre-Start listener absence, recommendation, replacement-generation
+invalidation, consent, real bind/bound-endpoint publication and Stop/revocation.
+
+Source/CI authoring: **PASS by inspection**. Canonical owner-local full CTest:
+**NOT RUN** here. Exact-publication-SHA hosted gate: **PENDING**. Do not
+nominate a new owner product-test candidate until this exact job is green.
+`8f2667b9…` is historical Track-A protocol/wizard evidence only.
+
 ## R3 P0 generated licensing temporary-marker correction — 2026-10-23
 
 Starting exact-main parent: `c40ca657b6332f24697caeee52b237aeed113df3`.

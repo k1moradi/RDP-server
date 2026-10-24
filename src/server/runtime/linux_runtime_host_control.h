@@ -63,6 +63,12 @@ class LinuxRuntimeHostControl final : public RuntimeHostControl
 {
 public:
     LinuxRuntimeHostControl() noexcept;
+    // Deterministic acceptance fixtures may replace only read-only native
+    // evidence. Consent is still issued and revalidated by the production R2
+    // CurrentOwnerSharingAuthority state machine.
+    explicit LinuxRuntimeHostControl(
+        rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence)
+        noexcept;
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     // Borrow the already-validated service-lifetime R2/TLS owners. They must
     // outlive this controller and every connection later created from it.
@@ -218,6 +224,8 @@ private:
     // R2's host-lifetime authority and every admission broker borrowing it.
     mutable rdp_server::server::security::LinuxLogindReadOnlyEvidenceSource
         ownerEvidence_{};
+    rdp_server::server::security::ConsoleOsEvidenceSource*
+        ownerEvidenceSource_{&ownerEvidence_};
     rdp_server::server::security::CurrentOwnerSharingAuthority
         ownerSharingAuthority_{ownerEvidence_};
     // R2P service credential is memory-only and generation-fenced. R10 may

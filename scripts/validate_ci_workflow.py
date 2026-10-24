@@ -190,6 +190,7 @@ REQUIRED_JOBS = {
     "r7-macos-session-sanitizers",
     "r7-macos-portable-gui",
     "r5-linux-gui-zip",
+    "r9-portable-gui-bootstrap-acceptance",
     "documentation-policy",
     "publish-protocol-prerelease",
 }
@@ -206,6 +207,10 @@ REQUIRED_TOKENS = (
     "-DRDP_SERVER_BUILD_TESTING=OFF",
     "-DRDP_SERVER_BUILD_DESKTOP_GUI=OFF",
     "RDP_SERVER_BUILD_DESKTOP_GUI:BOOL=ON",
+    "r9-portable-gui-bootstrap-acceptance",
+    "runtime.linux-portable-gui-bootstrap-listener-acceptance",
+    "gui.offscreen-owner-acceptance-consumer-start-orchestration",
+    "runtime.desktop-shared-configuration-feed",
     "readelf -d build/rdp-server",
     "transport.tcp-owned-tls-terminal-readiness",
     "transport.tcp-owned-buffered-tls-credssp-mcs-readiness",

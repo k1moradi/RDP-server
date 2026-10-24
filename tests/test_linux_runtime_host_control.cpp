@@ -5,8 +5,10 @@
 #include <cassert>
 #include <limits>
 #include <net/if.h>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <unistd.h>
 using namespace rdp_server::server::runtime;
 using rdp_server::server::security::LanCredentialChoice;
 
@@ -44,6 +46,37 @@ struct StandaloneVisitObservation final
     return error == RuntimeHostError::NativeAuthorizationDenied ||
            error == RuntimeHostError::CredentialProviderUnavailable;
 }
+
+class PortableBootstrapEvidence final
+    : public rdp_server::server::security::ConsoleOsEvidenceSource
+{
+public:
+    explicit PortableBootstrapEvidence(std::uint32_t uid) noexcept : uid_(uid) {}
+
+    rdp_server::server::security::ConsoleAccountObservation readUnixAccount(
+        std::string_view) noexcept override
+    {
+        return {};
+    }
+
+    rdp_server::server::security::ConsoleSessionObservation
+    readActiveConsole() noexcept override
+    {
+        using namespace rdp_server::server::security;
+        return {ConsoleEvidenceReadStatus::Observed, "portable-bootstrap",
+                "seat0", ":42", uid_, 91U, uid_, true, true, now_,
+                ConsoleDesktopLockState::Unlocked, false};
+    }
+
+    std::optional<std::uint64_t> readMonotonicMilliseconds() noexcept override
+    {
+        return now_;
+    }
+
+private:
+    std::uint32_t uid_{};
+    std::uint64_t now_{10'000U};
+};
 } // namespace
 
 int main(int argc, char** argv)
@@ -501,6 +534,91 @@ int main(int argc, char** argv)
             [](char16_t value) { return value == u'\0'; }));
         assert(!control.standaloneApplicationPasswordObservation().configured);
         return 0;
+    }
+
+    if (testCase == "linux-portable-gui-bootstrap-listener-acceptance")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 2;
+#else
+        const auto processUid = static_cast<std::uint32_t>(::getuid());
+        assert(processUid != 0U);
+        PortableBootstrapEvidence evidence(processUid);
+        LinuxRuntimeHostControl bootstrap(evidence);
+
+        const auto initial = bootstrap.status();
+        assert(initial.product.automaticRuntimeProvisioned);
+        assert(initial.product.recommendedEndpoint.valid());
+        assert(initial.product.boundEndpoint.empty());
+        assert(!initial.listenerAvailable && initial.listenerGeneration == 0U);
+
+        auto firstPassword = standalonePassword();
+        assert(bootstrap.configureStandaloneApplicationPassword(u"rdp", firstPassword));
+        assert(std::ranges::all_of(firstPassword,
+            [](char16_t value) { return value == u'\0'; }));
+        const auto firstCredential = bootstrap.standaloneApplicationPasswordObservation();
+        assert(firstCredential.configured && firstCredential.generation != 0U);
+
+        auto replacementPassword = standalonePassword();
+        replacementPassword.back() = u'2';
+        assert(bootstrap.configureStandaloneApplicationPassword(
+            u"rdp", replacementPassword));
+        const auto replacementCredential =
+            bootstrap.standaloneApplicationPasswordObservation();
+        assert(replacementCredential.configured);
+        assert(replacementCredential.generation > firstCredential.generation);
+        StandaloneVisitObservation obsoleteVisit;
+        assert(!bootstrap.visitStandaloneApplicationPassword(
+            firstCredential.generation, &observeStandaloneCredential,
+            &obsoleteVisit));
+
+        RuntimeHostPermissionRequest permission;
+        permission.allowInput = true;
+        permission.allowClipboard = false;
+        permission.requestedLifetimeMilliseconds = 15U * 60U * 1000U;
+        assert(bootstrap.requestHostPermissionSetup(permission).succeeded());
+        assert(bootstrap.status().hostOwnerAuthorized);
+        assert(!bootstrap.status().listenerAvailable);
+
+        const auto recommendation = bootstrap.status().product.recommendedEndpoint;
+        assert(recommendation.valid());
+        bool listenerStarted = false;
+        for (std::uint16_t port = 33950U; port <= 33979U; ++port)
+        {
+            const RuntimeHostOptions options{
+                recommendation.interfaceId, recommendation.address,
+                port, true, false};
+            assert(bootstrap.configure(options).succeeded());
+            const auto prepared = bootstrap.status();
+            assert(prepared.tlsIdentityReady);
+            assert(!prepared.listenerAvailable);
+            assert(prepared.boundEndpoint.empty());
+
+            const RuntimeHostResult start = bootstrap.startSharing();
+            if (start.succeeded())
+            {
+                listenerStarted = true;
+                break;
+            }
+            assert(start.error == RuntimeHostError::PortUnavailable);
+        }
+        assert(listenerStarted);
+
+        const auto listening = bootstrap.status();
+        assert(listening.listenerAvailable);
+        assert(listening.listenerGeneration != 0U);
+        assert(!listening.boundEndpoint.empty());
+        assert(listening.product.boundEndpoint == listening.boundEndpoint);
+        assert(listening.product.state == RuntimeProductHostState::Listening);
+
+        assert(bootstrap.stopSharing().succeeded());
+        const auto stopped = bootstrap.status();
+        assert(!stopped.listenerAvailable && stopped.listenerGeneration == 0U);
+        assert(stopped.boundEndpoint.empty());
+        assert(!stopped.hostOwnerAuthorized);
+        assert(!stopped.product.ownerAuthorized);
+        return 0;
+#endif
     }
 
     if (testCase == "linux-host-control-stop-revoke-retirement")

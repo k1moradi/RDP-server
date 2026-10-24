@@ -325,6 +325,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-rejected-selection-retires-previous
             linux-host-control-native-interface-id-verification
             linux-host-control-standalone-password-lifecycle
+            linux-portable-gui-bootstrap-listener-acceptance
             linux-host-control-stop-revoke-retirement)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")

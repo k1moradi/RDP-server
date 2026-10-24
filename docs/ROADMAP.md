@@ -1,3 +1,21 @@
+## R9 P0 Portable GUI Bootstrap acceptance gate (2026-10-23)
+
+The previous **GUI ROUND 2 PASS remains presentation qualification only**.
+Product readiness now requires the separate
+`r9-portable-gui-bootstrap-acceptance` gate for canonical
+`rdp-server-desktop` startup with no arguments. This Linux gate is independent
+of CLEAN Windows and covers automatic no-file runtime provisioning, Debug
+production StandalonePassword orchestration, synthetic read-only physical
+session evidence through the real R2 consent owner, an actual R1 private-LAN
+`OwnedLanListener` bind, authoritative bound-endpoint projection, pre/post-bind
+Copy semantics, Stop/revocation, credential-generation replacement and
+secret-free diagnostics. Launch itself remains pre-listener.
+
+Do not nominate a new owner GUI candidate until that exact-SHA hosted gate is
+green. `8f2667b9…` is retained only as the historical Track-A
+protocol/wizard baseline and must not be sent to the owner as the next product
+build.
+
 ## R3 P0 generated licensing temporary-certificate marker correction — 2026-10-23
 
 Starting exact-main parent: `c40ca657b6332f24697caeee52b237aeed113df3`.

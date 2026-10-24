@@ -1,3 +1,29 @@
+## R9 Portable GUI Bootstrap acceptance gate (2026-10-23)
+
+Keep **GUI Round 2** as presentation qualification only. The stronger
+`r9-portable-gui-bootstrap-acceptance` hosted gate qualifies the normal
+`rdp-server-desktop` no-argument Linux product bootstrap independently of
+CLEAN Windows.
+
+Its exact seven-test inventory covers the portable bootstrap/no-autostart
+policy, the desktop-entrypoint regression that rejects a bare
+`LinuxRuntimeHostControl runtime;` fallback, no-config StandalonePassword
+physical-X11 selection, a production-backed real-listener bootstrap case,
+dormant clipboard ownership, and both Debug owner-acceptance GUI orchestration
+cases. The listener fixture may inject only a read-only
+`ConsoleOsEvidenceSource`; it must still use production
+`CurrentOwnerSharingAuthority`, generated licensing/TLS owners, the exact
+StandalonePassword credential generation, R1 interface revalidation and the
+real `OwnedLanListener`.
+
+Require no listener before Start, a projected recommended private address,
+password replacement invalidating the old generation, View/Input consent with
+fresh unlocked physical-seat evidence, an actual private-LAN bind,
+authoritative bound-endpoint status, and Stop closing the listener and revoking
+consent. The Qt acceptance case separately pins “Local address” and disabled
+Copy before bind, then “Connect to” and enabled Copy after authoritative bind.
+No secret-bearing diagnostic is allowed.
+
 ## Generated licensing temporary-certificate marker regression (2026-10-23)
 
 The automatic R3 licensing identity is process-local, so its MS-RDPBCGR

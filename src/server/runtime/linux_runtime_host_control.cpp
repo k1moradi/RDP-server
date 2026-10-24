@@ -632,6 +632,27 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
         lastError_ = RuntimeHostError::InternalFailure;
     }
 }
+
+LinuxRuntimeHostControl::LinuxRuntimeHostControl(
+    rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence)
+    noexcept
+    : ownerThread_(std::this_thread::get_id()),
+      generatedLicensingContext_(
+          new (std::nothrow) RuntimeLicensingContext{}),
+      ownerEvidenceSource_(&ownerEvidence),
+      ownerSharingAuthority_(ownerEvidence)
+{
+    if (generatedLicensingContext_ != nullptr &&
+        generatedLicensingContext_->configureGeneratedApplicationIdentity())
+    {
+        licensingContext_ = generatedLicensingContext_.get();
+    }
+    else
+    {
+        generatedLicensingContext_.reset();
+        lastError_ = RuntimeHostError::InternalFailure;
+    }
+}
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
 LinuxRuntimeHostControl::LinuxRuntimeHostControl(
     LinuxRuntimeSecurityConfiguration& securityConfiguration,
@@ -730,7 +751,7 @@ bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept
     // trusted logind observation instead of creating a second session policy.
     const auto desktop =
         rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            ownerEvidence_);
+            *ownerEvidenceSource_);
     if (!desktop.eligible())
         return false;
 
@@ -934,7 +955,7 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         ownerSharingAuthority_.permissionObservation();
     const auto currentDesktop =
         rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            ownerEvidence_);
+            *ownerEvidenceSource_);
     snapshot.product.nativeDesktopTargetAvailable =
         currentDesktop.eligible();
     if (currentDesktop.eligible())
@@ -1329,7 +1350,7 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     // No listener or native capture is created unless the current desktop is
     // a fresh same-owner unlocked physical X11 session from native evidence.
     if (!rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            ownerEvidence_).eligible())
+            *ownerEvidenceSource_).eligible())
         return deny(RuntimeHostError::NativeAuthorizationDenied);
     if (licensingContext_ == nullptr || !licensingContext_->configured())
         return deny(RuntimeHostError::InternalFailure);

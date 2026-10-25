@@ -81,6 +81,9 @@ int main(int argumentCount, char** argumentValues)
                "Sharing permission required");
         assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRejected) ==
                "Client authentication rejected");
+        assert(runtimeHostErrorMessage(
+                   RuntimeHostError::AuthenticationIncompletePeerClosed) ==
+               "Client authentication did not complete");
         assert(runtimeHostErrorMessage(RuntimeHostError::AuthenticationRateLimited) ==
                "Authentication temporarily rate-limited");
         assert(runtimeHostErrorMessage(RuntimeHostError::HostSessionStale) ==

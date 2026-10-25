@@ -784,6 +784,44 @@ struct LinuxHostFramePublicationContext final
     return "transport";
 }
 
+[[nodiscard]] constexpr bool peerAuthenticationIncompleteAfterDeliveredTypeTwo(
+    const RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using AuthenticationStage = RuntimeAcceptedClientAuthenticationStage;
+    using ProtocolStage = RuntimeAcceptedClientProtocolStage;
+    using AdmissionReason = RuntimeAcceptedClientAdmissionFailureReason;
+    using Termination = RuntimeAcceptedClientTermination;
+
+    if (!diagnostics.available ||
+        diagnostics.ntlmEnvelope != RuntimeAcceptedClientNtlmEnvelope::DirectNtlm ||
+        diagnostics.authenticationStage != AuthenticationStage::NtlmChallenge ||
+        diagnostics.protocolStage != ProtocolStage::PreAdmission ||
+        diagnostics.admissionFailureReason != AdmissionReason::None ||
+        !diagnostics.directNtlmTypeTwoDelivered)
+    {
+        return false;
+    }
+
+    switch (diagnostics.termination)
+    {
+    case Termination::OrderlyTlsClose:
+    case Termination::PeerEof:
+    case Termination::PeerReset:
+    case Termination::PeerTlsAlert:
+        return true;
+    case Termination::Open:
+    case Termination::TransportError:
+    case Termination::TlsFailure:
+    case Termination::ProtocolError:
+    case Termination::Cancelled:
+    case Termination::LocalTlsFailure:
+    case Termination::Timeout:
+    case Termination::OwnerCancellation:
+        return false;
+    }
+    return false;
+}
+
 RuntimeAcceptedClientPreauthDiagnostics
 projectLinuxAcceptedClientPreauthDiagnostics(
     const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept
@@ -2534,6 +2572,7 @@ void LinuxRuntimeHostControl::clearAcceptedClient() noexcept
 void LinuxRuntimeHostControl::retireAcceptedClient(
     RuntimeHostError error) noexcept
 {
+    RuntimeHostError retainedError = error;
     const bool hadAcceptedClient =
         acceptedClient_ != nullptr && acceptedClientId_ != 0U;
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
@@ -2547,6 +2586,13 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
         const auto diagnostics = acceptedClient_->acceptanceDiagnostics();
         acceptedClientPreauthDiagnostics_ =
             projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
+        if (error == RuntimeHostError::AuthenticationRejected &&
+            peerAuthenticationIncompleteAfterDeliveredTypeTwo(
+                acceptedClientPreauthDiagnostics_))
+        {
+            retainedError =
+                RuntimeHostError::AuthenticationIncompletePeerClosed;
+        }
 
         if (acceptedClientId_ != 0U &&
             (error != RuntimeHostError::None ||
@@ -2645,7 +2691,7 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 diagnostics.tlsHandshake.sslError,
                 diagnostics.tlsHandshake.opensslReason,
                 terminationName(diagnostics.termination),
-                static_cast<unsigned int>(error));
+                static_cast<unsigned int>(retainedError));
         }
         acceptedClient_->revoke();
     }
@@ -2654,7 +2700,7 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
     stage_ = listener_.valid()
         ? RuntimeHostStage::ListenerAvailable
         : RuntimeHostStage::Stopped;
-    lastError_ = error;
+    lastError_ = retainedError;
 }
 
 RuntimeHostResult LinuxRuntimeHostControl::pollAcceptedClientReadiness() noexcept
@@ -2677,7 +2723,7 @@ RuntimeHostResult LinuxRuntimeHostControl::pollAcceptedClientReadiness() noexcep
     case PollStatus::Closed:
     case PollStatus::Failure:
         retireAcceptedClient(RuntimeHostError::AuthenticationRejected);
-        return {RuntimeHostError::AuthenticationRejected, false};
+        return {lastError_, false};
     }
     retireAcceptedClient(RuntimeHostError::InternalFailure);
     return {RuntimeHostError::InternalFailure, false};
@@ -2797,7 +2843,7 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
         licensingContext_ == nullptr)
     {
         retireAcceptedClient(RuntimeHostError::AuthenticationRejected);
-        return {RuntimeHostError::AuthenticationRejected, false};
+        return {lastError_, false};
     }
 
     const bool readable = std::exchange(acceptedClientReadable_, false);
@@ -2813,7 +2859,7 @@ RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
     };
     const auto peerFailure = [this](RuntimeHostError error) noexcept {
         retireAcceptedClient(error);
-        return RuntimeHostResult{error, false};
+        return RuntimeHostResult{lastError_, false};
     };
     const auto admissionRequest = [this]() noexcept
         -> std::optional<

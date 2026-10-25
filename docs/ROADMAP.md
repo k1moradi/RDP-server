@@ -344,52 +344,81 @@ separate `r9-clean-windows-portable-gui` workflow job was still queued and
 is not used as R9 authentication-candidate evidence. Physical retry:
 **NOT RUN**.
 
-## R10 P0 — phase-owned Type-2 EOF classification and same-listener retry — 2026-10-25
+## R10 P0 — peer interruption outcome and same-listener authentication lifetime — 2026-10-25
 
-**Assignment parent:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
-**Reconciled parent:** `539006a762489a865c491be5cf1bf1937fec1e29`.
-Owner Linux evidence on the assignment SHA is **975/975 PASS**. The real
-Microsoft Windows App attempt reached TLS -> raw Direct NTLM Type 1 -> server
-Type 2 -> **peer EOF**, with no Type 3. It did not reach
-`CredentialsVerified` or native Admission; the old
-`stage=admission; admission=none` result was a classification defect.
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+Owner Linux/X11 evidence is local CTest **980/980 PASS** plus the physical
+path: TCP PASS -> X.224/HYBRID PASS -> TLS PASS -> raw Direct NTLM Type 1 PASS
+-> server Type 2 completely delivered -> client Type 3 **NOT RECEIVED** ->
+peer EOF. Native Admission, MCS and graphics/native desktop were **NOT
+REACHED**. The retained authentication boundary is
+`peer-closed-after-type2` with
+`NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`.
 
-Concurrent R8/R3/R7/R5/R4 work and the R6 Type-2 wire correction are preserved.
-R10 classifies the interrupted authentication phase from the existing CredSSP
-stage, immutable envelope and `LinuxRuntimeAuthenticationProgress`.
-Type-2-delivered DirectNtlm EOF is
-`NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`;
-CredSSP remains `Closed` because the terminal event is peer EOF.
-`AwaitBinding` maps to pubKeyAuth and `ServerBindingReplyQueued` to authInfo.
-A missing failure stage never defaults to Admission; `issueAdmission()` remains
-the owner of genuine post-`CredentialsVerified` Admission failure.
+R10 preserves that detailed classification and separates the host outcome from
+actual authentication rejection. A provisional `AuthenticationRejected`
+retirement is rewritten to the appended diagnostic-only
+`AuthenticationIncompletePeerClosed` only when the existing connection
+snapshot proves DirectNtlm, exact Type-2 delivery, `NtlmChallenge`,
+`PreAdmission`, admission None and a peer-driven EOF/reset/TLS close.
+Malformed Type 3/NTLM proof rejection remains `AuthenticationRejected`;
+a later path that reaches CredentialsVerified and fails genuine native
+Admission also remains `AuthenticationRejected` and carries its concrete
+typed admission reason. Local cancellation, timeout and transport/TLS/protocol
+failure are not reclassified. The returned HostControl result and retained
+status use the same effective outcome.
 
-The registered production-backed CTest
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` now
-covers the required retry: peer 1 Type 1 -> corrected Type 2 -> EOF; listener,
-Sharing authority and Session Password survive; peer 2 receives a fresh
-challenge, completes Type 3 + pubKeyAuth + authInfo to `CredentialsVerified`,
-then reaches the genuine native-admission attempt. The R9 sanitizer lane
-executes this fixture mode directly. R7 consumes the corrected
-`NtlmNegotiation` tuple while retaining safe compatibility with the immediately
-preceding `None` tuple. R4's complete pre-admission graphics-dormancy
-assertions remain intact.
+No duplicate phase owner is added. R10's exact diagnostic progression is
+composed from the existing authentication progress, Type-2 queued/delivered
+receipts, CredSSP transition and protocol stage: initial awaiting-token; Direct
+NTLM/Type-2 queued; Type-2 delivered + `NtlmChallenge` while awaiting Type 3;
+`NtlmAuthenticate` once Type 3 is received; `CredSspBinding` for the
+combined Type-3/pubKeyAuth verification/server-binding reply boundary;
+`CredentialDelegation` after that reply while awaiting authInfo;
+`Authenticated` only at CredentialsVerified; then the independent native
+Admission/post-admission protocol stages. The combined final CredSSP request is
+not split into fabricated authority states that the owning security component
+does not expose.
 
-This R10 increment does **not** modify the Type-2 encoder. It preserves the
-concurrent R6 correction at `df0f980c42e65a3727c06f4b819d0cddc70b1d34`,
-which emits a bounded portable server TargetName and REQUEST_TARGET with
-TARGET_TYPE_SERVER. No logind/native-admission policy, MCS, graphics or
-clipboard implementation changes here.
+The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` keeps
+the stronger concurrent R1/R8/R3 wait/lifetime/dormancy guarantees: a committed
+Type 2 may remain in AwaitType3 until the ordinary pre-auth deadline, a
+peer-driven close retires only that accepted connection, a fresh same-listener
+connection receives a fresh challenge, and a later peer can complete Type 3 +
+pubKeyAuth + authInfo through CredentialsVerified before genuine native
+Admission. New dedicated CTest
+`runtime.linux-type2-peer-close-distinct-from-authentication-rejection`
+separately compares peer interruption, malformed-Type-3 rejection and
+post-CredentialsVerified native-Admission denial. Ordinary Stop -> Start still
+retains the memory-only Session Password but requires a fresh owner-sharing
+grant and fresh listener/TLS lifetime; same-port restart semantics are
+unchanged.
 
-**Verification:** assignment-parent owner CTest **975/975 PASS**. Connector
-source/reconciliation review: **PASS**. Modified-tree local build/focused/full
-CTest: **NOT RUN** here. The R9 exact-SHA hosted qualification subset is
-**PASS** on `4d697c9730b809c0209955ea3dd053a22a87c4ed` in Actions run
-`40213510943`, including the portable TargetName test, dedicated EOF/retry
-fixture and Start -> Stop -> Start path. Physical Microsoft-client retry:
-**NOT RUN**. **Next gate:** repeat Windows App on that exact candidate; if it
-still closes before Type 3, inspect only the next demonstrated NTLM
-compatibility boundary.
+The upstream dependency graph has advanced: Microsoft-native
+`security.windows-sspi-production-type2-interop`, the independent outer
+TSRequest oracle, and the exact-SHA R9 owner-candidate aggregation are present
+on main. A concurrent CTest naming defect that prevented hosted configuration
+from reaching those gates has also been repaired. These are prerequisites for
+physical nomination, not blockers for this R10 code publication; source
+presence and a repaired workflow are still not Type-3 evidence.
+
+R7 consumes the new internal host outcome without exposing extra protocol state:
+Main still says remote authentication did not complete and Advanced continues
+to use the already-qualified delivered-challenge diagnostic. Linux native
+admission, MCS, graphics and clipboard production behavior are unchanged.
+
+**Verification for this publication:** connector source/reconciliation review
+**PASS**. Modified-tree build, focused CTest and full CTest: **NOT RUN** in this
+connector environment; exact-publication-SHA hosted CI: **PENDING**. The
+owner-reported 980/980 and physical trace above predate this publication and
+remain evidence for the demonstrated boundary only.
+
+**Required next-owner gate:** do not nominate another Linux physical candidate
+until the exact-SHA R9 owner-candidate prerequisite gate has real PASS evidence,
+including Microsoft SSPI consuming the untouched production Type 2 and emitting
+a Type 3 Authenticate message. After that, the next Linux physical run asks
+only whether Windows App sends Type 3 after the server challenge.
 
 ## R4 P2 — remain blocked before graphics after Type-2 peer EOF (2026-10-25)
 

@@ -1020,11 +1020,35 @@ struct PeerResult final
     return badClientRetired(control.status());
 }
 
+[[nodiscard]] bool pumpUntilNewAttemptRetired(
+    LinuxRuntimeHostControl& control,
+    const std::atomic<bool>& peerFinished) noexcept
+{
+    bool acceptedCurrentAttempt = false;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const RuntimeHostStatus status = control.status();
+        acceptedCurrentAttempt =
+            acceptedCurrentAttempt || !status.activeClients.empty();
+        if (acceptedCurrentAttempt && badClientRetired(status))
+            return true;
+        if (peerFinished.load(std::memory_order_acquire))
+            return false;
+        (void)control.serviceOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return acceptedCurrentAttempt && badClientRetired(control.status());
+}
+
 [[nodiscard]] bool directTypeTwoPeerEofRemainsPreAdmission(
     const RuntimeHostStatus& status) noexcept
 {
     const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
-    return status.listenerAvailable &&
+    return status.lastError ==
+               RuntimeHostError::AuthenticationIncompletePeerClosed &&
+           status.listenerAvailable &&
            status.clientDisconnected &&
            status.activeClients.empty() &&
            diagnostics.available &&
@@ -1085,7 +1109,8 @@ struct PeerResult final
 [[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
     const RuntimeHostStatus& status) noexcept
 {
-    return status.listenerAvailable &&
+    return status.lastError == RuntimeHostError::AuthenticationRejected &&
+           status.listenerAvailable &&
            status.clientDisconnected &&
            status.activeClients.empty() &&
            status.acceptedClientPreauthDiagnostics.available &&
@@ -1231,8 +1256,11 @@ int main(int argc, char** argv)
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
     const bool typeTwoTimeoutOnly =
         testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
+    const bool peerCloseClassificationOnly =
+        testCase ==
+            "type2-peer-close-distinct-from-authentication-rejection";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
-        !typeTwoTimeoutOnly)
+        !typeTwoTimeoutOnly && !peerCloseClassificationOnly)
     {
         return 2;
     }
@@ -1415,7 +1443,7 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    if (typeTwoPeerEofOnly)
+    if (typeTwoPeerEofOnly || peerCloseClassificationOnly)
     {
         std::atomic<bool> typeTwoReceived{false};
         std::atomic<bool> closeAfterTypeTwo{false};
@@ -1496,6 +1524,79 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.product.credentialsConfigured);
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
+
+        if (peerCloseClassificationOnly)
+        {
+            // A malformed Type 3 is a real authentication rejection, unlike
+            // the preceding peer-driven interruption after a delivered Type 2.
+            // Observe the new accepted lifetime before accepting its terminal
+            // snapshot so stale peer-1 diagnostics cannot satisfy this gate.
+            std::atomic<bool> releaseRejected{false};
+            std::atomic<bool> rejectedFinished{false};
+            PeerResult rejectedResult;
+            std::thread rejectedPeer([&] {
+                rejectedResult = runDirectNtlmPeer(
+                    recommendation.address, selectedPort, false, 0x20U,
+                    releaseRejected);
+                rejectedFinished.store(true, std::memory_order_release);
+            });
+            assert(pumpUntilNewAttemptRetired(control, rejectedFinished));
+
+            const auto afterRejectedTypeThree = control.status();
+            assert(afterRejectedTypeThree.lastError ==
+                   RuntimeHostError::AuthenticationRejected);
+            assert(afterRejectedTypeThree.listenerAvailable);
+            assert(afterRejectedTypeThree.listenerGeneration ==
+                   firstListenerGeneration);
+            assert(afterRejectedTypeThree.hostOwnerAuthorized);
+            assert(afterRejectedTypeThree.product.ownerAuthorized);
+            assert(afterRejectedTypeThree.product.credentialsConfigured);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .authenticationStage ==
+                   RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .protocolStage ==
+                   RuntimeAcceptedClientProtocolStage::PreAdmission);
+            assert(!afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                        .mcsSessionAdvanced);
+            assert(!afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                        .shareActivated);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .admissionFailureReason ==
+                   RuntimeAcceptedClientAdmissionFailureReason::None);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .directNtlmTypeTwoDelivered);
+            assert(control.standaloneApplicationPasswordObservation().generation ==
+                   credential.generation);
+
+            releaseRejected.store(true, std::memory_order_release);
+            rejectedPeer.join();
+            assert(rejectedResult.passed);
+            assert(rejectedResult.directTypeTwoReceived);
+            assert(!rejectedResult.authInfoSent);
+
+            // A later fully verified credential exchange reaches the separate
+            // native Admission boundary. Its denial remains AuthenticationRejected
+            // and carries a concrete admission reason.
+            const PeerResult admissionDeniedResult = runAdmissionDeniedPeer(
+                control, recommendation.address, selectedPort, 0x30U,
+                firstListenerGeneration, credential.generation);
+            assert(challengesDiffer(
+                peerResult.serverChallenge,
+                rejectedResult.serverChallenge));
+            assert(challengesDiffer(
+                rejectedResult.serverChallenge,
+                admissionDeniedResult.serverChallenge));
+
+            assert(control.stopSharing().succeeded());
+            const auto retainedCredential =
+                control.standaloneApplicationPasswordObservation();
+            assert(retainedCredential.configured);
+            assert(retainedCredential.generation == credential.generation);
+            assert(control.revokeSharing().succeeded());
+            assert(!control.standaloneApplicationPasswordObservation().configured);
+            return 0;
+        }
 
         // R8 stale-lifetime gate: observe the next accepted connection before
         // it can send Type 3. Native/clipboard construction is GraphicsReady-

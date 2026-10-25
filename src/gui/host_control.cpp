@@ -360,13 +360,19 @@ HostStatus HostControl::status() const
         isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);
     view.localDesktopAuthorizationFailed =
         localDesktopAuthorizationFailed;
+    const bool incompletePeerAuthentication =
+        runtimeStatus.lastError ==
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
     view.remoteAuthenticationIncomplete =
-        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
+        (incompletePeerAuthentication ||
+         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected) &&
         !localDesktopAuthorizationFailed &&
         isRemoteAuthenticationIncompleteBeforeAdmission(
             authenticationDiagnostics);
 
     if ((runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
+         runtimeStatus.lastError ==
+             RuntimeHostError::AuthenticationIncompletePeerClosed ||
          runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited) &&
         !localDesktopAuthorizationFailed)
     {

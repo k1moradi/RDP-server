@@ -49,9 +49,12 @@ enum class RuntimeHostError : std::uint8_t
     AuthenticationRejected, ShareActivationUnavailable, GraphicsUnavailable,
     ClientNotFound, AccessRevoked, InternalFailure,
     // GUI-facing terminal session freshness and rate-limit observations.
-    // Appended to retain existing numeric enum values; neither authorizes a
+    // Appended values retain existing numeric enum values; none authorizes a
     // listener, verified identity, owner consent, native lease or R3 state.
-    HostSessionStale, AuthenticationRateLimited
+    HostSessionStale, AuthenticationRateLimited,
+    // The peer ended an incomplete authentication exchange. This is distinct
+    // from credential/proof rejection and from post-credential native denial.
+    AuthenticationIncompletePeerClosed
 };
 
 // Map only bounded error codes to fixed redacted messages, never raw peer,
@@ -84,6 +87,8 @@ enum class RuntimeHostError : std::uint8_t
         return "Host desktop session changed; fresh authorization required";
     case RuntimeHostError::AuthenticationRateLimited:
         return "Authentication temporarily rate-limited";
+    case RuntimeHostError::AuthenticationIncompletePeerClosed:
+        return "Client authentication did not complete";
     }
     return "Host operation failed";
 }

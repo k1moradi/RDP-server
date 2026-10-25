@@ -1,3 +1,49 @@
+## R10 incomplete-peer host outcome separation — 2026-10-25
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+Owner-reported Linux/X11 local CTest is **980/980 PASS**. Physical evidence:
+TCP PASS; X.224/HYBRID PASS; TLS PASS; raw Direct NTLM Type 1 PASS; server
+Type 2 completely delivered; client Type 3 **NOT RECEIVED**; peer EOF; native
+Admission, MCS and graphics/native desktop **NOT REACHED**. The bounded trace is
+Type-1 flags `0xe2088235`, Type-2 flags `0xe08a8235`, TargetName 10 UTF-16
+code units, TargetInfo 50 bytes, Type-2 total 126 bytes, AV IDs
+`2,1,7,0`, server-target/name present, `direct-ntlm-type2=delivered` and
+`pre-type3-termination=peer-eof-before-type3`.
+
+R10 source review found one remaining lifecycle taxonomy defect: the retained
+detailed diagnostics correctly said `peer-closed-after-type2` and
+`admission=None`, but HostControl still stored/returned
+`AuthenticationRejected`. This publication adds the appended
+`AuthenticationIncompletePeerClosed` outcome and derives it only from the
+existing delivered-Type-2/NtlmChallenge/PreAdmission/admission-none plus
+peer-driven termination facts. Malformed Type 3 and genuine native-Admission
+denial remain AuthenticationRejected. Listener, current owner grant and
+configured memory-only Session Password survive the interrupted peer.
+
+The existing Type-2 EOF production lifecycle is strengthened to require the new
+host outcome while preserving concurrent R1 wait ownership, R8/R3 pre-Type-3
+dormancy and the later Type-3/pubKeyAuth/authInfo retry. New registered CTest
+`runtime.linux-type2-peer-close-distinct-from-authentication-rejection`
+compares peer-close, malformed-Type-3 rejection and native-Admission denial on
+one listener. The portable error-message test and existing offscreen
+authentication-incomplete GUI case consume the new outcome without changing
+product wording. No Linux native-admission, MCS, graphics or clipboard
+production code is changed.
+
+Current shared main also contains Microsoft-native
+`security.windows-sspi-production-type2-interop`, the independent outer
+TSRequest conformance oracle, the explicit R9 exact-SHA candidate aggregation,
+and the functional CTest-name correction needed for hosted configuration to
+reach those tests. GitHub connector status at this review still exposes no
+completed workflow/status receipt for the current head, so the Microsoft Type-3
+evidence gate remains **PENDING**. That blocks physical Linux candidate
+nomination, not this lifecycle classification change.
+
+Connector source/reconciliation review: **PASS**. Modified-tree compile,
+focused CTest and full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. No new Linux physical candidate
+is nominated.
+
 ## R9 outer CredSSP oracle and candidate-gate authoring — 2026-10-25
 
 **Reconciled publication parent:** `d19743147da7b076fc410a3d9a808966fac57734`. Owner assignment evidence remains

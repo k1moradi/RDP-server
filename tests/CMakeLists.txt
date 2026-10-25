@@ -490,6 +490,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # A delivered Type 2 followed by peer close is an incomplete exchange,
+    # distinct from malformed Type 3 rejection and later native Admission denial.
+    add_test(
+        NAME runtime.linux-type2-peer-close-distinct-from-authentication-rejection
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            type2-peer-close-distinct-from-authentication-rejection)
+    set_tests_properties(
+        runtime.linux-type2-peer-close-distinct-from-authentication-rejection
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     add_test(
         NAME runtime.linux-direct-ntlm-type2-waits-for-preauth-timeout
         COMMAND test_linux_runtime_direct_ntlm_lifecycle

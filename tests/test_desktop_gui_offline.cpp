@@ -1524,7 +1524,8 @@ int main(int argc, char** argv)
 
     if (mode == "authentication-incomplete-before-native-admission")
     {
-        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
         runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
         runtime.snapshot.listenerAvailable = true;
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
@@ -1621,6 +1622,7 @@ int main(int argc, char** argv)
         // Older retained snapshots incorrectly rewrote this same peer EOF as
         // Admission with no typed admission reason. R7 must still fail toward
         // authentication presentation rather than invent native authorization.
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
         runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
             RuntimeAcceptedClientCredSspTransition::Failed;
         runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =

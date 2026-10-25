@@ -1,3 +1,36 @@
+## R10 peer-close versus authentication-rejection taxonomy gate (2026-10-25)
+
+Keep the existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` gate and
+require its retired Type-2/EOF snapshots to expose
+`RuntimeHostError::AuthenticationIncompletePeerClosed`, while retaining
+`NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`.
+The listener generation, current owner grant and configured Session Password
+generation remain unchanged, and the strengthened R1/R8/R3 wait and
+next-connection dormancy sequence plus later successful synthetic
+Type-3/pubKeyAuth/authInfo retry remain part of that same test.
+
+Also register the dedicated production-backed behavior CTest
+`runtime.linux-type2-peer-close-distinct-from-authentication-rejection`.
+It must prove three separate connection-local outcomes on one unchanged
+listener: (1) delivered Type 2 followed by peer EOF becomes
+`AuthenticationIncompletePeerClosed` with no admission reason; (2) a fresh
+peer that sends a malformed Type 3 becomes `AuthenticationRejected` at the
+NTLM-authenticate boundary, still with admission None and no current MCS/Share
+state; and (3) a fresh peer that completes Type 3, pubKeyAuth and authInfo to
+CredentialsVerified and is then denied by genuine native Admission remains
+`AuthenticationRejected` with a concrete admission reason. Observe each fresh
+accepted lifetime before allowing a retained terminal predicate to pass, so
+stale diagnostics cannot satisfy the test.
+
+The portable HostControl error test pins the fixed redacted message
+`Client authentication did not complete`. The existing offscreen GUI
+authentication-incomplete regression consumes the new error for the corrected
+tuple but keeps the same Main/Advanced product wording and separately retains
+the old AuthenticationRejected/no-admission-reason tuple as backward-safe
+presentation input. No test may use this new error to mint credentials, owner
+consent, native admission, MCS, graphics or clipboard authority.
+
 ## R9 outer TSRequest oracle and owner-candidate prerequisite (2026-10-25)
 
 Agent 6 supplies the Windows-only primary inner-NTLM oracle

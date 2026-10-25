@@ -1,3 +1,37 @@
+## R10 peer interruption is not authentication rejection (2026-10-25)
+
+A peer-driven close after a completely delivered Direct NTLM Type 2 and before
+Type 3 is an incomplete authentication exchange, not a rejected credential,
+failed NTLM proof or native Admission denial. R10 may project
+`AuthenticationIncompletePeerClosed` only from the existing authoritative
+connection snapshot when all of these are true: DirectNtlm is selected, Type 2
+has the exact delivered receipt, the retained stage is `NtlmChallenge`,
+protocol is `PreAdmission`, admission reason is `None`, and R1 reports a
+peer-driven EOF/reset/TLS close. Local cancellation, timeout, TLS/protocol
+failure, malformed Type 3 and post-CredentialsVerified Admission denial are not
+eligible for this reclassification. The derived host error is diagnostic only
+and grants no retry, identity, consent, native or protocol authority.
+
+Do not add a second authentication state machine to spell every human-readable
+phase. The exact runtime progression is the composition of the existing
+single-owner facts: CredSSP awaiting-token before the first negotiation token;
+DirectNtlm plus the Type-2 queued receipt; `NtlmChallenge` plus delivered
+receipt while awaiting Type 3; `NtlmAuthenticate` once Type 3 is observed;
+`CredSspBinding` while the combined Type-3/pubKeyAuth result is verified and
+the server binding reply is pending; `CredentialDelegation` after that reply
+is delivered while authInfo is awaited; `Authenticated` only after exact
+credentials verification; and the independent protocol stage for native
+Admission/post-admission. MS-CSSP permits Type 3 and pubKeyAuth in one final
+TSRequest, so do not fabricate a transient authority boundary that the owning
+CredSSP implementation cannot independently observe.
+
+Retiring only the failed/interrupted accepted connection must leave a valid
+listener, current owner-sharing grant and configured memory-only Session
+Password intact. Ordinary Stop still revokes the owner grant and listener/native
+connection state while retaining that credential generation; the next Start
+requires fresh local sharing authorization and preserves the existing same-port
+restart contract.
+
 ## R1 committed Type-2 pre-Type-3 transport ownership (2026-10-25)
 
 For Direct NTLM, keep one monotonic diagnostic progression on the existing

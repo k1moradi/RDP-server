@@ -1,3 +1,25 @@
+## Native-admission reasons are diagnostics, never capabilities (2026-10-24)
+
+After credentials are verified, preserve the first failed native-admission
+predicate as a bounded non-secret enum. Evidence inspection may distinguish
+account lookup/identity, console availability/activity/physicality, session
+identity, seat/display, console-owner UID, freshness and policy. The admission
+owner may additionally distinguish local owner consent, exact HYBRID/TLS
+provenance, authenticated-proof continuity, request validity, session-change
+monitor state, policy-generation replacement, native-proof completion and the
+final CredSSP admission handoff.
+
+Detailed classification must not widen authority. `CandidateOnly` remains
+non-authorizing, broker denial remains terminal, and only a successfully minted
+lease authorizes downstream work. Never bypass logind, trust process
+`DISPLAY`, accept a mismatched UID, map a remote standalone username into a
+Unix identity, or enable OS-GSS fallback to make an admission reason disappear.
+
+Standalone application username and local native owner are independent facts.
+The existing GUI local-account Username hint is presentation-only. Never
+retrieve or auto-fill the OS account password; Session Password remains a
+separate user-entered application credential.
+
 ## Start-versus-admission evidence is observable but never cached (2026-10-24)
 
 The physical Microsoft-client boundary is native `stage=admission`; do not

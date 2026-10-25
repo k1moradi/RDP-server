@@ -57,6 +57,63 @@ using rdp_server::server::transport::attachNonblockingTcpBio;
 using rdp_server::server::transport::kRdpProtocolHybrid;
 using rdp_server::server::transport::kRdpProtocolSsl;
 
+namespace rdp_server::server::security
+{
+struct LinuxConsoleAdmissionBrokerTestAccess final
+{
+    static bool prepare(
+        LinuxConsoleAdmissionBroker &broker,
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t &policyGeneration) noexcept
+    {
+        broker.lastAdmissionFailureReason_ =
+            LinuxConsoleAdmissionFailureReason::None;
+        return broker.prepareAdmission(
+            principalProof, connection, request, policyGeneration);
+    }
+
+    static std::optional<LinuxConsoleAdmissionLease> complete(
+        LinuxConsoleAdmissionBroker &broker,
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration,
+        ConsoleOsEvidenceSource &evidenceSource,
+        std::unique_ptr<ConsoleSessionChangeSource> changes,
+        bool monitorAvailable = true) noexcept
+    {
+        if (!changes)
+            return std::nullopt;
+        return broker.issueWithSources(
+            principalProof, connection, request, policyGeneration,
+            evidenceSource, *changes, monitorAvailable, nullptr, nullptr);
+    }
+
+    static std::optional<LinuxConsoleAdmissionLease> issueWithSources(
+        LinuxConsoleAdmissionBroker &broker,
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        ConsoleOsEvidenceSource &evidenceSource,
+        std::unique_ptr<ConsoleSessionChangeSource> changes,
+        bool monitorAvailable = true) noexcept
+    {
+        std::uint64_t policyGeneration = 0U;
+        if (!prepare(
+                broker, principalProof, connection, request,
+                policyGeneration))
+        {
+            return std::nullopt;
+        }
+        return complete(
+            broker, principalProof, connection, request, policyGeneration,
+            evidenceSource, std::move(changes), monitorAvailable);
+    }
+};
+} // namespace rdp_server::server::security
+
 namespace
 {
 
@@ -170,7 +227,11 @@ class R1DiagnosticTlsFixture final
 public:
     explicit R1DiagnosticTlsFixture(
         std::span<const std::uint8_t> request,
-        bool completeTlsHandshake)
+        bool completeTlsHandshake,
+        rdp_server::server::transport::SecurityNegotiationPolicy
+            negotiationPolicy =
+                rdp_server::server::transport::
+                    SecurityNegotiationPolicy::DiagnosticTlsOnly)
     {
         listener_.reset(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
         assert(listener_.value() >= 0);
@@ -216,7 +277,7 @@ public:
         assert(accepted.connection.valid());
 
         connection_ = std::make_unique<OwnedPreauthTcpConnection>(
-            std::move(accepted.connection));
+            std::move(accepted.connection), negotiationPolicy);
         clientIo_ = std::make_unique<NativeTcpIo>(
             static_cast<std::uintptr_t>(client_.value()));
         assert(connection_->active());
@@ -248,8 +309,14 @@ public:
         std::array<std::uint8_t, 19> response{};
         receiveAll(*clientIo_, response);
         assert(response[11] == 0x02);
+        const auto expectedProtocol =
+            negotiationPolicy ==
+                    rdp_server::server::transport::
+                        SecurityNegotiationPolicy::HybridNla
+                ? kRdpProtocolHybrid
+                : kRdpProtocolSsl;
         assert(response[15] ==
-               static_cast<std::uint8_t>(kRdpProtocolSsl));
+               static_cast<std::uint8_t>(expectedProtocol));
         assert(response[16] == 0 && response[17] == 0 && response[18] == 0);
 
         createTlsObjects();
@@ -525,6 +592,392 @@ public:
         return accountReads == 0 && sessionReads == 0 && clockReads == 0;
     }
 };
+
+class DetailedConsoleEvidenceSource final : public ConsoleOsEvidenceSource
+{
+public:
+    ConsoleAccountObservation account{
+        ConsoleEvidenceReadStatus::Observed, "alice", 1001U};
+    ConsoleSessionObservation session{
+        ConsoleEvidenceReadStatus::Observed,
+        "c2", "seat0", ":0", 1001U, 4U, 1000U, true, true,
+        1001U, ConsoleDesktopLockState::Unlocked, false};
+    std::optional<std::uint64_t> now{1001U};
+
+    [[nodiscard]] ConsoleAccountObservation readUnixAccount(
+        std::string_view) noexcept override
+    {
+        return account;
+    }
+
+    [[nodiscard]] ConsoleSessionObservation readActiveConsole() noexcept override
+    {
+        return session;
+    }
+
+    [[nodiscard]] std::optional<std::uint64_t>
+    readMonotonicMilliseconds() noexcept override
+    {
+        return now;
+    }
+
+    void reset() noexcept
+    {
+        account = {ConsoleEvidenceReadStatus::Observed, "alice", 1001U};
+        session = {
+            ConsoleEvidenceReadStatus::Observed,
+            "c2", "seat0", ":0", 1001U, 4U, 1000U, true, true,
+            1001U, ConsoleDesktopLockState::Unlocked, false};
+        now = 1001U;
+    }
+};
+
+class DeterministicSessionChangeSource final : public ConsoleSessionChangeSource
+{
+public:
+    explicit DeterministicSessionChangeSource(
+        ConsoleSessionChange change = ConsoleSessionChange::None) noexcept
+        : change_(change) {}
+
+    [[nodiscard]] ConsoleSessionChange pollChange() noexcept override
+    {
+        return change_;
+    }
+
+private:
+    ConsoleSessionChange change_;
+};
+
+class DeterministicStandaloneProof final : public LinuxAuthenticatedPrincipalProof
+{
+public:
+    DeterministicStandaloneProof(
+        std::string_view remoteApplicationUsername,
+        bool pendingMatches = true,
+        bool completionSucceeds = true) noexcept
+        : remoteApplicationUsername_(remoteApplicationUsername),
+          pendingMatches_(pendingMatches),
+          completionSucceeds_(completionSucceeds) {}
+
+    [[nodiscard]] std::string_view remoteApplicationUsername() const noexcept
+    {
+        return remoteApplicationUsername_;
+    }
+
+    [[nodiscard]] bool pendingNativeAdmissionMatches(
+        const OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override
+    {
+        return !revoked_ && !completed_ && pendingMatches_ &&
+               policyGeneration != 0U &&
+               connection.establishedTls() != nullptr &&
+               request.authenticationKind ==
+                   ConsoleEvidenceAuthenticationKind::StandalonePassword &&
+               request.kerberosPrincipal.empty();
+    }
+
+    [[nodiscard]] bool completeNativeAdmission(
+        const OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) noexcept override
+    {
+        if (!completionSucceeds_ ||
+            !pendingNativeAdmissionMatches(
+                connection, request, policyGeneration))
+        {
+            return false;
+        }
+        completed_ = true;
+        return true;
+    }
+
+    [[nodiscard]] bool revalidatesNativeAdmission(
+        const SSL *activeServerTls,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration) const noexcept override
+    {
+        return !revoked_ && completed_ && activeServerTls != nullptr &&
+               policyGeneration != 0U &&
+               request.authenticationKind ==
+                   ConsoleEvidenceAuthenticationKind::StandalonePassword &&
+               request.kerberosPrincipal.empty();
+    }
+
+    void revokeAuthenticatedProof() noexcept override { revoked_ = true; }
+
+private:
+    std::string_view remoteApplicationUsername_;
+    bool pendingMatches_{true};
+    bool completionSucceeds_{true};
+    bool completed_{};
+    bool revoked_{};
+};
+
+void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
+{
+    using Failure = LinuxConsoleAdmissionFailureReason;
+    using EvidenceReason = ConsoleEvidenceDenialReason;
+    using TestAccess =
+        rdp_server::server::security::LinuxConsoleAdmissionBrokerTestAccess;
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.addStandaloneNativeRule(
+               {{}, "alice", "seat0", ":0", 1001U,
+                kConsoleViewPermission}) == ConsoleRuleError::None);
+
+    const ConsoleEvidenceRequest baseRequest{
+        {}, "alice", "seat0", ":0", kConsoleViewPermission,
+        ConsoleEvidenceAuthenticationKind::StandalonePassword};
+
+    DetailedConsoleEvidenceSource nativeEvidence;
+    ConsoleOsEvidenceInspector inspector;
+    const auto expectEvidenceDenial =
+        [&](EvidenceReason expected, const ConsoleEvidenceRequest &request) {
+            ConsoleCandidateSessionFingerprint fingerprint{};
+            const auto result =
+                inspector.inspectWithSessionFingerprintDetailed(
+                    policy, request, nativeEvidence, fingerprint);
+            assert(result.match == ConsoleEvidenceMatch::Denied);
+            assert(result.denialReason == expected);
+            assert(fingerprint.sessionIdLength == 0U);
+            nativeEvidence.reset();
+        };
+
+    auto invalidRequest = baseRequest;
+    invalidRequest.unixAccount = {};
+    expectEvidenceDenial(EvidenceReason::AdmissionRequestInvalid,
+                         invalidRequest);
+    nativeEvidence.account.status = ConsoleEvidenceReadStatus::Unavailable;
+    expectEvidenceDenial(EvidenceReason::AccountEvidenceUnavailable,
+                         baseRequest);
+    nativeEvidence.account.uid = 1002U;
+    expectEvidenceDenial(EvidenceReason::AccountIdentityMismatch,
+                         baseRequest);
+    nativeEvidence.session.status = ConsoleEvidenceReadStatus::Unavailable;
+    expectEvidenceDenial(EvidenceReason::ConsoleSessionUnavailable,
+                         baseRequest);
+    nativeEvidence.session.active = false;
+    expectEvidenceDenial(EvidenceReason::ConsoleNotActive, baseRequest);
+    nativeEvidence.session.physical = false;
+    expectEvidenceDenial(EvidenceReason::ConsoleNotPhysical, baseRequest);
+    nativeEvidence.session.sessionGeneration = 0U;
+    expectEvidenceDenial(EvidenceReason::ConsoleSessionInvalid, baseRequest);
+    nativeEvidence.session.seat = "seat1";
+    expectEvidenceDenial(EvidenceReason::SeatMismatch, baseRequest);
+    nativeEvidence.session.display = ":1";
+    expectEvidenceDenial(EvidenceReason::DisplayMismatch, baseRequest);
+    nativeEvidence.session.ownerUid = 1002U;
+    expectEvidenceDenial(EvidenceReason::ConsoleOwnerMismatch, baseRequest);
+    nativeEvidence.now = 4001U;
+    expectEvidenceDenial(EvidenceReason::EvidenceTooOld, baseRequest);
+    auto policyMismatchRequest = baseRequest;
+    policyMismatchRequest.requestedPermissions =
+        kConsoleViewPermission | kConsoleInputPermission;
+    expectEvidenceDenial(EvidenceReason::PolicyMismatch,
+                         policyMismatchRequest);
+
+    ConsoleCandidateSessionFingerprint fingerprint{};
+    const auto detailedPositive =
+        inspector.inspectWithSessionFingerprintDetailed(
+            policy, baseRequest, nativeEvidence, fingerprint);
+    assert(detailedPositive.match == ConsoleEvidenceMatch::CandidateOnly);
+    assert(detailedPositive.denialReason == EvidenceReason::None);
+    assert(fingerprint.accountUid == 1001U);
+    assert(fingerprint.consoleOwnerUid == 1001U);
+    assert(fingerprint.sessionGeneration == 4U);
+
+    DetailedConsoleEvidenceSource ownerEvidence;
+    CurrentOwnerSharingAuthority ownerAuthority(ownerEvidence);
+    assert(ownerAuthority.requestConsent(
+               {kConsoleViewPermission | kConsoleInputPermission, 10'000U}) ==
+           OwnerConsentRequestResult::Granted);
+
+    R1DiagnosticTlsFixture hybrid{
+        kDiagnosticSslAndHybridRequest, true,
+        rdp_server::server::transport::
+            SecurityNegotiationPolicy::HybridNla};
+    assert(hybrid.connection().establishedTls() != nullptr);
+    assert(hasHybridNlaNegotiationProvenance(
+        hybrid.connection().securityNegotiationProvenance()));
+
+    const auto expectBrokerFailure =
+        [&](Failure expected,
+            ConsoleIdentityPolicy &candidatePolicy,
+            const ConsoleEvidenceRequest &request,
+            DetailedConsoleEvidenceSource &evidence,
+            const CurrentOwnerSharingAuthority *authority,
+            bool pendingMatches,
+            bool completionSucceeds,
+            std::unique_ptr<ConsoleSessionChangeSource> changes,
+            OwnedPreauthTcpConnection &connection,
+            bool monitorAvailable = true) {
+            DeterministicStandaloneProof proof{
+                "remote-application-user",
+                pendingMatches, completionSucceeds};
+            LinuxConsoleAdmissionBroker broker(candidatePolicy, authority);
+            auto lease = TestAccess::issueWithSources(
+                broker, proof, connection, request, evidence,
+                std::move(changes), monitorAvailable);
+            assert(!lease.has_value());
+            assert(broker.lastAdmissionFailureReason() == expected);
+            assert(broker.state() == LinuxConsoleAdmissionState::Revoked);
+        };
+
+    expectBrokerFailure(
+        Failure::OwnerConsentMissing, policy, baseRequest, nativeEvidence,
+        nullptr, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        hybrid.connection());
+
+    R1DiagnosticTlsFixture tlsOnly{kDiagnosticSslAndHybridRequest, true};
+    expectBrokerFailure(
+        Failure::HybridTlsProvenanceInvalid, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        tlsOnly.connection());
+
+    expectBrokerFailure(
+        Failure::AuthenticationProofMismatch, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, false, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        hybrid.connection());
+
+    auto oversizedSeatRequest = baseRequest;
+    oversizedSeatRequest.seat = "seat00000000000000";
+    expectBrokerFailure(
+        Failure::AdmissionRequestInvalid, policy, oversizedSeatRequest,
+        nativeEvidence, &ownerAuthority, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        hybrid.connection());
+
+    expectBrokerFailure(
+        Failure::SessionMonitorUnavailable, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        hybrid.connection(), false);
+
+    expectBrokerFailure(
+        Failure::SessionChangedBeforeSample, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(
+            ConsoleSessionChange::Changed),
+        hybrid.connection());
+
+    const auto expectEvidenceBrokerFailure =
+        [&](Failure expected, auto mutateEvidence,
+            const ConsoleEvidenceRequest &request) {
+            nativeEvidence.reset();
+            mutateEvidence(nativeEvidence);
+            expectBrokerFailure(
+                expected, policy, request, nativeEvidence, &ownerAuthority,
+                true, true,
+                std::make_unique<DeterministicSessionChangeSource>(),
+                hybrid.connection());
+            nativeEvidence.reset();
+        };
+
+    expectEvidenceBrokerFailure(
+        Failure::AccountEvidenceUnavailable,
+        [](DetailedConsoleEvidenceSource &e) {
+            e.account.status = ConsoleEvidenceReadStatus::Unavailable;
+        }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::AccountIdentityMismatch,
+        [](DetailedConsoleEvidenceSource &e) { e.account.uid = 1002U; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::ConsoleSessionUnavailable,
+        [](DetailedConsoleEvidenceSource &e) {
+            e.session.status = ConsoleEvidenceReadStatus::Unavailable;
+        }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::ConsoleNotActive,
+        [](DetailedConsoleEvidenceSource &e) { e.session.active = false; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::ConsoleNotPhysical,
+        [](DetailedConsoleEvidenceSource &e) { e.session.physical = false; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::ConsoleSessionInvalid,
+        [](DetailedConsoleEvidenceSource &e) {
+            e.session.sessionGeneration = 0U;
+        }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::SeatMismatch,
+        [](DetailedConsoleEvidenceSource &e) { e.session.seat = "seat1"; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::DisplayMismatch,
+        [](DetailedConsoleEvidenceSource &e) { e.session.display = ":1"; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::ConsoleOwnerMismatch,
+        [](DetailedConsoleEvidenceSource &e) { e.session.ownerUid = 1002U; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::EvidenceTooOld,
+        [](DetailedConsoleEvidenceSource &e) { e.now = 4001U; }, baseRequest);
+    expectEvidenceBrokerFailure(
+        Failure::PolicyMismatch,
+        [](DetailedConsoleEvidenceSource &) {},
+        policyMismatchRequest);
+
+    ConsoleIdentityPolicy generationPolicy;
+    assert(generationPolicy.addStandaloneNativeRule(
+               {{}, "alice", "seat0", ":0", 1001U,
+                kConsoleViewPermission}) == ConsoleRuleError::None);
+    DeterministicStandaloneProof generationProof{"remote-application-user"};
+    LinuxConsoleAdmissionBroker generationBroker(
+        generationPolicy, &ownerAuthority);
+    std::uint64_t capturedGeneration = 0U;
+    assert(TestAccess::prepare(
+        generationBroker, generationProof, hybrid.connection(),
+        baseRequest, capturedGeneration));
+    assert(capturedGeneration != 0U);
+    assert(generationPolicy.revokeAll());
+    auto generationLease = TestAccess::complete(
+        generationBroker, generationProof, hybrid.connection(),
+        baseRequest, capturedGeneration, nativeEvidence,
+        std::make_unique<DeterministicSessionChangeSource>());
+    assert(!generationLease.has_value());
+    assert(generationBroker.lastAdmissionFailureReason() ==
+           Failure::PolicyGenerationChanged);
+
+    expectBrokerFailure(
+        Failure::NativeProofCompletionFailed, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, true, false,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        hybrid.connection());
+
+    R1DiagnosticTlsFixture prematurelyCompletedHybrid{
+        kDiagnosticSslAndHybridRequest, true,
+        rdp_server::server::transport::
+            SecurityNegotiationPolicy::HybridNla};
+    assert(prematurelyCompletedHybrid.connection().completeCredSspAdmission());
+    expectBrokerFailure(
+        Failure::CredSspAdmissionCompletionFailed, policy, baseRequest,
+        nativeEvidence, &ownerAuthority, true, true,
+        std::make_unique<DeterministicSessionChangeSource>(),
+        prematurelyCompletedHybrid.connection());
+
+    nativeEvidence.reset();
+    DeterministicStandaloneProof positiveProof{"remote-application-user"};
+    LinuxConsoleAdmissionBroker positiveBroker(policy, &ownerAuthority);
+    auto lease = TestAccess::issueWithSources(
+        positiveBroker, positiveProof, hybrid.connection(), baseRequest,
+        nativeEvidence,
+        std::make_unique<DeterministicSessionChangeSource>());
+    assert(lease.has_value());
+    assert(positiveBroker.state() == LinuxConsoleAdmissionState::Active);
+    assert(positiveBroker.lastAdmissionFailureReason() == Failure::None);
+    assert(lease->unixAccount() == "alice");
+    assert(lease->localUid() == 1001U);
+    assert(lease->sessionGeneration() == 4U);
+
+    // Remote standalone identity is an application credential only. Native
+    // admission stays bound to the independently selected local Unix owner.
+    assert(positiveProof.remoteApplicationUsername() ==
+           "remote-application-user");
+    assert(lease->unixAccount() !=
+           positiveProof.remoteApplicationUsername());
+}
+
 
 void testStandaloneNativeAccountEvidenceCandidate()
 {
@@ -2264,6 +2717,11 @@ int main(int argc, char **argv)
         if (name == "console-evidence-standalone-native-account-candidate")
         {
             testStandaloneNativeAccountEvidenceCandidate();
+            return 0;
+        }
+        if (name == "native-admission-reason-taxonomy-and-positive-fixture")
+        {
+            testNativeAdmissionReasonTaxonomyAndPositiveFixture();
             return 0;
         }
         if (name == "gssapi-native-admission-nla-transport-provenance-denials")

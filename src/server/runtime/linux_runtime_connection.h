@@ -464,6 +464,10 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
         standaloneAuthenticationFailureStage{
             rdp_server::server::security::
                 StandaloneAuthenticationFailureStage::None};
+    rdp_server::server::security::LinuxConsoleAdmissionFailureReason
+        admissionFailureReason{
+            rdp_server::server::security::
+                LinuxConsoleAdmissionFailureReason::None};
     rdp_server::server::transport::McsSessionPhase mcsPhase{
         rdp_server::server::transport::McsSessionPhase::Closed};
     bool shareActivated{};
@@ -1250,6 +1254,10 @@ private:
         standaloneAuthenticationFailureStage_{
             rdp_server::server::security::
                 StandaloneAuthenticationFailureStage::None};
+    rdp_server::server::security::LinuxConsoleAdmissionFailureReason
+        admissionFailureReason_{
+            rdp_server::server::security::
+                LinuxConsoleAdmissionFailureReason::None};
     RuntimeTlsCertificateFingerprint negotiatedCertificateSha256_{};
     bool negotiatedCertificateFingerprintAvailable_{};
     RuntimeTlsEndpointIdentityStatus certificateExactIpSelfCheck_{

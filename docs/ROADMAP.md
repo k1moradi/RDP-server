@@ -1,3 +1,42 @@
+## Typed native-admission first-failure boundary — 2026-10-24
+
+**Reconciled parent:** `ff020dbd00622249e43038e460772325b1a46f84`. The owner-tested evidence base remains
+`9fd1db518076713f30b41af2aff023308f95a925`: local full CTest
+**966/966 PASS** and a real Microsoft client reached TLS, Direct NTLM Type 1/2
+and CredSSP before first failing at native `stage=admission`. This increment
+does not change TLS, SPNEGO or NTLM.
+
+The structural logind diagnostics already on main are retained and now gain a
+bounded typed first-failure result. `ConsoleOsEvidenceInspector` preserves
+its public `CandidateOnly/Denied` semantics while an internal detailed result
+identifies account lookup/identity, console availability/activity/physicality,
+session identity, seat/display, console-owner UID, freshness and policy.
+`LinuxConsoleAdmissionBroker` adds owner consent, exact HYBRID/TLS provenance,
+authenticated-proof mismatch, invalid request, session-monitor
+unavailable/change, policy-generation replacement, native-proof completion and
+final CredSSP admission completion. Failure still revokes; no reason is an
+authority token.
+
+A dedicated deterministic production-backed CTest covers every exposed reason
+and a positive synthetic lease with matching process/desktop-owner UID, active
+physical X11 seat0, unlocked/non-remote state, valid DISPLAY, fresh generation,
+a usable session-change monitor and standalone authenticated proof. Its remote
+application username deliberately differs from the local Unix owner; the lease
+binds only to the independently selected local UID/session. No process-DISPLAY
+trust, UID substitution, logind bypass or OS-GSS fallback is introduced.
+
+The existing safe OS-native Username default is preserved. No OS password is
+retrieved or auto-filled; Session Password remains independently user-entered.
+The new CTest is
+`security.native-admission-reason-taxonomy-and-positive-fixture` with labels
+exactly `authentication;admission;consent;security`.
+
+**Verification:** source/reconciliation review **PASS**. New owner-local
+build/full CTest: **NOT RUN** in this connector session. Exact-publication-SHA
+hosted CI: **PENDING**. **Next physical gate:** rerun the same Microsoft client
+and record `stage=admission; admission-reason=<reason>`; fix only that
+demonstrated native predicate.
+
 ## Linux physical admission evidence audit and local Username default — 2026-10-24
 
 The owner-tested baseline remains `9fd1db518076713f30b41af2aff023308f95a925`:

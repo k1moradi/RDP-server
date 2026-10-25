@@ -1,3 +1,23 @@
+## Typed post-CredSSP native-admission diagnosis (2026-10-24)
+
+The demonstrated physical path reaches native admission after TLS and Direct
+NTLM/CredSSP. `ConsoleOsEvidenceInspector` therefore has an internal detailed
+denial result while retaining its public `CandidateOnly/Denied` semantics.
+The single `LinuxConsoleAdmissionBroker` owns the next layer of
+first-failure classification and carries only a bounded enum through terminal
+denial.
+
+The connection snapshot and fail-only records retain this reason beside the
+independent last-positive protocol milestone. Admission failure remains
+pre-admission; successful lease issuance alone may advance protocol authority.
+Neither diagnostic can authorize MCS, Share, graphics, input, clipboard or
+native operations.
+
+For standalone authentication, the remote application username may differ from
+the selected Unix desktop account. Native authority remains tied only to fresh
+local physical-session evidence, explicit owner consent, exact R1 provenance,
+proof continuity and generation fences.
+
 ## R2 P0 — strict DirectNtlm envelope classification and retained diagnostics (2026-10-24)
 
 **Starting reconciled main:** `526dfb9ad05afab61f12c8264d11e80a892362b0`.

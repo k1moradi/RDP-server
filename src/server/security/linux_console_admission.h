@@ -115,6 +115,65 @@ enum class LinuxConsoleAdmissionState : std::uint8_t
     Revoked,
 };
 
+// Bounded, non-secret classification of the first failed positive-admission
+// predicate. This is diagnostic state only; it never substitutes for a lease.
+enum class LinuxConsoleAdmissionFailureReason : std::uint8_t
+{
+    None,
+    OwnerConsentMissing,
+    HybridTlsProvenanceInvalid,
+    AuthenticationProofMismatch,
+    AdmissionRequestInvalid,
+    SessionMonitorUnavailable,
+    SessionChangedBeforeSample,
+    AccountEvidenceUnavailable,
+    AccountIdentityMismatch,
+    ConsoleSessionUnavailable,
+    ConsoleNotActive,
+    ConsoleNotPhysical,
+    ConsoleSessionInvalid,
+    SeatMismatch,
+    DisplayMismatch,
+    ConsoleOwnerMismatch,
+    EvidenceTooOld,
+    PolicyMismatch,
+    PolicyGenerationChanged,
+    NativeProofCompletionFailed,
+    CredSspAdmissionCompletionFailed,
+};
+
+[[nodiscard]] constexpr std::string_view
+linuxConsoleAdmissionFailureReasonName(
+    LinuxConsoleAdmissionFailureReason reason) noexcept
+{
+    using Reason = LinuxConsoleAdmissionFailureReason;
+    switch (reason)
+    {
+    case Reason::None: return "none";
+    case Reason::OwnerConsentMissing: return "owner-consent-missing";
+    case Reason::HybridTlsProvenanceInvalid: return "hybrid-tls-provenance-invalid";
+    case Reason::AuthenticationProofMismatch: return "authentication-proof-mismatch";
+    case Reason::AdmissionRequestInvalid: return "admission-request-invalid";
+    case Reason::SessionMonitorUnavailable: return "session-monitor-unavailable";
+    case Reason::SessionChangedBeforeSample: return "session-changed-before-sample";
+    case Reason::AccountEvidenceUnavailable: return "account-evidence-unavailable";
+    case Reason::AccountIdentityMismatch: return "account-identity-mismatch";
+    case Reason::ConsoleSessionUnavailable: return "console-session-unavailable";
+    case Reason::ConsoleNotActive: return "console-not-active";
+    case Reason::ConsoleNotPhysical: return "console-not-physical";
+    case Reason::ConsoleSessionInvalid: return "console-session-invalid";
+    case Reason::SeatMismatch: return "seat-mismatch";
+    case Reason::DisplayMismatch: return "display-mismatch";
+    case Reason::ConsoleOwnerMismatch: return "console-owner-mismatch";
+    case Reason::EvidenceTooOld: return "evidence-too-old";
+    case Reason::PolicyMismatch: return "policy-mismatch";
+    case Reason::PolicyGenerationChanged: return "policy-generation-changed";
+    case Reason::NativeProofCompletionFailed: return "native-proof-completion-failed";
+    case Reason::CredSspAdmissionCompletionFailed: return "credssp-admission-completion-failed";
+    }
+    return "admission-request-invalid";
+}
+
 // Move-only R2 capability. Ordinary callers cannot construct one: only the
 // concrete LinuxConsoleAdmissionBroker can mint it after genuine TLS-bound authentication and
 // native NSS/logind/session-watch checks. Metadata is bounded and contains no
@@ -178,9 +237,11 @@ private:
 };
 
 // Linux-first production authorization broker. There is deliberately no
-// ConsoleOsEvidenceSource or ConsoleSessionChangeSource injection point:
-// positive issuance always constructs and owns the concrete NSS/logind reader
-// and concrete logind monitor after genuine TLS-bound authenticated identity exists.
+// public ConsoleOsEvidenceSource or ConsoleSessionChangeSource injection point:
+// production positive issuance always constructs and owns the concrete NSS/logind
+// reader and concrete logind monitor after genuine TLS-bound authenticated identity
+// exists. A friend-only deterministic CTest seam can exercise the shared private
+// predicates; it is not part of the runtime API and cannot authorize production.
 //
 // Broker methods are single-threaded. Lease revocation/expiry observations use
 // atomics so an R3 holder can observe terminal revocation safely. The broker
@@ -881,6 +942,11 @@ public:
         void *context) noexcept;
 
     [[nodiscard]] LinuxConsoleAdmissionState state() const noexcept;
+    [[nodiscard]] LinuxConsoleAdmissionFailureReason
+    lastAdmissionFailureReason() const noexcept
+    {
+        return lastAdmissionFailureReason_;
+    }
     [[nodiscard]] int nativeChangeFd() const noexcept;
     [[nodiscard]] int nativeChangeEvents() const noexcept;
 
@@ -890,6 +956,24 @@ private:
     void revokeControl() noexcept;
     void clearRequest() noexcept;
     void deny(LinuxAuthenticatedPrincipalProof &principalProof) noexcept;
+    void denyAdmission(
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        LinuxConsoleAdmissionFailureReason reason) noexcept;
+    [[nodiscard]] bool prepareAdmission(
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t &policyGeneration) noexcept;
+    [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issueWithSources(
+        LinuxAuthenticatedPrincipalProof &principalProof,
+        rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+        const ConsoleEvidenceRequest &request,
+        std::uint64_t policyGeneration,
+        ConsoleOsEvidenceSource &evidenceSource,
+        ConsoleSessionChangeSource &changes,
+        bool monitorAvailable,
+        const LinuxLogindReadOnlyEvidenceSource *diagnosticEvidence,
+        const LinuxLogindSessionChangeSource *diagnosticChanges) noexcept;
     [[nodiscard]] bool refreshDeadline(std::uint64_t generation) noexcept;
     [[nodiscard]] bool revalidationChecksPass(
         const LinuxConsoleAdmissionLease &lease,
@@ -941,6 +1025,8 @@ private:
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         *personalDesktopPolicy_{};
     LinuxConsoleAdmissionState state_{LinuxConsoleAdmissionState::Ready};
+    LinuxConsoleAdmissionFailureReason lastAdmissionFailureReason_{
+        LinuxConsoleAdmissionFailureReason::None};
 };
 
 } // namespace rdp_server::server::security

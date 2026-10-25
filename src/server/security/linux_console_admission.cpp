@@ -372,6 +372,60 @@ void LinuxConsoleAdmissionBroker::deny(
     state_ = LinuxConsoleAdmissionState::Revoked;
 }
 
+void LinuxConsoleAdmissionBroker::denyAdmission(
+    LinuxAuthenticatedPrincipalProof &principalProof,
+    LinuxConsoleAdmissionFailureReason reason) noexcept
+{
+    lastAdmissionFailureReason_ =
+        reason == LinuxConsoleAdmissionFailureReason::None
+            ? LinuxConsoleAdmissionFailureReason::AdmissionRequestInvalid
+            : reason;
+    deny(principalProof);
+}
+
+bool LinuxConsoleAdmissionBroker::prepareAdmission(
+    LinuxAuthenticatedPrincipalProof &principalProof,
+    rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t &policyGeneration) noexcept
+{
+    using Failure = LinuxConsoleAdmissionFailureReason;
+    policyGeneration = 0U;
+    const auto reject = [&](Failure reason) noexcept {
+        lastAdmissionFailureReason_ = reason;
+        logNativeAdmissionFailure(
+            linuxConsoleAdmissionFailureReasonName(reason).data(),
+            ownerSharingAuthority_, evidence_, changes_.get());
+        deny(principalProof);
+        return false;
+    };
+
+    if (state_ != LinuxConsoleAdmissionState::Ready)
+        return reject(Failure::AdmissionRequestInvalid);
+    if (ownerSharingAuthority_ == nullptr ||
+        !ownerSharingAuthority_->authorizes(request.requestedPermissions))
+    {
+        return reject(Failure::OwnerConsentMissing);
+    }
+    if (!r1HybridNlaSecurityView(connection))
+        return reject(Failure::HybridTlsProvenanceInvalid);
+
+    policyGeneration = policy_.generation();
+    if (policyGeneration == 0U)
+        return reject(Failure::PolicyGenerationChanged);
+    if (!principalProof.pendingNativeAdmissionMatches(
+            connection, request, policyGeneration))
+    {
+        return reject(Failure::AuthenticationProofMismatch);
+    }
+    if (!copyBounded(seat_, seatLength_, request.seat) ||
+        !copyBounded(display_, displayLength_, request.display))
+    {
+        return reject(Failure::AdmissionRequestInvalid);
+    }
+    return true;
+}
+
 bool LinuxConsoleAdmissionBroker::refreshDeadline(
     std::uint64_t generation) noexcept
 {
@@ -419,113 +473,109 @@ ConsoleEvidenceRequest LinuxConsoleAdmissionBroker::requestView(
 }
 
 std::optional<LinuxConsoleAdmissionLease>
-LinuxConsoleAdmissionBroker::issue(
+LinuxConsoleAdmissionBroker::issueWithSources(
     LinuxAuthenticatedPrincipalProof &principalProof,
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
-    const ConsoleEvidenceRequest &request) noexcept
+    const ConsoleEvidenceRequest &request,
+    std::uint64_t policyGeneration,
+    ConsoleOsEvidenceSource &evidenceSource,
+    ConsoleSessionChangeSource &changes,
+    bool monitorAvailable,
+    const LinuxLogindReadOnlyEvidenceSource *diagnosticEvidence,
+    const LinuxLogindSessionChangeSource *diagnosticChanges) noexcept
 {
-    // A matching session identity is not explicit unlocked owner consent.
-    if (state_ != LinuxConsoleAdmissionState::Ready ||
-        ownerSharingAuthority_ == nullptr ||
-        !ownerSharingAuthority_->authorizes(request.requestedPermissions))
-    {
-        logNativeAdmissionFailure(
-            "owner-authority", ownerSharingAuthority_, evidence_,
-            changes_.get());
+    using Failure = LinuxConsoleAdmissionFailureReason;
+    const auto reject = [&](Failure reason)
+        -> std::optional<LinuxConsoleAdmissionLease> {
+        lastAdmissionFailureReason_ = reason;
+        if (diagnosticEvidence != nullptr)
+        {
+            logNativeAdmissionFailure(
+                linuxConsoleAdmissionFailureReasonName(reason).data(),
+                ownerSharingAuthority_, *diagnosticEvidence,
+                diagnosticChanges);
+        }
         deny(principalProof);
         return std::nullopt;
-    }
+    };
 
-    // Reject invalid protocol/transport provenance or a missing private
-    // final-credential proof before constructing a native change monitor or
-    // sampling NSS/logind. HYBRID + GSS binding + PAM are still insufficient
-    // until this exact delegated account is joined to native owner evidence.
-    const auto r1Security = r1HybridNlaSecurityView(connection);
-    if (!r1Security)
-    {
-        deny(principalProof);
-        return std::nullopt;
-    }
-    const std::uint64_t policyGeneration = policy_.generation();
-    if (policyGeneration == 0 ||
-        !principalProof.pendingNativeAdmissionMatches(
-            connection, request, policyGeneration) ||
-        !copyBounded(seat_, seatLength_, request.seat) ||
-        !copyBounded(display_, displayLength_, request.display))
-    {
-        deny(principalProof);
-        return std::nullopt;
-    }
-
-    // Establish the concrete native change monitor only after genuine TLS/authenticated-proof
-    // identity exists, but before any NSS/logind identity/session sampling.
-    try
-    {
-        changes_ = std::make_unique<LinuxLogindSessionChangeSource>();
-    }
-    catch (const std::bad_alloc &)
-    {
-        deny(principalProof);
-        return std::nullopt;
-    }
-
-    if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
-        !principalProof.pendingNativeAdmissionMatches(
+    if (!monitorAvailable)
+        return reject(Failure::SessionMonitorUnavailable);
+    if (policy_.generation() != policyGeneration)
+        return reject(Failure::PolicyGenerationChanged);
+    if (!principalProof.pendingNativeAdmissionMatches(
             connection, request, policyGeneration))
     {
-        logNativeAdmissionFailure(
-            "monitor-unavailable", ownerSharingAuthority_, evidence_,
-            changes_.get());
-        deny(principalProof);
-        return std::nullopt;
+        return reject(Failure::AuthenticationProofMismatch);
     }
-    const ConsoleSessionChange beforeEvidence = changes_->pollChange();
+
+    const ConsoleSessionChange beforeEvidence = changes.pollChange();
     if (beforeEvidence != ConsoleSessionChange::None)
     {
-        logNativeAdmissionFailure(
-            beforeEvidence == ConsoleSessionChange::Changed
-                ? "monitor-changed-before-evidence"
-                : "monitor-unavailable-before-evidence",
-            ownerSharingAuthority_, evidence_, changes_.get());
-        deny(principalProof);
-        return std::nullopt;
+        return reject(
+            beforeEvidence == ConsoleSessionChange::Unavailable
+                ? Failure::SessionMonitorUnavailable
+                : Failure::SessionChangedBeforeSample);
     }
 
     ConsoleCandidateSessionFingerprint fingerprint{};
-    if (ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprint(
-            policy_, request, evidence_, fingerprint) !=
-        ConsoleEvidenceMatch::CandidateOnly)
+    const auto inspection =
+        ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprintDetailed(
+            policy_, request, evidenceSource, fingerprint);
+    if (inspection.match != ConsoleEvidenceMatch::CandidateOnly)
     {
-        logNativeAdmissionFailure(
-            "evidence-rejected", ownerSharingAuthority_, evidence_,
-            changes_.get());
-        deny(principalProof);
-        return std::nullopt;
+        using Evidence = ConsoleEvidenceDenialReason;
+        switch (inspection.denialReason)
+        {
+        case Evidence::None:
+        case Evidence::AdmissionRequestInvalid:
+            return reject(Failure::AdmissionRequestInvalid);
+        case Evidence::AccountEvidenceUnavailable:
+            return reject(Failure::AccountEvidenceUnavailable);
+        case Evidence::AccountIdentityMismatch:
+            return reject(Failure::AccountIdentityMismatch);
+        case Evidence::ConsoleSessionUnavailable:
+            return reject(Failure::ConsoleSessionUnavailable);
+        case Evidence::ConsoleNotActive:
+            return reject(Failure::ConsoleNotActive);
+        case Evidence::ConsoleNotPhysical:
+            return reject(Failure::ConsoleNotPhysical);
+        case Evidence::ConsoleSessionInvalid:
+            return reject(Failure::ConsoleSessionInvalid);
+        case Evidence::SeatMismatch:
+            return reject(Failure::SeatMismatch);
+        case Evidence::DisplayMismatch:
+            return reject(Failure::DisplayMismatch);
+        case Evidence::ConsoleOwnerMismatch:
+            return reject(Failure::ConsoleOwnerMismatch);
+        case Evidence::EvidenceTooOld:
+            return reject(Failure::EvidenceTooOld);
+        case Evidence::PolicyMismatch:
+            return reject(Failure::PolicyMismatch);
+        }
     }
-    const ConsoleSessionChange afterEvidence = changes_->pollChange();
+
+    const ConsoleSessionChange afterEvidence = changes.pollChange();
     if (afterEvidence != ConsoleSessionChange::None)
     {
-        logNativeAdmissionFailure(
-            afterEvidence == ConsoleSessionChange::Changed
-                ? "monitor-changed-after-evidence"
-                : "monitor-unavailable-after-evidence",
-            ownerSharingAuthority_, evidence_, changes_.get());
-        deny(principalProof);
-        return std::nullopt;
+        return reject(
+            afterEvidence == ConsoleSessionChange::Unavailable
+                ? Failure::SessionMonitorUnavailable
+                : Failure::SessionChangedBeforeSample);
     }
     if (fingerprint.sessionIdLength == 0 ||
         fingerprint.sessionIdLength >= 65 ||
         request.kerberosPrincipal.size() >= 129 ||
-        request.unixAccount.size() >= 33 ||
-        policy_.generation() != policyGeneration ||
-        !principalProof.pendingNativeAdmissionMatches(
+        request.unixAccount.size() >= 33)
+    {
+        return reject(Failure::AdmissionRequestInvalid);
+    }
+    if (policy_.generation() != policyGeneration)
+        return reject(Failure::PolicyGenerationChanged);
+    if (!principalProof.pendingNativeAdmissionMatches(
             connection, request, policyGeneration))
     {
-        logNativeAdmissionFailure(
-            "post-evidence-consistency", ownerSharingAuthority_, evidence_,
-            changes_.get());
-        deny(principalProof);
-        return std::nullopt;
+        return reject(Failure::AuthenticationProofMismatch);
     }
 
     std::shared_ptr<LinuxConsoleAdmissionControl> newControl;
@@ -535,8 +585,7 @@ LinuxConsoleAdmissionBroker::issue(
     }
     catch (const std::bad_alloc &)
     {
-        deny(principalProof);
-        return std::nullopt;
+        return reject(Failure::NativeProofCompletionFailed);
     }
 
     const std::uint64_t generation =
@@ -546,20 +595,16 @@ LinuxConsoleAdmissionBroker::issue(
         *now > std::numeric_limits<std::int64_t>::max() -
                    kAdmissionValidityMilliseconds)
     {
-        deny(principalProof);
-        return std::nullopt;
+        return reject(Failure::NativeProofCompletionFailed);
     }
 
-    // All native facts and the change watch are live at this exact boundary.
-    // Only now may R2 set its private completion latch and tell the sole R1
-    // owner that CredSSP is complete. Neither transition is publicly callable.
     if (!principalProof.completeNativeAdmission(
-            connection, request, policyGeneration) ||
-        !connection.completeCredSspAdmission())
+            connection, request, policyGeneration))
     {
-        deny(principalProof);
-        return std::nullopt;
+        return reject(Failure::NativeProofCompletionFailed);
     }
+    if (!connection.completeCredSspAdmission())
+        return reject(Failure::CredSspAdmissionCompletionFailed);
 
     newControl->policy = &policy_;
     newControl->policyGeneration = policyGeneration;
@@ -569,12 +614,50 @@ LinuxConsoleAdmissionBroker::issue(
         generation, std::memory_order_release);
     control_ = std::move(newControl);
     state_ = LinuxConsoleAdmissionState::Active;
+    lastAdmissionFailureReason_ = Failure::None;
 
     LinuxConsoleAdmissionLease lease{
         control_, generation, request.authenticationKind,
         request.kerberosPrincipal, request.unixAccount,
         fingerprint, request.requestedPermissions};
     return std::optional<LinuxConsoleAdmissionLease>{std::move(lease)};
+}
+
+std::optional<LinuxConsoleAdmissionLease>
+LinuxConsoleAdmissionBroker::issue(
+    LinuxAuthenticatedPrincipalProof &principalProof,
+    rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
+    const ConsoleEvidenceRequest &request) noexcept
+{
+    lastAdmissionFailureReason_ = LinuxConsoleAdmissionFailureReason::None;
+    std::uint64_t policyGeneration = 0U;
+    if (!prepareAdmission(
+            principalProof, connection, request, policyGeneration))
+    {
+        return std::nullopt;
+    }
+
+    try
+    {
+        changes_ = std::make_unique<LinuxLogindSessionChangeSource>();
+    }
+    catch (const std::bad_alloc &)
+    {
+        lastAdmissionFailureReason_ =
+            LinuxConsoleAdmissionFailureReason::SessionMonitorUnavailable;
+        logNativeAdmissionFailure(
+            linuxConsoleAdmissionFailureReasonName(
+                lastAdmissionFailureReason_).data(),
+            ownerSharingAuthority_, evidence_, nullptr);
+        deny(principalProof);
+        return std::nullopt;
+    }
+
+    const bool monitorAvailable =
+        changes_->nativeFd() >= 0 && changes_->nativeEvents() > 0;
+    return issueWithSources(
+        principalProof, connection, request, policyGeneration,
+        evidence_, *changes_, monitorAvailable, &evidence_, changes_.get());
 }
 
 std::optional<LinuxConsoleAdmissionLease>
@@ -588,7 +671,9 @@ LinuxConsoleAdmissionBroker::issue(
     // or preserve authentication-proof state through this route.
     (void)activeServerTls;
     (void)request;
-    deny(principalProof);
+    denyAdmission(
+        principalProof,
+        LinuxConsoleAdmissionFailureReason::HybridTlsProvenanceInvalid);
     return std::nullopt;
 }
 

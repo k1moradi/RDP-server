@@ -1,3 +1,24 @@
+## Typed native-admission reason matrix (2026-10-24)
+
+Every exposed native-admission first-failure reason requires a deterministic
+denial assertion. Keep one positive production-backed broker fixture with
+matching process/desktop-owner UID, active physical X11 seat0, unlocked and
+non-remote state, valid DISPLAY, fresh generation, a usable session-change
+monitor and an authenticated standalone proof. The fixture may inject native
+observations only through a friend-only test seam; it is synthetic correctness
+evidence, not physical desktop acceptance.
+
+The positive fixture must use a remote StandalonePassword application username
+different from the local Unix owner and still produce a lease bound only to the
+selected local UID/session. This pins the rule that remote username is not
+Linux account proof.
+
+Register the fixture as
+`security.native-admission-reason-taxonomy-and-positive-fixture` with labels
+exactly `authentication;admission;consent;security`. Continue enforcing the
+repository-wide policy test that rejects internal road/agent labels from CTest
+taxonomy.
+
 ## Logind monitor environment gate correction (2026-10-24)
 
 The physical monitor helper skips only when no booted systemd/logind

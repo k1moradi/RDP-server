@@ -1283,6 +1283,12 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("security.${case_name}" PROPERTIES
                 LABELS "security;linux-provider")
         endforeach()
+        add_test(NAME security.native-admission-reason-taxonomy-and-positive-fixture
+            COMMAND "${test_target}"
+                native-admission-reason-taxonomy-and-positive-fixture)
+        set_tests_properties(
+            security.native-admission-reason-taxonomy-and-positive-fixture
+            PROPERTIES LABELS "authentication;admission;consent;security")
     elseif(test_target STREQUAL "test_owned_credssp_tsrequest")
         # Reuse the existing one binary: five previous semantic
         # groups and three new streaming/boundary behaviors.

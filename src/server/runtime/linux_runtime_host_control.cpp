@@ -2293,14 +2293,18 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             std::fprintf(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
-                "protocol-stage=%s fingerprint=%s ip-self-check=%s "
-                "selected-cert=%s handshake-step=%llu handshake-result=%s "
-                "ssl-error=%d openssl-reason=%u termination=%s host-error=%u\n",
+                "protocol-stage=%s admission-reason=%s fingerprint=%s "
+                "ip-self-check=%s selected-cert=%s handshake-step=%llu "
+                "handshake-result=%s ssl-error=%d openssl-reason=%u "
+                "termination=%s host-error=%u\n",
                 static_cast<unsigned long long>(acceptedClientId_),
                 selectedEndpoint.empty() ? "unavailable"
                                          : selectedEndpoint.c_str(),
                 protocolDiagnosticName(
                     acceptedClientPreauthDiagnostics_.protocolStage),
+                rdp_server::server::security::
+                    linuxConsoleAdmissionFailureReasonName(
+                        diagnostics.admissionFailureReason).data(),
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),

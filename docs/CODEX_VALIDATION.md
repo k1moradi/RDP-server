@@ -1,3 +1,30 @@
+## Typed native-admission diagnosis authoring receipt — 2026-10-24
+
+**Reconciled parent:** `ff020dbd00622249e43038e460772325b1a46f84`. Owner evidence on
+`9fd1db518076713f30b41af2aff023308f95a925`: local full CTest
+**966/966 PASS**; real Microsoft client reached TLS -> Direct NTLM -> Type 1
+accepted -> Type 2 sent -> CredSSP progressed -> native **Admission failed**,
+with `stage=admission`.
+
+This change keeps the current structural logind/owner/monitor diagnostics and
+adds a non-secret typed first-failure admission enum plus detailed evidence
+inspection behind the unchanged fail-closed public result. The connection
+retains the reason long enough for fail-only diagnostics; no TLS/SPNEGO/NTLM
+wire or authentication behavior changes.
+
+The new deterministic CTest covers every typed denial reason and a positive
+synthetic broker lease. The positive proof uses remote application username
+`remote-application-user` while native evidence selects local Unix account
+`alice`, explicitly proving those identities are independent.
+
+The current safe Username convenience default remains unchanged; Session
+Password stays empty/user-entered and no OS password API is used. New CTest
+labels are exactly `authentication;admission;consent;security`; the existing
+repository semantic-label guard remains in force.
+
+Connector/source review: **PASS**. New local build/full CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**. Physical retry: **NOT RUN**.
+
 ## Logind monitor helper fail-closed correction — 2026-10-24
 
 Post-publication source review of `10f1f27277d793b90cd89dea7a39559ed1ee0e58`

@@ -464,6 +464,7 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
             : 0U;
     snapshot.standaloneAuthenticationFailureStage =
         standaloneAuthenticationFailureStage_;
+    snapshot.admissionFailureReason = admissionFailureReason_;
     snapshot.mcsPhase = session_.phase();
     snapshot.shareActivated =
         snapshot.mcsPhase ==
@@ -1054,6 +1055,9 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
     }
 
     standaloneAuthenticationFailureStage_ = failureStage;
+    const char *const admissionReason =
+        rdp_server::server::security::linuxConsoleAdmissionFailureReasonName(
+            admissionFailureReason_).data();
     const auto initial =
         standaloneCredSspAcceptor_.initialNegoObservation();
     if (!initial.observed)
@@ -1063,11 +1067,12 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
             "rdp-server: standalone authentication failed: stage=%s; "
             "tls=%s; credssp=spnego-initial; "
             "os-gss-fallback=disabled; spnego-initial=unobserved; "
-            "spnego=%s\n",
+            "spnego=%s; admission-reason=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             spnegoDiagnosticName(
-                standaloneCredSspAcceptor_.spnegoRejectionReason()));
+                standaloneCredSspAcceptor_.spnegoRejectionReason()),
+            admissionReason);
         return;
     }
 
@@ -1083,14 +1088,15 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
             "os-gss-fallback=disabled; tsrequest-version=%u; "
             "nego-token-count=%zu; ntlm-message-type=1; "
             "ntlm-token-bytes=%zu; negotiation-envelope=direct-ntlm; "
-            "credssp-progress=%s\n",
+            "credssp-progress=%s; admission-reason=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             static_cast<unsigned int>(initial.tsRequestVersion),
             initial.tokenCount,
             spnego.tokenBytes,
             directNtlmProgressName(
-                authenticationProgress_, failureStage));
+                authenticationProgress_, failureStage),
+            admissionReason);
         return;
     }
 
@@ -1116,7 +1122,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         "neg-hints=%s; mech-list-mic=%s; mechanism-count=%zu; "
         "mechanism-oids=%.*s; ntlm-offered=%s; ntlm-index=%d; "
         "optimistic-token=%s; optimistic-token-bytes=%zu; "
-        "spnego=%s\n",
+        "spnego=%s; admission-reason=%s\n",
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
         rdp_server::server::security::standaloneNtlmNegotiationEnvelopeName(
@@ -1142,7 +1148,8 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
                 rdp_server::server::security::
                     StandaloneNtlmNegotiationEnvelope::DirectNtlm
             ? "not-used"
-            : spnegoDiagnosticName(spnego.rejectionReason));
+            : spnegoDiagnosticName(spnego.rejectionReason),
+        admissionReason);
 }
 
 LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexcept
@@ -1480,6 +1487,9 @@ bool LinuxRuntimeConnection::issueAdmission(
     const rdp_server::server::security::ConsoleEvidenceRequest &request)
     noexcept
 {
+    using AdmissionFailure =
+        rdp_server::server::security::LinuxConsoleAdmissionFailureReason;
+    admissionFailureReason_ = AdmissionFailure::None;
     auto *const proof = authenticatedPrincipalProof();
     const bool mechanismReady =
         authenticationMode_ == LinuxRuntimeAuthenticationMode::ExistingOsAccount
@@ -1498,6 +1508,10 @@ bool LinuxRuntimeConnection::issueAdmission(
         proof == nullptr || !mechanismReady ||
         request.authenticationKind != expectedAuthenticationKind)
     {
+        admissionFailureReason_ =
+            proof == nullptr || !mechanismReady
+                ? AdmissionFailure::AuthenticationProofMismatch
+                : AdmissionFailure::AdmissionRequestInvalid;
         if (authenticationMode_ ==
             LinuxRuntimeAuthenticationMode::StandalonePassword)
         {
@@ -1512,6 +1526,7 @@ bool LinuxRuntimeConnection::issueAdmission(
     auto issued = broker_->issue(*proof, connection_, request);
     if (!issued)
     {
+        admissionFailureReason_ = broker_->lastAdmissionFailureReason();
         if (authenticationMode_ ==
             LinuxRuntimeAuthenticationMode::StandalonePassword)
         {
@@ -1522,6 +1537,7 @@ bool LinuxRuntimeConnection::issueAdmission(
         revoke();
         return false;
     }
+    admissionFailureReason_ = AdmissionFailure::None;
     lease_.emplace(std::move(*issued));
     protocolDiagnosticStage_ =
         LinuxRuntimeProtocolDiagnosticStage::NativeAdmissionVerified;

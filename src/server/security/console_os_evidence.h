@@ -106,6 +106,32 @@ enum class ConsoleEvidenceMatch : std::uint8_t
     CandidateOnly, // Never trusted authentication, authorization or a capability.
 };
 
+// Bounded, non-secret reason for the first failed native-evidence predicate.
+// This is diagnostic classification only; it never grants admission.
+enum class ConsoleEvidenceDenialReason : std::uint8_t
+{
+    None,
+    AdmissionRequestInvalid,
+    AccountEvidenceUnavailable,
+    AccountIdentityMismatch,
+    ConsoleSessionUnavailable,
+    ConsoleNotActive,
+    ConsoleNotPhysical,
+    ConsoleSessionInvalid,
+    SeatMismatch,
+    DisplayMismatch,
+    ConsoleOwnerMismatch,
+    EvidenceTooOld,
+    PolicyMismatch,
+};
+
+struct ConsoleEvidenceInspectionResult final
+{
+    ConsoleEvidenceMatch match{ConsoleEvidenceMatch::Denied};
+    ConsoleEvidenceDenialReason denialReason{
+        ConsoleEvidenceDenialReason::AdmissionRequestInvalid};
+};
+
 inline constexpr std::uint64_t
     kMaximumConsoleObservationAgeMilliseconds = 2000;
 
@@ -135,10 +161,24 @@ public:
         const ConsoleEvidenceRequest &request,
         ConsoleOsEvidenceSource &source) const noexcept;
 
+    // Detailed internal diagnostic preserving the same fail-closed semantics.
+    // The reason is the first failed predicate and contains no identity secret.
+    [[nodiscard]] ConsoleEvidenceInspectionResult inspectDetailed(
+        const ConsoleIdentityPolicy &policy,
+        const ConsoleEvidenceRequest &request,
+        ConsoleOsEvidenceSource &source) const noexcept;
+
     // Same source reads and policy checks as inspect(), but make an owning
     // snapshot of their already-validated session identity. On failure the
     // output is cleared. It can NEVER represent authorization or admission.
     [[nodiscard]] ConsoleEvidenceMatch inspectWithSessionFingerprint(
+        const ConsoleIdentityPolicy &policy,
+        const ConsoleEvidenceRequest &request,
+        ConsoleOsEvidenceSource &source,
+        ConsoleCandidateSessionFingerprint &candidateFingerprint) const noexcept;
+
+    [[nodiscard]] ConsoleEvidenceInspectionResult
+    inspectWithSessionFingerprintDetailed(
         const ConsoleIdentityPolicy &policy,
         const ConsoleEvidenceRequest &request,
         ConsoleOsEvidenceSource &source,

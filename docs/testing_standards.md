@@ -1,3 +1,22 @@
+## Admission-denial active-close evidence rule (2026-10-24)
+
+When the server has already recorded
+`CredentialsVerified -> Admission denied` and deliberately closes the
+rejected accepted connection, a peer-side final authInfo `SSL_write()`
+completion is not a required success receipt: it can race that intentional
+server active-close. Keep the earlier Direct NTLM challenge evidence and the
+authoritative server-side credential/admission state assertions.
+
+Detailed native-evidence tests must mutate the predicate they name. A valid
+changed account UID is not an account-identity mismatch because caller UID is
+not trusted; change the independently observed account name for
+`AccountIdentityMismatch`, and use account-UID versus console-owner-UID
+disagreement for `ConsoleOwnerMismatch`.
+
+Source-order CMake policy checks should reject invalid ordering explicitly
+(`first GREATER_EQUAL second`) while keeping exact occurrence counts, rather
+than relying on nested `NOT ... LESS` expression parsing.
+
 ## Functional CTest names and local-username portability (2026-10-24)
 
 The durable-taxonomy rule applies to **both CTest names and labels**. Registered

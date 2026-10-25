@@ -1,3 +1,26 @@
+## Admission diagnostics hosted-regression corrections — 2026-10-24
+
+**Reconciled parent:** `5612bdc27fbc264de6f8ee51c5a7dda81ade8ace`. The current runtime already projects the
+typed native admission reason through product diagnostics. Hosted Ubuntu
+provided the expected non-physical-runner result:
+`CredentialsVerified -> Admission -> session-monitor-unavailable`.
+
+The remaining ordinary-suite failures are test assumptions and are corrected
+without changing production behavior. The evidence-reason fixture now changes
+the observed Unix account name for `AccountIdentityMismatch`; a different
+valid account UID belongs to the later independent console-owner comparison.
+The DirectNtlm rejection fixture treats the authoritative server-side
+`CredentialsVerified -> Admission` transition as decisive and no longer
+requires the peer's final authInfo write receipt after the server deliberately
+active-closes the rejected connection. The dormant-clipboard source guard keeps
+the same exact one-call/GraphicsReady ordering contract but uses an explicit
+`GREATER_EQUAL` invalid-order comparison.
+
+Production TLS, SPNEGO, NTLM, admission, native desktop, graphics, input and
+clipboard code: **UNCHANGED**. Connector/source diagnosis: **PASS**. Local
+full CTest for this correction: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**.
+
 ## Runtime admission reason propagation and failed-peer retry — 2026-10-24
 
 **Reconciled parent:** `432d92161eec0204645ca1f2dac4e0d298e30851`. The owner-tested baseline remains

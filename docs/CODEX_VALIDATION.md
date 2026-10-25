@@ -1,3 +1,21 @@
+## Admission diagnostics hosted-regression correction receipt — 2026-10-24
+
+On the typed-admission descendants, hosted Linux correctly reached
+`stage=admission; admission-reason=session-monitor-unavailable` after
+`CredentialsVerified`. Three ordinary-suite failures were fixture/source-
+guard assumptions rather than production defects.
+
+Corrections: use a mismatched observed account name for
+`AccountIdentityMismatch`; stop requiring client-side final authInfo
+`SSL_write()` completion after authoritative server-side admission denial and
+active-close; and express the native-initialization source-order guard with a
+direct `GREATER_EQUAL` invalid-order check while retaining the exact single
+call requirement.
+
+No production code changes in this follow-up. Connector review: **PASS**.
+Local build/full CTest: **NOT RUN**. Corrected exact-SHA hosted validation:
+**PENDING**.
+
 ## Runtime admission reason propagation and failed-peer retry — 2026-10-24
 
 **Reconciled parent:** `432d92161eec0204645ca1f2dac4e0d298e30851`. The owner-tested baseline remains

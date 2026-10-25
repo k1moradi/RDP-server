@@ -757,7 +757,7 @@ void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
     nativeEvidence.account.status = ConsoleEvidenceReadStatus::Unavailable;
     expectEvidenceDenial(EvidenceReason::AccountEvidenceUnavailable,
                          baseRequest);
-    nativeEvidence.account.uid = 1002U;
+    nativeEvidence.account.unixAccount = "mallory";
     expectEvidenceDenial(EvidenceReason::AccountIdentityMismatch,
                          baseRequest);
     nativeEvidence.session.status = ConsoleEvidenceReadStatus::Unavailable;

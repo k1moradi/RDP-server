@@ -160,7 +160,7 @@ string(FIND "${host_source}"
 string(FIND "${host_source}"
     "return initializeNativeDesktop();" native_init_call)
 if(NOT native_init_call_count EQUAL 1 OR graphics_ready_case LESS 0 OR
-   native_init_call LESS 0 OR NOT graphics_ready_case LESS native_init_call)
+   native_init_call LESS 0 OR graphics_ready_case GREATER_EQUAL native_init_call)
     message(FATAL_ERROR
         "native clipboard construction must remain exclusive to GraphicsReady")
 endif()

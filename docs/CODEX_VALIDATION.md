@@ -1,3 +1,38 @@
+## P0 NTLM Type-2 compatibility-profile authoring receipt — 2026-10-25
+
+Starting assignment main: `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+Reconciled publication parent: `0ef7a980e0bea8c4ce69bbf3b134e355ce2b45f6`.
+Owner evidence supplied with this assignment: Linux/X11 full CTest 980/980
+PASS; TCP/X.224 HYBRID/TLS/raw Direct NTLM Type 1 PASS; server Type 2 fully
+delivered; Type 3 NOT RECEIVED; peer EOF before native Admission/MCS/graphics.
+
+Connector source audit records the exact flag delta
+`0xe2088235 -> 0xe08a8235`: VERSION is the sole cleared client capability,
+TARGET_TYPE_SERVER and TARGET_INFO are the only server-added bits, and all
+SIGN/SEAL/ALWAYS_SIGN/ESS/128/56/KEY_EXCH capabilities remain selected under
+the existing dependency checks. TargetInfo remains AV IDs `2,1,7,0`.
+The production transcript owner stores exact Type 1 and Type 2 bytes and later
+uses those exact buffers for MIC verification.
+
+Authored test/CI-only changes:
+- extend the independent Type-2 conformance parser to the fixed 56-byte header
+  and negotiated VERSION structure;
+- add `security.ntlmssp-challenge-compatibility-profiles` covering the current
+  portable profile, an offered-VERSION-preserved test profile, and Microsoft's
+  published MS-NLMP example;
+- run that case directly in the R9 Microsoft-CSSP sanitizer gate and pin its
+  workflow token structurally.
+
+No production encoder, CredSSP authority, native admission, MCS, graphics or
+clipboard source is changed. Current-main reconciliation contains no
+Microsoft-native Windows SSPI oracle result for this boundary, so
+VERSION/TargetInfo production changes remain evidence-gated.
+
+Connector source/spec review: **PASS**. Canonical owner-local configure/build/
+full CTest on the authored tree: **NOT RUN** in this connector environment.
+Exact publication-SHA hosted CI: **PENDING**. Microsoft-native Windows SSPI
+production-Type-2 -> Type-3 oracle: **NOT RUN / REQUIRED NEXT GATE**.
+
 ## R8 pre-Type-3 EOF next-connection clipboard dormancy — 2026-10-25
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

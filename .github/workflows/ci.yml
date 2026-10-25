@@ -854,6 +854,8 @@ jobs:
           build/tests/test_standalone_ntlmssp \
             ntlmssp-challenge-portable-target-name
           build/tests/test_standalone_ntlmssp \
+            ntlmssp-challenge-compatibility-profiles
+          build/tests/test_standalone_ntlmssp \
             ntlmssp-challenge-target-name-conformance
 
           # Exact owner reproduction: v6 / one 40-byte raw NTLMSSP Type 1,

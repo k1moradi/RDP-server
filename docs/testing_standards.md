@@ -1,3 +1,26 @@
+## NTLM challenge compatibility profiles are test-only (2026-10-25)
+
+The P0 Type-2 interoperability investigation uses bounded internal test
+profiles rather than runtime switches or speculative production changes. Keep
+three profiles in the existing NTLMSSP test executable: the current production
+portable challenge, the same challenge with client-offered VERSION preserved,
+and Microsoft's published MS-NLMP CHALLENGE_MESSAGE example. Add a fourth
+profile only when the Microsoft-native Windows SSPI oracle produces evidence
+that distinguishes it.
+
+The VERSION-preserved test profile must differ from the current portable bytes
+only in NegotiateFlags and the fixed Version field. Its test-only portable
+version must not pretend to be a Windows release. The independent Type-2 oracle
+must understand the fixed 56-byte CHALLENGE_MESSAGE header and validate zero
+Version bytes when VERSION is clear plus reserved/revision shape when VERSION
+is set.
+
+Run `security.ntlmssp-challenge-compatibility-profiles` in ordinary CTest and
+directly in the R9 Microsoft-CSSP sanitizer gate. These tests prove bounded
+wire alternatives only; they do not prove Microsoft-client compatibility.
+Production selection remains blocked until native Windows SSPI consumes the
+production Type 2 and returns a Type 3 Authenticate message.
+
 ## R8 next-connection clipboard dormancy after pre-Type-3 EOF (2026-10-25)
 
 When the production Direct NTLM Type 2 is completely delivered and the peer

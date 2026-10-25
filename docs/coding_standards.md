@@ -1,3 +1,30 @@
+## NTLM Type-2 compatibility changes are evidence-gated (2026-10-25)
+
+For connection-oriented CHALLENGE_MESSAGE negotiation, keep client capability
+flags as an explicit intersection and server-only flags as an explicit,
+documented addition. SIGN and SEAL offered by the client are returned;
+ALWAYS_SIGN, 56 and 128 retain their MS-NLMP dependency rules; KEY_EXCH is
+never introduced when the client did not offer it. TARGET_TYPE_SERVER and
+TARGET_INFO may be server-selected only when their corresponding bounded fields
+are actually emitted.
+
+NEGOTIATE_VERSION is debugging-only protocol metadata. Do not enable or disable
+it to imitate a Microsoft packet capture. A production change requires
+Microsoft-native SSPI evidence. If enabled for interoperability, return it only
+when offered and emit a bounded VERSION structure with portable semantics; do
+not claim a particular Windows release merely to match an example.
+
+Do not fabricate DNS computer/domain names, MsvAvFlags or MsvAvTargetName in
+TargetInfo. Add an AV pair only when the protocol scenario requires it or a
+Microsoft-native interoperability oracle proves it necessary. In particular,
+MsvAvFlags can alter MIC semantics, and channel-binding/target-name checks
+belong to the authenticated response/application binding boundary.
+
+NTLM MIC verification is over the exact wire transcript. Retain the received
+Type 1 and the single emitted Type 2 byte-for-byte and feed those exact buffers
+to MIC verification. Never reconstruct, normalize or re-encode either message
+for transcript verification.
+
 ## R2 Type-2 structural validation and safe diagnostics (2026-10-25)
 
 R2 consumes the portable server-TargetName correction and independent test

@@ -1,3 +1,69 @@
+## P0 NTLM Type-2 compatibility audit; production unchanged pending Windows SSPI oracle (2026-10-25)
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+**Reconciled main parent:** `0ef7a980e0bea8c4ce69bbf3b134e355ce2b45f6`.
+Owner physical Linux/X11 evidence is 980/980 CTest PASS and reaches
+`TLS -> raw Direct NTLM Type 1 -> server Type 2 fully delivered -> peer EOF`
+with no Type 3. Native Admission, MCS and graphics are not reached. The first
+unresolved boundary is Microsoft-client acceptance of the Type 2.
+
+The exact observed flag delta is `0xe2088235 -> 0xe08a8235`:
+
+| Flag | Type 1 -> Type 2 | Audit result |
+| --- | --- | --- |
+| UNICODE `0x00000001` | 1 -> 1 | preserved; negotiated Unicode |
+| REQUEST_TARGET `0x00000004` | 1 -> 1 | preserved; the challenge supplies the bounded server TargetName |
+| SIGN `0x00000010` | 1 -> 1 | preserved; return when offered |
+| SEAL `0x00000020` | 1 -> 1 | preserved; return when offered |
+| NTLM `0x00000200` | 1 -> 1 | preserved; standalone NTLM profile |
+| ALWAYS_SIGN `0x00008000` | 1 -> 1 | preserved; selected consistently across negotiate/challenge |
+| TARGET_TYPE_SERVER `0x00020000` | 0 -> 1 | server-selected; legal in CHALLENGE_MESSAGE and bound to the non-empty server TargetName |
+| EXTENDED_SESSIONSECURITY `0x00080000` | 1 -> 1 | preserved; required standalone security profile |
+| TARGET_INFO `0x00800000` | 0 -> 1 | server-selected; accurately announces populated TargetInfo |
+| VERSION `0x02000000` | 1 -> 0 | the only cleared client bit; current production keeps the fixed Version field zero |
+| 128 `0x20000000` | 1 -> 1 | preserved with SIGN/SEAL |
+| KEY_EXCH `0x40000000` | 1 -> 1 | preserved only because the client offered it |
+| 56 `0x80000000` | 1 -> 1 | preserved with SIGN/SEAL |
+
+No other bits differ. MS-NLMP defines VERSION as debugging-only metadata that
+does not affect normal NTLM processing, so specification review alone does not
+justify enabling it. The production profile therefore stays unchanged until a
+Microsoft-native Windows SSPI oracle consumes the exact production Type 2 and
+shows that preserving VERSION is required. If later enabled, it must be
+client-offered only and use portable version semantics rather than claiming a
+Windows release.
+
+Current TargetInfo remains exactly AV IDs `2,1,7,0`: NetBIOS domain,
+NetBIOS computer, timestamp and EOL. Do not fabricate DNS computer/domain
+values, MsvAvFlags or MsvAvTargetName for this standalone non-domain server.
+MsvAvFlags/MIC, MsvAvTargetName and channel-binding checks affect later
+AUTHENTICATE_MESSAGE semantics and are not added to Type 2 without
+Microsoft-native oracle evidence.
+
+Transcript audit: `StandaloneSpnegoNtlmAcceptor::issueChallenge()` copies the
+exact received Type 1 bytes into `negotiateMessage_`, encodes Type 2 once into
+`challengeMessage_`, sends those same bytes, and later passes the exact stored
+spans to `verifyAuthenticateMessageMic()`. No normalized or re-encoded
+transcript exists.
+
+Test-only compatibility coverage now has three bounded profiles:
+(1) the current production portable profile and exact physical flag delta,
+(2) an offered-VERSION-preserved variant whose only differences are the VERSION
+bit and fixed Version field and whose zero product version deliberately does
+not impersonate Windows, and (3) Microsoft's published MS-NLMP 4.2.4.3
+CHALLENGE_MESSAGE. The independent test oracle now understands the fixed
+56-byte header and validates negotiated VERSION reserved/revision bytes. These
+profiles are not user-selectable and do not alter production.
+
+**SSPI dependency:** current-main reconciliation found no Microsoft-native
+Windows SSPI Type-2 oracle result to consume. Production challenge bytes are
+therefore **UNCHANGED** and no new Linux physical candidate is nominated.
+Connector source/spec audit: **PASS**. Owner-local modified-tree CTest:
+**NOT RUN** in this connector environment. Exact-SHA hosted CI: **PENDING**.
+Required next gate: Agent 6 Windows SSPI must consume the production Type 2 and
+produce Type 3; only then choose the minimal interoperable production profile.
+No native-admission, MCS, graphics or clipboard change is authorized.
+
 ## R5 dependency recheck — repository blockers cleared; physical Type 3 receipt required (2026-10-25)
 
 **Exact head checked:** `4d697c9730b809c0209955ea3dd053a22a87c4ed`. The Type-2 wire blocker from the owner

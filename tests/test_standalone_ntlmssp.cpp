@@ -293,6 +293,120 @@ int main(int argc, char **argv)
         return 0;
     }
 
+
+    if (testCase == "ntlmssp-challenge-compatibility-profiles")
+    {
+        // The owner trace retained only bounded flag/shape diagnostics, not
+        // secret transcript bytes. Pin the exact observed capability delta
+        // without inventing a replacement production profile.
+        constexpr std::uint32_t physicalTypeOneFlags = 0xe2088235U;
+        constexpr std::uint32_t currentPortableTypeTwoFlags = 0xe08a8235U;
+        constexpr std::uint32_t serverIntroducedFlags =
+            kNtlmTargetTypeServer | kNtlmNegotiateTargetInfo;
+        static_assert(
+            (physicalTypeOneFlags & ~currentPortableTypeTwoFlags) ==
+            kNtlmNegotiateVersion);
+        static_assert(
+            (currentPortableTypeTwoFlags & ~physicalTypeOneFlags) ==
+            serverIntroducedFlags);
+
+        std::array<std::uint8_t, 768> portable{};
+        const NtlmChallengeMessageParameters parameters{
+            kServerChallenge,
+            kStandaloneNtlmPortableDomainName,
+            kStandaloneNtlmPortableServerName,
+            0x0102030405060708ULL,
+            physicalTypeOneFlags};
+        const auto encoded =
+            encodeNtlmChallengeMessage(parameters, portable);
+        assert(encoded);
+        assert(encoded.negotiateFlags == currentPortableTypeTwoFlags);
+        assert(std::ranges::all_of(
+            std::span<const std::uint8_t>{portable}.subspan(48U, 8U),
+            [](std::uint8_t byte) { return byte == 0U; }));
+
+        NtlmChallengeMessageObservation observation;
+        assert(validateNtlmChallengeMessage(
+                   std::span<const std::uint8_t>{portable}.first(
+                       encoded.bytesWritten),
+                   physicalTypeOneFlags, observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(observation.valid);
+        assert(observation.targetNameCodeUnits == 10U);
+        assert(observation.targetInfoBytes == 50U);
+        assert(observation.totalBytes == 126U);
+        assert(observation.targetInfoAvIdCount == 4U);
+        assert(observation.targetInfoAvIds[0] == 2U);
+        assert(observation.targetInfoAvIds[1] == 1U);
+        assert(observation.targetInfoAvIds[2] == 7U);
+        assert(observation.targetInfoAvIds[3] == 0U);
+
+        using namespace rdp_server::tests::ntlm_type2_conformance;
+        ParsedChallenge parsed{};
+        assert(parseConformantChallenge(
+            std::span<const std::uint8_t>{portable}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        // Test-only profile 2: preserve VERSION when it was offered. Product
+        // version 0.0/build 0 deliberately avoids pretending to be Windows;
+        // revision 0x0f is the specified NTLMSSP revision. This is not a
+        // production decision; the Windows SSPI oracle owns that decision.
+        auto versionPreserved = portable;
+        const std::uint32_t versionPreservedFlags =
+            encoded.negotiateFlags | kNtlmNegotiateVersion;
+        storeLe32(versionPreserved.data() + 20U, versionPreservedFlags);
+        constexpr std::array<std::uint8_t, 8> testOnlyPortableVersion{
+            0U, 0U, 0U, 0U, 0U, 0U, 0U, 0x0fU};
+        std::copy(
+            testOnlyPortableVersion.begin(),
+            testOnlyPortableVersion.end(),
+            versionPreserved.begin() + 48);
+        assert(validateNtlmChallengeMessage(
+                   std::span<const std::uint8_t>{versionPreserved}.first(
+                       encoded.bytesWritten),
+                   physicalTypeOneFlags, observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(observation.negotiateFlags == versionPreservedFlags);
+        assert(parseConformantChallenge(
+            std::span<const std::uint8_t>{versionPreserved}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        // The VERSION-preserved profile must differ from the current portable
+        // profile only in NegotiateFlags and the fixed Version field.
+        auto normalizedVersionProfile = versionPreserved;
+        storeLe32(
+            normalizedVersionProfile.data() + 20U,
+            encoded.negotiateFlags);
+        std::fill(
+            normalizedVersionProfile.begin() + 48,
+            normalizedVersionProfile.begin() + 56,
+            std::uint8_t{0});
+        assert(std::equal(
+            portable.begin(),
+            portable.begin() + encoded.bytesWritten,
+            normalizedVersionProfile.begin()));
+
+        // Test-only profile 3 is Microsoft's published MS-NLMP 4.2.4.3
+        // CHALLENGE_MESSAGE. Keep it independent of the production encoder.
+        assert(validateNtlmChallengeMessage(
+                   kMicrosoftChallengeMessage,
+                   kMicrosoftChallengeClientFlags,
+                   observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(observation.negotiateFlags == 0xe28a8233U);
+        assert((observation.negotiateFlags &
+                kNtlmNegotiateVersion) != 0U);
+        assert(observation.targetNameCodeUnits == 6U);
+        assert(observation.targetInfoBytes == 36U);
+        assert(observation.targetInfoAvIdCount == 3U);
+        assert(observation.targetInfoAvIds[0] == 2U);
+        assert(observation.targetInfoAvIds[1] == 1U);
+        assert(observation.targetInfoAvIds[2] == 0U);
+        return 0;
+    }
+
     if (testCase == "ntlmssp-challenge-target-name-conformance")
     {
         std::array<std::uint8_t, 768> output{};

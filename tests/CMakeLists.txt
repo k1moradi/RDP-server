@@ -156,6 +156,7 @@ endif()
 foreach(ntlmssp_case IN ITEMS
         ntlmssp-negotiate-challenge-framing
         ntlmssp-challenge-portable-target-name
+        ntlmssp-challenge-compatibility-profiles
         ntlmssp-challenge-target-name-conformance
         ntlmssp-microsoft-authenticate-bridge
         ntlmssp-security-buffer-mic-denials)

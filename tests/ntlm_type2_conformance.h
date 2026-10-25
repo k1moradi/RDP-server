@@ -24,6 +24,7 @@ inline constexpr std::uint32_t kTargetTypeDomain = 0x00010000U;
 inline constexpr std::uint32_t kTargetTypeServer = 0x00020000U;
 inline constexpr std::uint32_t kExtendedSessionSecurity = 0x00080000U;
 inline constexpr std::uint32_t kNegotiateTargetInfo = 0x00800000U;
+inline constexpr std::uint32_t kNegotiateVersion = 0x02000000U;
 inline constexpr std::uint32_t kNegotiate128 = 0x20000000U;
 inline constexpr std::uint32_t kNegotiateKeyExchange = 0x40000000U;
 inline constexpr std::uint32_t kNegotiate56 = 0x80000000U;
@@ -204,7 +205,7 @@ struct SecurityBuffer final
     output = {};
     constexpr std::array<std::uint8_t, 8> signature{
         'N','T','L','M','S','S','P',0};
-    if (message.size() < 48U ||
+    if (message.size() < 56U ||
         !std::equal(signature.begin(), signature.end(), message.begin()) ||
         loadLe32(message.data() + 8U) != 2U)
     {
@@ -227,6 +228,7 @@ struct SecurityBuffer final
         kNegotiateOem |
         kNegotiateAlwaysSign |
         kTargetTypeDomain |
+        kNegotiateVersion |
         kNegotiateKeyExchange |
         kNegotiate56;
     if ((flags & requiredFlags) != requiredFlags ||
@@ -236,9 +238,27 @@ struct SecurityBuffer final
         return false;
     }
 
+    const ByteSpan version = message.subspan(48U, 8U);
+    if ((flags & kNegotiateVersion) != 0U)
+    {
+        // VERSION is debugging-only protocol metadata. A negotiated profile
+        // still has to use the fixed reserved bytes and NTLMSSP revision.
+        if (version[4U] != 0U || version[5U] != 0U ||
+            version[6U] != 0U || version[7U] != 0x0fU)
+        {
+            return false;
+        }
+    }
+    else if (!std::ranges::all_of(
+                 version,
+                 [](std::uint8_t byte) { return byte == 0U; }))
+    {
+        return false;
+    }
+
     SecurityBuffer targetName;
     SecurityBuffer targetInfo;
-    constexpr std::size_t payloadFloor = 48U;
+    constexpr std::size_t payloadFloor = 56U;
     if (!readSecurityBuffer(
             message, 12U, payloadFloor, targetName) ||
         !readSecurityBuffer(

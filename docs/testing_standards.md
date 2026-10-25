@@ -1,3 +1,23 @@
+## Functional CTest names and local-username portability (2026-10-24)
+
+The durable-taxonomy rule applies to **both CTest names and labels**. Registered
+CTest output must not contain internal `r1` through `r10` ownership tokens
+(including compound forms such as `r6-...` or `r10_...`). Fixture command
+modes and roadmap ownership may retain internal road identifiers when needed;
+the registered test summary uses only behavior/domain names. CMake checks the
+resolved registry so dynamically assembled names cannot bypass the policy.
+
+The existing desktop-GUI local-username CTest is the portability gate for the
+first-launch suggestion. It requires the field to match the platform helper's
+safe suggestion (or be empty when unavailable), remain user-editable, reject
+representative system/service identities, and keep both Session Password fields
+empty. No test may retrieve an OS password or treat the suggestion as native
+admission.
+
+Any CTest rename must update exact-name/regex CI selectors and the workflow
+structure validator in the same publication without changing test behavior or
+fixed inventory cardinality.
+
 ## Typed native-admission reason matrix (2026-10-24)
 
 Every exposed native-admission first-failure reason requires a deterministic

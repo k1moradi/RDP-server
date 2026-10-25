@@ -1,11 +1,18 @@
 ## Desktop Username account lookup linkage (2026-10-24)
 
-The shared Qt desktop UI resolves only the current local account **name** for
-its Username convenience default. POSIX builds use the existing libc
-`getpwuid_r` boundary. Windows builds link the system `Advapi32` import
-library for `GetUserNameW`; this adds no redistributable DLL or package
-dependency. No password/credential API is called. Session Password remains
-user-entered and independent.
+The shared noninstalled Qt desktop UI resolves only a safe current interactive
+account **name** for the Username convenience default. Linux uses the effective
+UID through the existing libc `getpwuid_r` boundary. macOS uses
+SystemConfiguration's current console-user query. Windows uses the current
+process's interactive WTS session and `WTSQuerySessionInformationW`, linking
+the system `wtsapi32` import library. Root/system/service identities fail to
+an empty suggestion.
+
+These paths read account/session metadata only. No password or credential-store
+API is called, no PAM plaintext is recovered, and no login password is cached.
+Session Password remains empty at startup, user-entered, and independent. The
+helper is UI-only and does not enter the installed protocol SDK or grant native
+admission.
 
 ## R6 owner-acceptance GUI build-intent parity (2026-10-24)
 

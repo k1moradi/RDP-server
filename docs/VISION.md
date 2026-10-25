@@ -1,11 +1,16 @@
 ## Local Username convenience and credential separation (2026-10-24)
 
-When the current local account name can be resolved safely from the operating
-system, the desktop GUI uses it only as the initial Username convenience value.
+When a safe current interactive local account name is available, the desktop GUI
+uses it only as the initial editable Username convenience value: effective local
+account on Linux, console user on macOS, and interactive WTS process session on
+Windows. Root/system/service identities are not suggested; failure to resolve a
+safe name leaves Username empty rather than guessing an identity.
+
 The server never retrieves or auto-fills the operating-system account password.
 Session Password remains a separate application credential entered by the
-owner. Failure to resolve the local name falls back to the existing non-secret
-Username default and does not weaken authentication or native admission.
+owner, starts empty, and does not silently become OS authentication. A Username
+suggestion never grants native admission or maps the remote credential to that
+OS account.
 
 ## Normal portable application startup
 

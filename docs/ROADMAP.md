@@ -1,3 +1,38 @@
+## Product Username default and complete CTest taxonomy — 2026-10-24
+
+**Authoring parent:** `fb3cc8b509d04a0e8a625541ca821cadd511f46f`.
+
+The owner evidence remains unchanged and authoritative: assignment SHA
+`9fd1db518076713f30b41af2aff023308f95a925` passed **966/966** local CTests;
+the real Microsoft client established TLS, selected Direct NTLM, accepted Type
+1, received Type 2, progressed through CredSSP, then first failed at native
+**Admission** with `stage=admission`. This increment makes no TLS, SPNEGO,
+NTLM, CredSSP or native-admission protocol change and preserves the concurrent
+native-admission classification/encapsulation work already on main.
+
+The standalone GUI now suggests a safely observed current local interactive
+account name as the initial Username when available: effective local account on
+Linux, console user on macOS, and interactive WTS process session on Windows.
+It is editable convenience only and never maps the remote standalone credential
+to that OS account. Root/system/service candidates fail to an empty suggestion.
+Session Password and confirmation still start empty and remain user-entered; no
+host password lookup, credential-store scraping, PAM plaintext recovery or
+password cache is introduced.
+
+CTest cleanup now covers the whole registered summary, not only labels:
+internal R1-R10 ownership tokens are removed from CTest names and labels, while
+fixture command modes may remain internal. Existing CI exact selectors are
+reconciled without changing pinned test counts; the resolved registry fails
+configuration if a future test leaks an internal road token.
+
+**Authoring verification:** connector source/registry/selector reconciliation
+**PASS by inspection**. Selector cardinalities remain pinned (including
+CLIPRDR 9, native GSS 30, runtime security 41 and Linux/X11 42). Canonical
+local `~/rdp-server/build` build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. The next product failure boundary
+remains positive native Admission, not speculative transport/authentication
+changes.
+
 ## Admission reason fixture compile correction — 2026-10-24
 
 Exact-SHA CI for `9968d45822bd961c19743e380a5d73af3c4d1394`

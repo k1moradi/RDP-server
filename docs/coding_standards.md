@@ -1,3 +1,22 @@
+## Local username suggestion is convenience, never authentication (2026-10-24)
+
+The standalone Username field may default to a safely observed current local
+interactive account name. That value is presentation convenience only: it does
+not mint native admission, select an OS identity for a remote peer, or imply
+that the remote credential is an OS-account credential. The field remains
+editable; if a trustworthy interactive username is unavailable, use an empty
+default rather than a guessed or system identity.
+
+Read only the platform's current-account name boundary: the effective local
+account on Linux, the console user on macOS, and the current interactive
+process WTS session on Windows. Reject root/system/service-style identities.
+Never read `/etc/shadow`, scrape credential stores, use PAM to recover
+plaintext, cache a login password, or silently substitute OS authentication.
+
+Session Password is independent application state. It and its confirmation
+start empty and become populated only from explicit user input. A future
+Existing OS Account mode remains a separate authenticated provider path.
+
 ## Native-admission reasons are diagnostics, never capabilities (2026-10-24)
 
 After credentials are verified, preserve the first failed native-admission

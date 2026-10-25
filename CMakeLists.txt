@@ -1261,6 +1261,7 @@ if(WIN32)
         add_executable(rdp-server-windows-gui WIN32
             src/windows/windows_gui_main.cpp
             src/gui/desktop_window.cpp
+            src/gui/local_username.cpp
             src/gui/host_control.cpp
             src/gui/toggle_switch.cpp)
         target_include_directories(rdp-server-windows-gui PRIVATE
@@ -1268,7 +1269,7 @@ if(WIN32)
             "${PROJECT_SOURCE_DIR}/src/gui")
         target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
         target_link_libraries(
-            rdp-server-windows-gui PRIVATE Qt6::Widgets Advapi32)
+            rdp-server-windows-gui PRIVATE Qt6::Widgets wtsapi32)
         # The existing CLI rdp-server.exe is a different binary; avoid a
         # case-insensitive file collision in the Windows build tree and ZIP.
         set_target_properties(rdp-server-windows-gui PROPERTIES
@@ -1284,7 +1285,7 @@ if(WIN32)
             add_test(NAME windows.gui-offline-no-side-effects
                 COMMAND $<TARGET_FILE:rdp-server-windows-gui>
                     --offline-self-test)
-            add_test(NAME windows.gui-start-denied-without-r2-r10
+            add_test(NAME windows.gui-start-denied-without-authority
                 COMMAND $<TARGET_FILE:rdp-server-windows-gui>
                     --offline-start-denial-test)
             add_test(NAME windows.gui-independent-password-input-unavailable
@@ -1302,7 +1303,7 @@ if(WIN32)
                 LABELS "windows;gui;offline;packaging" TIMEOUT 15)
             set_tests_properties(
                 windows.gui-offline-no-side-effects
-                windows.gui-start-denied-without-r2-r10
+                windows.gui-start-denied-without-authority
                 windows.gui-independent-password-input-unavailable
                 PROPERTIES LABELS "windows;gui;offline" TIMEOUT 15)
         endif()
@@ -1321,6 +1322,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     find_package(Qt6 6.4 REQUIRED COMPONENTS Widgets)
     add_library(rdp-server-desktop-ui STATIC
         src/gui/desktop_window.cpp
+        src/gui/local_username.cpp
         src/gui/host_control.cpp
         src/gui/toggle_switch.cpp)
     target_include_directories(rdp-server-desktop-ui PUBLIC
@@ -1334,9 +1336,12 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
     if(WIN32)
-        # GetUserNameW supplies only the local Username convenience default.
+        # WTS supplies only interactive-session account-name metadata.
         # No OS password API is called or linked.
-        target_link_libraries(rdp-server-desktop-ui PUBLIC Advapi32)
+        target_link_libraries(rdp-server-desktop-ui PUBLIC wtsapi32)
+    elseif(APPLE)
+        target_link_libraries(rdp-server-desktop-ui PUBLIC
+            "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}")
     endif()
     if(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
         target_compile_definitions(rdp-server-desktop-ui PUBLIC
@@ -1363,6 +1368,32 @@ endif()
 
 if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
     add_subdirectory(tests)
+endif()
+
+# Root-registered CTests are outside tests/CMakeLists.txt, so apply the same
+# functional taxonomy rule here as the resolved subdirectory registry.
+if(BUILD_TESTING AND RDP_SERVER_BUILD_TESTING)
+    get_property(rdp_root_registered_test_names DIRECTORY PROPERTY TESTS)
+    foreach(rdp_root_registered_test_name IN LISTS rdp_root_registered_test_names)
+        if(rdp_root_registered_test_name MATCHES
+           "(^|[._-])r(10|[1-9])([._-]|$)")
+            message(FATAL_ERROR
+                "CTest name contains internal agent ownership taxonomy: "
+                "${rdp_root_registered_test_name}")
+        endif()
+        get_property(rdp_root_registered_test_labels
+            TEST "${rdp_root_registered_test_name}" PROPERTY LABELS)
+        foreach(rdp_root_registered_test_label
+                IN LISTS rdp_root_registered_test_labels)
+            if(rdp_root_registered_test_label MATCHES
+               "^r(10|[1-9])($|[-_.])")
+                message(FATAL_ERROR
+                    "CTest label contains internal agent ownership taxonomy: "
+                    "${rdp_root_registered_test_name}: "
+                    "${rdp_root_registered_test_label}")
+            endif()
+        endforeach()
+    endforeach()
 endif()
 
 # Installable protocol SDK, not a service or an installable RDP daemon.

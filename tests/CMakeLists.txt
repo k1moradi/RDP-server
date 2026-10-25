@@ -9,6 +9,21 @@ add_test(NAME project.local-checkout-path-comparison
 set_tests_properties(project.local-checkout-path-comparison PROPERTIES
     LABELS "policy;build")
 
+# CTest names are user/developer-facing behavior taxonomy. Internal R1-R10
+# road identifiers may remain in fixture command modes, but never test names.
+function(rdp_functional_ctest_name output_variable raw_name)
+    set(functional_name "${raw_name}")
+    set(previous_name "")
+    while(NOT previous_name STREQUAL functional_name)
+        set(previous_name "${functional_name}")
+        string(REGEX REPLACE "(^|[._-])r(10|[1-9])([._-])" "\\1"
+            functional_name "${functional_name}")
+        string(REGEX REPLACE "(^|[._-])r(10|[1-9])$" ""
+            functional_name "${functional_name}")
+    endwhile()
+    set(${output_variable} "${functional_name}" PARENT_SCOPE)
+endfunction()
+
 # R7 Windows launcher uses DesktopWindow directly instead of the shared
 # desktop-ui archive, so every out-of-line widget implementation used by the
 # dashboard must be present in this target's source list.
@@ -44,12 +59,12 @@ set_tests_properties(gui.toggle-object-name-base-lookup-source-contract
 # without retaining removed GUI command-intent flags or the retired raw-stage
 # sharing helper. This source contract is platform-independent and catches
 # cross-platform compile regressions before packaging lanes diverge.
-add_test(NAME gui.r10-product-status-integration-source-contract
+add_test(NAME gui.product-status-integration-source-contract
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
         "-DRDP_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_product_status_integration.cmake")
-set_tests_properties(gui.r10-product-status-integration-source-contract
+set_tests_properties(gui.product-status-integration-source-contract
     PROPERTIES LABELS "gui;host-control;policy;offline")
 
 add_test(NAME gui.owner-acceptance-release-gate-and-production-path
@@ -170,20 +185,20 @@ foreach(ntlm_security_case IN ITEMS
 endforeach()
 
 # R9 P0 rejection diagnostics preserve specific initial token categories.
-add_test(NAME r9-standalone-spnego-initial-rejection-categories
+add_test(NAME security.standalone-spnego-initial-rejection-categories
     COMMAND test_standalone_spnego
         r9-spnego-initial-rejection-categories)
-set_tests_properties(r9-standalone-spnego-initial-rejection-categories
+set_tests_properties(security.standalone-spnego-initial-rejection-categories
     PROPERTIES LABELS "assurance;security;spnego;credssp;offline")
 
 # R9 P0 Microsoft-compatible synthetic NegTokenInit2 path through
 # NEGOEX/Kerberos-family-first mechanism selection into NTLM challenge. This
 # does not claim
 # that the unmodified owner client succeeded or that GSS fallback is enabled.
-add_test(NAME r9-standalone-credssp-spnego-microsoft-negotiation
+add_test(NAME security.standalone-credssp-spnego-microsoft-negotiation
     COMMAND test_standalone_spnego
         r9-microsoft-neginit2-ntlm-challenge)
-set_tests_properties(r9-standalone-credssp-spnego-microsoft-negotiation
+set_tests_properties(security.standalone-credssp-spnego-microsoft-negotiation
     PROPERTIES LABELS "assurance;security;spnego;credssp;offline")
 
 # R2 standalone SPNEGO/NTLM mechanism state. These are bounded offline wire
@@ -296,10 +311,10 @@ set_tests_properties(runtime.bootstrap-generated-identities-default-memory-only
 
 # R9 P0 owned TLS-record TSRequest v5/v6 through standalone SPNEGO to
 # NTLM Type 2 challenge. This is not a real X.224/listener/client receipt.
-add_test(NAME r9-standalone-credssp-tsrequest-v5-v6-challenge
+add_test(NAME security.standalone-credssp-tsrequest-v5-v6-challenge
     COMMAND test_standalone_credssp
         r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge)
-set_tests_properties(r9-standalone-credssp-tsrequest-v5-v6-challenge
+set_tests_properties(security.standalone-credssp-tsrequest-v5-v6-challenge
     PROPERTIES LABELS "assurance;security;tls;credssp;spnego;offline")
 
 # R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
@@ -313,11 +328,11 @@ else()
     target_compile_options(test_standalone_credssp PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
-add_test(NAME security.r9-standalone-credssp-direct-ntlm-v6-full-flow
+add_test(NAME security.standalone-credssp-direct-ntlm-v6-full-flow
     COMMAND test_standalone_credssp
         r9-standalone-credssp-direct-ntlm-v6-full-flow)
 set_tests_properties(
-    security.r9-standalone-credssp-direct-ntlm-v6-full-flow
+    security.standalone-credssp-direct-ntlm-v6-full-flow
     PROPERTIES LABELS "assurance;security;credentials;ntlmv2;credssp;tls;authentication-envelope;platform;offline")
 
 add_test(NAME security.standalone-credssp-direct-ntlm-wrong-password-stage
@@ -503,10 +518,10 @@ if(TARGET rdp-server-linux-host-control)
     # R9 P0 exact-SHA pre-owner gate: same-port three-cycle credential and
     # consent lifecycle, plus a real X.224 HYBRID/SSL client against R1.
     # Native environment skip is not a PASS receipt for owner qualification.
-    add_test(NAME r9-start-stop-start-and-tls-interop
+    add_test(NAME runtime.start-stop-start-and-tls-interop
         COMMAND test_linux_runtime_host_control
-            r9-start-stop-start-and-tls-interop)
-    set_tests_properties(r9-start-stop-start-and-tls-interop PROPERTIES
+            runtime.start-stop-start-and-tls-interop)
+    set_tests_properties(runtime.start-stop-start-and-tls-interop PROPERTIES
         LABELS "assurance;security;transport;tls;owner-consent;linux;native-environment"
         SKIP_RETURN_CODE 77)
 
@@ -522,7 +537,7 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;owner-consent;host-control;linux;native-observation"
             SKIP_RETURN_CODE 77)
 
-    add_test(NAME runtime.linux-host-control-r2-authority-lifetime-handoff
+    add_test(NAME runtime.linux-host-control-authority-lifetime-handoff
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
@@ -530,7 +545,7 @@ if(TARGET rdp-server-linux-host-control)
             "-DRDP_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_owner_authority_handoff.cmake")
     set_tests_properties(
-        runtime.linux-host-control-r2-authority-lifetime-handoff PROPERTIES
+        runtime.linux-host-control-authority-lifetime-handoff PROPERTIES
         LABELS "runtime;security;owner-consent;host-control;offline")
     add_test(NAME runtime.linux-host-control-provisioned-listener-transaction
         COMMAND "${CMAKE_COMMAND}"
@@ -1116,9 +1131,10 @@ function(add_rdp_test source_file suite behavior)
                 share-active-exchange-denials
                 share-finalization-exchange-correlation
                 share-finalization-exchange-denials)
-            add_test(NAME "transport.${case_name}"
+            rdp_functional_ctest_name(functional_transport_test_name "transport.${case_name}")
+            add_test(NAME "${functional_transport_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("transport.${case_name}" PROPERTIES
+            set_tests_properties("${functional_transport_test_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
     elseif(test_target STREQUAL "test_owned_preauth_session")
@@ -1202,9 +1218,10 @@ function(add_rdp_test source_file suite behavior)
                 credssp-tls-reply-cert-backpressure
                 credssp-tls-failure-reply-wire
                 credssp-tls-failure-reply-rejections)
-            add_test(NAME "transport.${case_name}"
+            rdp_functional_ctest_name(functional_transport_test_name "transport.${case_name}")
+            add_test(NAME "${functional_transport_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("transport.${case_name}" PROPERTIES
+            set_tests_properties("${functional_transport_test_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
         # Dedicated real TLS reader→writer interleaving regression; keep
@@ -1233,9 +1250,10 @@ function(add_rdp_test source_file suite behavior)
                 credssp-active-tls-binding-positive
                 credssp-active-tls-binding-rejections
                 credssp-tls-release-certificate-denial)
-            add_test(NAME "security.${case_name}"
+            rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+            add_test(NAME "${functional_security_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("security.${case_name}" PROPERTIES
+            set_tests_properties("${functional_security_test_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
         # Linux SO_LINGER abortive close exercises the native R1 SSL/BIO
@@ -1278,9 +1296,10 @@ function(add_rdp_test source_file suite behavior)
                 gssapi-r3-protected-transition-terminal-replay-fence
                 gssapi-r3-native-change-revocation
                 gssapi-r3-mcs-disconnect-revocation-fence)
-            add_test(NAME "security.${case_name}"
+            rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+            add_test(NAME "${functional_security_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("security.${case_name}" PROPERTIES
+            set_tests_properties("${functional_security_test_name}" PROPERTIES
                 LABELS "security;linux-provider")
         endforeach()
         add_test(NAME security.native-admission-reason-taxonomy-and-positive-fixture
@@ -1316,9 +1335,10 @@ function(add_rdp_test source_file suite behavior)
                 credssp-server-failure-rejections
                 credssp-final-negotiation-binding
                 credssp-final-binding-rejections)
-            add_test(NAME "security.${case_name}"
+            rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+            add_test(NAME "${functional_security_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("security.${case_name}" PROPERTIES
+            set_tests_properties("${functional_security_test_name}" PROPERTIES
                 LABELS "protocol;security")
         endforeach()
     elseif(test_target STREQUAL "test_gfx_avc420_segmented_frame")
@@ -1457,9 +1477,10 @@ function(add_rdp_test source_file suite behavior)
                 verified-unicode-text-readiness
                 verified-image-readiness
                 nonblocking-paste-readiness)
-            add_test(NAME "clipboard.${case_name}"
+            rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+            add_test(NAME "${functional_clipboard_test_name}"
                 COMMAND "${test_target}" "${case_name}")
-            set_tests_properties("clipboard.${case_name}" PROPERTIES
+            set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
                 LABELS "protocol;clipboard")
         endforeach()
     else()
@@ -1592,12 +1613,13 @@ foreach(runtime_licensing_autoprovision_case IN ITEMS
         microsoft-temporary-certificate-marker
         server-license-request-generated-identity
         distinct-from-server-tls)
+    rdp_functional_ctest_name(functional_licensing_test_name "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}")
     add_test(
-        NAME "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}"
+        NAME "${functional_licensing_test_name}"
         COMMAND test_runtime_licensing_autoprovision
             "${runtime_licensing_autoprovision_case}")
     set_tests_properties(
-        "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}"
+        "${functional_licensing_test_name}"
         PROPERTIES LABELS "runtime;security;licensing;protocol;offline")
 endforeach()
 
@@ -1668,9 +1690,10 @@ if(TARGET rdp-server-linux-gssapi)
                 gssapi-real-kerberos-owned-authinfo-denial
                 gssapi-real-kerberos-tls-mechanism
                 gssapi-real-kerberos-tls-failure)
-            add_test(NAME "security.${case_name}"
+            rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+            add_test(NAME "${functional_security_test_name}"
                 COMMAND test_owned_preauth_session "${case_name}")
-            set_tests_properties("security.${case_name}"
+            set_tests_properties("${functional_security_test_name}"
                 PROPERTIES LABELS "security;linux-provider;opt-in-kerberos")
         endforeach()
 
@@ -1710,9 +1733,10 @@ if(TARGET rdp-server-linux-gssapi)
             gssapi-reply-order-denials
             gssapi-framed-binding-only-denials
             gssapi-framed-binding-reply-order)
-        add_test(NAME "security.${case_name}"
+        rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+        add_test(NAME "${functional_security_test_name}"
             COMMAND test_owned_preauth_session "${case_name}")
-        set_tests_properties("security.${case_name}" PROPERTIES
+        set_tests_properties("${functional_security_test_name}" PROPERTIES
             LABELS "security;linux-provider")
     endforeach()
 endif()
@@ -1748,9 +1772,10 @@ foreach(case_name IN ITEMS
         file-destination-plan-cancel-replay
         directory-capability-binding-authority
         directory-capability-binding-retirement)
-    add_test(NAME "clipboard.${case_name}"
+    rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+    add_test(NAME "${functional_clipboard_test_name}"
         COMMAND test_owned_remote_transfer "${case_name}")
-    set_tests_properties("clipboard.${case_name}" PROPERTIES
+    set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
         LABELS "protocol;clipboard;security;offline")
 endforeach()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -1820,9 +1845,10 @@ if(TARGET rdp-server-linux-pam-password-verifier)
     foreach(case_name IN ITEMS
             credssp-pam-password-field-verifier-denials
             gssapi-pam-verifier-binding-denials)
-        add_test(NAME "security.${case_name}"
+        rdp_functional_ctest_name(functional_security_test_name "security.${case_name}")
+        add_test(NAME "${functional_security_test_name}"
             COMMAND test_linux_pam_password_verifier "${case_name}")
-        set_tests_properties("security.${case_name}" PROPERTIES
+        set_tests_properties("${functional_security_test_name}" PROPERTIES
             LABELS "security;linux-provider;pam;offline")
     endforeach()
 endif()
@@ -1947,11 +1973,12 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-personal-share-tls-io-denials
             linux-connection-personal-graphics-dvc-tls-io-denials
             linux-connection-existing-cal-unadmitted-denial)
-        add_test(NAME "runtime.${runtime_linux_security_case}"
+        rdp_functional_ctest_name(functional_runtime_security_test_name "runtime.${runtime_linux_security_case}")
+        add_test(NAME "${functional_runtime_security_test_name}"
             COMMAND test_runtime_linux_security
                 "${runtime_linux_security_case}"
                 "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
-        set_tests_properties("runtime.${runtime_linux_security_case}" PROPERTIES
+        set_tests_properties("${functional_runtime_security_test_name}" PROPERTIES
             LABELS "runtime;security;linux-provider;offline")
     endforeach()
 
@@ -2082,13 +2109,13 @@ if(TARGET rdp-server-linux-runtime-security)
     # R10's live native owner is reachable only behind genuine R2 admission,
     # so ordinary CI source-guards production composition rather than
     # fabricating a Kerberos/PAM/logind lease or touching a real X11 desktop.
-    add_test(NAME runtime.linux-serve-r2-selected-x11-owner-composition
+    add_test(NAME runtime.linux-serve-authorized-x11-owner-composition
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_native_owner.cmake")
     set_tests_properties(
-        runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
+        runtime.linux-serve-authorized-x11-owner-composition PROPERTIES
         LABELS "runtime;security;native;linux;x11;native-desktop;session;offline")
 
     # The R5 aggregate's terminal XCB/XShm/input failure cleanup must not
@@ -2610,24 +2637,24 @@ if(TARGET rdp-server-windows-desktop)
     # R6 aggregate native-owner denial boundary. It uses the real R2
     # authorization object only in an unbound/deny-only state and performs no
     # live WTS/DXGI/cursor read or SendInput.
-    add_test(NAME windows.native-owner-r2-grant-and-lifetime-denials
+    add_test(NAME windows.native-owner-grant-and-lifetime-denials
         COMMAND test_windows_desktop_geometry native-owner-r2-grant-and-lifetime-denials)
     set_tests_properties(
-        windows.native-owner-r2-grant-and-lifetime-denials PROPERTIES
+        windows.native-owner-grant-and-lifetime-denials PROPERTIES
         LABELS "windows;native-owner;security;offline" TIMEOUT 20)
 
-    add_test(NAME windows.native-owner-r2-authorized-offline-lifecycle
+    add_test(NAME windows.native-owner-authorized-offline-lifecycle
         COMMAND test_windows_desktop_geometry
             native-owner-r2-authorized-offline-lifecycle)
-    add_test(NAME windows.native-owner-r2-authorized-view-only-offline-lifecycle
+    add_test(NAME windows.native-owner-authorized-view-only-offline-lifecycle
         COMMAND test_windows_desktop_geometry
             native-owner-r2-authorized-view-only-offline-lifecycle)
     add_test(NAME windows.native-owner-standalone-authenticated-session-lifecycle
         COMMAND test_windows_desktop_geometry
             native-owner-standalone-authenticated-session-lifecycle)
     set_tests_properties(
-        windows.native-owner-r2-authorized-offline-lifecycle
-        windows.native-owner-r2-authorized-view-only-offline-lifecycle
+        windows.native-owner-authorized-offline-lifecycle
+        windows.native-owner-authorized-view-only-offline-lifecycle
         windows.native-owner-standalone-authenticated-session-lifecycle
         PROPERTIES
             LABELS "windows;native-owner;security;offline"
@@ -3247,27 +3274,27 @@ if(TARGET rdp-server-runtime-platform-native-desktop)
     endif()
     if(WIN32)
         add_test(
-            NAME runtime.platform-native-desktop-windows-r2-gated-composition
+            NAME runtime.platform-native-desktop-windows-gated-composition
             COMMAND test_runtime_platform_native_desktop)
         add_test(
             NAME runtime.platform-native-desktop-windows-authenticated-session-denials
             COMMAND test_runtime_platform_native_desktop
                 authenticated-session-denials)
         set_tests_properties(
-            runtime.platform-native-desktop-windows-r2-gated-composition
+            runtime.platform-native-desktop-windows-gated-composition
             runtime.platform-native-desktop-windows-authenticated-session-denials
             PROPERTIES
             LABELS "runtime;host-control;native;security;windows;offline")
     elseif(APPLE)
         add_test(
-            NAME runtime.platform-native-desktop-macos-r2-gated-composition
+            NAME runtime.platform-native-desktop-macos-gated-composition
             COMMAND test_runtime_platform_native_desktop)
         add_test(
             NAME runtime.platform-native-desktop-macos-authenticated-session-denials
             COMMAND test_runtime_platform_native_desktop
                 authenticated-session-denials)
         set_tests_properties(
-            runtime.platform-native-desktop-macos-r2-gated-composition
+            runtime.platform-native-desktop-macos-gated-composition
             runtime.platform-native-desktop-macos-authenticated-session-denials
             PROPERTIES
             LABELS "runtime;host-control;native;security;macos;offline")
@@ -3623,10 +3650,10 @@ if(TARGET rdp-server-linux-x11-authorized-input)
         rdp-server-linux-x11-authorized-input)
     target_compile_options(test_x11_rdp_slow_path_input PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
-    add_test(NAME x11.input-r2-authorized-slow-path-native-mapping-denials
+    add_test(NAME x11.input-authorized-slow-path-native-mapping-denials
         COMMAND test_x11_rdp_slow_path_input)
     set_tests_properties(
-        x11.input-r2-authorized-slow-path-native-mapping-denials PROPERTIES
+        x11.input-authorized-slow-path-native-mapping-denials PROPERTIES
         LABELS "x11;linux-adapter;security;input;offline"
         TIMEOUT 20)
     # Offline scancode/extended-key coverage through R3's decoded event
@@ -3719,7 +3746,7 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
         rdp-server-linux-x11-authorized-input)
     target_compile_options(test_x11_authorized_input_route PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
-    add_test(NAME x11.input-r3-admission-route-denials-and-revocation
+    add_test(NAME x11.input-admission-route-denials-and-revocation
         COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
             "-screen 0 1280x720x24 -nolisten tcp"
             $<TARGET_FILE:test_x11_authorized_input_route>)
@@ -3728,15 +3755,15 @@ if(TARGET rdp-server-linux-x11-authorized-input AND
             "-screen 0 1280x720x24 -nolisten tcp"
             $<TARGET_FILE:test_x11_authorized_input_route>
             generation-mismatch)
-    add_test(NAME x11.input-r2-policy-replacement-keyboard-denial
+    add_test(NAME x11.input-policy-replacement-keyboard-denial
         COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
             "-screen 0 1280x720x24 -nolisten tcp"
             $<TARGET_FILE:test_x11_authorized_input_route>
             policy-replacement-keyboard)
     set_tests_properties(
-        x11.input-r3-admission-route-denials-and-revocation
+        x11.input-admission-route-denials-and-revocation
         x11.input-native-generation-mismatch-denial
-        x11.input-r2-policy-replacement-keyboard-denial
+        x11.input-policy-replacement-keyboard-denial
         PROPERTIES LABELS "x11;linux-adapter;native;security;synthetic-display"
                    TIMEOUT 20)
 endif()
@@ -3755,9 +3782,10 @@ if(TARGET rdp-server-linux-clipboard-file-destination)
             linux-file-destination-streaming
             linux-file-destination-size-cancel
             linux-file-destination-denials)
-        add_test(NAME "clipboard.${case_name}"
+        rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+        add_test(NAME "${functional_clipboard_test_name}"
             COMMAND test_linux_clipboard_file_destination "${case_name}")
-        set_tests_properties("clipboard.${case_name}" PROPERTIES
+        set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
             LABELS "protocol;clipboard;linux-file-destination;native;offline")
     endforeach()
 endif()
@@ -3783,9 +3811,10 @@ foreach(case_name IN ITEMS
         macos-file-destination-denials
         macos-completed-file-url-handoff
         macos-completed-multi-file-url-handoff)
-    add_test(NAME "clipboard.${case_name}"
+    rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+    add_test(NAME "${functional_clipboard_test_name}"
         COMMAND test_macos_clipboard_file_destination "${case_name}")
-    set_tests_properties("clipboard.${case_name}" PROPERTIES
+    set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
         LABELS "protocol;clipboard;apple-file-destination;offline")
 endforeach()
 if(APPLE)
@@ -3817,10 +3846,11 @@ foreach(case_name IN ITEMS
         macos-clipboard-png-routing
         macos-clipboard-disconnect-owner-fence
         macos-clipboard-failure-reentry-denials)
-    add_test(NAME "clipboard.${case_name}"
+    rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+    add_test(NAME "${functional_clipboard_test_name}"
         COMMAND test_macos_clipboard_adapter "${case_name}")
     # Keep native-adapter labeling narrower than broad platform preflights.
-    set_tests_properties("clipboard.${case_name}" PROPERTIES
+    set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
         LABELS "protocol;clipboard;apple-clipboard-adapter;offline")
 endforeach()
 
@@ -3848,9 +3878,10 @@ foreach(case_name IN ITEMS
         windows-completed-multi-file-hdrop-handoff
         file-destination-plan-native-capability-integration
         windows-file-destination-source-epoch-revocation)
-    add_test(NAME "clipboard.${case_name}"
+    rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+    add_test(NAME "${functional_clipboard_test_name}"
         COMMAND test_windows_clipboard_file_destination "${case_name}")
-    set_tests_properties("clipboard.${case_name}" PROPERTIES
+    set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
         LABELS "protocol;clipboard;win32-file-destination;offline")
 endforeach()
 if(WIN32)
@@ -3883,11 +3914,12 @@ foreach(case_name IN ITEMS
         windows-clipboard-render-all-disconnect
         windows-clipboard-publication-midcallback-retirement
         windows-clipboard-failure-reentry-denials)
-    add_test(NAME "clipboard.${case_name}"
+    rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+    add_test(NAME "${functional_clipboard_test_name}"
         COMMAND test_windows_clipboard_adapter "${case_name}")
     # Do not add the broad "windows" label: R6's target-only native
     # preflight intentionally runs -L windows before this executable is built.
-    set_tests_properties("clipboard.${case_name}" PROPERTIES
+    set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
         LABELS "protocol;clipboard;win32-adapter;offline")
 endforeach()
 
@@ -3913,9 +3945,10 @@ if(TARGET rdp-server-linux-x11-clipboard)
             x11-incr-png-progression
             x11-incr-cancellation
             x11-r3-retirement-stale-incr-fence)
-        add_test(NAME "clipboard.${case_name}"
+        rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
+        add_test(NAME "${functional_clipboard_test_name}"
             COMMAND $<TARGET_FILE:test_x11_clipboard_adapter> "${case_name}")
-        set_tests_properties("clipboard.${case_name}" PROPERTIES
+        set_tests_properties("${functional_clipboard_test_name}" PROPERTIES
             LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
     endforeach()
     set_tests_properties(
@@ -4217,9 +4250,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-authoritative-sharing-toggle
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;lifecycle" TIMEOUT 30)
-    add_test(NAME gui.offscreen-r10-product-status-authority
+    add_test(NAME gui.offscreen-product-status-authority
         COMMAND test_desktop_gui_offline product-status-authority)
-    set_tests_properties(gui.offscreen-r10-product-status-authority
+    set_tests_properties(gui.offscreen-product-status-authority
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;runtime;lifecycle;lan" TIMEOUT 30)
     # Closing while active hides only presentation; explicit Quit enters
@@ -4234,14 +4267,14 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-automatic-tls-preparation-order
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;tls" TIMEOUT 30)
-    add_test(NAME gui.offscreen-r10-control-adapter-denials
+    add_test(NAME gui.offscreen-control-adapter-denials
         COMMAND test_desktop_gui_offline runtime)
-    set_tests_properties(gui.offscreen-r10-control-adapter-denials PROPERTIES
+    set_tests_properties(gui.offscreen-control-adapter-denials PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
-    add_test(NAME gui.offscreen-r2-os-account-request-status-gate
+    add_test(NAME gui.offscreen-os-account-request-status-gate
         COMMAND test_desktop_gui_offline access)
-    set_tests_properties(gui.offscreen-r2-os-account-request-status-gate PROPERTIES
+    set_tests_properties(gui.offscreen-os-account-request-status-gate PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;credentials" TIMEOUT 30)
     add_test(NAME gui.offscreen-owner-permission-scope-lifetime-forwarding
@@ -4250,9 +4283,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-permission-scope-lifetime-forwarding PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
-    add_test(NAME gui.offscreen-r2-owner-grant-observation
+    add_test(NAME gui.offscreen-owner-grant-observation
         COMMAND test_desktop_gui_offline owner-grant-observation)
-    set_tests_properties(gui.offscreen-r2-owner-grant-observation PROPERTIES
+    set_tests_properties(gui.offscreen-owner-grant-observation PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;consent" TIMEOUT 30)
     add_test(NAME gui.offscreen-sharing-permission-product-language
@@ -4274,9 +4307,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;presentation;runtime;consent" TIMEOUT 30)
     # The actual LAN endpoint and opaque clients must come from R10 status.
     # All interactions remain offscreen without socket/native side effects.
-    add_test(NAME gui.offscreen-r10-interface-endpoint-client-disconnect-denials
+    add_test(NAME gui.offscreen-interface-endpoint-client-disconnect-denials
         COMMAND test_desktop_gui_offline lan-client)
-    set_tests_properties(gui.offscreen-r10-interface-endpoint-client-disconnect-denials
+    set_tests_properties(gui.offscreen-interface-endpoint-client-disconnect-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
     # R10 peer, endpoint and interface data must remain literal Qt text.
@@ -4286,9 +4319,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime" TIMEOUT 30)
     # R10's unique stable-ID/real-address policy also gates GUI choices.
-    add_test(NAME gui.offscreen-r10-selected-lan-endpoint-preflight-denials
+    add_test(NAME gui.offscreen-selected-lan-endpoint-preflight-denials
         COMMAND test_desktop_gui_offline r10-lan-selector)
-    set_tests_properties(gui.offscreen-r10-selected-lan-endpoint-preflight-denials
+    set_tests_properties(gui.offscreen-selected-lan-endpoint-preflight-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;lan" TIMEOUT 30)
     # R1's typed identity evidence must never be mistaken for client
@@ -4327,9 +4360,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
             SKIP_RETURN_CODE 77 TIMEOUT 30)
     endif()
     # R2 terminal session loss must not bypass the R10 raw-stage Stop guard.
-    add_test(NAME gui.offscreen-r10-lifecycle-and-terminal-close-denials
+    add_test(NAME gui.offscreen-lifecycle-and-terminal-close-denials
         COMMAND test_desktop_gui_offline lifecycle-stages)
-    set_tests_properties(gui.offscreen-r10-lifecycle-and-terminal-close-denials
+    set_tests_properties(gui.offscreen-lifecycle-and-terminal-close-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
     # Public Release capability remains false, while Debug/explicit owner
@@ -4446,15 +4479,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
 
     # R10 client authentication cannot be presented as a connected desktop.
     # Stale endpoint/peer fields are cleared by the Qt projection on Stop.
-    add_test(NAME gui.offscreen-r10-client-stage-and-retirement-status-denials
+    add_test(NAME gui.offscreen-client-stage-and-retirement-status-denials
         COMMAND test_desktop_gui_offline client-stage)
-    set_tests_properties(gui.offscreen-r10-client-stage-and-retirement-status-denials
+    set_tests_properties(gui.offscreen-client-stage-and-retirement-status-denials
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;clients" TIMEOUT 30)
     # R7 must not project Graphics control as a visible native desktop.
-    add_test(NAME gui.offscreen-r10-graphics-native-desktop-projection
+    add_test(NAME gui.offscreen-graphics-native-desktop-projection
         COMMAND test_desktop_gui_offline graphics-native-status)
-    set_tests_properties(gui.offscreen-r10-graphics-native-desktop-projection
+    set_tests_properties(gui.offscreen-graphics-native-desktop-projection
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;clients;graphics" TIMEOUT 30)
     add_test(NAME gui.offscreen-local-username-default-keeps-session-password-empty
@@ -4463,7 +4496,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-local-username-default-keeps-session-password-empty
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;credentials;security;offline"
+        LABELS "gui;credentials;security;portability;product;offline"
         TIMEOUT 30)
 
     add_test(NAME gui.offscreen-product-hosting-listener-readiness
@@ -4583,3 +4616,23 @@ add_test(NAME project.ctest-durable-label-taxonomy
         -P "${PROJECT_SOURCE_DIR}/tests/check_ctest_label_taxonomy.cmake")
 set_tests_properties(project.ctest-durable-label-taxonomy PROPERTIES
     LABELS "project-policy;testing;offline")
+
+# Source-level policy catches literal names/labels; this resolved registry check
+# also catches names assembled from behavior case variables.
+get_property(rdp_registered_test_names DIRECTORY PROPERTY TESTS)
+foreach(rdp_registered_test_name IN LISTS rdp_registered_test_names)
+    if(rdp_registered_test_name MATCHES "(^|[._-])r(10|[1-9])([._-]|$)")
+        message(FATAL_ERROR
+            "CTest name contains internal agent ownership taxonomy: "
+            "${rdp_registered_test_name}")
+    endif()
+    get_property(rdp_registered_test_labels
+        TEST "${rdp_registered_test_name}" PROPERTY LABELS)
+    foreach(rdp_registered_test_label IN LISTS rdp_registered_test_labels)
+        if(rdp_registered_test_label MATCHES "^r(10|[1-9])($|[-_.])")
+            message(FATAL_ERROR
+                "CTest label contains internal agent ownership taxonomy: "
+                "${rdp_registered_test_name}: ${rdp_registered_test_label}")
+        endif()
+    endforeach()
+endforeach()

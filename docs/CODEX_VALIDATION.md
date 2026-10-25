@@ -1,3 +1,35 @@
+## Product Username default and CTest taxonomy authoring receipt — 2026-10-24
+
+**Authoring parent:** `fb3cc8b509d04a0e8a625541ca821cadd511f46f`.
+
+Preserved owner evidence: assignment SHA
+`9fd1db518076713f30b41af2aff023308f95a925` had **966/966 PASS** locally.
+The real Microsoft client established TLS, selected Direct NTLM, accepted Type
+1, received Type 2, progressed through CredSSP and first failed at native
+Admission with production diagnostic `stage=admission`. This increment does
+not alter that protocol path or the newer native-admission
+classification/encapsulation code.
+
+Source review: the GUI Username default is produced only by a read-only
+platform current-user helper (Linux effective account, macOS console user,
+Windows interactive WTS process session). Unsafe system/service identities
+return empty. There is no shadow-file, credential-store, PAM plaintext or
+login-password retrieval. Username remains editable and the independent Session
+Password/confirmation start empty.
+
+Registry review: registered CTest names and labels contain only
+behavior/domain taxonomy. Existing fixture command modes retain internal names
+where needed, CI exact/regex selectors are reconciled, the source policy test
+checks literal names/labels, and resolved CMake registry guards catch
+dynamically assembled/root-level leaks. The existing GUI username test is
+strengthened for portability and password separation. Selector reconciliation
+preserves pinned inventories: CLIPRDR **9**, native GSS **30**, runtime security
+**41**, Linux/X11 **42**.
+
+Connector source/selector review: **PASS by inspection**. Canonical owner-local
+build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+Real-client first failure remains native Admission.
+
 ## Admission reason fixture private-access compile correction — 2026-10-24
 
 On exact SHA `9968d45822bd961c19743e380a5d73af3c4d1394`, the production

@@ -904,11 +904,11 @@ jobs:
           grep -Fq 'clipboard.directory-capability-binding-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.linux-directory-capability-native' <<< "$selected_tests"
           grep -Fq 'clipboard.file-destination-plan-native-capability-integration' <<< "$selected_tests"
-          grep -Fq 'clipboard.macos-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
+          grep -Fq 'clipboard.macos-clipboard-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-file-destination-source-epoch-revocation' <<< "$selected_tests"
-          grep -Fq 'clipboard.windows-clipboard-r3-retirement-source-epoch' <<< "$selected_tests"
+          grep -Fq 'clipboard.windows-clipboard-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
-          grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
+          grep -Fq 'clipboard.x11-retirement-stale-incr-fence' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-unicode-text-only-presentation' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-source-request-receipt' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-missing-activated-route-denial' <<< "$selected_tests"
@@ -1117,7 +1117,7 @@ jobs:
         run: |
           set -euo pipefail
           # Verify the actual central CTest registry before instrumented execution.
-          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|buffered-tls-credssp-mcs-readiness|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|r3-connect-response-slice|r3-graphics-frame-slice|r3-license-request-slice|r3-license-request-cancel-replay|r3-platform-challenge-slice|r3-platform-challenge-cancel-replay|r3-platform-challenge-response-read|r3-client-license-read|tls-application-partial-write|tls-terminal-readiness|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-r1-owned-(framing|reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|existing-check-compatibility|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
+          licensing_selection='^(transport\.(tcp-native-accept-(orderly-eof|batch-budget-handoff)|tcp-owned-(security-negotiation-provenance|buffered-tls-credssp-mcs-readiness|hybrid-(nla-negotiation|credssp-first-record|no-premature-mcs|provenance-revocation)|connect-response-slice|graphics-frame-slice|license-request-slice|license-request-cancel-replay|platform-challenge-slice|platform-challenge-cancel-replay|platform-challenge-response-read|client-license-read|tls-application-partial-write|tls-terminal-readiness|tls-application-cancellation|runtime-tls-(handshake|identity-continuity))|credssp-owned-(tls-framing|tls-reply)|mcs-response-(security-replay|write-receipts|write-denials)|mcs-envelope-(tpkt-errors|ber-errors|mutations)|mcs-client-info-protected-route(-denials)?|mcs-client-info-packet-(structure|denials)|mcs-send-data-joined-denials|mcs-join-stale-write-receipts|mcs-join-stale-partial-write-slices|licensing-(server-(identity-configuration|request-(wire|certificate-required|generated-random|write-receipts|write-denials))|client-envelope-(wire|denials)|key-exchange-(wire|denials)|key-derivation|rc4-wire|mac-wire|client-license-info-hwid-(proof|denials|fresh-verification)|server-platform-challenge-(wire|write-receipts|write-denials)|client-platform-challenge-response-(proof|denials)|authority-grant-boundary|new-license-info-(wire|denials)|server-(new-license-wire|upgrade-license-wire|license-grant-(encode-denials|transactional-output|write-receipts|write-denials)|grant-no-live-publication)|premaster-rsa-(decrypt|denials)|runtime-context-(ownership|denials)|initial-crypto-(preparation|denials)|key-material-terminal-replay|preamble-and-state|length-bounds|ordering-denials|client-response-(before-request-delivery|single-consumption)|generated-request-cancellation-replay))|runtime\.licensing-context-(secure-file-snapshots|replacement-freshness|secure-file-denials)|runtime\.licensing-cli-(valid-provisioning|incomplete-configuration|invalid-product-identity|credential-file-denials|existing-check-compatibility|service-still-disabled)|security\.(credssp-(der-(rejections|bounds|mutations)|password-credential-strict-fields)|credssp-binding))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$licensing_selection")"
           printf '%s\n' "$selected_tests"
@@ -1172,12 +1172,12 @@ jobs:
           grep -Fq 'transport.tcp-native-accept-orderly-eof' <<< "$selected_tests"
           grep -Fq 'transport.tcp-native-accept-batch-budget-handoff' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-buffered-tls-credssp-mcs-readiness' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-license-request-cancel-replay' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-platform-challenge-slice' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-platform-challenge-cancel-replay' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-connect-response-slice' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-graphics-frame-slice' <<< "$selected_tests"
-          grep -Fq 'transport.tcp-owned-r3-platform-challenge-response-read' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-license-request-cancel-replay' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-platform-challenge-slice' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-platform-challenge-cancel-replay' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-connect-response-slice' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-graphics-frame-slice' <<< "$selected_tests"
+          grep -Fq 'transport.tcp-owned-platform-challenge-response-read' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-tls-application-partial-write' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-tls-terminal-readiness' <<< "$selected_tests"
           grep -Fq 'transport.tcp-owned-tls-application-cancellation' <<< "$selected_tests"
@@ -1404,7 +1404,7 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           set -euo pipefail
-          native_gss_selection='^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|native-admission-r1-nla-provenance-denials|credssp-delegated-account-origin-denials|r3-initial-nla-owner-fence|r1-owned-credssp-provenance-fence|r1-owned-binding-delivery-fence|credssp-authinfo-terminal-denials|r1-owned-credssp-cancellation-fence|r1-owned-completed-frame-cancellation-fence|r3-mcs-admission-contract|r3-protected-transition-generation-fence|r3-connect-response-write-contract|r3-connect-response-completion-reauthorization|r3-erect-domain-contract|r3-attach-user-contract|r3-channel-join-contract|r3-channel-join-terminal-replay-fence|r3-joined-clipboard-role-contract|r3-client-info-route-contract|r3-server-license-request-write-contract|r3-client-licensing-route-contract|r3-server-platform-challenge-write-contract|r3-client-platform-challenge-response-route-contract|r3-attach-user-terminal-replay-fence|r3-protected-transition-terminal-replay-fence|r3-native-change-revocation|r3-mcs-disconnect-revocation-fence)$'
+          native_gss_selection='^security\.gssapi-(configuration-rejections|framed-handoff|console-provenance-before-os-read|native-os-admission-capability-denials|native-admission-nla-transport-provenance-denials|credssp-delegated-account-origin-denials|initial-nla-owner-fence|credssp-transport-provenance-fence|binding-delivery-transport-fence|credssp-authinfo-terminal-denials|credssp-transport-cancellation-fence|completed-frame-transport-cancellation-fence|mcs-admission-contract|protected-transition-generation-fence|connect-response-write-contract|connect-response-completion-reauthorization|erect-domain-contract|attach-user-contract|channel-join-contract|channel-join-terminal-replay-fence|joined-clipboard-role-contract|client-info-route-contract|server-license-request-write-contract|client-licensing-route-contract|server-platform-challenge-write-contract|client-platform-challenge-response-route-contract|attach-user-terminal-replay-fence|protected-transition-terminal-replay-fence|native-change-revocation|mcs-disconnect-revocation-fence)$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$native_gss_selection")"
           printf '%s\n' "$selected_tests"
           readonly native_gss_expected_test_count=30
@@ -1452,7 +1452,7 @@ jobs:
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/.github/r9-mit-krb5-lsan.supp:print_suppressions=1
         run: |
           set -euo pipefail
-          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(standalone-authentication-selector-denials|credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(r3-authority|slow-path-input-gateway|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-r1-write|client-licensing-r1-intake|valid-client-r1-write|share-r1-io|graphics-dvc-r1-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
+          runtime_security_selection='^runtime\.(linux-security-(explicit-keytab-continuity|keytab-snapshot-mutation-continuity|keytab-policy-denials|pam-verifier-provisioning)|linux-connection-(standalone-authentication-selector-denials|credssp-(owner-framing|progress-accounting|revocation-order|authorization-denials)|final-credential-native-admission-denials|pre-admission-(dispatch|native-poll)|native-poll-expiry-revocation|post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)|client-info-bounded-tpkt-framing|personal-(desktop-(authority|slow-path-input-gateway|clipboard-gateway|policy-receipt|graphics-dvc-authority)|licensing-sequence|license-request-tls-write|client-licensing-tls-intake|valid-client-tls-write|share-tls-io|graphics-dvc-tls-io)-denials|outbound-(write-readiness|tls-want-precedence|cancellation-revocation)|aggregate-(ordered-revocation|premature-admission-denial)|native-(monitor-(borrow|registration)|desktop-selection)-denials|existing-cal-unadmitted-denial))$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$runtime_security_selection")"
           printf '%s\n' "$selected_tests"
@@ -1482,16 +1482,16 @@ jobs:
           grep -Fq 'runtime.linux-connection-post-admission-client-info-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-client-info-bounded-tpkt-framing' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-licensing-sequence-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-desktop-r3-authority-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-desktop-authority-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-slow-path-input-gateway-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-clipboard-gateway-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-policy-receipt-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-personal-desktop-graphics-dvc-authority-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-license-request-r1-write-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-client-licensing-r1-intake-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-valid-client-r1-write-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-share-r1-io-denials' <<< "$selected_tests"
-          grep -Fq 'runtime.linux-connection-personal-graphics-dvc-r1-io-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-license-request-tls-write-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-client-licensing-tls-intake-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-valid-client-tls-write-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-share-tls-io-denials' <<< "$selected_tests"
+          grep -Fq 'runtime.linux-connection-personal-graphics-dvc-tls-io-denials' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-outbound-write-readiness' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-outbound-tls-want-precedence' <<< "$selected_tests"
           grep -Fq 'runtime.linux-connection-outbound-cancellation-revocation' <<< "$selected_tests"
@@ -1737,7 +1737,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-r3-admission-route-denials-and-revocation|input-r2-authorized-slow-path-native-mapping-denials)$'
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|frame-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-admission-route-denials-and-revocation|input-authorized-slow-path-native-mapping-denials)$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
           printf '%s\n' "$selected_tests"
@@ -1763,7 +1763,7 @@ jobs:
           grep -Fq 'x11.capture-native-destructor-retirement' <<< "$selected_tests"
           grep -Fq 'x11.input-native-generation-mismatch-denial' <<< "$selected_tests"
           grep -Fq 'x11.input-native-authority-retirement-no-native-post' <<< "$selected_tests"
-          grep -Fq 'x11.input-r2-authorized-slow-path-native-mapping-denials' <<< "$selected_tests"
+          grep -Fq 'x11.input-authorized-slow-path-native-mapping-denials' <<< "$selected_tests"
 
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$r5_x11_selection" --output-on-failure
@@ -2096,10 +2096,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          client_stage_selection='^gui[.]offscreen-r10-client-stage-and-retirement-status-denials$'
+          client_stage_selection='^gui[.]offscreen-client-stage-and-retirement-status-denials$'
           selected_tests="$(ctest --test-dir build -C Release -N -R "$client_stage_selection")"
           printf '%s\n' "$selected_tests"
-          grep -Fq ': gui.offscreen-r10-client-stage-and-retirement-status-denials' <<< "$selected_tests"
+          grep -Fq ': gui.offscreen-client-stage-and-retirement-status-denials' <<< "$selected_tests"
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne 1 ]]; then
             printf 'R9 R7 client-stage CTest registry mismatch: expected 1, found %s\n' \
@@ -2136,7 +2136,7 @@ jobs:
           selector='^gui[.]offscreen-r10-lifecycle-and-terminal-close-denials$'
           selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$selected_tests"
-          grep -Fq ': gui.offscreen-r10-lifecycle-and-terminal-close-denials' <<< "$selected_tests"
+          grep -Fq ': gui.offscreen-lifecycle-and-terminal-close-denials' <<< "$selected_tests"
           selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_count" -ne 1 ]]; then
             printf 'R9 R7 lifecycle registry mismatch: expected 1, found %s\n' "$selected_count" >&2
@@ -2171,11 +2171,11 @@ jobs:
           set -euo pipefail
           cmake --build build --config Release \
             --target test_runtime_host_control test_desktop_gui_offline --parallel 2
-          lan_endpoint_selection='^(runtime[.]host-control-selected-lan-interface-denials|gui[.]offscreen-r10-selected-lan-endpoint-preflight-denials)$'
+          lan_endpoint_selection='^(runtime[.]host-control-selected-lan-interface-denials|gui[.]offscreen-selected-lan-endpoint-preflight-denials)$'
           selected_tests="$(ctest --test-dir build -C Release -N -R "$lan_endpoint_selection")"
           printf '%s\n' "$selected_tests"
           grep -Fq 'runtime.host-control-selected-lan-interface-denials' <<< "$selected_tests"
-          grep -Fq 'gui.offscreen-r10-selected-lan-endpoint-preflight-denials' <<< "$selected_tests"
+          grep -Fq 'gui.offscreen-selected-lan-endpoint-preflight-denials' <<< "$selected_tests"
           readonly lan_endpoint_expected_test_count=2
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$lan_endpoint_expected_test_count" ]]; then

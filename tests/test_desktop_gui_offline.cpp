@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "desktop_window.h"
 #include "host_control.h"
+#include "local_username.h"
 #include "server/runtime/runtime_host_control.h"
 
 #if defined(__linux__)
@@ -845,7 +846,9 @@ int main(int argc, char** argv)
         assert(!username->isReadOnly());
         assert(username->echoMode() == QLineEdit::Normal);
         assert(username->focusPolicy() == Qt::StrongFocus);
-        assert(!username->text().isEmpty());
+        assert(username->text() == currentLocalUsernameSuggestion());
+        if (!username->text().isEmpty())
+            assert(isSafeLocalUsernameSuggestion(username->text()));
 
         assert(password->isVisible());
         assert(password->isEnabled());
@@ -2256,12 +2259,38 @@ int main(int argc, char** argv)
         auto* confirmation =
             window.findChild<QLineEdit*>("sessionPasswordConfirm");
         assert(username && password && confirmation);
-        assert(!username->text().isEmpty());
+
+        const QString suggestion = currentLocalUsernameSuggestion();
+        assert(username->text() == suggestion);
+        if (!suggestion.isEmpty())
+            assert(isSafeLocalUsernameSuggestion(suggestion));
+
+        // Representative system/service identities must never become a
+        // first-launch convenience default.
+        assert(isSafeLocalUsernameSuggestion(
+            QStringLiteral("ordinary-user")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("root")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("SYSTEM")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("daemon")));
+        assert(!isSafeLocalUsernameSuggestion(
+            QStringLiteral("_windowserver")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("machine$")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("bad\\name")));
+        assert(!isSafeLocalUsernameSuggestion(QStringLiteral("bad/name")));
+
         assert(username->echoMode() == QLineEdit::Normal);
+        assert(username->isEnabled() && !username->isReadOnly());
         assert(password->text().isEmpty());
         assert(confirmation->text().isEmpty());
         assert(password->echoMode() == QLineEdit::Password);
         assert(confirmation->echoMode() == QLineEdit::Password);
+
+        // The user can replace the convenience suggestion without populating
+        // either independent Session Password field.
+        username->setText(QStringLiteral("remote-alias"));
+        assert(username->text() == QStringLiteral("remote-alias"));
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
         return 0;
     }
 

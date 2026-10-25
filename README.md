@@ -50,7 +50,11 @@ UID/seat/display/listener policy files. `--config` remains an expert/legacy
 override.
 
 Portable persistent state belongs in OS per-user application-data/config
-storage; Session Password is memory-only by default. R1 already supports an
+storage; Session Password is memory-only by default. On first launch, Username
+may suggest the safely observed current local interactive account name when
+available. That editable suggestion is convenience only and does not map the
+remote credential to the OS account. Session Password always starts empty and
+is never recovered or auto-filled from an OS login or credential store. R1 already supports an
 endpoint-bound process-memory TLS identity for the no-file Linux HostControl
 path. Starting the GUI may bootstrap local prerequisites but never starts a
 listener, installs a service or changes firewall/Windows RDP/macOS system

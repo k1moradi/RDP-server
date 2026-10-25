@@ -413,7 +413,72 @@ int main(int argc, char** argv)
         assert(projected.standaloneCredentialGeneration == 77U);
         assert(projected.termination ==
                RuntimeAcceptedClientTermination::Open);
+        assert(!projected.directNtlmTypeTwoQueued);
+        assert(!projected.directNtlmTypeTwoDelivered);
+        assert(projected.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
 
+        // Type 2 queue/delivery are connection-local diagnostic receipts.
+        // Exercise every bounded pre-Type-3 terminal projection without
+        // creating Type 3, credentials, native admission or later authority.
+        source.directNtlmTypeTwoQueued = true;
+        source.directNtlmTypeTwoDelivered = true;
+        source.credSspTransition = SourceCredSsp::Closed;
+        source.standaloneAuthenticationFailureStage =
+            SourceFailure::NtlmNegotiation;
+        source.admissionFailureReason = SourceAdmissionFailure::None;
+        struct PreType3TerminationProjectionCase final
+        {
+            SourceTermination source{};
+            RuntimeAcceptedClientTermination expectedTermination{};
+            RuntimeAcceptedClientPreType3Termination expectedPreType3{};
+            std::string_view expectedName{};
+        };
+        constexpr std::array preType3Cases{
+            PreType3TerminationProjectionCase{
+                SourceTermination::PeerEof,
+                RuntimeAcceptedClientTermination::PeerEof,
+                RuntimeAcceptedClientPreType3Termination::PeerEof,
+                "peer-eof-before-type3"},
+            PreType3TerminationProjectionCase{
+                SourceTermination::PeerReset,
+                RuntimeAcceptedClientTermination::PeerReset,
+                RuntimeAcceptedClientPreType3Termination::PeerReset,
+                "peer-reset-before-type3"},
+            PreType3TerminationProjectionCase{
+                SourceTermination::PeerTlsAlert,
+                RuntimeAcceptedClientTermination::PeerTlsAlert,
+                RuntimeAcceptedClientPreType3Termination::TlsAlert,
+                "tls-alert-before-type3"},
+            PreType3TerminationProjectionCase{
+                SourceTermination::OwnerCancellation,
+                RuntimeAcceptedClientTermination::OwnerCancellation,
+                RuntimeAcceptedClientPreType3Termination::LocalClose,
+                "local-close-before-type3"},
+        };
+        for (const auto& entry : preType3Cases)
+        {
+            source.termination = entry.source;
+            projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+            assert(projected.directNtlmTypeTwoQueued);
+            assert(projected.directNtlmTypeTwoDelivered);
+            assert(projected.authenticationStage ==
+                   RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+            assert(projected.protocolStage ==
+                   RuntimeAcceptedClientProtocolStage::PreAdmission);
+            assert(projected.standaloneFailureStage ==
+                   RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+            assert(projected.admissionFailureReason ==
+                   RuntimeAcceptedClientAdmissionFailureReason::None);
+            assert(projected.termination == entry.expectedTermination);
+            assert(projected.preType3Termination == entry.expectedPreType3);
+            assert(runtimeAcceptedClientPreType3TerminationName(
+                       projected.preType3Termination) ==
+                   entry.expectedName);
+        }
+
+        source.directNtlmTypeTwoQueued = false;
+        source.directNtlmTypeTwoDelivered = false;
         source.preauthStage = SourcePreauth::Closed;
         source.tlsHandshakeStage = SourceTls::Closed;
         source.credSspTransition = SourceCredSsp::Closed;

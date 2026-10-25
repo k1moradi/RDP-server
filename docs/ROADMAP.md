@@ -243,42 +243,52 @@ connector environment. Exact-publication-SHA hosted CI: **PENDING**. Real
 Microsoft-client retry after the separately reviewed Type-2 wire correction:
 **NOT RUN**.
 
-## R3 remains blocked at Direct NTLM Type-2 peer EOF — 2026-10-25
+## R1 P0 — exact Type-2 delivery and pre-Type-3 transport evidence (2026-10-25)
 
 **Owner evidence base:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest
-**975/975 PASS**. A real Microsoft Windows App attempt established TLS, sent a
-raw Direct NTLM Type 1, received the server Type 2, then closed with
-**peer EOF**; no Type 3 was observed. That connection did **not** reach
-CredentialsVerified or native Admission. The prior
-`stage=admission; admission=none` output is therefore a diagnostic
-misclassification for this path, not evidence that the admission broker ran.
+**975/975 PASS**. The real Microsoft Windows App attempt established TLS, sent
+raw Direct NTLM Type 1, consumed server Type 2, then closed with **peer EOF**;
+no Type 3 was observed. CredentialsVerified and native Admission were not
+reached.
 
-R3 remains **P2 / BLOCKED**. No MCS, Share, licensing or RDPGFX wire changes
-are permitted for this failure. R3 begins only after
-`CredentialsVerified -> positive native admission -> MCS Connect-Initial`.
-While Direct NTLM is waiting for Type 3, the authoritative diagnostic remains
-`protocol-stage=pre-admission`.
+Current main already contains the portable Type-2 TargetName/REQUEST_TARGET wire
+fix, R10's phase-owned pre-admission classification/same-listener retry, R9's
+independent Type-2 oracle and R2's production challenge validator/structural
+observability. This R1 increment adds no competing CredSSP/security state owner
+and does not alter Type-2 bytes.
 
-This increment changes diagnostics only: a peer transport close with no
-parser-reported authentication failure preserves the last positive Direct NTLM
-boundary (`NtlmChallenge` / Type 2 sent), protocol `PreAdmission`, no
-standalone failure, no admission reason and R1 `PeerEof`. It reuses the
-concurrently landed Type-2-hold lifecycle fixture and adds the dedicated
-production-backed CTest
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics`.
+R1 now exposes exact write evidence:
+`TLS established -> Type 1 received -> Type-2 TSRequest queued -> exact R1
+accepted-byte completion -> next TLS record or terminal event`. Runtime
+diagnostics distinguish `direct-ntlm-type2-queued` from
+`direct-ntlm-type2-delivered`; delivered is published only after the existing
+CredSSP writer reaches `Complete` and `releaseReply()` revalidates the exact
+transport generation, SSL identity and selected certificate.
 
-Source inspection also confirms the current Type-2 encoder sets
-`kNtlmTargetTypeServer` while the TargetName security-buffer length and
-maximum length remain zero. That is the current R2/security interoperability
-working hypothesis for the Microsoft peer rejecting Type 2. This R3-scoped
-diagnostic increment deliberately does **not** change the Type-2 encoder,
-logind/native admission, MCS, Share, licensing, RDPGFX, graphics or clipboard.
+Before Type 3, transport termination retains the original R1 category and may
+also project one redacted subtype: `peer-eof-before-type3`,
+`peer-reset-before-type3`, `tls-alert-before-type3`, or
+`local-close-before-type3`. R9's `awaiting-type3` /
+`peer-closed-after-type2` remains the authentication-phase view; the R1
+subtype identifies the specific transport terminal. Neither grants authority.
 
-Concurrent R8 publication `2ebeaf2cc1a7d79dddabc951a7139adbc56de953`
-was reconciled and preserved. Connector source/reconciliation review:
-**PASS**. Modified-tree owner-local build/full CTest: **NOT RUN** here.
-Exact-publication-SHA hosted CI: **PENDING**. Real Microsoft-client retry after
-a separately reviewed Type-2 wire correction: **NOT RUN**.
+The existing lifecycle CTest is strengthened with queued/delivered and
+pre-Type-3 subtype assertions while preserving R10's peer-2 retry, R2/R9
+challenge validation and R4/R5/R8 dormancy gates. New portable R1 CTest
+`transport.credssp-direct-ntlm-type2-delivery-receipts` drives the actual
+current Type-2 bytes through partial TLS writes, real WANT_WRITE, exact full
+plaintext delivery and byte-for-byte peer receipt. The existing HostControl
+projection CTest pins all four terminal subtype names.
+
+R3 remains **P2 / BLOCKED** until a real client supplies Type 3, credentials
+are verified, native admission succeeds and MCS is actually reached. Do not
+change logind/native admission, MCS, graphics or clipboard for this boundary.
+
+Reconciled parent `910a805328684c1e974f41aeaffdbdd6dddf1add` preserves all
+concurrent R2/R4/R5/R6/R7/R9/R10 work. Connector source/reconciliation review:
+**PASS**. Canonical modified-tree local build/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. Corrected
+Type-2 real Microsoft-client retry: **NOT RUN**.
 
 ## Hosted GUI compile-warning blocker correction — 2026-10-24
 

@@ -119,33 +119,37 @@ Enroll this case in the focused owner-GUI Release lane and update its exact
 inventory atomically. This R7 test does not validate the Type-2 encoder and
 must not alter logind/native admission, MCS, graphics or clipboard.
 
-## Direct NTLM Type-2 peer-EOF diagnostic gate (2026-10-25)
+## Direct NTLM Type-2 delivery and peer-EOF gates (2026-10-25)
 
 Keep the dedicated production-backed lifecycle CTest
 `runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics`. Reuse
-the shared real listener/HYBRID TLS/Direct-NTLM fixture: hold the peer after it
-receives Type 2 and require `protocolStage == PreAdmission` while Type 3 is
-still absent; then close the TCP connection without TLS `close_notify`.
+the shared real listener/HYBRID TLS/Direct-NTLM fixture: hold peer 1 after it
+receives Type 2 and require both `directNtlmTypeTwoQueued` and
+`directNtlmTypeTwoDelivered`, `authenticationStage == NtlmChallenge`, and
+`protocolStage == PreAdmission` while Type 3 is still absent. The pre-Type-3
+terminal subtype remains `None` while the connection is live.
 
-After peer 1 retirement, require Direct NTLM `NtlmChallenge`, standalone
-failure `NtlmNegotiation`, protocol `PreAdmission`, native-admission reason
-`None` and transport `PeerEof`. The same fixture must call the shared
-graphics-dormancy assertion both while waiting for Type 3 and after retirement:
-no native desktop initialization/readiness, no framebuffer, no ClearCodec frame
-preparation, no committed graphics TLS write, zero outstanding FRAME_ACKs and
-no genuine matching ACK. This is an R4 P2 dormancy gate only; it must not
-change codecs, surfaces, ACK handling or any graphics production path.
+After peer 1 closes TCP without TLS `close_notify`, require CredSSP `Closed`,
+standalone failure `NtlmNegotiation`, admission reason `None`, R1 `PeerEof`,
+and `peer-eof-before-type3`. The listener, Sharing authority and configured
+Session Password remain current. Without Stop/Start, peer 2 receives a fresh
+challenge, completes Type 3 + pubKeyAuth + authInfo through
+`CredentialsVerified`, and only then enters genuine native admission. Preserve
+the existing R4/R5/R8 dormancy assertions, R9 independent Type-2 oracle and R2
+production challenge validator/observation throughout this path.
 
-The listener generation, local Sharing authority and configured Session
-Password must remain current. Without Stop/Start, peer 2 must receive a fresh
-NTLM challenge, complete Type 3 + pubKeyAuth + authInfo through
-`CredentialsVerified`, and only then enter the genuine native-admission
-attempt. Run this fixture mode directly in the focused R9 sanitizer
-owner-candidate gate so native-environment skip code 77 is a failure there.
+Keep separate portable R1 CTest
+`transport.credssp-direct-ntlm-type2-delivery-receipts` against the actual
+current Type-2 encoder output wrapped in the canonical CredSSP TSRequest. It
+covers a partial Type-2 TLS write under the owned R1 path, real `WANT_WRITE`,
+exact accumulated accepted plaintext bytes, byte-exact peer receipt, and
+`releaseReply()` only after full completion. A queued reply is not a delivery
+receipt. The existing HostControl projection CTest covers all four bounded
+pre-Type-3 terminal names without constructing credentials or admission.
 
-Do not fabricate positive native admission to make this gate pass. Owner base
-`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is **975/975 PASS**; that receipt
-predates this strengthened CTest and does not qualify the modified tree.
+Owner base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is **975/975 PASS**;
+that receipt predates current wire/classification/validation/R1 changes and
+does not qualify current main.
 
 ## Direct-NTLM Type-2 peer EOF is pre-admission clipboard dormancy (2026-10-25)
 

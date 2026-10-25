@@ -101,25 +101,38 @@ This presentation rule changes no listener, credential, native-admission, MCS,
 graphics or clipboard authority. Main never exposes NTLM flags, tokens, parser
 strings or internal protocol taxonomy.
 
-## Direct NTLM Type-2 peer EOF remains pre-admission (2026-10-25)
+## Direct NTLM Type-2 delivery and pre-Type-3 close evidence (2026-10-25)
 
-A transport close after a successfully delivered Direct NTLM Type 2 but before
-any Type 3 is observed is not native Admission. If no more-specific parser
-failure exists, derive the diagnostic from existing connection state:
-`NegoContinue` plus DirectNtlm/`NtlmChallenge` means
-`NtlmNegotiation` while awaiting Type 3. Preserve `NtlmChallenge`, protocol
-`PreAdmission`, admission reason `None`, the CredSSP close transition, and
-R1's exact termination such as `PeerEof`.
+A transport close after Direct NTLM Type 2 but before any Type 3 is observed is
+not native Admission. If no more-specific parser failure exists, the current
+CredSSP stage and authentication-progress owner classify the interrupted
+authentication phase (`NtlmNegotiation` while awaiting Type 3). Preserve the
+last positive boundary `NtlmChallenge`, protocol `PreAdmission`, admission
+reason `None`, CredSSP close transition and R1's exact transport termination.
 
-Reuse the existing CredSSP stage and authentication-progress owner.
-`AwaitBinding` maps to `PubKeyAuth`; `ServerBindingReplyQueued` maps to
+Keep queue ownership distinct from transport delivery. Report
+`direct-ntlm-type2-queued` only after the canonical Type-2-bearing TSRequest is
+owned by the existing CredSSP TLS writer. Report
+`direct-ntlm-type2-delivered` only after the writer reaches `Complete` through
+the exact R1 accepted-byte accounting and `releaseReply()` revalidates the same
+transport generation, SSL identity and selected certificate. A queued reply is
+never reported as delivered. Delivery is an R1 plaintext-write receipt, not
+proof that the peer parsed or accepted Type 2.
+
+For a Direct-NTLM connection with Type 2 queued/delivered and no Type 3, project
+only bounded terminal categories when transport evidence supports them:
+`peer-eof-before-type3`, `peer-reset-before-type3`,
+`tls-alert-before-type3`, or `local-close-before-type3`. Keep the underlying R1
+termination separately intact. R9's higher-level `awaiting-type3` /
+`peer-closed-after-type2` names remain authentication-phase diagnostics; the
+R1 subtype records the specific terminal transport fact. Neither grants
+authority.
+
+`AwaitBinding` still maps to `PubKeyAuth`; `ServerBindingReplyQueued` maps to
 `AuthInfo`. Only completed credentials followed by the actual native-admission
-call may produce an Admission diagnostic; a missing failure stage must never
-default to Admission. R3 must not respond to a Type-2 compatibility
-failure by changing MCS, Share, licensing or RDPGFX. The current
-Target-Type-Server/empty-TargetName Type-2 shape is an R2/security wire
-interoperability hypothesis and requires its own standards-backed review; a
-diagnostic correction must not silently alter that wire contract.
+call may produce Admission. The portable TargetName correction, independent R9
+oracle and R2 production Type-2 validator/shape observation are separate
+wire/security responsibilities and remain untouched by this R1 evidence rule.
 
 ## Local username suggestion is convenience, never authentication (2026-10-24)
 

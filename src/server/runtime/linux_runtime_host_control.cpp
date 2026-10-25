@@ -738,6 +738,8 @@ projectLinuxAcceptedClientPreauthDiagnostics(
 {
     RuntimeAcceptedClientPreauthDiagnostics projected;
     projected.available = true;
+    projected.directNtlmTypeTwoQueued = source.directNtlmTypeTwoQueued;
+    projected.directNtlmTypeTwoDelivered = source.directNtlmTypeTwoDelivered;
 
     using SourcePreauth = rdp_server::server::transport::PreauthStage;
     switch (source.preauthStage)
@@ -1089,6 +1091,43 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         projected.termination =
             RuntimeAcceptedClientTermination::OwnerCancellation;
         break;
+    }
+
+    const bool directNtlmBeforeTypeThree =
+        projected.ntlmEnvelope == RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
+        (projected.authenticationStage ==
+             RuntimeAcceptedClientAuthenticationStage::CredSspDirectNtlm ||
+         projected.authenticationStage ==
+             RuntimeAcceptedClientAuthenticationStage::NtlmChallenge) &&
+        (projected.directNtlmTypeTwoQueued ||
+         projected.directNtlmTypeTwoDelivered);
+    if (directNtlmBeforeTypeThree)
+    {
+        using PreType3 = RuntimeAcceptedClientPreType3Termination;
+        switch (projected.termination)
+        {
+        case RuntimeAcceptedClientTermination::PeerEof:
+            projected.preType3Termination = PreType3::PeerEof;
+            break;
+        case RuntimeAcceptedClientTermination::PeerReset:
+            projected.preType3Termination = PreType3::PeerReset;
+            break;
+        case RuntimeAcceptedClientTermination::OrderlyTlsClose:
+        case RuntimeAcceptedClientTermination::PeerTlsAlert:
+            projected.preType3Termination = PreType3::TlsAlert;
+            break;
+        case RuntimeAcceptedClientTermination::Cancelled:
+        case RuntimeAcceptedClientTermination::OwnerCancellation:
+            projected.preType3Termination = PreType3::LocalClose;
+            break;
+        case RuntimeAcceptedClientTermination::Open:
+        case RuntimeAcceptedClientTermination::TransportError:
+        case RuntimeAcceptedClientTermination::TlsFailure:
+        case RuntimeAcceptedClientTermination::ProtocolError:
+        case RuntimeAcceptedClientTermination::LocalTlsFailure:
+        case RuntimeAcceptedClientTermination::Timeout:
+            break;
+        }
     }
     return projected;
 }
@@ -2460,6 +2499,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             const auto admissionReason =
                 runtimeAcceptedClientAdmissionFailureReasonName(
                     acceptedClientPreauthDiagnostics_.admissionFailureReason);
+            const auto preType3Termination =
+                runtimeAcceptedClientPreType3TerminationName(
+                    acceptedClientPreauthDiagnostics_.preType3Termination);
+            const char *const directNtlmTypeTwoState =
+                acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered
+                    ? "delivered"
+                    : acceptedClientPreauthDiagnostics_.directNtlmTypeTwoQueued
+                        ? "queued"
+                        : "none";
             const auto &ntlmChallenge = diagnostics.standaloneNtlmChallenge;
             std::array<char, 128> ntlmAvIdStorage{};
             const std::string_view ntlmAvIds =
@@ -2471,6 +2519,7 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
                 "protocol-stage=%s authentication-stage=%s admission=%.*s "
+                "direct-ntlm-type2=%s pre-type3-termination=%.*s "
                 "ntlm-type1-flags=0x%08x ntlm-type2-flags=0x%08x "
                 "ntlm-target-name-code-units=%zu ntlm-target-info-bytes=%zu "
                 "ntlm-type2-bytes=%zu ntlm-av-ids=%.*s "
@@ -2488,6 +2537,9 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                     acceptedClientPreauthDiagnostics_),
                 static_cast<int>(admissionReason.size()),
                 admissionReason.data(),
+                directNtlmTypeTwoState,
+                static_cast<int>(preType3Termination.size()),
+                preType3Termination.data(),
                 static_cast<unsigned int>(
                     ntlmChallenge.clientNegotiateFlags),
                 static_cast<unsigned int>(ntlmChallenge.negotiateFlags),

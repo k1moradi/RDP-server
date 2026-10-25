@@ -208,28 +208,42 @@ Connector source/test/workflow reconciliation: **PASS by inspection**.
 Canonical local build/full CTest on this publication: **NOT RUN**.
 Exact-publication-SHA hosted CI: **PENDING**.
 
-## Direct NTLM Type-2 peer-EOF pre-admission diagnostic authoring receipt — 2026-10-25
+## R1 Direct NTLM Type-2 delivery/peer-close authoring receipt — 2026-10-25
 
 Owner evidence on `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`: Linux local full CTest **975/975 PASS**.
 The real Microsoft Windows App path was TLS established -> raw Direct NTLM
-Type 1 accepted -> server Type 2 sent -> **peer EOF**, with **no Type 3
-observed**. Native Admission was not reached; the emitted
-`stage=admission; admission=none` was misleading classification.
+Type 1 accepted -> server Type 2 consumed -> **peer EOF**, with **no Type 3**
+observed. Native Admission was not reached.
 
-Source inspection confirms the reported Type-2 shape: the encoder includes
-`kNtlmTargetTypeServer` while TargetName length/max-length remain zero. No
-Type-2/CredSSP wire behavior is changed here. The runtime now treats a peer
-transport close with no parser-reported authentication failure as a closed
-pre-admission attempt instead of manufacturing Admission. The dedicated CTest
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` reuses
-the Type-2-hold fixture from concurrent commit
-`2ebeaf2cc1a7d79dddabc951a7139adbc56de953` and requires
-`protocol-stage=pre-admission` semantics both while waiting for Type 3 and
-after R1 records `PeerEof`.
+Reconciled parent `910a805328684c1e974f41aeaffdbdd6dddf1add` already preserves
+the corrected Type-2 wire bytes, R10's
+`NtlmNegotiation / NtlmChallenge / PreAdmission` interrupted-phase
+classification/same-listener retry, R9's independent socket oracle and R2's
+production Type-2 validator/shape observation. This R1 increment adds exact
+queue/delivery receipts without changing those owners.
 
-Connector source/reconciliation review: **PASS**. Modified-tree canonical local
-build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
-Real Microsoft-client retry: **NOT RUN**.
+`directNtlmTypeTwoDelivered` is set only after the existing CredSSP TLS writer
+reaches `Complete` through R1 accepted-byte accounting and `releaseReply()`
+succeeds. A pre-Type-3 connection additionally projects a bounded terminal
+subtype derived from the retained transport termination; the underlying R1
+termination remains separately visible.
+
+The production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` case now
+pins queued/delivered state and `peer-eof-before-type3` while preserving
+R10's same-listener retry, R2/R9 challenge validation and native/graphics/
+clipboard dormancy assertions. New portable
+`transport.credssp-direct-ntlm-type2-delivery-receipts` uses the current
+production Type-2 encoder and covers partial owned-TLS writes, real WANT_WRITE,
+exact accepted plaintext accounting, byte-exact peer receipt and release only
+after completion. `runtime.linux-host-control-preauth-diagnostic-projection`
+pins EOF/reset/TLS-alert/local-close subtype mappings.
+
+No TLS negotiation/certificate identity, Type-2 encoding/validation,
+logind/native admission, MCS, graphics or clipboard production behavior changes
+here. Connector source/reconciliation review: **PASS**. Canonical modified-tree
+local build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**. Real Microsoft-client retry: **NOT RUN**.
 
 ## GUI Admission diagnostic range-loop compile correction — 2026-10-24
 

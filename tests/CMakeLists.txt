@@ -1254,6 +1254,16 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             transport.tcp-owned-tls-read-want-interleaved-frame-write
             PROPERTIES LABELS "transport;tls;security;offline" TIMEOUT 20)
+        # Dedicated Direct-NTLM Type-2 delivery receipt regression. Keep it
+        # outside R9's fixed-count generic transport sanitizer inventory until
+        # that lane explicitly enrolls the new behavior.
+        add_test(NAME transport.credssp-direct-ntlm-type2-delivery-receipts
+            COMMAND "${test_target}" "credssp-direct-ntlm-type2-delivery-receipts")
+        set_tests_properties(
+            transport.credssp-direct-ntlm-type2-delivery-receipts
+            PROPERTIES
+                LABELS "transport;tls;security;credssp;authentication;offline"
+                TIMEOUT 20)
         # Fail fast with a NAMED CTest TIMEOUT instead of tying up a
         # Windows worker forever if native connect/backlog handling stalls.
         # Keep both original production assertions intact.

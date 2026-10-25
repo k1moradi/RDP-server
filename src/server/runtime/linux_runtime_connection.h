@@ -488,6 +488,13 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
         RuntimeTlsEndpointIdentityStatus::CertificateUnavailable};
     bool selectedCertificateIdentityChecked{};
     bool selectedCertificateMatchesRuntimeIdentity{};
+    // Connection-local, non-authorizing delivery receipts for the first
+    // Direct NTLM challenge. Queued means the canonical Type-2-bearing
+    // TSRequest is owned by the existing TLS writer. Delivered means every
+    // plaintext byte was accepted by the exact R1 TLS write path and the
+    // reply was released; neither state is evidence of peer receipt or Type 3.
+    bool directNtlmTypeTwoQueued{};
+    bool directNtlmTypeTwoDelivered{};
 };
 
 namespace detail
@@ -1208,6 +1215,10 @@ private:
         LinuxRuntimeAuthenticationMode::ExistingOsAccount};
     bool standaloneReplyPending_{};
     bool standaloneBindingReplyPending_{};
+    // Diagnostic receipts only. They never authorize authentication,
+    // admission or later protocol state.
+    bool directNtlmTypeTwoQueued_{};
+    bool directNtlmTypeTwoDelivered_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionBroker>
         broker_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>

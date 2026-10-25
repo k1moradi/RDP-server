@@ -1040,6 +1040,10 @@ struct PeerResult final
                RuntimeAcceptedClientAdmissionFailureReason::None &&
            diagnostics.termination ==
                RuntimeAcceptedClientTermination::PeerEof &&
+           diagnostics.directNtlmTypeTwoQueued &&
+           diagnostics.directNtlmTypeTwoDelivered &&
+           diagnostics.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::PeerEof &&
            !status.nativeDesktopReady &&
            !status.nativeDesktopInitializing &&
            !status.graphicsReady;
@@ -1299,6 +1303,13 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .termination ==
                RuntimeAcceptedClientTermination::Open);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoQueued);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoDelivered);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
         assertGraphicsDormant(waitingForTypeThree);
 
         closeAfterTypeTwo.store(true, std::memory_order_release);
@@ -1313,6 +1324,13 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
         assert(afterTypeTwoEof.hostOwnerAuthorized);
         assert(afterTypeTwoEof.product.ownerAuthorized);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoQueued);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoDelivered);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::PeerEof);
         assertGraphicsDormant(afterTypeTwoEof);
         assert(afterTypeTwoEof.product.state ==
                RuntimeProductHostState::Listening);
@@ -1403,6 +1421,13 @@ int main(int argc, char** argv)
         assert(beforeTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
         assert(beforeTypeTwoEof.activeClients.size() == 1U);
+        assert(beforeTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoQueued);
+        assert(beforeTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoDelivered);
+        assert(beforeTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
         assertClipboardDormant(beforeTypeTwoEof);
         assertGraphicsDormant(beforeTypeTwoEof);
 

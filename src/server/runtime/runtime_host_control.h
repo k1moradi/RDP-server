@@ -573,6 +573,34 @@ enum class RuntimeAcceptedClientTermination : std::uint8_t
     OwnerCancellation,
 };
 
+// Connection-local terminal evidence after a Direct NTLM Type 2 was queued
+// but before any Type 3 was observed. This is a redacted diagnostic taxonomy,
+// not an authentication result or native-admission capability.
+enum class RuntimeAcceptedClientPreType3Termination : std::uint8_t
+{
+    None,
+    PeerEof,
+    PeerReset,
+    TlsAlert,
+    LocalClose,
+};
+
+[[nodiscard]] constexpr std::string_view
+runtimeAcceptedClientPreType3TerminationName(
+    RuntimeAcceptedClientPreType3Termination termination) noexcept
+{
+    using Termination = RuntimeAcceptedClientPreType3Termination;
+    switch (termination)
+    {
+    case Termination::None: return "none";
+    case Termination::PeerEof: return "peer-eof-before-type3";
+    case Termination::PeerReset: return "peer-reset-before-type3";
+    case Termination::TlsAlert: return "tls-alert-before-type3";
+    case Termination::LocalClose: return "local-close-before-type3";
+    }
+    return "none";
+}
+
 struct RuntimeAcceptedClientPreauthDiagnostics final
 {
     bool available{};
@@ -597,6 +625,10 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
         RuntimeAcceptedClientAdmissionFailureReason::None};
     RuntimeAcceptedClientTermination termination{
         RuntimeAcceptedClientTermination::Cancelled};
+    bool directNtlmTypeTwoQueued{};
+    bool directNtlmTypeTwoDelivered{};
+    RuntimeAcceptedClientPreType3Termination preType3Termination{
+        RuntimeAcceptedClientPreType3Termination::None};
 };
 
 struct RuntimeHostPermissionRequest final

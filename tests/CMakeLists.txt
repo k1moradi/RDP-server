@@ -561,7 +561,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_native_desktop_scheduler.cmake")
     set_tests_properties(
         runtime.linux-host-control-native-desktop-bounded-post-share PROPERTIES
-        LABELS "runtime;security;r1-transport;r2-admission;r3-graphics;r4-frame;r5-native;r10-host-control;x11;offline")
+        LABELS "runtime;security;r1-transport;r2-admission;r3-graphics;graphics;frame;codec;r5-native;r10-host-control;x11;offline")
 
     add_test(NAME runtime.linux-r5-auth-envelope-independent-native-owner
         COMMAND "${CMAKE_COMMAND}"
@@ -1075,7 +1075,7 @@ function(add_rdp_test source_file suite behavior)
                 dvc-graphics-frame-credit-preflight
                 dvc-graphics-surface-remap
                 dvc-graphics-first-client-acceptance-observability
-                dvc-graphics-r4-acceptance-status-projection
+                dvc-graphics-frame-acceptance-status-projection
                 dvc-graphics-create-response-denials
                 dvc-graphics-generation-cancellation
                 dvc-graphics-pre-share-denial
@@ -2466,11 +2466,11 @@ if(TARGET rdp-server-windows-desktop)
     # R6 -> R4 native BGRA borrow contract. The real R4 converter is linked
     # only into this existing fixture; production R6 retains no R4 dependency.
     foreach(case_name IN ITEMS
-            r4-bgra-layout-contract
-            r4-frame-lifetime-revocation
-            r4-monitor-replacement-denials)
+            bgra-layout-contract
+            frame-lifetime-revocation
+            monitor-replacement-denials)
         add_test(NAME "windows.capture-${case_name}"
-            COMMAND test_windows_desktop_geometry "${case_name}")
+            COMMAND test_windows_desktop_geometry "r4-${case_name}")
         set_tests_properties("windows.capture-${case_name}" PROPERTIES
             LABELS "windows;desktop-capture;graphics;security;offline")
     endforeach()
@@ -3125,11 +3125,11 @@ if(APPLE)
     # R7 -> R4 synchronous BGRA compatibility. Production macOS capture keeps
     # no R4/x264 dependency; only this existing Apple fixture links graphics.
     foreach(case_name IN ITEMS
-            r4-bgra-layout-contract
-            r4-pixel-lifetime-retirement
-            r4-display-generation-denials)
+            bgra-layout-contract
+            pixel-lifetime-retirement
+            display-generation-denials)
         add_test(NAME "macos.capture-${case_name}"
-            COMMAND test_macos_capture_stream "${case_name}")
+            COMMAND test_macos_capture_stream "r4-${case_name}")
         set_tests_properties("macos.capture-${case_name}" PROPERTIES
             LABELS "macos;capture;graphics;x264;security;offline;native")
     endforeach()
@@ -3450,29 +3450,29 @@ if(TARGET rdp-server-linux-x11-desktop)
             x11.input-native-keyboard-layout-change-revokes-owner PROPERTIES
             LABELS "x11;linux-adapter;native;security;synthetic-display"
             TIMEOUT 20)
-        add_test(NAME x11.desktop-resource-r4-read-boundary
+        add_test(NAME x11.desktop-resource-frame-read-boundary
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"
                 $<TARGET_FILE:test_x11_desktop_resources> r4-read-boundary)
-        add_test(NAME x11.capture-r4-bgra-ingress
+        add_test(NAME x11.capture-bgra-ingress
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 320x240x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-r4-bgra-ingress)
-        add_test(NAME x11.capture-r4-stride-layout-denials
+        add_test(NAME x11.capture-stride-layout-denials
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 320x240x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-r4-stride-layout-denials)
-        add_test(NAME x11.capture-r4-generation-retirement
+        add_test(NAME x11.capture-generation-retirement
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 320x240x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_desktop_resources>
                 capture-r4-generation-retirement)
         set_tests_properties(
-            x11.capture-r4-bgra-ingress
-            x11.capture-r4-stride-layout-denials
-            x11.capture-r4-generation-retirement
+            x11.capture-bgra-ingress
+            x11.capture-stride-layout-denials
+            x11.capture-generation-retirement
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;graphics"
                 TIMEOUT 20)
@@ -3543,7 +3543,7 @@ if(TARGET rdp-server-linux-x11-desktop)
             x11.desktop-resource-owner-lifecycle
             x11.desktop-resource-event-routing
             x11.desktop-resource-randr-rebuild
-            x11.desktop-resource-r4-read-boundary
+            x11.desktop-resource-frame-read-boundary
             x11.desktop-resource-capture-pixel-parity
             x11.desktop-resource-randr-capture-generation
             x11.desktop-resource-randr-stale-damage-isolation

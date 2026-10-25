@@ -201,7 +201,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -214,9 +214,9 @@ jobs:
             macos.capture-stream-start-retirement-after-completion \
             macos.capture-stream-session-watch-frame-retirement \
             macos.capture-stream-session-watch-consumer-race \
-            macos.capture-r4-bgra-layout-contract \
-            macos.capture-r4-pixel-lifetime-retirement \
-            macos.capture-r4-display-generation-denials \
+            macos.capture-bgra-layout-contract \
+            macos.capture-pixel-lifetime-retirement \
+            macos.capture-display-generation-denials \
             macos.cursor-session-watch-revocation \
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
@@ -249,7 +249,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -262,9 +262,9 @@ jobs:
             macos.capture-stream-start-retirement-after-completion \
             macos.capture-stream-session-watch-frame-retirement \
             macos.capture-stream-session-watch-consumer-race \
-            macos.capture-r4-bgra-layout-contract \
-            macos.capture-r4-pixel-lifetime-retirement \
-            macos.capture-r4-display-generation-denials \
+            macos.capture-bgra-layout-contract \
+            macos.capture-pixel-lifetime-retirement \
+            macos.capture-display-generation-denials \
             macos.cursor-session-watch-revocation \
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
@@ -467,9 +467,9 @@ jobs:
             windows.capture-session-change-duplication-release-order \
             windows.capture-session-change-duplication-callback-retirement \
             windows.capture-session-change-duplication-prior-revocation \
-            windows.capture-r4-bgra-layout-contract \
-            windows.capture-r4-frame-lifetime-revocation \
-            windows.capture-r4-monitor-replacement-denials \
+            windows.capture-bgra-layout-contract \
+            windows.capture-frame-lifetime-revocation \
+            windows.capture-monitor-replacement-denials \
             windows.input-sendinput-authority-retirement-no-native-post; do
             grep -Fq "$required_test" <<< "$selected_tests"
           done
@@ -557,9 +557,9 @@ jobs:
             windows.capture-session-change-duplication-release-order \
             windows.capture-session-change-duplication-callback-retirement \
             windows.capture-session-change-duplication-prior-revocation \
-            windows.capture-r4-bgra-layout-contract \
-            windows.capture-r4-frame-lifetime-revocation \
-            windows.capture-r4-monitor-replacement-denials \
+            windows.capture-bgra-layout-contract \
+            windows.capture-frame-lifetime-revocation \
+            windows.capture-monitor-replacement-denials \
             windows.input-sendinput-authority-retirement-no-native-post; do
             grep -Fq "$required_test" <<< "$selected_tests"
           done
@@ -728,9 +728,9 @@ jobs:
             windows.capture-session-change-duplication-release-order \
             windows.capture-session-change-duplication-callback-retirement \
             windows.capture-session-change-duplication-prior-revocation \
-            windows.capture-r4-bgra-layout-contract \
-            windows.capture-r4-frame-lifetime-revocation \
-            windows.capture-r4-monitor-replacement-denials \
+            windows.capture-bgra-layout-contract \
+            windows.capture-frame-lifetime-revocation \
+            windows.capture-monitor-replacement-denials \
             windows.input-sendinput-authority-retirement-no-native-post; do
             grep -Fq "$required_test" <<< "$r6_sanitizer_tests"
           done
@@ -959,7 +959,7 @@ jobs:
             -R "$r3_clipboard_selection" --output-on-failure
       # Focused R9 regressions remain distinct from the fixed R3 20-case
       # Graphics and R8 88-case clipboard sanitizer inventories.
-      - name: Pin R2 R4 and R8 focused exact-HEAD sanitizer inventory
+      - name: Pin focused exact-HEAD sanitizer inventory
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1015,7 +1015,7 @@ jobs:
               -R "$selector" --output-on-failure
           done
 
-      - name: Run portable R4 RDPGFX wire and lifecycle CTests with sanitizers
+      - name: Run portable RDPGFX wire and lifecycle CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1043,7 +1043,7 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$portable_graphics_selection" --output-on-failure
 
-      - name: Run all R4 x264 and BGRA CTests with sanitizers
+      - name: Run all x264 and BGRA CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1064,14 +1064,14 @@ jobs:
           readonly r4_x264_expected_test_count=29
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$r4_x264_expected_test_count" ]]; then
-            printf 'R4 x264/BGRA registry mismatch: expected %s tests, found %s\n' \
+            printf 'x264/BGRA registry mismatch: expected %s tests, found %s\n' \
               "$r4_x264_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi
           ctest --test-dir build --build-config Debug --timeout 60 \
             -L x264 --output-on-failure
 
-      - name: Run R4 RDPGFX capability CTests with sanitizers
+      - name: Run RDPGFX capability CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1085,7 +1085,7 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$capability_selection" --output-on-failure
 
-      - name: Run R4 ClearCodec CTests with sanitizers
+      - name: Run ClearCodec CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1098,7 +1098,7 @@ jobs:
           readonly clearcodec_expected_test_count=4
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$clearcodec_tests")"
           if [[ "$selected_test_count" -ne "$clearcodec_expected_test_count" ]]; then
-            printf 'R9 R4 ClearCodec registry mismatch: expected %s tests, found %s\n' \
+            printf 'ClearCodec registry mismatch: expected %s tests, found %s\n' \
               "$clearcodec_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi
@@ -1275,7 +1275,7 @@ jobs:
           grep -Fq 'transport.dvc-graphics-frame-credit-preflight' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-surface-remap' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-first-client-acceptance-observability' <<< "$graphics_dvc_tests"
-          grep -Fq 'transport.dvc-graphics-r4-acceptance-status-projection' <<< "$graphics_dvc_tests"
+          grep -Fq 'transport.dvc-graphics-frame-acceptance-status-projection' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-create-response-denials' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-generation-cancellation' <<< "$graphics_dvc_tests"
           grep -Fq 'transport.dvc-graphics-pre-share-denial' <<< "$graphics_dvc_tests"
@@ -1737,7 +1737,7 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-r4-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-r3-admission-route-denials-and-revocation|input-r2-authorized-slow-path-native-mapping-denials)$'
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|r4-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-r3-admission-route-denials-and-revocation|input-r2-authorized-slow-path-native-mapping-denials)$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
           printf '%s\n' "$selected_tests"
@@ -1749,9 +1749,9 @@ jobs:
               "$r5_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi
-          grep -Fq 'x11.capture-r4-bgra-ingress' <<< "$selected_tests"
-          grep -Fq 'x11.capture-r4-stride-layout-denials' <<< "$selected_tests"
-          grep -Fq 'x11.capture-r4-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'x11.capture-bgra-ingress' <<< "$selected_tests"
+          grep -Fq 'x11.capture-stride-layout-denials' <<< "$selected_tests"
+          grep -Fq 'x11.capture-generation-retirement' <<< "$selected_tests"
           grep -Fq 'x11.native-geometry-observation-generation-retirement' <<< "$selected_tests"
           grep -Fq 'x11.same-pixel-randr-capture-retirement' <<< "$selected_tests"
           grep -Fq 'x11.randr-burst-generation-retirement-recovery' <<< "$selected_tests"
@@ -1833,7 +1833,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -1846,9 +1846,9 @@ jobs:
             macos.capture-stream-start-retirement-after-completion \
             macos.capture-stream-session-watch-frame-retirement \
             macos.capture-stream-session-watch-consumer-race \
-            macos.capture-r4-bgra-layout-contract \
-            macos.capture-r4-pixel-lifetime-retirement \
-            macos.capture-r4-display-generation-denials \
+            macos.capture-bgra-layout-contract \
+            macos.capture-pixel-lifetime-retirement \
+            macos.capture-display-generation-denials \
             macos.cursor-session-watch-revocation \
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \
@@ -1880,7 +1880,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-r4-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
+          r7_focus='^(macos\.desktop-geometry-epoch-generation-fence-revocation|macos\.capture-stream-(geometry-generation-retirement|callback-retirement|consumer-cancellation|native-stop-single-ownership|backend-callback-reentry-retirement|start-retirement-after-completion|session-watch-frame-retirement|session-watch-consumer-race)|macos\.capture-(bgra-layout-contract|pixel-lifetime-retirement|display-generation-denials)|macos\.cursor-(session-watch-revocation|topology-publication-revocation|geometry-generation-publication-denials)|macos\.input-controller-(session-watch-revocation|authority-retirement-no-native-post)|macos\.desktop-session-(switch-away-back-revocation|mid-operation-epoch-change|watch-retirement-callback-race|watch-destructor-retirement))$'
           selected_tests="$(ctest --test-dir build --build-config Release -N -R "$r7_focus")"
           printf '%s\n' "$selected_tests"
           for required_test in \
@@ -1893,9 +1893,9 @@ jobs:
             macos.capture-stream-start-retirement-after-completion \
             macos.capture-stream-session-watch-frame-retirement \
             macos.capture-stream-session-watch-consumer-race \
-            macos.capture-r4-bgra-layout-contract \
-            macos.capture-r4-pixel-lifetime-retirement \
-            macos.capture-r4-display-generation-denials \
+            macos.capture-bgra-layout-contract \
+            macos.capture-pixel-lifetime-retirement \
+            macos.capture-display-generation-denials \
             macos.cursor-session-watch-revocation \
             macos.cursor-topology-publication-revocation \
             macos.cursor-geometry-generation-publication-denials \

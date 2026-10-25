@@ -12531,7 +12531,7 @@ constexpr std::array<McsTestCase, 166> kMcsTestCases{{
     {"dvc-graphics-surface-remap", &testGraphicsSurfaceRemap},
     {"dvc-graphics-first-client-acceptance-observability",
      &testFirstClientAcceptanceObservability},
-    {"dvc-graphics-r4-acceptance-status-projection",
+    {"dvc-graphics-frame-acceptance-status-projection",
      &testFirstClientAcceptanceObservability},
     {"dvc-graphics-create-response-denials", &testGraphicsDynamicVirtualChannelResponseDenials},
     {"dvc-graphics-generation-cancellation", &testGraphicsDynamicVirtualChannelGenerationCancellation},

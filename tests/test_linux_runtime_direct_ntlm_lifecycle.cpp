@@ -971,7 +971,12 @@ struct PeerResult final
            status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::Admission &&
            !status.nativeDesktopReady &&
-           !status.nativeDesktopInitializing;
+           !status.nativeDesktopInitializing &&
+           !status.graphicsReady &&
+           !status.firstLiveGraphicsTrace.firstFramebufferAvailable &&
+           !status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted &&
+           status.firstLiveGraphicsTrace.outstandingFrameAcknowledgements == 0U &&
+           !status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge;
 }
 
 [[nodiscard]] bool challengesDiffer(
@@ -988,6 +993,17 @@ void assertClipboardDormant(const RuntimeHostStatus& status) noexcept
     assert(!status.graphicsReady);
     assert((status.ownerGrant.effectivePermissionMask &
             kConsoleClipboardPermission) == 0U);
+}
+
+void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
+{
+    assert(!status.graphicsReady);
+    assert(!status.nativeDesktopReady);
+    assert(!status.nativeDesktopInitializing);
+    assert(!status.firstLiveGraphicsTrace.firstFramebufferAvailable);
+    assert(!status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
+    assert(status.firstLiveGraphicsTrace.outstandingFrameAcknowledgements == 0U);
+    assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
 }
 
 [[nodiscard]] bool startSharingOnPort(
@@ -1161,6 +1177,7 @@ int main(int argc, char** argv)
     assert(!firstAuthenticated.nativeDesktopReady);
     assert(!firstAuthenticated.nativeDesktopInitializing);
     assertClipboardDormant(firstAuthenticated);
+    assertGraphicsDormant(firstAuthenticated);
     assert(firstAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodOne.store(true, std::memory_order_release);
@@ -1236,6 +1253,7 @@ int main(int argc, char** argv)
     assert(!secondAuthenticated.nativeDesktopReady);
     assert(!secondAuthenticated.nativeDesktopInitializing);
     assertClipboardDormant(secondAuthenticated);
+    assertGraphicsDormant(secondAuthenticated);
     assert(secondAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneCredentialGeneration == credential.generation);
     releaseGoodTwo.store(true, std::memory_order_release);

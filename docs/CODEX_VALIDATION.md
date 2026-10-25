@@ -1,3 +1,27 @@
+## Owner Microsoft-client native-admission boundary and graphics dormancy follow-up — 2026-10-24
+
+**Owner-tested starting SHA:** `9fd1db518076713f30b41af2aff023308f95a925`.
+
+Owner local CTest: **966/966 PASS**. Real Microsoft-client observation:
+TLS established -> Direct NTLM selected -> NTLM Type 1 accepted -> Type 2
+sent -> CredSSP progressed -> native **Admission failed**. Production
+diagnostic: `stage=admission`. No client build/platform detail accompanied
+this receipt, so later client-matrix stages remain unclaimed.
+
+This is the first demonstrated production failure boundary. No TLS, SPNEGO,
+NTLM, ClearCodec, AVC420, FRAME_ACK or frame-credit behavior is changed by the
+follow-up. The existing DirectNtlm lifecycle test is strengthened so an
+Admission-denied connection must have no native desktop/framebuffer, no
+committed graphics frame write and zero outstanding/matching frame ACK state.
+R4-prefixed CTest summary names are converted to semantic behavior names; the
+one `r4-frame` label is replaced by `graphics;frame;codec`.
+
+Connector source and CI-selector reconciliation: **PASS by inspection**.
+Modified focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Graphics remains **BLOCKED**
+until genuine native admission succeeds and the accepted client reaches
+`GraphicsReady`.
+
 ## R5 hosted pre-native qualification receipt — 2026-10-24
 
 **Exact tested SHA:** `3bd18c10cba6a4743ef331e6ac6f90857f556fb6`  

@@ -1,3 +1,36 @@
+## Graphics remains blocked at native admission; owner receipt and semantic test taxonomy — 2026-10-24
+
+**Owner-tested starting SHA:** `9fd1db518076713f30b41af2aff023308f95a925`.
+
+The owner reports local full CTest **966/966 PASS** on the starting SHA. The
+owner's real Microsoft-client run then established the first genuine product
+failure boundary: TLS established -> Direct NTLM selected -> NTLM Type 1
+accepted -> Type 2 sent -> CredSSP progressed -> native **Admission failed**,
+with production diagnostic `stage=admission`. Client build/platform details
+were not supplied with this receipt, so this is not a complete M1/M2 client
+matrix entry.
+
+This evidence freezes graphics work behind the existing positive authority
+gate: **no ClearCodec, AVC420, FRAME_ACK or frame-credit change is justified
+before a real admitted client reaches `GraphicsReady`**. Do not regress into
+speculative TLS/SPNEGO/NTLM changes for this failure.
+
+The production-backed DirectNtlm reconnect/Stop->Start CTest now requires an
+Admission-denied peer to expose no native desktop/framebuffer, no committed
+graphics frame write, zero outstanding frame acknowledgements and no matching
+frame acknowledgement. Production graphics code is unchanged. R4-prefixed
+CTest names are replaced with behavior names, and the former `r4-frame`
+label is replaced by semantic `graphics;frame;codec` labels. Internal source
+ownership names may remain internal; public CTest/test-summary taxonomy does
+not use the R4 road name.
+
+**Verification:** owner starting-SHA full CTest **966/966 PASS**; connector
+source/test/CI-structure review for this cleanup **PASS**; modified CTest/full
+suite and exact-publication-SHA hosted CI **NOT RUN / PENDING** in this
+connector session. **Next gate:** owner-authorized real client must first
+succeed at native Admission and then reach R3 Share/RDPGFX `GraphicsReady`.
+Until then graphics/frame/codec work remains **BLOCKED**.
+
 ## R5 P1 exact-SHA hosted pre-native qualification — 2026-10-24
 
 **Qualified repository SHA:** `3bd18c10cba6a4743ef331e6ac6f90857f556fb6`.

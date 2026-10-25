@@ -1,3 +1,24 @@
+## Admission-denied graphics dormancy and semantic taxonomy (2026-10-24)
+
+A real Microsoft-client run on owner-tested SHA
+`9fd1db518076713f30b41af2aff023308f95a925` progressed through TLS,
+Direct NTLM and CredSSP, then failed first at native `Admission`
+(`stage=admission`). Treat that as the demonstrated boundary: do not change
+TLS/SPNEGO/NTLM or any graphics codec merely to move a failure that has already
+been localized to native admission.
+
+The production-backed admission-denial lifecycle regression must require
+`graphicsReady == false`, no native desktop/framebuffer availability, no
+committed graphics frame write, zero outstanding frame acknowledgements and no
+genuine matching frame acknowledgement. These are dormancy assertions only;
+they must not synthesize native authority or advance the session.
+
+CTest names and labels exposed in summaries use behavior/domain terminology,
+not the graphics road/agent identifier. For this scope use semantic
+`graphics`, `frame` and `codec` labels rather than an `r4*` label.
+Underlying internal source ownership terminology may remain where it is not
+part of user-visible/test-summary taxonomy.
+
 ## CI structural guards must move with exact-count qualification pins (2026-10-24)
 
 When a workflow's exact test inventory or focused qualification target list is

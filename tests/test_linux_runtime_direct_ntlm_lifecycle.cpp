@@ -1310,6 +1310,7 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
+        assertClipboardDormant(waitingForTypeThree);
         assertGraphicsDormant(waitingForTypeThree);
 
         closeAfterTypeTwo.store(true, std::memory_order_release);
@@ -1331,6 +1332,7 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::PeerEof);
+        assertClipboardDormant(afterTypeTwoEof);
         assertGraphicsDormant(afterTypeTwoEof);
         assert(afterTypeTwoEof.product.state ==
                RuntimeProductHostState::Listening);

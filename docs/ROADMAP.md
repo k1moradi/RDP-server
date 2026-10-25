@@ -701,9 +701,12 @@ local CTest **975/975 PASS**. The real Microsoft Windows App attempt established
 TLS, sent raw Direct NTLM Type 1, received the server Type 2, then closed; no
 Type 3 was observed. Native Admission, MCS, Share, graphics and clipboard were
 therefore **NOT REACHED**. The retained `stage=admission; admission=none`
-diagnostic is misleading for that peer and is not authority. The reported
-Type-2 TargetName/target-type mismatch remains an upstream authentication
-hypothesis; R8 does not alter the NTLM encoder.
+diagnostic is misleading for that peer and is not authority. The former
+Type-2 TargetName/target-type hypothesis is now **RESOLVED IN CODE** by
+`df0f980c42e65a3727c06f4b819d0cddc70b1d34`: the portable encoder supplies
+a UTF-16LE server TargetName with REQUEST_TARGET/TARGET_TYPE_SERVER. R2/R9 have
+since added production and independent challenge validation, and R1 records
+actual Type-2 delivery. R8 does not alter any of those authentication owners.
 
 **Dormancy confirmation:** native/CLIPRDR construction remains reachable only
 from `AcceptedClientPhase::GraphicsReady`. The shared reconnect lifecycle now
@@ -740,13 +743,20 @@ Ubuntu protocol job `120980921253` completed the ordinary Debug suite
 same qualified SHA. macOS and Windows shared protocol jobs are also PASS on
 that SHA. The historical qualified baseline through
 `feb0866c720142e3b696e49bbc03c971b61a874a` remains valid for the earlier
-dormant/stale-lifetime inventory. The new Type-2-then-EOF assertion is a
-test-only extension on the current assignment baseline and has not yet received
-post-publication hosted or owner-local qualification.
+dormant/stale-lifetime inventory. Current main now has the dedicated
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` path:
+peer 1 receives the validated Type 2 and closes before Type 3, then peer 2
+starts with fresh connection-local NTLM state. R8 additionally requires
+clipboard `Unavailable` and no clipboard permission both while peer 1 waits
+for Type 3 and after its EOF retirement. This is test-only; no clipboard
+production source or activation changes.
 
-**Dependency result:** R8 remains dormant. The only new repository task is
-qualification of this stale-state assertion; do not add another synthetic
-integration path or activate clipboard merely to manufacture progress.
+**Dependency result:** the former Type-2 wire-shape repository blocker is
+resolved by the authentication roads. R8 remains dormant because the next
+dependency is external qualification, not missing R8 code: exact-head hosted
+CI for the current descendant and then an owner-authorized physical Microsoft
+client retry. Do not add another synthetic integration path or activate
+clipboard merely to manufacture progress.
 
 **Remaining R8 blocker:** production activation remains **P2 / BLOCKED** on the
 separate owner-authorized physical product receipt. The next upstream positive

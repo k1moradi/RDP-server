@@ -1,3 +1,31 @@
+## R8 dependency recheck after Type-2 fixes — 2026-10-25
+
+**Rechecked parent:** `f92a698ca7e756d6e4053a39195c0bab6e4376f6`.
+
+The authentication-side blocker identified by the owner is resolved in current
+source: `df0f980c42e65a3727c06f4b819d0cddc70b1d34` emits a nonempty portable
+UTF-16LE server TargetName with REQUEST_TARGET/TARGET_TYPE_SERVER; R2 validates
+the produced CHALLENGE_MESSAGE; R9 independently parses its wire shape; and R1
+tracks queued versus actually delivered Type 2 bytes. The old
+`stage=admission; admission=none` classification is also replaced by the
+pre-admission NTLM-challenge/peer-EOF tuple. No R8 production code participates
+in those fixes.
+
+The dedicated production-backed Type-2/EOF lifecycle now also carries the R8
+dormancy assertions directly: while peer 1 is waiting for Type 3 and after its
+EOF retirement, clipboard state must be `Unavailable`, the owner grant must
+contain no clipboard permission, and graphics/native ownership remains absent.
+The same listener then accepts peer 2 with a fresh challenge and continues
+independently. This adds no CLIPRDR traffic, native clipboard owner or activation.
+
+Connector source/dependency review: **PASS**. Canonical owner-local build/full
+CTest for this modified tree: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**. Physical Microsoft Windows App retry after the corrected Type 2:
+**NOT RUN**. R8 production activation therefore remains **P2 / BLOCKED** on
+external positive product evidence through genuine native admission and later
+R3/GraphicsReady; there is no remaining R8 implementation blocker inside the
+assignment's permitted stale-state scope.
+
 ## Cross-platform Type-2 delivery fixture link diagnosis — 2026-10-25
 
 Exact descendant `4b68df6f53b4b48180c5ae492a02269c7e5d61f4`: structure

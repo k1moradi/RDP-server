@@ -800,7 +800,7 @@ jobs:
             test_owned_mcs_connect_initial test_owned_preauth_session \
             test_owned_credssp_tsrequest \
             test_owned_credssp_binding test_console_identity_policy \
-            test_standalone_spnego test_standalone_credssp \
+            test_standalone_ntlmssp test_standalone_spnego test_standalone_credssp \
             test_linux_runtime_host_control test_lan_listener \
             test_linux_runtime_direct_ntlm_lifecycle \
             test_linux_gssapi_spnego test_linux_pam_password_verifier \
@@ -846,6 +846,11 @@ jobs:
             credssp-owned-tls-reply
           build/tests/test_owned_preauth_session \
             credssp-tls-certificate-pinning
+
+          # The portable Type-2 encoder must carry one bounded UTF-16LE
+          # server TargetName on every host before broader CredSSP coverage.
+          build/tests/test_standalone_ntlmssp \
+            ntlmssp-challenge-portable-target-name
 
           # Exact owner reproduction: v6 / one 40-byte raw NTLMSSP Type 1,
           # raw Type 2, raw Type 3 + pubKeyAuth, server pubKeyAuth, authInfo,

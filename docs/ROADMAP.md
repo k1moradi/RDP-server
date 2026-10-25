@@ -1,3 +1,41 @@
+## R6 P1 — portable NTLM Type-2 TargetName after owner peer EOF — 2026-10-25
+
+**Assignment baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
+Owner Linux full CTest is **975/975 PASS**. The real Microsoft Windows App
+trace established
+`TLS -> raw Direct NTLM Type 1 -> server Type 2 -> peer EOF`, with **no Type
+3 observed**. Native Admission was not reached. The runtime/GUI diagnostic
+corrections at `73ec034c3f4231ece47400cb3b73e00c628c2dd0` and `a300ca26579e6eb41e56fab828cc337854b645ab` are preserved and deliberately leave Type-2
+wire behavior for this R6/security increment.
+
+Source review confirms the remaining Type-2 CHALLENGE_MESSAGE defect:
+`NTLMSSP_TARGET_TYPE_SERVER` is set while TargetName is empty and
+`NTLMSSP_REQUEST_TARGET` is cleared. MS-NLMP requires a server name for the
+server target type, and its server algorithm supplies the machine TargetName
+with REQUEST_TARGET.
+
+This P1 correction keeps challenge naming in the portable security layer.
+Normal standalone hosting uses deterministic bounded UTF-16 identities
+`RDP` / `RDP-SERVER`; the computer identity is emitted as Type-2
+TargetName and `MsvAvNbComputerName`. It is never derived from host name,
+filesystem, locale, local Username suggestion or remote username. Linux now
+consumes the shared portable constants; macOS and Windows protocol builds run
+the same encoder and test bytes.
+
+New ordinary all-platform CTest
+`security.ntlmssp-challenge-portable-target-name` pins TargetName fields,
+flags, UTF-16LE bytes, offset ordering, Unicode encoding and maximum/overflow
+denials. The sanitizer owner-candidate lane also executes that production
+encoder case directly. Connector source/spec review: **PASS**. Post-change
+local/full CTest: **NOT RUN** here. Exact-publication-SHA hosted Linux/macOS/
+Windows CI: **PENDING**.
+
+**Next gate:** after hosted cross-platform qualification, repeat Windows App on
+that exact SHA. Type 3 must be observed before any later authentication,
+Admission or protocol-stage diagnosis is considered. If the peer still closes
+after Type 2, retain that exact boundary and inspect only the next demonstrated
+NTLM compatibility difference.
+
 ## R5 P1 — native Linux path holds before Admission on Type-2 peer EOF (2026-10-25)
 
 **Reconciled parent:** `a300ca26579e6eb41e56fab828cc337854b645ab`. Owner evidence remains assignment SHA

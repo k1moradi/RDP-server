@@ -1,3 +1,32 @@
+## R6 portable NTLM Type-2 TargetName authoring receipt — 2026-10-25
+
+Assignment baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` has owner
+Linux full CTest **975/975 PASS**. The real Microsoft Windows App trace reached
+TLS, raw Direct NTLM Type 1 and server Type 2, then peer EOF with **no Type 3**.
+The separate runtime/GUI pre-admission diagnostic fixes already on main are
+preserved unchanged.
+
+MS-NLMP/source review confirms the remaining Type-2 defect: the encoder sets
+TARGET_TYPE_SERVER but emits empty TargetNameFields and clears REQUEST_TARGET.
+The correction emits the portable bounded computer identity as a real
+UTF-16LE TargetName, preserves TARGET_TYPE_SERVER, sets REQUEST_TARGET, moves
+TargetInfo behind the TargetName payload and centralizes normal
+`RDP` / `RDP-SERVER` naming in portable security code. Linux consumes those
+shared values; no host name, filesystem path, locale conversion, GUI Username
+or remote username becomes NTLM identity.
+
+Dedicated CTest `security.ntlmssp-challenge-portable-target-name` is
+unconditional, so ordinary Linux/GCC, macOS/Clang and Windows/MSVC or CLANG64
+full suites exercise the same production encoder. It covers exact portable
+TargetName, non-ASCII UTF-16LE, maximum accepted server-name length,
+one-unit overflow and invalid-surrogate denial. The sanitizer owner-candidate
+lane builds and runs the same case directly.
+
+Connector source/spec review: **PASS**. Canonical owner-local post-change
+build/full CTest: **NOT RUN** in this connector session. Exact-publication-SHA
+hosted CI: **PENDING**. Real-client corrected-Type-2 retry: **NOT RUN**.
+No native admission, MCS, graphics or clipboard production code is changed.
+
 ## R5 pre-admission native-owner source-assurance receipt — 2026-10-25
 
 Reconciled on parent `a300ca26579e6eb41e56fab828cc337854b645ab` with owner baseline

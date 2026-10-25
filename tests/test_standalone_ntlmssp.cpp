@@ -61,20 +61,22 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     0xc5,0xda,0xd2,0x54,0x4f,0xc9,0x79,0x90,
     0x94,0xce,0x1c,0xe9,0x0b,0xc9,0xd0,0x3e};
 
-constexpr std::array<std::uint8_t, 104> kExpectedChallengeMessage{
+constexpr std::array<std::uint8_t, 116> kExpectedChallengeMessage{
     0x4e,0x54,0x4c,0x4d,0x53,0x53,0x50,0x00,
-    0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x38,0x00,0x00,0x00,0x31,0x82,0x8a,0xe0,
+    0x02,0x00,0x00,0x00,0x0c,0x00,0x0c,0x00,
+    0x38,0x00,0x00,0x00,0x35,0x82,0x8a,0xe0,
     0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x30,0x00,0x30,0x00,0x38,0x00,0x00,0x00,
+    0x30,0x00,0x30,0x00,0x44,0x00,0x00,0x00,
     0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-    0x02,0x00,0x0c,0x00,0x44,0x00,0x6f,0x00,
-    0x6d,0x00,0x61,0x00,0x69,0x00,0x6e,0x00,
-    0x01,0x00,0x0c,0x00,0x53,0x00,0x65,0x00,
-    0x72,0x00,0x76,0x00,0x65,0x00,0x72,0x00,
-    0x07,0x00,0x08,0x00,0x08,0x07,0x06,0x05,
-    0x04,0x03,0x02,0x01,0x00,0x00,0x00,0x00};
+    0x53,0x00,0x65,0x00,0x72,0x00,0x76,0x00,
+    0x65,0x00,0x72,0x00,0x02,0x00,0x0c,0x00,
+    0x44,0x00,0x6f,0x00,0x6d,0x00,0x61,0x00,
+    0x69,0x00,0x6e,0x00,0x01,0x00,0x0c,0x00,
+    0x53,0x00,0x65,0x00,0x72,0x00,0x76,0x00,
+    0x65,0x00,0x72,0x00,0x07,0x00,0x08,0x00,
+    0x08,0x07,0x06,0x05,0x04,0x03,0x02,0x01,
+    0x00,0x00,0x00,0x00};
 
 constexpr void storeLe16(
     std::uint8_t *output, std::uint16_t value) noexcept
@@ -177,7 +179,7 @@ int main(int argc, char **argv)
         assert(encoded);
         assert(encoded.bytesWritten ==
                kExpectedChallengeMessage.size());
-        assert(encoded.negotiateFlags == 0xe08a8231U);
+        assert(encoded.negotiateFlags == 0xe08a8235U);
         assert(std::equal(
             kExpectedChallengeMessage.begin(),
             kExpectedChallengeMessage.end(),
@@ -199,6 +201,74 @@ int main(int argc, char **argv)
         parameters.clientNegotiateFlags =
             kMicrosoftAuthenticateFlags;
         parameters.serverChallenge.fill(0U);
+        assert(encodeNtlmChallengeMessage(parameters, output).status ==
+               NtlmChallengeEncodeStatus::InvalidInput);
+        return 0;
+    }
+
+
+    if (testCase == "ntlmssp-challenge-portable-target-name")
+    {
+        assert(kStandaloneNtlmPortableDomainName == std::u16string_view{u"RDP"});
+        assert(kStandaloneNtlmPortableServerName ==
+               std::u16string_view{u"RDP-SERVER"});
+
+        std::array<std::uint8_t, 768> output{};
+        NtlmChallengeMessageParameters parameters{
+            kServerChallenge, kStandaloneNtlmPortableDomainName,
+            kStandaloneNtlmPortableServerName, 0x0102030405060708ULL,
+            kMicrosoftAuthenticateFlags};
+        auto encoded = encodeNtlmChallengeMessage(parameters, output);
+        assert(encoded);
+        assert((encoded.negotiateFlags & kNtlmRequestTarget) != 0U);
+        assert((encoded.negotiateFlags & kNtlmTargetTypeServer) != 0U);
+
+        constexpr std::array<std::uint8_t, 20> expectedServerName{
+            0x52,0x00,0x44,0x00,0x50,0x00,0x2d,0x00,0x53,0x00,
+            0x45,0x00,0x52,0x00,0x56,0x00,0x45,0x00,0x52,0x00};
+        assert(output[12] == 20U && output[13] == 0U);
+        assert(output[14] == 20U && output[15] == 0U);
+        assert(output[16] == 56U &&
+               output[17] == 0U && output[18] == 0U && output[19] == 0U);
+        assert(std::equal(expectedServerName.begin(), expectedServerName.end(),
+                          output.begin() + 56));
+        assert(output[44] == 76U &&
+               output[45] == 0U && output[46] == 0U && output[47] == 0U);
+
+        constexpr std::array<char16_t, 5> unicodeServerName{
+            u'R', u'D', u'P', u'-', static_cast<char16_t>(0x03a9U)};
+        parameters.netbiosComputerName =
+            {unicodeServerName.data(), unicodeServerName.size()};
+        encoded = encodeNtlmChallengeMessage(parameters, output);
+        assert(encoded);
+        constexpr std::array<std::uint8_t, 10> expectedUnicodeServerName{
+            0x52,0x00,0x44,0x00,0x50,0x00,0x2d,0x00,0xa9,0x03};
+        assert(std::equal(expectedUnicodeServerName.begin(),
+                          expectedUnicodeServerName.end(),
+                          output.begin() + 56));
+
+        std::array<char16_t, kMaximumStandaloneNtlmServerNameCodeUnits>
+            maximumServerName{};
+        maximumServerName.fill(u'S');
+        parameters.netbiosComputerName =
+            {maximumServerName.data(), maximumServerName.size()};
+        encoded = encodeNtlmChallengeMessage(parameters, output);
+        assert(encoded);
+        assert(output[12] == 0U && output[13] == 1U);
+        assert(output[14] == 0U && output[15] == 1U);
+
+        std::array<char16_t, kMaximumStandaloneNtlmServerNameCodeUnits + 1U>
+            oversizedServerName{};
+        oversizedServerName.fill(u'S');
+        parameters.netbiosComputerName =
+            {oversizedServerName.data(), oversizedServerName.size()};
+        assert(encodeNtlmChallengeMessage(parameters, output).status ==
+               NtlmChallengeEncodeStatus::InvalidInput);
+
+        constexpr std::array<char16_t, 1> invalidSurrogate{
+            static_cast<char16_t>(0xd800U)};
+        parameters.netbiosComputerName =
+            {invalidSurrogate.data(), invalidSurrogate.size()};
         assert(encodeNtlmChallengeMessage(parameters, output).status ==
                NtlmChallengeEncodeStatus::InvalidInput);
         return 0;

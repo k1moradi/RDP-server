@@ -1,3 +1,23 @@
+## Cross-platform NTLM Type-2 TargetName gate (2026-10-25)
+
+The standalone NTLMSSP challenge test is registered on every platform and must
+pin the corrected CHALLENGE_MESSAGE byte-for-byte: nonzero TargetName security
+buffer, `NTLMSSP_REQUEST_TARGET`, `NTLMSSP_TARGET_TYPE_SERVER`, exact
+UTF-16LE server-name bytes and a TargetInfo offset after TargetName. The
+dedicated portability case additionally covers a non-ASCII UTF-16 code unit,
+the exact project maximum server-name length, one-code-unit overflow and an
+invalid surrogate. No host-name lookup, locale, filesystem or native-session
+fixture is permitted.
+
+Owner evidence on assignment SHA
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is local full CTest
+**975/975 PASS**, followed by a real Microsoft Windows App connection that
+established TLS, accepted raw Direct NTLM Type 1, received server Type 2 and
+then closed with peer EOF before any Type 3. Current main already has separate
+runtime/GUI corrections that keep this pre-admission. The next real-client gate
+for this increment is whether the corrected exact-SHA Type 2 elicits Type 3;
+later R2/native/MCS/graphics/clipboard stages remain unclaimed.
+
 ## R5 Type-2 peer-EOF native-owner dormancy source gate (2026-10-25)
 
 The existing source-backed CTest

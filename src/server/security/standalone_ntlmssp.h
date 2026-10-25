@@ -13,6 +13,19 @@ namespace rdp_server::server::security
 {
 
 inline constexpr std::size_t kMaximumStandaloneNtlmMessageBytes = 8192U;
+inline constexpr std::size_t kMaximumStandaloneNtlmServerNameCodeUnits = 128U;
+
+// Stable standalone NTLM naming is portable protocol state, not host identity.
+// Normal hosting never derives these values from the host name, filesystem,
+// locale, local account, or the remote application username. A host may
+// deliberately replace them only through the same bounded UTF-16 challenge
+// configuration used by every platform.
+inline constexpr std::u16string_view kStandaloneNtlmPortableDomainName{u"RDP"};
+inline constexpr std::u16string_view kStandaloneNtlmPortableServerName{
+    u"RDP-SERVER"};
+static_assert(
+    kStandaloneNtlmPortableServerName.size() <=
+    kMaximumStandaloneNtlmServerNameCodeUnits);
 
 inline constexpr std::uint32_t kNtlmNegotiateUnicode = 0x00000001U;
 inline constexpr std::uint32_t kNtlmNegotiateOem = 0x00000002U;
@@ -122,9 +135,12 @@ struct NtlmChallengeEncodeResult final
 
 // Encode one connection-oriented NTLM Type 2 challenge for the standalone
 // CredSSP profile. The caller owns cryptographically random ServerChallenge and
-// current FILETIME generation. The encoder adds bounded NetBIOS domain/computer
-// TargetInfo plus timestamp, clears the debugging-only VERSION option, and
-// never allocates or persists secret material.
+// current FILETIME generation. The bounded NetBIOS computer name is also the
+// MS-NLMP server TargetName and is emitted explicitly as UTF-16LE together with
+// REQUEST_TARGET/TARGET_TYPE_SERVER. TargetInfo carries the same computer name,
+// the bounded domain name and timestamp. No locale/host-name lookup occurs here.
+// The encoder clears the debugging-only VERSION option and never allocates or
+// persists secret material.
 [[nodiscard]] NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
     const NtlmChallengeMessageParameters &parameters,
     std::span<std::uint8_t> output) noexcept;

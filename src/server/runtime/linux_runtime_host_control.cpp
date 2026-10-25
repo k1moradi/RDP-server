@@ -68,8 +68,6 @@ struct LinuxHostNativeDesktopState final
 namespace
 {
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
-inline constexpr std::u16string_view kStandaloneNtlmDomainName{u"RDP"};
-inline constexpr std::u16string_view kStandaloneNtlmComputerName{u"RDP-SERVER"};
 inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
     116444736000000000ULL};
 
@@ -1290,9 +1288,9 @@ bool LinuxRuntimeHostControl::buildAuthenticationSelection(
         selection.standaloneCredentialGeneration =
             standaloneCredentialGeneration_;
         selection.standaloneChallenge.netbiosDomainName =
-            kStandaloneNtlmDomainName;
+            rdp_server::server::security::kStandaloneNtlmPortableDomainName;
         selection.standaloneChallenge.netbiosComputerName =
-            kStandaloneNtlmComputerName;
+            rdp_server::server::security::kStandaloneNtlmPortableServerName;
         selection.standaloneChallenge.timestampFileTime =
             currentWindowsFileTime();
         if (selection.standaloneChallenge.timestampFileTime == 0U)

@@ -337,7 +337,7 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
             kMaximumStandaloneNtlmDomainCodeUnits) ||
         !validChallengeName(
             parameters.netbiosComputerName,
-            kMaximumStandaloneNtlmUserCodeUnits) ||
+            kMaximumStandaloneNtlmServerNameCodeUnits) ||
         parameters.timestampFileTime == 0U ||
         allZero(ByteSpan{
             parameters.serverChallenge.data(),
@@ -361,15 +361,16 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
         parameters.netbiosDomainName.size() * 2U;
     const std::size_t computerBytes =
         parameters.netbiosComputerName.size() * 2U;
+    const std::size_t targetNameBytes = computerBytes;
     const std::size_t targetInfoBytes =
         4U + domainBytes +
         4U + computerBytes +
         4U + 8U +
         4U;
     const std::size_t totalBytes =
-        kChallengeHeaderBytes + targetInfoBytes;
+        kChallengeHeaderBytes + targetNameBytes + targetInfoBytes;
     if (domainBytes > 0xffffU || computerBytes > 0xffffU ||
-        targetInfoBytes > 0xffffU ||
+        targetNameBytes > 0xffffU || targetInfoBytes > 0xffffU ||
         totalBytes > kMaximumStandaloneNtlmMessageBytes)
     {
         result.status = NtlmChallengeEncodeStatus::InvalidInput;
@@ -383,6 +384,7 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
 
     std::uint32_t selectedFlags =
         requiredClientFlags |
+        kNtlmRequestTarget |
         kNtlmTargetTypeServer |
         kNtlmNegotiateTargetInfo;
     constexpr std::uint32_t optionalClientFlags =
@@ -392,13 +394,19 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
         kNtlmNegotiate56;
     selectedFlags |=
         parameters.clientNegotiateFlags & optionalClientFlags;
-    selectedFlags &= ~(kNtlmNegotiateVersion | kNtlmRequestTarget);
+    selectedFlags &= ~kNtlmNegotiateVersion;
 
     std::fill_n(output.begin(), totalBytes, std::uint8_t{0});
     std::copy(
         kNtlmSignature.begin(), kNtlmSignature.end(),
         output.begin());
     storeLe32(output.data() + 8U, 2U);
+    storeLe16(
+        output.data() + 12U,
+        static_cast<std::uint16_t>(targetNameBytes));
+    storeLe16(
+        output.data() + 14U,
+        static_cast<std::uint16_t>(targetNameBytes));
     storeLe32(
         output.data() + 16U,
         static_cast<std::uint32_t>(kChallengeHeaderBytes));
@@ -416,9 +424,14 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
         static_cast<std::uint16_t>(targetInfoBytes));
     storeLe32(
         output.data() + 44U,
-        static_cast<std::uint32_t>(kChallengeHeaderBytes));
+        static_cast<std::uint32_t>(
+            kChallengeHeaderBytes + targetNameBytes));
 
     std::size_t offset = kChallengeHeaderBytes;
+    writeUtf16LittleEndian(
+        parameters.netbiosComputerName, output.data() + offset);
+    offset += targetNameBytes;
+
     storeLe16(output.data() + offset, kMsvAvNbDomainName);
     storeLe16(
         output.data() + offset + 2U,

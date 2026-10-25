@@ -299,6 +299,8 @@ REQUIRED_TOKENS = (
     "clipboard.route-bridge-partial-positive-receipt-retirement",
     "clipboard.route-bridge-filecontents-request-receipt",
     "runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle",
+    "ntlmssp-challenge-portable-target-name",
+    "test_standalone_ntlmssp",
     "same-port-rebind-after-server-close",
     "clipboard_expected_test_count=97",
     "Run R3 static CLIPRDR route CTests with sanitizers",

@@ -287,7 +287,7 @@ private:
     std::array<char16_t, kMaximumStandaloneNtlmDomainCodeUnits + 1U>
         domainName_{};
     std::size_t domainNameLength_{};
-    std::array<char16_t, kMaximumStandaloneNtlmUserCodeUnits + 1U>
+    std::array<char16_t, kMaximumStandaloneNtlmServerNameCodeUnits + 1U>
         computerName_{};
     std::size_t computerNameLength_{};
     NtlmServerChallenge serverChallenge_{};

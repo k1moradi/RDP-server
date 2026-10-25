@@ -1,3 +1,25 @@
+## Portable NTLM Type-2 server TargetName is wire state (2026-10-25)
+
+MS-NLMP CHALLENGE_MESSAGE naming is portable protocol state. When
+`NTLMSSP_TARGET_TYPE_SERVER` is set, emit a non-empty server TargetName and
+set `NTLMSSP_REQUEST_TARGET`; the normal standalone server identity is the
+bounded UTF-16 value `RDP-SERVER`. Encode it directly as UTF-16LE from
+`char16_t` code units. Do not use locale conversion, host-name lookup,
+filesystem/environment names or the GUI's local Username suggestion to
+manufacture this wire identity.
+
+Keep the server TargetName and `MsvAvNbComputerName` on the same deliberately
+selected portable computer identity. The normal standalone domain/computer
+constants live in the portable security layer so Linux, macOS protocol tests
+and future Windows hosting consume the same wire identity. A deliberate future
+override must still pass the same non-empty, valid-UTF-16,
+maximum-code-unit and total-message bounds before any output byte is mutated.
+
+A peer EOF after a successfully written Type 2 but before Type 3 is an
+authentication/negotiation boundary, not native Admission. Runtime/GUI
+diagnostic corrections already on main preserve that distinction; this wire
+correction must not reopen logind/native admission, MCS, graphics or clipboard.
+
 ## R7 pre-admission authentication presentation follows typed evidence (2026-10-25)
 
 R7 must not classify an `AuthenticationRejected` peer as local-desktop

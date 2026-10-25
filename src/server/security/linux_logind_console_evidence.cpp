@@ -44,6 +44,17 @@ namespace
     return true;
 }
 
+template <std::size_t Capacity>
+void copyDiagnosticText(
+    std::array<char, Capacity> &destination,
+    std::size_t &length,
+    std::string_view value) noexcept
+{
+    destination.fill('\0');
+    length = (std::min)(value.size(), destination.size() - 1U);
+    std::copy_n(value.begin(), length, destination.begin());
+}
+
 [[nodiscard]] bool validLocalDisplay(std::string_view display) noexcept
 {
     if (display.size() < 2 || display.size() > 8 ||
@@ -224,15 +235,27 @@ LinuxLogindReadOnlyEvidenceSource::readMonotonicMilliseconds() noexcept
 ConsoleSessionObservation
 LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
 {
+    diagnostics_ = {};
+    diagnostics_.sampleAttempted = true;
 #ifndef XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN
     // Optional libsystemd dependency absent: never invent a local seat.
+    diagnostics_.failure = LinuxLogindObservationFailure::SystemdUnavailable;
     return {};
 #else
     // A systemd service manager and graphical physical seat must exist.
-    if (::sd_booted() <= 0 || ::sd_seat_can_graphical("seat0") <= 0)
+    if (::sd_booted() <= 0)
     {
+        diagnostics_.failure = LinuxLogindObservationFailure::SystemdUnavailable;
         return {};
     }
+    diagnostics_.systemdAvailable = true;
+    if (::sd_seat_can_graphical("seat0") <= 0)
+    {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::GraphicalSeatUnavailable;
+        return {};
+    }
+    diagnostics_.graphicalSeatAvailable = true;
 
     char *initialSessionRaw = nullptr;
     uid_t initialSeatUid{};
@@ -244,8 +267,11 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
         initialSeatUid == 0 ||
         !std::in_range<std::uint32_t>(initialSeatUid))
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::ActiveSessionUnavailable;
         return {};
     }
+    diagnostics_.activeSessionFound = true;
 
     uid_t sessionUid{};
     std::uint64_t startedAtRealtimeMicroseconds{};
@@ -264,6 +290,8 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
         !readLogindString(::sd_session_get_class, initialSession.get(),
                           sessionClass))
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionMetadataUnavailable;
         return {};
     }
 
@@ -272,8 +300,12 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     if (active < 0 || remote < 0 ||
         !std::in_range<std::uint32_t>(sessionUid))
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionMetadataUnavailable;
         return {};
     }
+    diagnostics_.active = active == 1;
+    diagnostics_.remote = remote != 0;
 
     const std::string_view observedSeat = boundedView(seat, 16);
     const std::string_view observedDisplay = boundedView(display, 8);
@@ -282,8 +314,20 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     if (observedSeat.empty() || observedDisplay.empty() ||
         observedType.empty() || observedClass.empty())
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionMetadataInvalid;
         return {};
     }
+    copyDiagnosticText(
+        diagnostics_.seatBytes, diagnostics_.seatLength, observedSeat);
+    copyDiagnosticText(
+        diagnostics_.displayBytes, diagnostics_.displayLength, observedDisplay);
+    copyDiagnosticText(
+        diagnostics_.sessionTypeBytes, diagnostics_.sessionTypeLength,
+        observedType);
+    copyDiagnosticText(
+        diagnostics_.sessionClassBytes, diagnostics_.sessionClassLength,
+        observedClass);
 
     // Seat may change mid-query: repeat the foreground lookup and compare
     // identity and UID, not just an is-active flag. This does NOT stop a
@@ -297,6 +341,8 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     if (repeatStatus < 0 ||
         !std::in_range<std::uint32_t>(secondSeatUid))
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionChangedDuringSample;
         return {};
     }
 
@@ -312,30 +358,49 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     uid_t repeatedSessionUid{};
     std::uint64_t repeatedSessionStartMicroseconds{};
     if (::sd_session_get_uid(initialSession.get(), &repeatedSessionUid) < 0 ||
-        repeatedSessionUid != sessionUid ||
         ::sd_session_get_start_time(
-            initialSession.get(), &repeatedSessionStartMicroseconds) < 0 ||
-        repeatedSessionStartMicroseconds != startedAtRealtimeMicroseconds ||
+            initialSession.get(), &repeatedSessionStartMicroseconds) < 0)
+    {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionChangedDuringSample;
+        return {};
+    }
+    diagnostics_.sessionGenerationStable =
+        repeatedSessionUid == sessionUid &&
+        repeatedSessionStartMicroseconds == startedAtRealtimeMicroseconds;
+    if (!diagnostics_.sessionGenerationStable ||
         !consistentLogindSessionFacts(
             facts, {secondSessionId, static_cast<std::uint32_t>(secondSeatUid)}) ||
         ::sd_session_is_active(initialSession.get()) != 1 ||
         ::sd_session_is_remote(initialSession.get()) != 0)
     {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::SessionChangedDuringSample;
         return {};
     }
 
     const auto observedAt = readMonotonicMilliseconds();
     const uid_t processUid = ::geteuid();
-    if (!observedAt.has_value() || *observedAt == 0 ||
-        processUid == 0 || !std::in_range<std::uint32_t>(processUid))
+    if (!observedAt.has_value() || *observedAt == 0)
     {
+        diagnostics_.failure = LinuxLogindObservationFailure::ClockUnavailable;
         return {};
     }
+    if (processUid == 0 || !std::in_range<std::uint32_t>(processUid))
+    {
+        diagnostics_.failure =
+            LinuxLogindObservationFailure::ProcessUidUnavailable;
+        return {};
+    }
+    diagnostics_.processUidMatchesOwnerUid =
+        static_cast<std::uint32_t>(processUid) == facts.sessionOwnerUid;
 
     // login1 LockedHint is the strongest currently supported GNOME/logind
     // lock evidence. D-Bus failure remains Unknown and therefore fail-closed.
     const ConsoleDesktopLockState lockState =
         readDesktopLockState(initialSession.get());
+    diagnostics_.lockState = lockState;
+    diagnostics_.failure = LinuxLogindObservationFailure::None;
 
     // Own the returned views. No provider-allocated buffer escapes, and
     // every libsystemd string is released by LibcString on each path.

@@ -1,3 +1,21 @@
+## Physical logind admission diagnostics and semantic R5 taxonomy (2026-10-24)
+
+Keep the demonstrated real-client boundary at native `stage=admission`.
+Deterministic tests pin exact Start-grant mismatches such as session generation,
+display and remote-state changes while continuing to re-sample authorization.
+Environment-sensitive Linux coverage exercises
+`sd_login_monitor_new`, get-fd/get-events, zero-time poll, baseline flush and
+post-baseline polling. A hosted machine without a qualifying environment is
+SKIP/NOT RUN for that physical helper, never synthetic PASS.
+
+Admission-denied graphics coverage requires no framebuffer, no prepared or
+committed frame, zero outstanding frame acknowledgements and no matching ACK;
+production codec/ACK/credit code remains unchanged.
+
+The repository-wide CTest label guard continues to reject internal road labels.
+This increment also removes remaining R5 ownership tokens from its CTest
+summary names and uses `linux;x11;native-desktop;session` labels.
+
 ## Durable CTest labels and post-admission diagnostic gate (2026-10-24)
 
 CTest labels describe stable subsystem/behavior boundaries, never temporary

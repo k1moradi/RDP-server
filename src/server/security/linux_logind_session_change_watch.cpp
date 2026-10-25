@@ -11,25 +11,84 @@
 
 namespace rdp_server::server::security
 {
+namespace
+{
+#ifdef XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN
+[[nodiscard]] LinuxLogindMonitorState observeMonitor(
+    sd_login_monitor *monitor) noexcept
+{
+    if (monitor == nullptr)
+        return LinuxLogindMonitorState::Unavailable;
+    const int fd = ::sd_login_monitor_get_fd(monitor);
+    const int events = ::sd_login_monitor_get_events(monitor);
+    if (fd < 0 || events <= 0 ||
+        events > std::numeric_limits<short>::max())
+        return LinuxLogindMonitorState::Unavailable;
+
+    pollfd descriptor{fd, static_cast<short>(events), 0};
+    const int status = ::poll(&descriptor, 1, 0);
+    if (status < 0)
+        return LinuxLogindMonitorState::Unavailable;
+    if (status == 0)
+        return LinuxLogindMonitorState::Unchanged;
+    if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
+        (descriptor.revents & static_cast<short>(events)) == 0)
+        return LinuxLogindMonitorState::Unavailable;
+    return LinuxLogindMonitorState::Changed;
+}
+#endif
+} // namespace
 
 LinuxLogindSessionChangeSource::LinuxLogindSessionChangeSource() noexcept
 {
 #ifdef XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN
     // Establish the watch before the first session sample. Watching NULL
     // means all categories: no missed logout due to over-narrow filtering.
-    if (::sd_booted() > 0)
+    diagnostics_.systemdAvailable = ::sd_booted() > 0;
+    if (!diagnostics_.systemdAvailable)
+        return;
+
+    sd_login_monitor *source = nullptr;
+    if (::sd_login_monitor_new(nullptr, &source) < 0 || source == nullptr)
     {
-        sd_login_monitor *source = nullptr;
-        if (::sd_login_monitor_new(nullptr, &source) >= 0 &&
-            source != nullptr)
-        {
-            monitor_ = source;
-        }
-        else if (source != nullptr)
-        {
+        if (source != nullptr)
             ::sd_login_monitor_unref(source);
-        }
+        return;
     }
+
+    diagnostics_.monitorCreated = true;
+    monitor_ = source;
+    const int fd = ::sd_login_monitor_get_fd(monitor_);
+    const int events = ::sd_login_monitor_get_events(monitor_);
+    diagnostics_.descriptorAvailable = fd >= 0;
+    diagnostics_.eventsAvailable =
+        events > 0 && events <= std::numeric_limits<short>::max();
+    diagnostics_.initialState = observeMonitor(monitor_);
+    if (!diagnostics_.descriptorAvailable ||
+        !diagnostics_.eventsAvailable ||
+        diagnostics_.initialState == LinuxLogindMonitorState::Unavailable)
+    {
+        monitor_ = ::sd_login_monitor_unref(monitor_);
+        return;
+    }
+
+    // A monitor can carry readiness accumulated before there is an admission
+    // candidate to protect. Flush exactly once before the first candidate,
+    // then preserve every later wake for normal revocation.
+    diagnostics_.initialFlushSucceeded =
+        ::sd_login_monitor_flush(monitor_) >= 0;
+    if (!diagnostics_.initialFlushSucceeded)
+    {
+        monitor_ = ::sd_login_monitor_unref(monitor_);
+        return;
+    }
+    diagnostics_.baselineState = observeMonitor(monitor_);
+    if (diagnostics_.baselineState == LinuxLogindMonitorState::Unavailable)
+    {
+        monitor_ = ::sd_login_monitor_unref(monitor_);
+        return;
+    }
+    diagnostics_.monitorAvailable = true;
 #endif
 }
 
@@ -64,38 +123,13 @@ int LinuxLogindSessionChangeSource::nativeEvents() const noexcept
 ConsoleSessionChange LinuxLogindSessionChangeSource::pollChange() noexcept
 {
 #ifdef XRDP_CONSOLE_HAVE_SYSTEMD_LOGIN
-    if (monitor_ == nullptr)
-    {
+    const LinuxLogindMonitorState state = observeMonitor(monitor_);
+    if (state == LinuxLogindMonitorState::Unavailable)
         return ConsoleSessionChange::Unavailable;
-    }
-    const int fd = ::sd_login_monitor_get_fd(monitor_);
-    const int events = ::sd_login_monitor_get_events(monitor_);
-    if (fd < 0 || events <= 0 ||
-        events > std::numeric_limits<short>::max())
-    {
-        return ConsoleSessionChange::Unavailable;
-    }
-
-    pollfd descriptor{fd, static_cast<short>(events), 0};
-    // Zero timeout, no worker. The caller drives polling synchronously,
-    // including after any external event-loop wakeup.
-    const int status = ::poll(&descriptor, 1, 0);
-    if (status < 0)
-    {
-        return ConsoleSessionChange::Unavailable;
-    }
-    if (status == 0)
-    {
+    if (state == LinuxLogindMonitorState::Unchanged)
         return ConsoleSessionChange::None;
-    }
-    if ((descriptor.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0 ||
-        (descriptor.revents & static_cast<short>(events)) == 0)
-    {
-        return ConsoleSessionChange::Unavailable;
-    }
 
-    // Reset kernel event readiness even when all we need is revocation.
-    // Failed flush is itself a terminal uncertainty.
+    // Reset event readiness after reporting a real post-baseline change.
     return ::sd_login_monitor_flush(monitor_) >= 0
                ? ConsoleSessionChange::Changed
                : ConsoleSessionChange::Unavailable;

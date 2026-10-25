@@ -1267,7 +1267,8 @@ if(WIN32)
             "${PROJECT_SOURCE_DIR}/src"
             "${PROJECT_SOURCE_DIR}/src/gui")
         target_compile_features(rdp-server-windows-gui PRIVATE cxx_std_23)
-        target_link_libraries(rdp-server-windows-gui PRIVATE Qt6::Widgets)
+        target_link_libraries(
+            rdp-server-windows-gui PRIVATE Qt6::Widgets Advapi32)
         # The existing CLI rdp-server.exe is a different binary; avoid a
         # case-insensitive file collision in the Windows build tree and ZIP.
         set_target_properties(rdp-server-windows-gui PROPERTIES
@@ -1332,6 +1333,11 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     endif()
     target_compile_features(rdp-server-desktop-ui PUBLIC cxx_std_23)
     target_link_libraries(rdp-server-desktop-ui PUBLIC Qt6::Widgets)
+    if(WIN32)
+        # GetUserNameW supplies only the local Username convenience default.
+        # No OS password API is called or linked.
+        target_link_libraries(rdp-server-desktop-ui PUBLIC Advapi32)
+    endif()
     if(RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI)
         target_compile_definitions(rdp-server-desktop-ui PUBLIC
             RDP_SERVER_ENABLE_OWNER_ACCEPTANCE_UI=1)

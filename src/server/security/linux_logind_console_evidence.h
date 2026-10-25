@@ -79,6 +79,80 @@ struct LinuxCurrentX11DesktopSelection final
 [[nodiscard]] LinuxCurrentX11DesktopSelection
 selectCurrentPhysicalX11Desktop(ConsoleOsEvidenceSource &source) noexcept;
 
+enum class LinuxLogindObservationFailure : std::uint8_t
+{
+    None,
+    SystemdUnavailable,
+    GraphicalSeatUnavailable,
+    ActiveSessionUnavailable,
+    SessionMetadataUnavailable,
+    SessionMetadataInvalid,
+    SessionChangedDuringSample,
+    ClockUnavailable,
+    ProcessUidUnavailable,
+};
+
+[[nodiscard]] constexpr std::string_view linuxLogindObservationFailureName(
+    LinuxLogindObservationFailure failure) noexcept
+{
+    using Failure = LinuxLogindObservationFailure;
+    switch (failure)
+    {
+    case Failure::None: return "none";
+    case Failure::SystemdUnavailable: return "systemd-unavailable";
+    case Failure::GraphicalSeatUnavailable: return "graphical-seat-unavailable";
+    case Failure::ActiveSessionUnavailable: return "active-session-unavailable";
+    case Failure::SessionMetadataUnavailable: return "session-metadata-unavailable";
+    case Failure::SessionMetadataInvalid: return "session-metadata-invalid";
+    case Failure::SessionChangedDuringSample: return "session-changed-during-sample";
+    case Failure::ClockUnavailable: return "clock-unavailable";
+    case Failure::ProcessUidUnavailable: return "process-uid-unavailable";
+    }
+    return "session-metadata-unavailable";
+}
+
+// Bounded non-authorizing diagnostics for physical acceptance. Raw account
+// names and raw logind session identifiers are intentionally absent.
+struct LinuxLogindObservationDiagnostics final
+{
+    bool sampleAttempted{};
+    bool systemdAvailable{};
+    bool graphicalSeatAvailable{};
+    bool activeSessionFound{};
+    std::array<char, 17> sessionTypeBytes{};
+    std::array<char, 33> sessionClassBytes{};
+    std::array<char, 17> seatBytes{};
+    std::array<char, 9> displayBytes{};
+    std::size_t sessionTypeLength{};
+    std::size_t sessionClassLength{};
+    std::size_t seatLength{};
+    std::size_t displayLength{};
+    bool active{};
+    bool remote{};
+    ConsoleDesktopLockState lockState{ConsoleDesktopLockState::Unknown};
+    bool processUidMatchesOwnerUid{};
+    bool sessionGenerationStable{};
+    LinuxLogindObservationFailure failure{
+        LinuxLogindObservationFailure::SystemdUnavailable};
+
+    [[nodiscard]] std::string_view sessionType() const noexcept
+    {
+        return {sessionTypeBytes.data(), sessionTypeLength};
+    }
+    [[nodiscard]] std::string_view sessionClass() const noexcept
+    {
+        return {sessionClassBytes.data(), sessionClassLength};
+    }
+    [[nodiscard]] std::string_view seat() const noexcept
+    {
+        return {seatBytes.data(), seatLength};
+    }
+    [[nodiscard]] std::string_view display() const noexcept
+    {
+        return {displayBytes.data(), displayLength};
+    }
+};
+
 // Linux-only logind/NSS evidence source. It is NOT an authorization service.
 // The source owns returned string buffers; callers must finish synchronous
 // inspection before reusing/destroying the source. Use one instance per
@@ -97,10 +171,17 @@ public:
     [[nodiscard]] std::optional<std::uint64_t>
     readMonotonicMilliseconds() noexcept override;
 
+    [[nodiscard]] const LinuxLogindObservationDiagnostics&
+    diagnostics() const noexcept
+    {
+        return diagnostics_;
+    }
+
 private:
     LinuxNssReadOnlyEvidenceSource accountSource_{};
     std::array<char, 65> sessionIdBytes_{};
     std::array<char, 9> displayBytes_{};
+    LinuxLogindObservationDiagnostics diagnostics_{};
 };
 
 } // namespace rdp_server::server::security

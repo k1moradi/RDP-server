@@ -845,7 +845,7 @@ int main(int argc, char** argv)
         assert(!username->isReadOnly());
         assert(username->echoMode() == QLineEdit::Normal);
         assert(username->focusPolicy() == Qt::StrongFocus);
-        assert(username->text() == QStringLiteral("rdp"));
+        assert(!username->text().isEmpty());
 
         assert(password->isVisible());
         assert(password->isEnabled());
@@ -2245,6 +2245,23 @@ int main(int argc, char** argv)
         product.state = RuntimeProductHostState::Connected;
         runtime.snapshot.lastError = RuntimeHostError::AccessRevoked;
         assert(!host.status().listenerReady);
+        return 0;
+    }
+
+    if (mode == "local-username-default-no-password-prefill")
+    {
+        DesktopWindow window(host);
+        auto* username = window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password = window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(username && password && confirmation);
+        assert(!username->text().isEmpty());
+        assert(username->echoMode() == QLineEdit::Normal);
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(confirmation->echoMode() == QLineEdit::Password);
         return 0;
     }
 

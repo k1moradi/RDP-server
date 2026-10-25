@@ -101,6 +101,56 @@ struct OwnerSharingAuthorizationEpoch final
         const OwnerSharingAuthorizationEpoch &) noexcept = default;
 };
 
+enum class OwnerSharingAuthorizationMismatch : std::uint8_t
+{
+    None,
+    NoActiveGrant,
+    GrantRevoked,
+    PermissionScope,
+    EvidenceUnavailable,
+    AuthorityExpired,
+    Inactive,
+    NotPhysical,
+    Remote,
+    LockState,
+    Seat,
+    ProcessUid,
+    ProcessOwnerUid,
+    OwnerUid,
+    SessionGeneration,
+    SessionIdentity,
+    Display,
+    ObservationStale,
+};
+
+[[nodiscard]] constexpr std::string_view ownerSharingAuthorizationMismatchName(
+    OwnerSharingAuthorizationMismatch mismatch) noexcept
+{
+    using Mismatch = OwnerSharingAuthorizationMismatch;
+    switch (mismatch)
+    {
+    case Mismatch::None: return "none";
+    case Mismatch::NoActiveGrant: return "no-active-grant";
+    case Mismatch::GrantRevoked: return "grant-revoked";
+    case Mismatch::PermissionScope: return "permission-scope";
+    case Mismatch::EvidenceUnavailable: return "evidence-unavailable";
+    case Mismatch::AuthorityExpired: return "authority-expired";
+    case Mismatch::Inactive: return "active";
+    case Mismatch::NotPhysical: return "physical";
+    case Mismatch::Remote: return "remote";
+    case Mismatch::LockState: return "lock-state";
+    case Mismatch::Seat: return "seat";
+    case Mismatch::ProcessUid: return "process-uid";
+    case Mismatch::ProcessOwnerUid: return "process-owner-uid";
+    case Mismatch::OwnerUid: return "owner-uid";
+    case Mismatch::SessionGeneration: return "session-generation";
+    case Mismatch::SessionIdentity: return "session-identity";
+    case Mismatch::Display: return "display";
+    case Mismatch::ObservationStale: return "observation-freshness";
+    }
+    return "evidence-unavailable";
+}
+
 // M1 deliberately limits one explicit local consent grant to at most one hour.
 // The GUI may request a shorter owner-selected interval.
 inline constexpr std::uint64_t
@@ -186,13 +236,25 @@ public:
     [[nodiscard]] bool authorizes(
         std::uint32_t requiredPermissions) const noexcept
     {
-        if (evidenceSource_ == nullptr ||
-            grant_.leaseGeneration == 0 ||
-            grant_.revocationGeneration != revocationGeneration() ||
-            requiredPermissions == 0 ||
+        lastAuthorizationMismatch_ = OwnerSharingAuthorizationMismatch::None;
+        if (evidenceSource_ == nullptr || grant_.leaseGeneration == 0)
+        {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::NoActiveGrant;
+            return false;
+        }
+        if (grant_.revocationGeneration != revocationGeneration())
+        {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::GrantRevoked;
+            return false;
+        }
+        if (requiredPermissions == 0 ||
             (requiredPermissions & ~kConsoleAllowedPermissions) != 0 ||
             (grant_.permissions & requiredPermissions) != requiredPermissions)
         {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::PermissionScope;
             return false;
         }
 
@@ -202,19 +264,37 @@ public:
             evidenceSource_->readActiveConsole();
         const std::optional<std::uint64_t> now =
             evidenceSource_->readMonotonicMilliseconds();
-        if (!now.has_value() ||
-            *now >= grant_.deadlineMonotonicMilliseconds)
+        if (!now.has_value())
         {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::EvidenceUnavailable;
+            publishRevocation();
+            return false;
+        }
+        if (*now >= grant_.deadlineMonotonicMilliseconds)
+        {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::AuthorityExpired;
             publishRevocation();
             return false;
         }
 
-        if (!observationMatchesGrant(session, *now))
+        lastAuthorizationMismatch_ =
+            observationMismatchWithGrant(session, *now);
+        if (lastAuthorizationMismatch_.load(
+                std::memory_order_relaxed) !=
+            OwnerSharingAuthorizationMismatch::None)
         {
             publishRevocation();
             return false;
         }
-        return grant_.revocationGeneration == revocationGeneration();
+        if (grant_.revocationGeneration != revocationGeneration())
+        {
+            lastAuthorizationMismatch_ =
+                OwnerSharingAuthorizationMismatch::GrantRevoked;
+            return false;
+        }
+        return true;
     }
 
     // Non-secret, non-authorizing grant projection. It deliberately samples
@@ -367,6 +447,12 @@ public:
                revocationGeneration() == expectedEpoch.revocationGeneration;
     }
 
+    [[nodiscard]] OwnerSharingAuthorizationMismatch
+    lastAuthorizationMismatch() const noexcept
+    {
+        return lastAuthorizationMismatch_.load(std::memory_order_relaxed);
+    }
+
     void revoke(OwnerConsentRevocationReason /* reason */) noexcept
     {
         publishRevocation();
@@ -454,26 +540,52 @@ private:
         return OwnerConsentRequestResult::Granted;
     }
 
+    [[nodiscard]] OwnerSharingAuthorizationMismatch
+    observationMismatchWithGrant(
+        const ConsoleSessionObservation &session,
+        std::uint64_t now) const noexcept
+    {
+        using Mismatch = OwnerSharingAuthorizationMismatch;
+        if (session.status != ConsoleEvidenceReadStatus::Observed)
+            return Mismatch::EvidenceUnavailable;
+        if (!session.active)
+            return Mismatch::Inactive;
+        if (!session.physical)
+            return Mismatch::NotPhysical;
+        if (session.remote)
+            return Mismatch::Remote;
+        if (session.lockState != ConsoleDesktopLockState::Unlocked)
+            return Mismatch::LockState;
+        if (session.seat != "seat0")
+            return Mismatch::Seat;
+        if (session.localProcessUid == 0)
+            return Mismatch::ProcessUid;
+        if (session.localProcessUid != session.ownerUid)
+            return Mismatch::ProcessOwnerUid;
+        if (session.ownerUid != grant_.localUid)
+            return Mismatch::OwnerUid;
+        if (session.sessionGeneration == 0 ||
+            session.sessionGeneration != grant_.sessionGeneration)
+            return Mismatch::SessionGeneration;
+        if (session.sessionId.size() != grant_.sessionIdLength ||
+            session.sessionId != std::string_view(
+                grant_.sessionId.data(), grant_.sessionIdLength))
+            return Mismatch::SessionIdentity;
+        if (session.display.size() != grant_.displayLength ||
+            session.display != std::string_view(
+                grant_.display.data(), grant_.displayLength))
+            return Mismatch::Display;
+        if (!observationFresh(session, now))
+            return Mismatch::ObservationStale;
+        return Mismatch::None;
+    }
+
     [[nodiscard]] bool observationMatchesGrant(
         const ConsoleSessionObservation &session,
         std::uint64_t now) const noexcept
     {
-        return session.status == ConsoleEvidenceReadStatus::Observed &&
-               session.active && session.physical && !session.remote &&
-               session.lockState == ConsoleDesktopLockState::Unlocked &&
-               session.seat == "seat0" &&
-               session.localProcessUid != 0 &&
-               session.localProcessUid == session.ownerUid &&
-               session.ownerUid == grant_.localUid &&
-               session.sessionGeneration != 0 &&
-               session.sessionGeneration == grant_.sessionGeneration &&
-               session.sessionId.size() == grant_.sessionIdLength &&
-               session.sessionId == std::string_view(
-                   grant_.sessionId.data(), grant_.sessionIdLength) &&
-               session.display.size() == grant_.displayLength &&
-               session.display == std::string_view(
-                   grant_.display.data(), grant_.displayLength) &&
-               observationFresh(session, now);
+        return observationMismatchWithGrant(session, now) ==
+               OwnerSharingAuthorizationMismatch::None;
     }
 
     void publishRevocation() const noexcept
@@ -494,6 +606,9 @@ private:
     ConsoleOsEvidenceSource *evidenceSource_{};
     GrantState grant_{};
     std::uint64_t nextLeaseGeneration_{};
+    mutable std::atomic<OwnerSharingAuthorizationMismatch>
+        lastAuthorizationMismatch_{
+            OwnerSharingAuthorizationMismatch::NoActiveGrant};
     mutable std::atomic<std::uint64_t> revocationGeneration_{1U};
 };
 

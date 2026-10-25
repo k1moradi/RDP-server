@@ -36,12 +36,58 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <tuple>
+
+#if defined(Q_OS_WIN)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <Lmcons.h>
+#else
+#include <pwd.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 
 namespace rdp::gui
 {
 namespace
 {
+
+[[nodiscard]] QString defaultLocalAccountUsername()
+{
+#if defined(Q_OS_WIN)
+    std::array<wchar_t, UNLEN + 1U> buffer{};
+    DWORD length = static_cast<DWORD>(buffer.size());
+    if (::GetUserNameW(buffer.data(), &length) != 0 &&
+        length > 1U && length <= buffer.size())
+    {
+        return QString::fromWCharArray(
+            buffer.data(), static_cast<qsizetype>(length - 1U));
+    }
+#else
+    constexpr std::size_t bufferBytes = 16U * 1024U;
+    std::array<char, bufferBytes> buffer{};
+    passwd record{};
+    passwd* result = nullptr;
+    if (::getpwuid_r(
+            ::geteuid(), &record, buffer.data(), buffer.size(), &result) == 0 &&
+        result != nullptr && result->pw_name != nullptr)
+    {
+        constexpr std::size_t maximumUsernameBytes = 256U;
+        const std::size_t length =
+            ::strnlen(result->pw_name, maximumUsernameBytes + 1U);
+        if (length > 0U && length <= maximumUsernameBytes)
+        {
+            return QString::fromUtf8(
+                result->pw_name, static_cast<qsizetype>(length));
+        }
+    }
+#endif
+    return QStringLiteral("rdp");
+}
 
 [[nodiscard]] constexpr bool ownerAcceptancePasswordUiEnabled() noexcept
 {
@@ -382,7 +428,10 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     sharingToggle_->setObjectName("sharingToggle");
     sharingToggle_->setAccessibleName(QStringLiteral("Start or stop sharing"));
     username_->setObjectName("standaloneUsername");
-    username_->setText(QStringLiteral("rdp"));
+    // Username is a convenience default from the current local process
+    // account only. No OS password is queried or populated; Session Password
+    // remains an independent user-entered application credential.
+    username_->setText(defaultLocalAccountUsername());
     username_->setAccessibleName(QStringLiteral("Username"));
     configureCredentialEditor(*username_);
     sessionPassword_->setObjectName("sessionPassword");

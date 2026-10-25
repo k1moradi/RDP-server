@@ -1,3 +1,37 @@
+## Linux physical admission evidence audit and local Username default — 2026-10-24
+
+The owner-tested baseline remains `9fd1db518076713f30b41af2aff023308f95a925`:
+local full CTest **966/966 PASS** and real Microsoft-client progress through
+TLS, Direct NTLM Type 1/Type 2 and CredSSP before the first demonstrated
+failure at native `stage=admission`. This increment does not change TLS,
+SPNEGO or NTLM.
+
+The Linux Start grant and admission path both require fresh logind evidence.
+Admission additionally creates the revocation monitor before its fresh evidence
+sample. Structural failure diagnostics now distinguish: Start-grant mismatch,
+logind availability/graphical seat/active session, session type/class/seat/
+display, active/remote/lock state, process-owner UID match, stable session
+generation, and logind-monitor creation/initial/baseline state. Account names
+and raw session identifiers are not emitted. Authorization remains freshly
+re-sampled; no Start-time grant is cached to force admission.
+
+The logind monitor establishes one explicit pre-candidate baseline by reading
+its fd/events, zero-time polling, flushing accumulated readiness once, then
+zero-time polling again. Any later monitor wake remains a revocation event and
+fails closed. An environment-sensitive CTest exercises this contract where
+logind is available and skips rather than manufacturing a physical session
+where it is not.
+
+The desktop Username field now defaults to the current local process account
+name when the OS resolves it safely. No OS account password is queried or
+auto-filled. Session Password and confirmation remain empty, independent,
+user-entered application credentials.
+
+R5-owned CTest summary names are converted to behavior names, and their labels
+use `linux;x11;native-desktop;session`. The repository-wide semantic-label
+guard from current main remains intact. Graphics dormancy retains
+`graphics;frame;codec`; no codec or ACK/credit production code changes.
+
 ## Graphics remains blocked at native admission; owner receipt and semantic test taxonomy — 2026-10-24
 
 **Owner-tested starting SHA:** `9fd1db518076713f30b41af2aff023308f95a925`.

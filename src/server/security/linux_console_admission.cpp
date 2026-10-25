@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdio>
 #include <limits>
 #include <memory>
 #include <new>
@@ -64,6 +65,79 @@ r1HybridNlaSecurityView(
         return std::nullopt;
     }
     return static_cast<std::int64_t>(count);
+}
+
+[[nodiscard]] constexpr const char *yesNo(bool value) noexcept
+{
+    return value ? "yes" : "no";
+}
+
+[[nodiscard]] constexpr const char *lockStateName(
+    ConsoleDesktopLockState state) noexcept
+{
+    switch (state)
+    {
+    case ConsoleDesktopLockState::Unknown: return "unknown";
+    case ConsoleDesktopLockState::Unlocked: return "unlocked";
+    case ConsoleDesktopLockState::Locked: return "locked";
+    }
+    return "unknown";
+}
+
+void logNativeAdmissionFailure(
+    const char *reason,
+    const CurrentOwnerSharingAuthority *ownerAuthority,
+    const LinuxLogindReadOnlyEvidenceSource &evidence,
+    const LinuxLogindSessionChangeSource *changes) noexcept
+{
+    const auto &observation = evidence.diagnostics();
+    const LinuxLogindMonitorDiagnostics monitor =
+        changes != nullptr ? changes->diagnostics()
+                           : LinuxLogindMonitorDiagnostics{};
+    const auto ownerMismatch =
+        ownerAuthority != nullptr
+            ? ownerAuthority->lastAuthorizationMismatch()
+            : OwnerSharingAuthorizationMismatch::NoActiveGrant;
+    const auto type = observation.sessionType();
+    const auto sessionClass = observation.sessionClass();
+    const auto seat = observation.seat();
+    const auto display = observation.display();
+    const auto mismatchName =
+        ownerSharingAuthorizationMismatchName(ownerMismatch);
+    const auto evidenceName =
+        linuxLogindObservationFailureName(observation.failure);
+    const auto initialName =
+        linuxLogindMonitorStateName(monitor.initialState);
+    const auto baselineName =
+        linuxLogindMonitorStateName(monitor.baselineState);
+
+    // Fail-only and deliberately structural: no account name, raw session ID,
+    // credential, token, clipboard byte or desktop content is emitted.
+    std::fprintf(
+        stderr,
+        "native-admission: stage=admission reason=%s "
+        "start-admission=%.*s logind=%s graphical-seat=%s "
+        "active-session=%s type=%.*s class=%.*s seat=%.*s display=%.*s "
+        "active=%s remote=%s lock=%s process-owner-match=%s "
+        "session-generation-stable=%s evidence=%.*s "
+        "login-monitor=%s monitor-initial=%.*s monitor-baseline=%.*s\n",
+        reason,
+        static_cast<int>(mismatchName.size()), mismatchName.data(),
+        yesNo(observation.systemdAvailable),
+        yesNo(observation.graphicalSeatAvailable),
+        yesNo(observation.activeSessionFound),
+        static_cast<int>(type.size()), type.data(),
+        static_cast<int>(sessionClass.size()), sessionClass.data(),
+        static_cast<int>(seat.size()), seat.data(),
+        static_cast<int>(display.size()), display.data(),
+        yesNo(observation.active), yesNo(observation.remote),
+        lockStateName(observation.lockState),
+        yesNo(observation.processUidMatchesOwnerUid),
+        yesNo(observation.sessionGenerationStable),
+        static_cast<int>(evidenceName.size()), evidenceName.data(),
+        yesNo(monitor.monitorAvailable),
+        static_cast<int>(initialName.size()), initialName.data(),
+        static_cast<int>(baselineName.size()), baselineName.data());
 }
 
 template <std::size_t Capacity>
@@ -355,6 +429,9 @@ LinuxConsoleAdmissionBroker::issue(
         ownerSharingAuthority_ == nullptr ||
         !ownerSharingAuthority_->authorizes(request.requestedPermissions))
     {
+        logNativeAdmissionFailure(
+            "owner-authority", ownerSharingAuthority_, evidence_,
+            changes_.get());
         deny(principalProof);
         return std::nullopt;
     }
@@ -394,9 +471,22 @@ LinuxConsoleAdmissionBroker::issue(
 
     if (changes_->nativeFd() < 0 || changes_->nativeEvents() <= 0 ||
         !principalProof.pendingNativeAdmissionMatches(
-            connection, request, policyGeneration) ||
-        changes_->pollChange() != ConsoleSessionChange::None)
+            connection, request, policyGeneration))
     {
+        logNativeAdmissionFailure(
+            "monitor-unavailable", ownerSharingAuthority_, evidence_,
+            changes_.get());
+        deny(principalProof);
+        return std::nullopt;
+    }
+    const ConsoleSessionChange beforeEvidence = changes_->pollChange();
+    if (beforeEvidence != ConsoleSessionChange::None)
+    {
+        logNativeAdmissionFailure(
+            beforeEvidence == ConsoleSessionChange::Changed
+                ? "monitor-changed-before-evidence"
+                : "monitor-unavailable-before-evidence",
+            ownerSharingAuthority_, evidence_, changes_.get());
         deny(principalProof);
         return std::nullopt;
     }
@@ -404,9 +494,26 @@ LinuxConsoleAdmissionBroker::issue(
     ConsoleCandidateSessionFingerprint fingerprint{};
     if (ConsoleOsEvidenceInspector{}.inspectWithSessionFingerprint(
             policy_, request, evidence_, fingerprint) !=
-            ConsoleEvidenceMatch::CandidateOnly ||
-        changes_->pollChange() != ConsoleSessionChange::None ||
-        fingerprint.sessionIdLength == 0 ||
+        ConsoleEvidenceMatch::CandidateOnly)
+    {
+        logNativeAdmissionFailure(
+            "evidence-rejected", ownerSharingAuthority_, evidence_,
+            changes_.get());
+        deny(principalProof);
+        return std::nullopt;
+    }
+    const ConsoleSessionChange afterEvidence = changes_->pollChange();
+    if (afterEvidence != ConsoleSessionChange::None)
+    {
+        logNativeAdmissionFailure(
+            afterEvidence == ConsoleSessionChange::Changed
+                ? "monitor-changed-after-evidence"
+                : "monitor-unavailable-after-evidence",
+            ownerSharingAuthority_, evidence_, changes_.get());
+        deny(principalProof);
+        return std::nullopt;
+    }
+    if (fingerprint.sessionIdLength == 0 ||
         fingerprint.sessionIdLength >= 65 ||
         request.kerberosPrincipal.size() >= 129 ||
         request.unixAccount.size() >= 33 ||
@@ -414,6 +521,9 @@ LinuxConsoleAdmissionBroker::issue(
         !principalProof.pendingNativeAdmissionMatches(
             connection, request, policyGeneration))
     {
+        logNativeAdmissionFailure(
+            "post-evidence-consistency", ownerSharingAuthority_, evidence_,
+            changes_.get());
         deny(principalProof);
         return std::nullopt;
     }

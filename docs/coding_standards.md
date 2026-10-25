@@ -1,3 +1,27 @@
+## Start-versus-admission evidence is observable but never cached (2026-10-24)
+
+The physical Microsoft-client boundary is native `stage=admission`; do not
+reopen TLS/SPNEGO/NTLM without contradictory evidence. Start-time owner
+consent and admission-time native authorization are intentionally fresh,
+independent samples. When admission rejects an apparently unchanged desktop,
+report the exact bounded structural mismatch rather than reusing the earlier
+grant.
+
+Linux fail-only diagnostics may expose logind/systemd availability, graphical
+seat presence, active-session presence, session type/class/seat/display,
+active/remote/lock state, process-owner UID equality, session-generation
+stability and monitor state. They must not print account names, raw session
+identifiers, credentials, token bytes, clipboard content or desktop data.
+
+A newly created logind monitor establishes a pre-candidate baseline with its
+published fd/events, zero-time poll and one flush of accumulated readiness.
+Every wake after that baseline remains revocation authority. This baseline is
+not an authorization cache and must not make a changed session acceptable.
+
+The GUI may derive only the local Username convenience default from the OS.
+Never retrieve or auto-fill an OS account password. Session Password remains
+a separate user-entered application credential.
+
 ## Post-authentication diagnostics never manufacture protocol authority (2026-10-24)
 
 The demonstrated physical Microsoft-client boundary is native admission:

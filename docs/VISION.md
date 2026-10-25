@@ -1,3 +1,12 @@
+## Local Username convenience and credential separation (2026-10-24)
+
+When the current local account name can be resolved safely from the operating
+system, the desktop GUI uses it only as the initial Username convenience value.
+The server never retrieves or auto-fills the operating-system account password.
+Session Password remains a separate application credential entered by the
+owner. Failure to resolve the local name falls back to the existing non-secret
+Username default and does not weaken authentication or native admission.
+
 ## Normal portable application startup
 
 The normal consumer entry point is `rdp-server-desktop` with no required

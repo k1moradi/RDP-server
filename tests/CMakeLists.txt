@@ -576,14 +576,14 @@ if(TARGET rdp-server-linux-host-control)
         runtime.linux-host-control-native-desktop-bounded-post-share PROPERTIES
         LABELS "runtime;security;transport;admission;graphics;frame;codec;native;host-control;x11;offline")
 
-    add_test(NAME runtime.linux-r5-auth-envelope-independent-native-owner
+    add_test(NAME runtime.linux-auth-envelope-independent-native-owner
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_LINUX_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_r5_auth_envelope_independence.cmake")
     set_tests_properties(
-        runtime.linux-r5-auth-envelope-independent-native-owner PROPERTIES
-        LABELS "runtime;security;admission;graphics;native;host-control;x11;offline")
+        runtime.linux-auth-envelope-independent-native-owner PROPERTIES
+        LABELS "runtime;security;admission;graphics;native;host-control;linux;x11;native-desktop;session;offline")
 
     add_test(NAME runtime.linux-host-control-dormant-unicode-clipboard-composition
         COMMAND "${CMAKE_COMMAND}"
@@ -742,6 +742,7 @@ foreach(owner_consent_case IN ITEMS
         owner-consent-read-only-product-facts
         owner-consent-invalid-native-evidence-denials
         owner-consent-stop-lock-logout-switch-replacement-revocations
+        owner-consent-start-admission-evidence-mismatch-diagnostics
         owner-consent-credential-expiry-native-loss-revocations
         standalone-credential-portable-stop-revoke-matrix)
     add_test(NAME "security.${owner_consent_case}"
@@ -749,6 +750,11 @@ foreach(owner_consent_case IN ITEMS
     set_tests_properties("security.${owner_consent_case}" PROPERTIES
         LABELS "security;owner-consent;offline" TIMEOUT 15)
 endforeach()
+set_tests_properties(
+    security.owner-consent-start-admission-evidence-mismatch-diagnostics
+    PROPERTIES
+    LABELS "security;owner-consent;linux;x11;native-desktop;session;offline"
+    TIMEOUT 15)
 
 # R2 Track E Windows/macOS native authorization capability. These synthetic
 # fixtures use fake authenticated identity + fake native evidence + the real
@@ -1830,10 +1836,17 @@ if(TARGET rdp-server-linux-runtime-security)
     add_test(NAME runtime.linux-no-config-standalone-current-x11-selection
         COMMAND test_linux_logind_session_identity
             no-config-standalone-current-x11-selection)
+    add_test(NAME runtime.linux-logind-monitor-baseline-zero-poll
+        COMMAND test_linux_logind_session_identity
+            logind-monitor-baseline-zero-poll)
     set_tests_properties(
         security.linux-seat0-session-identity-denials
         runtime.linux-no-config-standalone-current-x11-selection PROPERTIES
-        LABELS "security;linux-provider;offline;seat0-revocation")
+        LABELS "security;linux-provider;offline;seat0-revocation;linux;x11;native-desktop;session")
+    set_tests_properties(runtime.linux-logind-monitor-baseline-zero-poll PROPERTIES
+        LABELS "linux;x11;native-desktop;session;native-environment"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 15)
 
     # R2 final-credential security contract: check only GSS-verified account
     # reservation after R2 mapping and before PAM. No real OS admission.
@@ -2070,7 +2083,7 @@ if(TARGET rdp-server-linux-runtime-security)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_native_owner.cmake")
     set_tests_properties(
         runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
-        LABELS "runtime;security;native;x11;offline")
+        LABELS "runtime;security;native;linux;x11;native-desktop;session;offline")
 
     # The R5 aggregate's terminal XCB/XShm/input failure cleanup must not
     # post held-key/button releases; the Xvfb native controller fixture
@@ -2088,18 +2101,18 @@ if(TARGET rdp-server-linux-runtime-security)
     # post-Share scheduler must retire its borrowed logind watch before
     # native drain, refresh R2 authority and borrow the first XShm frame
     # synchronously while R1 owns all TLS application reads.
-    add_test(NAME runtime.linux-r5-x11-authorized-event-service-denials
+    add_test(NAME runtime.linux-x11-authorized-event-service-denials
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_event_service.cmake")
-    add_test(NAME runtime.linux-r5-persistent-x11-input-frame-borrow-order
+    add_test(NAME runtime.linux-persistent-x11-input-frame-borrow-order
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             "-DRDP_R5_PERSISTENT_FRAME_GATE=ON"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_event_service.cmake")
     set_tests_properties(
-        runtime.linux-r5-x11-authorized-event-service-denials
-        runtime.linux-r5-persistent-x11-input-frame-borrow-order PROPERTIES
+        runtime.linux-x11-authorized-event-service-denials
+        runtime.linux-persistent-x11-input-frame-borrow-order PROPERTIES
         LABELS "runtime;security;native;x11;offline")
 
     # R2 post-admission TLS reads must fence the current R3 admission/session
@@ -4438,6 +4451,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-r10-graphics-native-desktop-projection
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;runtime;clients;graphics" TIMEOUT 30)
+    add_test(NAME gui.offscreen-local-username-default-keeps-session-password-empty
+        COMMAND test_desktop_gui_offline local-username-default-no-password-prefill)
+    set_tests_properties(
+        gui.offscreen-local-username-default-keeps-session-password-empty
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;credentials;security;offline"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-product-hosting-listener-readiness
         COMMAND test_desktop_gui_offline product-hosting-listener-readiness)
     set_tests_properties(gui.offscreen-product-hosting-listener-readiness

@@ -1,3 +1,12 @@
+## Desktop Username account lookup linkage (2026-10-24)
+
+The shared Qt desktop UI resolves only the current local account **name** for
+its Username convenience default. POSIX builds use the existing libc
+`getpwuid_r` boundary. Windows builds link the system `Advapi32` import
+library for `GetUserNameW`; this adds no redistributable DLL or package
+dependency. No password/credential API is called. Session Password remains
+user-entered and independent.
+
 ## R6 owner-acceptance GUI build-intent parity (2026-10-24)
 
 Linux and macOS owner-acceptance validation must use the same explicit build

@@ -1,3 +1,24 @@
+## Linux admission evidence instrumentation authoring receipt — 2026-10-24
+
+Baseline owner receipt: `9fd1db518076713f30b41af2aff023308f95a925`,
+local full CTest **966/966 PASS**; real Microsoft client reached TLS -> Direct
+NTLM Type 1 -> Type 2 -> CredSSP and first failed at native
+`stage=admission`.
+
+This increment leaves TLS/SPNEGO/NTLM and graphics production mechanics
+unchanged. It adds structural fail-only logind evidence diagnostics,
+Start-versus-admission mismatch classification, a pre-candidate logind-monitor
+baseline, an environment-sensitive monitor CTest, safe local-account Username
+defaulting with empty Session Password fields, the missing prepared-frame
+dormancy assertion, and R5 CTest summary-name cleanup on top of the current
+semantic-label guard.
+
+Connector reconciliation against current main
+`fea25a3a68ac6ce2088cd1ef586128fdb8c0869f`: **PASS by source review**.
+Canonical owner-local build/full CTest for this new publication:
+**NOT RUN** in this connector session. Exact-publication-SHA hosted CI:
+**PENDING**. Physical retry on the new publication SHA: **NOT RUN**.
+
 ## Physical admission boundary and protocol-diagnostic authoring receipt — 2026-10-24
 
 **Starting exact-main parent:** `c4e916a98396e14b857ebbcbe9ff3c920fb28bef`.

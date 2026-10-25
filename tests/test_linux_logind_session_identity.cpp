@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "security/linux_logind_console_evidence.h"
+#include "security/linux_logind_session_change_watch.h"
 #include "server/runtime/linux_runtime_security.h"
 
 #include <cassert>
@@ -75,6 +76,33 @@ int main(int argc, char **argv)
             physical, {"other-session", 1000U}));
         assert(!consistentLogindSessionFacts(
             physical, {"session-1", 1001U}));
+        return 0;
+    }
+
+    if (testCase == "logind-monitor-baseline-zero-poll")
+    {
+        LinuxLogindSessionChangeSource monitor;
+        const auto diagnostics = monitor.diagnostics();
+        if (!diagnostics.monitorAvailable)
+            return 77;
+        assert(diagnostics.systemdAvailable);
+        assert(diagnostics.monitorCreated);
+        assert(diagnostics.descriptorAvailable);
+        assert(diagnostics.eventsAvailable);
+        assert(diagnostics.initialState !=
+               LinuxLogindMonitorState::Unavailable);
+        assert(diagnostics.initialFlushSucceeded);
+        assert(diagnostics.baselineState !=
+               LinuxLogindMonitorState::Unavailable);
+        if (diagnostics.baselineState == LinuxLogindMonitorState::Changed)
+            return 77;
+
+        const auto firstPoll = monitor.pollChange();
+        if (firstPoll == ConsoleSessionChange::Changed)
+            return 77;
+        assert(firstPoll == ConsoleSessionChange::None);
+        assert(monitor.nativeFd() >= 0);
+        assert(monitor.nativeEvents() > 0);
         return 0;
     }
 

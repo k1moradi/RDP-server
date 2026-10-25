@@ -296,6 +296,40 @@ int main(int argc, char **argv)
         });
         return 0;
     }
+    if (testCase == "owner-consent-start-admission-evidence-mismatch-diagnostics")
+    {
+        {
+            FakeOwnerEvidence evidence;
+            CurrentOwnerSharingAuthority authority(evidence);
+            grant(authority);
+            assert(authority.authorizes(kConsoleViewPermission));
+            assert(authority.lastAuthorizationMismatch() ==
+                   OwnerSharingAuthorizationMismatch::None);
+            ++evidence.session.sessionGeneration;
+            assert(!authority.authorizes(kConsoleViewPermission));
+            assert(authority.lastAuthorizationMismatch() ==
+                   OwnerSharingAuthorizationMismatch::SessionGeneration);
+        }
+        {
+            FakeOwnerEvidence evidence;
+            CurrentOwnerSharingAuthority authority(evidence);
+            grant(authority);
+            evidence.session.display = ":1";
+            assert(!authority.authorizes(kConsoleViewPermission));
+            assert(authority.lastAuthorizationMismatch() ==
+                   OwnerSharingAuthorizationMismatch::Display);
+        }
+        {
+            FakeOwnerEvidence evidence;
+            CurrentOwnerSharingAuthority authority(evidence);
+            grant(authority);
+            evidence.session.remote = true;
+            assert(!authority.authorizes(kConsoleViewPermission));
+            assert(authority.lastAuthorizationMismatch() ==
+                   OwnerSharingAuthorizationMismatch::Remote);
+        }
+        return 0;
+    }
     if (testCase ==
         "owner-consent-credential-expiry-native-loss-revocations")
     {

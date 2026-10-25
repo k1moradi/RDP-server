@@ -1001,6 +1001,7 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
     assert(!status.nativeDesktopReady);
     assert(!status.nativeDesktopInitializing);
     assert(!status.firstLiveGraphicsTrace.firstFramebufferAvailable);
+    assert(!status.firstLiveGraphicsTrace.firstClearCodecFramePrepared);
     assert(!status.firstLiveGraphicsTrace.firstExactTlsWriteCommitted);
     assert(status.firstLiveGraphicsTrace.outstandingFrameAcknowledgements == 0U);
     assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);

@@ -1,3 +1,39 @@
+## Agent 6 Microsoft SSPI oracle result — production Type 2 accepted unchanged (2026-10-25)
+
+**Exact tested SHA:** `02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`.
+GitHub Actions run `40223796082`, Windows protocol job `121260984032`,
+compiled and executed the Windows-only
+`security.windows-sspi-production-type2-interop` gate. The focused oracle
+**PASS**ed in 0.36s and the same CTest **PASS**ed again inside the ordinary
+Windows full CTest.
+
+This is the required Microsoft-native evidence: SSPI produced Type 1, consumed
+the untouched production Type 2, produced Type 3, and the existing production
+Type-3 parser plus NTLMv2 verifier accepted it using the explicit in-memory
+test credentials. No diagnostic Type-2 variant was needed. Therefore the
+minimal Microsoft-accepted profile is the **current production profile
+unchanged**. Do not enable VERSION, alter TargetInfo, TargetName, or negotiate
+flags from this evidence.
+
+The same Windows full CTest also **PASS**ed
+`security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`, so the
+independent outer TSRequest writer shape is green on the same SHA. The physical
+Windows App/macOS-client EOF therefore moves outside the inner Type-2 parser
+boundary; investigate the exact outer CredSSP/client context only from new
+client evidence. Linux native admission, MCS, graphics and clipboard remain
+out of scope for this pre-Type-3 physical symptom.
+
+**Project-wide candidate status remains BLOCKED for unrelated current-main
+failures, not SSPI.** The same run fails GCC/Clang builds because concurrent
+runtime commit `02f7642e...` added
+`RuntimeHostError::AuthenticationIncompletePeerClosed` without handling it
+in `runtimeProductStateFor()`, which is fatal under `-Werror=switch`.
+Windows/MSVC reaches full CTest but
+`runtime.linux-authentication-failure-retains-listener-and-credential-source`
+also fails its source contract after that runtime change. Those are runtime
+owner blockers for the R9 aggregate; they do not justify an NTLM Type-2
+production change.
+
 ## R9 P0 — outer TSRequest oracle and candidate gate after Agent 6 SSPI landing (2026-10-25)
 
 **Reconciled publication parent:** `d19743147da7b076fc410a3d9a808966fac57734`.

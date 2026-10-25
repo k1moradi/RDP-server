@@ -1,3 +1,32 @@
+## Agent 6 native Microsoft SSPI oracle execution receipt — 2026-10-25
+
+**Exact SHA:** `02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`.
+**Actions:** run `40223796082`, Windows protocol job `121260984032`.
+
+Evidence:
+- `security.windows-sspi-production-type2-interop`: **PASS**, focused preflight
+  (0.36s), then **PASS** again in full Windows CTest.
+- Microsoft SSPI generated Type 1 and Type 3 around the **unmodified**
+  production Type 2; the repository's production Type-3 parser and NTLMv2
+  verifier accepted Microsoft's Type 3 with the fixed explicit test
+  credentials.
+- Required integrity/confidentiality/replay/sequence context attributes were
+  retained by the passing test.
+- No VERSION/TargetInfo/TargetName/optional-flag diagnostic mutation was needed.
+  **Production decision: keep the Type-2 profile unchanged.**
+- `security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`:
+  **PASS** in the same Windows full CTest.
+
+The Windows protocol job later fails for one unrelated runtime source-policy
+CTest, while Ubuntu protocol, Windows CLANG64 and the R9 sanitizer build fail
+because `RuntimeHostError::AuthenticationIncompletePeerClosed` is not handled
+by `runtimeProductStateFor()` under `-Werror=switch`. Those failures block
+the exact-SHA R9 candidate aggregate but do not block or invalidate the SSPI
+oracle result.
+
+No production NTLM/CredSSP bytes, Linux admission, MCS, graphics or clipboard
+were changed by Agent 6.
+
 ## R10 incomplete-peer host outcome separation — 2026-10-25
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

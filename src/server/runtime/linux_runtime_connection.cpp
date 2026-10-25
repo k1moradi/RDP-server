@@ -156,7 +156,7 @@ template <std::size_t Size>
     case Stage::AuthInfo: return "authinfo";
     case Stage::Admission: return "admission";
     }
-    return "admission";
+    return "none";
 }
 
 [[nodiscard]] constexpr const char *directNtlmProgressName(
@@ -193,6 +193,82 @@ template <std::size_t Size>
     }
     return "await-direct-ntlm";
 }
+
+[[nodiscard]] constexpr
+rdp_server::server::security::StandaloneAuthenticationFailureStage
+standaloneFailureStageForCurrentProgress(
+    rdp_server::server::security::StandaloneCredSspStage credSspStage,
+    rdp_server::server::security::StandaloneNtlmNegotiationEnvelope
+        negotiationEnvelope,
+    LinuxRuntimeAuthenticationProgress authenticationProgress) noexcept
+{
+    using CredSspStage =
+        rdp_server::server::security::StandaloneCredSspStage;
+    using Envelope =
+        rdp_server::server::security::StandaloneNtlmNegotiationEnvelope;
+    using Failure =
+        rdp_server::server::security::StandaloneAuthenticationFailureStage;
+    using Progress = LinuxRuntimeAuthenticationProgress;
+
+    // Diagnostic classification only: reuse the connection-owned state
+    // machine and never mint authentication or native-admission authority.
+    switch (credSspStage)
+    {
+    case CredSspStage::AwaitBinding:
+        return Failure::PubKeyAuth;
+    case CredSspStage::ServerBindingReplyQueued:
+        return Failure::AuthInfo;
+    case CredSspStage::AwaitInitialNego:
+    case CredSspStage::NegoContinue:
+        if (negotiationEnvelope == Envelope::DirectNtlm ||
+            authenticationProgress == Progress::CredSspDirectNtlm ||
+            authenticationProgress == Progress::NtlmChallenge ||
+            authenticationProgress == Progress::NtlmAuthenticate)
+        {
+            return Failure::NtlmNegotiation;
+        }
+        return Failure::Spnego;
+    case CredSspStage::Unconfigured:
+    case CredSspStage::CredentialsVerified:
+    case CredSspStage::Failed:
+        return Failure::None;
+    }
+    return Failure::None;
+}
+
+static_assert(
+    standaloneFailureStageForCurrentProgress(
+        rdp_server::server::security::StandaloneCredSspStage::NegoContinue,
+        rdp_server::server::security::StandaloneNtlmNegotiationEnvelope::
+            DirectNtlm,
+        LinuxRuntimeAuthenticationProgress::NtlmChallenge) ==
+    rdp_server::server::security::StandaloneAuthenticationFailureStage::
+        NtlmNegotiation);
+static_assert(
+    standaloneFailureStageForCurrentProgress(
+        rdp_server::server::security::StandaloneCredSspStage::AwaitBinding,
+        rdp_server::server::security::StandaloneNtlmNegotiationEnvelope::
+            DirectNtlm,
+        LinuxRuntimeAuthenticationProgress::NtlmAuthenticate) ==
+    rdp_server::server::security::StandaloneAuthenticationFailureStage::
+        PubKeyAuth);
+static_assert(
+    standaloneFailureStageForCurrentProgress(
+        rdp_server::server::security::StandaloneCredSspStage::
+            ServerBindingReplyQueued,
+        rdp_server::server::security::StandaloneNtlmNegotiationEnvelope::
+            DirectNtlm,
+        LinuxRuntimeAuthenticationProgress::CredSspBinding) ==
+    rdp_server::server::security::StandaloneAuthenticationFailureStage::
+        AuthInfo);
+static_assert(
+    standaloneFailureStageForCurrentProgress(
+        rdp_server::server::security::StandaloneCredSspStage::
+            CredentialsVerified,
+        rdp_server::server::security::StandaloneNtlmNegotiationEnvelope::
+            DirectNtlm,
+        LinuxRuntimeAuthenticationProgress::Authenticated) ==
+    rdp_server::server::security::StandaloneAuthenticationFailureStage::None);
 
 static_assert(std::string_view{directNtlmProgressName(
                   LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm,
@@ -1186,25 +1262,18 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             !connection_.active();
 
         captureNegotiationEnvelope();
-        if (transportClosedWithoutAuthenticationFailure)
-        {
-            // A peer transport close while waiting for the next CredSSP frame
-            // is still pre-admission. Preserve the last positive Direct NTLM
-            // boundary (for example Type 2 sent / Type 3 not observed) and let
-            // R1's terminal transport classification remain authoritative.
-            credSspDiagnosticTransition_ =
-                LinuxRuntimeCredSspDiagnosticTransition::Closed;
-        }
-        else
-        {
-            const auto diagnosticFailureStage =
-                failureStage == FailureStage::None
-                    ? FailureStage::Admission
-                    : failureStage;
-            recordStandaloneAuthenticationFailure(diagnosticFailureStage);
-            credSspDiagnosticTransition_ =
-                LinuxRuntimeCredSspDiagnosticTransition::Failed;
-        }
+        const auto diagnosticFailureStage =
+            failureStage == FailureStage::None
+                ? standaloneFailureStageForCurrentProgress(
+                      standaloneCredSspAcceptor_.stage(),
+                      standaloneNegotiationEnvelope_,
+                      authenticationProgress_)
+                : failureStage;
+        recordStandaloneAuthenticationFailure(diagnosticFailureStage);
+        credSspDiagnosticTransition_ =
+            transportClosedWithoutAuthenticationFailure
+                ? LinuxRuntimeCredSspDiagnosticTransition::Closed
+                : LinuxRuntimeCredSspDiagnosticTransition::Failed;
         credSspFrameReader_.close();
         credSspReplyWriter_.close();
         if (principalProof_ != nullptr)

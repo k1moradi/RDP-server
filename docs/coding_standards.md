@@ -29,10 +29,12 @@ all three facts: CredSSP credentials were verified, the retained stage is
 Admission, and the typed native-admission reason is non-`None`.
 
 A Direct NTLM peer that terminates with `PeerEof` after the server challenge
-but before Type 3 remains authentication-level. With the corrected runtime
-snapshot, `NtlmChallenge + CredSSP Closed + standalone failure None +
-admission None + PeerEof` is presented on Main only as
-`Remote client authentication did not complete.`. Advanced Diagnostics may
+but before Type 3 remains authentication-level. The current runtime snapshot is
+`NtlmChallenge + CredSSP Closed + standalone failure NtlmNegotiation +
+admission None + PeerEof`; R7 may also accept the immediately preceding
+standalone-failure-`None` snapshot only for safe presentation compatibility.
+Main shows `Remote client authentication did not complete.`. Advanced
+Diagnostics may
 state `Authentication: NTLM challenge sent; client disconnected before
 response.` because those bounded scalars now retain the exact positive
 challenge boundary.
@@ -51,15 +53,18 @@ strings or internal protocol taxonomy.
 ## Direct NTLM Type-2 peer EOF remains pre-admission (2026-10-25)
 
 A transport close after a successfully delivered Direct NTLM Type 2 but before
-any Type 3 is observed is not native Admission. When the retained CredSSP/NTLM
-owner reports no authentication failure and R1 reports the connection closed,
-preserve the last positive authentication boundary as `NtlmChallenge`, keep
-the protocol stage `PreAdmission`, keep the admission reason `None`, and
-preserve R1's exact termination such as `PeerEof`. Do not synthesize an
-`Admission` failure merely because the next credential frame never arrived.
+any Type 3 is observed is not native Admission. If no more-specific parser
+failure exists, derive the diagnostic from existing connection state:
+`NegoContinue` plus DirectNtlm/`NtlmChallenge` means
+`NtlmNegotiation` while awaiting Type 3. Preserve `NtlmChallenge`, protocol
+`PreAdmission`, admission reason `None`, the CredSSP close transition, and
+R1's exact termination such as `PeerEof`.
 
-Only completed credentials followed by the actual native-admission call may
-produce an Admission diagnostic. R3 must not respond to a Type-2 compatibility
+Reuse the existing CredSSP stage and authentication-progress owner.
+`AwaitBinding` maps to `PubKeyAuth`; `ServerBindingReplyQueued` maps to
+`AuthInfo`. Only completed credentials followed by the actual native-admission
+call may produce an Admission diagnostic; a missing failure stage must never
+default to Admission. R3 must not respond to a Type-2 compatibility
 failure by changing MCS, Share, licensing or RDPGFX. The current
 Target-Type-Server/empty-TargetName Type-2 shape is an R2/security wire
 interoperability hypothesis and requires its own standards-backed review; a

@@ -42,11 +42,12 @@ Owner evidence on baseline
 TLS established -> raw Direct NTLM Type 1 accepted -> server Type 2 sent ->
 **peer EOF**, with no Type 3. Native Admission was not reached.
 
-The lower-layer diagnostic correction at
-`73ec034c3f4231ece47400cb3b73e00c628c2dd0` now retains that peer as
+The current lower-layer R10 classification retains that peer as
 `NtlmChallenge`, protocol `PreAdmission`, CredSSP `Closed`, standalone
-failure `None`, admission reason `None`, termination `PeerEof`.
-Keep a dedicated offscreen R7 regression
+failure `NtlmNegotiation`, admission reason `None`, termination `PeerEof`.
+R7 may still recognize the immediately preceding standalone-failure-`None`
+tuple only as backward-safe presentation input. Keep a dedicated offscreen R7
+regression
 `gui.offscreen-authentication-incomplete-before-native-admission` that
 requires Main to show
 `Remote client authentication did not complete.`, Advanced to show
@@ -73,19 +74,25 @@ the shared real listener/HYBRID TLS/Direct-NTLM fixture: hold the peer after it
 receives Type 2 and require `protocolStage == PreAdmission` while Type 3 is
 still absent; then close the TCP connection without TLS `close_notify`.
 
-After retirement, require Direct NTLM `NtlmChallenge`, protocol
-`PreAdmission`, no standalone authentication failure, no native-admission
-reason and transport `PeerEof`. The same fixture must call the shared
+After peer 1 retirement, require Direct NTLM `NtlmChallenge`, standalone
+failure `NtlmNegotiation`, protocol `PreAdmission`, native-admission reason
+`None` and transport `PeerEof`. The same fixture must call the shared
 graphics-dormancy assertion both while waiting for Type 3 and after retirement:
 no native desktop initialization/readiness, no framebuffer, no ClearCodec frame
 preparation, no committed graphics TLS write, zero outstanding FRAME_ACKs and
 no genuine matching ACK. This is an R4 P2 dormancy gate only; it must not
 change codecs, surfaces, ACK handling or any graphics production path.
 
-Do not fabricate Type 3, CredentialsVerified or native admission to make this
-gate pass. Owner base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is
-**975/975 PASS**; that receipt predates this strengthened CTest and does not
-qualify the modified tree.
+The listener generation, local Sharing authority and configured Session
+Password must remain current. Without Stop/Start, peer 2 must receive a fresh
+NTLM challenge, complete Type 3 + pubKeyAuth + authInfo through
+`CredentialsVerified`, and only then enter the genuine native-admission
+attempt. Run this fixture mode directly in the focused R9 sanitizer
+owner-candidate gate so native-environment skip code 77 is a failure there.
+
+Do not fabricate positive native admission to make this gate pass. Owner base
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is **975/975 PASS**; that receipt
+predates this strengthened CTest and does not qualify the modified tree.
 
 ## Direct-NTLM Type-2 peer EOF is pre-admission clipboard dormancy (2026-10-25)
 

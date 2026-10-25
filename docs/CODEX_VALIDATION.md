@@ -1,3 +1,36 @@
+## R10 phase-owned Type-2 EOF classification/retry correction — 2026-10-25
+
+**Assignment parent:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`;
+owner Linux full CTest **975/975 PASS**.
+**Reconciled parent:** `539006a762489a865c491be5cf1bf1937fec1e29`.
+
+The owner-observed boundary is TLS established -> Direct NTLM Type 1 accepted ->
+Type 2 sent -> peer EOF, with no Type 3. R10 derives a missing standalone
+failure stage from the existing `StandaloneCredSspStage`, negotiation envelope
+and `LinuxRuntimeAuthenticationProgress` rather than manufacturing Admission
+or leaving the interrupted phase unclassified. Type-2-delivered EOF is retained
+as `NtlmChallenge / NtlmNegotiation / PreAdmission`, CredSSP `Closed`,
+admission reason `None`, R1 `PeerEof`.
+
+The existing CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` is
+extended through a fresh same-listener peer: listener/Sharing/Session Password
+survive peer 1 EOF; peer 2 receives a fresh challenge, completes Type 3 +
+pubKeyAuth + authInfo through `CredentialsVerified`, and only then enters the
+real native-admission attempt. The focused R9 sanitizer job invokes this
+fixture directly and the CI structure validator pins that command. R7 consumes
+the corrected `NtlmNegotiation` tuple while remaining safe for the immediately
+preceding `None` snapshot, and R4's full dormancy assertions are preserved.
+
+This commit preserves, rather than edits, the concurrent R6 portable Type-2
+TargetName correction at `df0f980c42e65a3727c06f4b819d0cddc70b1d34`.
+No logind/native-admission policy, MCS, graphics or clipboard implementation
+changed.
+
+Connector source/reconciliation review: **PASS**. Modified-tree build/focused
+CTest/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
+**PENDING**. Physical Microsoft-client retry: **NOT RUN**.
+
 ## R4 Type-2 peer-EOF graphics dormancy assertion — 2026-10-25
 
 Reconciled on parent `df0f980c42e65a3727c06f4b819d0cddc70b1d34`.

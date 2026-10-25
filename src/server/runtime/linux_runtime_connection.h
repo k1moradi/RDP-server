@@ -410,10 +410,15 @@ enum class LinuxRuntimeAuthenticationProgress : std::uint8_t
     CredSsp,
     CredSspSpnego,
     CredSspDirectNtlm,
+    // Direct NTLM Type 2 was fully delivered; the peer owes Type 3.
     NtlmChallenge,
+    // Direct NTLM Type 3 was observed; acceptor state owns verification detail.
     NtlmAuthenticate,
+    // pubKeyAuth is being verified or its server binding reply is in flight.
     CredSspBinding,
+    // Server binding reply was delivered; the peer owes protected authInfo.
     CredentialDelegation,
+    // Final authInfo matched the configured credential. Admission has not run.
     Authenticated,
     Mcs,
 };

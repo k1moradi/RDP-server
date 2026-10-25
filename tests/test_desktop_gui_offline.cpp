@@ -1542,7 +1542,7 @@ int main(int argc, char** argv)
             RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
         runtime.snapshot.acceptedClientPreauthDiagnostics
             .standaloneFailureStage =
-                RuntimeAcceptedClientStandaloneFailureStage::None;
+                RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
         runtime.snapshot.acceptedClientPreauthDiagnostics
             .admissionFailureReason =
                 RuntimeAcceptedClientAdmissionFailureReason::None;

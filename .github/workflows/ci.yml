@@ -833,6 +833,8 @@ jobs:
             same-port-rebind-after-server-close
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-reconnect-stop-start-lifecycle
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-type2-peer-eof-pre-admission-diagnostics
 
           # R1 remains the one established HYBRID/TLS transport for the raw
           # DirectNtlm token, and stale/alternate transport provenance denies.

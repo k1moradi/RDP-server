@@ -1074,7 +1074,7 @@ struct PeerResult final
            diagnostics.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::Closed &&
            diagnostics.standaloneFailureStage ==
-               RuntimeAcceptedClientStandaloneFailureStage::None &&
+               RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation &&
            diagnostics.admissionFailureReason ==
                RuntimeAcceptedClientAdmissionFailureReason::None &&
            diagnostics.termination ==
@@ -1350,11 +1350,28 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.hostOwnerAuthorized);
         assert(afterTypeTwoEof.product.ownerAuthorized);
         assertGraphicsDormant(afterTypeTwoEof);
+        assert(afterTypeTwoEof.product.state ==
+               RuntimeProductHostState::Listening);
+        assert(afterTypeTwoEof.product.credentialsConfigured);
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
 
+        // The same listener must accept a fresh connection with independent
+        // TLS/NTLM state. Peer 2 completes Type 3 + pubKeyAuth + authInfo
+        // through CredentialsVerified before native Admission runs.
+        const PeerResult retryResult = runAdmissionDeniedPeer(
+            control, recommendation.address, selectedPort, 0x20U,
+            firstListenerGeneration, credential.generation);
+        assert(challengesDiffer(
+            peerResult.serverChallenge, retryResult.serverChallenge));
+
         assert(control.stopSharing().succeeded());
+        const auto retainedCredential =
+            control.standaloneApplicationPasswordObservation();
+        assert(retainedCredential.configured);
+        assert(retainedCredential.generation == credential.generation);
         assert(control.revokeSharing().succeeded());
+        assert(!control.standaloneApplicationPasswordObservation().configured);
         return 0;
     }
 
@@ -1432,6 +1449,7 @@ int main(int argc, char** argv)
         assert(typeTwoEofResult.directTypeTwoReceived);
 
         const auto afterTypeTwoEof = control.status();
+        assert(directTypeTwoPeerEofRemainsPreAdmission(afterTypeTwoEof));
         assert(afterTypeTwoEof.stage == RuntimeHostStage::ListenerAvailable);
         assert(afterTypeTwoEof.listenerAvailable);
         assert(afterTypeTwoEof.listenerGeneration ==

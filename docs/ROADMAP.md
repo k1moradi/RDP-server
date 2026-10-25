@@ -1,3 +1,48 @@
+## R10 P0 — phase-owned Type-2 EOF classification and same-listener retry — 2026-10-25
+
+**Assignment parent:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
+**Reconciled parent:** `539006a762489a865c491be5cf1bf1937fec1e29`.
+Owner Linux evidence on the assignment SHA is **975/975 PASS**. The real
+Microsoft Windows App attempt reached TLS -> raw Direct NTLM Type 1 -> server
+Type 2 -> **peer EOF**, with no Type 3. It did not reach
+`CredentialsVerified` or native Admission; the old
+`stage=admission; admission=none` result was a classification defect.
+
+Concurrent R8/R3/R7/R5/R4 work and the R6 Type-2 wire correction are preserved.
+R10 classifies the interrupted authentication phase from the existing CredSSP
+stage, immutable envelope and `LinuxRuntimeAuthenticationProgress`.
+Type-2-delivered DirectNtlm EOF is
+`NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`;
+CredSSP remains `Closed` because the terminal event is peer EOF.
+`AwaitBinding` maps to pubKeyAuth and `ServerBindingReplyQueued` to authInfo.
+A missing failure stage never defaults to Admission; `issueAdmission()` remains
+the owner of genuine post-`CredentialsVerified` Admission failure.
+
+The registered production-backed CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` now
+covers the required retry: peer 1 Type 1 -> corrected Type 2 -> EOF; listener,
+Sharing authority and Session Password survive; peer 2 receives a fresh
+challenge, completes Type 3 + pubKeyAuth + authInfo to `CredentialsVerified`,
+then reaches the genuine native-admission attempt. The R9 sanitizer lane
+executes this fixture mode directly. R7 consumes the corrected
+`NtlmNegotiation` tuple while retaining safe compatibility with the immediately
+preceding `None` tuple. R4's complete pre-admission graphics-dormancy
+assertions remain intact.
+
+This R10 increment does **not** modify the Type-2 encoder. It preserves the
+concurrent R6 correction at `df0f980c42e65a3727c06f4b819d0cddc70b1d34`,
+which emits a bounded portable server TargetName and REQUEST_TARGET with
+TARGET_TYPE_SERVER. No logind/native-admission policy, MCS, graphics or
+clipboard implementation changes here.
+
+**Verification:** assignment-parent owner CTest **975/975 PASS**. Connector
+source/reconciliation review: **PASS**. Modified-tree local build/focused/full
+CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Physical
+Microsoft-client retry: **NOT RUN**. **Next gate:** exact-SHA hosted
+qualification including both the portable TargetName test and dedicated
+EOF/retry fixture, then repeat the Windows App attempt; if it still closes
+before Type 3, inspect only the next demonstrated NTLM compatibility boundary.
+
 ## R4 P2 — remain blocked before graphics after Type-2 peer EOF (2026-10-25)
 
 **Reconciled parent:** `df0f980c42e65a3727c06f4b819d0cddc70b1d34`.

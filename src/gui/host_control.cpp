@@ -101,8 +101,10 @@ using rdp_server::server::runtime::RuntimeHostError;
             RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
         diagnostics.credSspTransition ==
             RuntimeAcceptedClientCredSspTransition::Closed &&
-        diagnostics.standaloneFailureStage ==
-            RuntimeAcceptedClientStandaloneFailureStage::None;
+        (diagnostics.standaloneFailureStage ==
+             RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation ||
+         diagnostics.standaloneFailureStage ==
+             RuntimeAcceptedClientStandaloneFailureStage::None);
     const bool legacyMisclassifiedBoundary =
         diagnostics.authenticationStage ==
             RuntimeAcceptedClientAuthenticationStage::Admission &&

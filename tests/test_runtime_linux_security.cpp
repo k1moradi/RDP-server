@@ -1626,7 +1626,7 @@ void testConnectionR1TerminalTransportClassification(
         assert(terminal == Step::Closed || terminal == Step::Invalid);
         const auto diagnostics = connection.acceptanceDiagnostics();
         assert(diagnostics.tlsHandshakeStage == DiagnosticTlsStage::Closed);
-        assert(diagnostics.termination == Termination::PeerTlsAlert);
+        assert(diagnostics.termination == Termination::OrderlyTlsClose);
         assert(!connection.ready());
 
         clientTls.reset();

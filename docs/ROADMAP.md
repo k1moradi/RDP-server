@@ -1,3 +1,35 @@
+## R1 dependency continuation — Microsoft Type-2 gate resolved; align clean TLS-close fixture (2026-10-25)
+
+**Reconciled parent:** `bbd16622c6728329b090ad9a5ae2b6c849a27a01`.
+The required Microsoft-native dependency is **RESOLVED**. On exact SHA
+`02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`, Actions run
+`40223796082`, Windows protocol job `121260984032`,
+`security.windows-sspi-production-type2-interop` **PASS**ed in the focused
+step and again in ordinary Windows CTest. Microsoft SSPI produced Type 1,
+consumed the untouched production Type 2, emitted Type 3, and the production
+Type-3 parser/NTLMv2 verifier accepted it. The independent outer
+`security.credssp-direct-ntlm-physical-type1-tsrequest-conformance` also
+**PASS**ed on that SHA. Production Type-2 VERSION, TargetInfo, TargetName and
+flags remain unchanged.
+
+Concurrent runtime owner commit `bbd16622...` resolved the
+`AuthenticationIncompletePeerClosed` product-state switch and retention
+source-contract failures and added its portable product-state regression.
+One R1-owned stale assertion remained from the same failed CI run:
+`testConnectionR1TerminalTransportClassification` still expected
+`PeerTlsAlert` after a genuine TLS `close_notify`, although R1 now correctly
+classifies OpenSSL `SSL_ERROR_ZERO_RETURN` as `OrderlyTlsClose`. This
+increment updates that existing production-linked fixture only; raw TCP FIN
+continues to require `PeerEof`.
+
+No production code, TLS certificate behavior, NTLM/CredSSP bytes, native
+admission, MCS, graphics, input or clipboard behavior changes here.
+Connector source/log reconciliation: **PASS**. Modified-tree local CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. After exact-SHA prerequisites are green, the remaining roadmap
+gate is explicit `r9_credssp_owner_candidate` workflow dispatch before a new
+Linux physical candidate is nominated.
+
 ## Agent 6 Microsoft SSPI oracle result — production Type 2 accepted unchanged (2026-10-25)
 
 **Exact tested SHA:** `02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`.

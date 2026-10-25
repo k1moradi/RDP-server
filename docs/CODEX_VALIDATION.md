@@ -1,3 +1,25 @@
+## R1 clean TLS-close fixture reconciliation after SSPI PASS — 2026-10-25
+
+**Reconciled parent:** `bbd16622c6728329b090ad9a5ae2b6c849a27a01`.
+The former Microsoft-client Type-2 acceptance blocker is closed by exact-SHA
+Windows evidence from run `40223796082`, job `121260984032`:
+`security.windows-sspi-production-type2-interop` **PASS**ed twice and the
+independent outer TSRequest conformance CTest **PASS**ed. No Type-2 mutation is
+authorized or needed.
+
+The failed `02f7642e...` integration run exposed three unrelated regressions.
+The runtime owner has already fixed two on `bbd16622...`: exhaustive
+`AuthenticationIncompletePeerClosed` product-state handling and the
+`retainedError` source-policy contract. This R1 increment fixes the remaining
+test mismatch by expecting `OrderlyTlsClose` for a genuine TLS
+`close_notify` in the production-linked Linux R1 terminal transport fixture;
+the raw FIN path remains `PeerEof`.
+
+Production source: **UNCHANGED**. Connector reconciliation: **PASS**.
+Modified-tree focused/full CTest: **NOT RUN** here. Exact-publication-SHA
+hosted CI: **PENDING**. Explicit R9 exact-SHA owner-candidate dispatch remains
+**NOT RUN** until its prerequisite jobs are green.
+
 ## Agent 6 native Microsoft SSPI oracle execution receipt — 2026-10-25
 
 **Exact SHA:** `02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`.

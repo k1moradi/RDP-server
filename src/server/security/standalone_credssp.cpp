@@ -109,6 +109,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     initialNegoObservation_ = {};
+    challengeObservation_ = {};
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     lastNtlmMessageType_ = 0U;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
@@ -131,6 +132,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     lastNtlmMessageType_ = 0U;
     initialNegoObservation_ = {};
+    challengeObservation_ = {};
 }
 
 bool StandaloneCredSspNtlmAcceptor::matchesPinnedTls(
@@ -519,6 +521,9 @@ StandaloneCredSspNtlmAcceptor::processNego(
     spnegoRejectionReason_ = mechanism_.rejectionReason();
     if (mechanism_.lastNtlmMessageType() != 0U)
         lastNtlmMessageType_ = mechanism_.lastNtlmMessageType();
+    const auto challengeObservation = mechanism_.challengeObservation();
+    if (challengeObservation.valid)
+        challengeObservation_ = challengeObservation;
     const bool directNtlmVerifiedWithoutReply =
         step.status == StandaloneSpnegoStatus::MechanismVerified &&
         mechanism_.negotiationEnvelope() ==

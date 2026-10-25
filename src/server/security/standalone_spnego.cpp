@@ -653,6 +653,7 @@ void StandaloneSpnegoNtlmAcceptor::clearMechanismState() noexcept
     challengeMessageLength_ = 0;
     mechanismListLength_ = 0;
     ntlmWasFirstMechanism_ = false;
+    challengeObservation_ = {};
 }
 
 void StandaloneSpnegoNtlmAcceptor::reset() noexcept
@@ -803,8 +804,17 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
          timestampFileTime_,
          parsed.negotiateFlags},
         challengeMessage_);
-    if (!challenge)
+    NtlmChallengeMessageObservation observation;
+    if (!challenge ||
+        validateNtlmChallengeMessage(
+            std::span<const std::uint8_t>{challengeMessage_}.first(
+                challenge.bytesWritten),
+            parsed.negotiateFlags, observation) !=
+            NtlmMessageParseResult::Parsed)
+    {
         return fail(StandaloneSpnegoStatus::InvalidToken);
+    }
+    challengeObservation_ = observation;
 
     std::copy(
         negotiateMessage.begin(),

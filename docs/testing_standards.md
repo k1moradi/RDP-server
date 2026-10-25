@@ -1,3 +1,31 @@
+## R2 production Type-2 structural qualification (2026-10-25)
+
+The existing `security.ntlmssp-challenge-target-name-conformance` remains the
+independent test-only oracle and direct Microsoft-CSSP sanitizer gate. Extend
+that same case with the production MS-NLMP validator and Microsoft's published
+CHALLENGE_MESSAGE fixture rather than creating a duplicate CTest.
+
+The case covers server-target plus empty TargetName rejection, valid UTF-16LE
+TargetName, TargetInfo offset after TargetName, exact total length, legal
+Type-1 capability intersection, malformed/overlapping TargetName/TargetInfo
+ranges, Reserved/challenge sanity, AV termination and the published Microsoft
+Type-2 example. It parses the alternative no-target-flags/empty-name form only
+to document the comparison; production still emits the explicit server
+identity.
+
+Existing raw Direct NTLM and SPNEGO tests remain downstream gates: Type 1 must
+produce a production-validator-accepted Type 2; the existing valid Type 3 must
+continue through NTLMv2 proof, MIC/sign-seal, pubKeyAuth and authInfo;
+SPNEGO-wrapped NTLM must remain green. The production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` keeps
+Type-2 peer EOF at NtlmChallenge/NtlmNegotiation/PreAdmission/PeerEof and its
+Type-2 parser uses both the independent test oracle and shared production
+validator before the same-listener retry.
+
+The owner 975/975 receipt predates these changes. Modified-tree full CTest,
+exact-publication-SHA hosted CI and the next physical Windows App retry are
+separate evidence gates and must be reported as NOT RUN/PENDING until observed.
+
 ## R9 independent Type-2 conformance and production-socket oracle (2026-10-25)
 
 Keep `security.ntlmssp-challenge-target-name-conformance` separate from the

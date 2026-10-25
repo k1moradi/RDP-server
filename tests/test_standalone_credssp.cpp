@@ -564,6 +564,13 @@ void prepareInitialNegotiation(
     assert(acceptor.stage() ==
            StandaloneCredSspStage::NegoContinue);
 
+    const auto challengeObservation = acceptor.challengeObservation();
+    assert(challengeObservation.valid);
+    assert(challengeObservation.targetTypeServer);
+    assert(challengeObservation.targetNamePresent);
+    assert(challengeObservation.targetNameCodeUnits == 6U);
+    assert(challengeObservation.targetInfoBytes == 48U);
+
     const auto initialObservation = acceptor.initialNegoObservation();
     assert(initialObservation.observed);
     assert(initialObservation.tsRequestVersion == requestVersion);
@@ -629,6 +636,20 @@ void prepareDirectNtlmNegotiation(
     assert(acceptor.stage() ==
            StandaloneCredSspStage::NegoContinue);
     assert(acceptor.lastNtlmMessageType() == 1U);
+
+    const auto challengeObservation = acceptor.challengeObservation();
+    assert(challengeObservation.valid);
+    constexpr std::uint32_t expectedClientFlags =
+        kNtlmNegotiateUnicode | kNtlmNegotiateNtlm |
+        kNtlmNegotiateAlwaysSign |
+        kRequiredStandaloneCredSspNtlmFlags |
+        kNtlmNegotiateKeyExchange | kNtlmNegotiate56;
+    assert(challengeObservation.clientNegotiateFlags ==
+           expectedClientFlags);
+    assert(challengeObservation.targetTypeServer);
+    assert(challengeObservation.targetNamePresent);
+    assert(challengeObservation.targetNameCodeUnits == 6U);
+    assert(challengeObservation.targetInfoBytes == 48U);
 
     const auto initialObservation = acceptor.initialNegoObservation();
     assert(initialObservation.observed);

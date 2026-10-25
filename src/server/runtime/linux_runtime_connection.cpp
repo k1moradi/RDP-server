@@ -531,6 +531,8 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.protocolStage = protocolDiagnosticStage_;
     snapshot.standaloneNegotiationEnvelope =
         standaloneNegotiationEnvelope_;
+    snapshot.standaloneNtlmChallenge =
+        standaloneNtlmChallengeObservation_;
     snapshot.standalonePasswordSelected =
         authenticationMode_ ==
         LinuxRuntimeAuthenticationMode::StandalonePassword;
@@ -1249,6 +1251,10 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             standaloneNegotiationEnvelope_ =
                 initial.spnego.negotiationEnvelope;
         }
+        const auto challenge =
+            standaloneCredSspAcceptor_.challengeObservation();
+        if (challenge.valid)
+            standaloneNtlmChallengeObservation_ = challenge;
     };
 
     auto fail = [&](Step status, std::size_t bytesRead = 0U,

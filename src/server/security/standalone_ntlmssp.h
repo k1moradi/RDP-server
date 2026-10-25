@@ -35,6 +35,7 @@ inline constexpr std::uint32_t kNtlmNegotiateOemDomainSupplied = 0x00001000U;
 inline constexpr std::uint32_t kNtlmNegotiateOemWorkstationSupplied =
     0x00002000U;
 inline constexpr std::uint32_t kNtlmNegotiateAlwaysSign = 0x00008000U;
+inline constexpr std::uint32_t kNtlmTargetTypeDomain = 0x00010000U;
 inline constexpr std::uint32_t kNtlmTargetTypeServer = 0x00020000U;
 inline constexpr std::uint32_t kNtlmNegotiateTargetInfo = 0x00800000U;
 inline constexpr std::uint32_t kNtlmNegotiateVersion = 0x02000000U;
@@ -97,6 +98,26 @@ struct NtlmAuthenticateMessage final
     }
 };
 
+inline constexpr std::size_t kMaximumStandaloneNtlmChallengeAvPairs = 16U;
+
+// Bounded structural view of one MS-NLMP CHALLENGE_MESSAGE. Challenge bytes,
+// NTLM responses, session keys and credentials are deliberately excluded so
+// this object is safe to retain for fail-only interoperability diagnostics.
+struct NtlmChallengeMessageObservation final
+{
+    bool valid{};
+    std::uint32_t clientNegotiateFlags{};
+    std::uint32_t negotiateFlags{};
+    std::size_t targetNameCodeUnits{};
+    std::size_t targetInfoBytes{};
+    std::size_t totalBytes{};
+    std::array<std::uint16_t, kMaximumStandaloneNtlmChallengeAvPairs>
+        targetInfoAvIds{};
+    std::size_t targetInfoAvIdCount{};
+    bool targetTypeServer{};
+    bool targetNamePresent{};
+};
+
 struct NtlmChallengeMessageParameters final
 {
     NtlmServerChallenge serverChallenge{};
@@ -132,6 +153,14 @@ struct NtlmChallengeEncodeResult final
 [[nodiscard]] NtlmMessageParseResult parseNtlmNegotiateMessage(
     std::span<const std::uint8_t> message,
     NtlmNegotiateMessage &output) noexcept;
+
+// Validate one complete Type 2 against MS-NLMP structural invariants and the
+// exact Type-1 capability flags that preceded it. Security-buffer MaxLen is
+// advisory on receipt; the writer still emits MaxLen == Len.
+[[nodiscard]] NtlmMessageParseResult validateNtlmChallengeMessage(
+    std::span<const std::uint8_t> message,
+    std::uint32_t clientNegotiateFlags,
+    NtlmChallengeMessageObservation &output) noexcept;
 
 // Encode one connection-oriented NTLM Type 2 challenge for the standalone
 // CredSSP profile. The caller owns cryptographically random ServerChallenge and

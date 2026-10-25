@@ -273,6 +273,12 @@ public:
         return initialTokenObservation_;
     }
 
+    [[nodiscard]] NtlmChallengeMessageObservation
+    challengeObservation() const noexcept
+    {
+        return challengeObservation_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -314,6 +320,7 @@ private:
     StandaloneSpnegoRejectionReason rejectionReason_{
         StandaloneSpnegoRejectionReason::None};
     StandaloneSpnegoInitialTokenObservation initialTokenObservation_{};
+    NtlmChallengeMessageObservation challengeObservation_{};
 };
 
 } // namespace rdp_server::server::security

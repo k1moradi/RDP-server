@@ -629,6 +629,12 @@ int main(int argc, char **argv)
         assert(step.status == StandaloneSpnegoStatus::Continue);
         assert(acceptor.stage() ==
                StandaloneSpnegoStage::AwaitNtlmAuthenticate);
+        const auto challengeObservation = acceptor.challengeObservation();
+        assert(challengeObservation.valid);
+        assert(challengeObservation.targetTypeServer);
+        assert(challengeObservation.targetNamePresent);
+        assert(challengeObservation.targetNameCodeUnits == 6U);
+        assert(challengeObservation.targetInfoBytes == 48U);
 
         std::array<std::uint8_t, kMaximumStandaloneNtlmMessageBytes>
             challenge{};

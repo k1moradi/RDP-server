@@ -1,3 +1,45 @@
+## R2 production Type-2 validator authoring receipt — 2026-10-25
+
+**Owner evidence:** assignment SHA
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest
+**975/975 PASS**. Real Microsoft Windows App:
+`TLS established -> raw Direct NTLM Type 1 accepted -> server Type 2 sent ->
+peer EOF`; no Type 3. Native Admission was not reached.
+
+**Reconciliation:** shared main advanced repeatedly during authoring. The
+phase-owned pre-admission/same-listener retry correction, portable TargetName
+correction and independent R9 test-only Type-2 oracle are preserved. This
+follow-up does not replace their lifecycle, wire-identity or test-oracle
+decisions.
+
+**Authored:** first-party production CHALLENGE_MESSAGE validation checks
+signature/type, TargetName and TargetInfo bounds/nonoverlap, UTF-16LE fields,
+target-type/name consistency, terminated AV pairs, zero Reserved bytes,
+nonzero challenge, Version shape and legal response capabilities relative to
+Type 1. Every encoded Type 2 passes this validator before publication.
+Microsoft's published MS-NLMP 4.2.4.3 Type-2 fixture is parsed by the same
+production validator.
+
+**Diagnostics:** only Type-1/Type-2 flags, TargetName code-unit count,
+TargetInfo/total byte counts, bounded AV IDs and server-target/name booleans
+are retained. The existing fail-only terminal record emits those scalars
+alongside the independently corrected authentication-stage taxonomy.
+Challenge bytes, NTLM response/MIC, session keys, password/hash, TSRequest
+bytes and TLS secrets are excluded.
+
+**Coverage:** the existing
+`security.ntlmssp-challenge-target-name-conformance` now exercises both the
+independent test oracle and production validator, including the Microsoft
+fixture and malformed offsets; existing raw Direct NTLM full CredSSP flow and
+SPNEGO NTLM challenge/authenticate flow remain unchanged downstream gates; the
+production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` uses
+both validators before its fresh same-listener retry.
+
+Connector/source reconciliation review: **PASS**. Canonical owner modified-tree
+full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA
+hosted CI: **PENDING**. Physical Microsoft Windows App retry: **NOT RUN**.
+
 ## R9 independent Type-2 oracle authoring receipt — 2026-10-25
 
 Owner baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` has Linux local

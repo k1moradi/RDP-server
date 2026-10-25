@@ -148,6 +148,12 @@ public:
         return initialNegoObservation_;
     }
 
+    [[nodiscard]] NtlmChallengeMessageObservation
+    challengeObservation() const noexcept
+    {
+        return challengeObservation_;
+    }
+
     void reset() noexcept;
 
 private:
@@ -204,6 +210,7 @@ private:
         StandaloneAuthenticationFailureStage::None};
     std::uint32_t lastNtlmMessageType_{};
     StandaloneCredSspInitialNegoObservation initialNegoObservation_{};
+    NtlmChallengeMessageObservation challengeObservation_{};
 };
 
 

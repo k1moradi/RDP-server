@@ -71,6 +71,10 @@ using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
 constexpr std::u16string_view kStandaloneUser{u"rdp"};
 constexpr std::array<char16_t, 8> kStandalonePassword{
     u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
+constexpr std::uint32_t kDirectTypeOneFlags =
+    kNtlmNegotiateUnicode | kNtlmRequestTarget |
+    kNtlmNegotiateNtlm | kNtlmNegotiateAlwaysSign |
+    kRequiredStandaloneCredSspNtlmFlags | kNtlmNegotiate56;
 
 void storeLe16(std::uint8_t* bytes, std::uint16_t value) noexcept
 {
@@ -220,14 +224,7 @@ void storeLe32(std::uint8_t* bytes, std::uint32_t value) noexcept
     std::copy(signature.begin(), signature.end(), message.begin());
     message[8] = 1U;
 
-    constexpr std::uint32_t flags =
-        kNtlmNegotiateUnicode |
-        kNtlmRequestTarget |
-        kNtlmNegotiateNtlm |
-        kNtlmNegotiateAlwaysSign |
-        kRequiredStandaloneCredSspNtlmFlags |
-        kNtlmNegotiate56;
-    storeLe32(message.data() + 12U, flags);
+    storeLe32(message.data() + 12U, kDirectTypeOneFlags);
     return message;
 }
 
@@ -277,6 +274,16 @@ using ParsedTypeTwo =
     ParsedTypeTwo parsed;
     if (!rdp_server::tests::ntlm_type2_conformance::
             parseConformantChallenge(message, parsed))
+    {
+        return std::nullopt;
+    }
+
+    NtlmChallengeMessageObservation observation;
+    if (validateNtlmChallengeMessage(
+            message, kDirectTypeOneFlags, observation) !=
+            NtlmMessageParseResult::Parsed ||
+        !observation.targetTypeServer ||
+        !observation.targetNamePresent)
     {
         return std::nullopt;
     }

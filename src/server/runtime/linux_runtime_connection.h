@@ -460,6 +460,9 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
         standaloneNegotiationEnvelope{
             rdp_server::server::security::
                 StandaloneNtlmNegotiationEnvelope::Undetermined};
+    // Structural Type-2 metadata only; no challenge, response or key bytes.
+    rdp_server::server::security::NtlmChallengeMessageObservation
+        standaloneNtlmChallenge{};
     bool standalonePasswordSelected{};
     // Exact non-secret service credential generation pinned when R10 selected
     // StandalonePassword for this accepted connection. Zero for every other
@@ -1255,6 +1258,8 @@ private:
         standaloneNegotiationEnvelope_{
             rdp_server::server::security::
                 StandaloneNtlmNegotiationEnvelope::Undetermined};
+    rdp_server::server::security::NtlmChallengeMessageObservation
+        standaloneNtlmChallengeObservation_{};
     rdp_server::server::security::StandaloneAuthenticationFailureStage
         standaloneAuthenticationFailureStage_{
             rdp_server::server::security::

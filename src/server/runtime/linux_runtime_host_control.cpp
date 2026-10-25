@@ -32,6 +32,7 @@
 #include <pwd.h>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <arpa/inet.h>
@@ -431,6 +432,44 @@ readLinuxDefaultRoutePreferences()
         return "certificate-unavailable";
     }
     return "invalid";
+}
+
+[[nodiscard]] std::string_view ntlmChallengeAvIdsText(
+    const rdp_server::server::security::NtlmChallengeMessageObservation
+        &observation,
+    std::array<char, 128> &storage) noexcept
+{
+    char *cursor = storage.data();
+    char *const end = storage.data() + storage.size();
+    const std::size_t count = std::min(
+        observation.targetInfoAvIdCount,
+        observation.targetInfoAvIds.size());
+    if (count == 0U)
+    {
+        if (cursor != end)
+            *cursor++ = '-';
+        return {storage.data(),
+                static_cast<std::size_t>(cursor - storage.data())};
+    }
+
+    for (std::size_t index = 0U; index < count; ++index)
+    {
+        if (index != 0U)
+        {
+            if (cursor == end)
+                break;
+            *cursor++ = ',';
+        }
+        const auto converted = std::to_chars(
+            cursor, end,
+            static_cast<unsigned int>(
+                observation.targetInfoAvIds[index]));
+        if (converted.ec != std::errc{})
+            break;
+        cursor = converted.ptr;
+    }
+    return {storage.data(),
+            static_cast<std::size_t>(cursor - storage.data())};
 }
 
 [[nodiscard]] std::array<char, 65> tlsFingerprintText(
@@ -2421,6 +2460,10 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             const auto admissionReason =
                 runtimeAcceptedClientAdmissionFailureReasonName(
                     acceptedClientPreauthDiagnostics_.admissionFailureReason);
+            const auto &ntlmChallenge = diagnostics.standaloneNtlmChallenge;
+            std::array<char, 128> ntlmAvIdStorage{};
+            const std::string_view ntlmAvIds =
+                ntlmChallengeAvIdsText(ntlmChallenge, ntlmAvIdStorage);
 
             // One bounded fail-only record. Never add credentials, hashes,
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
@@ -2428,6 +2471,10 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
                 "protocol-stage=%s authentication-stage=%s admission=%.*s "
+                "ntlm-type1-flags=0x%08x ntlm-type2-flags=0x%08x "
+                "ntlm-target-name-code-units=%zu ntlm-target-info-bytes=%zu "
+                "ntlm-type2-bytes=%zu ntlm-av-ids=%.*s "
+                "ntlm-server-target=%s ntlm-target-name-present=%s "
                 "fingerprint=%s "
                 "ip-self-check=%s selected-cert=%s handshake-step=%llu "
                 "handshake-result=%s ssl-error=%d openssl-reason=%u "
@@ -2441,6 +2488,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                     acceptedClientPreauthDiagnostics_),
                 static_cast<int>(admissionReason.size()),
                 admissionReason.data(),
+                static_cast<unsigned int>(
+                    ntlmChallenge.clientNegotiateFlags),
+                static_cast<unsigned int>(ntlmChallenge.negotiateFlags),
+                ntlmChallenge.targetNameCodeUnits,
+                ntlmChallenge.targetInfoBytes,
+                ntlmChallenge.totalBytes,
+                static_cast<int>(ntlmAvIds.size()), ntlmAvIds.data(),
+                ntlmChallenge.targetTypeServer ? "yes" : "no",
+                ntlmChallenge.targetNamePresent ? "yes" : "no",
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),

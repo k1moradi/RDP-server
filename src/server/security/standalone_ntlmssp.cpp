@@ -28,8 +28,14 @@ constexpr std::size_t kNtlmV2FinalReservedBytes = 4U;
 constexpr std::uint16_t kMsvAvEol = 0U;
 constexpr std::uint16_t kMsvAvNbComputerName = 1U;
 constexpr std::uint16_t kMsvAvNbDomainName = 2U;
+constexpr std::uint16_t kMsvAvDnsComputerName = 3U;
+constexpr std::uint16_t kMsvAvDnsDomainName = 4U;
+constexpr std::uint16_t kMsvAvDnsTreeName = 5U;
 constexpr std::uint16_t kMsvAvFlags = 6U;
 constexpr std::uint16_t kMsvAvTimestamp = 7U;
+constexpr std::uint16_t kMsvAvSingleHost = 8U;
+constexpr std::uint16_t kMsvAvTargetName = 9U;
+constexpr std::uint16_t kMsvChannelBindings = 10U;
 constexpr std::uint32_t kMsvAvMicPresent = 0x00000002U;
 
 struct SecurityBuffer final
@@ -279,6 +285,116 @@ void writeUtf16LittleEndian(
            validUtf16(value, false);
 }
 
+struct ChallengeSecurityBuffer final
+{
+    ByteSpan bytes{};
+    std::size_t offset{};
+};
+
+[[nodiscard]] bool readChallengeSecurityBuffer(
+    ByteSpan message,
+    std::size_t fieldOffset,
+    ChallengeSecurityBuffer &output) noexcept
+{
+    output = {};
+    if (fieldOffset > message.size() ||
+        message.size() - fieldOffset < kSecurityBufferBytes)
+        return false;
+
+    const std::size_t length = loadLe16(message.data() + fieldOffset);
+    // MS-NLMP requires receivers to ignore MaximumLength.
+    const std::size_t offset = loadLe32(message.data() + fieldOffset + 4U);
+    if (offset < kChallengeHeaderBytes || offset > message.size() ||
+        length > message.size() - offset)
+        return false;
+
+    output.bytes = message.subspan(offset, length);
+    output.offset = offset;
+    return true;
+}
+
+[[nodiscard]] bool validUtf16LittleEndianBytes(
+    ByteSpan bytes, bool allowEmpty) noexcept
+{
+    if ((bytes.size() & 1U) != 0U || (!allowEmpty && bytes.empty()))
+        return false;
+    for (std::size_t index = 0U; index < bytes.size() / 2U; ++index)
+    {
+        const std::uint16_t code = loadLe16(bytes.data() + index * 2U);
+        if (code == 0U)
+            return false;
+        if (code >= 0xd800U && code <= 0xdbffU)
+        {
+            if (++index >= bytes.size() / 2U)
+                return false;
+            const std::uint16_t low =
+                loadLe16(bytes.data() + index * 2U);
+            if (low < 0xdc00U || low > 0xdfffU)
+                return false;
+        }
+        else if (code >= 0xdc00U && code <= 0xdfffU)
+            return false;
+    }
+    return true;
+}
+
+[[nodiscard]] bool parseChallengeTargetInfo(
+    ByteSpan targetInfo,
+    NtlmChallengeMessageObservation &output) noexcept
+{
+    output.targetInfoAvIds.fill(0U);
+    output.targetInfoAvIdCount = 0U;
+    std::size_t offset = 0U;
+    while (offset + 4U <= targetInfo.size())
+    {
+        const std::uint16_t avId = loadLe16(targetInfo.data() + offset);
+        const std::size_t avLength =
+            loadLe16(targetInfo.data() + offset + 2U);
+        offset += 4U;
+        if (avLength > targetInfo.size() - offset ||
+            output.targetInfoAvIdCount >= output.targetInfoAvIds.size())
+            return false;
+
+        output.targetInfoAvIds[output.targetInfoAvIdCount++] = avId;
+        if (avId == kMsvAvEol)
+            return avLength == 0U && offset == targetInfo.size();
+
+        const ByteSpan value = targetInfo.subspan(offset, avLength);
+        switch (avId)
+        {
+        case kMsvAvNbComputerName:
+        case kMsvAvNbDomainName:
+        case kMsvAvDnsComputerName:
+        case kMsvAvDnsDomainName:
+        case kMsvAvDnsTreeName:
+        case kMsvAvTargetName:
+            if (!validUtf16LittleEndianBytes(value, false))
+                return false;
+            break;
+        case kMsvAvFlags:
+            if (avLength != 4U)
+                return false;
+            break;
+        case kMsvAvTimestamp:
+            if (avLength != 8U)
+                return false;
+            break;
+        case kMsvAvSingleHost:
+            if (avLength != 48U)
+                return false;
+            break;
+        case kMsvChannelBindings:
+            if (avLength != 16U)
+                return false;
+            break;
+        default:
+            break;
+        }
+        offset += avLength;
+    }
+    return false;
+}
+
 } // namespace
 
 NtlmMessageParseResult parseNtlmNegotiateMessage(
@@ -324,6 +440,105 @@ NtlmMessageParseResult parseNtlmNegotiateMessage(
         return NtlmMessageParseResult::InvalidSecurityBuffer;
 
     output.negotiateFlags = flags;
+    return NtlmMessageParseResult::Parsed;
+}
+
+NtlmMessageParseResult validateNtlmChallengeMessage(
+    std::span<const std::uint8_t> message,
+    std::uint32_t clientNegotiateFlags,
+    NtlmChallengeMessageObservation &output) noexcept
+{
+    output = {};
+    if (message.size() < kChallengeHeaderBytes ||
+        message.size() > kMaximumStandaloneNtlmMessageBytes)
+        return NtlmMessageParseResult::InvalidInput;
+    if (!std::equal(kNtlmSignature.begin(), kNtlmSignature.end(),
+                    message.begin()))
+        return NtlmMessageParseResult::InvalidSignature;
+    if (loadLe32(message.data() + 8U) != 2U)
+        return NtlmMessageParseResult::WrongMessageType;
+
+    ChallengeSecurityBuffer targetName;
+    ChallengeSecurityBuffer targetInfo;
+    if (!readChallengeSecurityBuffer(message, 12U, targetName) ||
+        !readChallengeSecurityBuffer(message, 40U, targetInfo))
+        return NtlmMessageParseResult::InvalidSecurityBuffer;
+
+    const SecurityBuffer targetNameRange{targetName.bytes, targetName.offset};
+    const SecurityBuffer targetInfoRange{targetInfo.bytes, targetInfo.offset};
+    if (rangesOverlap(targetNameRange, targetInfoRange))
+        return NtlmMessageParseResult::InvalidSecurityBuffer;
+
+    const std::uint32_t flags = loadLe32(message.data() + 20U);
+    constexpr std::uint32_t clientCapabilityFlags =
+        kNtlmNegotiateUnicode | kNtlmNegotiateOem |
+        kNtlmNegotiateSign | kNtlmNegotiateSeal |
+        kNtlmNegotiateNtlm | kNtlmNegotiateAlwaysSign |
+        kNtlmNegotiateExtendedSessionSecurity | kNtlmNegotiateVersion |
+        kNtlmNegotiate128 | kNtlmNegotiateKeyExchange | kNtlmNegotiate56;
+    constexpr std::uint32_t allowedResponseFlags =
+        clientCapabilityFlags | kNtlmRequestTarget |
+        kNtlmTargetTypeDomain | kNtlmTargetTypeServer |
+        kNtlmNegotiateTargetInfo;
+    if ((flags & ~allowedResponseFlags) != 0U ||
+        (flags & clientCapabilityFlags & ~clientNegotiateFlags) != 0U)
+        return NtlmMessageParseResult::UnsupportedFlags;
+
+    constexpr std::uint32_t requiredFlags =
+        kNtlmNegotiateUnicode | kNtlmNegotiateNtlm |
+        kRequiredStandaloneCredSspNtlmFlags;
+    if ((flags & requiredFlags) != requiredFlags)
+        return NtlmMessageParseResult::UnsupportedFlags;
+
+    const bool targetTypeDomain = (flags & kNtlmTargetTypeDomain) != 0U;
+    const bool targetTypeServer = (flags & kNtlmTargetTypeServer) != 0U;
+    if (targetTypeDomain && targetTypeServer)
+        return NtlmMessageParseResult::UnsupportedFlags;
+
+    const bool targetNamePresent = !targetName.bytes.empty();
+    if (((flags & kNtlmRequestTarget) != 0U ||
+         targetTypeDomain || targetTypeServer) &&
+        !targetNamePresent)
+        return NtlmMessageParseResult::InvalidInput;
+
+    if (targetNamePresent &&
+        ((flags & kNtlmNegotiateUnicode) == 0U ||
+         (targetName.offset & 1U) != 0U ||
+         targetName.bytes.size() >
+             kMaximumStandaloneNtlmServerNameCodeUnits * 2U ||
+         !validUtf16LittleEndianBytes(targetName.bytes, false)))
+        return NtlmMessageParseResult::InvalidEncoding;
+
+    if (!allZero(message.subspan(32U, 8U)) ||
+        allZero(message.subspan(24U, kNtlmServerChallengeBytes)))
+        return NtlmMessageParseResult::InvalidInput;
+
+    if ((flags & kNtlmNegotiateVersion) != 0U)
+    {
+        if (!allZero(message.subspan(52U, 3U)) || message[55U] != 0x0fU)
+            return NtlmMessageParseResult::InvalidInput;
+    }
+    else if (!allZero(message.subspan(48U, 8U)))
+        return NtlmMessageParseResult::InvalidInput;
+
+    const bool targetInfoPresent = !targetInfo.bytes.empty();
+    if (((flags & kNtlmNegotiateTargetInfo) != 0U) != targetInfoPresent ||
+        (targetInfoPresent && (targetInfo.offset & 1U) != 0U))
+        return NtlmMessageParseResult::InvalidInput;
+
+    output.clientNegotiateFlags = clientNegotiateFlags;
+    output.negotiateFlags = flags;
+    output.targetNameCodeUnits = targetName.bytes.size() / 2U;
+    output.targetInfoBytes = targetInfo.bytes.size();
+    output.totalBytes = message.size();
+    output.targetTypeServer = targetTypeServer;
+    output.targetNamePresent = targetNamePresent;
+    if (targetInfoPresent && !parseChallengeTargetInfo(targetInfo.bytes, output))
+    {
+        output = {};
+        return NtlmMessageParseResult::InvalidInput;
+    }
+    output.valid = true;
     return NtlmMessageParseResult::Parsed;
 }
 
@@ -462,6 +677,17 @@ NtlmChallengeEncodeResult encodeNtlmChallengeMessage(
     offset += 4U;
 
     if (offset != totalBytes)
+    {
+        std::fill_n(output.begin(), totalBytes, std::uint8_t{0});
+        result.status = NtlmChallengeEncodeStatus::InvalidInput;
+        return result;
+    }
+
+    NtlmChallengeMessageObservation validation;
+    if (validateNtlmChallengeMessage(
+            std::span<const std::uint8_t>{output}.first(totalBytes),
+            parameters.clientNegotiateFlags, validation) !=
+        NtlmMessageParseResult::Parsed)
     {
         std::fill_n(output.begin(), totalBytes, std::uint8_t{0});
         result.status = NtlmChallengeEncodeStatus::InvalidInput;

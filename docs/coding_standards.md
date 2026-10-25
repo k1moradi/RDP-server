@@ -1,3 +1,35 @@
+## R2 Type-2 structural validation and safe diagnostics (2026-10-25)
+
+R2 consumes the portable server-TargetName correction and independent test
+oracle already on main, and adds a production CHALLENGE_MESSAGE validator that
+runs before every encoded Type 2 is published. Validate NTLMSSP signature and
+MessageType, TargetName/TargetInfo security-buffer ranges and nonoverlap,
+UTF-16LE TargetName/text AV values, server/domain target consistency,
+terminated TargetInfo AV framing, zero Reserved bytes, nonzero
+ServerChallenge, Version shape when negotiated, and client-capability response
+flags against the exact Type 1. Security-buffer MaximumLength is advisory on
+receipt per MS-NLMP; the writer continues to emit MaximumLength equal to
+Length.
+
+When TARGET_TYPE_SERVER is selected, TargetName is non-empty and is the already
+bounded portable computer identity. Never use the remote Username as
+TargetName. The alternative no-target-type/no-request-target/empty-TargetName
+shape may be structurally parsed for comparison, but it is not the standalone
+production profile unless later Microsoft evidence requires a different
+standards-compatible form.
+
+Only non-secret structural challenge metadata may survive into fail-only
+connection diagnostics: Type-1 flags, selected Type-2 flags, TargetName code
+units, TargetInfo bytes, total Type-2 bytes, bounded AV IDs, and target/name
+presence booleans. Never retain or print ServerChallenge bytes, NTLM responses,
+MIC/session keys, passwords or password-derived material.
+
+Owner evidence base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`
+remains Linux full CTest 975/975 PASS followed by real Windows App peer EOF
+after Type 2 with no Type 3. Preserve the current phase-owned pre-admission
+classification and same-listener retry coverage. Do not modify native
+admission, MCS, graphics or clipboard for this boundary.
+
 ## R9 independent Type-2 oracle and terminal authentication taxonomy (2026-10-25)
 
 A production NTLM Type-2 encoder must not qualify itself solely through a byte

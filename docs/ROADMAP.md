@@ -1,3 +1,36 @@
+## R2 P0 follow-up — production Type-2 validator and observability (2026-10-25)
+
+**Assignment evidence:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`
+passed Linux full CTest 975/975, then real Microsoft Windows App reached TLS,
+raw Direct NTLM Type 1 and server Type 2 before peer EOF; no Type 3 was
+observed. Native Admission was not reached.
+
+Shared main subsequently landed compatible prerequisites: the phase-owned
+peer-EOF classification/same-listener retry remains pre-admission,
+`df0f980c42e65a3727c06f4b819d0cddc70b1d34` emits portable
+`RDP-SERVER` as UTF-16LE TargetName with REQUEST_TARGET and
+TARGET_TYPE_SERVER, and the R9 test-only conformance oracle independently checks
+the emitted wire shape. R2 preserves all three and adds the remaining
+production assurance: a bounded CHALLENGE_MESSAGE validator, Microsoft's
+published fixture, self-validation before Type-2 publication, and redacted
+Type-2 shape diagnostics.
+
+The production validator checks signature/type, security-buffer
+bounds/nonoverlap, Unicode, target-type/name consistency, TargetInfo AV
+framing, Reserved/Version/challenge fields and legal response capabilities
+relative to Type 1. Runtime diagnostics retain structural scalars only:
+Type-1/Type-2 flags, TargetName code units, TargetInfo/total sizes, AV IDs and
+server-target/name presence. No challenge, response, session-key or credential
+material is retained or logged.
+
+**Next gate:** canonical owner full CTest and exact-SHA hosted CI, then repeat
+Windows App on that exact SHA. The primary physical question is whether a Type 3
+now arrives. If it does, continue through the unchanged NTLMv2
+proof/MIC/sign-seal/pubKeyAuth/authInfo chain. If it does not, use the redacted
+challenge-shape receipt to identify the next demonstrated NTLM compatibility
+difference. Native admission, MCS, Share, graphics and clipboard remain outside
+this fix.
+
 ## R9 P0 — independent Type-2 oracle and exact authentication boundary — 2026-10-25
 
 **Owner evidence base:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`,

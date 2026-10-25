@@ -44,8 +44,12 @@ library transitively through its runtime-security composition.
 The correction is test-only: link `rdp-server-standalone-ntlmv2` directly
 into `test_owned_preauth_session` on every platform. No transport,
 authentication, native-admission, MCS, graphics or clipboard production
-behavior changes. **Candidate remains NOT NOMINATED** until this publication
-SHA has the R9 sanitizer plus Linux/macOS/Windows protocol jobs green.
+behavior changes. Exact descendant
+`4d697c9730b809c0209955ea3dd053a22a87c4ed` has the workflow-structure
+guard, focused R9 security/protocol sanitizer gate, Linux/macOS/Windows protocol
+jobs and Windows CLANG64 job **PASS** in Actions run `40213510943`. The
+separate `r9-clean-windows-portable-gui` packaging job was still queued at
+this receipt and is not one of the six R9 authentication candidate conditions.
 
 ## R2 P0 follow-up — production Type-2 validator and observability (2026-10-25)
 
@@ -72,13 +76,14 @@ Type-1/Type-2 flags, TargetName code units, TargetInfo/total sizes, AV IDs and
 server-target/name presence. No challenge, response, session-key or credential
 material is retained or logged.
 
-**Next gate:** canonical owner full CTest and exact-SHA hosted CI, then repeat
-Windows App on that exact SHA. The primary physical question is whether a Type 3
-now arrives. If it does, continue through the unchanged NTLMv2
-proof/MIC/sign-seal/pubKeyAuth/authInfo chain. If it does not, use the redacted
-challenge-shape receipt to identify the next demonstrated NTLM compatibility
-difference. Native admission, MCS, Share, graphics and clipboard remain outside
-this fix.
+**Next gate:** the R9 hosted qualification subset is **PASS** on exact
+candidate `4d697c9730b809c0209955ea3dd053a22a87c4ed`; canonical owner-local
+full CTest on that SHA is still **NOT RUN**. Repeat Windows App on that exact
+candidate. The primary physical question is whether a Type 3 now arrives. If it
+does, continue through the unchanged NTLMv2 proof/MIC/sign-seal/pubKeyAuth/
+authInfo chain. If it does not, use the redacted challenge-shape receipt to
+identify the next demonstrated NTLM compatibility difference. Native admission,
+MCS, Share, graphics and clipboard remain outside this fix.
 
 ## R9 P0 — independent Type-2 oracle and exact authentication boundary — 2026-10-25
 
@@ -105,15 +110,21 @@ the independent Type-2 conformance case; the concurrent R10 publication already
 runs the Type-2 peer-EOF/retry fixture there and pins it in the structure
 validator.
 
-**Candidate remains NOT NOMINATED.** Publication requires full CTest, the
-focused R9 gate, Linux/macOS/Windows protocol jobs and Start -> Stop -> Start
-green on one SHA before another physical build. The next physical receipt
+**PHYSICAL OWNER CANDIDATE NOMINATED:** exact SHA
+`4d697c9730b809c0209955ea3dd053a22a87c4ed`. Actions run `40213510943`
+has the focused R9 Microsoft-CSSP sanitizer gate **PASS**, Linux/macOS/Windows
+protocol jobs **PASS**, Windows CLANG64 Debug/full CTest and Release/full CTest
+**PASS**, and the R9 Start -> Stop -> Start plus Type-2 EOF/retry fixtures
+**PASS** on that same SHA. The independent Type-2 conformance gate and
+DirectNtlm v6 full flow through CredentialsVerified also pass there.
+
+This satisfies the six owner-candidate conditions. The next physical receipt
 should show Type 1 accepted -> Type 2 delivered -> Type 3 received. Do not
 change logind/native admission, MCS, graphics or clipboard for this failure.
-
-Connector source/reconciliation review: **PASS**. Canonical owner-local
-post-change build/full CTest: **NOT RUN** here. Exact-publication-SHA hosted
-CI: **PENDING**. Physical retry: **NOT RUN**.
+Canonical owner-local post-change build/full CTest: **NOT RUN** here. The
+separate `r9-clean-windows-portable-gui` workflow job was still queued and
+is not used as R9 authentication-candidate evidence. Physical retry:
+**NOT RUN**.
 
 ## R10 P0 — phase-owned Type-2 EOF classification and same-listener retry — 2026-10-25
 
@@ -154,11 +165,13 @@ clipboard implementation changes here.
 
 **Verification:** assignment-parent owner CTest **975/975 PASS**. Connector
 source/reconciliation review: **PASS**. Modified-tree local build/focused/full
-CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Physical
-Microsoft-client retry: **NOT RUN**. **Next gate:** exact-SHA hosted
-qualification including both the portable TargetName test and dedicated
-EOF/retry fixture, then repeat the Windows App attempt; if it still closes
-before Type 3, inspect only the next demonstrated NTLM compatibility boundary.
+CTest: **NOT RUN** here. The R9 exact-SHA hosted qualification subset is
+**PASS** on `4d697c9730b809c0209955ea3dd053a22a87c4ed` in Actions run
+`40213510943`, including the portable TargetName test, dedicated EOF/retry
+fixture and Start -> Stop -> Start path. Physical Microsoft-client retry:
+**NOT RUN**. **Next gate:** repeat Windows App on that exact candidate; if it
+still closes before Type 3, inspect only the next demonstrated NTLM
+compatibility boundary.
 
 ## R4 P2 — remain blocked before graphics after Type-2 peer EOF (2026-10-25)
 

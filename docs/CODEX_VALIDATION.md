@@ -1,3 +1,36 @@
+## R9 physical Windows App candidate nomination — 2026-10-25
+
+Exact candidate SHA `4d697c9730b809c0209955ea3dd053a22a87c4ed`.
+GitHub Actions run `40213510943` supplies the required hosted qualification
+for the owner retry: workflow structure **PASS**; focused
+`r9-security-protocol-sanitizers` **PASS**; Ubuntu, macOS and Windows protocol
+jobs **PASS**; and the Windows CLANG64 job has Debug/full CTest and Release/full
+CTest **PASS**. The focused R9 step directly executes the production-backed
+Start -> Stop -> Start lifecycle, the Type-2 peer-EOF/same-listener retry,
+the independent Type-2 TargetName conformance gate and the DirectNtlm v6 full
+flow through CredentialsVerified.
+
+The exact candidate satisfies all six R9 nomination conditions. Pre-Type-3 EOF
+remains `NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None /
+PeerEof`; the challenge has a nonempty server TargetName with
+REQUEST_TARGET/TARGET_TYPE_SERVER; independent and production validators accept
+it; and the fresh retry continues through Type 3, pubKeyAuth and authInfo to
+CredentialsVerified before genuine native Admission is attempted.
+
+Canonical owner-local full CTest on this exact SHA: **NOT RUN**. Physical
+Microsoft Windows App retry on this exact SHA: **NOT RUN**. The separate
+`r9-clean-windows-portable-gui` packaging job was still queued in run
+`40213510943`; it is not part of the R9 authentication candidate gate and is
+not counted as PASS evidence.
+
+**Next physical boundary:** use exactly
+`4d697c9730b809c0209955ea3dd053a22a87c4ed` and determine whether the client
+now proceeds from Type 2 delivered to Type 3 received. If it still closes
+before Type 3, preserve the pre-admission boundary and use only the bounded
+challenge-shape/transport diagnostics to identify the next NTLM compatibility
+difference. Do not change native admission, MCS, graphics or clipboard for a
+pre-Type-3 failure.
+
 ## R5 current dependency-state receipt — 2026-10-25
 
 Checked exact main `4d697c9730b809c0209955ea3dd053a22a87c4ed` and Actions run `40213510943`. The previous

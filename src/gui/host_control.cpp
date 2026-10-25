@@ -125,11 +125,14 @@ using rdp_server::server::runtime::RuntimeHostError;
 
     if (isRemoteAuthenticationIncompleteBeforeAdmission(diagnostics))
     {
-        return diagnostics.authenticationStage ==
-                       RuntimeAcceptedClientAuthenticationStage::NtlmChallenge
+        const bool deliveredChallenge =
+            diagnostics.authenticationStage ==
+                RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+            diagnostics.directNtlmTypeTwoDelivered;
+        return deliveredChallenge
             ? QStringLiteral(
-                  "Authentication: NTLM challenge sent; "
-                  "client disconnected before response.")
+                  "NTLM challenge delivered; client disconnected before "
+                  "authentication response.")
             : QStringLiteral(
                   "Authentication: Direct NTLM — "
                   "client disconnected before authentication completed.");

@@ -263,47 +263,42 @@ authInfo and then genuine native Admission.
 
 ## R7 P1 — Type-2 peer-EOF GUI status accuracy (2026-10-25)
 
-**Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
-**Reconciled parent:** `73ec034c3f4231ece47400cb3b73e00c628c2dd0`.
-Owner Linux local CTest is **975/975 PASS** on the evidence baseline. The real
-Microsoft Windows App attempt established TLS, accepted raw Direct NTLM Type 1,
-received server Type 2, then closed with **peer EOF before Type 3**. It did not
-reach CredentialsVerified or native Admission.
+**Owner-evidence baseline / assignment main:**
+`1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+**Reconciled parent:** `c15eb4ee538bb555e9fd09f5f037dc30d6cb9a98`.
+Linux local CTest is **980/980 PASS**. The physical Linux/X11 owner run passes
+TCP, X.224/HYBRID and TLS, accepts raw Direct NTLM Type 1 and completely
+delivers server Type 2, then the peer terminates with EOF before any Type 3.
+Native Admission, MCS and graphics/native desktop are **NOT REACHED**.
 
-The reconciled parent already corrects the lower-layer retained diagnostic to
-the truthful pre-admission tuple:
-`NtlmChallenge / PreAdmission / CredSSP Closed / standalone failure None /
-admission None / PeerEof`. R7 consumes that bounded evidence without becoming
-a second protocol owner. Main now presents this case as
-`Remote client authentication did not complete.`; Advanced may say
-`Authentication: NTLM challenge sent; client disconnected before response.`.
+The first unresolved interoperability boundary is therefore Microsoft-client
+acceptance of the server CredSSP/NTLM Type-2 response. R7 does not change that
+wire behavior. Main keeps the product-safe message
+`Remote client authentication did not complete.` and never claims wrong
+password, local-desktop authorization failure or native-admission failure.
+Advanced uses the exact positive R1 receipt: only
+`directNtlmTypeTwoDelivered=true` permits
+`NTLM challenge delivered; client disconnected before authentication
+response.`; queued-only/legacy evidence falls back to a less-specific redacted
+authentication diagnostic.
 
-R7 additionally rejects the historical misleading
-`stage=admission; admission=none` shape as local-desktop authorization.
-Local-desktop product language now requires CredentialsVerified plus an actual
-Admission stage plus a concrete non-`None` typed admission reason. This keeps
-the earlier contradictory retained snapshot authentication-level even if it is
-encountered in a stale/fixture path.
+The existing dedicated CTest
+`gui.offscreen-authentication-incomplete-before-native-admission` covers the
+delivered receipt, queued-only fallback, historical
+`Admission/Failed/Admission/admission=None/PeerEof` safety path, neutral Main
+wording, Sharing/listener retention and configured-credential lifetime.
+Local-username suggestion and the independently user-entered Session Password
+remain unchanged; ordinary Stop/Start continues to retain the configured
+Session Password without forcing a Sharing re-toggle after one failed peer.
 
-A dedicated behavior CTest
-`gui.offscreen-authentication-incomplete-before-native-admission` covers both
-the corrected and historical tuples, Main/Advanced wording, blank Session
-Password editors, Sharing-ON/listener retention and configured-credential
-retention. The focused owner-GUI Release inventory is updated atomically from
-4 to 5 and its CI structure token is pinned.
+No authentication encoder, Linux native admission, MCS, graphics or clipboard
+production behavior changes in this R7 increment. Connector source/test
+reconciliation: **PASS by inspection**. Modified-tree build/focused/full
+CTest: **NOT RUN** in this connector environment. Hosted CI: **NOT RUN**.
 
-No authentication wire encoder, logind/native admission, MCS, graphics or
-clipboard production code changes in this R7 increment. Source inspection on
-the owner evidence path still identifies the Type-2 interoperability working
-hypothesis: `NTLMSSP_TARGET_TYPE_SERVER` is advertised while
-`TargetNameFields` are empty. That separate wire-layer issue remains the next
-authentication investigation; do not modify downstream layers to compensate.
-
-Connector source/test/workflow reconciliation: **PASS by inspection**.
-Canonical local build/full CTest for this publication: **NOT RUN** in this
-connector environment. Exact-publication-SHA hosted CI: **PENDING**. Real
-Microsoft-client retry after the separately reviewed Type-2 wire correction:
-**NOT RUN**.
+**Required next-owner gate:** do not nominate another Linux physical candidate
+until a Microsoft-native Windows SSPI test consumes the production Type 2 and
+produces a Type 3 Authenticate message.
 
 ## R1 P0 — exact Type-2 delivery and pre-Type-3 transport evidence (2026-10-25)
 

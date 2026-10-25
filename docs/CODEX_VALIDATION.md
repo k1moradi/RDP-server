@@ -318,42 +318,57 @@ changed.
 
 ## R7 Type-2 peer-EOF GUI status authoring receipt — 2026-10-25
 
-**Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
-**Reconciled parent:** `73ec034c3f4231ece47400cb3b73e00c628c2dd0`.
+**Owner-evidence baseline / assignment main:**
+`1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+**Reconciled parent:** `c15eb4ee538bb555e9fd09f5f037dc30d6cb9a98`.
+Owner Linux local full CTest is **980/980 PASS**.
 
-Owner evidence is Linux local full CTest **975/975 PASS** on the baseline and a
-real Microsoft Windows App connection that established TLS, sent raw Direct
-NTLM Type 1, received server Type 2, then closed with **peer EOF before Type
-3**. CredentialsVerified and native Admission were not reached.
+Physical Linux/X11 owner evidence stops at the Type-2 interoperability
+boundary:
 
-The reconciled parent already changed the runtime diagnostic owner so this peer
-retires with `NtlmChallenge`, protocol `PreAdmission`, CredSSP `Closed`,
-standalone failure `None`, admission reason `None` and transport
-`PeerEof`. R7 now maps that exact redacted tuple to Main
-`Remote client authentication did not complete.` and Advanced
-`Authentication: NTLM challenge sent; client disconnected before response.`.
+```text
+ntlm-type1-flags=0xe2088235
+ntlm-type2-flags=0xe08a8235
+ntlm-target-name-code-units=10
+ntlm-target-info-bytes=50
+ntlm-type2-bytes=126
+ntlm-av-ids=2,1,7,0
+ntlm-server-target=yes
+ntlm-target-name-present=yes
+direct-ntlm-type2=delivered
+pre-type3-termination=peer-eof-before-type3
+```
 
-R7 also hardens the presentation boundary against the historical misleading
-`Admission + CredSSP Failed + standalone Admission + admission None + PeerEof`
-tuple: without verified credentials and a concrete typed admission reason it
-cannot become local-desktop authorization. The dedicated CTest
-`gui.offscreen-authentication-incomplete-before-native-admission` covers both
-forms while proving listener/credential retention, Sharing ON and blank Session
-Password editors.
+TCP, X.224/HYBRID, TLS and raw Direct NTLM Type 1 pass; server Type 2 is
+completely delivered; Type 3 is **NOT RECEIVED**. Native Admission, MCS and
+graphics/native desktop are **NOT REACHED**.
 
-The focused owner-GUI Release selector now includes this behavior and its exact
-inventory changes from 4 to 5; the workflow structure validator requires the
-new test token. Existing generic authentication-failure wording and genuine
-typed native-admission failure wording remain separately covered.
+R7 keeps that failure authentication-level. Main remains
+`Remote client authentication did not complete.` and cannot present wrong
+password, local-desktop authorization failure or native-admission failure.
+Advanced now consumes the existing positive delivery receipt: when
+`directNtlmTypeTwoDelivered` is true it shows
+`NTLM challenge delivered; client disconnected before authentication
+response.`. A queued-only challenge snapshot falls back to the existing
+less-specific redacted Direct NTLM incomplete diagnostic; the GUI never
+manufactures a delivery fact from `NtlmChallenge` alone.
 
-No Type-2 encoder, logind/native admission, MCS, graphics or clipboard
-production code is changed by this commit. The Target-Type-Server with empty
-TargetNameFields shape remains a separate R2/security interoperability working
-hypothesis.
+The existing
+`gui.offscreen-authentication-incomplete-before-native-admission` regression
+is extended in place rather than duplicated. It covers both the positive
+delivery receipt and queued-only fallback, plus the historical misleading
+Admission tuple, while preserving Sharing ON, listener readiness and configured
+credential lifetime. Local Username suggestion, independent user-entered
+Session Password and ordinary Stop/Start credential retention are unchanged.
 
-Connector source/test/workflow reconciliation: **PASS by inspection**.
-Canonical local build/full CTest on this publication: **NOT RUN**.
-Exact-publication-SHA hosted CI: **PENDING**.
+No Type-2 encoder, Linux native admission, MCS, graphics or clipboard
+production behavior is changed. Connector source/test reconciliation:
+**PASS by inspection**. Modified-tree build/focused/full CTest: **NOT RUN**.
+Hosted CI: **NOT RUN**.
+
+**Next owner gate:** no further Linux physical candidate is nominated until a
+Microsoft-native Windows SSPI test consumes the production Type 2 and produces
+a Type 3 Authenticate message.
 
 ## R1 Direct NTLM Type-2 delivery/peer-close authoring receipt — 2026-10-25
 

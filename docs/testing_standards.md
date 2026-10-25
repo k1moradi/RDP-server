@@ -125,35 +125,37 @@ after Type 3/pubKeyAuth/authInfo complete.
 
 ## R7 Type-2 peer-EOF GUI presentation gate (2026-10-25)
 
-Owner evidence on baseline
-`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is Linux local CTest
-**975/975 PASS** plus a real Microsoft Windows App path:
-TLS established -> raw Direct NTLM Type 1 accepted -> server Type 2 sent ->
-**peer EOF**, with no Type 3. Native Admission was not reached.
+Owner evidence on assignment main
+`1e6a7c6ea11fcfde09061355328080591a6d7e30` is Linux local CTest
+**980/980 PASS** plus the physical Linux/X11 owner path: TCP,
+X.224/HYBRID and TLS pass; raw Direct NTLM Type 1 is accepted; server Type 2
+is completely delivered; the peer closes with EOF before any Type 3; native
+Admission, MCS and graphics/native desktop are not reached.
 
-The current lower-layer R10 classification retains that peer as
-`NtlmChallenge`, protocol `PreAdmission`, CredSSP `Closed`, standalone
-failure `NtlmNegotiation`, admission reason `None`, termination `PeerEof`.
-R7 may still recognize the immediately preceding standalone-failure-`None`
-tuple only as backward-safe presentation input. Keep a dedicated offscreen R7
-regression
-`gui.offscreen-authentication-incomplete-before-native-admission` that
-requires Main to show
-`Remote client authentication did not complete.`, Advanced to show
-`Authentication: NTLM challenge sent; client disconnected before response.`,
-and local-desktop authorization presentation to remain false.
+The retained runtime boundary is authentication-level:
+`NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`.
+Keep the dedicated offscreen regression
+`gui.offscreen-authentication-incomplete-before-native-admission`. Main must
+show `Remote client authentication did not complete.`, must not claim wrong
+password or local-desktop/native-admission failure, and must expose no NTLM
+protocol details. When `directNtlmTypeTwoDelivered` is true, Advanced may
+show `NTLM challenge delivered; client disconnected before authentication
+response.`. The same case must clear only that delivery receipt and prove the
+GUI falls back to a less-specific redacted authentication diagnostic rather
+than inferring delivery from the challenge stage.
 
-The same regression must also feed the historical contradictory
-`Admission/Failed/Admission/admission=None/PeerEof` tuple and prove R7 still
-fails toward authentication presentation rather than
-`Could not authorize access to the local desktop.`. In both forms, keep
-Sharing ON, the current listener and configured credential intact, and both
-Session Password editors blank. Do not expose Direct NTLM/NTLMSSP details on
-Main.
+The historical contradictory
+`Admission/Failed/Admission/admission=None/PeerEof` tuple must remain
+authentication-level as well. In all forms, keep Sharing ON, the listener and
+configured Session Password lifetime current, preserve the independent local
+Username convenience, and never require the owner to toggle Sharing again
+after one failed peer. Ordinary Stop/Start credential-retention coverage
+remains separate and must stay green.
 
-Enroll this case in the focused owner-GUI Release lane and update its exact
-inventory atomically. This R7 test does not validate the Type-2 encoder and
-must not alter logind/native admission, MCS, graphics or clipboard.
+This GUI gate does not validate or alter Type-2 wire bytes and must not change
+Linux native admission, MCS, graphics or clipboard. Do not nominate another
+Linux physical candidate until a Microsoft-native Windows SSPI test consumes
+the production Type 2 and produces a Type 3 Authenticate message.
 
 ## Direct NTLM Type-2 delivery and peer-EOF gates (2026-10-25)
 

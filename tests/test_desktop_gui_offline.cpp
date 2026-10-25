@@ -1541,6 +1541,10 @@ int main(int argc, char** argv)
         runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
             RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
         runtime.snapshot.acceptedClientPreauthDiagnostics
+            .directNtlmTypeTwoQueued = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .directNtlmTypeTwoDelivered = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
             .standaloneFailureStage =
                 RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
         runtime.snapshot.acceptedClientPreauthDiagnostics
@@ -1585,10 +1589,27 @@ int main(int argc, char** argv)
                 "Remote client authentication did not complete.")));
         assert(diagnostic->text() ==
                QStringLiteral(
-                   "Authentication: NTLM challenge sent; "
-                   "client disconnected before response."));
+                   "NTLM challenge delivered; client disconnected before "
+                   "authentication response."));
         assert(!availability->text().contains(
             QStringLiteral("local desktop"), Qt::CaseInsensitive));
+
+        // A challenge-stage snapshot alone is not a delivery receipt.
+        // Keep Main neutral and fall back to a less-specific redacted
+        // diagnostic when only the queued boundary is retained.
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .directNtlmTypeTwoDelivered = false;
+        window.refresh();
+        assert(availability->text() ==
+               QStringLiteral(
+                   "Remote client authentication did not complete."));
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Authentication: Direct NTLM — "
+                   "client disconnected before authentication completed."));
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .directNtlmTypeTwoDelivered = true;
+        window.refresh();
         for (QLabel* item : mainTab->findChildren<QLabel*>())
         {
             assert(!item->text().contains(

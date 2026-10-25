@@ -129,6 +129,16 @@ performed.
 
 **Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.
 
+**Owner physical follow-up on assignment baseline
+`9fd1db518076713f30b41af2aff023308f95a925`:** local full CTest was
+reported **966/966 PASS**. A real Microsoft client established TLS, selected
+Direct NTLM, accepted Type 1, received Type 2 and progressed CredSSP before
+production first failed at **`stage=admission`**; the first client ended as
+`termination=peer-eof`. Client app/build details were not supplied, so no
+specific compatibility-matrix row is claimed. This evidence freezes
+certificate/TLS/SPNEGO/NTLM behavior unless newer evidence identifies an
+earlier failure.
+
 The repository-side blockers discovered after the DirectNtlm transport work are
 resolved. Exact-SHA workflow `40130463921` has the required dependency jobs
 green:
@@ -151,13 +161,14 @@ Ubuntu full Debug CTest also reports **924/924 PASS**, including
 `transport.credssp-r1-owned-transport-generation`, and
 `transport.lan-listener-same-port-rebind-after-server-close`.
 
-**Dependency result:** R1 established TLS/transport provenance, R2 DirectNtlm
-CredSSP, R10 peer-retry/Stop->Start lifetime and the required hosted
-cross-platform qualification are no longer repository-side blockers. The next
-P0 boundary is owner-authorized physical Microsoft Windows App or
-`mstsc.exe` against this exact SHA, followed by genuine native R2 admission
-and then R3 MCS/Share progression. No live client, listener, desktop, service,
-input or clipboard action was performed in this qualification.
+**Dependency result:** TLS/transport provenance, DirectNtlm CredSSP,
+peer-retry/Stop->Start lifetime and the hosted cross-platform qualification are
+no longer repository-side blockers. The later physical receipt on
+`9fd1db518076713f30b41af2aff023308f95a925` demonstrates that a real
+Microsoft client reaches native **Admission**. The next P0 boundary is
+successful genuine native admission, followed by R3 MCS/Share progression.
+The older hosted qualification itself performed no live client, listener,
+desktop, service, input or clipboard action.
 
 The overall workflow may still contain unrelated queued packaging jobs; those
 do not block this R1->R2->R10 owner-candidate dependency gate.

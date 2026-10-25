@@ -4035,18 +4035,18 @@ int main(int argumentCount, char **argumentValues)
         testConnectionCredSspProgressAccounting(fixtureDirectory);
         return 0;
     }
-    if (testCase == "r1-tls-attach-independent-of-diagnostic-projection")
+    if (testCase == "tls-attach-independent-of-diagnostic-projection")
     {
         testConnectionR1TlsAttachIndependentOfDiagnosticProjection(
             fixtureDirectory);
         return 0;
     }
-    if (testCase == "linux-connection-r1-acceptance-diagnostics")
+    if (testCase == "linux-connection-tls-acceptance-diagnostics")
     {
         testConnectionR1AcceptanceDiagnostics(fixtureDirectory);
         return 0;
     }
-    if (testCase == "linux-connection-r1-terminal-transport-classification")
+    if (testCase == "linux-connection-terminal-transport-classification")
     {
         testConnectionR1TerminalTransportClassification(fixtureDirectory);
         return 0;
@@ -4153,7 +4153,7 @@ int main(int argumentCount, char **argumentValues)
         return 0;
     }
     if (testCase ==
-        "linux-connection-personal-license-request-r1-write-denials")
+        "linux-connection-personal-license-request-tls-write-denials")
     {
         testConnectionPersonalDesktopLicenseRequestR1WriteDenials(
             fixtureDirectory);
@@ -4166,20 +4166,20 @@ int main(int argumentCount, char **argumentValues)
         return 0;
     }
     if (testCase ==
-        "linux-connection-personal-client-licensing-r1-intake-denials")
+        "linux-connection-personal-client-licensing-tls-intake-denials")
     {
         testConnectionPersonalDesktopClientLicensingR1IntakeDenials(
             fixtureDirectory);
         return 0;
     }
     if (testCase ==
-        "linux-connection-personal-share-r1-io-denials")
+        "linux-connection-personal-share-tls-io-denials")
     {
         testConnectionPersonalDesktopShareR1IoDenials(fixtureDirectory);
         return 0;
     }
     if (testCase ==
-        "linux-connection-personal-graphics-dvc-r1-io-denials")
+        "linux-connection-personal-graphics-dvc-tls-io-denials")
     {
         testConnectionPersonalDesktopGraphicsDvcR1IoDenials(
             fixtureDirectory);
@@ -4207,7 +4207,7 @@ int main(int argumentCount, char **argumentValues)
         return 0;
     }
     if (testCase ==
-        "linux-connection-personal-valid-client-r1-write-denials")
+        "linux-connection-personal-valid-client-tls-write-denials")
     {
         testConnectionPersonalDesktopValidClientR1WriteDenials(
             fixtureDirectory);

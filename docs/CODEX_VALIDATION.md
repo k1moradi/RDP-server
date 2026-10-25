@@ -1,3 +1,43 @@
+## Owner physical admission-boundary transport/listener receipt — 2026-10-24
+
+**Assignment baseline:** `9fd1db518076713f30b41af2aff023308f95a925`.
+
+Owner-reported local full CTest: **966/966 PASS**. Exact local
+command/platform/toolchain were not supplied with this receipt and are therefore
+**NOT RECORDED**. Real Microsoft-client progression was:
+`TLS established -> Direct NTLM selected -> NTLM Type 1 accepted -> Type 2
+sent -> CredSSP progressed -> native Admission failed`.
+Observed first failure: **`stage=admission`**. First-client transport
+termination: **`peer-eof`**. Client application/build was not supplied, so no
+specific M2 matrix row is advanced.
+
+Source review confirms admission denial is already accepted-peer scoped:
+`LinuxRuntimeHostControl::retireAcceptedClient` snapshots transport
+diagnostics before explicit owner cancellation, leaves a valid listener open,
+does not revoke the configured Session Password, and returns service state to
+`ListenerAvailable`. `PeerEof` projects separately from `TlsFailure` and
+`LocalTlsFailure`.
+
+This change adds
+`runtime.linux-admission-denial-retains-listener-and-accepts-second-tls`.
+The production-backed fixture drives a valid TLS/DirectNtlm/CredSSP peer to
+`CredentialsVerified -> Admission denied`, verifies listener/owner/credential
+continuity, then accepts a second valid TLS/CredSSP peer immediately on the
+same listener generation with a fresh NTLM challenge. The existing full
+reconnect/Stop->Start lifecycle keeps the concurrent graphics/clipboard
+dormancy assertions.
+
+No certificate-generation, TLS-handshake, SPNEGO, DirectNtlm wire or native
+admission-policy behavior is changed. The fail-only log prefix is changed from
+the internal road-tagged `r1 tls terminal` wording to functional
+`tls terminal`, and the affected transport/TLS CTest names/labels drop the
+internal `r1` taxonomy.
+
+Post-change owner-local build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. Next gate: genuine
+native admission; do not reopen TLS/SPNEGO/NTLM without newer contradictory
+evidence.
+
 ## Owner Microsoft-client native-admission boundary and graphics dormancy follow-up — 2026-10-24
 
 **Owner-tested starting SHA:** `9fd1db518076713f30b41af2aff023308f95a925`.

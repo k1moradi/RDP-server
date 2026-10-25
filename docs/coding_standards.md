@@ -1,3 +1,31 @@
+## Native-admission denial is accepted-peer scoped (2026-10-24)
+
+Owner physical evidence on assignment baseline
+`9fd1db518076713f30b41af2aff023308f95a925` reached established TLS,
+selected Direct NTLM, accepted Type 1, sent Type 2 and progressed CredSSP
+before production reported `stage=admission`. Treat native admission as the
+first demonstrated failure boundary. Do not redesign the exact-IP certificate,
+TLS handshake, SPNEGO/DirectNtlm envelope or NTLM Type 1/2/3 path without
+newer evidence showing an earlier failure.
+
+A native-admission denial is connection-scoped. Retire the accepted connection
+and its children, but keep the still-current listener, local owner grant and
+configured generation-fenced memory-only Session Password. A later peer must
+be able to establish a fresh TLS/NTLM connection on the same listener without
+toggling Sharing. The new peer receives fresh transport and NTLM state; nothing
+from the denied peer is reused.
+
+Transport termination remains independent diagnostic truth. Snapshot it before
+owner cancellation. `PeerEof` remains `peer-eof`; it must never be rewritten
+as `tls-failure` merely because the connection was later rejected at native
+admission. Keep peer EOF/reset/alert, local TLS failure and owner cancellation
+distinct.
+
+CTest names, labels and user-visible test summaries use functional domains such
+as `transport`, `tls`, `security`, `authentication`, `admission` and
+`listener`. Internal road/agent ownership identifiers do not belong in those
+visible taxonomies.
+
 ## POSIX LAN listener restart preserves exact-endpoint exclusivity (2026-10-24)
 
 The opt-in LAN listener may set `SO_REUSEADDR` before a POSIX exact-address

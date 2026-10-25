@@ -1018,6 +1018,67 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
            control.startSharing().succeeded();
 }
 
+[[nodiscard]] PeerResult runAdmissionDeniedPeer(
+    LinuxRuntimeHostControl& control,
+    std::string_view address,
+    std::uint16_t port,
+    std::uint8_t nonceSeed,
+    std::uint64_t expectedListenerGeneration,
+    std::uint64_t expectedCredentialGeneration) noexcept
+{
+    std::atomic<bool> release{false};
+    std::atomic<bool> finished{false};
+    PeerResult peerResult;
+    std::thread peer([&] {
+        peerResult = runDirectNtlmPeer(
+            address, port, true, nonceSeed, release);
+        finished.store(true, std::memory_order_release);
+    });
+
+    assert(pumpUntil(
+        control, finished,
+        &directClientCredentialsVerifiedThenAdmissionDenied));
+    const auto status = control.status();
+    assert(status.listenerAvailable);
+    assert(status.listenerGeneration == expectedListenerGeneration);
+    assert(status.hostOwnerAuthorized);
+    assert(status.product.ownerAuthorized);
+    assert(status.product.state == RuntimeProductHostState::Listening);
+    assert(status.product.credentialsConfigured);
+    assert(status.stage == RuntimeHostStage::ListenerAvailable);
+    assert(status.clientDisconnected);
+    assert(status.activeClients.empty());
+    assert(status.acceptedClientPreauthDiagnostics.available);
+    assert(status.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
+           RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+    assert(status.acceptedClientPreauthDiagnostics.authenticationStage ==
+           RuntimeAcceptedClientAuthenticationStage::Authenticated);
+    assert(status.acceptedClientPreauthDiagnostics.credSspTransition ==
+           RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+    assert(status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
+           RuntimeAcceptedClientStandaloneFailureStage::Admission);
+    // Admission rejection is not a TLS failure. A peer EOF observed by the
+    // transport owner remains its distinct terminal category.
+    assert(status.acceptedClientPreauthDiagnostics.termination !=
+           RuntimeAcceptedClientTermination::TlsFailure);
+    assert(status.acceptedClientPreauthDiagnostics.termination !=
+           RuntimeAcceptedClientTermination::LocalTlsFailure);
+    assertClipboardDormant(status);
+    assertGraphicsDormant(status);
+    assert(status.acceptedClientPreauthDiagnostics
+               .standaloneCredentialGeneration ==
+           expectedCredentialGeneration);
+    assert(control.standaloneApplicationPasswordObservation().generation ==
+           expectedCredentialGeneration);
+
+    release.store(true, std::memory_order_release);
+    peer.join();
+    assert(peerResult.passed);
+    assert(peerResult.directTypeTwoReceived);
+    assert(peerResult.authInfoSent);
+    return peerResult;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1025,11 +1086,13 @@ int main(int argc, char** argv)
     if (argc != 2 || argv[1] == nullptr)
         return 2;
     const std::string_view testCase{argv[1]};
-    if (testCase !=
-        "direct-ntlm-reconnect-stop-start-lifecycle")
-    {
+    const bool fullLifecycle =
+        testCase == "direct-ntlm-reconnect-stop-start-lifecycle";
+    const bool admissionRetryOnly =
+        testCase ==
+        "admission-denial-retains-listener-and-accepts-second-tls";
+    if (!fullLifecycle && !admissionRetryOnly)
         return 2;
-    }
 
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return 77;
@@ -1098,95 +1161,88 @@ int main(int argc, char** argv)
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
 
-    // One malformed direct-NTLM reconnect is connection-terminal only. It must
-    // not turn Sharing off, revoke consent or replace the configured password.
-    std::atomic<bool> releaseBad{false};
-    std::atomic<bool> badFinished{false};
     PeerResult badResult;
-    std::thread badPeer([&] {
-        badResult = runDirectNtlmPeer(
-            recommendation.address, selectedPort, false, 0x10U, releaseBad);
-        badFinished.store(true, std::memory_order_release);
-    });
-    assert(pumpUntil(control, badFinished, &badClientRetired));
-    const auto afterBad = control.status();
-    assert(afterBad.stage == RuntimeHostStage::ListenerAvailable);
-    assert(afterBad.listenerAvailable);
-    assert(afterBad.listenerGeneration == firstListenerGeneration);
-    assert(afterBad.hostOwnerAuthorized);
-    assert(afterBad.product.ownerAuthorized);
-    assert(afterBad.product.state == RuntimeProductHostState::Listening);
-    assert(afterBad.product.credentialsConfigured);
-    assert(afterBad.clientDisconnected);
-    assert(!afterBad.nativeDesktopReady);
-    assert(!afterBad.nativeDesktopInitializing);
-    assertClipboardDormant(afterBad);
-    assert(afterBad.acceptedClientPreauthDiagnostics.available);
-    assert(afterBad.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
-           RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
-    assert(afterBad.acceptedClientPreauthDiagnostics.authenticationStage ==
-           RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
-    assert(afterBad.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
-           RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
-    assert(afterBad.acceptedClientPreauthDiagnostics.standaloneCredentialGeneration ==
-           credential.generation);
-    assert(control.standaloneApplicationPasswordObservation().generation ==
-           credential.generation);
-    releaseBad.store(true, std::memory_order_release);
-    badPeer.join();
-    assert(badResult.passed && badResult.directTypeTwoReceived);
+    if (fullLifecycle)
+    {
+        // One malformed direct-NTLM reconnect is connection-terminal only. It
+        // must not turn Sharing off, revoke consent or replace the configured
+        // Session Password.
+        std::atomic<bool> releaseBad{false};
+        std::atomic<bool> badFinished{false};
+        std::thread badPeer([&] {
+            badResult = runDirectNtlmPeer(
+                recommendation.address, selectedPort, false, 0x10U,
+                releaseBad);
+            badFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntil(control, badFinished, &badClientRetired));
+        const auto afterBad = control.status();
+        assert(afterBad.stage == RuntimeHostStage::ListenerAvailable);
+        assert(afterBad.listenerAvailable);
+        assert(afterBad.listenerGeneration == firstListenerGeneration);
+        assert(afterBad.hostOwnerAuthorized);
+        assert(afterBad.product.ownerAuthorized);
+        assert(afterBad.product.state == RuntimeProductHostState::Listening);
+        assert(afterBad.product.credentialsConfigured);
+        assert(afterBad.clientDisconnected);
+        assertClipboardDormant(afterBad);
+        assertGraphicsDormant(afterBad);
+        assert(afterBad.acceptedClientPreauthDiagnostics.available);
+        assert(afterBad.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+        assert(afterBad.acceptedClientPreauthDiagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
+        assert(afterBad.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+        assert(afterBad.acceptedClientPreauthDiagnostics
+                   .standaloneCredentialGeneration == credential.generation);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+        releaseBad.store(true, std::memory_order_release);
+        badPeer.join();
+        assert(badResult.passed && badResult.directTypeTwoReceived);
+    }
 
-    // The same listener accepts a new connection immediately. R10 creates a
-    // fresh R2 CredSSP/NTLM owner and challenge while reusing only the current
-    // service credential generation. Hosted synthetic owner evidence may
-    // qualify Start and credential lifetime, but the production admission
-    // broker still requires real logind evidence/change monitoring. Therefore
-    // this peer must reach CredentialsVerified and then fail closed at the
-    // native Admission boundary without taking Sharing down.
-    std::atomic<bool> releaseGoodOne{false};
-    std::atomic<bool> goodOneFinished{false};
-    PeerResult goodOneResult;
-    std::thread goodOne([&] {
-        goodOneResult = runDirectNtlmPeer(
-            recommendation.address, selectedPort, true, 0x20U,
-            releaseGoodOne);
-        goodOneFinished.store(true, std::memory_order_release);
-    });
-    assert(pumpUntil(
-        control, goodOneFinished,
-        &directClientCredentialsVerifiedThenAdmissionDenied));
-    const auto firstAuthenticated = control.status();
-    assert(firstAuthenticated.listenerGeneration ==
-           firstListenerGeneration);
-    assert(firstAuthenticated.hostOwnerAuthorized);
-    assert(firstAuthenticated.stage == RuntimeHostStage::ListenerAvailable);
-    assert(firstAuthenticated.clientDisconnected);
-    assert(firstAuthenticated.activeClients.empty());
-    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
-               .authenticationStage ==
-           RuntimeAcceptedClientAuthenticationStage::Authenticated);
-    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
-               .credSspTransition ==
-           RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
-    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
-               .standaloneFailureStage ==
-           RuntimeAcceptedClientStandaloneFailureStage::Admission);
-    // DirectNtlm crossed the complete CredSSP credential boundary. Hosted CI
-    // then correctly stopped at real native admission; no MCS or X11 authority
-    // may be inferred from synthetic owner evidence.
-    assert(!firstAuthenticated.nativeDesktopReady);
-    assert(!firstAuthenticated.nativeDesktopInitializing);
-    assertClipboardDormant(firstAuthenticated);
-    assertGraphicsDormant(firstAuthenticated);
-    assert(firstAuthenticated.acceptedClientPreauthDiagnostics
-               .standaloneCredentialGeneration == credential.generation);
-    releaseGoodOne.store(true, std::memory_order_release);
-    goodOne.join();
-    assert(goodOneResult.passed);
-    assert(goodOneResult.directTypeTwoReceived);
-    assert(goodOneResult.authInfoSent);
+    // The first valid peer crosses established TLS and complete DirectNtlm
+    // CredSSP credentials, then the production broker denies native admission.
+    // Only that accepted peer is retired; listener, owner grant and configured
+    // Session Password remain current.
+    const PeerResult goodOneResult = runAdmissionDeniedPeer(
+        control, recommendation.address, selectedPort, 0x20U,
+        firstListenerGeneration, credential.generation);
+    if (fullLifecycle)
+    {
+        assert(challengesDiffer(
+            badResult.serverChallenge, goodOneResult.serverChallenge));
+    }
+
+    // Physical-boundary regression: without Stop/Start or any Sharing restart,
+    // the unchanged listener accepts a second TLS/CredSSP client with fresh
+    // connection-local NTLM state after the first native Admission denial.
+    const PeerResult sameListenerRetryResult = runAdmissionDeniedPeer(
+        control, recommendation.address, selectedPort, 0x30U,
+        firstListenerGeneration, credential.generation);
     assert(challengesDiffer(
-        badResult.serverChallenge, goodOneResult.serverChallenge));
+        goodOneResult.serverChallenge,
+        sameListenerRetryResult.serverChallenge));
+    if (fullLifecycle)
+    {
+        assert(challengesDiffer(
+            badResult.serverChallenge,
+            sameListenerRetryResult.serverChallenge));
+    }
+
+    if (admissionRetryOnly)
+    {
+        assert(control.stopSharing().succeeded());
+        const auto retainedCredential =
+            control.standaloneApplicationPasswordObservation();
+        assert(retainedCredential.configured);
+        assert(retainedCredential.generation == credential.generation);
+        assert(control.revokeSharing().succeeded());
+        assert(!control.standaloneApplicationPasswordObservation().configured);
+        return 0;
+    }
 
     // Ordinary Stop retires the accepted client/listener/native/TLS owners and
     // consent, but retains the exact memory-only Session Password generation.
@@ -1197,8 +1253,7 @@ int main(int argc, char** argv)
     assert(!stopped.hostOwnerAuthorized);
     assert(stopped.credentialsConfigured);
     assert(stopped.activeClients.empty());
-    assert(!stopped.nativeDesktopReady);
-    assert(!stopped.nativeDesktopInitializing);
+    assertGraphicsDormant(stopped);
     assertClipboardDormant(stopped);
     const auto retained =
         control.standaloneApplicationPasswordObservation();
@@ -1207,7 +1262,7 @@ int main(int argc, char** argv)
 
     // A new Start requires fresh consent and fresh listener/TLS state, not
     // password re-entry. The next direct-NTLM client must authenticate with a
-    // third connection-local challenge/security context.
+    // fourth connection-local challenge/security context.
     assert(control.requestHostPermissionSetup(permission).succeeded());
     assert(startSharingOnPort(
         control, recommendation, selectedPort));
@@ -1217,52 +1272,19 @@ int main(int argc, char** argv)
     assert(restarted.listenerGeneration != firstListenerGeneration);
     assert(restarted.hostOwnerAuthorized);
     assert(restarted.credentialsConfigured);
-    assert(!restarted.nativeDesktopReady);
-    assert(!restarted.nativeDesktopInitializing);
+    assertGraphicsDormant(restarted);
     assertClipboardDormant(restarted);
     assert(control.standaloneApplicationPasswordObservation().generation ==
            credential.generation);
 
-    std::atomic<bool> releaseGoodTwo{false};
-    std::atomic<bool> goodTwoFinished{false};
-    PeerResult goodTwoResult;
-    std::thread goodTwo([&] {
-        goodTwoResult = runDirectNtlmPeer(
-            recommendation.address, selectedPort, true, 0x40U,
-            releaseGoodTwo);
-        goodTwoFinished.store(true, std::memory_order_release);
-    });
-    assert(pumpUntil(
-        control, goodTwoFinished,
-        &directClientCredentialsVerifiedThenAdmissionDenied));
-    const auto secondAuthenticated = control.status();
-    assert(secondAuthenticated.listenerGeneration ==
-           restarted.listenerGeneration);
-    assert(secondAuthenticated.stage == RuntimeHostStage::ListenerAvailable);
-    assert(secondAuthenticated.clientDisconnected);
-    assert(secondAuthenticated.activeClients.empty());
-    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
-               .authenticationStage ==
-           RuntimeAcceptedClientAuthenticationStage::Authenticated);
-    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
-               .credSspTransition ==
-           RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
-    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
-               .standaloneFailureStage ==
-           RuntimeAcceptedClientStandaloneFailureStage::Admission);
-    assert(!secondAuthenticated.nativeDesktopReady);
-    assert(!secondAuthenticated.nativeDesktopInitializing);
-    assertClipboardDormant(secondAuthenticated);
-    assertGraphicsDormant(secondAuthenticated);
-    assert(secondAuthenticated.acceptedClientPreauthDiagnostics
-               .standaloneCredentialGeneration == credential.generation);
-    releaseGoodTwo.store(true, std::memory_order_release);
-    goodTwo.join();
-    assert(goodTwoResult.passed);
-    assert(goodTwoResult.directTypeTwoReceived);
-    assert(goodTwoResult.authInfoSent);
+    const PeerResult goodTwoResult = runAdmissionDeniedPeer(
+        control, recommendation.address, selectedPort, 0x40U,
+        restarted.listenerGeneration, credential.generation);
     assert(challengesDiffer(
         goodOneResult.serverChallenge, goodTwoResult.serverChallenge));
+    assert(challengesDiffer(
+        sameListenerRetryResult.serverChallenge,
+        goodTwoResult.serverChallenge));
     assert(challengesDiffer(
         badResult.serverChallenge, goodTwoResult.serverChallenge));
 

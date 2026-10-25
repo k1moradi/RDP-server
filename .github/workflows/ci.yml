@@ -839,11 +839,11 @@ jobs:
           build/tests/test_owned_preauth_session \
             tcp-owned-hybrid-direct-ntlm-first-record
           build/tests/test_owned_preauth_session \
-            credssp-r1-owned-transport-generation
+            credssp-owned-transport-generation
           build/tests/test_owned_preauth_session \
-            credssp-r1-owned-framing
+            credssp-owned-tls-framing
           build/tests/test_owned_preauth_session \
-            credssp-r1-owned-reply
+            credssp-owned-tls-reply
           build/tests/test_owned_preauth_session \
             credssp-tls-certificate-pinning
 

@@ -1,3 +1,32 @@
+## Native-admission denial preserves transport/listener truth (2026-10-24)
+
+Owner physical evidence on assignment baseline
+`9fd1db518076713f30b41af2aff023308f95a925` reports local full CTest
+**966/966 PASS** and a real Microsoft client reaching established TLS, Direct
+NTLM Type 1/Type 2 and CredSSP before first failing at native
+`stage=admission`. The first client ended as `termination=peer-eof`.
+Treat native admission as the demonstrated boundary; do not change certificate
+generation, TLS, SPNEGO or DirectNtlm wire behavior without newer evidence of
+an earlier failure.
+
+Keep a production-backed behavior gate for:
+`established TLS -> CredentialsVerified -> native admission denied -> accepted
+peer retired -> listener still valid -> second TLS client accepted on the same
+listener`. It must prove the listener generation, local owner authorization
+and configured Session Password generation survive the denial, while each
+accepted connection receives fresh NTLM state. The dedicated CTest is
+`runtime.linux-admission-denial-retains-listener-and-accepts-second-tls`.
+
+Transport classification is independent of authentication/admission outcome.
+The existing native transport regression must keep TCP FIN without
+`close_notify` as `PeerEof` and local TLS failure as a separate category.
+Host retirement snapshots that transport fact before owner cancellation; an
+admission rejection must never rewrite `peer-eof` as `tls-failure`.
+
+CTest names/labels in this transport/TLS area use semantic taxonomy
+(`transport;tls;security;authentication;admission;listener`), not the
+internal road identifier.
+
 ## Admission-denied graphics dormancy and semantic taxonomy (2026-10-24)
 
 A real Microsoft-client run on owner-tested SHA

@@ -2266,7 +2266,7 @@ int main(int argc, char **argv)
             testStandaloneNativeAccountEvidenceCandidate();
             return 0;
         }
-        if (name == "gssapi-native-admission-r1-nla-provenance-denials")
+        if (name == "gssapi-native-admission-nla-transport-provenance-denials")
         {
             testNativeAdmissionR1NlaProvenanceDenials();
             return 0;

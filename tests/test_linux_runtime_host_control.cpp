@@ -423,6 +423,29 @@ int main(int argc, char** argv)
         assert(projected.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::None);
 
+        // A physical client can finish with peer EOF after credential
+        // verification and a native-admission rejection. Preserve both facts:
+        // admission remains the authentication failure boundary and peer EOF
+        // remains the transport termination, never rewritten as TLS failure.
+        source.credSspTransition = SourceCredSsp::CredentialsVerified;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::Authenticated;
+        source.standaloneNegotiationEnvelope =
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm;
+        source.standaloneAuthenticationFailureStage =
+            SourceFailure::Admission;
+        source.termination = SourceTermination::PeerEof;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Authenticated);
+        assert(projected.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::Admission);
+        assert(projected.termination ==
+               RuntimeAcceptedClientTermination::PeerEof);
+
         source.credSspTransition = SourceCredSsp::Failed;
         source.authenticationProgress =
             LinuxRuntimeAuthenticationProgress::CredSspSpnego;

@@ -2228,7 +2228,7 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
             std::fprintf(
                 stderr,
-                "rdp-server: r1 tls terminal: connection=%llu endpoint=%s "
+                "rdp-server: tls terminal: connection=%llu endpoint=%s "
                 "fingerprint=%s ip-self-check=%s selected-cert=%s "
                 "handshake-step=%llu handshake-result=%s ssl-error=%d "
                 "openssl-reason=%u termination=%s host-error=%u\n",

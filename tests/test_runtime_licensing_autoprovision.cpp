@@ -295,7 +295,7 @@ int main(int argc, char** argv)
         testMicrosoftTemporaryCertificateMarker();
     else if (testCase == "server-license-request-generated-identity")
         testServerLicenseRequestConsumesGeneratedIdentity();
-    else if (testCase == "distinct-from-r1-tls")
+    else if (testCase == "distinct-from-server-tls")
         testLicensingIdentityIsDistinctFromR1Tls();
     else
         return 2;

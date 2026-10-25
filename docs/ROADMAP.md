@@ -762,18 +762,27 @@ after retirement, then proves the next client receives fresh connection-local
 NTLM challenge state and proceeds independently. Existing stale receipt and
 X11 INCR restart cases continue to prove no transfer or clipboard generation
 crosses a rejected peer or Stop/restart boundary. Production activation remains
-literal false and no CLIPRDR traffic is authorized. Post-change owner-local full
-CTest and hosted CI are **NOT RUN / PENDING**; the canonical one-root command is
-unchanged.
+literal false and no CLIPRDR traffic is authorized. Owner-local full CTest on
+the current implementation remains **NOT RUN**. Exact implementation SHA
+`4d697c9730b809c0209955ea3dd053a22a87c4ed` is **PASS** for every
+R8-relevant hosted gate in Actions run `40213510943`: sanitizer job
+`121229641579` including the focused Type-2/EOF owner-candidate path and
+**97/97 clipboard-labelled tests**; Ubuntu protocol job `121229641576` with
+**935/935 Debug PASS**; macOS protocol job `121229641741`; and Windows
+protocol job `121229641770`. CI structure run `40213510861` is also PASS.
+The remaining queued clean-Windows portable-GUI packaging job is unrelated to
+R8 and is not counted as clipboard qualification evidence.
 
 This round also removes internal road identifiers from this ownership area's
 CTest/test-summary taxonomy. Bridge tests become `clipboard.route-bridge-*`,
 receipt/restart tests become `runtime.clipboard-*`, and affected labels use
 `clipboard;lifecycle;security` plus applicable runtime/platform labels. The
 Linux sanitizer clipboard inventory correspondingly changes from 89 to **97**
-registered clipboard-labeled tests. Exact-publication-SHA CI is **PENDING**.
-The Username-default request is independent GUI/authentication work and does not
-change clipboard authority.
+registered clipboard-labeled tests. Exact-SHA R8-relevant hosted qualification
+is **PASS** at `4d697c9730b809c0209955ea3dd053a22a87c4ed`; the complete
+97-test clipboard-labelled sanitizer inventory passed. The Username-default
+request is independent GUI/authentication work and does not change clipboard
+authority.
 
 The repository-side R8 regressions that were pending after the shared
 DirectNtlm lifetime work are now qualified. Workflow `40130463921` completed
@@ -798,11 +807,15 @@ for Type 3 and after its EOF retirement. This is test-only; no clipboard
 production source or activation changes.
 
 **Dependency result:** the former Type-2 wire-shape repository blocker is
-resolved by the authentication roads. R8 remains dormant because the next
-dependency is external qualification, not missing R8 code: exact-head hosted
-CI for the current descendant and then an owner-authorized physical Microsoft
-client retry. Do not add another synthetic integration path or activate
-clipboard merely to manufacture progress.
+resolved by the authentication roads, and the permitted R8 stale-state
+implementation is hosted-qualified on exact SHA
+`4d697c9730b809c0209955ea3dd053a22a87c4ed`. R9 has nominated that exact SHA
+for the next physical Windows App retry. R8 therefore remains dormant on an
+external dependency, not missing R8 code: the physical client must first show
+the corrected Type 2 is accepted and Type 3 arrives; later activation still
+requires genuine native R2 admission and R3 progression to GraphicsReady. Do
+not add another synthetic integration path or activate clipboard merely to
+manufacture progress.
 
 **Remaining R8 blocker:** production activation remains **P2 / BLOCKED** on the
 separate owner-authorized physical product receipt. The next upstream positive

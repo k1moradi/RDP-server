@@ -76,9 +76,17 @@ contain no clipboard permission, and graphics/native ownership remains absent.
 The same listener then accepts peer 2 with a fresh challenge and continues
 independently. This adds no CLIPRDR traffic, native clipboard owner or activation.
 
-Connector source/dependency review: **PASS**. Canonical owner-local build/full
-CTest for this modified tree: **NOT RUN**. Exact-publication-SHA hosted CI:
-**PENDING**. Physical Microsoft Windows App retry after the corrected Type 2:
+Connector source/dependency review: **PASS**. Exact implementation SHA
+`4d697c9730b809c0209955ea3dd053a22a87c4ed` has the R8-relevant hosted
+qualification **PASS**: CI structure run `40213510861`; workflow
+`40213510943` sanitizer job `121229641579` with the owner-candidate gate
+and **97/97 clipboard-labelled CTests PASS**; Ubuntu protocol job
+`121229641576` with **935/935 Debug PASS**; macOS protocol job
+`121229641741` PASS; Windows protocol job `121229641770` PASS. R9 has now
+nominated that exact SHA for the physical Windows App retry. The workflow's
+remaining queued `r9-clean-windows-portable-gui` job is unrelated to this R8
+boundary. Canonical owner-local build/full CTest for this implementation:
+**NOT RUN**. Physical Microsoft Windows App retry after the corrected Type 2:
 **NOT RUN**. R8 production activation therefore remains **P2 / BLOCKED** on
 external positive product evidence through genuine native admission and later
 R3/GraphicsReady; there is no remaining R8 implementation blocker inside the

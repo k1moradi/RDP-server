@@ -549,11 +549,11 @@ if(TARGET rdp-server-linux-host-control)
             SKIP_RETURN_CODE 77)
 
     add_test(
-        NAME runtime.linux-host-control-r3-diagnostic-dormancy-projection
+        NAME runtime.linux-host-control-pre-admission-protocol-dormancy
         COMMAND test_linux_runtime_host_control
             linux-host-control-r3-diagnostic-dormancy-projection)
     set_tests_properties(
-        runtime.linux-host-control-r3-diagnostic-dormancy-projection
+        runtime.linux-host-control-pre-admission-protocol-dormancy
         PROPERTIES
             LABELS "runtime;security;authentication;protocol;mcs;share;diagnostics;offline"
             SKIP_RETURN_CODE 77)

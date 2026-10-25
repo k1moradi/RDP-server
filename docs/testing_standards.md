@@ -104,7 +104,7 @@ desktop/clipboard dormancy. This prevents a correct presentation label from
 masking accidental R3 session advancement.
 
 Keep a separate deterministic offline projection regression,
-`runtime.linux-host-control-r3-diagnostic-dormancy-projection`, covering
+`runtime.linux-host-control-pre-admission-protocol-dormancy`, covering
 `AwaitVerifiedR2Admission`, terminal `Closed`, a genuine post-admission MCS
 phase and `ShareActivated`. The projection is diagnostic only and must not
 fabricate an R2 lease or drive production MCS/Share/RDPGFX state.

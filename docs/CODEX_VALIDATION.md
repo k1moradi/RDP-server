@@ -11,6 +11,11 @@ Concurrent Agent 6 work is consumed rather than duplicated:
 Windows-only `security.windows-sspi-production-type2-interop` uses native
 Microsoft SSPI for Type 1 -> unmodified production Type 2 -> Type 3 and is
 directly executed by Windows protocol CI.
+The first hosted configuration attempt was independently blocked by the
+concurrent registered name `runtime.linux-host-control-r3-diagnostic-dormancy-projection`,
+which violates the functional CTest-taxonomy policy. Rename only the registered
+name to `runtime.linux-host-control-pre-admission-protocol-dormancy`; retain the
+internal fixture-mode string and behavior.
 
 R9 authors all-platform
 `security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`. It reads

@@ -4,6 +4,10 @@
 Agent 6's Windows-only `security.windows-sspi-production-type2-interop` is
 present on main and directly executed by the Windows protocol job. Its hosted
 PASS is required evidence; source presence alone is not a candidate receipt.
+The reconciled parent also carried an R3 diagnostic CTest registered with an
+internal road token; rename only that public CTest to functional taxonomy so
+all hosted configurations can reach the Windows oracle. The fixture dispatch
+string and R3 behavior remain unchanged.
 
 R9 adds the independent outer-envelope assurance required by the owner
 assignment. `security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`

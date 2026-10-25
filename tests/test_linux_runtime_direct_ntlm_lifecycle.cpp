@@ -1057,6 +1057,33 @@ struct PeerResult final
     return badClientRetired(control.status());
 }
 
+[[nodiscard]] bool directTypeTwoPeerEofRemainsPreAdmission(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    return status.listenerAvailable &&
+           status.clientDisconnected &&
+           status.activeClients.empty() &&
+           diagnostics.available &&
+           diagnostics.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
+           diagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+           diagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission &&
+           diagnostics.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::Closed &&
+           diagnostics.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::None &&
+           diagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None &&
+           diagnostics.termination ==
+               RuntimeAcceptedClientTermination::PeerEof &&
+           !status.nativeDesktopReady &&
+           !status.nativeDesktopInitializing &&
+           !status.graphicsReady;
+}
+
 [[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
     const RuntimeHostStatus& status) noexcept
 {
@@ -1201,7 +1228,10 @@ int main(int argc, char** argv)
             "admission-denial-retains-listener-and-accepts-second-tls" ||
         testCase ==
             "admission-denial-exposes-bounded-reason-and-retries";
-    if (!fullLifecycle && !admissionRetryOnly)
+    const bool typeTwoPeerEofOnly =
+        testCase ==
+            "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
+    if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly)
         return 2;
 
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
@@ -1270,6 +1300,61 @@ int main(int argc, char** argv)
     const std::uint64_t firstListenerGeneration =
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
+
+    if (typeTwoPeerEofOnly)
+    {
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> closeAfterTypeTwo{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                typeTwoReceived, closeAfterTypeTwo);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(
+            control, typeTwoReceived, peerFinished));
+        const auto waitingForTypeThree = control.status();
+        assert(waitingForTypeThree.activeClients.size() == 1U);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.available);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::AwaitingToken);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::None);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
+
+        closeAfterTypeTwo.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        peer.join();
+
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+        const auto afterTypeTwoEof = control.status();
+        assert(directTypeTwoPeerEofRemainsPreAdmission(afterTypeTwoEof));
+        assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
+        assert(afterTypeTwoEof.hostOwnerAuthorized);
+        assert(afterTypeTwoEof.product.ownerAuthorized);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     PeerResult badResult;
     PeerResult typeTwoEofResult;

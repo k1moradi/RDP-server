@@ -1,3 +1,40 @@
+## R3 remains blocked at Direct NTLM Type-2 peer EOF — 2026-10-25
+
+**Owner evidence base:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest
+**975/975 PASS**. A real Microsoft Windows App attempt established TLS, sent a
+raw Direct NTLM Type 1, received the server Type 2, then closed with
+**peer EOF**; no Type 3 was observed. That connection did **not** reach
+CredentialsVerified or native Admission. The prior
+`stage=admission; admission=none` output is therefore a diagnostic
+misclassification for this path, not evidence that the admission broker ran.
+
+R3 remains **P2 / BLOCKED**. No MCS, Share, licensing or RDPGFX wire changes
+are permitted for this failure. R3 begins only after
+`CredentialsVerified -> positive native admission -> MCS Connect-Initial`.
+While Direct NTLM is waiting for Type 3, the authoritative diagnostic remains
+`protocol-stage=pre-admission`.
+
+This increment changes diagnostics only: a peer transport close with no
+parser-reported authentication failure preserves the last positive Direct NTLM
+boundary (`NtlmChallenge` / Type 2 sent), protocol `PreAdmission`, no
+standalone failure, no admission reason and R1 `PeerEof`. It reuses the
+concurrently landed Type-2-hold lifecycle fixture and adds the dedicated
+production-backed CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics`.
+
+Source inspection also confirms the current Type-2 encoder sets
+`kNtlmTargetTypeServer` while the TargetName security-buffer length and
+maximum length remain zero. That is the current R2/security interoperability
+working hypothesis for the Microsoft peer rejecting Type 2. This R3-scoped
+diagnostic increment deliberately does **not** change the Type-2 encoder,
+logind/native admission, MCS, Share, licensing, RDPGFX, graphics or clipboard.
+
+Concurrent R8 publication `2ebeaf2cc1a7d79dddabc951a7139adbc56de953`
+was reconciled and preserved. Connector source/reconciliation review:
+**PASS**. Modified-tree owner-local build/full CTest: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. Real Microsoft-client retry after
+a separately reviewed Type-2 wire correction: **NOT RUN**.
+
 ## Hosted GUI compile-warning blocker correction — 2026-10-24
 
 **Reconciled parent:** `78fdc6ebd2dac77b497e54dc4dc71743c2a0ef17`. Current-head hosted CI reached the

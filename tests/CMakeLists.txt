@@ -443,6 +443,18 @@ if(TARGET rdp-server-linux-host-control)
         PROPERTIES
             LABELS "clipboard;lifecycle;security;runtime;transport;tls;credssp;authentication;admission;ntlmv2;linux;native-environment"
             SKIP_RETURN_CODE 77)
+    # Type 2 delivered and peer EOF before Type 3 remains pre-admission;
+    # this diagnostic gate grants no native, MCS, graphics or clipboard authority.
+    add_test(
+        NAME runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-type2-peer-eof-pre-admission-diagnostics)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     add_test(
         NAME runtime.linux-admission-denial-retains-listener-and-accepts-second-tls
         COMMAND test_linux_runtime_direct_ntlm_lifecycle

@@ -1,3 +1,20 @@
+## Direct NTLM Type-2 peer EOF remains pre-admission (2026-10-25)
+
+A transport close after a successfully delivered Direct NTLM Type 2 but before
+any Type 3 is observed is not native Admission. When the retained CredSSP/NTLM
+owner reports no authentication failure and R1 reports the connection closed,
+preserve the last positive authentication boundary as `NtlmChallenge`, keep
+the protocol stage `PreAdmission`, keep the admission reason `None`, and
+preserve R1's exact termination such as `PeerEof`. Do not synthesize an
+`Admission` failure merely because the next credential frame never arrived.
+
+Only completed credentials followed by the actual native-admission call may
+produce an Admission diagnostic. R3 must not respond to a Type-2 compatibility
+failure by changing MCS, Share, licensing or RDPGFX. The current
+Target-Type-Server/empty-TargetName Type-2 shape is an R2/security wire
+interoperability hypothesis and requires its own standards-backed review; a
+diagnostic correction must not silently alter that wire contract.
+
 ## Local username suggestion is convenience, never authentication (2026-10-24)
 
 The standalone Username field may default to a safely observed current local

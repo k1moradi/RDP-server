@@ -1177,19 +1177,34 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
 
     auto fail = [&](Step status, std::size_t bytesRead = 0U,
                     std::size_t bytesWritten = 0U) noexcept {
-        auto failureStage = standaloneCredSspAcceptor_.failureStage();
-        if (failureStage ==
-            rdp_server::server::security::
-                StandaloneAuthenticationFailureStage::None)
-        {
-            failureStage =
-                rdp_server::server::security::
-                    StandaloneAuthenticationFailureStage::Admission;
-        }
+        using FailureStage = rdp_server::server::security::
+            StandaloneAuthenticationFailureStage;
+        const auto failureStage = standaloneCredSspAcceptor_.failureStage();
+        const bool transportClosedWithoutAuthenticationFailure =
+            status == Step::Closed &&
+            failureStage == FailureStage::None &&
+            !connection_.active();
+
         captureNegotiationEnvelope();
-        recordStandaloneAuthenticationFailure(failureStage);
-        credSspDiagnosticTransition_ =
-            LinuxRuntimeCredSspDiagnosticTransition::Failed;
+        if (transportClosedWithoutAuthenticationFailure)
+        {
+            // A peer transport close while waiting for the next CredSSP frame
+            // is still pre-admission. Preserve the last positive Direct NTLM
+            // boundary (for example Type 2 sent / Type 3 not observed) and let
+            // R1's terminal transport classification remain authoritative.
+            credSspDiagnosticTransition_ =
+                LinuxRuntimeCredSspDiagnosticTransition::Closed;
+        }
+        else
+        {
+            const auto diagnosticFailureStage =
+                failureStage == FailureStage::None
+                    ? FailureStage::Admission
+                    : failureStage;
+            recordStandaloneAuthenticationFailure(diagnosticFailureStage);
+            credSspDiagnosticTransition_ =
+                LinuxRuntimeCredSspDiagnosticTransition::Failed;
+        }
         credSspFrameReader_.close();
         credSspReplyWriter_.close();
         if (principalProof_ != nullptr)

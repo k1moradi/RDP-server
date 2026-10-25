@@ -1,3 +1,19 @@
+## Direct NTLM Type-2 peer-EOF diagnostic gate (2026-10-25)
+
+Keep the dedicated production-backed lifecycle CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics`. Reuse
+the shared real listener/HYBRID TLS/Direct-NTLM fixture: hold the peer after it
+receives Type 2 and require `protocolStage == PreAdmission` while Type 3 is
+still absent; then close the TCP connection without TLS `close_notify`.
+
+After retirement, require Direct NTLM `NtlmChallenge`, protocol
+`PreAdmission`, no standalone authentication failure, no native-admission
+reason and transport `PeerEof`. Native desktop, MCS, graphics and clipboard
+authority remain absent. Do not fabricate Type 3, CredentialsVerified or native
+admission to make this gate pass. Owner base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is
+**975/975 PASS**; that receipt predates this CTest and does not qualify the
+modified tree.
+
 ## Direct-NTLM Type-2 peer EOF is pre-admission clipboard dormancy (2026-10-25)
 
 A client that receives a Direct NTLM Type 2 challenge and closes before sending

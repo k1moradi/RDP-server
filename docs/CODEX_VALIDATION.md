@@ -1,3 +1,26 @@
+## Direct NTLM Type-2 peer-EOF pre-admission diagnostic authoring receipt — 2026-10-25
+
+Owner evidence on `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`: Linux local full CTest **975/975 PASS**.
+The real Microsoft Windows App path was TLS established -> raw Direct NTLM
+Type 1 accepted -> server Type 2 sent -> **peer EOF**, with **no Type 3
+observed**. Native Admission was not reached; the emitted
+`stage=admission; admission=none` was misleading classification.
+
+Source inspection confirms the reported Type-2 shape: the encoder includes
+`kNtlmTargetTypeServer` while TargetName length/max-length remain zero. No
+Type-2/CredSSP wire behavior is changed here. The runtime now treats a peer
+transport close with no parser-reported authentication failure as a closed
+pre-admission attempt instead of manufacturing Admission. The dedicated CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` reuses
+the Type-2-hold fixture from concurrent commit
+`2ebeaf2cc1a7d79dddabc951a7139adbc56de953` and requires
+`protocol-stage=pre-admission` semantics both while waiting for Type 3 and
+after R1 records `PeerEof`.
+
+Connector source/reconciliation review: **PASS**. Modified-tree canonical local
+build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+Real Microsoft-client retry: **NOT RUN**.
+
 ## GUI Admission diagnostic range-loop compile correction — 2026-10-24
 
 Exact-parent hosted CI on `78fdc6ebd2dac77b497e54dc4dc71743c2a0ef17` exposed one remaining test-only

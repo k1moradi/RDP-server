@@ -2133,7 +2133,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^gui[.]offscreen-r10-lifecycle-and-terminal-close-denials$'
+          selector='^gui[.]offscreen-lifecycle-and-terminal-close-denials$'
           selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$selected_tests"
           grep -Fq ': gui.offscreen-lifecycle-and-terminal-close-denials' <<< "$selected_tests"

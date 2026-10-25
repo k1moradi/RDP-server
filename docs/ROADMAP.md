@@ -1,3 +1,23 @@
+## Functional Qt lifecycle selector reconciliation — 2026-10-24
+
+Current main already carries the detailed native-Admission reason taxonomy,
+safe local Username default, functional CTest labels/names and the existing
+Direct-NTLM / Start -> Stop -> Start qualification gates. A final CI audit
+found one stale macOS focused selector still matching the retired
+`gui.offscreen-r10-lifecycle-and-terminal-close-denials` name while its
+exact-one assertion expected the functional
+`gui.offscreen-lifecycle-and-terminal-close-denials` CTest.
+
+The selector now uses the functional name and the workflow structure validator
+both requires that selector and rejects the stale internal-road spelling.
+No production, TLS, SPNEGO, NTLM, Admission, GUI or CTest behavior changes.
+
+**Candidate remains NOT NOMINATED.** Source/selector review: **PASS**.
+Canonical owner-local full CTest for this correction: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. The next owner build remains
+gated on full CTest plus detailed Admission, Username, taxonomy,
+Start -> Stop -> Start and Direct NTLM qualification on the same candidate.
+
 ## CTest taxonomy structure-validator correction — 2026-10-24
 
 Exact implementation SHA `50801a4baf0ee74053636fe0b1574cd2bf97c539`

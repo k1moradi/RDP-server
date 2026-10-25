@@ -1,3 +1,23 @@
+## Functional Qt lifecycle selector correction receipt — 2026-10-24
+
+**Reconciled parent:** `d2b7375ff5cf012eb252e19149dfb63b0941d3b1`.
+
+Repository review found one remaining CI selector dependency on an internal
+road name: the macOS exact-one lifecycle step selected
+`gui.offscreen-r10-lifecycle-and-terminal-close-denials` after the registered
+CTest had moved to
+`gui.offscreen-lifecycle-and-terminal-close-denials`. The grep/assertion
+already expected the functional name, so the stale selector could only produce
+a false qualification failure.
+
+The workflow selector is corrected and
+`scripts/validate_ci_workflow.py` now requires the functional selector while
+forbidding the stale spelling. No production or protocol source changes.
+
+Connector source review: **PASS**. Canonical owner-local full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. No owner candidate
+is nominated by this correction.
+
 ## CTest taxonomy structure-validator correction receipt — 2026-10-24
 
 Implementation SHA `50801a4baf0ee74053636fe0b1574cd2bf97c539`

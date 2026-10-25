@@ -214,6 +214,7 @@ REQUIRED_TOKENS = (
     "runtime.linux-portable-gui-bootstrap-listener-acceptance",
     "gui.offscreen-owner-acceptance-consumer-start-orchestration",
     "gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission",
+    "selector='^gui[.]offscreen-lifecycle-and-terminal-close-denials$'",
     "runtime.desktop-shared-configuration-feed",
     "rdp-server-owner-acceptance-linux",
     "owner-acceptance ZIP failed canonical no-argument startup smoke",
@@ -511,6 +512,10 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(not missing, f"missing required jobs: {', '.join(missing)}")
         for token in REQUIRED_TOKENS:
             require(token in text, f"missing required workflow token: {token}")
+        require(
+            "offscreen-r10-lifecycle-and-terminal-close-denials" not in text,
+            "stale internal-road Qt lifecycle selector remains in workflow",
+        )
         for target in REQUIRED_BUILD_TARGETS:
             require(target in text, f"missing sanitizer build target: {target}")
         require(

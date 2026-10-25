@@ -388,21 +388,26 @@ clipboard action was performed here. Canonical owner-local
 
 **Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.
 
-**Owner follow-up at assignment baseline `9fd1db518076713f30b41af2aff023308f95a925`:**
-local CTest **966/966 PASS**. The real Microsoft client reached established
-TLS -> Direct NTLM -> accepted Type 1 -> emitted Type 2 -> continued CredSSP,
-then failed first at native Admission with `stage=admission`. That is now the
-first demonstrated product failure boundary; this clipboard track does not
-reopen TLS/SPNEGO/NTLM.
+**Owner follow-up at assignment baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`:**
+local CTest **975/975 PASS**. The real Microsoft Windows App attempt established
+TLS, sent raw Direct NTLM Type 1, received the server Type 2, then closed; no
+Type 3 was observed. Native Admission, MCS, Share, graphics and clipboard were
+therefore **NOT REACHED**. The retained `stage=admission; admission=none`
+diagnostic is misleading for that peer and is not authority. The reported
+Type-2 TargetName/target-type mismatch remains an upstream authentication
+hypothesis; R8 does not alter the NTLM encoder.
 
 **Dormancy confirmation:** native/CLIPRDR construction remains reachable only
-from `AcceptedClientPhase::GraphicsReady`. Admission-rejected peers therefore
-create no clipboard owner. The shared reconnect lifecycle requires clipboard
-Unavailable and no clipboard permission after both malformed and
-CredentialsVerified->Admission-denied peers; the stale receipt and X11 INCR
-restart cases continue to prove no transfer or clipboard generation crosses a
-rejected peer or Stop/restart boundary. Production activation remains literal
-false and no CLIPRDR traffic is authorized.
+from `AcceptedClientPhase::GraphicsReady`. The shared reconnect lifecycle now
+also holds a client immediately after Type 2, closes it before Type 3, requires
+clipboard `Unavailable`, no clipboard permission and no native/graphics owner
+after retirement, then proves the next client receives fresh connection-local
+NTLM challenge state and proceeds independently. Existing stale receipt and
+X11 INCR restart cases continue to prove no transfer or clipboard generation
+crosses a rejected peer or Stop/restart boundary. Production activation remains
+literal false and no CLIPRDR traffic is authorized. Post-change owner-local full
+CTest and hosted CI are **NOT RUN / PENDING**; the canonical one-root command is
+unchanged.
 
 This round also removes internal road identifiers from this ownership area's
 CTest/test-summary taxonomy. Bridge tests become `clipboard.route-bridge-*`,
@@ -425,13 +430,15 @@ Ubuntu protocol job `120980921253` completed the ordinary Debug suite
 `runtime.r8-x11-restart-incr-isolation` and
 `runtime.r8-r3-repeated-restart-receipt-isolation` are therefore green on the
 same qualified SHA. macOS and Windows shared protocol jobs are also PASS on
-that SHA. The current descendant `feb0866c720142e3b696e49bbc03c971b61a874a`
-changes documentation only, so no R8 production/test source differs from the
-qualified tree.
+that SHA. The historical qualified baseline through
+`feb0866c720142e3b696e49bbc03c971b61a874a` remains valid for the earlier
+dormant/stale-lifetime inventory. The new Type-2-then-EOF assertion is a
+test-only extension on the current assignment baseline and has not yet received
+post-publication hosted or owner-local qualification.
 
-**Dependency result:** there is no remaining repository-side blocker for R8's
-permitted dormant/stale-lifetime work. Do not add another synthetic integration
-path merely to manufacture progress.
+**Dependency result:** R8 remains dormant. The only new repository task is
+qualification of this stale-state assertion; do not add another synthetic
+integration path or activate clipboard merely to manufacture progress.
 
 **Remaining R8 blocker:** production activation remains **P2 / BLOCKED** on the
 separate owner-authorized physical product receipt. The next upstream positive

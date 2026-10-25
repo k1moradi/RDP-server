@@ -927,6 +927,45 @@ struct PeerResult final
     return result;
 }
 
+[[nodiscard]] PeerResult runDirectTypeTwoThenClosePeer(
+    std::string_view address,
+    std::uint16_t port,
+    std::atomic<bool>& typeTwoReceived,
+    std::atomic<bool>& closeAfterTypeTwo) noexcept
+{
+    PeerResult result;
+    NetworkTlsClient client;
+    if (!client.connectHybrid(address, port))
+        return result;
+
+    const auto negotiate = directTypeOne();
+    const auto initialRequest = initialTokenRequest(negotiate);
+    if (!client.writeFrame(initialRequest))
+        return result;
+
+    const auto challengeFrame = client.readFrame();
+    if (!challengeFrame)
+        return result;
+    const auto parsedChallengeFrame =
+        parseCredSspTsRequest(*challengeFrame);
+    if (!parsedChallengeFrame ||
+        parsedChallengeFrame.value.tokenCount != 1U)
+    {
+        return result;
+    }
+
+    const auto challenge =
+        parseDirectTypeTwo(parsedChallengeFrame.value.tokens[0]);
+    if (!challenge)
+        return result;
+
+    result.directTypeTwoReceived = true;
+    result.serverChallenge = challenge->challenge;
+    typeTwoReceived.store(true, std::memory_order_release);
+    result.passed = waitForRelease(closeAfterTypeTwo);
+    return result;
+}
+
 [[nodiscard]] bool pumpUntil(
     LinuxRuntimeHostControl& control,
     const std::atomic<bool>& peerFinished,
@@ -945,6 +984,25 @@ struct PeerResult final
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     return predicate(control.status());
+}
+
+[[nodiscard]] bool pumpUntilPeerSignal(
+    LinuxRuntimeHostControl& control,
+    const std::atomic<bool>& signal,
+    const std::atomic<bool>& peerFinished) noexcept
+{
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (signal.load(std::memory_order_acquire))
+            return true;
+        if (peerFinished.load(std::memory_order_acquire))
+            return false;
+        (void)control.serviceOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return signal.load(std::memory_order_acquire);
 }
 
 [[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
@@ -982,6 +1040,21 @@ struct PeerResult final
     return status.listenerAvailable &&
            status.clientDisconnected &&
            status.activeClients.empty();
+}
+
+[[nodiscard]] bool pumpUntilClientRetired(
+    LinuxRuntimeHostControl& control) noexcept
+{
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (badClientRetired(control.status()))
+            return true;
+        (void)control.serviceOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return badClientRetired(control.status());
 }
 
 [[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
@@ -1199,6 +1272,7 @@ int main(int argc, char** argv)
     assert(firstListenerGeneration != 0U);
 
     PeerResult badResult;
+    PeerResult typeTwoEofResult;
     if (fullLifecycle)
     {
         // One malformed direct-NTLM reconnect is connection-terminal only. It
@@ -1238,6 +1312,54 @@ int main(int argc, char** argv)
         releaseBad.store(true, std::memory_order_release);
         badPeer.join();
         assert(badResult.passed && badResult.directTypeTwoReceived);
+
+        // A peer that consumes Type 2 and closes before Type 3 has no
+        // credential, admission, native desktop, graphics or clipboard
+        // authority. Keep it alive until the server has exposed the accepted
+        // connection so the close cannot be confused with the prior peer's
+        // retained terminal snapshot.
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> closeAfterTypeTwo{false};
+        std::atomic<bool> typeTwoEofFinished{false};
+        std::thread typeTwoEofPeer([&] {
+            typeTwoEofResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                typeTwoReceived, closeAfterTypeTwo);
+            typeTwoEofFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(
+            control, typeTwoReceived, typeTwoEofFinished));
+
+        const auto beforeTypeTwoEof = control.status();
+        assert(beforeTypeTwoEof.listenerAvailable);
+        assert(beforeTypeTwoEof.listenerGeneration ==
+               firstListenerGeneration);
+        assert(beforeTypeTwoEof.activeClients.size() == 1U);
+        assertClipboardDormant(beforeTypeTwoEof);
+        assertGraphicsDormant(beforeTypeTwoEof);
+
+        closeAfterTypeTwo.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        typeTwoEofPeer.join();
+        assert(typeTwoEofResult.passed);
+        assert(typeTwoEofResult.directTypeTwoReceived);
+
+        const auto afterTypeTwoEof = control.status();
+        assert(afterTypeTwoEof.stage == RuntimeHostStage::ListenerAvailable);
+        assert(afterTypeTwoEof.listenerAvailable);
+        assert(afterTypeTwoEof.listenerGeneration ==
+               firstListenerGeneration);
+        assert(afterTypeTwoEof.hostOwnerAuthorized);
+        assert(afterTypeTwoEof.product.ownerAuthorized);
+        assert(afterTypeTwoEof.product.state ==
+               RuntimeProductHostState::Listening);
+        assert(afterTypeTwoEof.product.credentialsConfigured);
+        assert(afterTypeTwoEof.clientDisconnected);
+        assert(afterTypeTwoEof.activeClients.empty());
+        assertClipboardDormant(afterTypeTwoEof);
+        assertGraphicsDormant(afterTypeTwoEof);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
     }
 
     // The first valid peer crosses established TLS and complete DirectNtlm
@@ -1251,6 +1373,9 @@ int main(int argc, char** argv)
     {
         assert(challengesDiffer(
             badResult.serverChallenge, goodOneResult.serverChallenge));
+        assert(challengesDiffer(
+            typeTwoEofResult.serverChallenge,
+            goodOneResult.serverChallenge));
     }
 
     // Physical-boundary regression: without Stop/Start or any Sharing restart,

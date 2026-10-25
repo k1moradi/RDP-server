@@ -399,18 +399,24 @@ desktop or listener action was performed.
 ## R8 hosted stale-lifetime qualification receipt — 2026-10-24
 
 **Current owner follow-up:** assignment baseline
-`9fd1db518076713f30b41af2aff023308f95a925` has owner-reported local CTest
-**966/966 PASS** and real Microsoft-client progression through TLS, Direct NTLM
-Type 1/Type 2 and CredSSP to first failure at native Admission
-(`stage=admission`). No TLS/SPNEGO/NTLM change is justified by this clipboard
-review.
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` has owner-reported local CTest
+**975/975 PASS**. The real Microsoft Windows App attempt established TLS, sent
+raw Direct NTLM Type 1, received the server Type 2, then closed with no Type 3
+observed. Native Admission was **NOT REACHED**; the retained
+`stage=admission; admission=none` string is misleading for this peer and is
+not positive admission evidence. The reported Type-2 TargetName/target-type
+mismatch is upstream authentication work and is intentionally unchanged here.
 
 Dormancy review is **PASS by source/test inspection**: the production clipboard
 activation gate remains false; the production native/clipboard aggregate has a
 single construction call under `AcceptedClientPhase::GraphicsReady`; the
-shared admission-denial lifecycle reports clipboard Unavailable with no
-clipboard permission; stale receipt and X11 INCR restart tests cover transfer
-and generation retirement. No live clipboard action was performed.
+shared reconnect lifecycle now adds a deterministic Type-2-then-EOF peer,
+requires clipboard Unavailable/no clipboard permission with no native or
+graphics owner after retirement, and proves the next peer receives a fresh
+connection-local NTLM challenge. Stale receipt and X11 INCR restart tests still
+cover transfer/generation retirement. No live clipboard action was performed by
+this change. Post-change canonical owner-local full CTest: **NOT RUN**; hosted
+publication-SHA CI: **PENDING**.
 
 Current taxonomy cleanup renames the user-visible bridge/receipt/restart CTests
 to semantic `clipboard.route-bridge-*` / `runtime.clipboard-*` names and uses
@@ -438,14 +444,14 @@ reconnect/Stop->Start fixture also remains labeled `r8-lifetime;clipboard`
 and passed the sanitizer owner-candidate lane without creating native/graphics
 or clipboard authority.
 
-The current descendant `feb0866c720142e3b696e49bbc03c971b61a874a` is
-documentation-only relative to the qualified SHA. No R8 source/test behavior
-changed after qualification.
+The historical descendant `feb0866c720142e3b696e49bbc03c971b61a874a` is
+documentation-only relative to that qualified SHA. The current assignment adds
+the Type-2-then-EOF stale-state assertion after that historical qualification;
+its post-publication hosted and owner-local results are **PENDING / NOT RUN**.
 
-Repository-side dormant/stale-lifetime qualification: **PASS**. Canonical
-owner-local build/full CTest: **NOT RUN**. Physical R8 product acceptance:
-**BLOCKED / NOT RUN — requires explicit owner live-test authorization**.
-No live clipboard action was performed.
+Repository-side dormant/stale-lifetime behavior remains the intended boundary.
+Physical R8 product acceptance is **BLOCKED / NOT RUN** and clipboard
+activation remains forbidden. No live clipboard action was performed.
 
 ## R1/R2/R9 hosted owner-candidate qualification receipt (2026-10-24)
 

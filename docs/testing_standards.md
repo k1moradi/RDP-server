@@ -1,3 +1,20 @@
+## Direct-NTLM Type-2 peer EOF is pre-admission clipboard dormancy (2026-10-25)
+
+A client that receives a Direct NTLM Type 2 challenge and closes before sending
+Type 3 has not supplied credentials and has not reached native Admission.
+Regression coverage must keep the listener and configured credential lifetime
+separate from that accepted peer, require no native desktop/graphics owner,
+`RuntimeClipboardState::Unavailable`, and no clipboard permission, then prove
+the next accepted client starts with fresh connection-local NTLM state. A
+retained diagnostic such as `stage=admission; admission=none` is not evidence
+that native Admission ran.
+
+This is a stale-lifetime/dormancy gate only. It must not activate CLIPRDR,
+construct a native clipboard owner, change the Direct-NTLM encoder, or modify
+native-admission policy merely to satisfy clipboard coverage. Reuse the shared
+production-backed reconnect/Stop->Start lifecycle rather than adding a second
+clipboard scheduler or authentication fixture.
+
 ## Test-helper declaration-order guard (2026-10-24)
 
 When a new C++ test helper calls another free function defined later in the

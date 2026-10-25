@@ -21,9 +21,10 @@ sequence protection; SIGN/SEAL/ESS/128 are not weakened.
 Baseline rejection remains a hard failure. Fail-only diagnostics then retry
 fresh SSPI contexts with one semantic delta at a time: offered VERSION with
 portable zero product/build + revision `0x0f`, timestamp-AV removal,
-same-length TargetName text replacement, or one selected optional legal flag.
-The first delta that produces Type 3 is reported but remains diagnostic
-evidence only.
+same-length server identity replacement in both TargetName and the matching
+computer-name AV, or one selected optional legal flag. Each mutated Type 2 must
+pass the production structural validator before SSPI consumes it. The first
+delta that produces Type 3 is reported but remains diagnostic evidence only.
 
 C++ source was syntax-checked locally against narrow SSPI/project API stubs:
 **PASS**. Native Windows compile/CTest: **NOT RUN** in this environment.

@@ -447,18 +447,24 @@ enum class ChallengeVariant : std::uint8_t
     return false;
 }
 
-[[nodiscard]] bool replaceTargetNameText(
+[[nodiscard]] bool replaceServerIdentityText(
     std::span<std::uint8_t> message) noexcept
 {
+    // TargetName and MsvAvNbComputerName are two encodings of one semantic
+    // server identity. Keep them equal so this remains one legal experiment.
     constexpr std::u16string_view alternateName{u"SSPI-SRV01"};
     if (message.size() < 48U)
         return false;
 
     const std::size_t targetNameLength = loadLe16(message.data() + 12U);
     const std::size_t targetNameOffset = loadLe32(message.data() + 16U);
+    const std::size_t targetInfoLength = loadLe16(message.data() + 40U);
+    const std::size_t targetInfoOffset = loadLe32(message.data() + 44U);
     if (targetNameLength != alternateName.size() * 2U ||
         targetNameOffset > message.size() ||
-        targetNameLength > message.size() - targetNameOffset)
+        targetNameLength > message.size() - targetNameOffset ||
+        targetInfoOffset > message.size() ||
+        targetInfoLength > message.size() - targetInfoOffset)
     {
         return false;
     }
@@ -469,7 +475,33 @@ enum class ChallengeVariant : std::uint8_t
             message.data() + targetNameOffset + index * 2U,
             static_cast<std::uint16_t>(alternateName[index]));
     }
-    return true;
+
+    const std::size_t targetInfoEnd = targetInfoOffset + targetInfoLength;
+    std::size_t cursor = targetInfoOffset;
+    while (cursor + 4U <= targetInfoEnd)
+    {
+        const std::uint16_t avId = loadLe16(message.data() + cursor);
+        const std::size_t avLength = loadLe16(message.data() + cursor + 2U);
+        cursor += 4U;
+        if (avLength > targetInfoEnd - cursor)
+            return false;
+        if (avId == 0U)
+            return false;
+        if (avId == 1U)
+        {
+            if (avLength != alternateName.size() * 2U)
+                return false;
+            for (std::size_t index = 0; index < alternateName.size(); ++index)
+            {
+                storeLe16(
+                    message.data() + cursor + index * 2U,
+                    static_cast<std::uint16_t>(alternateName[index]));
+            }
+            return true;
+        }
+        cursor += avLength;
+    }
+    return false;
 }
 
 [[nodiscard]] bool applyVariant(
@@ -488,7 +520,7 @@ enum class ChallengeVariant : std::uint8_t
     case ChallengeVariant::WithoutTimestamp:
         return removeTimestampFromTargetInfo(storage, messageSize);
     case ChallengeVariant::DifferentTargetName:
-        return replaceTargetNameText(message);
+        return replaceServerIdentityText(message);
     case ChallengeVariant::WithoutOem:
         return clearChallengeFlag(message, kNtlmNegotiateOem);
     case ChallengeVariant::WithoutAlwaysSign:
@@ -593,6 +625,15 @@ struct AttemptResult final
     if (!result.variantApplied)
         return result;
     result.typeTwoFlags = loadLe32(typeTwo.data() + 20U);
+    result.failureStage = "validate-single-delta";
+    NtlmChallengeMessageObservation variantObservation;
+    if (validateNtlmChallengeMessage(
+            std::span<const std::uint8_t>{typeTwo}.first(typeTwoSize),
+            result.typeOneFlags,
+            variantObservation) != NtlmMessageParseResult::Parsed)
+    {
+        return result;
+    }
 
     TokenBuffer typeThree;
     result.failureStage = "initialize-type3";

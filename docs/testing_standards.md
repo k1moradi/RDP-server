@@ -22,11 +22,14 @@ If the production challenge is rejected, the same failing CTest runs
 diagnostic fresh-context experiments, one property per attempt: add VERSION
 only when Microsoft's Type 1 advertised it, using the already-qualified
 test-only portable zero product/build plus NTLM revision `0x0f`; remove only
-the timestamp AV from TargetInfo; replace only the same-length TargetName text;
-or clear one currently selected non-required legal flag (OEM, ALWAYS_SIGN,
-KEY_EXCHANGE or 56). Never clear SIGN, SEAL, ESS or 128-bit requirements. The
-baseline still fails even when a diagnostic variant produces Type 3; fail-only
-output records every single-delta result and the first accepted one. Production
+the timestamp AV from TargetInfo; replace the same-length server identity in
+both TargetName and its matching MsvAvNbComputerName AV as one semantic
+property; or clear one currently selected non-required legal flag (OEM,
+ALWAYS_SIGN, KEY_EXCHANGE or 56). Never clear SIGN, SEAL, ESS or 128-bit
+requirements. Every mutated profile must still pass the production Type-2
+structural validator before SSPI consumes it. The baseline still fails even
+when a diagnostic variant produces Type 3; fail-only output records every
+single-delta result and the first accepted one. Production
 changes require that Windows evidence and remain a separate owner decision.
 
 This oracle answers only Microsoft's acceptance of the inner production NTLM

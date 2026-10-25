@@ -22,11 +22,12 @@ is visible before the ordinary full CTest.
 
 If the current production Type 2 is rejected, the failing test runs only
 fresh-context one-property diagnostics for VERSION, TargetInfo timestamp,
-same-length TargetName text and selected non-required legal flags. VERSION
-uses the already-qualified portable zero product/build + revision `0x0f`
-profile. SIGN, SEAL, ESS and 128-bit requirements are never relaxed. A
-diagnostic acceptance does not make the test green and does not authorize a
-production change.
+same-length server TargetName identity (including the matching computer-name
+AV) and selected non-required legal flags. VERSION uses the already-qualified
+portable zero product/build + revision `0x0f` profile. Every diagnostic Type 2
+must remain structurally valid. SIGN, SEAL, ESS and 128-bit requirements are
+never relaxed. A diagnostic acceptance does not make the test green and does
+not authorize a production change.
 
 **Verification at authoring:** source/C++ narrow-stub syntax review **PASS**;
 Windows SSPI execution **NOT RUN**; exact-publication-SHA hosted CI

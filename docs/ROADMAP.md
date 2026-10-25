@@ -1,3 +1,19 @@
+## Retry-helper compile-order correction — 2026-10-24
+
+**Reconciled parent:** `c49f7d6d7b022c8c1a62fe0071b26151ec435170`. Post-reconciliation source review
+found the new Direct-NTLM retry synchronization helper called
+`directClientCredentialsVerifiedThenAdmissionDenied()` before that function
+was declared. The test translation unit now declares the predicate before the
+helper. This is compile-order/test scaffolding only; no production TLS, CredSSP,
+Admission, listener, native desktop, graphics or clipboard behavior changes.
+
+Connector source review: **PASS**. Owner-local full CTest: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**. The positive product dependency
+remains a physical Microsoft-client run that either reaches genuine native
+Admission and then MCS/Share, or reports the bounded
+`stage=admission; admission=<reason>`. Graphics remains blocked until
+`GraphicsReady`.
+
 ## Hosted Admission qualification regressions reconciled — 2026-10-24
 
 **Reconciled parent:** `1a635f88a4ee41bb87efe9cd859ecdb0c8116745`. Review of exact-SHA hosted failures

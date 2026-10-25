@@ -1,3 +1,15 @@
+## Retry-helper compile-order authoring receipt — 2026-10-24
+
+Parent `c49f7d6d7b022c8c1a62fe0071b26151ec435170` reconciled the hosted Admission test regressions.
+Immediate source review found one C++ declaration-order defect in that test-only
+change: `pumpUntilNewAttemptAdmissionDenied()` referenced the Admission
+predicate before its declaration. A forward declaration now preserves the
+existing helper/definition order without changing behavior.
+
+Production C++: **UNCHANGED**. Connector source review: **PASS**. Owner-local
+build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+Physical Microsoft-client retry: **NOT RUN**.
+
 ## Hosted Admission blocker reconciliation receipt — 2026-10-24
 
 Parent `1a635f88a4ee41bb87efe9cd859ecdb0c8116745` had already resolved the lower-layer product

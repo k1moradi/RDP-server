@@ -947,6 +947,9 @@ struct PeerResult final
     return predicate(control.status());
 }
 
+[[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
+    const RuntimeHostStatus& status) noexcept;
+
 [[nodiscard]] bool pumpUntilNewAttemptAdmissionDenied(
     LinuxRuntimeHostControl& control,
     const std::atomic<bool>& peerFinished) noexcept

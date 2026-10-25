@@ -1,3 +1,10 @@
+## Test-helper declaration-order guard (2026-10-24)
+
+When a new C++ test helper calls another free function defined later in the
+translation unit, move the callee earlier or add an explicit declaration before
+the helper. Source-only reconciliation must still be compile-valid before
+hosted CI is treated as qualification evidence.
+
 ## Hosted retry and taxonomy fixture rules (2026-10-24)
 
 A retained terminal diagnostic snapshot describes the previous accepted peer.

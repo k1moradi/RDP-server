@@ -1,3 +1,21 @@
+## Admission reason fixture compile correction — 2026-10-24
+
+Exact-SHA CI for `9968d45822bd961c19743e380a5d73af3c4d1394`
+qualified the production Linux runtime-security job but Ubuntu ordinary protocol
+compilation failed in the new deterministic fixture because the test attempted
+to call private `OwnedPreauthTcpConnection::completeCredSspAdmission()`
+directly. Production admission behavior was not implicated.
+
+The fixture now exercises the same
+`CredSspAdmissionCompletionFailed` reason without private access: its
+test-only authenticated proof cancels its owned connection during successful
+native-proof completion, so the immediately following production broker
+CredSSP-completion call fails through the real public ownership path. No
+production code, TLS/SPNEGO/NTLM behavior or admission authority is changed.
+
+Focused/new local CTest: **NOT RUN** in this connector session. Corrected
+exact-publication-SHA hosted CI: **PENDING**.
+
 ## Typed native-admission first-failure boundary — 2026-10-24
 
 **Reconciled parent:** `ff020dbd00622249e43038e460772325b1a46f84`. The owner-tested evidence base remains

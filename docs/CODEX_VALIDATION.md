@@ -1,3 +1,20 @@
+## Admission reason fixture private-access compile correction — 2026-10-24
+
+On exact SHA `9968d45822bd961c19743e380a5d73af3c4d1394`, the production
+Linux runtime-security jobs passed, but Ubuntu protocol Debug compilation
+failed at the deterministic test fixture: it directly invoked private
+`OwnedPreauthTcpConnection::completeCredSspAdmission()`.
+
+The correction changes only test setup. The synthetic proof optionally cancels
+the owned connection after successful native-proof completion; the broker then
+reaches its real private CredSSP-completion call and classifies the expected
+`CredSspAdmissionCompletionFailed` result. This preserves encapsulation and
+tests the same first-failure boundary without a cast or public test hook.
+
+Production C++: **UNCHANGED**. Connector diagnosis/source review: **PASS**.
+Corrected local CTest: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**.
+
 ## Typed native-admission diagnosis authoring receipt — 2026-10-24
 
 **Reconciled parent:** `ff020dbd00622249e43038e460772325b1a46f84`. Owner evidence on

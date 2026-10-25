@@ -654,10 +654,13 @@ public:
     DeterministicStandaloneProof(
         std::string_view remoteApplicationUsername,
         bool pendingMatches = true,
-        bool completionSucceeds = true) noexcept
+        bool completionSucceeds = true,
+        OwnedPreauthTcpConnection *connectionToCancelOnCompletion = nullptr)
+        noexcept
         : remoteApplicationUsername_(remoteApplicationUsername),
           pendingMatches_(pendingMatches),
-          completionSucceeds_(completionSucceeds) {}
+          completionSucceeds_(completionSucceeds),
+          connectionToCancelOnCompletion_(connectionToCancelOnCompletion) {}
 
     [[nodiscard]] std::string_view remoteApplicationUsername() const noexcept
     {
@@ -689,6 +692,8 @@ public:
             return false;
         }
         completed_ = true;
+        if (connectionToCancelOnCompletion_ != nullptr)
+            connectionToCancelOnCompletion_->cancel();
         return true;
     }
 
@@ -710,6 +715,7 @@ private:
     std::string_view remoteApplicationUsername_;
     bool pendingMatches_{true};
     bool completionSucceeds_{true};
+    OwnedPreauthTcpConnection *connectionToCancelOnCompletion_{};
     bool completed_{};
     bool revoked_{};
 };
@@ -811,10 +817,12 @@ void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
             bool completionSucceeds,
             std::unique_ptr<ConsoleSessionChangeSource> changes,
             OwnedPreauthTcpConnection &connection,
-            bool monitorAvailable = true) {
+            bool monitorAvailable = true,
+            bool cancelConnectionOnCompletion = false) {
             DeterministicStandaloneProof proof{
                 "remote-application-user",
-                pendingMatches, completionSucceeds};
+                pendingMatches, completionSucceeds,
+                cancelConnectionOnCompletion ? &connection : nullptr};
             LinuxConsoleAdmissionBroker broker(candidatePolicy, authority);
             auto lease = TestAccess::issueWithSources(
                 broker, proof, connection, request, evidence,
@@ -945,16 +953,15 @@ void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
         std::make_unique<DeterministicSessionChangeSource>(),
         hybrid.connection());
 
-    R1DiagnosticTlsFixture prematurelyCompletedHybrid{
+    R1DiagnosticTlsFixture credSspCompletionFailureHybrid{
         kDiagnosticSslAndHybridRequest, true,
         rdp_server::server::transport::
             SecurityNegotiationPolicy::HybridNla};
-    assert(prematurelyCompletedHybrid.connection().completeCredSspAdmission());
     expectBrokerFailure(
         Failure::CredSspAdmissionCompletionFailed, policy, baseRequest,
         nativeEvidence, &ownerAuthority, true, true,
         std::make_unique<DeterministicSessionChangeSource>(),
-        prematurelyCompletedHybrid.connection());
+        credSspCompletionFailureHybrid.connection(), true, true);
 
     nativeEvidence.reset();
     DeterministicStandaloneProof positiveProof{"remote-application-user"};

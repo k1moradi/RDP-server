@@ -1,3 +1,44 @@
+## R1 P0 — committed Type-2 / Await-Type-3 transport lifetime (2026-10-25)
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+**Reconciled publication parent:** `b56e7ddaa4bd11ec96eae372dd007ae3caff0f4c`.
+Owner Linux/X11 evidence is local full CTest **980/980 PASS** and a physical
+Microsoft client reaching TCP -> X.224/HYBRID -> TLS -> raw Direct NTLM Type 1
+-> completely delivered server Type 2 -> peer EOF, with **no Type 3**. Native
+Admission, MCS and graphics/native desktop were not reached. The recorded
+challenge shape is Type-1 flags `0xe2088235`, Type-2 flags `0xe08a8235`,
+10 TargetName code units, 50 TargetInfo bytes, 126 Type-2 bytes, AV IDs
+`2,1,7,0`, server target/name present.
+
+R1 preserves the existing Type-2 delivery receipt and tightens its transport
+meaning: pre-Type-3 peer-close taxonomy is reachable only after the complete
+R1 TLS write receipt, while queued-only Type 2 cannot produce
+`peer-eof-before-type3`. Post-handshake transport now distinguishes raw
+FIN/EOF, reset, clean TLS `close_notify`, fatal peer TLS alert and local
+close. Accepted-client deadline expiry records `Timeout` before teardown
+instead of being rewritten as owner cancellation. A new production-backed
+real-socket CTest holds the peer after fully reading Type 2, proves no immediate
+server teardown, and then exercises the same accepted-client timeout owner with
+a shortened fixture duration; listener/owner/Session Password remain current
+and the concurrent R3 MCS/Share dormancy diagnostics remain false.
+
+Concurrent Type-2 compatibility-profile, R3 dormancy and Windows-native SSPI
+oracle work through the publication parent is preserved, including the
+structurally valid SSPI single-delta follow-up. The SSPI test's authored
+presence does not itself satisfy the physical-candidate gate; an executed
+Microsoft Type-3 receipt is still required. This increment does not alter TLS
+certificate generation/identity, production NTLM challenge bytes, Linux native
+admission, MCS, graphics or clipboard behavior. Connector
+source/reconciliation review: **PASS**. Modified-tree local build and CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. R9 focused-owner enrollment of the new timeout CTest remains a
+separate assurance-owner action; ordinary CTest registration is part of this
+increment.
+
+**Required next-owner gate remains unchanged:** do not nominate another Linux
+physical candidate until the Microsoft-native Windows SSPI oracle actually
+consumes the production Type 2 and produces a Type 3 Authenticate message.
+
 ## P0 — Microsoft Windows SSPI Type-2 oracle before another Linux candidate (2026-10-25)
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

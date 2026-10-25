@@ -7,6 +7,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <string_view>
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -67,6 +68,16 @@ namespace
 #else
     return false;
 #endif
+}
+
+[[nodiscard]] bool isPeerTlsAlert() noexcept
+{
+    const auto error = ERR_peek_last_error();
+    if (error == 0U || ERR_GET_LIB(error) != ERR_LIB_SSL)
+        return false;
+    const char* const reason = ERR_reason_error_string(error);
+    return reason != nullptr &&
+           std::string_view{reason}.find("alert") != std::string_view::npos;
 }
 
 [[nodiscard]] TcpPeerEndpoint nativeTcpPeerEndpoint(
@@ -938,7 +949,9 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
         pendingApplicationBytes_ = attemptedBytes;
         return {Outcome::NeedWrite, 0};
     case SSL_ERROR_ZERO_RETURN:
-        termination_ = TcpConnectionTermination::PeerTlsAlert;
+        // A successful close_notify is an orderly TLS close, not a fatal
+        // alert and not a raw TCP EOF/reset.
+        termination_ = TcpConnectionTermination::OrderlyTlsClose;
         cancel();
         return {Outcome::TlsClosed, 0};
     case SSL_ERROR_SYSCALL:
@@ -955,6 +968,12 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
             termination_ = TcpConnectionTermination::PeerEof;
             cancel();
             return {Outcome::TransportClosed, 0};
+        }
+        if (isPeerTlsAlert())
+        {
+            termination_ = TcpConnectionTermination::PeerTlsAlert;
+            cancel();
+            return {Outcome::TlsClosed, 0};
         }
         [[fallthrough]];
     default:

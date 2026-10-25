@@ -418,10 +418,25 @@ int main(int argc, char** argv)
         assert(projected.preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
 
-        // Type 2 queue/delivery are connection-local diagnostic receipts.
-        // Exercise every bounded pre-Type-3 terminal projection without
-        // creating Type 3, credentials, native admission or later authority.
+        // A queued but not fully committed Type 2 is not sufficient to name
+        // a pre-Type-3 peer termination. The R1 TLS write receipt must first
+        // prove the complete canonical reply was accepted.
         source.directNtlmTypeTwoQueued = true;
+        source.directNtlmTypeTwoDelivered = false;
+        source.credSspTransition = SourceCredSsp::Closed;
+        source.standaloneAuthenticationFailureStage =
+            SourceFailure::NtlmNegotiation;
+        source.admissionFailureReason = SourceAdmissionFailure::None;
+        source.termination = SourceTermination::PeerEof;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.directNtlmTypeTwoQueued);
+        assert(!projected.directNtlmTypeTwoDelivered);
+        assert(projected.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
+
+        // Once the exact Type-2 TLS write is committed, exercise every
+        // bounded pre-Type-3 terminal projection without creating Type 3,
+        // credentials, native admission or later authority.
         source.directNtlmTypeTwoDelivered = true;
         source.credSspTransition = SourceCredSsp::Closed;
         source.standaloneAuthenticationFailureStage =
@@ -445,6 +460,11 @@ int main(int argc, char** argv)
                 RuntimeAcceptedClientTermination::PeerReset,
                 RuntimeAcceptedClientPreType3Termination::PeerReset,
                 "peer-reset-before-type3"},
+            PreType3TerminationProjectionCase{
+                SourceTermination::OrderlyTlsClose,
+                RuntimeAcceptedClientTermination::OrderlyTlsClose,
+                RuntimeAcceptedClientPreType3Termination::TlsCloseNotify,
+                "tls-close-notify-before-type3"},
             PreType3TerminationProjectionCase{
                 SourceTermination::PeerTlsAlert,
                 RuntimeAcceptedClientTermination::PeerTlsAlert,

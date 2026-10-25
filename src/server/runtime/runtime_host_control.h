@@ -573,9 +573,10 @@ enum class RuntimeAcceptedClientTermination : std::uint8_t
     OwnerCancellation,
 };
 
-// Connection-local terminal evidence after a Direct NTLM Type 2 was queued
-// but before any Type 3 was observed. This is a redacted diagnostic taxonomy,
-// not an authentication result or native-admission capability.
+// Connection-local terminal evidence after a Direct NTLM Type 2 was fully
+// committed through the exact R1 TLS application-write path but before any
+// Type 3 was observed. This is a redacted diagnostic taxonomy, not an
+// authentication result or native-admission capability.
 enum class RuntimeAcceptedClientPreType3Termination : std::uint8_t
 {
     None,
@@ -583,6 +584,8 @@ enum class RuntimeAcceptedClientPreType3Termination : std::uint8_t
     PeerReset,
     TlsAlert,
     LocalClose,
+    // Appended so existing diagnostic enum values remain stable.
+    TlsCloseNotify,
 };
 
 [[nodiscard]] constexpr std::string_view
@@ -597,6 +600,8 @@ runtimeAcceptedClientPreType3TerminationName(
     case Termination::PeerReset: return "peer-reset-before-type3";
     case Termination::TlsAlert: return "tls-alert-before-type3";
     case Termination::LocalClose: return "local-close-before-type3";
+    case Termination::TlsCloseNotify:
+        return "tls-close-notify-before-type3";
     }
     return "none";
 }

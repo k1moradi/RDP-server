@@ -5472,7 +5472,8 @@ void testOwnedTlsApplicationTerminalReadiness()
 
         assert(result.outcome == Outcome::TlsClosed);
         assert(result.bytes == 0);
-        assert(owner.termination() == TcpConnectionTermination::PeerTlsAlert);
+        assert(owner.termination() ==
+               TcpConnectionTermination::OrderlyTlsClose);
         assert(!owner.active());
         assert(owner.ioInterest() == Interest::Closed);
         owner.cancel();

@@ -1,3 +1,24 @@
+## R1 Type-2 wait and exact terminal real-socket gate (2026-10-25)
+
+Keep a production-backed real-listener/TLS regression for the unresolved
+Microsoft-client boundary. The peer sends a valid Direct NTLM Type 1, reads and
+independently validates the complete production Type 2, sends no Type 3, and
+holds the socket open. The server must retain the accepted client, listener,
+owner authorization and configured Session Password for a bounded interval and
+may retire that peer only when the ordinary accepted-client pre-auth deadline
+expires. The fixture may shorten the duration of that same deadline for test
+runtime; production remains 30 seconds and has no Type-2-specific timer.
+
+The timeout receipt must remain `Timeout`, with Type 2 queued/delivered,
+authentication at NtlmChallenge/PreAdmission, current R3 MCS/Share state still
+dormant, no pre-Type-3 peer-close subtype, and no native/graphics/clipboard
+authority. Separately, a queued-but-not-committed Type 2 followed by EOF must
+not project `peer-eof-before-type3`. After committed Type 2, preserve
+distinct projections for raw peer EOF, TCP reset, TLS `close_notify`, fatal
+peer TLS alert and local close. The existing peer-EOF production lifecycle
+must continue to retire only peer 1 and immediately accept peer 2 on the same
+listener with fresh NTLM state.
+
 ## Microsoft Windows SSPI production Type-2 oracle (2026-10-25)
 
 The primary inner-NTLM interoperability gate is the Windows-only CTest

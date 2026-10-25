@@ -482,6 +482,17 @@ if(TARGET rdp-server-linux-host-control)
             SKIP_RETURN_CODE 77)
 
     add_test(
+        NAME runtime.linux-direct-ntlm-type2-waits-for-preauth-timeout
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-type2-waits-for-preauth-timeout)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-type2-waits-for-preauth-timeout
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;timeout;listener;linux;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 20)
+
+    add_test(
         NAME runtime.linux-admission-denial-retains-listener-and-accepts-second-tls
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             admission-denial-retains-listener-and-accepts-second-tls)

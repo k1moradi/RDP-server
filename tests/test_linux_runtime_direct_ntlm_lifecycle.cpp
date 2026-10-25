@@ -75,6 +75,8 @@ constexpr std::uint32_t kDirectTypeOneFlags =
     kNtlmNegotiateUnicode | kNtlmRequestTarget |
     kNtlmNegotiateNtlm | kNtlmNegotiateAlwaysSign |
     kRequiredStandaloneCredSspNtlmFlags | kNtlmNegotiate56;
+static_assert(
+    kRuntimeAcceptedClientPreauthTimeout == std::chrono::seconds{30});
 
 void storeLe16(std::uint8_t* bytes, std::uint16_t value) noexcept
 {
@@ -1051,6 +1053,35 @@ struct PeerResult final
            !status.graphicsReady;
 }
 
+[[nodiscard]] bool directTypeTwoTimeoutRemainsPreAdmission(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    return status.listenerAvailable &&
+           status.clientDisconnected &&
+           status.activeClients.empty() &&
+           diagnostics.available &&
+           diagnostics.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
+           diagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+           diagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission &&
+           !diagnostics.mcsSessionAdvanced &&
+           !diagnostics.shareActivated &&
+           diagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None &&
+           diagnostics.termination ==
+               RuntimeAcceptedClientTermination::Timeout &&
+           diagnostics.directNtlmTypeTwoQueued &&
+           diagnostics.directNtlmTypeTwoDelivered &&
+           diagnostics.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None &&
+           !status.nativeDesktopReady &&
+           !status.nativeDesktopInitializing &&
+           !status.graphicsReady;
+}
+
 [[nodiscard]] bool directClientCredentialsVerifiedThenAdmissionDenied(
     const RuntimeHostStatus& status) noexcept
 {
@@ -1198,8 +1229,13 @@ int main(int argc, char** argv)
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
-    if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly)
+    const bool typeTwoTimeoutOnly =
+        testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
+    if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
+        !typeTwoTimeoutOnly)
+    {
         return 2;
+    }
 
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return 77;
@@ -1211,7 +1247,12 @@ int main(int argc, char** argv)
     DirectNtlmLifecycleEvidence evidence(processUid);
     if (!evidence.valid())
         return 77;
-    LinuxRuntimeHostControl control(evidence);
+    constexpr std::chrono::milliseconds kFixturePreauthTimeout{6000};
+    LinuxRuntimeHostControl control(
+        evidence,
+        typeTwoTimeoutOnly
+            ? kFixturePreauthTimeout
+            : kRuntimeAcceptedClientPreauthTimeout);
 
     const auto recommendation =
         control.status().product.recommendedEndpoint;
@@ -1267,6 +1308,112 @@ int main(int argc, char** argv)
     const std::uint64_t firstListenerGeneration =
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
+
+    if (typeTwoTimeoutOnly)
+    {
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> releasePeer{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                typeTwoReceived, releasePeer);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(control, typeTwoReceived, peerFinished));
+        auto waitingForTypeThree = control.status();
+        assert(waitingForTypeThree.stage ==
+               RuntimeHostStage::ClientAuthenticating);
+        assert(waitingForTypeThree.listenerAvailable);
+        assert(waitingForTypeThree.listenerGeneration ==
+               firstListenerGeneration);
+        assert(waitingForTypeThree.activeClients.size() == 1U);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .mcsSessionAdvanced);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .shareActivated);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .termination ==
+               RuntimeAcceptedClientTermination::Open);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoQueued);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoDelivered);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
+        assert(waitingForTypeThree.product.credentialsConfigured);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+        assertClipboardDormant(waitingForTypeThree);
+        assertGraphicsDormant(waitingForTypeThree);
+
+        // Type 2 has been read and validated by the real TLS peer. Keep
+        // servicing for a bounded interval shorter than the accepted-client
+        // deadline and prove there is no Type-2-specific immediate teardown.
+        const auto holdUntil =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds{500};
+        while (std::chrono::steady_clock::now() < holdUntil)
+        {
+            (void)control.serviceOnce();
+            waitingForTypeThree = control.status();
+            assert(waitingForTypeThree.stage ==
+                   RuntimeHostStage::ClientAuthenticating);
+            assert(waitingForTypeThree.listenerAvailable);
+            assert(waitingForTypeThree.listenerGeneration ==
+                   firstListenerGeneration);
+            assert(waitingForTypeThree.activeClients.size() == 1U);
+            assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .termination ==
+                   RuntimeAcceptedClientTermination::Open);
+            assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .directNtlmTypeTwoDelivered);
+            assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                        .mcsSessionAdvanced);
+            assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                        .shareActivated);
+            assert(waitingForTypeThree.product.credentialsConfigured);
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+
+        assert(pumpUntil(
+            control, peerFinished, &directTypeTwoTimeoutRemainsPreAdmission));
+        const auto afterTimeout = control.status();
+        assert(afterTimeout.stage == RuntimeHostStage::ListenerAvailable);
+        assert(afterTimeout.listenerAvailable);
+        assert(afterTimeout.listenerGeneration == firstListenerGeneration);
+        assert(afterTimeout.hostOwnerAuthorized);
+        assert(afterTimeout.product.ownerAuthorized);
+        assert(afterTimeout.product.state == RuntimeProductHostState::Listening);
+        assert(afterTimeout.product.credentialsConfigured);
+        assert(afterTimeout.acceptedClientPreauthDiagnostics.termination ==
+               RuntimeAcceptedClientTermination::Timeout);
+        assert(afterTimeout.acceptedClientPreauthDiagnostics.preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
+        assert(!afterTimeout.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!afterTimeout.acceptedClientPreauthDiagnostics.shareActivated);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+        assertClipboardDormant(afterTimeout);
+        assertGraphicsDormant(afterTimeout);
+
+        releasePeer.store(true, std::memory_order_release);
+        peer.join();
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     if (typeTwoPeerEofOnly)
     {

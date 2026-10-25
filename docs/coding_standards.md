@@ -1,3 +1,30 @@
+## R1 committed Type-2 pre-Type-3 transport ownership (2026-10-25)
+
+For Direct NTLM, keep one monotonic diagnostic progression on the existing
+R1/R2 connection owner: a valid Type 1 is received, the canonical Type-2
+TSRequest is queued, the exact R1 TLS application writer commits every Type-2
+plaintext byte and releases the reply, the connection awaits Type 3, and then
+either Type 3 is observed or the transport terminates. These are diagnostic
+milestones only; they do not form another authentication state machine or
+grant native/session authority.
+
+A queued Type 2 is not sufficient terminal evidence. Project
+`peer-eof-before-type3`, `peer-reset-before-type3`,
+`tls-close-notify-before-type3`, `tls-alert-before-type3` or
+`local-close-before-type3` only after the complete Type-2 TLS write receipt
+has been committed. Keep raw TCP FIN/EOF, TCP reset, orderly TLS
+`close_notify`, fatal peer TLS alert and local owner close distinct wherever
+R1 can observe them. A normal pre-auth deadline remains the accepted-client
+deadline established at accept; Type-2 completion must not arm a shorter
+failure timer.
+
+Deadline expiry must first set R1's `Timeout` termination before aggregate
+revocation. Retiring a peer before Type 3 remains accepted-connection scoped:
+when listener, local owner grant and generation-fenced Session Password are
+still current, they survive that peer. This transport work must not change TLS
+certificate identity, NTLM Type-2 wire shape, native admission, MCS, graphics
+or clipboard.
+
 ## R3 pre-Type-3 diagnostics expose current R3 dormancy (2026-10-25)
 
 The last-positive protocol diagnostic and the current R3 lifecycle observation

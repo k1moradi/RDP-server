@@ -405,7 +405,7 @@ readLinuxDefaultRoutePreferences()
     switch (termination)
     {
     case Termination::Open: return "open";
-    case Termination::OrderlyTlsClose: return "peer-tls-alert";
+    case Termination::OrderlyTlsClose: return "tls-close-notify";
     case Termination::TransportError: return "transport-error";
     case Termination::TlsFailure: return "tls-failure";
     case Termination::ProtocolError: return "protocol-error";
@@ -689,6 +689,58 @@ struct LinuxHostFramePublicationContext final
         return "share-activated";
     }
     return "pre-admission";
+}
+
+[[nodiscard]] constexpr bool directNtlmTypeOneWasReceived(
+    const RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using Stage = RuntimeAcceptedClientAuthenticationStage;
+    if (diagnostics.ntlmEnvelope != RuntimeAcceptedClientNtlmEnvelope::DirectNtlm)
+        return false;
+    switch (diagnostics.authenticationStage)
+    {
+    case Stage::CredSspDirectNtlm:
+    case Stage::NtlmChallenge:
+    case Stage::NtlmAuthenticate:
+    case Stage::CredSspBinding:
+    case Stage::CredentialDelegation:
+    case Stage::Authenticated:
+    case Stage::Admission:
+    case Stage::Mcs:
+        return true;
+    case Stage::Transport:
+    case Stage::Tls:
+    case Stage::CredSsp:
+    case Stage::CredSspSpnego:
+        return false;
+    }
+    return false;
+}
+
+[[nodiscard]] constexpr bool directNtlmTypeThreeWasReceived(
+    const RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using Stage = RuntimeAcceptedClientAuthenticationStage;
+    if (diagnostics.ntlmEnvelope != RuntimeAcceptedClientNtlmEnvelope::DirectNtlm)
+        return false;
+    switch (diagnostics.authenticationStage)
+    {
+    case Stage::NtlmAuthenticate:
+    case Stage::CredSspBinding:
+    case Stage::CredentialDelegation:
+    case Stage::Authenticated:
+    case Stage::Admission:
+    case Stage::Mcs:
+        return true;
+    case Stage::Transport:
+    case Stage::Tls:
+    case Stage::CredSsp:
+    case Stage::CredSspSpnego:
+    case Stage::CredSspDirectNtlm:
+    case Stage::NtlmChallenge:
+        return false;
+    }
+    return false;
 }
 
 [[nodiscard]] constexpr const char* authenticationDiagnosticStageName(
@@ -1101,12 +1153,9 @@ projectLinuxAcceptedClientPreauthDiagnostics(
 
     const bool directNtlmBeforeTypeThree =
         projected.ntlmEnvelope == RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
-        (projected.authenticationStage ==
-             RuntimeAcceptedClientAuthenticationStage::CredSspDirectNtlm ||
-         projected.authenticationStage ==
-             RuntimeAcceptedClientAuthenticationStage::NtlmChallenge) &&
-        (projected.directNtlmTypeTwoQueued ||
-         projected.directNtlmTypeTwoDelivered);
+        projected.authenticationStage ==
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+        projected.directNtlmTypeTwoDelivered;
     if (directNtlmBeforeTypeThree)
     {
         using PreType3 = RuntimeAcceptedClientPreType3Termination;
@@ -1119,6 +1168,8 @@ projectLinuxAcceptedClientPreauthDiagnostics(
             projected.preType3Termination = PreType3::PeerReset;
             break;
         case RuntimeAcceptedClientTermination::OrderlyTlsClose:
+            projected.preType3Termination = PreType3::TlsCloseNotify;
+            break;
         case RuntimeAcceptedClientTermination::PeerTlsAlert:
             projected.preType3Termination = PreType3::TlsAlert;
             break;
@@ -1232,9 +1283,20 @@ LinuxRuntimeHostControl::LinuxRuntimeHostControl() noexcept
 LinuxRuntimeHostControl::LinuxRuntimeHostControl(
     rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence)
     noexcept
+    : LinuxRuntimeHostControl(
+          ownerEvidence, kRuntimeAcceptedClientPreauthTimeout)
+{
+}
+
+LinuxRuntimeHostControl::LinuxRuntimeHostControl(
+    rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence,
+    std::chrono::milliseconds acceptedClientPreauthTimeout) noexcept
     : ownerThread_(std::this_thread::get_id()),
       generatedLicensingContext_(
           new (std::nothrow) RuntimeLicensingContext{}),
+      acceptedClientPreauthTimeout_(
+          (std::max)(
+              acceptedClientPreauthTimeout, std::chrono::milliseconds{1})),
       ownerEvidenceSource_(&ownerEvidence),
       ownerSharingAuthority_(ownerEvidence)
 {
@@ -2508,6 +2570,13 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             const auto preType3Termination =
                 runtimeAcceptedClientPreType3TerminationName(
                     acceptedClientPreauthDiagnostics_.preType3Termination);
+            const bool directNtlmTypeOneReceived =
+                directNtlmTypeOneWasReceived(acceptedClientPreauthDiagnostics_);
+            const bool directNtlmTypeThreeReceived =
+                directNtlmTypeThreeWasReceived(acceptedClientPreauthDiagnostics_);
+            const bool directNtlmAwaitTypeThreeReached =
+                directNtlmTypeOneReceived &&
+                acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered;
             const char *const directNtlmTypeTwoState =
                 acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered
                     ? "delivered"
@@ -2525,7 +2594,10 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
                 "protocol-stage=%s authentication-stage=%s admission=%.*s "
-                "direct-ntlm-type2=%s pre-type3-termination=%.*s "
+                "direct-ntlm-type1=%s direct-ntlm-type2-queued=%s "
+                "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
+                "direct-ntlm-await-type3=%s direct-ntlm-type3=%s "
+                "pre-type3-termination=%.*s "
                 "ntlm-type1-flags=0x%08x ntlm-type2-flags=0x%08x "
                 "ntlm-target-name-code-units=%zu ntlm-target-info-bytes=%zu "
                 "ntlm-type2-bytes=%zu ntlm-av-ids=%.*s "
@@ -2543,7 +2615,14 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                     acceptedClientPreauthDiagnostics_),
                 static_cast<int>(admissionReason.size()),
                 admissionReason.data(),
+                directNtlmTypeOneReceived ? "received" : "not-received",
+                acceptedClientPreauthDiagnostics_.directNtlmTypeTwoQueued
+                    ? "yes" : "no",
                 directNtlmTypeTwoState,
+                acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered
+                    ? "committed" : "not-committed",
+                directNtlmAwaitTypeThreeReached ? "reached" : "not-reached",
+                directNtlmTypeThreeReceived ? "received" : "not-received",
                 static_cast<int>(preType3Termination.size()),
                 preType3Termination.data(),
                 static_cast<unsigned int>(
@@ -2698,7 +2777,7 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
     acceptedClientPreauthDiagnostics_ =
         projectLinuxAcceptedClientPreauthDiagnostics(
             acceptedClient_->acceptanceDiagnostics());
-    acceptedClientDeadline_ = now + std::chrono::seconds{30};
+    acceptedClientDeadline_ = now + acceptedClientPreauthTimeout_;
     acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;
     acceptedClientId_ = nextClientId_++;
     acceptedClientPeer_ = boundEndpointText(peer);

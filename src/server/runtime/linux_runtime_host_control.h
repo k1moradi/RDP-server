@@ -66,6 +66,9 @@ projectLinuxAcceptedClientPreauthDiagnostics(
     const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept;
 #endif
 
+inline constexpr std::chrono::milliseconds
+    kRuntimeAcceptedClientPreauthTimeout{30000};
+
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.
 // Qt status/options never confer authority. All calls use construction thread.
@@ -79,6 +82,12 @@ public:
     explicit LinuxRuntimeHostControl(
         rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence)
         noexcept;
+    // Internal deterministic acceptance fixture seam. It changes only the
+    // accepted-client deadline duration; production callers use the canonical
+    // 30-second value above and no Type-2-specific timer exists.
+    LinuxRuntimeHostControl(
+        rdp_server::server::security::ConsoleOsEvidenceSource& ownerEvidence,
+        std::chrono::milliseconds acceptedClientPreauthTimeout) noexcept;
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     // Borrow the already-validated service-lifetime R2/TLS owners. They must
     // outlive this controller and every connection later created from it.
@@ -217,6 +226,10 @@ private:
     // validated licensing owner instead. Neither path opens a listener.
     std::unique_ptr<RuntimeLicensingContext> generatedLicensingContext_{};
     const RuntimeLicensingContext* licensingContext_{};
+    // Always present because the deterministic constructor is visible even
+    // when the optional Linux host-security backend is not compiled.
+    std::chrono::milliseconds acceptedClientPreauthTimeout_{
+        kRuntimeAcceptedClientPreauthTimeout};
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     std::optional<RuntimeDeploymentPolicy> deploymentPolicy_{};
     std::unique_ptr<LinuxRuntimeConnection> acceptedClient_{};

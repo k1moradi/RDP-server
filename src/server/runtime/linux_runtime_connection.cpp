@@ -775,6 +775,10 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
     const auto now = Clock::now();
     if (now >= deadline)
     {
+        // R1 owns terminal transport classification. Mark the real deadline
+        // before aggregate teardown so revoke() cannot rewrite it as a local
+        // owner cancellation.
+        (void)connection_.cancelIfExpired(now, deadline);
         revoke();
         return {false, false, Status::Expired};
     }
@@ -832,8 +836,10 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
     }
     if (count == 0)
     {
-        if (Clock::now() >= deadline)
+        const auto afterPoll = Clock::now();
+        if (afterPoll >= deadline)
         {
+            (void)connection_.cancelIfExpired(afterPoll, deadline);
             revoke();
             return {false, false, Status::Expired};
         }

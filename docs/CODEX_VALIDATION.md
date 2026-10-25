@@ -1,3 +1,40 @@
+## R1 committed Type-2 wait/transport-classification authoring receipt — 2026-10-25
+
+Assignment SHA `1e6a7c6ea11fcfde09061355328080591a6d7e30`; reconciled
+publication parent `b56e7ddaa4bd11ec96eae372dd007ae3caff0f4c`. Owner
+Linux/X11 full CTest is **980/980 PASS**. Physical evidence is TCP,
+X.224/HYBRID, TLS and raw Direct NTLM Type 1 PASS; the 126-byte server Type 2
+is completely delivered with flags `0xe08a8235`, 10-code-unit server
+TargetName, 50-byte TargetInfo and AV IDs `2,1,7,0`; the client sends no Type
+3 and terminates with peer EOF. Native Admission, MCS and graphics/native
+desktop are **NOT REACHED**.
+
+This R1 increment preserves the Type-2 writer/receipt and adds transport-only
+assurance. Pre-Type-3 close projection now requires the committed Type-2
+receipt, clean TLS `close_notify` is distinct from a fatal peer TLS alert,
+raw EOF/reset remain separate, and the fail-only terminal record exposes the
+monotonic Type1 -> Type2 queued -> Type2 TLS committed -> AwaitType3 -> Type3
+progression without retaining token/key material. Accepted-client deadline
+expiry now preserves R1 `Timeout` before aggregate teardown.
+
+A new registered real-socket lifecycle case sends Type 1, receives and
+validates production Type 2, deliberately withholds Type 3, proves the server
+stays alive before the accepted-client deadline, then verifies timeout retires
+only that connection while the listener, owner authorization and configured
+Session Password survive. Existing peer-EOF coverage continues through a
+second same-listener connection with fresh NTLM state. Concurrent R3 diagnostic
+dormancy assertions are retained in both the EOF and timeout paths.
+
+The publication parent contains the Windows-native SSPI oracle plus its
+structurally-valid single-delta follow-up; this transport commit preserves them
+unchanged. TLS certificate identity, production Type-2 challenge bytes, native
+admission, MCS, graphics and clipboard production paths are unchanged.
+Connector source review: **PASS**. Canonical modified-tree
+configure/build/focused/full CTest: **NOT RUN** here. Exact-publication-SHA
+hosted CI: **PENDING**. An executed Microsoft-native Windows SSPI
+production-Type2 -> Type3 receipt is not claimed by this authoring step and
+remains mandatory before another Linux physical candidate is nominated.
+
 ## Microsoft Windows SSPI Type-2 oracle authoring receipt — 2026-10-25
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;

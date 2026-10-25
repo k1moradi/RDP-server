@@ -1,3 +1,36 @@
+## R5 dependency recheck — repository blockers cleared; physical Type 3 receipt required (2026-10-25)
+
+**Exact head checked:** `4d697c9730b809c0209955ea3dd053a22a87c4ed`. The Type-2 wire blocker from the owner
+trace is resolved in current source: the portable encoder emits the bounded
+UTF-16LE `RDP-SERVER` TargetName with REQUEST_TARGET/TARGET_TYPE_SERVER,
+R2 production-validates the CHALLENGE_MESSAGE, R9 independently validates its
+wire shape, and R1 distinguishes queued from fully delivered Type 2 bytes.
+The pre-Type-3 EOF path remains `NtlmChallenge / NtlmNegotiation /
+PreAdmission / admission=None / PeerEof`; R5's source guard still requires
+`CredentialsVerified` before `issueAdmission()` and forbids native X11
+selection/owner/capture/input work in PreAdmission.
+
+Exact-head Actions run `40213510943` has the R5/authentication dependency
+gates green: workflow structure, R9 security/protocol sanitizers, Ubuntu/macOS/
+Windows protocol, R6 Windows Clang23, both R2 Linux runtime-security variants,
+and R5 Linux GUI ZIP are **PASS**. The separate
+`r9-clean-windows-portable-gui` job was still queued at this check and is not
+an R5 authentication/native-admission dependency.
+
+**R5 remains BLOCKED on external product evidence, not repository code.** No
+new physical Microsoft Windows App run on the corrected exact SHA is recorded,
+and no real Type 3 has been observed. Do not modify logind/native admission,
+MCS, graphics, input or clipboard speculatively. The next authorized physical
+receipt must answer whether the corrected delivered Type 2 elicits Type 3. If
+Type 3/pubKeyAuth/authInfo reaches `CredentialsVerified`, continue immediately
+from the genuine native-Admission result and its bounded reason. If the client
+still closes before Type 3, keep R5 dormant and return the failure to the
+authentication owner with the redacted Type-2 shape/termination receipt.
+
+Connector dependency/source review: **PASS**. Owner-local canonical full CTest
+on this documentation publication: **NOT RUN**. Physical Microsoft-client retry:
+**NOT RUN**.
+
 ## R9/R1 hosted link correction after Type-2 delivery evidence — 2026-10-25
 
 Current descendant `4b68df6f53b4b48180c5ae492a02269c7e5d61f4` preserved the

@@ -1,3 +1,28 @@
+## R5 current dependency-state receipt — 2026-10-25
+
+Checked exact main `4d697c9730b809c0209955ea3dd053a22a87c4ed` and Actions run `40213510943`. The previous
+Type-2 TargetName/REQUEST_TARGET implementation blocker is resolved by upstream
+security/authentication work. The exact-head R9 sanitizer, Linux/macOS/Windows
+protocol jobs, R6 Windows Clang23, R2 Linux runtime-security jobs and R5 Linux
+GUI ZIP are **PASS**. One unrelated Windows portable-GUI packaging job remained
+queued during this check.
+
+R5's own boundary remains correctly fenced: only `CredentialsVerified` can
+reach `issueAdmission()`; PreAdmission contains no physical-X11 selection,
+native owner construction/visitation, native-change registration, X11 event
+processing or framebuffer consumption. The production Type-2/EOF lifecycle
+also keeps native/graphics/clipboard dormant.
+
+There is still no corrected-Type-2 physical Microsoft Windows App receipt and
+no real Type 3 observation on current main. Consequently native Admission has
+not been demonstrated by an external client and no R5 production change is
+authorized. Next evidence is an owner-authorized exact-SHA Windows App retry;
+record either Type 3 -> pubKeyAuth -> authInfo -> CredentialsVerified ->
+Admission, or the first earlier bounded authentication failure.
+
+Connector review: **PASS**. Canonical owner-local full CTest: **NOT RUN**.
+Physical client: **NOT RUN**.
+
 ## R8 dependency recheck after Type-2 fixes — 2026-10-25
 
 **Rechecked parent:** `f92a698ca7e756d6e4053a39195c0bab6e4376f6`.

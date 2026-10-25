@@ -832,7 +832,7 @@ jobs:
           build/tests/test_lan_listener \
             same-port-rebind-after-server-close
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
-            r10-direct-ntlm-reconnect-stop-start-lifecycle
+            direct-ntlm-reconnect-stop-start-lifecycle
 
           # R1 remains the one established HYBRID/TLS transport for the raw
           # DirectNtlm token, and stale/alternate transport provenance denies.
@@ -910,16 +910,16 @@ jobs:
           grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-r3-retirement-stale-incr-fence' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-unicode-text-only-presentation' <<< "$selected_tests"
-          grep -Fq 'clipboard.r3-bridge-source-request-receipt' <<< "$selected_tests"
-          grep -Fq 'clipboard.r3-bridge-missing-activated-route-denial' <<< "$selected_tests"
-          grep -Fq 'clipboard.r3-bridge-old-route-generation-retirement' <<< "$selected_tests"
-          grep -Fq 'clipboard.r3-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
-          grep -Fq 'clipboard.r3-bridge-filecontents-request-receipt' <<< "$selected_tests"
+          grep -Fq 'clipboard.route-bridge-source-request-receipt' <<< "$selected_tests"
+          grep -Fq 'clipboard.route-bridge-missing-activated-route-denial' <<< "$selected_tests"
+          grep -Fq 'clipboard.route-bridge-old-route-generation-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.route-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.route-bridge-filecontents-request-receipt' <<< "$selected_tests"
           grep -Fq 'runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=89
+          readonly clipboard_expected_test_count=97
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
-            printf 'R8 clipboard registry mismatch: expected %s tests, found %s\n' \
+            printf 'Clipboard registry mismatch: expected %s tests, found %s\n' \
               "$clipboard_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi
@@ -957,8 +957,8 @@ jobs:
           done
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$r3_clipboard_selection" --output-on-failure
-      # Focused R9 regressions remain distinct from the fixed R3 20-case
-      # Graphics and R8 88-case clipboard sanitizer inventories.
+      # Focused regressions remain distinct from the dedicated Graphics and
+      # clipboard sanitizer inventories.
       - name: Pin focused exact-HEAD sanitizer inventory
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:
@@ -971,15 +971,15 @@ jobs:
             security.ipv4-mapped-ipv6-peer-quota-identity \
             graphics.surface-resize-revocation \
             graphics.x264-native-bgra-resize-recovery \
-            runtime.r8-r3-stable-scalar-write-receipt \
-            runtime.r8-r3-retired-route-positive-receipt-isolation; do
+            runtime.clipboard-stable-scalar-write-receipt \
+            runtime.clipboard-retired-route-positive-receipt-isolation; do
             exact_test_selection="^${required_test_name//./[.]}$"
             selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$exact_test_selection")"
             printf '%s\n' "$selected_tests"
             grep -Fq ": $required_test_name" <<< "$selected_tests"
             selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
             if [[ "$selected_test_count" -ne 1 ]]; then
-              printf 'R9 exact-HEAD CTest registry mismatch: %s expected 1, found %s\n' \
+              printf 'Focused exact-HEAD CTest registry mismatch: %s expected 1, found %s\n' \
                 "$required_test_name" "$selected_test_count" >&2
               exit 1
             fi
@@ -1578,10 +1578,10 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$native_terminal_source_selection" --output-on-failure
 
-      # R8's new outbound CLIPRDR R1 TLS writer is production-backed
-      # but deliberately denies unleased native clipboard publication.
+      # The outbound CLIPRDR TLS writer is production-backed but deliberately
+      # denies unleased native clipboard publication.
       # This is not part of the fixed 87-case clipboard component inventory.
-      - name: Run R8 clipboard TLS receipt denials with sanitizers
+      - name: Run clipboard TLS receipt denials with sanitizers
         shell: bash
         env:
           ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
@@ -1595,7 +1595,7 @@ jobs:
           readonly clipboard_tls_expected_test_count=1
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_tls_expected_test_count" ]]; then
-            printf 'R9 R8 clipboard TLS receipt registry mismatch: expected %s test, found %s\n' \
+            printf 'Clipboard TLS receipt registry mismatch: expected %s test, found %s\n' \
               "$clipboard_tls_expected_test_count" "$selected_test_count" >&2
             exit 1
           fi

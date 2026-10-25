@@ -55,6 +55,27 @@ desktop or listener action was performed.
 
 ## R8 hosted stale-lifetime qualification receipt — 2026-10-24
 
+**Current owner follow-up:** assignment baseline
+`9fd1db518076713f30b41af2aff023308f95a925` has owner-reported local CTest
+**966/966 PASS** and real Microsoft-client progression through TLS, Direct NTLM
+Type 1/Type 2 and CredSSP to first failure at native Admission
+(`stage=admission`). No TLS/SPNEGO/NTLM change is justified by this clipboard
+review.
+
+Dormancy review is **PASS by source/test inspection**: the production clipboard
+activation gate remains false; the production native/clipboard aggregate has a
+single construction call under `AcceptedClientPhase::GraphicsReady`; the
+shared admission-denial lifecycle reports clipboard Unavailable with no
+clipboard permission; stale receipt and X11 INCR restart tests cover transfer
+and generation retirement. No live clipboard action was performed.
+
+Current taxonomy cleanup renames the user-visible bridge/receipt/restart CTests
+to semantic `clipboard.route-bridge-*` / `runtime.clipboard-*` names and uses
+`clipboard;lifecycle;security` labels. That intentionally expands the Linux
+sanitizer clipboard-labeled inventory from 89 to **97**. Connector registry and
+CI-structure reconciliation: **PASS by inspection**. Post-change local/full
+CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**.
+
 **Exact tested SHA:** `346f6afe59d4331664697da67a74de9d117cde60`  
 **Workflow:** `40130463921`
 

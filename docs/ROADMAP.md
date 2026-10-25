@@ -68,6 +68,31 @@ clipboard action was performed here. Canonical owner-local
 
 **Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.
 
+**Owner follow-up at assignment baseline `9fd1db518076713f30b41af2aff023308f95a925`:**
+local CTest **966/966 PASS**. The real Microsoft client reached established
+TLS -> Direct NTLM -> accepted Type 1 -> emitted Type 2 -> continued CredSSP,
+then failed first at native Admission with `stage=admission`. That is now the
+first demonstrated product failure boundary; this clipboard track does not
+reopen TLS/SPNEGO/NTLM.
+
+**Dormancy confirmation:** native/CLIPRDR construction remains reachable only
+from `AcceptedClientPhase::GraphicsReady`. Admission-rejected peers therefore
+create no clipboard owner. The shared reconnect lifecycle requires clipboard
+Unavailable and no clipboard permission after both malformed and
+CredentialsVerified->Admission-denied peers; the stale receipt and X11 INCR
+restart cases continue to prove no transfer or clipboard generation crosses a
+rejected peer or Stop/restart boundary. Production activation remains literal
+false and no CLIPRDR traffic is authorized.
+
+This round also removes internal road identifiers from this ownership area's
+CTest/test-summary taxonomy. Bridge tests become `clipboard.route-bridge-*`,
+receipt/restart tests become `runtime.clipboard-*`, and affected labels use
+`clipboard;lifecycle;security` plus applicable runtime/platform labels. The
+Linux sanitizer clipboard inventory correspondingly changes from 89 to **97**
+registered clipboard-labeled tests. Exact-publication-SHA CI is **PENDING**.
+The Username-default request is independent GUI/authentication work and does not
+change clipboard authority.
+
 The repository-side R8 regressions that were pending after the shared
 DirectNtlm lifetime work are now qualified. Workflow `40130463921` completed
 the R9 security/protocol sanitizer job `120980921182` successfully. That job

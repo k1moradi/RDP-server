@@ -149,6 +149,22 @@ if(native_retire LESS 0 OR connection_revoke LESS 0 OR
         "HostControl must retire R8/R5 before the accepted R3/R2/R1 aggregate")
 endif()
 
+# Native/clipboard ownership may be constructed only after the accepted client
+# reaches GraphicsReady. Admission rejection therefore cannot create a CLIPRDR
+# owner, transfer state, or admission/session clipboard generation.
+string(REGEX MATCHALL "return initializeNativeDesktop\\(\\);" native_init_calls
+    "${host_source}")
+list(LENGTH native_init_calls native_init_call_count)
+string(FIND "${host_source}"
+    "case AcceptedClientPhase::GraphicsReady:" graphics_ready_case)
+string(FIND "${host_source}"
+    "return initializeNativeDesktop();" native_init_call)
+if(NOT native_init_call_count EQUAL 1 OR graphics_ready_case LESS 0 OR
+   native_init_call LESS 0 OR NOT graphics_ready_case LESS native_init_call)
+    message(FATAL_ERROR
+        "native clipboard construction must remain exclusive to GraphicsReady")
+endif()
+
 # Every accepted-client replacement must allocate a fresh native/R8 owner.
 string(FIND "${host_source}"
     "RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept"

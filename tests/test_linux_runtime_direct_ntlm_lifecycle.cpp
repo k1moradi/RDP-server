@@ -1026,7 +1026,7 @@ int main(int argc, char** argv)
         return 2;
     const std::string_view testCase{argv[1]};
     if (testCase !=
-        "r10-direct-ntlm-reconnect-stop-start-lifecycle")
+        "direct-ntlm-reconnect-stop-start-lifecycle")
     {
         return 2;
     }

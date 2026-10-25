@@ -19,6 +19,12 @@ not the graphics road/agent identifier. For this scope use semantic
 Underlying internal source ownership terminology may remain where it is not
 part of user-visible/test-summary taxonomy.
 
+Clipboard coverage follows the same rule. Use semantic
+`clipboard;lifecycle;security` labels (plus platform/runtime/offline labels
+where useful), and behavior names such as `clipboard.route-bridge-*` and
+`runtime.clipboard-*`. Internal R1...R10 ownership identifiers must not be
+part of clipboard CTest labels or test-summary names.
+
 ## CI structural guards must move with exact-count qualification pins (2026-10-24)
 
 When a workflow's exact test inventory or focused qualification target list is
@@ -27,8 +33,8 @@ same publication. Do not make the workflow green by deleting a validator
 requirement; replace the old expected token with the new exact value and add
 the newly required behavior/build target so future drift remains fail-closed.
 
-For the R8/R9 shared DirectNtlm lifetime increment, the structural validator
-must require the 89-test clipboard inventory, the shared lifecycle test, the
+For the shared DirectNtlm lifetime increment, the structural validator must
+require the 97-test clipboard inventory, the shared lifecycle test, the
 same-port rebind gate, and `test_lan_listener` in the focused sanitizer build.
 
 ## Shared labeled-fixture inventories must be updated atomically (2026-10-24)
@@ -39,11 +45,11 @@ inventory in the same publication and add an explicit name check for the
 newly shared test. A label-only reuse is not a new behavior test and must not
 be mistaken for an unexpected registry expansion.
 
-For R8, the R10 DirectNtlm reconnect/Stop->Start lifecycle is intentionally
-shared through `r8-lifetime;clipboard`; the clipboard sanitizer inventory
-therefore includes that test in addition to the component clipboard cases.
-Keep the explicit name pin so future count changes cannot silently absorb an
-unintended test.
+The DirectNtlm reconnect/Stop->Start lifecycle is intentionally shared through
+semantic `clipboard;lifecycle;security` labels; the clipboard sanitizer
+inventory therefore includes that test in addition to the component clipboard
+cases. Keep the explicit name pin so future count changes cannot silently
+absorb an unintended test.
 
 ## Same-port Stop/Start must survive a server-active TCP close (2026-10-24)
 

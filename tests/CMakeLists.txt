@@ -428,11 +428,11 @@ if(TARGET rdp-server-linux-host-control)
     add_test(
         NAME runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
-            r10-direct-ntlm-reconnect-stop-start-lifecycle)
+            direct-ntlm-reconnect-stop-start-lifecycle)
     set_tests_properties(
         runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle
         PROPERTIES
-            LABELS "r10;r8-lifetime;clipboard;runtime;security;r1-tls;r2-standalone;r2-owner-consent;r2-admission;credssp;ntlmv2;linux;native-environment"
+            LABELS "clipboard;lifecycle;security;runtime;credssp;ntlmv2;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
     foreach(host_control_case IN ITEMS
@@ -584,7 +584,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_clipboard_dormant_composition.cmake")
     set_tests_properties(
         runtime.linux-host-control-dormant-unicode-clipboard-composition PROPERTIES
-        LABELS "runtime;security;r8-r3;r10-host-control;x11;offline")
+        LABELS "runtime;clipboard;lifecycle;security;x11;offline")
 
     # R8 P2: automatic zero-argument GUI bootstrap may provision local runtime
     # prerequisites, but must not activate CLIPRDR or preserve stale clipboard
@@ -603,7 +603,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_bootstrap_clipboard_dormancy.cmake")
     set_tests_properties(
         runtime.linux-gui-bootstrap-clipboard-dormancy PROPERTIES
-        LABELS "runtime;security;r8-bootstrap;r10-host-control;gui;offline")
+        LABELS "runtime;clipboard;lifecycle;security;gui;offline")
 endif()
 
 if(TARGET rdp-server-macos-host-control)
@@ -1516,33 +1516,33 @@ foreach(case_name IN ITEMS
         old-route-generation-retirement
         partial-positive-receipt-retirement
         filecontents-request-receipt)
-    add_test(NAME "clipboard.r3-bridge-${case_name}"
+    add_test(NAME "clipboard.route-bridge-${case_name}"
         COMMAND test_r8_r3_clipboard_bridge "${case_name}")
-    set_tests_properties("clipboard.r3-bridge-${case_name}" PROPERTIES
-        LABELS "protocol;clipboard;r8-r3;security;offline")
+    set_tests_properties("clipboard.route-bridge-${case_name}" PROPERTIES
+        LABELS "protocol;clipboard;lifecycle;security;offline")
 endforeach()
 
 # Stable R2-committed scalars require no R3 borrowed span after mutation.
 # This ordinary test is outside the fixed 87 clipboard sanitizer selection.
-add_test(NAME runtime.r8-r3-stable-scalar-write-receipt
+add_test(NAME runtime.clipboard-stable-scalar-write-receipt
     COMMAND test_r8_r3_clipboard_bridge
         stable-scalar-receipt-after-r3-mutation)
-set_tests_properties(runtime.r8-r3-stable-scalar-write-receipt
-    PROPERTIES LABELS "runtime;security;r8-receipt;offline")
+set_tests_properties(runtime.clipboard-stable-scalar-write-receipt
+    PROPERTIES LABELS "runtime;clipboard;lifecycle;security;offline")
 
 # A delayed old R3 positive receipt may not revoke a reconnected R8 route.
 # This ordinary CTest is outside the fixed 87 clipboard sanitizer selection.
-add_test(NAME runtime.r8-r3-retired-route-positive-receipt-isolation
+add_test(NAME runtime.clipboard-retired-route-positive-receipt-isolation
     COMMAND test_r8_r3_clipboard_bridge
         retired-route-positive-receipt-isolation)
-set_tests_properties(runtime.r8-r3-retired-route-positive-receipt-isolation
-    PROPERTIES LABELS "runtime;security;r8-receipt;offline")
+set_tests_properties(runtime.clipboard-retired-route-positive-receipt-isolation
+    PROPERTIES LABELS "runtime;clipboard;lifecycle;security;offline")
 
-add_test(NAME runtime.r8-r3-repeated-restart-receipt-isolation
+add_test(NAME runtime.clipboard-repeated-restart-receipt-isolation
     COMMAND test_r8_r3_clipboard_bridge
         repeated-restart-receipt-isolation)
-set_tests_properties(runtime.r8-r3-repeated-restart-receipt-isolation
-    PROPERTIES LABELS "runtime;security;r8-lifetime;r8-receipt;offline")
+set_tests_properties(runtime.clipboard-repeated-restart-receipt-isolation
+    PROPERTIES LABELS "runtime;clipboard;lifecycle;security;offline")
 
 # R3 portable licensing bootstrap: exercise the production no-file generator,
 # the normative MS-RDPBCGR X.509 chain shape, and the existing MS-RDPELE
@@ -1980,7 +1980,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
     set_tests_properties(
         runtime.linux-connection-personal-clipboard-tls-write-denials
-        PROPERTIES LABELS "runtime;security;r8-r3;offline")
+        PROPERTIES LABELS "runtime;clipboard;lifecycle;security;offline")
 
     # A Linux signal only requests Stop; R1/R2/R3/R5 teardown is serialized.
     # This inspects production code offline without signals or live admission.
@@ -3673,7 +3673,7 @@ add_test(NAME runtime.linux-x11-clipboard-production-linkage
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_clipboard_linkage.cmake")
 set_tests_properties(
     runtime.linux-x11-clipboard-production-linkage PROPERTIES
-    LABELS "runtime;security;r8-r3;x11;offline;native-linkage")
+    LABELS "runtime;clipboard;lifecycle;security;x11;offline;native-linkage")
 
 # R5 R2/R3-authorized XTEST route. These cases use only ephemeral Xvfb and
 # deliberately supply no admission lease. They prove both that native desktop
@@ -3892,11 +3892,11 @@ if(TARGET rdp-server-linux-x11-clipboard)
         clipboard.x11-selection-ownership-generation
         PROPERTIES LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
 
-    add_test(NAME runtime.r8-x11-restart-incr-isolation
+    add_test(NAME runtime.clipboard-x11-restart-incr-isolation
         COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
             x11-disconnect-restart-stale-incr-isolation)
-    set_tests_properties(runtime.r8-x11-restart-incr-isolation PROPERTIES
-        LABELS "runtime;security;r8-lifetime;x11;native;offline")
+    set_tests_properties(runtime.clipboard-x11-restart-incr-isolation PROPERTIES
+        LABELS "runtime;clipboard;lifecycle;security;x11;native;offline")
 endif()
 
 # R9 opt-in bounded coverage-guided wire fuzzing. This is deliberately
@@ -4394,7 +4394,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-acceptance-listener-start-failure-keeps-clipboard-dormant
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;product;credentials;acceptance;failure;clipboard;r8"
+        LABELS "gui;offline;product;credentials;acceptance;failure;clipboard;lifecycle;security"
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
     # Public Release keeps the prequalification surface disabled. Debug uses

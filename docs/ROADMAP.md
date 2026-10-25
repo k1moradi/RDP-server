@@ -1,3 +1,36 @@
+## R5 P1 exact-SHA hosted pre-native qualification — 2026-10-24
+
+**Qualified repository SHA:** `3bd18c10cba6a4743ef331e6ac6f90857f556fb6`.
+
+The repository-side R5 dependency gate is now qualified on the current code
+tree. Exact-SHA workflow `40132734625` has the relevant jobs green:
+`r9-security-protocol-sanitizers`, Linux/macOS/Windows protocol, and
+`r5-linux-gui-zip`. The shared DirectNtlm reconnect/Stop->Start lifecycle
+passes in the sanitizer lane, and Ubuntu ordinary full CTest passes the
+registered `runtime.linux-r5-auth-envelope-independent-native-owner` gate.
+
+This qualification also supersedes the earlier provisional wording that the
+hosted DirectNtlm fixture reached positive R2 admission/MCS. Production
+correctly requires real logind/native-session evidence before issuing that
+lease. On hosted Ubuntu a valid DirectNtlm peer reaches
+`CredentialsVerified`, then fails closed at
+`StandaloneAuthenticationFailureStage::Admission`. Throughout that path,
+failed-peer retry and Stop -> fresh-consent -> Start, R5 remains dormant:
+`nativeDesktopReady == false` and `nativeDesktopInitializing == false`.
+
+The positive R5 transition remains unchanged and envelope-agnostic:
+`genuine live R2 lease -> R3 progression -> GraphicsReady ->
+visitNativeDesktopSelection() -> initializeNativeDesktop()`. No DirectNtlm or
+SPNEGO knowledge belongs in R5.
+
+**Repository-side R5 blocker:** RESOLVED for the permitted hosted/offline
+boundary. **Remaining positive blocker:** owner-authorized physical
+Microsoft-client/Linux-X11 execution that supplies genuine native R2 admission,
+then reaches R3 Share/RDPGFX `GraphicsReady`. Synthetic or hosted evidence
+must not manufacture that authority. No live listener, desktop, input or
+clipboard action was performed here. Canonical owner-local
+`~/rdp-server/build` command: **NOT RUN** in this connector session.
+
 ## R8 P2 exact-SHA hosted stale-lifetime qualification — 2026-10-24
 
 **Qualified repository SHA:** `346f6afe59d4331664697da67a74de9d117cde60`.

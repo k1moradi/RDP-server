@@ -1,3 +1,34 @@
+## R5 hosted pre-native qualification receipt — 2026-10-24
+
+**Exact tested SHA:** `3bd18c10cba6a4743ef331e6ac6f90857f556fb6`  
+**Workflow:** `40132734625`
+
+The current R5 repository-side boundary is green. Relevant exact-SHA jobs are
+**PASS**: R9 security/protocol sanitizers, Ubuntu/macOS/Windows protocol,
+R5 Linux GUI ZIP, documentation policy and the other dependency jobs required
+by the owner-candidate lane. The workflow still has an unrelated queued
+clean-Windows portable-GUI packaging job; it does not gate this R5 boundary.
+
+The sanitizer lane executes the production-linked DirectNtlm
+reconnect/Stop->Start lifecycle. Valid hosted peers complete DirectNtlm/CredSSP
+through `CredentialsVerified` and then are correctly denied at native
+`Admission` because GitHub-hosted Ubuntu has no qualifying physical graphical
+logind owner session. The lifecycle keeps R5 native readiness false across
+malformed authentication, valid credential verification/admission denial,
+ordinary Stop, fresh consent/restart and retry.
+
+Ubuntu full CTest also covers the registered
+`runtime.linux-r5-auth-envelope-independent-native-owner` source contract,
+which keeps X11 construction behind a live R2 lease, `GraphicsReady`, fresh
+admission/session generations and `visitNativeDesktopSelection()`, while
+forbidding authentication-envelope knowledge in R5.
+
+Repository-side hosted/offline R5 qualification: **PASS**. Positive X11 owner
+creation remains **BLOCKED / NOT RUN** on explicit owner authorization for the
+physical Microsoft-client/native-admission path, followed by R3
+`GraphicsReady`. Canonical owner-local build/full CTest: **NOT RUN**. No live
+desktop or listener action was performed.
+
 ## R8 hosted stale-lifetime qualification receipt — 2026-10-24
 
 **Exact tested SHA:** `346f6afe59d4331664697da67a74de9d117cde60`  

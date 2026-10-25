@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/standalone_credssp.h"
+#include "ntlm_type2_conformance.h"
 #include "server/security/credssp_tls_certificate.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
 
@@ -13,6 +14,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <span>
 #include <string_view>
@@ -69,6 +71,11 @@ constexpr NtlmV2Key kEncryptedRandomSessionKey{
     0xc5,0xda,0xd2,0x54,0x4f,0xc9,0x79,0x90,
     0x94,0xce,0x1c,0xe9,0x0b,0xc9,0xd0,0x3e};
 constexpr std::uint32_t kMicrosoftAuthenticateFlags = 0xe2888235U;
+// Owner-observed Microsoft-client Type-1 flags from the physical Linux/X11
+// trace. Only the captured flags are pinned here; unobserved workstation
+// and Version bytes are deliberately left zero rather than invented.
+constexpr std::uint32_t kPhysicalMicrosoftTypeOneFlags = 0xe2088235U;
+constexpr std::uint32_t kPhysicalExpectedTypeTwoFlags = 0xe08a8235U;
 constexpr std::array<std::uint8_t, 10> kNtlmOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
 constexpr std::array<std::uint8_t, 6> kSpnegoOid{
@@ -194,6 +201,158 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     return wrap(0xa1U, wrap(0x30U, item));
 }
 
+class IndependentDerReader final
+{
+public:
+    explicit IndependentDerReader(
+        std::span<const std::uint8_t> bytes) noexcept
+        : remaining_(bytes)
+    {
+    }
+
+    [[nodiscard]] bool take(
+        std::uint8_t expectedTag,
+        std::span<const std::uint8_t> &value) noexcept
+    {
+        value = {};
+        if (remaining_.size() < 2U ||
+            remaining_.front() != expectedTag)
+        {
+            return false;
+        }
+
+        const std::uint8_t firstLengthByte = remaining_[1U];
+        std::size_t contentLength = 0U;
+        std::size_t headerBytes = 2U;
+        if ((firstLengthByte & 0x80U) == 0U)
+        {
+            contentLength = firstLengthByte;
+        }
+        else
+        {
+            const std::size_t lengthByteCount =
+                firstLengthByte & 0x7fU;
+            if (lengthByteCount == 0U ||
+                lengthByteCount > sizeof(std::size_t) ||
+                remaining_.size() < 2U + lengthByteCount ||
+                remaining_[2U] == 0U)
+            {
+                return false;
+            }
+
+            for (std::size_t index = 0U;
+                 index < lengthByteCount;
+                 ++index)
+            {
+                const std::uint8_t byte =
+                    remaining_[2U + index];
+                if (contentLength >
+                    ((std::numeric_limits<std::size_t>::max)() -
+                     byte) /
+                        256U)
+                {
+                    return false;
+                }
+                contentLength =
+                    contentLength * 256U + byte;
+            }
+            if (contentLength < 128U)
+                return false;
+            headerBytes += lengthByteCount;
+        }
+
+        if (contentLength > remaining_.size() - headerBytes)
+            return false;
+
+        value = remaining_.subspan(headerBytes, contentLength);
+        remaining_ =
+            remaining_.subspan(headerBytes + contentLength);
+        return true;
+    }
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return remaining_.empty();
+    }
+
+private:
+    std::span<const std::uint8_t> remaining_{};
+};
+
+[[nodiscard]] bool parseIndependentDirectTypeTwoTsRequest(
+    std::span<const std::uint8_t> encoded,
+    std::span<const std::uint8_t> &typeTwo) noexcept
+{
+    typeTwo = {};
+
+    std::span<const std::uint8_t> outerSequence;
+    IndependentDerReader topLevel(encoded);
+    if (!topLevel.take(0x30U, outerSequence) ||
+        !topLevel.empty())
+    {
+        return false;
+    }
+
+    IndependentDerReader fields(outerSequence);
+    std::span<const std::uint8_t> versionContext;
+    if (!fields.take(0xa0U, versionContext))
+        return false;
+
+    IndependentDerReader versionReader(versionContext);
+    std::span<const std::uint8_t> versionInteger;
+    if (!versionReader.take(0x02U, versionInteger) ||
+        !versionReader.empty() ||
+        versionInteger.size() != 1U ||
+        versionInteger.front() != 6U)
+    {
+        return false;
+    }
+
+    std::span<const std::uint8_t> negoTokensContext;
+    if (!fields.take(0xa1U, negoTokensContext) ||
+        !fields.empty())
+    {
+        // Type-2 negotiation response: no authInfo, pubKeyAuth, errorCode,
+        // clientNonce, unknown context field or trailing field is permitted.
+        return false;
+    }
+
+    std::span<const std::uint8_t> negoDataSequence;
+    IndependentDerReader negoTokensReader(negoTokensContext);
+    if (!negoTokensReader.take(0x30U, negoDataSequence) ||
+        !negoTokensReader.empty())
+    {
+        return false;
+    }
+
+    std::span<const std::uint8_t> negoDataItem;
+    IndependentDerReader negoDataReader(negoDataSequence);
+    if (!negoDataReader.take(0x30U, negoDataItem) ||
+        !negoDataReader.empty())
+    {
+        return false;
+    }
+
+    std::span<const std::uint8_t> negoTokenContext;
+    IndependentDerReader itemReader(negoDataItem);
+    if (!itemReader.take(0xa0U, negoTokenContext) ||
+        !itemReader.empty())
+    {
+        return false;
+    }
+
+    IndependentDerReader tokenReader(negoTokenContext);
+    if (!tokenReader.take(0x04U, typeTwo) ||
+        !tokenReader.empty() ||
+        typeTwo.empty())
+    {
+        typeTwo = {};
+        return false;
+    }
+
+    return true;
+}
+
 [[nodiscard]] Bytes octetContext(
     std::uint8_t tag,
     std::span<const std::uint8_t> value)
@@ -276,6 +435,26 @@ constexpr std::array<std::uint8_t, 232> kMicrosoftAuthenticateMessage{
     message[13] = static_cast<std::uint8_t>(flags >> 8U);
     message[14] = static_cast<std::uint8_t>(flags >> 16U);
     message[15] = static_cast<std::uint8_t>(flags >> 24U);
+    return message;
+}
+
+[[nodiscard]] std::array<std::uint8_t, 40>
+physicalMicrosoftTypeOneMessage()
+{
+    std::array<std::uint8_t, 40> message{};
+    constexpr std::array<std::uint8_t, 8> signature{
+        'N','T','L','M','S','S','P',0};
+    std::copy(
+        signature.begin(), signature.end(), message.begin());
+    message[8U] = 1U;
+    message[12U] =
+        static_cast<std::uint8_t>(kPhysicalMicrosoftTypeOneFlags);
+    message[13U] = static_cast<std::uint8_t>(
+        kPhysicalMicrosoftTypeOneFlags >> 8U);
+    message[14U] = static_cast<std::uint8_t>(
+        kPhysicalMicrosoftTypeOneFlags >> 16U);
+    message[15U] = static_cast<std::uint8_t>(
+        kPhysicalMicrosoftTypeOneFlags >> 24U);
     return message;
 }
 
@@ -463,7 +642,7 @@ public:
         assert(false && "TLS frame did not complete");
     }
 
-    [[nodiscard]] Bytes flushServerReply(
+    [[nodiscard]] Bytes flushServerReplyRaw(
         TsRequestTlsReplyWriter &writer)
     {
         for (std::size_t attempt = 0;
@@ -494,22 +673,18 @@ public:
              attempt < 4096U;
              ++attempt)
         {
-            std::size_t read = 0;
+            std::size_t read = 0U;
             const int result = SSL_read_ex(
                 client_.get(), buffer.data(),
                 buffer.size(), &read);
             if (result == 1)
             {
-                assert(read != 0);
+                assert(read != 0U);
                 plaintext.insert(
                     plaintext.end(),
                     buffer.begin(),
                     buffer.begin() +
                         static_cast<std::ptrdiff_t>(read));
-                const auto parsed =
-                    parseCredSspTsRequest(plaintext);
-                if (parsed && SSL_pending(client_.get()) == 0)
-                    break;
                 continue;
             }
 
@@ -517,9 +692,16 @@ public:
                 SSL_get_error(client_.get(), result);
             assert(error == SSL_ERROR_WANT_READ ||
                    error == SSL_ERROR_WANT_WRITE);
-            assert(parseCredSspTsRequest(plaintext));
             break;
         }
+        assert(!plaintext.empty());
+        return plaintext;
+    }
+
+    [[nodiscard]] Bytes flushServerReply(
+        TsRequestTlsReplyWriter &writer)
+    {
+        auto plaintext = flushServerReplyRaw(writer);
         assert(parseCredSspTsRequest(plaintext));
         assert(writer.releaseReply());
         return plaintext;
@@ -1220,6 +1402,101 @@ void testAuthInfoTamperRevokes()
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }
 
+void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+
+    StandaloneCredSspNtlmAcceptor acceptor;
+    assert(acceptor.configureChallenge(
+        {kServerChallenge,
+         kStandaloneNtlmPortableDomainName,
+         kStandaloneNtlmPortableServerName,
+         kTimestamp}));
+
+    const auto typeOneArray = physicalMicrosoftTypeOneMessage();
+    const Bytes typeOne{typeOneArray.begin(), typeOneArray.end()};
+    const auto request =
+        wrap(0x30U, append(version(6U), tokens(typeOne)));
+
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::NegoReplyQueued);
+    assert(acceptor.stage() ==
+           StandaloneCredSspStage::NegoContinue);
+    assert(acceptor.lastNtlmMessageType() == 1U);
+
+    const auto reply = tls.flushServerReplyRaw(writer);
+    std::span<const std::uint8_t> typeTwo;
+    assert(parseIndependentDirectTypeTwoTsRequest(
+        reply, typeTwo));
+
+    using namespace rdp_server::tests::ntlm_type2_conformance;
+    ParsedChallenge parsed{};
+    assert(parseConformantChallenge(typeTwo, parsed));
+    assert(parsed.flags == kPhysicalExpectedTypeTwoFlags);
+    assert(typeTwo.size() == 126U);
+    assert(parsed.targetName.size() ==
+           kStandaloneNtlmPortableServerName.size() * 2U);
+    assert(utf16LittleEndianEquals(
+        parsed.targetName, kStandaloneNtlmPortableServerName));
+    assert(parsed.targetInfo.size() == 50U);
+
+    constexpr std::array<std::uint16_t, 4> expectedAvIds{
+        kMsvAvNbDomainName,
+        kMsvAvNbComputerName,
+        kMsvAvTimestamp,
+        kMsvAvEol};
+    std::size_t targetInfoOffset = 0U;
+    for (const std::uint16_t expectedAvId : expectedAvIds)
+    {
+        assert(parsed.targetInfo.size() - targetInfoOffset >= 4U);
+        const std::uint16_t avId =
+            loadLe16(parsed.targetInfo.data() + targetInfoOffset);
+        const std::size_t avLength =
+            loadLe16(parsed.targetInfo.data() +
+                     targetInfoOffset + 2U);
+        targetInfoOffset += 4U;
+        assert(avId == expectedAvId);
+        assert(avLength <=
+               parsed.targetInfo.size() - targetInfoOffset);
+        targetInfoOffset += avLength;
+    }
+    assert(targetInfoOffset == parsed.targetInfo.size());
+
+    const auto observation = acceptor.challengeObservation();
+    assert(observation.valid);
+    assert(observation.clientNegotiateFlags ==
+           kPhysicalMicrosoftTypeOneFlags);
+    assert(observation.negotiateFlags == parsed.flags);
+    assert(observation.targetNameCodeUnits == 10U);
+    assert(observation.targetInfoBytes == 50U);
+    assert(observation.totalBytes == 126U);
+    assert(observation.targetInfoAvIdCount == expectedAvIds.size());
+    for (std::size_t index = 0U;
+         index < expectedAvIds.size();
+         ++index)
+    {
+        assert(observation.targetInfoAvIds[index] ==
+               expectedAvIds[index]);
+    }
+    assert(observation.targetTypeServer);
+    assert(observation.targetNamePresent);
+
+    auto trailingReply = reply;
+    trailingReply.push_back(0U);
+    std::span<const std::uint8_t> ignored;
+    assert(!parseIndependentDirectTypeTwoTsRequest(
+        trailingReply, ignored));
+
+    assert(writer.releaseReply());
+}
+
 void testManualFrameProvenanceDenial()
 {
     EphemeralNtlmV2Credential credential;
@@ -1258,6 +1535,12 @@ int main(int argc, char **argv)
         return 2;
     const std::string_view testCase{argv[1]};
 
+    if (testCase ==
+        "r9-credssp-direct-ntlm-physical-type1-tsrequest-conformance")
+    {
+        testPhysicalTypeOneIndependentTypeTwoTsRequestOracle();
+        return 0;
+    }
     if (testCase == "r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge")
     {
         // Both CredSSP TSRequest versions cross the actual in-memory TLS

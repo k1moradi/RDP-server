@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      r9_credssp_owner_candidate:
+        description: Run the exact-SHA CredSSP owner-candidate prerequisite gate
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -875,6 +880,10 @@ jobs:
             direct-ntlm-envelope-classification-denials
           build/tests/test_standalone_spnego \
             direct-ntlm-wrong-password-stage
+          # Project-owned outer-envelope qualification is necessary but
+          # not candidate-sufficient; Windows protocol CI owns Microsoft SSPI.
+          build/tests/test_standalone_credssp \
+            r9-credssp-direct-ntlm-physical-type1-tsrequest-conformance
           build/tests/test_standalone_credssp \
             r9-standalone-credssp-direct-ntlm-v6-full-flow
           build/tests/test_standalone_credssp \
@@ -1929,6 +1938,45 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 60 \
             -R "$r7_focus" --output-on-failure
 
+
+  # R9 P0 candidate nomination. The protocol matrix directly executes
+  # Agent 6's Microsoft Windows SSPI Type-2 oracle on Windows.
+  r9-credssp-owner-candidate:
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.r9_credssp_owner_candidate }}
+    needs:
+      - ci-workflow-structure
+      - protocol
+      - r6-windows-clang23
+      - r9-security-protocol-sanitizers
+      - documentation-policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require exact-SHA CredSSP owner-candidate prerequisites
+        env:
+          STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
+          PROTOCOL_RESULT: ${{ needs.protocol.result }}
+          WINDOWS_CLANG_RESULT: ${{ needs.r6-windows-clang23.result }}
+          R9_RESULT: ${{ needs.r9-security-protocol-sanitizers.result }}
+          DOCUMENTATION_RESULT: ${{ needs.documentation-policy.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for result in \
+            "$STRUCTURE_RESULT" \
+            "$PROTOCOL_RESULT" \
+            "$WINDOWS_CLANG_RESULT" \
+            "$R9_RESULT" \
+            "$DOCUMENTATION_RESULT"; do
+            test "$result" = success
+          done
+          grep -Fq 'security.windows-sspi-production-type2-interop' \
+            tests/CMakeLists.txt
+          grep -Fq 'Primary Microsoft Windows SSPI Type-2 oracle' \
+            .github/workflows/ci.yml
+          grep -Fq 'security.credssp-direct-ntlm-physical-type1-tsrequest-conformance' \
+            tests/CMakeLists.txt
+          printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.

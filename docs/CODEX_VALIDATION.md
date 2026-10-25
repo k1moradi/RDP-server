@@ -1,3 +1,36 @@
+## R9 outer CredSSP oracle and candidate-gate authoring — 2026-10-25
+
+**Reconciled publication parent:** `d19743147da7b076fc410a3d9a808966fac57734`. Owner assignment evidence remains
+Linux/X11 local CTest **980/980 PASS** with TCP/X.224 HYBRID/TLS/raw Type 1
+PASS, production Type 2 completely delivered, Type 3 **NOT RECEIVED**, peer
+EOF and native Admission/MCS/graphics **NOT REACHED**. Recorded structure:
+Type-1 flags `0xe2088235`, Type-2 flags `0xe08a8235`, TargetName 10 code
+units, TargetInfo 50 bytes, 126 total Type-2 bytes and AV IDs `2,1,7,0`.
+
+Concurrent Agent 6 work is consumed rather than duplicated:
+Windows-only `security.windows-sspi-production-type2-interop` uses native
+Microsoft SSPI for Type 1 -> unmodified production Type 2 -> Type 3 and is
+directly executed by Windows protocol CI.
+
+R9 authors all-platform
+`security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`. It reads
+the production CredSSP reply plaintext without the production TSRequest parser;
+a separate bounded DER reader requires version 6, one negoTokens/NegoData item
+with exact raw Type 2, no optional/unknown/trailing fields, then the independent
+Type-2 conformance oracle verifies the owner structural receipt. A trailing-byte
+mutation is explicitly rejected.
+
+R9 also authors manual `r9_credssp_owner_candidate` dispatch and
+`r9-credssp-owner-candidate` aggregation. It cannot pass unless the exact-SHA
+protocol matrix (therefore the explicit Windows SSPI step), Windows CLANG64,
+R9 sanitizer, workflow-structure and documentation jobs all pass. Ordinary
+pushes do not nominate a candidate.
+
+Connector source/reconciliation review: **PASS**. Modified-tree build/focused/
+full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA
+hosted CI and Microsoft SSPI result: **PENDING**. No production or downstream
+native/MCS/graphics/input/clipboard behavior changed.
+
 ## R1 committed Type-2 wait/transport-classification authoring receipt — 2026-10-25
 
 Assignment SHA `1e6a7c6ea11fcfde09061355328080591a6d7e30`; reconciled

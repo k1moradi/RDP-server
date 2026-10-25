@@ -1,3 +1,37 @@
+## R9 outer TSRequest oracle and owner-candidate prerequisite (2026-10-25)
+
+Agent 6 supplies the Windows-only primary inner-NTLM oracle
+`security.windows-sspi-production-type2-interop`: Microsoft SSPI owns Type 1
+and Type 3 while production owns the untouched Type 2. R9 consumes that gate
+rather than replacing it with another project-owned NTLM client.
+
+Independently qualify the outer response with all-platform CTest
+`security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`. Feed the
+production standalone CredSSP acceptor a raw Type-1 fixture carrying the
+owner-observed flags `0xe2088235`, read the actual server TLS plaintext, and
+decode it with a separate test-only DER reader. Do not use
+`parseCredSspTsRequest()` to qualify the writer. Require version 6, exactly
+one `negoTokens` field, exactly one NegoData item, and an OCTET STRING that is
+the exact raw Type 2; reject authInfo, pubKeyAuth, errorCode, clientNonce,
+unknown context fields, duplicate items and trailing bytes. The independent
+Type-2 oracle then pins flags `0xe08a8235`, 10-code-unit `RDP-SERVER`,
+50 TargetInfo bytes, 126 total Type-2 bytes and AV IDs `2,1,7,0`.
+
+A new physical Linux candidate may be nominated only through explicit
+`r9_credssp_owner_candidate` workflow dispatch after the same SHA has green
+Linux/macOS/Windows protocol CI (including Agent 6's Microsoft SSPI oracle),
+Windows CLANG64 full CTest, R9 sanitizer/outer-TSRequest qualification,
+Start -> Stop -> Start, failed-peer listener reuse and pre-Type-3
+native/MCS/graphics dormancy. Project-owned DER/NTLM parser success alone is
+never candidate evidence.
+
+If SSPI rejects baseline Type 2, keep Agent 6's fresh-context one-property
+diagnostics test-only until Microsoft evidence selects a profile. If SSPI
+accepts baseline but the physical Windows App/macOS client still EOFs after
+Type 2, require that exact client log before another server change. Do not
+modify Linux native admission, MCS, graphics, input or clipboard for this
+boundary.
+
 ## R1 Type-2 wait and exact terminal real-socket gate (2026-10-25)
 
 Keep a production-backed real-listener/TLS regression for the unresolved

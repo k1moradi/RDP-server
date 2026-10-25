@@ -354,6 +354,15 @@ else()
     target_compile_options(test_standalone_credssp PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
+# R9 P0: production Type-2 TSRequest from the physical raw-Type-1 flags,
+# decoded by a test-only DER oracle rather than the production TSRequest parser.
+add_test(NAME security.credssp-direct-ntlm-physical-type1-tsrequest-conformance
+    COMMAND test_standalone_credssp
+        r9-credssp-direct-ntlm-physical-type1-tsrequest-conformance)
+set_tests_properties(
+    security.credssp-direct-ntlm-physical-type1-tsrequest-conformance
+    PROPERTIES LABELS "assurance;security;credentials;ntlmv2;credssp;tls;protocol;offline")
+
 add_test(NAME security.standalone-credssp-direct-ntlm-v6-full-flow
     COMMAND test_standalone_credssp
         r9-standalone-credssp-direct-ntlm-v6-full-flow)

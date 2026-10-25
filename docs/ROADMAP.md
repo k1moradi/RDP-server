@@ -1,3 +1,38 @@
+## R9 P0 — outer TSRequest oracle and candidate gate after Agent 6 SSPI landing (2026-10-25)
+
+**Reconciled publication parent:** `d19743147da7b076fc410a3d9a808966fac57734`.
+Agent 6's Windows-only `security.windows-sspi-production-type2-interop` is
+present on main and directly executed by the Windows protocol job. Its hosted
+PASS is required evidence; source presence alone is not a candidate receipt.
+
+R9 adds the independent outer-envelope assurance required by the owner
+assignment. `security.credssp-direct-ntlm-physical-type1-tsrequest-conformance`
+drives the production CredSSP acceptor from a raw Type-1 fixture with observed
+flags `0xe2088235`, reads the actual server TLS plaintext without the
+production TSRequest parser, and requires DER TSRequest version 6, exactly one
+NegoData item containing raw Type 2, no authInfo/pubKeyAuth/errorCode/
+clientNonce/unknown/trailing field, and the observed Type-2 structure
+`0xe08a8235` / 10 TargetName code units / 50 TargetInfo bytes / 126 bytes /
+AV IDs `2,1,7,0`.
+
+**Next-candidate rule:** an ordinary green push does not nominate a Linux
+physical candidate. Nomination requires explicit `r9_credssp_owner_candidate`
+workflow dispatch on the exact SHA. The aggregate must see PASS from workflow
+structure, Linux/macOS/Windows protocol CI including Microsoft's SSPI
+Type 1 -> production Type 2 -> Type 3 oracle, Windows CLANG64 full CTest, R9
+sanitizer qualification and documentation. The R9 sanitizer already owns
+Start -> Stop -> Start, failed-peer listener reuse and the production-backed
+pre-Type-3 dormancy path, and now also executes the independent outer TSRequest
+oracle.
+
+This supersedes the historical `4d697c...` physical-candidate nomination
+below. Production NTLM/CredSSP bytes and Linux native admission, MCS, graphics,
+input and clipboard are **UNCHANGED**. Connector source/reconciliation review:
+**PASS**. Modified-tree local build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and Agent 6 SSPI result:
+**PENDING**. Physical Linux retry: **BLOCKED** until the explicit candidate
+gate passes.
+
 ## R1 P0 — committed Type-2 / Await-Type-3 transport lifetime (2026-10-25)
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

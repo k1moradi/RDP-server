@@ -1,3 +1,28 @@
+## R9 independent Type-2 oracle authoring receipt — 2026-10-25
+
+Owner baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` has Linux local
+full CTest **975/975 PASS**. Physical Microsoft Windows App evidence stops at
+TLS -> Direct NTLM Type 1 -> production Type 2 -> PeerEof, with no Type 3;
+native Admission was not reached.
+
+Current main already carries the concurrent portable TargetName/REQUEST_TARGET
+wire correction, phase-owned Type-2 EOF/retry classification, GUI projection
+and graphics dormancy checks. R9 adds an implementation-independent test parser
+for Type 2 and validates the exact production-socket challenge with it before
+the known-answer Type 3 path. The R9 candidate lane runs the independent
+conformance case directly; the existing peer-EOF/retry fixture is already
+directly selected and structure-pinned by the concurrent R10 publication.
+
+Fail-only terminal logging now derives its redacted authentication-stage text
+from the retained typed tuple, distinguishing awaiting Type 3, peer closed
+after Type 2, NTLM authenticate, pubKeyAuth, authInfo and genuine Admission.
+No new authority or parallel state owner is introduced.
+
+No logind/native-admission, MCS, graphics or clipboard production source is
+changed. Connector source/reconciliation review: **PASS**. Canonical local
+build/full CTest: **NOT RUN** in this connector environment. Exact-publication
+hosted CI: **PENDING**. Physical Windows App retry: **NOT RUN**.
+
 ## R10 phase-owned Type-2 EOF classification/retry correction — 2026-10-25
 
 **Assignment parent:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`;

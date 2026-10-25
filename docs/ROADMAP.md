@@ -1,3 +1,38 @@
+## R9 P0 — independent Type-2 oracle and exact authentication boundary — 2026-10-25
+
+**Owner evidence base:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`,
+Linux local full CTest **975/975 PASS**. The physical Microsoft Windows App
+trace is TLS established -> raw Direct NTLM Type 1 accepted -> server Type 2
+delivered -> **peer EOF**, with **no Type 3 observed**. CredentialsVerified
+and native Admission were not reached.
+
+R9 consumes the concurrent pre-admission classification/retry work, R4
+graphics-dormancy assertion and portable Type-2 TargetName correction already
+on main. The remaining assurance gap is independent wire validation: the
+portable encoder test still knows its exact expected bytes. R9 therefore adds
+a separate test-only Type-2 parser/invariant oracle and makes the real-socket
+production lifecycle use it on the exact challenge received over X.224
+HYBRID/TLS before generating the known-answer Type 3.
+
+The existing typed runtime tuple already separates the requested diagnostic
+phases. R9 additionally makes the fail-only terminal record name the exact
+redacted boundary rather than the old binary pre-admission/admission label:
+ntlm-negotiate, awaiting-type3, peer-closed-after-type2, ntlm-authenticate,
+pubkeyauth, authinfo and admission. The focused candidate lane directly runs
+the independent Type-2 conformance case; the concurrent R10 publication already
+runs the Type-2 peer-EOF/retry fixture there and pins it in the structure
+validator.
+
+**Candidate remains NOT NOMINATED.** Publication requires full CTest, the
+focused R9 gate, Linux/macOS/Windows protocol jobs and Start -> Stop -> Start
+green on one SHA before another physical build. The next physical receipt
+should show Type 1 accepted -> Type 2 delivered -> Type 3 received. Do not
+change logind/native admission, MCS, graphics or clipboard for this failure.
+
+Connector source/reconciliation review: **PASS**. Canonical owner-local
+post-change build/full CTest: **NOT RUN** here. Exact-publication-SHA hosted
+CI: **PENDING**. Physical retry: **NOT RUN**.
+
 ## R10 P0 — phase-owned Type-2 EOF classification and same-listener retry — 2026-10-25
 
 **Assignment parent:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.

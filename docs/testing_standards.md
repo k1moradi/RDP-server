@@ -1,3 +1,28 @@
+## R9 independent Type-2 conformance and production-socket oracle (2026-10-25)
+
+Keep `security.ntlmssp-challenge-target-name-conformance` separate from the
+encoder's byte-for-byte golden test. Its parser is test-only and independently
+requires legal selected flags, a non-empty server TargetName when the server
+target type is selected, valid security-buffer offsets, no TargetName/TargetInfo
+overlap, bounded valid UTF-16LE, and a well-formed TargetInfo containing the
+same computer name, a domain name, timestamp and terminal EOL. Mutated empty
+TargetName, overlapping buffers, contradictory target types and malformed AV
+lengths must fail.
+
+The Linux production-backed Direct NTLM lifecycle parses the exact Type 2
+received from the real listener -> X.224 HYBRID -> TLS path with that same
+independent oracle before constructing its known-answer Type 3. The existing
+full lifecycle must still reach CredentialsVerified before the separately
+expected hosted native-admission denial, and Start -> Stop -> Start must remain
+green.
+
+The R9 owner-candidate lane directly executes both the independent Type-2 gate
+and the already-registered Type-2 peer-EOF pre-admission fixture. While Type 3
+is absent, the accepted peer must remain NtlmChallenge/PreAdmission; after peer
+EOF it must retain the phase-owned NtlmNegotiation classification, admission
+reason None and transport PeerEof. The active and terminal tuples together are
+the oracle for awaiting-type3 versus peer-closed-after-type2.
+
 ## Cross-platform NTLM Type-2 TargetName gate (2026-10-25)
 
 The standalone NTLMSSP challenge test is registered on every platform and must

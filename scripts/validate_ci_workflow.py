@@ -301,6 +301,7 @@ REQUIRED_TOKENS = (
     "runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle",
     "direct-ntlm-type2-peer-eof-pre-admission-diagnostics",
     "ntlmssp-challenge-portable-target-name",
+    "ntlmssp-challenge-target-name-conformance",
     "test_standalone_ntlmssp",
     "same-port-rebind-after-server-close",
     "clipboard_expected_test_count=97",

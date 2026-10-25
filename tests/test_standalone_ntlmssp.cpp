@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/standalone_ntlmssp.h"
+#include "ntlm_type2_conformance.h"
 
 #include <algorithm>
 #include <array>
@@ -271,6 +272,67 @@ int main(int argc, char **argv)
             {invalidSurrogate.data(), invalidSurrogate.size()};
         assert(encodeNtlmChallengeMessage(parameters, output).status ==
                NtlmChallengeEncodeStatus::InvalidInput);
+        return 0;
+    }
+
+    if (testCase == "ntlmssp-challenge-target-name-conformance")
+    {
+        std::array<std::uint8_t, 768> output{};
+        const NtlmChallengeMessageParameters parameters{
+            kServerChallenge,
+            kStandaloneNtlmPortableDomainName,
+            kStandaloneNtlmPortableServerName,
+            0x0102030405060708ULL,
+            kMicrosoftAuthenticateFlags};
+        const auto encoded =
+            encodeNtlmChallengeMessage(parameters, output);
+        assert(encoded);
+
+        using namespace rdp_server::tests::ntlm_type2_conformance;
+        ParsedChallenge parsed{};
+        assert(parseConformantChallenge(
+            std::span<const std::uint8_t>{output}.first(
+                encoded.bytesWritten),
+            parsed));
+        assert(utf16LittleEndianEquals(
+            parsed.targetName, kStandaloneNtlmPortableServerName));
+        const std::size_t targetNameOffset = parsed.targetNameOffset;
+        const std::size_t targetInfoOffset = parsed.targetInfoOffset;
+
+        auto missingTargetName = output;
+        storeLe16(missingTargetName.data() + 12U, 0U);
+        storeLe16(missingTargetName.data() + 14U, 0U);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{missingTargetName}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        auto overlappingBuffers = output;
+        storeLe32(
+            overlappingBuffers.data() + 44U,
+            static_cast<std::uint32_t>(targetNameOffset));
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{overlappingBuffers}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        auto contradictoryTargetType = output;
+        storeLe32(
+            contradictoryTargetType.data() + 20U,
+            encoded.negotiateFlags | kTargetTypeDomain);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{contradictoryTargetType}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        auto malformedTargetInfo = output;
+        storeLe16(
+            malformedTargetInfo.data() + targetInfoOffset + 2U,
+            0xffffU);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{malformedTargetInfo}.first(
+                encoded.bytesWritten),
+            parsed));
         return 0;
     }
 

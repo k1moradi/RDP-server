@@ -3,6 +3,7 @@
 #include "server/security/credssp_binding.h"
 #include "server/security/standalone_credssp.h"
 #include "server/security/standalone_ntlmssp.h"
+#include "ntlm_type2_conformance.h"
 
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
@@ -70,23 +71,6 @@ using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
 constexpr std::u16string_view kStandaloneUser{u"rdp"};
 constexpr std::array<char16_t, 8> kStandalonePassword{
     u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
-
-[[nodiscard]] constexpr std::uint16_t loadLe16(
-    const std::uint8_t* bytes) noexcept
-{
-    return static_cast<std::uint16_t>(
-        static_cast<std::uint16_t>(bytes[0]) |
-        (static_cast<std::uint16_t>(bytes[1]) << 8U));
-}
-
-[[nodiscard]] constexpr std::uint32_t loadLe32(
-    const std::uint8_t* bytes) noexcept
-{
-    return static_cast<std::uint32_t>(bytes[0]) |
-           (static_cast<std::uint32_t>(bytes[1]) << 8U) |
-           (static_cast<std::uint32_t>(bytes[2]) << 16U) |
-           (static_cast<std::uint32_t>(bytes[3]) << 24U);
-}
 
 void storeLe16(std::uint8_t* bytes, std::uint16_t value) noexcept
 {
@@ -238,6 +222,7 @@ void storeLe32(std::uint8_t* bytes, std::uint32_t value) noexcept
 
     constexpr std::uint32_t flags =
         kNtlmNegotiateUnicode |
+        kNtlmRequestTarget |
         kNtlmNegotiateNtlm |
         kNtlmNegotiateAlwaysSign |
         kRequiredStandaloneCredSspNtlmFlags |
@@ -283,49 +268,18 @@ void storeLe32(std::uint8_t* bytes, std::uint32_t value) noexcept
            outputBytes == output.size();
 }
 
-struct ParsedTypeTwo final
-{
-    NtlmServerChallenge challenge{};
-    std::uint32_t flags{};
-    Bytes targetInfo;
-};
+using ParsedTypeTwo =
+    rdp_server::tests::ntlm_type2_conformance::ParsedChallenge;
 
 [[nodiscard]] std::optional<ParsedTypeTwo> parseDirectTypeTwo(
     ByteSpan message)
 {
-    constexpr std::array<std::uint8_t, 12> signature{
-        'N','T','L','M','S','S','P',0,2,0,0,0};
-    if (message.size() < 48U ||
-        !std::equal(
-            signature.begin(), signature.end(), message.begin()))
-    {
-        return std::nullopt;
-    }
-
-    const std::uint16_t targetInfoBytes =
-        loadLe16(message.data() + 40U);
-    const std::uint16_t targetInfoMaximum =
-        loadLe16(message.data() + 42U);
-    const std::uint32_t targetInfoOffset =
-        loadLe32(message.data() + 44U);
-    if (targetInfoBytes == 0U ||
-        targetInfoBytes != targetInfoMaximum ||
-        targetInfoOffset > message.size() ||
-        targetInfoBytes > message.size() - targetInfoOffset)
-    {
-        return std::nullopt;
-    }
-
     ParsedTypeTwo parsed;
-    std::copy_n(
-        message.begin() + 24,
-        parsed.challenge.size(),
-        parsed.challenge.begin());
-    parsed.flags = loadLe32(message.data() + 20U);
-    parsed.targetInfo.assign(
-        message.begin() + static_cast<std::ptrdiff_t>(targetInfoOffset),
-        message.begin() + static_cast<std::ptrdiff_t>(
-            targetInfoOffset + targetInfoBytes));
+    if (!rdp_server::tests::ntlm_type2_conformance::
+            parseConformantChallenge(message, parsed))
+    {
+        return std::nullopt;
+    }
     return parsed;
 }
 
@@ -1335,6 +1289,9 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .admissionFailureReason ==
                RuntimeAcceptedClientAdmissionFailureReason::None);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .termination ==
+               RuntimeAcceptedClientTermination::Open);
         assertGraphicsDormant(waitingForTypeThree);
 
         closeAfterTypeTwo.store(true, std::memory_order_release);

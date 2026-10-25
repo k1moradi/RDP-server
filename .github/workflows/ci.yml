@@ -853,6 +853,8 @@ jobs:
           # server TargetName on every host before broader CredSSP coverage.
           build/tests/test_standalone_ntlmssp \
             ntlmssp-challenge-portable-target-name
+          build/tests/test_standalone_ntlmssp \
+            ntlmssp-challenge-target-name-conformance
 
           # Exact owner reproduction: v6 / one 40-byte raw NTLMSSP Type 1,
           # raw Type 2, raw Type 3 + pubKeyAuth, server pubKeyAuth, authInfo,

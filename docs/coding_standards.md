@@ -1,3 +1,22 @@
+## R9 independent Type-2 oracle and terminal authentication taxonomy (2026-10-25)
+
+A production NTLM Type-2 encoder must not qualify itself solely through a byte
+array derived from the same implementation assumptions. Keep an independent
+test-only parser that validates CHALLENGE_MESSAGE signature/type, legal selected
+flags, TargetName and TargetInfo security-buffer bounds, non-overlap,
+non-empty valid UTF-16LE server TargetName, TargetInfo AV structure, and
+TargetName/MsvAvNbComputerName consistency. Negative mutations must fail
+without changing production parsing or authentication authority.
+
+The existing connection-owned diagnostic scalars are sufficient to distinguish
+the required phases without creating a second state machine:
+CredSspDirectNtlm = ntlm-negotiate; NtlmChallenge + live transport =
+awaiting-type3; NtlmChallenge + peer termination = peer-closed-after-type2;
+NtlmAuthenticate = ntlm-authenticate; CredSspBinding = pubkeyAuth;
+CredentialDelegation = authInfo; and only the genuine post-CredentialsVerified
+native broker may report admission. Fail-only terminal logging must preserve
+that exact redacted boundary; these names grant no authority.
+
 ## Portable NTLM Type-2 server TargetName is wire state (2026-10-25)
 
 MS-NLMP CHALLENGE_MESSAGE naming is portable protocol state. When

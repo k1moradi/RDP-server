@@ -652,6 +652,47 @@ struct LinuxHostFramePublicationContext final
     return "pre-admission";
 }
 
+[[nodiscard]] constexpr const char* authenticationDiagnosticStageName(
+    const RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using Stage = RuntimeAcceptedClientAuthenticationStage;
+    using Termination = RuntimeAcceptedClientTermination;
+    switch (diagnostics.authenticationStage)
+    {
+    case Stage::Transport: return "transport";
+    case Stage::Tls: return "tls";
+    case Stage::CredSsp: return "credssp";
+    case Stage::CredSspSpnego: return "spnego";
+    case Stage::CredSspDirectNtlm: return "ntlm-negotiate";
+    case Stage::NtlmChallenge:
+        switch (diagnostics.termination)
+        {
+        case Termination::OrderlyTlsClose:
+        case Termination::PeerEof:
+        case Termination::PeerReset:
+        case Termination::PeerTlsAlert:
+            return "peer-closed-after-type2";
+        case Termination::Open:
+        case Termination::TransportError:
+        case Termination::TlsFailure:
+        case Termination::ProtocolError:
+        case Termination::Cancelled:
+        case Termination::LocalTlsFailure:
+        case Termination::Timeout:
+        case Termination::OwnerCancellation:
+            return "awaiting-type3";
+        }
+        return "awaiting-type3";
+    case Stage::NtlmAuthenticate: return "ntlm-authenticate";
+    case Stage::CredSspBinding: return "pubkeyauth";
+    case Stage::CredentialDelegation: return "authinfo";
+    case Stage::Authenticated: return "credentials-verified";
+    case Stage::Admission: return "admission";
+    case Stage::Mcs: return "mcs";
+    }
+    return "transport";
+}
+
 RuntimeAcceptedClientPreauthDiagnostics
 projectLinuxAcceptedClientPreauthDiagnostics(
     const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept
@@ -2396,10 +2437,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                                          : selectedEndpoint.c_str(),
                 protocolDiagnosticName(
                     acceptedClientPreauthDiagnostics_.protocolStage),
-                acceptedClientPreauthDiagnostics_.authenticationStage ==
-                        RuntimeAcceptedClientAuthenticationStage::Admission
-                    ? "admission"
-                    : "pre-admission",
+                authenticationDiagnosticStageName(
+                    acceptedClientPreauthDiagnostics_),
                 static_cast<int>(admissionReason.size()),
                 admissionReason.data(),
                 fingerprint.data(),

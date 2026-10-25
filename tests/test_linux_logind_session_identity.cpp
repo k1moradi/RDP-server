@@ -83,10 +83,15 @@ int main(int argc, char **argv)
     {
         LinuxLogindSessionChangeSource monitor;
         const auto diagnostics = monitor.diagnostics();
-        if (!diagnostics.monitorAvailable)
+
+        // Hosted/container environments without a booted systemd/logind
+        // instance cannot exercise the native monitor and report NOT RUN.
+        // Once systemd is present, monitor construction/fd/events/flush are
+        // production prerequisites and must fail the test rather than skip.
+        if (!diagnostics.systemdAvailable)
             return 77;
-        assert(diagnostics.systemdAvailable);
         assert(diagnostics.monitorCreated);
+        assert(diagnostics.monitorAvailable);
         assert(diagnostics.descriptorAvailable);
         assert(diagnostics.eventsAvailable);
         assert(diagnostics.initialState !=
@@ -94,6 +99,9 @@ int main(int argc, char **argv)
         assert(diagnostics.initialFlushSucceeded);
         assert(diagnostics.baselineState !=
                LinuxLogindMonitorState::Unavailable);
+
+        // A real concurrent login/session change can race the baseline flush;
+        // that environment-sensitive observation is not a monitor defect.
         if (diagnostics.baselineState == LinuxLogindMonitorState::Changed)
             return 77;
 

@@ -1,3 +1,12 @@
+## Logind monitor environment gate correction (2026-10-24)
+
+The physical monitor helper skips only when no booted systemd/logind
+environment is available. If systemd is present, failure to create the monitor,
+obtain its fd/events, flush the pre-candidate baseline, or obtain a valid
+post-flush state is a **test failure**, not SKIP. A real concurrent session
+change racing the baseline may remain environment-sensitive/NOT RUN; it is not
+converted into authorization.
+
 ## Physical logind admission diagnostics and semantic R5 taxonomy (2026-10-24)
 
 Keep the demonstrated real-client boundary at native `stage=admission`.

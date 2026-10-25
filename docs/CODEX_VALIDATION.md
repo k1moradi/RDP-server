@@ -1,3 +1,12 @@
+## Logind monitor helper fail-closed correction — 2026-10-24
+
+Post-publication source review of `10f1f27277d793b90cd89dea7a39559ed1ee0e58`
+found that the environment-sensitive monitor CTest initially returned SKIP for
+every unavailable monitor state. The helper is tightened so only an actually
+unbooted/unavailable systemd environment skips; monitor creation/fd/events/
+baseline-flush failures on a systemd host now fail deterministically. No
+production authorization, monitor or protocol behavior changes.
+
 ## Linux admission evidence instrumentation authoring receipt — 2026-10-24
 
 Baseline owner receipt: `9fd1db518076713f30b41af2aff023308f95a925`,

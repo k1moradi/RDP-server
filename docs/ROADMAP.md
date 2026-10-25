@@ -175,27 +175,39 @@ compatibility boundary.
 
 ## R4 P2 — remain blocked before graphics after Type-2 peer EOF (2026-10-25)
 
-**Reconciled parent:** `df0f980c42e65a3727c06f4b819d0cddc70b1d34`.
-Owner evidence remains assignment SHA
-`5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest
-**975/975 PASS**, with the real Microsoft Windows App stopping at
-`TLS -> Direct NTLM Type 1 -> server Type 2 -> peer EOF` and no Type 3.
-Current main has corrected the Type-2 TargetName wire shape, but there is still
-no real evidence reaching native Admission, MCS, Share or Graphics.
+**Owner evidence SHA:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`. Owner Linux/X11 full CTest:
+**980/980 PASS**. The physical Microsoft-client path remains strictly
+pre-Type-3:
+`TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 -> Type 2 completely delivered -> peer EOF`.
+No Type 3 Authenticate message was received; native Admission, MCS and
+graphics/native desktop were not reached.
 
-R4 therefore remains **P2 / BLOCKED**. No ClearCodec, AVC420, FRAME_ACK or
-surface production change is authorized by this evidence. The existing
-production-backed Type-2/EOF lifecycle CTest is tightened only to call the
-shared full graphics-dormancy assertion both while the peer is waiting to send
-Type 3 and after peer EOF: no native desktop initialization/readiness,
-framebuffer, ClearCodec preparation, committed graphics TLS write, outstanding
-FRAME_ACK or genuine matching ACK.
+R4 remains **P2 / BLOCKED**. No ClearCodec, AVC420, surface, frame-credit or
+FRAME_ACK production change is authorized. Retain the existing
+production-backed CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics`: its
+shared `assertGraphicsDormant()` is applied while waiting after complete
+Type-2 delivery and again after peer EOF. It requires no
+`GraphicsReady`/native-desktop owner, no framebuffer, no
+ClearCodec-prepared frame, no committed graphics TLS write, zero outstanding
+FRAME_ACKs and no genuine matching ACK. Production constructs the native
+graphics owner only from `AcceptedClientPhase::GraphicsReady`; surface
+reconfiguration and frame-ID progression occur only in the subsequent native
+desktop service path. The same pre-admission fence therefore leaves no surface,
+frame generation or codec state.
 
-Production graphics code: **UNCHANGED**. Connector source/test reconciliation:
-**PASS**. Modified-tree canonical local build/full CTest: **NOT RUN**.
-Exact-publication-SHA hosted CI: **PENDING**. Physical Microsoft-client retry
-after the Type-2 correction: **NOT RUN**. R4 stays blocked until a real client
-reaches the graphics boundary.
+Production graphics code is **UNCHANGED** and no duplicate R4 test is added;
+the required lifecycle assertion already exists and is retained on current
+main. Concurrent test-only work after the owner evidence SHA extends the same
+pre-Type-3 lifecycle without weakening the R4 helper. Connector source/test
+reconciliation: **PASS**. Modified-tree local build/full CTest on the current
+descendant: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Required next-owner gate:** do not nominate another Linux physical candidate
+until a Microsoft-native Windows SSPI test consumes the production Type 2 and
+produces a Type 3 Authenticate message. R4 must not modify Linux native
+admission, MCS, graphics or clipboard to compensate for this authentication
+boundary.
 
 ## R6 P1 — portable NTLM Type-2 TargetName after owner peer EOF — 2026-10-25
 

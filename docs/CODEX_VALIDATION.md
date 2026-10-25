@@ -1,3 +1,37 @@
+## Physical admission boundary and protocol-diagnostic authoring receipt — 2026-10-24
+
+**Starting exact-main parent:** `c4e916a98396e14b857ebbcbe9ff3c920fb28bef`.
+**Owner-tested evidence base:** `9fd1db518076713f30b41af2aff023308f95a925`.
+
+Owner-reported local full CTest on the evidence base: **966/966 PASS**.
+Real Microsoft client: TLS established -> Direct NTLM selected -> NTLM Type 1
+accepted -> Type 2 sent -> CredSSP progressed -> **native Admission failed**.
+Observed production diagnostic: `stage=admission`. This is the first
+demonstrated failure boundary; MCS/Share/RDPGFX are **NOT REACHED**.
+
+Authoring scope is diagnostic-only. A bounded last-positive protocol scalar is
+introduced and remains `PreAdmission` unless a genuine native admission lease
+is issued. Later values correspond only to successful existing production
+transitions: native admission verified, MCS Connect-Initial received,
+Connect-Response sent, ErectDomain, AttachUser, ChannelJoin/MCS established,
+Share activation and Share activated. The terminal fail-only line reports a
+durable `protocol-stage=...` value while retaining concurrent transport
+termination evidence. No TLS/SPNEGO/NTLM or wire serializer/parser behavior is
+changed.
+
+A new behavior CTest covers pure diagnostic projection, including the physical
+`CredentialsVerified + admission failure -> PreAdmission` rule. The protocol
+source-contract CTest is renamed to
+`runtime.linux-host-control-stop-retires-protocol-session-state`. A
+project-policy CTest rejects agent/road ownership tokens in CTest labels. The
+central registry keeps concurrent semantic transport/graphics/clipboard cleanup
+already present on the parent.
+
+Connector source/transformation review: **PASS**. Canonical owner-local
+configure/build/full CTest for the new publication: **NOT RUN** in this
+connector session. Exact-publication-SHA hosted CI: **PENDING**. Positive native
+admission and all physical MCS/Share/RDPGFX stages: **NOT RUN / BLOCKED**.
+
 ## Owner physical admission-boundary transport/listener receipt — 2026-10-24
 
 **Assignment baseline:** `9fd1db518076713f30b41af2aff023308f95a925`.
@@ -265,7 +299,7 @@ this is correct production behavior: the admission broker owns a real
 `LinuxLogindReadOnlyEvidenceSource` and real
 `LinuxLogindSessionChangeSource`; the fixture's synthetic owner evidence is
 not an admission provider. The same Ubuntu run also failed
-`runtime.linux-host-control-stop-retires-r3-session-state` only because its
+`runtime.linux-host-control-stop-retires-protocol-session-state` only because its
 source contract still searched for the superseded literal
 `credssp=direct-ntlm` after R2 renamed the redacted diagnostic.
 
@@ -1143,7 +1177,7 @@ keeps TLS/CredSSP in `AcceptedClientPhase::PreAdmission`; only
 by this increment.
 
 The new offline source-contract test
-`runtime.linux-host-control-stop-retires-r3-session-state` pins terminal
+`runtime.linux-host-control-stop-retires-protocol-session-state` pins terminal
 ownership: HostControl Stop revokes and destroys the accepted connection before
 listener close; connection revoke retires MCS/R3 before R1 cancel; the MCS
 close path clears connection-specific state; and each later accept constructs a

@@ -452,6 +452,7 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
     snapshot.authenticationProgress = authenticationProgress_;
+    snapshot.protocolStage = protocolDiagnosticStage_;
     snapshot.standaloneNegotiationEnvelope =
         standaloneNegotiationEnvelope_;
     snapshot.standalonePasswordSelected =
@@ -1522,6 +1523,8 @@ bool LinuxRuntimeConnection::issueAdmission(
         return false;
     }
     lease_.emplace(std::move(*issued));
+    protocolDiagnosticStage_ =
+        LinuxRuntimeProtocolDiagnosticStage::NativeAdmissionVerified;
     return true;
 }
 
@@ -1646,7 +1649,11 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectInitial(
         const Intake intake = authorizeMcsConnectInitial(completeTpkt);
         mcsConnectInitialFrameReader_.close();
         if (intake == Intake::AdmittedConnectInitial)
+        {
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::McsConnectInitialReceived;
             return {io.bytes, Step::AdmittedConnectInitial};
+        }
         return {
             io.bytes,
             intake == Intake::AdmissionDenied ? Step::AdmissionDenied
@@ -1745,7 +1752,11 @@ LinuxRuntimeConnection::advancePostAdmissionMcsConnectResponseWrite(
         if (outcome == Outcome::Pending)
             return {io.bytes, Step::Progress};
         if (outcome == Outcome::Delivered)
+        {
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::McsConnectResponseSent;
             return {io.bytes, Step::Delivered};
+        }
         revoke();
         return {io.bytes, Step::AdmissionDenied};
     }
@@ -1883,6 +1894,8 @@ LinuxRuntimeConnection::advancePostAdmissionMcsErectDomain(
                 revoke();
                 return {io.bytes, Step::Invalid};
             }
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::McsErectDomainReceived;
             return {io.bytes, Step::ErectDomainAccepted};
         }
         mcsErectDomainFrameReader_.close();
@@ -2062,6 +2075,8 @@ LinuxRuntimeConnection::advancePostAdmissionMcsAttachUser(
                 revoke();
                 return {io.bytes, Step::Invalid};
             }
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::McsAttachUserReceived;
             return {io.bytes, Step::AttachUserAccepted};
         }
         mcsErectDomainFrameReader_.close();
@@ -2310,6 +2325,8 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
             }
             if (outcome == Start::ReplyPending)
             {
+                protocolDiagnosticStage_ =
+                    LinuxRuntimeProtocolDiagnosticStage::McsChannelJoin;
                 mcsChannelJoinIoAction_ = Action::Write;
                 return {io.bytes, 0U, Step::Progress};
             }
@@ -2415,6 +2432,9 @@ LinuxRuntimeConnection::advancePostAdmissionMcsChannelJoins(
             return {0U, io.bytes, Step::AdmissionDenied};
         }
         const bool allConfirmed = allNegotiatedMcsChannelsJoined();
+        if (allConfirmed)
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::McsEstablished;
         mcsChannelJoinIoAction_ = Action::Read;
         return {0U, io.bytes,
                 allConfirmed ? Step::AllChannelsJoined : Step::Progress};
@@ -3112,6 +3132,8 @@ bool LinuxRuntimeConnection::startPersonalDesktopShareActivation(
 
     personalShareTlsWritePending_ = false;
     personalShareIoAction_ = PersonalDesktopShareIoAction::Write;
+    protocolDiagnosticStage_ =
+        LinuxRuntimeProtocolDiagnosticStage::ShareActivation;
     return true;
 }
 
@@ -3153,7 +3175,11 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
     {
         if (session_.phase() ==
             rdp_server::server::transport::McsSessionPhase::ShareActivated)
+        {
+            protocolDiagnosticStage_ =
+                LinuxRuntimeProtocolDiagnosticStage::ShareActivated;
             return {0U, 0U, Step::Activated};
+        }
 
         revoke();
         return {0U, 0U, Step::Invalid};
@@ -3221,6 +3247,8 @@ LinuxRuntimeConnection::advancePersonalDesktopShareActivation(
             {
                 personalShareActivationFrameReader_.close();
                 personalShareIoAction_ = Action::Activated;
+                protocolDiagnosticStage_ =
+                    LinuxRuntimeProtocolDiagnosticStage::ShareActivated;
                 return {0U, io.bytes, Step::Activated};
             }
             if (outcome != Outcome::Delivered)

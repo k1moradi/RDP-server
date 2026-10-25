@@ -26,7 +26,7 @@ add_test(NAME windows.gui-round2-tab-offline-verifier-source-contract
         "-DRDP_WINDOWS_GUI_SOURCE=${PROJECT_SOURCE_DIR}/src/windows/windows_gui_main.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_windows_gui_round2_tabs.cmake")
 set_tests_properties(windows.gui-round2-tab-offline-verifier-source-contract
-    PROPERTIES LABELS "windows;gui;r6;r9;round2;policy;offline")
+    PROPERTIES LABELS "windows;gui;platform;assurance;round2;policy;offline")
 
 # R7's imported switch intentionally has no Q_OBJECT macro. Object-name lookup
 # in hidden launch checks and fixtures must therefore use a Qt meta-object base
@@ -50,7 +50,7 @@ add_test(NAME gui.r10-product-status-integration-source-contract
         "-DRDP_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/host_control.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_product_status_integration.cmake")
 set_tests_properties(gui.r10-product-status-integration-source-contract
-    PROPERTIES LABELS "gui;r10-host-control;policy;offline")
+    PROPERTIES LABELS "gui;host-control;policy;offline")
 
 add_test(NAME gui.owner-acceptance-release-gate-and-production-path
     COMMAND "${CMAKE_COMMAND}"
@@ -64,7 +64,7 @@ add_test(NAME gui.owner-acceptance-release-gate-and-production-path
         "-DRDP_CI_WORKFLOW=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_owner_acceptance_gate.cmake")
 set_tests_properties(gui.owner-acceptance-release-gate-and-production-path
-    PROPERTIES LABELS "gui;r7;r2;r10;acceptance;security;offline")
+    PROPERTIES LABELS "gui;admission;host-control;acceptance;security;offline")
 
 # R9 GUI Round 2 exact-source contracts. These inspect source/CI text only:
 # they do not launch Qt, read native color profiles or suppress diagnostics.
@@ -74,14 +74,14 @@ add_test(NAME gui.round2-tab-source-contract
         "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_round2_tabs.cmake")
 set_tests_properties(gui.round2-tab-source-contract PROPERTIES
-    LABELS "gui;r9;round2;policy;offline")
+    LABELS "gui;assurance;round2;policy;offline")
 
 add_test(NAME gui.round2-refresh-tray-function-boundary
     COMMAND "${CMAKE_COMMAND}"
         "-DRDP_DESKTOP_WINDOW_SOURCE=${PROJECT_SOURCE_DIR}/src/gui/desktop_window.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_refresh_tray_boundary.cmake")
 set_tests_properties(gui.round2-refresh-tray-function-boundary PROPERTIES
-    LABELS "gui;r7;round2;runtime;policy;offline")
+    LABELS "gui;round2;runtime;policy;offline")
 
 add_test(NAME gui.round2-qcolor-warning-classification
     COMMAND "${CMAKE_COMMAND}"
@@ -89,7 +89,7 @@ add_test(NAME gui.round2-qcolor-warning-classification
         "-DRDP_CI_WORKFLOW=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml"
         -P "${PROJECT_SOURCE_DIR}/tests/check_gui_qcolor_warning_policy.cmake")
 set_tests_properties(gui.round2-qcolor-warning-classification PROPERTIES
-    LABELS "gui;r9;round2;qt;policy;offline")
+    LABELS "gui;assurance;round2;qt;policy;offline")
 
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
@@ -174,7 +174,7 @@ add_test(NAME r9-standalone-spnego-initial-rejection-categories
     COMMAND test_standalone_spnego
         r9-spnego-initial-rejection-categories)
 set_tests_properties(r9-standalone-spnego-initial-rejection-categories
-    PROPERTIES LABELS "r9;security;spnego;credssp;offline")
+    PROPERTIES LABELS "assurance;security;spnego;credssp;offline")
 
 # R9 P0 Microsoft-compatible synthetic NegTokenInit2 path through
 # NEGOEX/Kerberos-family-first mechanism selection into NTLM challenge. This
@@ -184,7 +184,7 @@ add_test(NAME r9-standalone-credssp-spnego-microsoft-negotiation
     COMMAND test_standalone_spnego
         r9-microsoft-neginit2-ntlm-challenge)
 set_tests_properties(r9-standalone-credssp-spnego-microsoft-negotiation
-    PROPERTIES LABELS "r9;security;spnego;credssp;offline")
+    PROPERTIES LABELS "assurance;security;spnego;credssp;offline")
 
 # R2 standalone SPNEGO/NTLM mechanism state. These are bounded offline wire
 # and cryptographic tests only; no TSRequest/TLS, GUI secret or R2 admission.
@@ -202,24 +202,21 @@ add_test(NAME security.direct-ntlm-envelope-negotiate-authenticate
         direct-ntlm-envelope-negotiate-authenticate)
 set_tests_properties(
     security.direct-ntlm-envelope-negotiate-authenticate
-    PROPERTIES LABELS
-        "security;credentials;ntlmv2;credssp;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "security;credentials;ntlmv2;credssp;authentication-envelope;platform;offline")
 
 add_test(NAME security.direct-ntlm-envelope-classification-denials
     COMMAND test_standalone_spnego
         direct-ntlm-envelope-classification-denials)
 set_tests_properties(
     security.direct-ntlm-envelope-classification-denials
-    PROPERTIES LABELS
-        "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;platform;offline")
 
 add_test(NAME security.direct-ntlm-wrong-password-stage
     COMMAND test_standalone_spnego
         direct-ntlm-wrong-password-stage)
 set_tests_properties(
     security.direct-ntlm-wrong-password-stage
-    PROPERTIES LABELS
-        "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "security;credentials;ntlmv2;ntlmssp;credssp;authentication-envelope;platform;offline")
 
 foreach(spnego_case IN ITEMS
         spnego-ntlm-first-negotiate-challenge
@@ -257,7 +254,7 @@ add_test(NAME runtime.desktop-shared-configuration-feed
         "-DRDP_ROOT_CMAKE=${PROJECT_SOURCE_DIR}/CMakeLists.txt"
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_desktop_configuration_feed.cmake")
 set_tests_properties(runtime.desktop-shared-configuration-feed PROPERTIES
-    LABELS "runtime;configuration;gui;r10-host-control;offline")
+    LABELS "runtime;configuration;gui;host-control;offline")
 
 # R6 portable automatic-bootstrap storage/lifetime policy. This pure
 # cross-platform contract opens no listener and performs no filesystem I/O.
@@ -275,7 +272,7 @@ endif()
 add_test(NAME runtime.bootstrap-portable-storage-and-no-autostart-contract
     COMMAND test_runtime_bootstrap_contract)
 set_tests_properties(runtime.bootstrap-portable-storage-and-no-autostart-contract
-    PROPERTIES LABELS "runtime;bootstrap;r6;security;packaging;offline")
+    PROPERTIES LABELS "runtime;bootstrap;platform;security;packaging;offline")
 
 add_executable(test_runtime_bootstrap_generated_identity_lifetimes
     test_runtime_bootstrap_generated_identity_lifetimes.cpp)
@@ -295,7 +292,7 @@ endif()
 add_test(NAME runtime.bootstrap-generated-identities-default-memory-only
     COMMAND test_runtime_bootstrap_generated_identity_lifetimes)
 set_tests_properties(runtime.bootstrap-generated-identities-default-memory-only
-    PROPERTIES LABELS "runtime;bootstrap;r6;security;offline")
+    PROPERTIES LABELS "runtime;bootstrap;platform;security;offline")
 
 # R9 P0 owned TLS-record TSRequest v5/v6 through standalone SPNEGO to
 # NTLM Type 2 challenge. This is not a real X.224/listener/client receipt.
@@ -303,7 +300,7 @@ add_test(NAME r9-standalone-credssp-tsrequest-v5-v6-challenge
     COMMAND test_standalone_credssp
         r9-standalone-credssp-tsrequest-v5-v6-ntlm-challenge)
 set_tests_properties(r9-standalone-credssp-tsrequest-v5-v6-challenge
-    PROPERTIES LABELS "r9;security;tls;credssp;spnego;offline")
+    PROPERTIES LABELS "assurance;security;tls;credssp;spnego;offline")
 
 # R2 standalone CredSSP TLS binding/authInfo bridge. In-memory TLS only:
 # these tests cannot grant native admission or enable a listener.
@@ -321,24 +318,21 @@ add_test(NAME security.r9-standalone-credssp-direct-ntlm-v6-full-flow
         r9-standalone-credssp-direct-ntlm-v6-full-flow)
 set_tests_properties(
     security.r9-standalone-credssp-direct-ntlm-v6-full-flow
-    PROPERTIES LABELS
-        "r9;security;credentials;ntlmv2;credssp;tls;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "assurance;security;credentials;ntlmv2;credssp;tls;authentication-envelope;platform;offline")
 
 add_test(NAME security.standalone-credssp-direct-ntlm-wrong-password-stage
     COMMAND test_standalone_credssp
         standalone-credssp-direct-ntlm-wrong-password-stage)
 set_tests_properties(
     security.standalone-credssp-direct-ntlm-wrong-password-stage
-    PROPERTIES LABELS
-        "security;credentials;ntlmv2;ntlmssp;credssp;tls;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "security;credentials;ntlmv2;ntlmssp;credssp;tls;authentication-envelope;platform;offline")
 
 add_test(NAME security.standalone-credssp-portable-envelope-modes-converge
     COMMAND test_standalone_credssp
         standalone-credssp-portable-envelope-modes-converge)
 set_tests_properties(
     security.standalone-credssp-portable-envelope-modes-converge
-    PROPERTIES LABELS
-        "security;credentials;ntlmv2;credssp;tls;authentication-envelope;r6;offline")
+    PROPERTIES LABELS "security;credentials;ntlmv2;credssp;tls;authentication-envelope;platform;offline")
 
 foreach(standalone_credssp_case IN ITEMS
         standalone-credssp-tls-bound-combined-pubkeyauth
@@ -400,7 +394,7 @@ if(TARGET rdp-server-linux-serve-listener)
             linux-serve-loopback-listener-exact-endpoint-denials)
     set_tests_properties(
         runtime.linux-serve-loopback-listener-exact-endpoint-denials
-        PROPERTIES LABELS "runtime;security;r10-listener;offline")
+        PROPERTIES LABELS "runtime;security;listener;offline")
 endif()
 
 # Deterministic offline R10 HostControl lifetime/status regressions.
@@ -458,9 +452,19 @@ if(TARGET rdp-server-linux-host-control)
         add_test(NAME "runtime.${host_control_case}"
             COMMAND test_linux_runtime_host_control "${host_control_case}")
         set_tests_properties("runtime.${host_control_case}" PROPERTIES
-            LABELS "runtime;security;r10-host-control;offline"
+            LABELS "runtime;security;host-control;offline"
             SKIP_RETURN_CODE 77)
     endforeach()
+
+    add_test(
+        NAME runtime.linux-host-control-post-admission-protocol-diagnostics
+        COMMAND test_linux_runtime_host_control
+            linux-host-control-post-admission-protocol-diagnostic-projection)
+    set_tests_properties(
+        runtime.linux-host-control-post-admission-protocol-diagnostics
+        PROPERTIES
+            LABELS "runtime;security;protocol;mcs;share;diagnostics;offline"
+            SKIP_RETURN_CODE 77)
 
     # These cases intentionally consume host interface/native identity, NSS
     # account state or a real listener prerequisite. Keep the existing names
@@ -478,7 +482,7 @@ if(TARGET rdp-server-linux-host-control)
         add_test(NAME "runtime.${native_host_control_case}"
             COMMAND test_linux_runtime_host_control "${native_host_control_case}")
         set_tests_properties("runtime.${native_host_control_case}" PROPERTIES
-            LABELS "runtime;security;r10-host-control;linux;native-environment"
+            LABELS "runtime;security;host-control;linux;native-environment"
             SKIP_RETURN_CODE 77)
     endforeach()
 
@@ -493,7 +497,7 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-standalone-owner-grant-authoritative-listener
         PROPERTIES
-            LABELS "runtime;security;transport;tls;r2-owner-consent;r2-standalone;r10-host-control;linux;native-environment"
+            LABELS "runtime;security;transport;tls;owner-consent;standalone;host-control;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
     # R9 P0 exact-SHA pre-owner gate: same-port three-cycle credential and
@@ -503,7 +507,7 @@ if(TARGET rdp-server-linux-host-control)
         COMMAND test_linux_runtime_host_control
             r9-start-stop-start-and-tls-interop)
     set_tests_properties(r9-start-stop-start-and-tls-interop PROPERTIES
-        LABELS "r9;security;transport;tls;r2-owner-consent;linux;native-environment"
+        LABELS "assurance;security;transport;tls;owner-consent;linux;native-environment"
         SKIP_RETURN_CODE 77)
 
     # Production/default native-evidence observation is intentionally separate
@@ -515,7 +519,7 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-default-native-evidence-projection
         PROPERTIES
-            LABELS "runtime;security;r2-owner-consent;r10-host-control;linux;native-observation"
+            LABELS "runtime;security;owner-consent;host-control;linux;native-observation"
             SKIP_RETURN_CODE 77)
 
     add_test(NAME runtime.linux-host-control-r2-authority-lifetime-handoff
@@ -527,7 +531,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_owner_authority_handoff.cmake")
     set_tests_properties(
         runtime.linux-host-control-r2-authority-lifetime-handoff PROPERTIES
-        LABELS "runtime;security;r2-owner-consent;r10-host-control;offline")
+        LABELS "runtime;security;owner-consent;host-control;offline")
     add_test(NAME runtime.linux-host-control-provisioned-listener-transaction
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.h"
@@ -538,7 +542,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_provisioned_listener_transaction.cmake")
     set_tests_properties(
         runtime.linux-host-control-provisioned-listener-transaction PROPERTIES
-        LABELS "runtime;security;transport;tls;r2-owner-consent;r10-host-control;offline")
+        LABELS "runtime;security;transport;tls;owner-consent;host-control;offline")
 
     add_test(NAME runtime.linux-host-control-bounded-accepted-client-scheduler
         COMMAND "${CMAKE_COMMAND}"
@@ -548,7 +552,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_accepted_client_scheduler.cmake")
     set_tests_properties(
         runtime.linux-host-control-bounded-accepted-client-scheduler PROPERTIES
-        LABELS "runtime;security;transport;tls;r2-admission;r3-share;r10-host-control;offline")
+        LABELS "runtime;security;transport;tls;admission;share;host-control;offline")
 
     add_test(NAME runtime.linux-host-control-standalone-authentication-selector
         COMMAND "${CMAKE_COMMAND}"
@@ -559,7 +563,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_standalone_authentication_selector.cmake")
     set_tests_properties(
         runtime.linux-host-control-standalone-authentication-selector PROPERTIES
-        LABELS "runtime;security;r2-standalone;r10-host-control;offline")
+        LABELS "runtime;security;standalone;host-control;offline")
 
     add_test(NAME runtime.linux-host-control-native-desktop-bounded-post-share
         COMMAND "${CMAKE_COMMAND}"
@@ -570,7 +574,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_host_native_desktop_scheduler.cmake")
     set_tests_properties(
         runtime.linux-host-control-native-desktop-bounded-post-share PROPERTIES
-        LABELS "runtime;security;transport;r2-admission;r3-graphics;graphics;frame;codec;r5-native;r10-host-control;x11;offline")
+        LABELS "runtime;security;transport;admission;graphics;frame;codec;native;host-control;x11;offline")
 
     add_test(NAME runtime.linux-r5-auth-envelope-independent-native-owner
         COMMAND "${CMAKE_COMMAND}"
@@ -579,7 +583,7 @@ if(TARGET rdp-server-linux-host-control)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_r5_auth_envelope_independence.cmake")
     set_tests_properties(
         runtime.linux-r5-auth-envelope-independent-native-owner PROPERTIES
-        LABELS "runtime;security;r2-admission;r3-graphics;r5-native;r10-host-control;x11;offline")
+        LABELS "runtime;security;admission;graphics;native;host-control;x11;offline")
 
     add_test(NAME runtime.linux-host-control-dormant-unicode-clipboard-composition
         COMMAND "${CMAKE_COMMAND}"
@@ -650,7 +654,7 @@ if(TARGET rdp-server-macos-host-control)
     set_tests_properties(
         runtime.macos-host-control-stop-start-retains-standalone-credential
         PROPERTIES
-            LABELS "runtime;security;transport;tls;r2-owner-consent;r6;macos;native-environment"
+            LABELS "runtime;security;transport;tls;owner-consent;platform;macos;native-environment"
             SKIP_RETURN_CODE 77)
 
     # Production/default route/interface observation intentionally consumes the
@@ -672,7 +676,7 @@ if(TARGET rdp-server-macos-host-control)
     set_tests_properties(
         runtime.macos-host-control-automatic-licensing-prestart-no-listener
         PROPERTIES
-            LABELS "runtime;security;licensing;r3;macos;offline"
+            LABELS "runtime;security;licensing;protocol;macos;offline"
             SKIP_RETURN_CODE 77)
 endif()
 
@@ -714,7 +718,7 @@ add_test(NAME runtime.lan-bind-revalidates-recommended-endpoint
         "-DRDP_LAN_LISTENER_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/lan_listener.cpp"
         -P "${PROJECT_SOURCE_DIR}/tests/check_r1_recommendation_bind_authority.cmake")
 set_tests_properties(runtime.lan-bind-revalidates-recommended-endpoint
-    PROPERTIES LABELS "runtime;security;transport;lan;r10-host-control;offline")
+    PROPERTIES LABELS "runtime;security;transport;lan;host-control;offline")
 
 # R2 M1 host consent is one noncopyable positive authority owned by R10.
 # Deterministic injected evidence tests the capability state machine only;
@@ -743,7 +747,7 @@ foreach(owner_consent_case IN ITEMS
     add_test(NAME "security.${owner_consent_case}"
         COMMAND test_current_owner_sharing_authority "${owner_consent_case}")
     set_tests_properties("security.${owner_consent_case}" PROPERTIES
-        LABELS "security;r2-owner-consent;offline" TIMEOUT 15)
+        LABELS "security;owner-consent;offline" TIMEOUT 15)
 endforeach()
 
 # R2 Track E Windows/macOS native authorization capability. These synthetic
@@ -771,7 +775,7 @@ foreach(native_authorization_case IN ITEMS
             "${native_authorization_case}")
     set_tests_properties(
         "security.native-authorization-${native_authorization_case}" PROPERTIES
-        LABELS "security;r2-native-authorization;offline" TIMEOUT 15)
+        LABELS "security;native-authorization;offline" TIMEOUT 15)
 endforeach()
 
 # R2 P0 portable authenticated-session native authorization. The standalone
@@ -800,7 +804,7 @@ foreach(standalone_native_authorization_case IN ITEMS
     set_tests_properties(
         "security.native-authorization-${standalone_native_authorization_case}"
         PROPERTIES
-            LABELS "security;r2-native-authorization;standalone;offline"
+            LABELS "security;native-authorization;standalone;offline"
             TIMEOUT 15)
 endforeach()
 
@@ -1480,7 +1484,7 @@ foreach(case_name IN ITEMS
         COMMAND test_rdp_demand_active_profile "${case_name}")
     set_tests_properties(
         "transport.demand-active-profile-${case_name}"
-        PROPERTIES LABELS "protocol;r3-demand-active;offline")
+        PROPERTIES LABELS "protocol;demand-active;share;offline")
 endforeach()
 # R3 production static-VC framing exercised offline, with no R2 OS lease.
 add_executable(test_r3_clipboard_static_channel
@@ -1504,7 +1508,7 @@ foreach(case_name IN ITEMS
     add_test(NAME "transport.cliprdr-${case_name}"
         COMMAND test_r3_clipboard_static_channel "${case_name}")
     set_tests_properties("transport.cliprdr-${case_name}" PROPERTIES
-        LABELS "protocol;transport;r3-cliprdr;security;offline")
+        LABELS "protocol;transport;cliprdr;security;offline")
 endforeach()
 
 # R8 consumes only R3's authenticated route view, complete-PDU sink and
@@ -1582,7 +1586,7 @@ foreach(runtime_licensing_autoprovision_case IN ITEMS
             "${runtime_licensing_autoprovision_case}")
     set_tests_properties(
         "runtime.licensing-autoprovision-${runtime_licensing_autoprovision_case}"
-        PROPERTIES LABELS "runtime;security;licensing;r3;offline")
+        PROPERTIES LABELS "runtime;security;licensing;protocol;offline")
 endforeach()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
@@ -1598,7 +1602,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND
         COMMAND test_linux_runtime_licensing_autoprovision)
     set_tests_properties(
         runtime.linux-host-control-automatic-licensing-prestart-no-listener
-        PROPERTIES LABELS "runtime;security;licensing;r3;linux;offline")
+        PROPERTIES LABELS "runtime;security;licensing;protocol;linux;offline")
 endif()
 
 # R10/R3 test-only composition: reuse the existing ephemeral licensing crypto
@@ -1949,7 +1953,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
     set_tests_properties(
         runtime.linux-connection-personal-post-share-classifier-authority-denials
-        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+        PROPERTIES LABELS "runtime;security;post-share;offline")
 
     # One R1 TLS reader plus the already-existing Graphics DVC framing owner;
     # a missing R2 lease prevents both packet dispatch and Graphics ACKs.
@@ -1959,7 +1963,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
     set_tests_properties(
         runtime.linux-connection-personal-post-share-single-reader-denials
-        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+        PROPERTIES LABELS "runtime;security;post-share;offline")
 
     add_test(NAME runtime.linux-connection-graphics-credit-preflight-denials
         COMMAND test_runtime_linux_security
@@ -1967,7 +1971,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
     set_tests_properties(
         runtime.linux-connection-graphics-credit-preflight-denials
-        PROPERTIES LABELS "runtime;security;r10-graphics;offline")
+        PROPERTIES LABELS "runtime;security;graphics;offline")
 
     # R10 may request R3 remap only through a live R2 lease. This proves the
     # runtime wrapper cannot fabricate resize authority from geometry alone.
@@ -1977,7 +1981,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
     set_tests_properties(
         runtime.linux-connection-graphics-surface-remap-denials
-        PROPERTIES LABELS "runtime;security;r10-resize;offline")
+        PROPERTIES LABELS "runtime;security;resize;offline")
 
     # R8 outbound clipboard must borrow the current R3 write and complete
     # its accepted-byte receipt through the sole R1 TLS owner. An absent
@@ -1998,7 +2002,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "-DRDP_RUNTIME_ENTRYPOINT_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/main.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_cooperative_stop.cmake")
     set_tests_properties(runtime.linux-serve-cooperative-signal-stop-order
-        PROPERTIES LABELS "runtime;security;r10-stop;offline")
+        PROPERTIES LABELS "runtime;security;stop;offline")
 
     # R3 containment: no protocol bytes are changed. Pin the production
     # TLS -> CredSSP CredentialsVerified -> successful native R2 admission ->
@@ -2006,7 +2010,7 @@ if(TARGET rdp-server-linux-runtime-security)
     # owner before R1 listener teardown. The already-qualified
     # Start->Stop->Start credential lifecycle remains independent of this R3
     # boundary gate.
-    add_test(NAME runtime.linux-host-control-stop-retires-r3-session-state
+    add_test(NAME runtime.linux-host-control-stop-retires-protocol-session-state
         COMMAND "${CMAKE_COMMAND}"
             "-DRDP_LINUX_HOST_CONTROL_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_host_control.cpp"
             "-DRDP_LINUX_CONNECTION_HEADER=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.h"
@@ -2015,8 +2019,8 @@ if(TARGET rdp-server-linux-runtime-security)
             "-DRDP_MCS_SESSION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/transport/mcs_channel_connection.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_r3_tls_gate_stop_freshness.cmake")
     set_tests_properties(
-        runtime.linux-host-control-stop-retires-r3-session-state PROPERTIES
-        LABELS "runtime;security;r3-mcs;r10-stop;offline")
+        runtime.linux-host-control-stop-retires-protocol-session-state PROPERTIES
+        LABELS "runtime;security;mcs;stop;offline")
 
     # Real production runtime owner contract, with no synthetic positive R2
     # admission, physical X11 host or auto-start. Source guards complement
@@ -2028,7 +2032,7 @@ if(TARGET rdp-server-linux-runtime-security)
             "-DRDP_RUNTIME_CONNECTION_SOURCE=${PROJECT_SOURCE_DIR}/src/server/runtime/linux_runtime_connection.cpp"
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_post_share_persistent.cmake")
     set_tests_properties(runtime.linux-serve-persistent-post-share-single-owner
-        PROPERTIES LABELS "runtime;security;r10-post-share;offline")
+        PROPERTIES LABELS "runtime;security;post-share;offline")
 
     # R10 must compose the real post-STATUS_VALID_CLIENT Share owner without
     # fabricating a positive OS lease in ordinary CI. The production R3 profile
@@ -2043,7 +2047,7 @@ if(TARGET rdp-server-linux-runtime-security)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_share_activation.cmake")
     set_tests_properties(
         runtime.linux-serve-share-activation-composition PROPERTIES
-        LABELS "runtime;security;r10-share;offline")
+        LABELS "runtime;security;share;offline")
 
     # R10 post-Share Graphics control composition is source-guarded offline:
     # ordinary CI must not fabricate a positive R2 lease, native desktop or
@@ -2054,7 +2058,7 @@ if(TARGET rdp-server-linux-runtime-security)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_graphics_dvc.cmake")
     set_tests_properties(
         runtime.linux-serve-graphics-dvc-composition PROPERTIES
-        LABELS "runtime;security;r10-graphics;offline")
+        LABELS "runtime;security;graphics;offline")
 
     # R10's live native owner is reachable only behind genuine R2 admission,
     # so ordinary CI source-guards production composition rather than
@@ -2066,7 +2070,7 @@ if(TARGET rdp-server-linux-runtime-security)
             -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_native_owner.cmake")
     set_tests_properties(
         runtime.linux-serve-r2-selected-x11-owner-composition PROPERTIES
-        LABELS "runtime;security;r10-native;x11;offline")
+        LABELS "runtime;security;native;x11;offline")
 
     # The R5 aggregate's terminal XCB/XShm/input failure cleanup must not
     # post held-key/button releases; the Xvfb native controller fixture
@@ -2078,7 +2082,7 @@ if(TARGET rdp-server-linux-runtime-security)
             -P "${PROJECT_SOURCE_DIR}/tests/check_x11_native_failure_no_input.cmake")
     set_tests_properties(
         x11.input-native-failure-terminal-retirement-no-xtest
-        PROPERTIES LABELS "x11;linux-adapter;security;offline;r5-terminal")
+        PROPERTIES LABELS "x11;linux-adapter;security;offline;terminal")
 
     # R5 follows the single R10 R2-selected XCB owner. The production
     # post-Share scheduler must retire its borrowed logind watch before
@@ -2096,7 +2100,7 @@ if(TARGET rdp-server-linux-runtime-security)
     set_tests_properties(
         runtime.linux-r5-x11-authorized-event-service-denials
         runtime.linux-r5-persistent-x11-input-frame-borrow-order PROPERTIES
-        LABELS "runtime;security;r5-native;x11;offline")
+        LABELS "runtime;security;native;x11;offline")
 
     # R2 post-admission TLS reads must fence the current R3 admission/session
     # generations as well as the live lease/native evidence. This source-level
@@ -2352,7 +2356,7 @@ if(TARGET rdp-server-windows-authenticated-identity)
             COMMAND test_windows_authenticated_identity "${case_name}")
         set_tests_properties(
             "security.windows-authenticated-identity-${case_name}" PROPERTIES
-            LABELS "security;r2-native-authorization;windows;sspi;offline"
+            LABELS "security;native-authorization;windows;sspi;offline"
             TIMEOUT 15)
     endforeach()
 endif()
@@ -3202,7 +3206,7 @@ add_test(NAME runtime.platform-native-production-single-owner-linkage
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_platform_native_production_linkage.cmake")
 set_tests_properties(
     runtime.platform-native-production-single-owner-linkage PROPERTIES
-    LABELS "runtime;host-control;native;security;r10;offline")
+    LABELS "runtime;host-control;native;security;offline")
 
 # R10 one-owner Windows/macOS platform-native composition seam. The ordinary
 # regression uses an unbound real R2 authorization object, so it executes no
@@ -3656,7 +3660,7 @@ add_test(NAME x11.input-direct-route-native-failure-no-xtest
         -P "${PROJECT_SOURCE_DIR}/tests/check_x11_authorized_input_terminal_route.cmake")
 set_tests_properties(
     x11.input-direct-route-native-failure-no-xtest PROPERTIES
-    LABELS "x11;linux-adapter;security;input;offline;r5-terminal")
+    LABELS "x11;linux-adapter;security;input;offline;terminal")
 
 # R10 production dependency handoff for R5's landed protected input bridge.
 # This is source/build-graph evidence only: main must still not dispatch native
@@ -3668,7 +3672,7 @@ add_test(NAME runtime.linux-x11-authorized-input-production-linkage
         -P "${PROJECT_SOURCE_DIR}/tests/check_runtime_linux_x11_authorized_input_linkage.cmake")
 set_tests_properties(
     runtime.linux-x11-authorized-input-production-linkage PROPERTIES
-    LABELS "runtime;security;r10-native;x11;input;offline")
+    LABELS "runtime;security;native;x11;input;offline")
 
 # R8 production dependency readiness plus dormant-route policy guard. The
 # persistent R10 router/native lifetime now exists, so require the compiled
@@ -3771,8 +3775,7 @@ if(APPLE)
             macos-file-destination-native-descriptor)
     set_tests_properties(
         clipboard.macos-file-destination-native-descriptor
-        PROPERTIES LABELS
-            "protocol;clipboard;apple-file-destination;native;offline")
+        PROPERTIES LABELS "protocol;clipboard;apple-file-destination;native;offline")
 endif()
 
 # R8 macOS pasteboard presentation. Every case uses deterministic injected
@@ -3837,8 +3840,7 @@ if(WIN32)
             windows-file-destination-native-handle)
     set_tests_properties(
         clipboard.windows-file-destination-native-handle
-        PROPERTIES LABELS
-            "protocol;clipboard;win32-file-destination;native;offline")
+        PROPERTIES LABELS "protocol;clipboard;win32-file-destination;native;offline")
 endif()
 
 # R8 Windows clipboard presentation. Every case uses deterministic injected
@@ -4099,7 +4101,7 @@ add_test(NAME runtime.linux-authentication-failure-retains-listener-and-credenti
         -P "${PROJECT_SOURCE_DIR}/tests/check_linux_auth_failure_retention.cmake")
 set_tests_properties(
     runtime.linux-authentication-failure-retains-listener-and-credential-source
-    PROPERTIES LABELS "runtime;linux;r2;r7;credentials;authentication;security;offline")
+    PROPERTIES LABELS "runtime;linux;admission;gui;credentials;authentication;security;offline")
 
 # R7 layout/state tests run offscreen and never authorize real host start.
 if(RDP_SERVER_BUILD_DESKTOP_GUI)
@@ -4147,7 +4149,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         set_tests_properties(
             runtime.linux-gui-physical-x11-precredential-readiness PROPERTIES
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-            LABELS "runtime;gui;linux;r5-native-desktop;acceptance;native-environment"
+            LABELS "runtime;gui;linux;native-desktop;acceptance;native-environment"
             SKIP_RETURN_CODE 77
             TIMEOUT 30)
     endif()
@@ -4335,7 +4337,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(
         gui.offscreen-owner-acceptance-credential-editor-parity PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;product;credentials;acceptance;editability;parity;r9;lifecycle"
+        LABELS "gui;offline;product;credentials;acceptance;editability;parity;assurance;lifecycle"
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4363,7 +4365,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;product;credentials;acceptance;lifecycle;consent;r7"
+        LABELS "gui;offline;product;credentials;acceptance;lifecycle;consent"
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4373,7 +4375,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         gui.offscreen-owner-authentication-failure-product-language-and-retention
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        LABELS "gui;offline;product;credentials;authentication;diagnostics;lifecycle;r7"
+        LABELS "gui;offline;product;credentials;authentication;diagnostics;lifecycle"
         SKIP_RETURN_CODE 77
         TIMEOUT 30)
 
@@ -4544,3 +4546,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND RDP_SERVER_BUILD_DESKTOP_GUI)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;linux;native-preflight;security;offline" TIMEOUT 20)
 endif()
+
+
+# Agent/road ownership names are internal coordination only, not CTest labels.
+add_test(NAME project.ctest-durable-label-taxonomy
+    COMMAND "${CMAKE_COMMAND}"
+        "-DRDP_TEST_REGISTRY=${PROJECT_SOURCE_DIR}/tests/CMakeLists.txt"
+        -P "${PROJECT_SOURCE_DIR}/tests/check_ctest_label_taxonomy.cmake")
+set_tests_properties(project.ctest-durable-label-taxonomy PROPERTIES
+    LABELS "project-policy;testing;offline")

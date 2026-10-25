@@ -759,41 +759,45 @@ server now emits/advances past raw NTLM Type 2 and where the first later
 failure occurs (Type 3/NTLMv2, MIC/SIGN-SEAL, pubKeyAuth, authInfo or
 post-auth composition). Do not re-open TLS or add OS-GSS fallback.
 
-## R3 P2 remains blocked after direct-NTLM owner evidence (2026-10-24)
+## R3 P2 remains blocked until real native admission succeeds (2026-10-24)
 
-**Starting exact-main parent:** `dac291c38f294e1a181572c959db454e10d7021a`.
+**Owner-tested assignment base:** `9fd1db518076713f30b41af2aff023308f95a925`.
 
-New owner evidence is decisive at the R2 boundary: the real Microsoft Windows
-App reaches established TLS and an owned CredSSP TSRequest v6, then supplies one
-40-byte negotiation token in the direct-NTLM form. The current standalone
-implementation rejects that token as `invalid-gss-wrapper` because it accepts
-only a GSS/SPNEGO initial envelope. No `CredentialsVerified` or MCS evidence
-exists yet.
+Owner local full CTest is **966/966 PASS**. The physical Microsoft-client trace
+reaches TLS establishment, selects Direct NTLM, accepts Type 1, sends Type 2
+and progresses through CredSSP, then fails at native admission. The production
+diagnostic is exactly `stage=admission`. This supersedes older TLS/SPNEGO/
+direct-envelope hypotheses: native admission is the first demonstrated failure
+boundary, and MCS/Share/RDPGFX have **not** been reached.
 
-R3 ownership therefore does **not** begin at TLS. The production gate is:
+The protocol gate remains
+`CredentialsVerified -> positive native admission lease -> MCS`. Do not
+interpret a later failure as protocol-owned until that lease exists, and do not
+manufacture it in hosted CI.
 
-`TLS established -> R2 negotiation -> pubKeyAuth -> authInfo ->
-CredentialsVerified -> successful native admission lease -> MCS Connect-Initial`.
+This increment changes no MCS/Share/RDPGFX wire behavior. It records only the
+last positive, non-authorizing protocol milestone: `PreAdmission`,
+`NativeAdmissionVerified`, MCS Connect-Initial received, Connect-Response
+sent, ErectDomain, AttachUser, ChannelJoin/MCS established, Share activation
+and Share activated. Terminal fail-only output uses durable
+`protocol-stage=...` terminology. The dedicated offline projection CTest
+proves the owner-observed admission failure remains `PreAdmission`.
 
-`TlsEstablished` and `BindingVerified` remain in HostControl
-`PreAdmission`. Only `CredentialsVerified` may request
-`issueAdmission()`, and HostControl may enter `McsConnectInitial` only after
-that call succeeds. The connection-side first-MCS path independently requires a
-live, non-revoked R2 lease in `AwaitVerifiedR2Admission` and revalidates it
-before reading MCS application data. Transport/parser readiness after TLS is not
-R3 authority and is not permission to diagnose an R3 failure.
+CTest ownership labels are retired in favor of durable subsystem labels. The
+source-contract gate is exposed as
+`runtime.linux-host-control-stop-retires-protocol-session-state`.
 
-The existing source-contract gate
-`runtime.linux-host-control-stop-retires-r3-session-state` and the broader
-accepted-client scheduler guard are strengthened to pin that ordering. No MCS,
-Share, licensing, RDPGFX or production protocol source changed. The independent
-Start -> Stop -> Start lifecycle work remains valid and unchanged.
+**Separate product request, not implemented by this protocol increment:** when
+safely available, default the GUI Username field to the currently logged-in
+local account name. Never retrieve or auto-fill the OS account password.
+Session Password remains independent and user-entered.
 
-**Source review:** PASS. **Canonical build/full CTest:** NOT RUN in this
-connector environment. **Exact-publication-SHA hosted CI:** PENDING.
-**Real-client R3/MCS acceptance:** NOT RUN / BLOCKED in R2 until the direct
-NTLM Type 1 -> Type 2 -> Type 3 -> pubKeyAuth -> authInfo path reaches
-`CredentialsVerified` and native admission succeeds.
+**Next gate:** qualify genuine native admission on the physical owner
+environment. After a positive lease, rerun the real Microsoft client and use
+the diagnostics to locate the first subsequent boundary: MCS Connect-Initial,
+Connect-Response, ErectDomain, AttachUser, ChannelJoin or Share activation.
+Until then protocol wire work remains blocked. New-commit local CTest and
+exact-publication-SHA hosted CI are **NOT RUN / PENDING**.
 
 ## R7 hosted Session Password Stop/restart qualification complete (2026-10-24)
 
@@ -1438,7 +1442,7 @@ connector environment.
 **Starting exact-main parent:** `151183920571bd96a5ce1e30fc6b9b3017072ce9`.
 
 Post-publication review found a test-harness-only defect in
-`runtime.linux-host-control-stop-retires-r3-session-state`: several C++
+`runtime.linux-host-control-stop-retires-protocol-session-state`: several C++
 match needles ended in semicolons while `require_order()` iterates CMake
 `ARGN` as a list, so CMake would split those arguments at the semicolon.
 The guard now matches the same statement prefixes without trailing semicolons.
@@ -1504,7 +1508,7 @@ HostControl accepted-client phase to `None`; a later accept constructs a new
 fresh reconnect generation.
 
 Dedicated offline source-contract CTest:
-`runtime.linux-host-control-stop-retires-r3-session-state`. It does not open a
+`runtime.linux-host-control-stop-retires-protocol-session-state`. It does not open a
 listener, create credentials, read a desktop or generate protocol bytes.
 
 **R3 freshness result:** source ownership proves no R3/MCS session state can

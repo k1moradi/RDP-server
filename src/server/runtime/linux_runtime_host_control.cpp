@@ -625,6 +625,35 @@ struct LinuxHostFramePublicationContext final
 } // namespace
 
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+[[nodiscard]] constexpr const char* protocolDiagnosticName(
+    RuntimeAcceptedClientProtocolStage stage) noexcept
+{
+    switch (stage)
+    {
+    case RuntimeAcceptedClientProtocolStage::PreAdmission:
+        return "pre-admission";
+    case RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified:
+        return "native-admission-verified";
+    case RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived:
+        return "mcs-connect-initial-received";
+    case RuntimeAcceptedClientProtocolStage::McsConnectResponseSent:
+        return "mcs-connect-response-sent";
+    case RuntimeAcceptedClientProtocolStage::McsErectDomainReceived:
+        return "mcs-erect-domain";
+    case RuntimeAcceptedClientProtocolStage::McsAttachUserReceived:
+        return "mcs-attach-user";
+    case RuntimeAcceptedClientProtocolStage::McsChannelJoin:
+        return "mcs-channel-join";
+    case RuntimeAcceptedClientProtocolStage::McsEstablished:
+        return "mcs-established";
+    case RuntimeAcceptedClientProtocolStage::ShareActivation:
+        return "share-activation";
+    case RuntimeAcceptedClientProtocolStage::ShareActivated:
+        return "share-activated";
+    }
+    return "pre-admission";
+}
+
 RuntimeAcceptedClientPreauthDiagnostics
 projectLinuxAcceptedClientPreauthDiagnostics(
     const LinuxRuntimeConnectionAcceptanceDiagnostics& source) noexcept
@@ -769,6 +798,41 @@ projectLinuxAcceptedClientPreauthDiagnostics(
             RuntimeAcceptedClientAuthenticationStage::Mcs;
         break;
     }
+    using SourceProtocol = LinuxRuntimeProtocolDiagnosticStage;
+    switch (source.protocolStage)
+    {
+    case SourceProtocol::PreAdmission:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::PreAdmission;
+        break;
+    case SourceProtocol::NativeAdmissionVerified:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified;
+        break;
+    case SourceProtocol::McsConnectInitialReceived:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived;
+        break;
+    case SourceProtocol::McsConnectResponseSent:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsConnectResponseSent;
+        break;
+    case SourceProtocol::McsErectDomainReceived:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsErectDomainReceived;
+        break;
+    case SourceProtocol::McsAttachUserReceived:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsAttachUserReceived;
+        break;
+    case SourceProtocol::McsChannelJoin:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsChannelJoin;
+        break;
+    case SourceProtocol::McsEstablished:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::McsEstablished;
+        break;
+    case SourceProtocol::ShareActivation:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::ShareActivation;
+        break;
+    case SourceProtocol::ShareActivated:
+        projected.protocolStage = RuntimeAcceptedClientProtocolStage::ShareActivated;
+        break;
+    }
+
     projected.standaloneCredentialGeneration =
         source.standaloneCredentialGeneration;
 
@@ -2228,13 +2292,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
             std::fprintf(
                 stderr,
-                "rdp-server: tls terminal: connection=%llu endpoint=%s "
-                "fingerprint=%s ip-self-check=%s selected-cert=%s "
-                "handshake-step=%llu handshake-result=%s ssl-error=%d "
-                "openssl-reason=%u termination=%s host-error=%u\n",
+                "rdp-server: connection terminal: connection=%llu endpoint=%s "
+                "protocol-stage=%s fingerprint=%s ip-self-check=%s "
+                "selected-cert=%s handshake-step=%llu handshake-result=%s "
+                "ssl-error=%d openssl-reason=%u termination=%s host-error=%u\n",
                 static_cast<unsigned long long>(acceptedClientId_),
                 selectedEndpoint.empty() ? "unavailable"
                                          : selectedEndpoint.c_str(),
+                protocolDiagnosticName(
+                    acceptedClientPreauthDiagnostics_.protocolStage),
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),

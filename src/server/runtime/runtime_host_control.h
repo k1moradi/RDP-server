@@ -479,6 +479,24 @@ enum class RuntimeAcceptedClientAuthenticationStage : std::uint8_t
     Mcs,
 };
 
+// Last positive post-authentication protocol milestone observed for one
+// accepted connection. This is descriptive only: PreAdmission remains in
+// force until native admission actually succeeds, and no value grants MCS,
+// Share, graphics, input, clipboard or native authority.
+enum class RuntimeAcceptedClientProtocolStage : std::uint8_t
+{
+    PreAdmission,
+    NativeAdmissionVerified,
+    McsConnectInitialReceived,
+    McsConnectResponseSent,
+    McsErectDomainReceived,
+    McsAttachUserReceived,
+    McsChannelJoin,
+    McsEstablished,
+    ShareActivation,
+    ShareActivated,
+};
+
 enum class RuntimeAcceptedClientTermination : std::uint8_t
 {
     Open,
@@ -508,6 +526,8 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
         RuntimeAcceptedClientNtlmEnvelope::Undetermined};
     RuntimeAcceptedClientAuthenticationStage authenticationStage{
         RuntimeAcceptedClientAuthenticationStage::Transport};
+    RuntimeAcceptedClientProtocolStage protocolStage{
+        RuntimeAcceptedClientProtocolStage::PreAdmission};
     // Non-secret service credential generation pinned by this connection.
     // Zero for non-standalone authentication and never an authority token.
     std::uint64_t standaloneCredentialGeneration{};

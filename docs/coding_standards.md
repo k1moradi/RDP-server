@@ -1,3 +1,21 @@
+## Post-authentication diagnostics never manufacture protocol authority (2026-10-24)
+
+The demonstrated physical Microsoft-client boundary is native admission:
+TLS and Direct NTLM/CredSSP have progressed far enough for production to report
+`stage=admission`, but no positive native admission lease exists. Keep a
+separate bounded last-positive protocol diagnostic scalar. It remains
+`PreAdmission` until the genuine native lease is issued, then may advance only
+after existing production owners report successful Connect-Initial,
+Connect-Response, ErectDomain, AttachUser, ChannelJoin/MCS establishment and
+Share activation transitions. The diagnostic is read-only, contains no packet,
+credential or native-identity material, and never authorizes protocol work.
+
+Externally emitted diagnostics and CTest classification use durable functional
+terms such as `transport`, `tls`, `admission`, `mcs`, `share`,
+`graphics` and `clipboard`. Agent/road ownership names remain internal
+coordination metadata and do not belong in new user-facing diagnostics or CTest
+labels.
+
 ## Native-admission denial is accepted-peer scoped (2026-10-24)
 
 Owner physical evidence on assignment baseline

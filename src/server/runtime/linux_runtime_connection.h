@@ -418,6 +418,22 @@ enum class LinuxRuntimeAuthenticationProgress : std::uint8_t
     Mcs,
 };
 
+// Last positive post-authentication boundary reached by this exact accepted
+// connection. It is fail-only diagnostic state, never protocol authority.
+enum class LinuxRuntimeProtocolDiagnosticStage : std::uint8_t
+{
+    PreAdmission,
+    NativeAdmissionVerified,
+    McsConnectInitialReceived,
+    McsConnectResponseSent,
+    McsErectDomainReceived,
+    McsAttachUserReceived,
+    McsChannelJoin,
+    McsEstablished,
+    ShareActivation,
+    ShareActivated,
+};
+
 // Bounded, non-authorizing first-client diagnostic snapshot. It contains only
 // protocol/lifecycle scalars plus the public certificate fingerprint; never
 // passwords, NTLM/GSS responses, session keys or delegated credentials.
@@ -433,6 +449,8 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
     LinuxRuntimeAuthenticationProgress authenticationProgress{
         LinuxRuntimeAuthenticationProgress::Transport};
+    LinuxRuntimeProtocolDiagnosticStage protocolStage{
+        LinuxRuntimeProtocolDiagnosticStage::PreAdmission};
     rdp_server::server::security::StandaloneNtlmNegotiationEnvelope
         standaloneNegotiationEnvelope{
             rdp_server::server::security::
@@ -1220,6 +1238,8 @@ private:
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
     LinuxRuntimeAuthenticationProgress authenticationProgress_{
         LinuxRuntimeAuthenticationProgress::Transport};
+    LinuxRuntimeProtocolDiagnosticStage protocolDiagnosticStage_{
+        LinuxRuntimeProtocolDiagnosticStage::PreAdmission};
     // Redacted connection-scoped envelope survives terminal CredSSP cleanup so
     // R10/R7 can classify the failed peer without retaining token material.
     rdp_server::server::security::StandaloneNtlmNegotiationEnvelope

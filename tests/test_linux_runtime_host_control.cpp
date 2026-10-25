@@ -487,6 +487,54 @@ int main(int argc, char** argv)
     }
 
     if (testCase ==
+        "linux-host-control-post-admission-protocol-diagnostic-projection")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        using SourceStage = LinuxRuntimeProtocolDiagnosticStage;
+        struct ProtocolProjectionCase final
+        {
+            SourceStage source;
+            RuntimeAcceptedClientProtocolStage expected;
+        };
+        constexpr std::array<ProtocolProjectionCase, 10U> cases{{
+            {SourceStage::PreAdmission, RuntimeAcceptedClientProtocolStage::PreAdmission},
+            {SourceStage::NativeAdmissionVerified, RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified},
+            {SourceStage::McsConnectInitialReceived, RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived},
+            {SourceStage::McsConnectResponseSent, RuntimeAcceptedClientProtocolStage::McsConnectResponseSent},
+            {SourceStage::McsErectDomainReceived, RuntimeAcceptedClientProtocolStage::McsErectDomainReceived},
+            {SourceStage::McsAttachUserReceived, RuntimeAcceptedClientProtocolStage::McsAttachUserReceived},
+            {SourceStage::McsChannelJoin, RuntimeAcceptedClientProtocolStage::McsChannelJoin},
+            {SourceStage::McsEstablished, RuntimeAcceptedClientProtocolStage::McsEstablished},
+            {SourceStage::ShareActivation, RuntimeAcceptedClientProtocolStage::ShareActivation},
+            {SourceStage::ShareActivated, RuntimeAcceptedClientProtocolStage::ShareActivated},
+        }};
+
+        LinuxRuntimeConnectionAcceptanceDiagnostics source{};
+        source.credSspTransition =
+            LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::Authenticated;
+        source.standaloneAuthenticationFailureStage =
+            rdp_server::server::security::
+                StandaloneAuthenticationFailureStage::Admission;
+        source.protocolStage = SourceStage::PreAdmission;
+        auto projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+
+        for (const ProtocolProjectionCase& entry : cases)
+        {
+            source.protocolStage = entry.source;
+            projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+            assert(projected.protocolStage == entry.expected);
+        }
+        return 0;
+#endif
+    }
+
+    if (testCase ==
         "linux-host-control-sharing-permission-product-projection")
     {
         OfflineUnavailableEvidence evidence;

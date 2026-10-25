@@ -1,3 +1,27 @@
+## Durable CTest labels and post-admission diagnostic gate (2026-10-24)
+
+CTest labels describe stable subsystem/behavior boundaries, never temporary
+agent ownership. Labels matching `r1` through `r10` (including compound
+forms such as `r3-mcs` or `r10-host-control`) are prohibited. Reuse durable
+labels such as `protocol`, `transport`, `tls`, `security`, `admission`,
+`mcs`, `share`, `graphics`, `clipboard`, `native`, `gui`,
+`packaging`, `diagnostics` and `offline`.
+
+Owner-reported evidence on assignment base
+`9fd1db518076713f30b41af2aff023308f95a925` is **966/966 PASS** locally.
+The real Microsoft client reached TLS, selected Direct NTLM, accepted Type 1,
+received Type 2 and progressed through CredSSP, then production failed at
+native admission with `stage=admission`. This is now the first demonstrated
+failure boundary. Do not reopen TLS/SPNEGO/NTLM work from this receipt and do
+not classify MCS/Share/RDPGFX as reached.
+
+A diagnostic-only regression may exercise scalar projection without creating
+an admission lease. It must prove the owner-observed admission failure remains
+`PreAdmission`, then map only explicitly supplied last-positive protocol
+milestones. Positive runtime MCS authority still requires
+`CredentialsVerified -> genuine native admission lease`; hosted CI must not
+fabricate that lease merely to advance diagnostics.
+
 ## Native-admission denial preserves transport/listener truth (2026-10-24)
 
 Owner physical evidence on assignment baseline
@@ -363,27 +387,28 @@ This is automated protocol evidence only; only a new physical Microsoft-client
 receipt can advance the live acceptance boundary beyond the previous
 `invalid-gss-wrapper` failure.
 
-## R3 gate after direct-NTLM owner evidence (2026-10-24)
+## Protocol ownership gate after the physical admission failure (2026-10-24)
 
-Keep `runtime.linux-host-control-stop-retires-r3-session-state` as the
-production source-contract gate for the R2 -> R3 boundary. It must prove that
-`TlsEstablished` and `BindingVerified` remain in `PreAdmission`, that only
-`CredentialsVerified` can invoke `issueAdmission()`, that the standalone
-mechanism is already at `StandaloneCredSspStage::CredentialsVerified`, and
-that the native admission broker actually issues a lease before HostControl
-moves to `McsConnectInitial`.
+Keep `runtime.linux-host-control-stop-retires-protocol-session-state` as the
+source-contract gate for the authentication -> native admission -> protocol
+boundary. TLS establishment, Direct NTLM selection, NTLM Type 1/2/3 processing,
+CredSSP binding and credential verification are not MCS authority. Only
+`CredentialsVerified` may invoke `issueAdmission()`, and HostControl may
+enter the first MCS boundary only after that call returns a genuine,
+non-revoked native admission lease.
 
-The first connection-side MCS read must independently require a live,
-non-revoked R2 lease, `AwaitVerifiedR2Admission`, and successful revalidation.
-The broader accepted-client scheduler guard must preserve the same ordering.
-Synthetic TLS completion or a parser-ready MCS state is not qualifying R3
-evidence.
+The owner trace on
+`9fd1db518076713f30b41af2aff023308f95a925` reaches the native admission
+attempt and fails with `stage=admission`. Treat that as pre-protocol. No
+MCS/Share/RDPGFX wire changes are justified by this failure.
 
-Current owner evidence stops earlier: TLS is established and CredSSP receives a
-TSRequest v6 carrying a direct-NTLM first token, but the SPNEGO-only envelope
-rejects it before `CredentialsVerified`. Do not add or alter MCS/Share tests to
-work around that R2 blocker. The next real-client R3 test is permitted only
-after the trace reaches `CredentialsVerified` and native admission succeeds.
+The first connection-side MCS read independently requires the live lease,
+`AwaitVerifiedR2Admission` and fresh broker revalidation. Diagnostic progress
+is sticky only for failure classification:
+`PreAdmission -> NativeAdmissionVerified -> MCS Connect-Initial received ->
+Connect-Response sent -> ErectDomain -> AttachUser -> ChannelJoin/MCS
+established -> Share activation`. Hosted tests may validate scalar projection,
+but must not mint the positive lease needed to execute those runtime transitions.
 
 ## R1 diagnostic-independence and deterministic terminal transport (2026-10-24)
 
@@ -576,20 +601,18 @@ Microsoft-compatible initial TSRequest actually reached NTLM Type 2.
 Synthetic NegTokenInit2 and in-memory TLS tests do not count as a live
 unmodified Microsoft-client receipt.
 
-## R3 ownership gate after standalone SPNEGO evidence (2026-10-24)
+## Admission failure is pre-protocol regardless of authentication envelope (2026-10-24)
 
-Treat `stage=spnego; os-gss-fallback=disabled` as post-TLS/post-TSRequest but
-pre-`CredentialsVerified`. R3/MCS ownership requires both **TLS Established**
-and **CredSSP CredentialsVerified**. A TSRequest receipt, SPNEGO entry, or
-synthetic Type 2 challenge does not authorize MCS investigation.
+The real client no longer fails in TLS, SPNEGO or the Direct NTLM envelope.
+The first demonstrated failure is native admission after the accepted
+standalone CredSSP flow. Preserve established TLS/Direct-NTLM behavior; do not
+enable OS-GSS fallback or reinterpret `stage=admission` as an MCS failure.
 
-While the real client fails in standalone SPNEGO, keep MCS/Share/licensing/
-RDPGFX wire behavior unchanged. The standalone Session Password path must not
-invoke the ExistingOsAccount OS-GSS handshake owner as fallback.
-
-Start -> Stop -> Start coverage must continue to require memory-only credential
-reuse with fresh consent/session/listener state and terminal credential erasure
-only on full revoke, Quit, native-session loss or destruction.
+Protocol ownership begins only after a positive native admission lease. A
+diagnostic enum or log line is descriptive and never substitutes for that
+capability. Start -> Stop -> Start coverage remains independently responsible
+for credential reuse, fresh consent/session/listener state and terminal
+credential erasure on full revoke, Quit, native-session loss or destruction.
 
 ## R7 Qt Session Password Stop/restart round-trip (2026-10-24)
 
@@ -669,32 +692,24 @@ fresh replacement construction and independence from standalone credential
 readiness. These are ordinary full-CTest regressions and intentionally remain
 outside the fixed clipboard sanitizer-count selection.
 
-## R3 post-auth handoff and fresh-session rule (2026-10-24)
+## Post-auth handoff and fresh-session rule (2026-10-24)
 
-The demonstrated Microsoft-client failure is before R3 but after TLS:
-TCP/X.224 HYBRID -> established TLS application traffic -> owned CredSSP
-TSRequest -> standalone SPNEGO -> SPNEGO rejection. Do not change MCS, Share,
-licensing or RDPGFX wire behavior for this failure. R3 becomes the first failing
-owner only after standalone CredSSP reaches `CredentialsVerified` and a later
-MCS transition fails.
+The demonstrated Microsoft-client chain is now:
+**TLS established -> Direct NTLM selected -> NTLM Type 1 accepted -> Type 2
+sent -> CredSSP progressed -> native admission attempted -> admission failed**.
+The production diagnostic is `stage=admission`. MCS, Share, licensing and
+RDPGFX are **NOT REACHED** and must remain unchanged.
 
-Preserve the evidence chain:
-**TLS established -> complete CredSSP TSRequest -> standalone SPNEGO/NTLM ->
-CredentialsVerified -> admitted MCS Connect-Initial -> fully delivered MCS
-Connect-Response**. `AwaitingToken` alone means only that TLS is waiting for
-CredSSP; the observed SPNEGO failure is stronger evidence because the standalone
-mechanism processed the owned frame. Never log TSRequest/SPNEGO/NTLM material,
-passwords, hashes, session keys or delegated credentials.
+After a future genuine admission succeeds, retain a bounded last-positive
+diagnostic so the next physical run can distinguish native admission verified,
+MCS Connect-Initial received, Connect-Response sent, ErectDomain, AttachUser,
+ChannelJoin/MCS established and Share activation. This scalar contains no wire
+bytes and never drives the state machine.
 
-For R3, `AwaitVerifiedR2Admission -> AwaitConnectResponse` is the successful
-Connect-Initial boundary and `AwaitConnectResponse -> AwaitErectDomain` is the
-completed Connect-Response boundary. Until `CredentialsVerified` is crossed,
-R3 remains blocked for wire changes.
-
-Ordinary Stop must still destroy the accepted connection's complete
+Ordinary Stop still destroys the accepted connection's complete
 MCS/Share/channel session before listener teardown. A later accept constructs a
-fresh `LinuxRuntimeConnection` and value-owned `McsSessionLifecycle`; no MCS,
-licensing, Share or DVC state may be reused.
+fresh `LinuxRuntimeConnection` and value-owned `McsSessionLifecycle`; no
+MCS, licensing, Share or DVC state may be reused.
 
 ## R5 owner-situation readiness must execute in Release+acceptance CI (2026-10-24)
 

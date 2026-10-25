@@ -1,3 +1,19 @@
+## R9/R1 hosted link correction after Type-2 delivery evidence — 2026-10-25
+
+Current descendant `4b68df6f53b4b48180c5ae492a02269c7e5d61f4` preserved the
+R9 independent Type-2 oracle and added R1 Type-2 TLS delivery evidence. Its R9
+sanitizer and Ubuntu protocol jobs passed, but macOS and Windows protocol jobs
+failed during Debug link before CTest: `test_owned_preauth_session` now calls
+the portable `encodeNtlmChallengeMessage()` implementation without directly
+linking the noninstalled standalone NTLM library. Linux happened to obtain that
+library transitively through its runtime-security composition.
+
+The correction is test-only: link `rdp-server-standalone-ntlmv2` directly
+into `test_owned_preauth_session` on every platform. No transport,
+authentication, native-admission, MCS, graphics or clipboard production
+behavior changes. **Candidate remains NOT NOMINATED** until this publication
+SHA has the R9 sanitizer plus Linux/macOS/Windows protocol jobs green.
+
 ## R2 P0 follow-up — production Type-2 validator and observability (2026-10-25)
 
 **Assignment evidence:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`

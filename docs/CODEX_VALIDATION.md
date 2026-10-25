@@ -1,3 +1,19 @@
+## Cross-platform Type-2 delivery fixture link diagnosis — 2026-10-25
+
+Exact descendant `4b68df6f53b4b48180c5ae492a02269c7e5d61f4`: structure
+guard, R9 security/protocol sanitizers and Ubuntu protocol **PASS**. macOS and
+Windows protocol jobs **FAIL at Debug link**, before CTest. Both report the same
+missing symbol from `test_owned_preauth_session`:
+`encodeNtlmChallengeMessage(NtlmChallengeMessageParameters const&, span)`.
+The new R1 Type-2 delivery-receipt fixture calls that portable producer, but
+the test target only linked it transitively on Linux.
+
+The correction adds the existing `rdp-server-standalone-ntlmv2` target as a
+direct private dependency of `test_owned_preauth_session`. Production code
+and wire behavior are unchanged. Publication-SHA CI is the required evidence;
+physical Microsoft-client retry remains NOT RUN until the exact descendant is
+fully green.
+
 ## R2 production Type-2 validator authoring receipt — 2026-10-25
 
 **Owner evidence:** assignment SHA

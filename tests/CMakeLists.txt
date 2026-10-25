@@ -1703,9 +1703,13 @@ set_tests_properties(runtime.licensing-context-secure-file-denials
 add_rdp_test(test_owned_gcc_conference_create.cpp transport gcc-conference-create)
 add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
 # Test-only cross-road composition: R1 remains in the exported protocol target;
-# only this existing executable links R10's noninstalled runtime TLS owner.
+# this existing executable additionally consumes R10's noninstalled runtime TLS
+# owner and the portable standalone NTLM implementation used by its Type-2
+# delivery-receipt fixture. Link the producer directly on every platform rather
+# than relying on Linux-only transitive runtime-security composition.
 target_link_libraries(test_owned_preauth_session PRIVATE
-    rdp-server-runtime-tls)
+    rdp-server-runtime-tls
+    rdp-server-standalone-ntlmv2)
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.

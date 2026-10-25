@@ -1,3 +1,17 @@
+## Cross-platform test fixtures link their direct protocol producer (2026-10-25)
+
+When an existing production-backed test executable starts calling a symbol from
+a noninstalled protocol/security component, link that component directly in the
+test target on every platform. Do not rely on a Linux-only runtime aggregate to
+supply the symbol transitively: that can make Ubuntu green while macOS and
+Windows fail at link time before any CTest executes.
+
+The R1 Type-2 delivery-receipt fixture in `test_owned_preauth_session` calls
+the portable `encodeNtlmChallengeMessage()` producer, so the executable links
+`rdp-server-standalone-ntlmv2` explicitly alongside its existing runtime-TLS
+owner. This is test composition only; it does not add a production dependency
+or change NTLM/CredSSP behavior.
+
 ## R2 production Type-2 structural qualification (2026-10-25)
 
 The existing `security.ntlmssp-challenge-target-name-conformance` remains the

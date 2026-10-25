@@ -1,3 +1,29 @@
+## R3 Type-2 peer-EOF no-session-state gate (2026-10-25)
+
+The production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` fixture
+must prove both the historical boundary and the current R3 state. While the
+peer is waiting after a completely delivered Direct NTLM Type 2, and again
+after peer EOF before any Type 3, require `protocolStage=PreAdmission`,
+`mcsSessionAdvanced=false`, `shareActivated=false` and GraphicsReady/native
+desktop/clipboard dormancy. This prevents a correct presentation label from
+masking accidental R3 session advancement.
+
+Keep a separate deterministic offline projection regression,
+`runtime.linux-host-control-r3-diagnostic-dormancy-projection`, covering
+`AwaitVerifiedR2Admission`, terminal `Closed`, a genuine post-admission MCS
+phase and `ShareActivated`. The projection is diagnostic only and must not
+fabricate an R2 lease or drive production MCS/Share/RDPGFX state.
+
+Assignment evidence on exact main
+`1e6a7c6ea11fcfde09061355328080591a6d7e30`: owner Linux/X11 full CTest
+**980/980 PASS**; the physical peer reached TLS, raw Direct NTLM Type 1 and a
+completely delivered Type 2, then EOF before Type 3. Native admission, MCS,
+Share and graphics were **NOT REACHED**. Modified-tree local/full CTest in the
+connector environment: **NOT RUN**. The next owner gate is a Microsoft-native
+Windows SSPI test that consumes the production Type 2 and emits Type 3; do not
+nominate another Linux physical candidate before that receipt.
+
 ## NTLM challenge compatibility profiles are test-only (2026-10-25)
 
 The P0 Type-2 interoperability investigation uses bounded internal test

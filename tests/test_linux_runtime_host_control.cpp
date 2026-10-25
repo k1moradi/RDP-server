@@ -606,6 +606,64 @@ int main(int argc, char** argv)
 #endif
     }
 
+
+    if (testCase ==
+        "linux-host-control-r3-diagnostic-dormancy-projection")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        using McsPhase = rdp_server::server::transport::McsSessionPhase;
+        LinuxRuntimeConnectionAcceptanceDiagnostics source{};
+        source.credSspTransition =
+            LinuxRuntimeCredSspDiagnosticTransition::AwaitingToken;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::NtlmChallenge;
+        source.protocolStage =
+            LinuxRuntimeProtocolDiagnosticStage::PreAdmission;
+        source.mcsPhase = McsPhase::AwaitVerifiedR2Admission;
+        source.shareActivated = false;
+
+        auto projected =
+            projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
+
+        // Terminal pre-admission teardown closes R3 without creating a
+        // positive MCS/Share milestone.
+        source.credSspTransition =
+            LinuxRuntimeCredSspDiagnosticTransition::Closed;
+        source.mcsPhase = McsPhase::Closed;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(!projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
+
+        // Sanity-check the diagnostic projection against genuine later R3
+        // phases; these observations still grant no protocol authority.
+        source.credSspTransition =
+            LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::Mcs;
+        source.protocolStage =
+            LinuxRuntimeProtocolDiagnosticStage::McsConnectInitialReceived;
+        source.mcsPhase = McsPhase::AwaitConnectResponse;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
+
+        source.protocolStage =
+            LinuxRuntimeProtocolDiagnosticStage::ShareActivated;
+        source.mcsPhase = McsPhase::ShareActivated;
+        source.shareActivated = true;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.mcsSessionAdvanced);
+        assert(projected.shareActivated);
+        return 0;
+#endif
+    }
+
     if (testCase ==
         "linux-host-control-sharing-permission-product-projection")
     {

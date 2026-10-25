@@ -913,6 +913,12 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     }
 
+    using SourceMcsPhase = rdp_server::server::transport::McsSessionPhase;
+    projected.mcsSessionAdvanced =
+        source.mcsPhase != SourceMcsPhase::AwaitVerifiedR2Admission &&
+        source.mcsPhase != SourceMcsPhase::Closed;
+    projected.shareActivated = source.shareActivated;
+
     projected.standaloneCredentialGeneration =
         source.standaloneCredentialGeneration;
 

@@ -1,3 +1,28 @@
+## R3 Type-2 EOF no-session-state diagnostic receipt — 2026-10-25
+
+**Assignment base:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;
+**reconciled shared-main parent:** `61ca5697ede988e7e3ee72cc33f59171f2c66b02`.
+Owner Linux/X11 full CTest on the assignment base: **980/980 PASS**. Physical
+evidence stops at TCP/X.224-HYBRID/TLS -> Direct NTLM Type 1 -> production
+Type 2 completely delivered -> **peer EOF before Type 3**. Native admission,
+MCS, Share, GraphicsReady and native desktop were **NOT REACHED**.
+
+Source review confirms the production scheduler already keeps R3 behind
+`CredentialsVerified` plus successful native admission, and the first MCS
+reader additionally requires the live R2 lease and fresh broker revalidation.
+This increment changes diagnostic projection only: it exposes whether the
+existing R3 `McsSessionPhase` is currently beyond
+`AwaitVerifiedR2Admission`/terminal `Closed`, plus the existing current
+ShareActivated bit. The production-backed Type-2/EOF lifecycle now asserts both
+remain false before and after EOF; a new deterministic offline CTest validates
+the projection boundaries. No production MCS, Share, RDPGFX, native-admission,
+graphics or clipboard implementation source is changed.
+
+Connector source/test reconciliation: **PASS**. Modified-tree local build and
+full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA
+hosted CI: **PENDING**. Physical Windows SSPI Type-2 -> Type-3 gate:
+**NOT RUN / NEXT GATE**. No new Linux physical candidate is nominated.
+
 ## P0 NTLM Type-2 compatibility-profile authoring receipt — 2026-10-25
 
 Starting assignment main: `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

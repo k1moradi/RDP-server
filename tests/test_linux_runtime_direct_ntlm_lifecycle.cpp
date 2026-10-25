@@ -1032,6 +1032,8 @@ struct PeerResult final
                RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
            diagnostics.protocolStage ==
                RuntimeAcceptedClientProtocolStage::PreAdmission &&
+           !diagnostics.mcsSessionAdvanced &&
+           !diagnostics.shareActivated &&
            diagnostics.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::Closed &&
            diagnostics.standaloneFailureStage ==
@@ -1310,6 +1312,14 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .mcsSessionAdvanced);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .shareActivated);
+        assert(waitingForTypeThree.stage != RuntimeHostStage::ShareActivated);
+        assert(waitingForTypeThree.activeClients.front().authenticating);
+        assert(!waitingForTypeThree.activeClients.front().shareActivated);
+        assert(!waitingForTypeThree.activeClients.front().desktopVisible);
         assertClipboardDormant(waitingForTypeThree);
         assertGraphicsDormant(waitingForTypeThree);
 

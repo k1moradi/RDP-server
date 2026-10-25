@@ -505,6 +505,16 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;protocol;mcs;share;diagnostics;offline"
             SKIP_RETURN_CODE 77)
 
+    add_test(
+        NAME runtime.linux-host-control-r3-diagnostic-dormancy-projection
+        COMMAND test_linux_runtime_host_control
+            linux-host-control-r3-diagnostic-dormancy-projection)
+    set_tests_properties(
+        runtime.linux-host-control-r3-diagnostic-dormancy-projection
+        PROPERTIES
+            LABELS "runtime;security;authentication;protocol;mcs;share;diagnostics;offline"
+            SKIP_RETURN_CODE 77)
+
     # These cases intentionally consume host interface/native identity, NSS
     # account state or a real listener prerequisite. Keep the existing names
     # for selectors, but do not classify their environment-dependent coverage

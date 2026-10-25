@@ -1,3 +1,36 @@
+## R3 P2 diagnostic readiness after physical Type-2 EOF (2026-10-25)
+
+**Assignment base:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;
+**reconciled shared-main parent:** `61ca5697ede988e7e3ee72cc33f59171f2c66b02`.
+Owner Linux/X11 full CTest on the assignment base is **980/980 PASS**. The
+physical path is TCP PASS -> X.224/HYBRID PASS -> TLS PASS -> raw Direct NTLM
+Type 1 PASS -> production Type 2 completely delivered -> **peer EOF before
+Type 3**. Native admission, MCS, Share and graphics/native desktop were
+**NOT REACHED**. The first unresolved interoperability boundary is
+Microsoft-client acceptance of the server CredSSP/NTLM Type-2 response.
+
+R3 therefore remains **P2 / BLOCKED** and this increment is diagnostic
+readiness only. Production MCS/Share/RDPGFX behavior is unchanged. The
+accepted-client diagnostic projection now exposes the existing connection-owned
+R3 lifecycle as two non-authorizing current-state facts:
+`mcsSessionAdvanced` and `shareActivated`. The production-backed Type-2/EOF
+fixture requires both false while awaiting Type 3 and after terminal EOF, in
+addition to `protocolStage=PreAdmission` and the existing graphics/native/
+clipboard dormancy assertions. A new deterministic offline projection CTest
+checks the pre-admission, terminal, genuine-MCS and ShareActivated mappings.
+
+The only valid promotion remains Type 3 -> pubKeyAuth -> authInfo ->
+`CredentialsVerified` -> successful native admission -> MCS. Connector
+source/dependency review: **PASS**. Modified-tree local build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**.
+
+**Required next-owner gate:** do not nominate another Linux physical candidate
+until a Microsoft-native Windows SSPI test consumes the production Type 2 and
+produces a Type 3 Authenticate message. If Type 3 is still absent, return the
+failure to the authentication owner; do not change Linux native admission,
+MCS, Share, RDPGFX, graphics or clipboard speculatively.
+
 ## P0 NTLM Type-2 compatibility audit; production unchanged pending Windows SSPI oracle (2026-10-25)
 
 **Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.

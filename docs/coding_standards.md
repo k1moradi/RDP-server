@@ -1,3 +1,21 @@
+## R3 pre-Type-3 diagnostics expose current R3 dormancy (2026-10-25)
+
+The last-positive protocol diagnostic and the current R3 lifecycle observation
+are distinct facts. Keep `protocolStage` as historical fail-only evidence, but
+project the current connection-owned R3 state separately: `mcsSessionAdvanced`
+is false while `McsSessionPhase` is `AwaitVerifiedR2Admission` and after it
+is terminally `Closed`; `shareActivated` is true only when the existing R3
+owner itself reports current Share activation. These scalars are descriptive
+only and can never authorize MCS, Share, graphics, native input or clipboard.
+
+A Direct NTLM peer that receives Type 2 and closes before Type 3 must therefore
+remain `NtlmChallenge / PreAdmission`, with no current R3 session advancement,
+no Share activation and no GraphicsReady/native state. Preserve the sole
+promotion chain: Type 3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` ->
+successful native admission lease -> first R3/MCS transition. Do not repair a
+pre-Type-3 interoperability failure in native admission, MCS, Share, RDPGFX or
+clipboard code.
+
 ## NTLM Type-2 compatibility changes are evidence-gated (2026-10-25)
 
 For connection-oriented CHALLENGE_MESSAGE negotiation, keep client capability

@@ -616,6 +616,14 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
         RuntimeAcceptedClientAuthenticationStage::Transport};
     RuntimeAcceptedClientProtocolStage protocolStage{
         RuntimeAcceptedClientProtocolStage::PreAdmission};
+    // Current R3 lifecycle observation only. False while the session is still
+    // waiting for verified R2 admission and after terminal closure. This is
+    // diagnostic state, not MCS authority, and protocolStage remains the
+    // last-positive historical milestone.
+    bool mcsSessionAdvanced{};
+    // Current R3 ShareActivated observation only; never graphics/native
+    // authority and never a substitute for the R2 admission lease.
+    bool shareActivated{};
     // Non-secret service credential generation pinned by this connection.
     // Zero for non-standalone authentication and never an authority token.
     std::uint64_t standaloneCredentialGeneration{};

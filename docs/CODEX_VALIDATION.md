@@ -1,3 +1,22 @@
+## CTest taxonomy structure-validator correction receipt — 2026-10-24
+
+Implementation SHA `50801a4baf0ee74053636fe0b1574cd2bf97c539`
+triggered structure run `40169182913`, job `121096372142`, which failed
+with exactly:
+`CI workflow validation FAIL: missing required workflow token:
+runtime.linux-connection-personal-license-request-write-denials`.
+
+The workflow itself already used the current semantic
+`...license-request-tls-write-denials` name. The stale validator literals are
+updated for the five TLS-qualified runtime tests (license request,
+client-licensing intake, valid-client write, Share I/O and Graphics-DVC I/O).
+Connector-side replay of the validator's `REQUIRED_TOKENS` against the exact
+workflow text finds **264/264 present**.
+
+No production source or authentication/native-admission behavior changes.
+Canonical owner-local CTest: **NOT RUN**. Corrected publication-SHA CI:
+**PENDING**.
+
 ## Product Username default and CTest taxonomy authoring receipt — 2026-10-24
 
 **Authoring parent:** `fb3cc8b509d04a0e8a625541ca821cadd511f46f`.

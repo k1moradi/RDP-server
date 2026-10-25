@@ -1,3 +1,24 @@
+## CTest taxonomy structure-validator correction — 2026-10-24
+
+Exact implementation SHA `50801a4baf0ee74053636fe0b1574cd2bf97c539`
+published the safe local Username default and functional CTest taxonomy.
+Independent structure run `40169182913` failed before heavyweight CI because
+`scripts/validate_ci_workflow.py` still required the pre-cleanup literal
+`runtime.linux-connection-personal-license-request-write-denials`, while the
+workflow correctly selected the current functional
+`runtime.linux-connection-personal-license-request-tls-write-denials`.
+
+The validator is reconciled with all five already-current TLS-qualified runtime
+names: license-request write, client-licensing intake, valid-client write,
+Share I/O and Graphics-DVC I/O. This is structure/test metadata only; no CTest
+behavior, selector cardinality, GUI behavior, authentication, native admission
+or protocol production code changes. A direct required-token check against the
+published workflow now finds **0 missing of 264** required tokens.
+
+Owner-local build/full CTest: **NOT RUN** for this metadata correction.
+Corrected exact-SHA structure/main CI: **PENDING**. Native Admission remains
+the first demonstrated product failure boundary.
+
 ## Product Username default and complete CTest taxonomy — 2026-10-24
 
 **Authoring parent:** `fb3cc8b509d04a0e8a625541ca821cadd511f46f`.

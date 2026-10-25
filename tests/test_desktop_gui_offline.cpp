@@ -2367,14 +2367,14 @@ int main(int argc, char** argv)
         assert(!isSafeLocalUsernameSuggestion(QStringLiteral("bad/name")));
 
         assert(username->echoMode() == QLineEdit::Normal);
-        assert(username->isEnabled() && !username->isReadOnly());
         assert(password->text().isEmpty());
         assert(confirmation->text().isEmpty());
         assert(password->echoMode() == QLineEdit::Password);
         assert(confirmation->echoMode() == QLineEdit::Password);
 
-        // The user can replace the convenience suggestion without populating
-        // either independent Session Password field.
+        // Replacing the non-secret suggestion never populates either
+        // independent Session Password field. Editability itself is covered
+        // by the owner-acceptance capability tests, not this Release-safe case.
         username->setText(QStringLiteral("remote-alias"));
         assert(username->text() == QStringLiteral("remote-alias"));
         assert(password->text().isEmpty());

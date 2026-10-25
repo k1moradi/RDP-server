@@ -1,3 +1,23 @@
+## Hosted retry and taxonomy fixture rules (2026-10-24)
+
+A retained terminal diagnostic snapshot describes the previous accepted peer.
+A reconnect/retry CTest must first observe the new accepted-client lifetime
+(e.g. a current active-client handle or equivalent generation transition)
+before allowing a terminal predicate to pass; otherwise a second attempt can
+falsely pass against stale Admission evidence and be released before it reaches
+Direct NTLM Type 2. Keep peer-side Type 2/challenge evidence where it precedes
+the server's active close, but use the authoritative server-side
+`CredentialsVerified -> Admission` state for the rejection boundary.
+
+CTest **registered names and labels** use behavior/domain taxonomy. Internal
+executable fixture-mode strings may retain agent ownership identifiers when
+renaming them would break dispatch; they are not user-visible CTest taxonomy.
+Source-policy regexes that feed CMake lists must not include a trailing literal
+semicolon in each match when exact occurrence counts are required, because the
+semicolon is a list separator. Product-default GUI tests must also keep
+credential editability separate from safe default-value behavior when a public
+Release capability gate intentionally keeps editing closed.
+
 ## Native Admission product-language regression — 2026-10-24
 
 Post-CredSSP native Admission failures are tested as local-desktop

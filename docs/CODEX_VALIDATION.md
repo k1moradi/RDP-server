@@ -1,3 +1,21 @@
+## Hosted Admission blocker reconciliation receipt — 2026-10-24
+
+Parent `1a635f88a4ee41bb87efe9cd859ecdb0c8116745` had already resolved the lower-layer product
+prerequisites, but exact-SHA hosted evidence exposed ordinary test regressions.
+The Ubuntu full suite accounted for all seven failures: three retry-lifecycle
+cases shared a stale retained-diagnostic race, one runtime projection expected
+the pre-Admission stage, one native-reason fixture mutated the wrong predicate,
+one semantic-name CTest invoked a now-nonexistent fixture mode, and one CMake
+source guard miscounted its single call because the matched semicolon split a
+CMake list. The macOS portable GUI lane additionally conflated safe Username
+defaulting with Release editor authority. The sanitizer candidate gate shared
+the same retry-fixture failure.
+
+This correction changes tests/policy documentation only. It does not modify
+TLS, SPNEGO, NTLM, CredSSP, native Admission, graphics, input, clipboard, or
+runtime production code. Connector source/CI diagnosis: **PASS**. Canonical
+local full CTest: **NOT RUN**. Publication-SHA CI: **PENDING**.
+
 ## GUI Admission-language authoring receipt — 2026-10-24
 
 Dependency check on current main confirmed the prerequisite Username/taxonomy

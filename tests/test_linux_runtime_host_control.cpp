@@ -359,6 +359,8 @@ int main(int argc, char** argv)
         using SourceCredSsp = LinuxRuntimeCredSspDiagnosticTransition;
         using SourceFailure = rdp_server::server::security::
             StandaloneAuthenticationFailureStage;
+        using SourceAdmissionFailure = rdp_server::server::security::
+            LinuxConsoleAdmissionFailureReason;
         using SourceTermination =
             rdp_server::server::transport::TcpConnectionTermination;
 
@@ -435,14 +437,19 @@ int main(int argc, char** argv)
                 StandaloneNtlmNegotiationEnvelope::DirectNtlm;
         source.standaloneAuthenticationFailureStage =
             SourceFailure::Admission;
+        source.admissionFailureReason =
+            SourceAdmissionFailure::ConsoleSessionUnavailable;
         source.termination = SourceTermination::PeerEof;
         projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
         assert(projected.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
         assert(projected.authenticationStage ==
-               RuntimeAcceptedClientAuthenticationStage::Authenticated);
+               RuntimeAcceptedClientAuthenticationStage::Admission);
         assert(projected.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::Admission);
+        assert(projected.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::
+                   ConsoleSessionUnavailable);
         assert(projected.termination ==
                RuntimeAcceptedClientTermination::PeerEof);
 

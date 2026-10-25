@@ -892,7 +892,9 @@ void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
         }, baseRequest);
     expectEvidenceBrokerFailure(
         Failure::AccountIdentityMismatch,
-        [](DetailedConsoleEvidenceSource &e) { e.account.uid = 1002U; }, baseRequest);
+        [](DetailedConsoleEvidenceSource &e) {
+            e.account.unixAccount = "mallory";
+        }, baseRequest);
     expectEvidenceBrokerFailure(
         Failure::ConsoleSessionUnavailable,
         [](DetailedConsoleEvidenceSource &e) {

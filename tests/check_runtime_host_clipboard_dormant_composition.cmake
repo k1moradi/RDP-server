@@ -152,7 +152,7 @@ endif()
 # Native/clipboard ownership may be constructed only after the accepted client
 # reaches GraphicsReady. Admission rejection therefore cannot create a CLIPRDR
 # owner, transfer state, or admission/session clipboard generation.
-string(REGEX MATCHALL "return initializeNativeDesktop\\(\\);" native_init_calls
+string(REGEX MATCHALL "return initializeNativeDesktop\\(\\)" native_init_calls
     "${host_source}")
 list(LENGTH native_init_calls native_init_call_count)
 string(FIND "${host_source}"

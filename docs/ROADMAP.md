@@ -1,3 +1,33 @@
+## Hosted Admission qualification regressions reconciled — 2026-10-24
+
+**Reconciled parent:** `1a635f88a4ee41bb87efe9cd859ecdb0c8116745`. Review of exact-SHA hosted failures
+showed the lower dependency chain is no longer blocked at TLS, Direct NTLM,
+CredSSP, typed Admission diagnostics, safe Username defaulting, or semantic
+CTest taxonomy. Hosted Linux already records authoritative
+`CredentialsVerified -> Admission -> <bounded reason>` while retaining the
+listener after an ordinary rejected peer.
+
+The remaining failures were test/fixture regressions, not production protocol
+failures: the retry fixture could match the previous peer's retained terminal
+snapshot before the next peer was accepted; one projection test still expected
+`Authenticated` instead of diagnostic stage `Admission`; one detailed reason
+fixture mutated UID instead of account identity; a CMake exact-call regex
+counted a trailing semicolon as an empty list element; the semantic CTest rename
+also renamed an internal fixture dispatch string; and the portable macOS GUI
+Username-default test incorrectly required editor authority in public Release.
+All are reconciled without changing TLS/SPNEGO/NTLM/CredSSP/native-admission
+production behavior.
+
+Current dependency gate after these corrections: exact-publication-SHA hosted
+CI must qualify first. After that, the remaining positive dependency is external
+owner evidence on a real physical session: `CredentialsVerified -> Admission
+granted -> MCS`. A hosted runner's bounded native denial such as
+`session-monitor-unavailable` or `console-session-unavailable` is expected
+fail-closed evidence, not a reason to alter transport/authentication again.
+
+Local full CTest in this connector session: **NOT RUN**. Exact-SHA hosted CI:
+**PENDING**.
+
 ## GUI native-Admission product presentation — 2026-10-24
 
 Current main now contains the lower-layer dependencies that previously blocked

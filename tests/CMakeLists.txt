@@ -529,7 +529,7 @@ if(TARGET rdp-server-linux-host-control)
     # Native environment skip is not a PASS receipt for owner qualification.
     add_test(NAME runtime.start-stop-start-and-tls-interop
         COMMAND test_linux_runtime_host_control
-            runtime.start-stop-start-and-tls-interop)
+            r9-start-stop-start-and-tls-interop)
     set_tests_properties(runtime.start-stop-start-and-tls-interop PROPERTIES
         LABELS "assurance;security;transport;tls;owner-consent;linux;native-environment"
         SKIP_RETURN_CODE 77)

@@ -947,6 +947,32 @@ struct PeerResult final
     return predicate(control.status());
 }
 
+[[nodiscard]] bool pumpUntilNewAttemptAdmissionDenied(
+    LinuxRuntimeHostControl& control,
+    const std::atomic<bool>& peerFinished) noexcept
+{
+    bool acceptedCurrentAttempt = false;
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        const RuntimeHostStatus status = control.status();
+        acceptedCurrentAttempt =
+            acceptedCurrentAttempt || !status.activeClients.empty();
+        if (acceptedCurrentAttempt &&
+            directClientCredentialsVerifiedThenAdmissionDenied(status))
+        {
+            return true;
+        }
+        if (peerFinished.load(std::memory_order_acquire))
+            return false;
+        (void)control.serviceOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    return acceptedCurrentAttempt &&
+           directClientCredentialsVerifiedThenAdmissionDenied(control.status());
+}
+
 [[nodiscard]] bool badClientRetired(
     const RuntimeHostStatus& status) noexcept
 {
@@ -1038,9 +1064,7 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
         finished.store(true, std::memory_order_release);
     });
 
-    assert(pumpUntil(
-        control, finished,
-        &directClientCredentialsVerifiedThenAdmissionDenied));
+    assert(pumpUntilNewAttemptAdmissionDenied(control, finished));
     const auto status = control.status();
     assert(status.listenerAvailable);
     assert(status.listenerGeneration == expectedListenerGeneration);

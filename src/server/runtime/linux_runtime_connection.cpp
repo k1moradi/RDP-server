@@ -1067,7 +1067,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
             "rdp-server: standalone authentication failed: stage=%s; "
             "tls=%s; credssp=spnego-initial; "
             "os-gss-fallback=disabled; spnego-initial=unobserved; "
-            "spnego=%s; admission-reason=%s\n",
+            "spnego=%s; admission=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             spnegoDiagnosticName(
@@ -1088,7 +1088,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
             "os-gss-fallback=disabled; tsrequest-version=%u; "
             "nego-token-count=%zu; ntlm-message-type=1; "
             "ntlm-token-bytes=%zu; negotiation-envelope=direct-ntlm; "
-            "credssp-progress=%s; admission-reason=%s\n",
+            "credssp-progress=%s; admission=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             static_cast<unsigned int>(initial.tsRequestVersion),
@@ -1122,7 +1122,7 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         "neg-hints=%s; mech-list-mic=%s; mechanism-count=%zu; "
         "mechanism-oids=%.*s; ntlm-offered=%s; ntlm-index=%d; "
         "optimistic-token=%s; optimistic-token-bytes=%zu; "
-        "spnego=%s; admission-reason=%s\n",
+        "spnego=%s; admission=%s\n",
         standaloneFailureStageName(failureStage),
         tlsEverEstablished_ ? "established" : "not-established",
         rdp_server::server::security::standaloneNtlmNegotiationEnvelopeName(

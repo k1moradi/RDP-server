@@ -871,6 +871,98 @@ projectLinuxAcceptedClientPreauthDiagnostics(
     case SourceFailure::Admission:
         projected.standaloneFailureStage =
             RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        projected.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+        break;
+    }
+
+    using SourceAdmissionFailure = rdp_server::server::security::
+        LinuxConsoleAdmissionFailureReason;
+    switch (source.admissionFailureReason)
+    {
+    case SourceAdmissionFailure::None:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::None;
+        break;
+    case SourceAdmissionFailure::OwnerConsentMissing:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::OwnerConsentMissing;
+        break;
+    case SourceAdmissionFailure::HybridTlsProvenanceInvalid:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::HybridTlsProvenanceInvalid;
+        break;
+    case SourceAdmissionFailure::AuthenticationProofMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::AuthenticationProofMismatch;
+        break;
+    case SourceAdmissionFailure::AdmissionRequestInvalid:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::AdmissionRequestInvalid;
+        break;
+    case SourceAdmissionFailure::SessionMonitorUnavailable:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::SessionMonitorUnavailable;
+        break;
+    case SourceAdmissionFailure::SessionChangedBeforeSample:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::SessionChangedBeforeSample;
+        break;
+    case SourceAdmissionFailure::AccountEvidenceUnavailable:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::AccountEvidenceUnavailable;
+        break;
+    case SourceAdmissionFailure::AccountIdentityMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::AccountIdentityMismatch;
+        break;
+    case SourceAdmissionFailure::ConsoleSessionUnavailable:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::ConsoleSessionUnavailable;
+        break;
+    case SourceAdmissionFailure::ConsoleNotActive:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::ConsoleNotActive;
+        break;
+    case SourceAdmissionFailure::ConsoleNotPhysical:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::ConsoleNotPhysical;
+        break;
+    case SourceAdmissionFailure::ConsoleSessionInvalid:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::ConsoleSessionInvalid;
+        break;
+    case SourceAdmissionFailure::SeatMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::SeatMismatch;
+        break;
+    case SourceAdmissionFailure::DisplayMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::DisplayMismatch;
+        break;
+    case SourceAdmissionFailure::ConsoleOwnerMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::ConsoleOwnerMismatch;
+        break;
+    case SourceAdmissionFailure::EvidenceTooOld:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::EvidenceTooOld;
+        break;
+    case SourceAdmissionFailure::PolicyMismatch:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::PolicyMismatch;
+        break;
+    case SourceAdmissionFailure::PolicyGenerationChanged:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::PolicyGenerationChanged;
+        break;
+    case SourceAdmissionFailure::NativeProofCompletionFailed:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::NativeProofCompletionFailed;
+        break;
+    case SourceAdmissionFailure::CredSspAdmissionCompletionFailed:
+        projected.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::CredSspAdmissionCompletionFailed;
         break;
     }
 
@@ -2287,13 +2379,17 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                     : diagnostics.selectedCertificateMatchesRuntimeIdentity
                         ? "match"
                         : "mismatch";
+            const auto admissionReason =
+                runtimeAcceptedClientAdmissionFailureReasonName(
+                    acceptedClientPreauthDiagnostics_.admissionFailureReason);
 
             // One bounded fail-only record. Never add credentials, hashes,
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
             std::fprintf(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
-                "protocol-stage=%s admission-reason=%s fingerprint=%s "
+                "protocol-stage=%s authentication-stage=%s admission=%.*s "
+                "fingerprint=%s "
                 "ip-self-check=%s selected-cert=%s handshake-step=%llu "
                 "handshake-result=%s ssl-error=%d openssl-reason=%u "
                 "termination=%s host-error=%u\n",
@@ -2302,9 +2398,12 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                                          : selectedEndpoint.c_str(),
                 protocolDiagnosticName(
                     acceptedClientPreauthDiagnostics_.protocolStage),
-                rdp_server::server::security::
-                    linuxConsoleAdmissionFailureReasonName(
-                        diagnostics.admissionFailureReason).data(),
+                acceptedClientPreauthDiagnostics_.authenticationStage ==
+                        RuntimeAcceptedClientAuthenticationStage::Admission
+                    ? "admission"
+                    : "pre-admission",
+                static_cast<int>(admissionReason.size()),
+                admissionReason.data(),
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),

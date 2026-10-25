@@ -1478,6 +1478,38 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "admission-failure-reason-product-diagnostic")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.available = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .admissionFailureReason =
+                RuntimeAcceptedClientAdmissionFailureReason::
+                    ConsoleSessionUnavailable;
+
+        const HostStatus failed = host.status();
+        assert(failed.remoteAuthenticationFailed);
+        assert(failed.listenerReady);
+        assert(failed.credentialsConfigured);
+        assert(failed.authenticationDiagnostic ==
+               QStringLiteral(
+                   "Authentication: Admission — console-session-unavailable"));
+        return 0;
+    }
+
     if (mode == "authentication-failure-product-language")
     {
 #if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)

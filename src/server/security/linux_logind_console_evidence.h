@@ -132,6 +132,8 @@ struct LinuxLogindObservationDiagnostics final
     ConsoleDesktopLockState lockState{ConsoleDesktopLockState::Unknown};
     bool processUidMatchesOwnerUid{};
     bool sessionGenerationStable{};
+    // Native logind lifecycle generation, not a raw session identifier.
+    std::uint64_t sessionGeneration{};
     LinuxLogindObservationFailure failure{
         LinuxLogindObservationFailure::SystemdUnavailable};
 

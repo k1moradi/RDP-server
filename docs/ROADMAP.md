@@ -1,3 +1,47 @@
+## Runtime admission reason propagation and failed-peer retry — 2026-10-24
+
+**Reconciled parent:** `432d92161eec0204645ca1f2dac4e0d298e30851`. The owner-tested baseline remains
+`9fd1db518076713f30b41af2aff023308f95a925`: local CTest **966/966 PASS**;
+the real Microsoft client established TLS, selected Direct NTLM, completed the
+observed CredSSP path and first failed at native Admission. This increment does
+not alter TLS, SPNEGO, NTLM, CredSSP wire behavior or authentication crypto.
+
+The runtime snapshot now projects the bounded native-admission reason instead
+of dropping it, and the diagnostic authentication stage becomes `Admission`
+for that failure boundary even though the last positive CredSSP transition was
+`CredentialsVerified`. Advanced GUI status therefore reports
+`Authentication: Admission — <bounded-reason>`; the Main-page product message
+remains `Remote client authentication failed.` and no secret/native identifier
+is exposed.
+
+An ordinary rejected peer remains connection-terminal only: the accepted
+client is retired, the listener remains active, current owner consent and the
+memory-only Session Password are preserved, and the same listener can accept
+the next client immediately. Existing Stop -> Start coverage continues to prove
+that ordinary Stop requires fresh owner permission/listener state without
+requiring Session Password re-entry. A new runtime CTest pins the bounded reason
+through that same failed-peer/retry path.
+
+Fail-only native-admission evidence now emits the owner-requested key form
+`stage=admission; admission=<reason>` and correlates the Start grant generation,
+Start physical-session generation, admission-sampled physical-session
+generation, and a bounded `yes/no/unavailable` generation match. The existing
+`start-admission` mismatch classification explains session identity or other
+fresh-evidence divergence; raw session IDs, account names, passwords, tokens,
+keys and clipboard content are not logged. These diagnostics never substitute
+for fresh evidence or an admission lease.
+
+The safe local Username suggestion and semantic CTest name/label cleanup already
+on main are preserved: no OS account password is retrieved or auto-filled,
+Session Password remains independent and user-entered, and R1-R10 names remain
+internal ownership rather than registered CTest taxonomy.
+
+Connector source/reconciliation checks: **PASS**. Canonical owner-local full
+CTest: **NOT RUN** in this connector session. Exact-publication-SHA hosted CI:
+**PENDING**. The next physical owner acceptance is either Admission granted ->
+MCS, or `stage=admission; admission=<specific-reason>`; generic Admission alone
+is not a candidate result.
+
 ## Functional Qt lifecycle selector reconciliation — 2026-10-24
 
 Current main already carries the detailed native-Admission reason taxonomy,

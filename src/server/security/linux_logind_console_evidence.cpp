@@ -368,6 +368,8 @@ LinuxLogindReadOnlyEvidenceSource::readActiveConsole() noexcept
     diagnostics_.sessionGenerationStable =
         repeatedSessionUid == sessionUid &&
         repeatedSessionStartMicroseconds == startedAtRealtimeMicroseconds;
+    if (diagnostics_.sessionGenerationStable)
+        diagnostics_.sessionGeneration = startedAtRealtimeMicroseconds;
     if (!diagnostics_.sessionGenerationStable ||
         !consistentLogindSessionFacts(
             facts, {secondSessionId, static_cast<std::uint32_t>(secondSeatUid)}) ||

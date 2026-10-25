@@ -34,9 +34,21 @@ using rdp_server::server::runtime::RuntimeHostError;
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
 {
     using namespace rdp_server::server::runtime;
-    if (!diagnostics.available ||
-        diagnostics.credSspTransition !=
-            RuntimeAcceptedClientCredSspTransition::Failed)
+    if (!diagnostics.available)
+        return {};
+
+    if (diagnostics.authenticationStage ==
+        RuntimeAcceptedClientAuthenticationStage::Admission)
+    {
+        const std::string_view reason =
+            runtimeAcceptedClientAdmissionFailureReasonName(
+                diagnostics.admissionFailureReason);
+        return QStringLiteral("Authentication: Admission — ") +
+               toQString(reason);
+    }
+
+    if (diagnostics.credSspTransition !=
+        RuntimeAcceptedClientCredSspTransition::Failed)
         return {};
 
     QString envelope;

@@ -453,6 +453,18 @@ public:
         return lastAuthorizationMismatch_.load(std::memory_order_relaxed);
     }
 
+    // Historical Start-time scalars for fail-only correlation diagnostics.
+    // They never sample evidence, authorize work or revive a revoked grant.
+    [[nodiscard]] std::uint64_t diagnosticGrantGeneration() const noexcept
+    {
+        return grant_.leaseGeneration;
+    }
+
+    [[nodiscard]] std::uint64_t diagnosticSessionGeneration() const noexcept
+    {
+        return grant_.sessionGeneration;
+    }
+
     void revoke(OwnerConsentRevocationReason /* reason */) noexcept
     {
         publishRevocation();

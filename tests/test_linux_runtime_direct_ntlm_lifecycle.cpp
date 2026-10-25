@@ -965,11 +965,13 @@ struct PeerResult final
            status.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
                RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
            status.acceptedClientPreauthDiagnostics.authenticationStage ==
-               RuntimeAcceptedClientAuthenticationStage::Authenticated &&
+               RuntimeAcceptedClientAuthenticationStage::Admission &&
            status.acceptedClientPreauthDiagnostics.credSspTransition ==
                RuntimeAcceptedClientCredSspTransition::CredentialsVerified &&
            status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::Admission &&
+           status.acceptedClientPreauthDiagnostics.admissionFailureReason !=
+               RuntimeAcceptedClientAdmissionFailureReason::None &&
            !status.nativeDesktopReady &&
            !status.nativeDesktopInitializing &&
            !status.graphicsReady &&
@@ -1053,11 +1055,13 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
     assert(status.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
     assert(status.acceptedClientPreauthDiagnostics.authenticationStage ==
-           RuntimeAcceptedClientAuthenticationStage::Authenticated);
+           RuntimeAcceptedClientAuthenticationStage::Admission);
     assert(status.acceptedClientPreauthDiagnostics.credSspTransition ==
            RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
     assert(status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
            RuntimeAcceptedClientStandaloneFailureStage::Admission);
+    assert(status.acceptedClientPreauthDiagnostics.admissionFailureReason !=
+           RuntimeAcceptedClientAdmissionFailureReason::None);
     // Admission rejection is not a TLS failure. A peer EOF observed by the
     // transport owner remains its distinct terminal category.
     assert(status.acceptedClientPreauthDiagnostics.termination !=
@@ -1091,7 +1095,9 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-reconnect-stop-start-lifecycle";
     const bool admissionRetryOnly =
         testCase ==
-        "admission-denial-retains-listener-and-accepts-second-tls";
+            "admission-denial-retains-listener-and-accepts-second-tls" ||
+        testCase ==
+            "admission-denial-exposes-bounded-reason-and-retries";
     if (!fullLifecycle && !admissionRetryOnly)
         return 2;
 

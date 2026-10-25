@@ -72,6 +72,15 @@ r1HybridNlaSecurityView(
     return value ? "yes" : "no";
 }
 
+[[nodiscard]] constexpr const char *generationMatchName(
+    std::uint64_t startGeneration,
+    std::uint64_t admissionGeneration) noexcept
+{
+    if (startGeneration == 0U || admissionGeneration == 0U)
+        return "unavailable";
+    return startGeneration == admissionGeneration ? "yes" : "no";
+}
+
 [[nodiscard]] constexpr const char *lockStateName(
     ConsoleDesktopLockState state) noexcept
 {
@@ -110,19 +119,35 @@ void logNativeAdmissionFailure(
         linuxLogindMonitorStateName(monitor.initialState);
     const auto baselineName =
         linuxLogindMonitorStateName(monitor.baselineState);
+    const std::uint64_t startGrantGeneration =
+        ownerAuthority != nullptr
+            ? ownerAuthority->diagnosticGrantGeneration()
+            : 0U;
+    const std::uint64_t startSessionGeneration =
+        ownerAuthority != nullptr
+            ? ownerAuthority->diagnosticSessionGeneration()
+            : 0U;
+    const std::uint64_t admissionSessionGeneration =
+        observation.sessionGeneration;
 
     // Fail-only and deliberately structural: no account name, raw session ID,
     // credential, token, clipboard byte or desktop content is emitted.
     std::fprintf(
         stderr,
-        "native-admission: stage=admission reason=%s "
-        "start-admission=%.*s logind=%s graphical-seat=%s "
+        "native-admission: stage=admission; admission=%s "
+        "start-admission=%.*s start-grant-generation=%llu "
+        "start-session-generation=%llu admission-session-generation=%llu "
+        "session-generation-match=%s logind=%s graphical-seat=%s "
         "active-session=%s type=%.*s class=%.*s seat=%.*s display=%.*s "
         "active=%s remote=%s lock=%s process-owner-match=%s "
         "session-generation-stable=%s evidence=%.*s "
         "login-monitor=%s monitor-initial=%.*s monitor-baseline=%.*s\n",
         reason,
         static_cast<int>(mismatchName.size()), mismatchName.data(),
+        static_cast<unsigned long long>(startGrantGeneration),
+        static_cast<unsigned long long>(startSessionGeneration),
+        static_cast<unsigned long long>(admissionSessionGeneration),
+        generationMatchName(startSessionGeneration, admissionSessionGeneration),
         yesNo(observation.systemdAvailable),
         yesNo(observation.graphicalSeatAvailable),
         yesNo(observation.activeSessionFound),

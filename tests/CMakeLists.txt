@@ -452,6 +452,15 @@ if(TARGET rdp-server-linux-host-control)
         PROPERTIES
             LABELS "runtime;security;transport;tls;credssp;authentication;admission;listener;linux;native-environment"
             SKIP_RETURN_CODE 77)
+    add_test(
+        NAME runtime.linux-admission-denial-exposes-bounded-reason-and-retries
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            admission-denial-exposes-bounded-reason-and-retries)
+    set_tests_properties(
+        runtime.linux-admission-denial-exposes-bounded-reason-and-retries
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;admission;diagnostics;listener;linux;native-environment"
+            SKIP_RETURN_CODE 77)
 
     foreach(host_control_case IN ITEMS
             linux-host-control-no-consent-start-denials
@@ -4419,6 +4428,14 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;credentials;acceptance;lifecycle;consent"
         SKIP_RETURN_CODE 77
+        TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-admission-failure-reason-product-diagnostic
+        COMMAND test_desktop_gui_offline admission-failure-reason-product-diagnostic)
+    set_tests_properties(
+        gui.offscreen-admission-failure-reason-product-diagnostic PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;authentication;admission;diagnostics;runtime"
         TIMEOUT 30)
 
     add_test(NAME gui.offscreen-owner-authentication-failure-product-language-and-retention

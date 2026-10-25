@@ -454,6 +454,65 @@ enum class RuntimeAcceptedClientStandaloneFailureStage : std::uint8_t
     Admission,
 };
 
+// Bounded native-admission first-failure classification projected through the
+// runtime owner. Diagnostic only; no value grants native or protocol authority.
+enum class RuntimeAcceptedClientAdmissionFailureReason : std::uint8_t
+{
+    None,
+    OwnerConsentMissing,
+    HybridTlsProvenanceInvalid,
+    AuthenticationProofMismatch,
+    AdmissionRequestInvalid,
+    SessionMonitorUnavailable,
+    SessionChangedBeforeSample,
+    AccountEvidenceUnavailable,
+    AccountIdentityMismatch,
+    ConsoleSessionUnavailable,
+    ConsoleNotActive,
+    ConsoleNotPhysical,
+    ConsoleSessionInvalid,
+    SeatMismatch,
+    DisplayMismatch,
+    ConsoleOwnerMismatch,
+    EvidenceTooOld,
+    PolicyMismatch,
+    PolicyGenerationChanged,
+    NativeProofCompletionFailed,
+    CredSspAdmissionCompletionFailed,
+};
+
+[[nodiscard]] constexpr std::string_view
+runtimeAcceptedClientAdmissionFailureReasonName(
+    RuntimeAcceptedClientAdmissionFailureReason reason) noexcept
+{
+    using Reason = RuntimeAcceptedClientAdmissionFailureReason;
+    switch (reason)
+    {
+    case Reason::None: return "none";
+    case Reason::OwnerConsentMissing: return "owner-consent-missing";
+    case Reason::HybridTlsProvenanceInvalid: return "hybrid-tls-provenance-invalid";
+    case Reason::AuthenticationProofMismatch: return "authentication-proof-mismatch";
+    case Reason::AdmissionRequestInvalid: return "admission-request-invalid";
+    case Reason::SessionMonitorUnavailable: return "session-monitor-unavailable";
+    case Reason::SessionChangedBeforeSample: return "session-changed-before-sample";
+    case Reason::AccountEvidenceUnavailable: return "account-evidence-unavailable";
+    case Reason::AccountIdentityMismatch: return "account-identity-mismatch";
+    case Reason::ConsoleSessionUnavailable: return "console-session-unavailable";
+    case Reason::ConsoleNotActive: return "console-not-active";
+    case Reason::ConsoleNotPhysical: return "console-not-physical";
+    case Reason::ConsoleSessionInvalid: return "console-session-invalid";
+    case Reason::SeatMismatch: return "seat-mismatch";
+    case Reason::DisplayMismatch: return "display-mismatch";
+    case Reason::ConsoleOwnerMismatch: return "console-owner-mismatch";
+    case Reason::EvidenceTooOld: return "evidence-too-old";
+    case Reason::PolicyMismatch: return "policy-mismatch";
+    case Reason::PolicyGenerationChanged: return "policy-generation-changed";
+    case Reason::NativeProofCompletionFailed: return "native-proof-completion-failed";
+    case Reason::CredSspAdmissionCompletionFailed: return "credssp-admission-completion-failed";
+    }
+    return "admission-request-invalid";
+}
+
 enum class RuntimeAcceptedClientNtlmEnvelope : std::uint8_t
 {
     Undetermined,
@@ -476,6 +535,7 @@ enum class RuntimeAcceptedClientAuthenticationStage : std::uint8_t
     CredSspBinding,
     CredentialDelegation,
     Authenticated,
+    Admission,
     Mcs,
 };
 
@@ -533,6 +593,8 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t standaloneCredentialGeneration{};
     RuntimeAcceptedClientStandaloneFailureStage standaloneFailureStage{
         RuntimeAcceptedClientStandaloneFailureStage::None};
+    RuntimeAcceptedClientAdmissionFailureReason admissionFailureReason{
+        RuntimeAcceptedClientAdmissionFailureReason::None};
     RuntimeAcceptedClientTermination termination{
         RuntimeAcceptedClientTermination::Cancelled};
 };

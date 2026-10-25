@@ -29,26 +29,54 @@ using rdp_server::server::runtime::RuntimeHostError;
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
 }
 
+[[nodiscard]] QString localDesktopAuthorizationDiagnosticText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientAdmissionFailureReason reason)
+{
+    using Reason = rdp_server::server::runtime::
+        RuntimeAcceptedClientAdmissionFailureReason;
+    switch (reason)
+    {
+    case Reason::SessionMonitorUnavailable:
+        return QStringLiteral(
+            "Local desktop authorization: session monitor unavailable");
+    case Reason::SessionChangedBeforeSample:
+    case Reason::PolicyGenerationChanged:
+        return QStringLiteral(
+            "Local desktop authorization: active session changed");
+    case Reason::None:
+    case Reason::OwnerConsentMissing:
+    case Reason::HybridTlsProvenanceInvalid:
+    case Reason::AuthenticationProofMismatch:
+    case Reason::AdmissionRequestInvalid:
+    case Reason::AccountEvidenceUnavailable:
+    case Reason::AccountIdentityMismatch:
+    case Reason::ConsoleSessionUnavailable:
+    case Reason::ConsoleNotActive:
+    case Reason::ConsoleNotPhysical:
+    case Reason::ConsoleSessionInvalid:
+    case Reason::SeatMismatch:
+    case Reason::DisplayMismatch:
+    case Reason::ConsoleOwnerMismatch:
+    case Reason::EvidenceTooOld:
+    case Reason::PolicyMismatch:
+    case Reason::NativeProofCompletionFailed:
+    case Reason::CredSspAdmissionCompletionFailed:
+        return QStringLiteral("Local desktop authorization: unavailable");
+    }
+    return QStringLiteral("Local desktop authorization: unavailable");
+}
+
 [[nodiscard]] QString authenticationDiagnosticText(
     const rdp_server::server::runtime::
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
 {
     using namespace rdp_server::server::runtime;
-    if (!diagnostics.available)
-        return {};
-
-    if (diagnostics.authenticationStage ==
-        RuntimeAcceptedClientAuthenticationStage::Admission)
-    {
-        const std::string_view reason =
-            runtimeAcceptedClientAdmissionFailureReasonName(
-                diagnostics.admissionFailureReason);
-        return QStringLiteral("Authentication: Admission — ") +
-               toQString(reason);
-    }
-
-    if (diagnostics.credSspTransition !=
-        RuntimeAcceptedClientCredSspTransition::Failed)
+    if (!diagnostics.available ||
+        diagnostics.authenticationStage ==
+            RuntimeAcceptedClientAuthenticationStage::Admission ||
+        diagnostics.credSspTransition !=
+            RuntimeAcceptedClientCredSspTransition::Failed)
         return {};
 
     QString envelope;
@@ -258,16 +286,30 @@ HostStatus HostControl::status() const
         }
     }
 
-    if (runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
-        runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited)
+    const bool localDesktopAuthorizationFailed =
+        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
+        runtimeStatus.acceptedClientPreauthDiagnostics.available &&
+        runtimeStatus.acceptedClientPreauthDiagnostics.authenticationStage ==
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+    view.localDesktopAuthorizationFailed =
+        localDesktopAuthorizationFailed;
+
+    if ((runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
+         runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited) &&
+        !localDesktopAuthorizationFailed)
     {
         view.remoteAuthenticationFailed = true;
         view.authenticationFailures.push_back(
             QStringLiteral("Remote client authentication failed."));
     }
+
     view.authenticationDiagnostic =
-        authenticationDiagnosticText(
-            runtimeStatus.acceptedClientPreauthDiagnostics);
+        localDesktopAuthorizationFailed
+            ? localDesktopAuthorizationDiagnosticText(
+                  runtimeStatus.acceptedClientPreauthDiagnostics
+                      .admissionFailureReason)
+            : authenticationDiagnosticText(
+                  runtimeStatus.acceptedClientPreauthDiagnostics);
     if (view.clientDisconnected)
         view.disconnected.push_back(
             QStringLiteral("Client disconnected; listener remains active"));

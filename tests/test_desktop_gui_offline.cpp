@@ -1498,15 +1498,27 @@ int main(int argc, char** argv)
         runtime.snapshot.acceptedClientPreauthDiagnostics
             .admissionFailureReason =
                 RuntimeAcceptedClientAdmissionFailureReason::
-                    ConsoleSessionUnavailable;
+                    SessionMonitorUnavailable;
 
         const HostStatus failed = host.status();
-        assert(failed.remoteAuthenticationFailed);
+        assert(failed.localDesktopAuthorizationFailed);
+        assert(!failed.remoteAuthenticationFailed);
         assert(failed.listenerReady);
         assert(failed.credentialsConfigured);
         assert(failed.authenticationDiagnostic ==
                QStringLiteral(
-                   "Authentication: Admission — console-session-unavailable"));
+                   "Local desktop authorization: session monitor unavailable"));
+
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .admissionFailureReason =
+                RuntimeAcceptedClientAdmissionFailureReason::
+                    SessionChangedBeforeSample;
+        const HostStatus changed = host.status();
+        assert(changed.localDesktopAuthorizationFailed);
+        assert(!changed.remoteAuthenticationFailed);
+        assert(changed.authenticationDiagnostic ==
+               QStringLiteral(
+                   "Local desktop authorization: active session changed"));
         return 0;
     }
 
@@ -1580,13 +1592,57 @@ int main(int argc, char** argv)
         assert(!diagnostic->text().contains(
             QStringLiteral("NTLMSSP"), Qt::CaseInsensitive));
 
+        // CredSSP credentials are already verified here. A native Admission
+        // failure is local-desktop authorization, not remote authentication.
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .admissionFailureReason =
+                RuntimeAcceptedClientAdmissionFailureReason::
+                    SessionMonitorUnavailable;
+        window.refresh();
+
+        const HostStatus admissionFailed = host.status();
+        assert(admissionFailed.localDesktopAuthorizationFailed);
+        assert(!admissionFailed.remoteAuthenticationFailed);
+        assert(admissionFailed.listenerReady);
+        assert(admissionFailed.credentialsConfigured);
+        assert(sharingToggle(window)->isChecked());
+        assert(!availability->isHidden());
+        assert(availability->text() ==
+               QStringLiteral(
+                   "Could not authorize access to the local desktop."));
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Local desktop authorization: session monitor unavailable"));
+        for (const QString internalText :
+             {QStringLiteral("stage=admission"),
+              QStringLiteral("CandidateOnly")})
+        {
+            assert(!availability->text().contains(
+                internalText, Qt::CaseInsensitive));
+            assert(!diagnostic->text().contains(
+                internalText, Qt::CaseInsensitive));
+        }
+        assertNoRoadLabelsInUserText(window);
+
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
         runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
             RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Authenticated;
         runtime.snapshot.acceptedClientPreauthDiagnostics
             .standaloneFailureStage =
                 RuntimeAcceptedClientStandaloneFailureStage::None;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .admissionFailureReason =
+                RuntimeAcceptedClientAdmissionFailureReason::None;
         window.refresh();
         assert(host.status().productState ==
                RuntimeProductHostState::Authenticating);

@@ -1,3 +1,19 @@
+## GUI native-Admission product presentation — 2026-10-24
+
+Current main now contains the lower-layer dependencies that previously blocked
+this GUI change: safe local Username suggestion, semantic CTest taxonomy, and a
+typed native-Admission failure reason propagated through the runtime snapshot.
+R7 therefore changes presentation only. A post-credential Admission rejection
+is no longer reported as `Remote client authentication failed.`; Main uses
+`Could not authorize access to the local desktop.`, while Advanced maps the
+bounded reason to redacted local-desktop authorization language. Ordinary
+failed peers continue to leave the listener and current local consent intact.
+
+TLS, SPNEGO, NTLM, CredSSP crypto/wire behavior and native authorization logic
+are unchanged. Owner assignment baseline remains **966/966 PASS** at
+`9fd1db518076713f30b41af2aff023308f95a925`. Publication-SHA full local
+CTest is **NOT RUN** in this connector session; hosted CI is **PENDING**.
+
 ## Admission diagnostics hosted-regression corrections — 2026-10-24
 
 **Reconciled parent:** `5612bdc27fbc264de6f8ee51c5a7dda81ade8ace`. The current runtime already projects the

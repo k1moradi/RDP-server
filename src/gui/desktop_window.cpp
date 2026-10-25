@@ -1191,11 +1191,14 @@ void DesktopWindow::refresh()
 
     const QString denial = blockedReason(snapshot);
     const QString sharingAvailabilityMessage =
-        snapshot.remoteAuthenticationFailed
-            ? QStringLiteral("Remote client authentication failed.")
-            : (!mayStillBeHosting(snapshot) && snapshot.controlAvailable
-                ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
-                : QString{});
+        snapshot.localDesktopAuthorizationFailed
+            ? QStringLiteral(
+                  "Could not authorize access to the local desktop.")
+            : (snapshot.remoteAuthenticationFailed
+                ? QStringLiteral("Remote client authentication failed.")
+                : (!mayStillBeHosting(snapshot) && snapshot.controlAvailable
+                    ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
+                    : QString{}));
     sharingAvailabilityStatus_->setText(sharingAvailabilityMessage);
     sharingAvailabilityStatus_->setVisible(
         !sharingAvailabilityMessage.isEmpty());

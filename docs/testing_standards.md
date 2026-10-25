@@ -1,3 +1,15 @@
+## Native Admission product-language regression — 2026-10-24
+
+Post-CredSSP native Admission failures are tested as local-desktop
+authorization failures, not remote authentication failures. Main must show
+`Could not authorize access to the local desktop.`; Advanced diagnostics
+consume only the bounded runtime reason taxonomy and reduce it to product-safe
+phrases such as `session monitor unavailable` or `active session changed`.
+The listener/owner-consent state must remain authoritative so an ordinary
+failed peer leaves Sharing ON when those lifetimes are still valid. Regression
+coverage forbids `stage=admission`, `CandidateOnly`, and agent-road terms
+from the visible GUI.
+
 ## Admission-denial active-close evidence rule (2026-10-24)
 
 When the server has already recorded

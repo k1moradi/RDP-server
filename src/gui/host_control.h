@@ -84,6 +84,7 @@ struct HostStatus
     // Product-safe per-peer authentication presentation. The detailed string
     // is derived only from redacted R10 enums and never from token/parser text.
     bool remoteAuthenticationFailed{};
+    bool localDesktopAuthorizationFailed{};
     QString authenticationDiagnostic;
 };
 

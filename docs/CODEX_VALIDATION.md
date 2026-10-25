@@ -1,3 +1,16 @@
+## GUI Admission-language authoring receipt — 2026-10-24
+
+Dependency check on current main confirmed the prerequisite Username/taxonomy
+and typed native-Admission reason work had landed before this GUI-only change.
+The patch separates native Admission rejection from remote authentication in
+the Qt projection, preserves listener/consent-derived Sharing state, and
+redacts Advanced Diagnostics to product language. No TLS/SPNEGO/NTLM/CredSSP
+wire or native-authorization behavior is changed.
+
+Owner baseline: **966/966 PASS** at
+`9fd1db518076713f30b41af2aff023308f95a925`. Publication-SHA full local
+CTest: **NOT RUN** here. Hosted CI: **PENDING**.
+
 ## Admission diagnostics hosted-regression correction receipt — 2026-10-24
 
 On the typed-admission descendants, hosted Linux correctly reached

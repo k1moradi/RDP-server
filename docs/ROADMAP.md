@@ -1,3 +1,29 @@
+## R5 P1 — native Linux path holds before Admission on Type-2 peer EOF (2026-10-25)
+
+**Reconciled parent:** `a300ca26579e6eb41e56fab828cc337854b645ab`. Owner evidence remains assignment SHA
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest
+**975/975 PASS**. The physical Microsoft Windows App trace reached TLS, Direct
+NTLM Type 1 and server Type 2, then **peer EOF** with no Type 3. R5 therefore
+does not change logind/native admission, X11 capture/input, MCS, graphics or
+clipboard.
+
+Current main already has the production-backed Type-2/EOF diagnostic test and
+truthful pre-admission classification. R5 strengthens the existing source-backed
+`runtime.linux-auth-envelope-independent-native-owner` gate so
+`issueAdmission()` is ordered strictly after `CredentialsVerified`, while
+the entire PreAdmission switch is forbidden from selecting a physical X11
+desktop, constructing or visiting the native desktop owner, registering native
+change watches, processing X11 events or consuming framebuffer data. Together
+the runtime and structural gates pin that Type 1 -> Type 2 -> peer EOF cannot
+initialize X11, capture, XTEST or a native desktop owner.
+
+No Type-2 wire bytes are changed. The current
+`NTLMSSP_TARGET_TYPE_SERVER` + empty `TargetNameFields` shape remains the
+primary authentication-layer interoperability hypothesis. Connector source
+review: **PASS**. Modified-tree local CTest: **NOT RUN**. Hosted exact-SHA CI:
+**PENDING**. R5 holds position until authentication reaches Type 3/pubKeyAuth/
+authInfo and then genuine native Admission.
+
 ## R7 P1 — Type-2 peer-EOF GUI status accuracy (2026-10-25)
 
 **Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.

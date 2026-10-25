@@ -1,3 +1,19 @@
+## R5 Type-2 peer-EOF native-owner dormancy source gate (2026-10-25)
+
+The existing source-backed CTest
+`runtime.linux-auth-envelope-independent-native-owner` must pin the
+pre-admission control-flow boundary in addition to the production Type-2/EOF
+runtime fixture. Within the HostControl `PreAdmission` switch,
+`issueAdmission()` must remain strictly after `CredentialsVerified`; the
+same region must contain no physical-X11 selection, native desktop
+construction/visitation, native-change registration, X11 event processing or
+framebuffer consumption.
+
+This proves a Type 1 -> Type 2 -> peer EOF path cannot initialize X11, capture,
+XTEST or a native desktop owner. It does not synthesize physical-session
+evidence and does not weaken the detailed native-admission diagnostics used
+after Type 3/pubKeyAuth/authInfo complete.
+
 ## R7 Type-2 peer-EOF GUI presentation gate (2026-10-25)
 
 Owner evidence on baseline

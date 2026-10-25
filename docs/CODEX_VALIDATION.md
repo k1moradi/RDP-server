@@ -1,3 +1,24 @@
+## R5 pre-admission native-owner source-assurance receipt — 2026-10-25
+
+Reconciled on parent `a300ca26579e6eb41e56fab828cc337854b645ab` with owner baseline
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` at **975/975 PASS**. The real
+Microsoft Windows App trace stops at Type-2 peer EOF before Type 3, so this R5
+increment changes no native Linux production code.
+
+The existing source-backed CTest
+`runtime.linux-auth-envelope-independent-native-owner` is tightened to require
+that `issueAdmission()` remains after `CredentialsVerified` and that the
+PreAdmission switch contains no physical-X11 selection, native owner
+construction/visitation, native-change registration, X11 event processing or
+framebuffer consumption. The production-backed Type-2/EOF test already proves
+`PreAdmission` runtime state with no native/graphics authority; this source
+gate closes the remaining early-initialization loophole.
+
+Connector source inspection: **PASS**. Modified-tree canonical local build/full
+CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. No logind,
+native-admission, MCS, graphics, clipboard or NTLM Type-2 encoding behavior is
+changed.
+
 ## R7 Type-2 peer-EOF GUI status authoring receipt — 2026-10-25
 
 **Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.

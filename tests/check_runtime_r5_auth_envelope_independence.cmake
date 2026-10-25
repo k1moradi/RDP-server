@@ -95,13 +95,29 @@ foreach(required_text IN ITEMS
         "${preadmission_source}" "${required_text}"
         "R2 pre-admission failure/lease gate missing")
 endforeach()
+string(FIND "${preadmission_source}"
+    "case Step::CredentialsVerified:" credentials_verified_case)
+string(FIND "${preadmission_source}"
+    "acceptedClient_->issueAdmission(*request)" issue_admission_call)
+if(credentials_verified_case LESS 0 OR issue_admission_call LESS 0 OR
+   NOT credentials_verified_case LESS issue_admission_call)
+    message(FATAL_ERROR
+        "native admission sampling must remain after CredentialsVerified")
+endif()
+
 foreach(forbidden_text IN ITEMS
+        "selectCurrentPhysicalX11Desktop("
         "initializeNativeDesktop("
         "constructHostAuthorizedX11Desktop("
+        "visitNativeDesktopSelection("
+        "registerNativeChange("
+        "X11DesktopResources"
+        "processEvents("
+        "consumeR4Frame("
         "nativeDesktop_ =")
     forbid_text(
         "${preadmission_source}" "${forbidden_text}"
-        "authentication failure must not create an R5 X11 owner")
+        "pre-admission authentication failure must not touch the R5 native owner")
 endforeach()
 
 extract_between(

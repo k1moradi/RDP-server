@@ -166,6 +166,29 @@ foreach(ntlmssp_case IN ITEMS
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;offline")
 endforeach()
 
+# Microsoft-native Windows SSPI is the independent client-side NTLM oracle.
+# It uses explicit in-memory test credentials and performs no network/domain
+# login. Production owns only Type 2 and final Type-3 parsing/verification.
+if(WIN32)
+    add_executable(test_windows_sspi_ntlm_interop
+        test_windows_sspi_ntlm_interop.cpp)
+    target_link_libraries(test_windows_sspi_ntlm_interop PRIVATE
+        rdp-server-standalone-ntlmv2 secur32)
+    if(MSVC)
+        target_compile_options(test_windows_sspi_ntlm_interop PRIVATE
+            /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_windows_sspi_ntlm_interop PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME security.windows-sspi-production-type2-interop
+        COMMAND test_windows_sspi_ntlm_interop)
+    set_tests_properties(
+        security.windows-sspi-production-type2-interop PROPERTIES
+        LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
+        TIMEOUT 30)
+endif()
+
 # R2 standalone NTLM transcript MIC and connection-oriented SIGN/SEAL state.
 add_executable(test_standalone_ntlm_security
     test_standalone_ntlm_security.cpp)

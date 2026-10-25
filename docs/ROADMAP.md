@@ -1,3 +1,41 @@
+## P0 — Microsoft Windows SSPI Type-2 oracle before another Linux candidate (2026-10-25)
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+Owner physical Linux/X11 evidence is **980/980 CTest PASS** and
+`TCP -> X.224/HYBRID -> TLS -> raw Direct NTLM Type 1 -> production Type 2
+fully delivered -> peer EOF`, with Type 3, native Admission, MCS and native
+graphics **NOT REACHED**. The unresolved boundary is therefore Microsoft
+acceptance of the server Type 2, not Linux native admission or downstream
+protocol composition.
+
+Concurrent main `61ca5697ede988e7e3ee72cc33f59171f2c66b02` added only
+bounded test-only compatibility profiles, and
+`d1c42cd18c8b07c45e10a76c9e850a021614af9e` preserved the pre-Type-3 R3
+dormancy boundary; neither changes production NTLM bytes. This P0 gate adds
+Windows-only `security.windows-sspi-production-type2-interop`, backed by the
+native Microsoft `NTLM` SSPI package and fixed in-memory test credentials.
+SSPI owns Type 1 and Type 3; production owns the Type-2 encoder and final
+Type-3 parser/verifier. The test requests integrity/confidentiality plus
+replay/sequence protection and opens no external socket or domain login.
+Windows protocol CI runs it explicitly after the Debug compile so the result
+is visible before the ordinary full CTest.
+
+If the current production Type 2 is rejected, the failing test runs only
+fresh-context one-property diagnostics for VERSION, TargetInfo timestamp,
+same-length TargetName text and selected non-required legal flags. VERSION
+uses the already-qualified portable zero product/build + revision `0x0f`
+profile. SIGN, SEAL, ESS and 128-bit requirements are never relaxed. A
+diagnostic acceptance does not make the test green and does not authorize a
+production change.
+
+**Verification at authoring:** source/C++ narrow-stub syntax review **PASS**;
+Windows SSPI execution **NOT RUN**; exact-publication-SHA hosted CI
+**PENDING**. **Required next owner gate:** do not nominate another Linux
+physical candidate until Windows SSPI consumes the untouched production
+Type 2 and emits Type 3. If it does, shift suspicion to the outer CredSSP
+TSRequest/Microsoft-client context; if it does not, use the first accepted
+single-property delta as the only production-change candidate.
+
 ## R3 P2 diagnostic readiness after physical Type-2 EOF (2026-10-25)
 
 **Assignment base:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;

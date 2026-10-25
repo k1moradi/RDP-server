@@ -1,3 +1,16 @@
+## Windows SSPI Type-2 oracle linkage (2026-10-25)
+
+The noninstalled Windows-only `test_windows_sspi_ntlm_interop` target links
+the existing `rdp-server-standalone-ntlmv2` production security component
+and the Windows SDK `secur32` import library. No SSPI header or Secur32
+dependency enters the portable protocol/security library, Linux or macOS.
+The test uses only local explicit test credentials and no network service.
+
+Hosted Windows/MSVC and owner MSYS2 CLANG64/Clang 23 remain independent
+compile/runtime evidence gates. Ordinary Windows full CTest includes the
+oracle, while the primary Windows protocol job also runs it explicitly after
+Debug compilation so Type-2 acceptance is visible before unrelated tests.
+
 ## Desktop Username account lookup linkage (2026-10-24)
 
 The shared noninstalled Qt desktop UI resolves only a safe current interactive

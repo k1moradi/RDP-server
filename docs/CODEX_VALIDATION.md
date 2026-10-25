@@ -1,3 +1,35 @@
+## Microsoft Windows SSPI Type-2 oracle authoring receipt — 2026-10-25
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;
+reconciled onto shared main after test-only Type-2 compatibility profiles at
+`61ca5697ede988e7e3ee72cc33f59171f2c66b02` and R3 pre-Type-3 dormancy
+diagnostics at `d1c42cd18c8b07c45e10a76c9e850a021614af9e`. Owner evidence
+is **980/980 local CTest PASS** with the real peer stopping after the
+completely delivered production Type 2 and before Type 3; native
+Admission/MCS/graphics remain not reached.
+
+Authored one Windows-only production-backed CTest using
+`AcquireCredentialsHandleW` / `InitializeSecurityContextW` from the native
+Microsoft `NTLM` SSPI package with fixed in-memory `User` / `RDP` /
+`Password` credentials. No repository NTLM client logic generates Type 1 or
+Type 3. The test feeds Microsoft's exact Type-1 flags into the production
+Type-2 encoder, gives that exact challenge back to SSPI, then requires the
+existing production parser and NTLMv2 verifier to accept Microsoft's Type 3.
+Requested context properties preserve integrity, confidentiality, replay and
+sequence protection; SIGN/SEAL/ESS/128 are not weakened.
+
+Baseline rejection remains a hard failure. Fail-only diagnostics then retry
+fresh SSPI contexts with one semantic delta at a time: offered VERSION with
+portable zero product/build + revision `0x0f`, timestamp-AV removal,
+same-length TargetName text replacement, or one selected optional legal flag.
+The first delta that produces Type 3 is reported but remains diagnostic
+evidence only.
+
+C++ source was syntax-checked locally against narrow SSPI/project API stubs:
+**PASS**. Native Windows compile/CTest: **NOT RUN** in this environment.
+Hosted exact-publication-SHA Windows oracle: **PENDING**. No production
+authentication, Linux admission, MCS, graphics or clipboard source changed.
+
 ## R3 Type-2 EOF no-session-state diagnostic receipt — 2026-10-25
 
 **Assignment base:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`;

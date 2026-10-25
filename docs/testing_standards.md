@@ -1,3 +1,39 @@
+## Microsoft Windows SSPI production Type-2 oracle (2026-10-25)
+
+The primary inner-NTLM interoperability gate is the Windows-only CTest
+`security.windows-sspi-production-type2-interop`. It uses Microsoft's native
+NTLM SSPI package as the client implementation, never the repository's own
+NTLM client fixtures. Acquire outbound `NTLM` credentials from a fixed
+test-only in-memory `SEC_WINNT_AUTH_IDENTITY_W` (`User` / `RDP` /
+`Password`), request connection integrity, confidentiality, replay and
+sequence protection, and make no domain login, domain-controller contact or
+external network connection.
+
+The first `InitializeSecurityContextW` call supplies Microsoft's raw Type 1.
+The fixture parses only its NTLMSSP signature/type and negotiate flags, feeds
+those exact flags into production `encodeNtlmChallengeMessage()`, and gives
+the untouched production Type 2 to the same SSPI context. PASS requires
+Microsoft to emit raw Type 3, the final SSPI context to retain requested
+integrity/confidentiality/replay/sequence attributes, and the existing
+production Type-3 parser plus `EphemeralNtlmV2Credential` verifier to accept
+that Type 3 using the same explicit test credentials.
+
+If the production challenge is rejected, the same failing CTest runs
+diagnostic fresh-context experiments, one property per attempt: add VERSION
+only when Microsoft's Type 1 advertised it, using the already-qualified
+test-only portable zero product/build plus NTLM revision `0x0f`; remove only
+the timestamp AV from TargetInfo; replace only the same-length TargetName text;
+or clear one currently selected non-required legal flag (OEM, ALWAYS_SIGN,
+KEY_EXCHANGE or 56). Never clear SIGN, SEAL, ESS or 128-bit requirements. The
+baseline still fails even when a diagnostic variant produces Type 3; fail-only
+output records every single-delta result and the first accepted one. Production
+changes require that Windows evidence and remain a separate owner decision.
+
+This oracle answers only Microsoft's acceptance of the inner production NTLM
+challenge. If the untouched Type 2 passes, move investigation outward to
+CredSSP TSRequest/client context rather than changing native admission, MCS,
+graphics or clipboard.
+
 ## R3 Type-2 peer-EOF no-session-state gate (2026-10-25)
 
 The production-backed

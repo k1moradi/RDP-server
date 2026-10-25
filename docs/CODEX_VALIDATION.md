@@ -1,3 +1,24 @@
+## R4 Type-2 peer-EOF graphics dormancy assertion — 2026-10-25
+
+Reconciled on parent `df0f980c42e65a3727c06f4b819d0cddc70b1d34`.
+Owner baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`
+has Linux full CTest **975/975 PASS** and a real Microsoft Windows App trace
+ending at server Type 2 -> peer EOF before Type 3. Current main contains the
+separate corrected Type-2 TargetName wire increment; this R4 increment changes
+no production code.
+
+The existing production-backed CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` now uses
+the shared complete graphics-dormancy assertion before the peer closes and
+after R1 records PeerEof. It requires no native desktop initialization/readiness,
+no framebuffer, no ClearCodec frame preparation, no committed graphics TLS
+write, zero outstanding FRAME_ACKs and no genuine matching ACK.
+
+Connector source/test review: **PASS**. Modified-tree canonical local
+build/full CTest: **NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**.
+Physical Microsoft-client retry: **NOT RUN**. R4 remains **P2 BLOCKED**; no
+ClearCodec, AVC420, FRAME_ACK or surface production behavior changed.
+
 ## R6 portable NTLM Type-2 TargetName authoring receipt — 2026-10-25
 
 Assignment baseline `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` has owner

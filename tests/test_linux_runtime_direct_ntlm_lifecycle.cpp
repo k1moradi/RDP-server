@@ -1335,6 +1335,7 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .admissionFailureReason ==
                RuntimeAcceptedClientAdmissionFailureReason::None);
+        assertGraphicsDormant(waitingForTypeThree);
 
         closeAfterTypeTwo.store(true, std::memory_order_release);
         assert(pumpUntilClientRetired(control));
@@ -1348,6 +1349,7 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
         assert(afterTypeTwoEof.hostOwnerAuthorized);
         assert(afterTypeTwoEof.product.ownerAuthorized);
+        assertGraphicsDormant(afterTypeTwoEof);
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
 

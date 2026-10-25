@@ -75,11 +75,17 @@ still absent; then close the TCP connection without TLS `close_notify`.
 
 After retirement, require Direct NTLM `NtlmChallenge`, protocol
 `PreAdmission`, no standalone authentication failure, no native-admission
-reason and transport `PeerEof`. Native desktop, MCS, graphics and clipboard
-authority remain absent. Do not fabricate Type 3, CredentialsVerified or native
-admission to make this gate pass. Owner base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is
-**975/975 PASS**; that receipt predates this CTest and does not qualify the
-modified tree.
+reason and transport `PeerEof`. The same fixture must call the shared
+graphics-dormancy assertion both while waiting for Type 3 and after retirement:
+no native desktop initialization/readiness, no framebuffer, no ClearCodec frame
+preparation, no committed graphics TLS write, zero outstanding FRAME_ACKs and
+no genuine matching ACK. This is an R4 P2 dormancy gate only; it must not
+change codecs, surfaces, ACK handling or any graphics production path.
+
+Do not fabricate Type 3, CredentialsVerified or native admission to make this
+gate pass. Owner base `5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is
+**975/975 PASS**; that receipt predates this strengthened CTest and does not
+qualify the modified tree.
 
 ## Direct-NTLM Type-2 peer EOF is pre-admission clipboard dormancy (2026-10-25)
 

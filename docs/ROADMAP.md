@@ -1,3 +1,27 @@
+## Hosted GUI compile-warning blocker correction — 2026-10-24
+
+**Reconciled parent:** `78fdc6ebd2dac77b497e54dc4dc71743c2a0ef17`. Current-head hosted CI reached the
+new Admission/Username/taxonomy graph but three GUI-related jobs stopped at the
+same ordinary test compile warning: a range-for copied `QString` values in
+the Admission product-language regression, and warnings are errors. The test
+now binds those bounded strings by const reference. This is test-only and does
+not alter protocol, authentication, native authorization, lifecycle, or GUI
+product behavior.
+
+The lower dependency chain remains intact: TLS -> Direct NTLM -> CredSSP ->
+typed native Admission diagnostics, safe local Username suggestion, semantic
+CTest taxonomy, failed-peer listener retention/retry, and Start -> Stop ->
+Start coverage. The immediate gate is exact-publication-SHA hosted CI. After
+that qualifies, the remaining positive product dependency is still owner
+evidence from a physical Microsoft client reaching genuine
+`Admission granted -> MCS`, or returning the bounded
+`stage=admission; admission=<reason>` first-failure receipt. Hosted runners
+must not manufacture positive physical Admission.
+
+Connector diagnosis/source review: **PASS**. Owner-local full CTest:
+**NOT RUN**. Exact-publication-SHA hosted CI: **PENDING**. Physical client:
+**NOT RUN**.
+
 ## Retry-helper compile-order correction — 2026-10-24
 
 **Reconciled parent:** `c49f7d6d7b022c8c1a62fe0071b26151ec435170`. Post-reconciliation source review

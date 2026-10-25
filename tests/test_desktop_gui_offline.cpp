@@ -1620,7 +1620,7 @@ int main(int argc, char** argv)
         assert(diagnostic->text() ==
                QStringLiteral(
                    "Local desktop authorization: session monitor unavailable"));
-        for (const QString internalText :
+        for (const QString& internalText :
              {QStringLiteral("stage=admission"),
               QStringLiteral("CandidateOnly")})
         {

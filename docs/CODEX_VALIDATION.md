@@ -1,3 +1,22 @@
+## GUI Admission diagnostic range-loop compile correction — 2026-10-24
+
+Exact-parent hosted CI on `78fdc6ebd2dac77b497e54dc4dc71743c2a0ef17` exposed one remaining test-only
+warning-as-error in `test_desktop_gui_offline.cpp`: the native-Admission
+product-language regression copied each temporary `QString` from its bounded
+initializer list. GCC rejects that copy under
+`-Werror=range-loop-construct`, which blocked the portable-bootstrap,
+Linux GUI ZIP, and Ubuntu owner-GUI parity jobs before their behavioral gates.
+
+The loop now binds each diagnostic string as `const QString&`, preserving the
+same two redaction assertions without allocation/copy churn or production
+behavior changes. TLS, SPNEGO, Direct NTLM, CredSSP, native Admission,
+listener lifetime, Username defaulting, Session Password handling, graphics,
+input and clipboard production code are **UNCHANGED**.
+
+Connector failure-log diagnosis/source review: **PASS**. Canonical owner-local
+build/full CTest: **NOT RUN** in this connector session. Exact-publication-SHA
+hosted CI: **PENDING**. Physical Microsoft-client retry: **NOT RUN**.
+
 ## Retry-helper compile-order authoring receipt — 2026-10-24
 
 Parent `c49f7d6d7b022c8c1a62fe0071b26151ec435170` reconciled the hosted Admission test regressions.

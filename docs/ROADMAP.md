@@ -762,8 +762,32 @@ after retirement, then proves the next client receives fresh connection-local
 NTLM challenge state and proceeds independently. Existing stale receipt and
 X11 INCR restart cases continue to prove no transfer or clipboard generation
 crosses a rejected peer or Stop/restart boundary. Production activation remains
-literal false and no CLIPRDR traffic is authorized. Owner-local full CTest on
-the current implementation remains **NOT RUN**. Exact implementation SHA
+literal false and no CLIPRDR traffic is authorized.
+
+**2026-10-25 owner follow-up at assignment main
+`1e6a7c6ea11fcfde09061355328080591a6d7e30`:** owner-local CTest is
+**980/980 PASS**. The physical Linux/X11 trace reaches TCP, X.224/HYBRID, TLS,
+raw Direct NTLM Type 1 and complete Type 2 delivery, then terminates with peer
+EOF before Type 3; native Admission, MCS and graphics/native desktop are **NOT
+REACHED**. R8 therefore changes only the shared lifecycle regression: after
+peer 1 EOF, peer 2 is held after its freshly delivered Type 2 and before Type 3
+and must be the current active client, remain PreAdmission, keep clipboard
+`Unavailable` with no clipboard permission and no native/graphics readiness,
+and receive a server challenge distinct from peer 1. The existing source gate
+keeps native/CLIPRDR owner construction GraphicsReady-only, so no old clipboard
+generation can be inherited. The later synthetic retry through
+CredentialsVerified/native-Admission denial remains intact. No production
+clipboard, native-admission, MCS or graphics code changes are authorized.
+
+**Required next-owner gate:** do not nominate another Linux physical candidate
+from this R8 work. A Microsoft-native Windows SSPI test must first consume the
+production Type 2 and produce a Type 3 Authenticate message. The unresolved
+product boundary remains Microsoft acceptance of the server CredSSP/NTLM
+Type-2 response.
+
+Owner-local full CTest for this new test-only increment: **NOT RUN** in the
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. Exact
+implementation SHA
 `4d697c9730b809c0209955ea3dd053a22a87c4ed` is **PASS** for every
 R8-relevant hosted gate in Actions run `40213510943`: sanitizer job
 `121229641579` including the focused Type-2/EOF owner-candidate path and

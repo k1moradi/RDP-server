@@ -1,3 +1,25 @@
+## R8 next-connection clipboard dormancy after pre-Type-3 EOF (2026-10-25)
+
+When the production Direct NTLM Type 2 is completely delivered and the peer
+closes before Type 3, extend the existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` lifecycle
+instead of adding a second authentication or clipboard runner. After retiring
+that peer, hold the next accepted connection immediately after its own Type 2
+delivery and before Type 3. It must be a current active client rather than the
+retained disconnect snapshot, remain `NtlmChallenge / PreAdmission`, keep
+`RuntimeClipboardState::Unavailable`, carry no clipboard permission, and
+have no native/graphics readiness. Its server challenge must differ from the
+retired peer before the later existing retry is allowed to continue through
+CredentialsVerified and genuine native Admission.
+
+The source-backed dormant-composition gate remains paired with this runtime
+case: native/R8 ownership is constructed only from `GraphicsReady`, and every
+eventual native/R8 construction allocates a fresh owner. Together these gates
+pin that a pre-Type-3 EOF cannot leave CLIPRDR route/transfer ownership or a
+clipboard generation for the next connection to inherit. Do not enable
+production clipboard activation, synthesize Share/MCS progress, or modify
+native admission to satisfy this test.
+
 ## Cross-platform test fixtures link their direct protocol producer (2026-10-25)
 
 When an existing production-backed test executable starts calling a symbol from

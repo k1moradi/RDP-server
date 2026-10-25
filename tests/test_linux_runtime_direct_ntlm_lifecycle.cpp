@@ -1340,14 +1340,82 @@ int main(int argc, char** argv)
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
 
-        // The same listener must accept a fresh connection with independent
-        // TLS/NTLM state. Peer 2 completes Type 3 + pubKeyAuth + authInfo
-        // through CredentialsVerified before native Admission runs.
+        // R8 stale-lifetime gate: observe the next accepted connection before
+        // it can send Type 3. Native/clipboard construction is GraphicsReady-
+        // only, so a PreAdmission peer must not inherit a CLIPRDR owner or
+        // clipboard generation from the retired peer.
+        std::atomic<bool> retryTypeTwoReceived{false};
+        std::atomic<bool> closeRetryAfterTypeTwo{false};
+        std::atomic<bool> retryPeerFinished{false};
+        PeerResult retryTypeTwoResult;
+        std::thread retryTypeTwoPeer([&] {
+            retryTypeTwoResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                retryTypeTwoReceived, closeRetryAfterTypeTwo);
+            retryPeerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(
+            control, retryTypeTwoReceived, retryPeerFinished));
+        const auto retryWaitingForTypeThree = control.status();
+        assert(retryWaitingForTypeThree.activeClients.size() == 1U);
+        assert(!retryWaitingForTypeThree.clientDisconnected);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics.available);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::AwaitingToken);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::None);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .termination ==
+               RuntimeAcceptedClientTermination::Open);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoQueued);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoDelivered);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .preType3Termination ==
+               RuntimeAcceptedClientPreType3Termination::None);
+        assertClipboardDormant(retryWaitingForTypeThree);
+        assertGraphicsDormant(retryWaitingForTypeThree);
+        assert(challengesDiffer(
+            peerResult.serverChallenge, retryTypeTwoResult.serverChallenge));
+
+        closeRetryAfterTypeTwo.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        retryTypeTwoPeer.join();
+        assert(retryTypeTwoResult.passed);
+        assert(retryTypeTwoResult.directTypeTwoReceived);
+        assert(!retryTypeTwoResult.authInfoSent);
+
+        const auto afterRetryTypeTwoEof = control.status();
+        assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
+        assertClipboardDormant(afterRetryTypeTwoEof);
+        assertGraphicsDormant(afterRetryTypeTwoEof);
+
+        // Preserve the existing same-listener positive synthetic retry after
+        // the R8 freshness observation. Peer 3 completes Type 3 + pubKeyAuth
+        // + authInfo through CredentialsVerified before native Admission runs.
         const PeerResult retryResult = runAdmissionDeniedPeer(
             control, recommendation.address, selectedPort, 0x20U,
             firstListenerGeneration, credential.generation);
         assert(challengesDiffer(
             peerResult.serverChallenge, retryResult.serverChallenge));
+        assert(challengesDiffer(
+            retryTypeTwoResult.serverChallenge, retryResult.serverChallenge));
 
         assert(control.stopSharing().succeeded());
         const auto retainedCredential =

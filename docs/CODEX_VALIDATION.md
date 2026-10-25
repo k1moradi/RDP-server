@@ -1,3 +1,40 @@
+## R8 pre-Type-3 EOF next-connection clipboard dormancy — 2026-10-25
+
+**Assignment main:** `1e6a7c6ea11fcfde09061355328080591a6d7e30`.
+Owner-reported local CTest: **980/980 PASS**; the exact local command was not
+included in this assignment, so this receipt is not promoted to an M1
+same-command qualification claim. Physical Linux/X11 evidence is:
+TCP **PASS** -> X.224/HYBRID **PASS** -> TLS **PASS** -> raw Direct NTLM Type 1
+**PASS** -> server Type 2 completely delivered -> client Type 3 **NOT
+RECEIVED** -> peer EOF. Native Admission, MCS and graphics/native desktop are
+**NOT REACHED**. The bounded trace records Type-1 flags `0xe2088235`,
+Type-2 flags `0xe08a8235`, 10 TargetName UTF-16 code units, 50 TargetInfo
+bytes, 126 Type-2 bytes, AV IDs `2,1,7,0`, server-target/name present,
+`direct-ntlm-type2=delivered` and
+`pre-type3-termination=peer-eof-before-type3`.
+
+R8 makes no production change. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` test is
+tightened so the listener accepts a second peer after the first Type-2 EOF and
+holds that second peer immediately after its own Type 2 delivery. Before any
+Type 3, the second peer must be the current active connection rather than stale
+disconnect evidence, remain `NtlmChallenge / PreAdmission`, retain clipboard
+`Unavailable`, have no clipboard permission and no native/graphics readiness,
+and receive a server challenge distinct from the retired peer. It is then
+retired and the pre-existing later synthetic retry through
+CredentialsVerified/native-Admission denial remains intact. The separate
+source-backed R8 composition gate continues to require that native/CLIPRDR
+ownership is constructed only at GraphicsReady and that eventual owners are
+freshly allocated, pinning no inherited clipboard generation or CLIPRDR state.
+
+Connector source/reconciliation review: **PASS**. Modified-tree local build and
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. No Linux physical candidate is nominated. **Next owner gate:**
+a Microsoft-native Windows SSPI test must consume the production Type 2 and
+produce a Type 3 Authenticate message before further Linux physical nomination.
+Do not modify Linux native admission, MCS, graphics or clipboard production for
+this pre-Type-3 boundary.
+
 ## R9 physical Windows App candidate nomination — 2026-10-25
 
 Exact candidate SHA `4d697c9730b809c0209955ea3dd053a22a87c4ed`.

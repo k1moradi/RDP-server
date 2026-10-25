@@ -839,6 +839,7 @@ enum class RuntimeProductReadinessStage : std::uint8_t
     case RuntimeHostError::ClientNotFound:
     case RuntimeHostError::AccessRevoked:
     case RuntimeHostError::AuthenticationRateLimited:
+    case RuntimeHostError::AuthenticationIncompletePeerClosed:
         return RuntimeProductHostState::Stopped;
     }
     return RuntimeProductHostState::Error;

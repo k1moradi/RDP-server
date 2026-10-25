@@ -490,36 +490,46 @@ CTest/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
 
 ## R4 Type-2 peer-EOF graphics dormancy assertion — 2026-10-25
 
-Owner evidence SHA `1e6a7c6ea11fcfde09061355328080591a6d7e30` has Linux/X11 full CTest
-**980/980 PASS**. The physical Microsoft-client trace reaches TCP,
-X.224/HYBRID, TLS, raw Direct NTLM Type 1 and complete server Type 2 delivery,
-then terminates with peer EOF before any Type 3 Authenticate message. Native
-Admission, MCS and graphics/native desktop are **NOT REACHED**.
+The upstream Microsoft-native dependency has advanced. Exact tested SHA
+`02f7642e09370dfa8b8cd8a5093d7938ee8bb14d`, Actions run `40223796082`,
+Windows protocol job `121260984032`, **PASS**ed
+`security.windows-sspi-production-type2-interop`: Microsoft SSPI generated
+Type 1 and Type 3 around the unchanged production Type 2, and the production
+Type-3 parser/NTLMv2 verifier accepted Type 3. The independent outer TSRequest
+conformance test also **PASS**ed. R4 therefore no longer treats inner Type-2
+acceptance as its blocker.
 
-The existing production-backed
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` case
-already carries the required R4 lifecycle assertion. Its shared
-`assertGraphicsDormant()` is executed after complete Type-2 delivery while
-the peer is waiting for Type 3 and again after peer EOF. It requires no
-GraphicsReady/native-desktop owner, no framebuffer, no ClearCodec-prepared
-frame, no committed graphics TLS write, zero outstanding FRAME_ACKs and no
-genuine matching ACK. Runtime source gates native graphics-owner construction
-on `AcceptedClientPhase::GraphicsReady`; surface reconfiguration and frame-ID
-progression are reachable only from the subsequent native-desktop service
-path. Thus the observed pre-admission lifecycle leaves no surface, frame
-generation or codec state.
+Current qualification instead stops on two R10 integration regressions that
+prevent an exact-SHA candidate: the new
+`RuntimeHostError::AuthenticationIncompletePeerClosed` enum value is absent
+from the exhaustive `runtimeProductStateFor()` error switch under
+`-Werror=switch`, and
+`runtime.linux-authentication-failure-retains-listener-and-credential-source`
+still pins the pre-R10 literal `lastError_ = error;` rather than the intended
+`lastError_ = retainedError;`. This increment adds the missing non-error
+product-state mapping, updates that source contract, and registers focused
+`runtime.host-control-incomplete-peer-product-state` coverage proving Stopped
+without a listener and Listening with a live listener.
 
-No ClearCodec, AVC420, surface, frame-credit or FRAME_ACK production behavior
-changes, and no duplicate R4 CTest is added. Concurrent test-only descendants
-extend the same pre-Type-3 lifecycle and preserve this R4 assertion. Connector
-source/test reconciliation: **PASS**. Owner Linux/X11 full CTest on the
-evidence SHA: **980/980 PASS**. Current descendant modified-tree local
-build/full CTest: **NOT RUN**; exact-publication-SHA hosted CI: **PENDING**.
+No R4 production graphics code changes. The existing
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` retains
+the full graphics-dormancy assertion before and after peer EOF: no
+GraphicsReady/native owner, framebuffer, ClearCodec frame, committed graphics
+TLS write, outstanding FRAME_ACK or matching ACK. Surface reconfiguration and
+frame-ID progression remain gated behind the later GraphicsReady native-desktop
+service path.
 
-**Next gate:** a Microsoft-native Windows SSPI test must consume the production
-Type 2 and emit a Type 3 Authenticate message before another Linux physical
-candidate is nominated. R4 remains **P2 / BLOCKED** and must not alter native
-admission, MCS, graphics or clipboard for this pre-Type-3 boundary.
+Connector source/test review: **PASS**. Owner Linux/X11 CTest on the physical
+evidence SHA: **980/980 PASS**. Microsoft SSPI and outer TSRequest on
+`02f7642e...`: **PASS**. Modified-tree build/focused/full CTest in this
+connector environment: **NOT RUN**. Exact-publication-SHA hosted CI:
+**PENDING**.
+
+**Next R4 gate:** after an exact-SHA R9 owner-candidate PASS, obtain physical
+Microsoft-client evidence through Type 3, pubKeyAuth, authInfo,
+CredentialsVerified, native Admission and R3 MCS/Share/RDPGFX GraphicsReady.
+Until then R4 remains **P2 / BLOCKED** and must not change ClearCodec, AVC420,
+surface, frame-credit, FRAME_ACK, Linux native admission, MCS or clipboard.
 
 ## R6 portable NTLM Type-2 TargetName authoring receipt — 2026-10-25
 

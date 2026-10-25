@@ -105,6 +105,22 @@ int main(int argumentCount, char** argumentValues)
         assert(!host.status().listenerAvailable);
         return 0;
     }
+    if (testCase == "host-control-incomplete-peer-product-state")
+    {
+        // An interrupted peer before credential verification is not a product
+        // error state and must not become one merely because the diagnostic
+        // RuntimeHostError enum grew. Listener ownership still dominates the
+        // presentation state while Sharing remains active.
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::Stopped,
+                   RuntimeHostError::AuthenticationIncompletePeerClosed,
+                   false) == RuntimeProductHostState::Stopped);
+        assert(runtimeProductStateFor(
+                   RuntimeHostStage::ListenerAvailable,
+                   RuntimeHostError::AuthenticationIncompletePeerClosed,
+                   false) == RuntimeProductHostState::Listening);
+        return 0;
+    }
     if (testCase == "host-control-windows-rpc-interface-macro-compatibility")
     {
         const std::vector<RuntimeHostInterface> interfaces{{

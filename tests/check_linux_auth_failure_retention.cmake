@@ -33,7 +33,8 @@ foreach(required IN ITEMS
     "clientDisconnected_ = hadAcceptedClient && listener_.valid();"
     "stage_ = listener_.valid()"
     "RuntimeHostStage::ListenerAvailable"
-    "lastError_ = error;")
+    "RuntimeHostError retainedError = error;"
+    "lastError_ = retainedError;")
     string(FIND "${retire_source}" "${required}" position)
     if(position EQUAL -1)
         message(FATAL_ERROR

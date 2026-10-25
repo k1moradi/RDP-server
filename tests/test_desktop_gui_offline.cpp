@@ -1522,6 +1522,110 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "authentication-incomplete-before-native-admission")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        runtime.snapshot.acceptedClientPreauthDiagnostics.available = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::None;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .admissionFailureReason =
+                RuntimeAcceptedClientAdmissionFailureReason::None;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.termination =
+            RuntimeAcceptedClientTermination::PeerEof;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+
+        DesktopWindow window(host);
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* diagnostic =
+            requiredLabel(window, "hostErrorExplanation");
+        auto* activity =
+            requiredLabel(window, "clientStatus");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(mainTab && password && confirmation);
+
+        const HostStatus incomplete = host.status();
+        assert(!incomplete.localDesktopAuthorizationFailed);
+        assert(incomplete.remoteAuthenticationFailed);
+        assert(incomplete.remoteAuthenticationIncomplete);
+        assert(incomplete.listenerReady);
+        assert(incomplete.credentialsConfigured);
+        assert(sharingToggle(window)->isChecked());
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        assert(!availability->isHidden());
+        assert(availability->text() ==
+               QStringLiteral(
+                   "Remote client authentication did not complete."));
+        assert(activity->text().contains(
+            QStringLiteral(
+                "Remote client authentication did not complete.")));
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Authentication: NTLM challenge sent; "
+                   "client disconnected before response."));
+        assert(!availability->text().contains(
+            QStringLiteral("local desktop"), Qt::CaseInsensitive));
+        for (QLabel* item : mainTab->findChildren<QLabel*>())
+        {
+            assert(!item->text().contains(
+                QStringLiteral("NTLMSSP"), Qt::CaseInsensitive));
+            assert(!item->text().contains(
+                QStringLiteral("Direct NTLM"), Qt::CaseInsensitive));
+        }
+
+        // Older retained snapshots incorrectly rewrote this same peer EOF as
+        // Admission with no typed admission reason. R7 must still fail toward
+        // authentication presentation rather than invent native authorization.
+        runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .standaloneFailureStage =
+                RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        window.refresh();
+
+        const HostStatus legacy = host.status();
+        assert(!legacy.localDesktopAuthorizationFailed);
+        assert(legacy.remoteAuthenticationFailed);
+        assert(legacy.remoteAuthenticationIncomplete);
+        assert(availability->text() ==
+               QStringLiteral(
+                   "Remote client authentication did not complete."));
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Authentication: Direct NTLM — "
+                   "client disconnected before authentication completed."));
+        assert(sharingToggle(window)->isChecked());
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        return 0;
+    }
+
     if (mode == "authentication-failure-product-language")
     {
 #if !defined(RDP_SERVER_OWNER_ACCEPTANCE_TEST_UI)

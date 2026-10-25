@@ -86,6 +86,9 @@ struct HostStatus
     bool remoteAuthenticationFailed{};
     bool localDesktopAuthorizationFailed{};
     QString authenticationDiagnostic;
+    // Presentation-only subtype for a peer that disconnected before
+    // authentication completed. It grants no protocol or native authority.
+    bool remoteAuthenticationIncomplete{};
 };
 
 struct HostRequest

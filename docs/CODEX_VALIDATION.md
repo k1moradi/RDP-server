@@ -1,3 +1,42 @@
+## R7 Type-2 peer-EOF GUI status authoring receipt — 2026-10-25
+
+**Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
+**Reconciled parent:** `73ec034c3f4231ece47400cb3b73e00c628c2dd0`.
+
+Owner evidence is Linux local full CTest **975/975 PASS** on the baseline and a
+real Microsoft Windows App connection that established TLS, sent raw Direct
+NTLM Type 1, received server Type 2, then closed with **peer EOF before Type
+3**. CredentialsVerified and native Admission were not reached.
+
+The reconciled parent already changed the runtime diagnostic owner so this peer
+retires with `NtlmChallenge`, protocol `PreAdmission`, CredSSP `Closed`,
+standalone failure `None`, admission reason `None` and transport
+`PeerEof`. R7 now maps that exact redacted tuple to Main
+`Remote client authentication did not complete.` and Advanced
+`Authentication: NTLM challenge sent; client disconnected before response.`.
+
+R7 also hardens the presentation boundary against the historical misleading
+`Admission + CredSSP Failed + standalone Admission + admission None + PeerEof`
+tuple: without verified credentials and a concrete typed admission reason it
+cannot become local-desktop authorization. The dedicated CTest
+`gui.offscreen-authentication-incomplete-before-native-admission` covers both
+forms while proving listener/credential retention, Sharing ON and blank Session
+Password editors.
+
+The focused owner-GUI Release selector now includes this behavior and its exact
+inventory changes from 4 to 5; the workflow structure validator requires the
+new test token. Existing generic authentication-failure wording and genuine
+typed native-admission failure wording remain separately covered.
+
+No Type-2 encoder, logind/native admission, MCS, graphics or clipboard
+production code is changed by this commit. The Target-Type-Server with empty
+TargetNameFields shape remains a separate R2/security interoperability working
+hypothesis.
+
+Connector source/test/workflow reconciliation: **PASS by inspection**.
+Canonical local build/full CTest on this publication: **NOT RUN**.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## Direct NTLM Type-2 peer-EOF pre-admission diagnostic authoring receipt — 2026-10-25
 
 Owner evidence on `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`: Linux local full CTest **975/975 PASS**.

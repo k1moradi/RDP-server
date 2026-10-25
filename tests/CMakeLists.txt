@@ -4450,6 +4450,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;authentication;admission;diagnostics;runtime"
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-authentication-incomplete-before-native-admission
+        COMMAND test_desktop_gui_offline
+            authentication-incomplete-before-native-admission)
+    set_tests_properties(
+        gui.offscreen-authentication-incomplete-before-native-admission
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;authentication;diagnostics;lifecycle"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-owner-authentication-failure-product-language-and-retention
         COMMAND test_desktop_gui_offline authentication-failure-product-language)
     set_tests_properties(

@@ -1,3 +1,47 @@
+## R7 P1 — Type-2 peer-EOF GUI status accuracy (2026-10-25)
+
+**Owner-evidence baseline:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`.
+**Reconciled parent:** `73ec034c3f4231ece47400cb3b73e00c628c2dd0`.
+Owner Linux local CTest is **975/975 PASS** on the evidence baseline. The real
+Microsoft Windows App attempt established TLS, accepted raw Direct NTLM Type 1,
+received server Type 2, then closed with **peer EOF before Type 3**. It did not
+reach CredentialsVerified or native Admission.
+
+The reconciled parent already corrects the lower-layer retained diagnostic to
+the truthful pre-admission tuple:
+`NtlmChallenge / PreAdmission / CredSSP Closed / standalone failure None /
+admission None / PeerEof`. R7 consumes that bounded evidence without becoming
+a second protocol owner. Main now presents this case as
+`Remote client authentication did not complete.`; Advanced may say
+`Authentication: NTLM challenge sent; client disconnected before response.`.
+
+R7 additionally rejects the historical misleading
+`stage=admission; admission=none` shape as local-desktop authorization.
+Local-desktop product language now requires CredentialsVerified plus an actual
+Admission stage plus a concrete non-`None` typed admission reason. This keeps
+the earlier contradictory retained snapshot authentication-level even if it is
+encountered in a stale/fixture path.
+
+A dedicated behavior CTest
+`gui.offscreen-authentication-incomplete-before-native-admission` covers both
+the corrected and historical tuples, Main/Advanced wording, blank Session
+Password editors, Sharing-ON/listener retention and configured-credential
+retention. The focused owner-GUI Release inventory is updated atomically from
+4 to 5 and its CI structure token is pinned.
+
+No authentication wire encoder, logind/native admission, MCS, graphics or
+clipboard production code changes in this R7 increment. Source inspection on
+the owner evidence path still identifies the Type-2 interoperability working
+hypothesis: `NTLMSSP_TARGET_TYPE_SERVER` is advertised while
+`TargetNameFields` are empty. That separate wire-layer issue remains the next
+authentication investigation; do not modify downstream layers to compensate.
+
+Connector source/test/workflow reconciliation: **PASS by inspection**.
+Canonical local build/full CTest for this publication: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. Real
+Microsoft-client retry after the separately reviewed Type-2 wire correction:
+**NOT RUN**.
+
 ## R3 remains blocked at Direct NTLM Type-2 peer EOF — 2026-10-25
 
 **Owner evidence base:** `5a21694f8aaaf446d2b345c8fef89b94ac4542f3`, Linux local full CTest

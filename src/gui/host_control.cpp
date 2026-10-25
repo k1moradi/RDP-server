@@ -67,17 +67,79 @@ using rdp_server::server::runtime::RuntimeHostError;
     return QStringLiteral("Local desktop authorization: unavailable");
 }
 
+[[nodiscard]] constexpr bool isConfirmedLocalDesktopAuthorizationFailure(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using namespace rdp_server::server::runtime;
+    return diagnostics.available &&
+           diagnostics.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::CredentialsVerified &&
+           diagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Admission &&
+           diagnostics.admissionFailureReason !=
+               RuntimeAcceptedClientAdmissionFailureReason::None;
+}
+
+[[nodiscard]] constexpr bool isRemoteAuthenticationIncompleteBeforeAdmission(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using namespace rdp_server::server::runtime;
+    if (!diagnostics.available ||
+        diagnostics.ntlmEnvelope !=
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm ||
+        diagnostics.admissionFailureReason !=
+            RuntimeAcceptedClientAdmissionFailureReason::None ||
+        diagnostics.termination != RuntimeAcceptedClientTermination::PeerEof)
+    {
+        return false;
+    }
+
+    const bool retainedChallengeBoundary =
+        diagnostics.authenticationStage ==
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+        diagnostics.credSspTransition ==
+            RuntimeAcceptedClientCredSspTransition::Closed &&
+        diagnostics.standaloneFailureStage ==
+            RuntimeAcceptedClientStandaloneFailureStage::None;
+    const bool legacyMisclassifiedBoundary =
+        diagnostics.authenticationStage ==
+            RuntimeAcceptedClientAuthenticationStage::Admission &&
+        diagnostics.credSspTransition ==
+            RuntimeAcceptedClientCredSspTransition::Failed &&
+        diagnostics.standaloneFailureStage ==
+            RuntimeAcceptedClientStandaloneFailureStage::Admission;
+    return retainedChallengeBoundary || legacyMisclassifiedBoundary;
+}
+
 [[nodiscard]] QString authenticationDiagnosticText(
     const rdp_server::server::runtime::
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
 {
     using namespace rdp_server::server::runtime;
-    if (!diagnostics.available ||
-        diagnostics.authenticationStage ==
+    if (!diagnostics.available)
+        return {};
+
+    if (isRemoteAuthenticationIncompleteBeforeAdmission(diagnostics))
+    {
+        return diagnostics.authenticationStage ==
+                       RuntimeAcceptedClientAuthenticationStage::NtlmChallenge
+            ? QStringLiteral(
+                  "Authentication: NTLM challenge sent; "
+                  "client disconnected before response.")
+            : QStringLiteral(
+                  "Authentication: Direct NTLM — "
+                  "client disconnected before authentication completed.");
+    }
+
+    if (diagnostics.authenticationStage ==
             RuntimeAcceptedClientAuthenticationStage::Admission ||
         diagnostics.credSspTransition !=
             RuntimeAcceptedClientCredSspTransition::Failed)
+    {
         return {};
+    }
 
     QString envelope;
     switch (diagnostics.ntlmEnvelope)
@@ -286,13 +348,18 @@ HostStatus HostControl::status() const
         }
     }
 
+    const auto& authenticationDiagnostics =
+        runtimeStatus.acceptedClientPreauthDiagnostics;
     const bool localDesktopAuthorizationFailed =
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
-        runtimeStatus.acceptedClientPreauthDiagnostics.available &&
-        runtimeStatus.acceptedClientPreauthDiagnostics.authenticationStage ==
-            RuntimeAcceptedClientAuthenticationStage::Admission;
+        isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);
     view.localDesktopAuthorizationFailed =
         localDesktopAuthorizationFailed;
+    view.remoteAuthenticationIncomplete =
+        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
+        !localDesktopAuthorizationFailed &&
+        isRemoteAuthenticationIncompleteBeforeAdmission(
+            authenticationDiagnostics);
 
     if ((runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected ||
          runtimeStatus.lastError == RuntimeHostError::AuthenticationRateLimited) &&
@@ -300,16 +367,17 @@ HostStatus HostControl::status() const
     {
         view.remoteAuthenticationFailed = true;
         view.authenticationFailures.push_back(
-            QStringLiteral("Remote client authentication failed."));
+            view.remoteAuthenticationIncomplete
+                ? QStringLiteral(
+                      "Remote client authentication did not complete.")
+                : QStringLiteral("Remote client authentication failed."));
     }
 
     view.authenticationDiagnostic =
         localDesktopAuthorizationFailed
             ? localDesktopAuthorizationDiagnosticText(
-                  runtimeStatus.acceptedClientPreauthDiagnostics
-                      .admissionFailureReason)
-            : authenticationDiagnosticText(
-                  runtimeStatus.acceptedClientPreauthDiagnostics);
+                  authenticationDiagnostics.admissionFailureReason)
+            : authenticationDiagnosticText(authenticationDiagnostics);
     if (view.clientDisconnected)
         view.disconnected.push_back(
             QStringLiteral("Client disconnected; listener remains active"));

@@ -211,6 +211,7 @@ REQUIRED_TOKENS = (
     "r9-portable-gui-bootstrap-acceptance",
     "r9-owner-gui-credential-parity",
     "gui.offscreen-owner-acceptance-credential-editor-parity",
+    "gui.offscreen-authentication-incomplete-before-native-admission",
     "runtime.linux-portable-gui-bootstrap-listener-acceptance",
     "gui.offscreen-owner-acceptance-consumer-start-orchestration",
     "gui.offscreen-owner-acceptance-password-change-rerequests-owner-permission",

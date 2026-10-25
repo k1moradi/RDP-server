@@ -1,3 +1,34 @@
+## R7 Type-2 peer-EOF GUI presentation gate (2026-10-25)
+
+Owner evidence on baseline
+`5a21694f8aaaf446d2b345c8fef89b94ac4542f3` is Linux local CTest
+**975/975 PASS** plus a real Microsoft Windows App path:
+TLS established -> raw Direct NTLM Type 1 accepted -> server Type 2 sent ->
+**peer EOF**, with no Type 3. Native Admission was not reached.
+
+The lower-layer diagnostic correction at
+`73ec034c3f4231ece47400cb3b73e00c628c2dd0` now retains that peer as
+`NtlmChallenge`, protocol `PreAdmission`, CredSSP `Closed`, standalone
+failure `None`, admission reason `None`, termination `PeerEof`.
+Keep a dedicated offscreen R7 regression
+`gui.offscreen-authentication-incomplete-before-native-admission` that
+requires Main to show
+`Remote client authentication did not complete.`, Advanced to show
+`Authentication: NTLM challenge sent; client disconnected before response.`,
+and local-desktop authorization presentation to remain false.
+
+The same regression must also feed the historical contradictory
+`Admission/Failed/Admission/admission=None/PeerEof` tuple and prove R7 still
+fails toward authentication presentation rather than
+`Could not authorize access to the local desktop.`. In both forms, keep
+Sharing ON, the current listener and configured credential intact, and both
+Session Password editors blank. Do not expose Direct NTLM/NTLMSSP details on
+Main.
+
+Enroll this case in the focused owner-GUI Release lane and update its exact
+inventory atomically. This R7 test does not validate the Type-2 encoder and
+must not alter logind/native admission, MCS, graphics or clipboard.
+
 ## Direct NTLM Type-2 peer-EOF diagnostic gate (2026-10-25)
 
 Keep the dedicated production-backed lifecycle CTest

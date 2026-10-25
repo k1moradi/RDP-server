@@ -1,3 +1,31 @@
+## R7 pre-admission authentication presentation follows typed evidence (2026-10-25)
+
+R7 must not classify an `AuthenticationRejected` peer as local-desktop
+authorization failure merely because a retained authentication-stage scalar
+says `Admission`. Product-visible local-desktop authorization failure requires
+all three facts: CredSSP credentials were verified, the retained stage is
+Admission, and the typed native-admission reason is non-`None`.
+
+A Direct NTLM peer that terminates with `PeerEof` after the server challenge
+but before Type 3 remains authentication-level. With the corrected runtime
+snapshot, `NtlmChallenge + CredSSP Closed + standalone failure None +
+admission None + PeerEof` is presented on Main only as
+`Remote client authentication did not complete.`. Advanced Diagnostics may
+state `Authentication: NTLM challenge sent; client disconnected before
+response.` because those bounded scalars now retain the exact positive
+challenge boundary.
+
+R7 must also fail safely for an older contradictory retained tuple such as
+`Admission + CredSSP Failed + standalone failure Admission + admission None +
+PeerEof`: it remains authentication-level and must not produce
+`Could not authorize access to the local desktop.`. Use a less-specific
+redacted authentication diagnostic for that legacy tuple rather than inventing
+native authority or an exact wire milestone.
+
+This presentation rule changes no listener, credential, native-admission, MCS,
+graphics or clipboard authority. Main never exposes NTLM flags, tokens, parser
+strings or internal protocol taxonomy.
+
 ## Direct NTLM Type-2 peer EOF remains pre-admission (2026-10-25)
 
 A transport close after a successfully delivered Direct NTLM Type 2 but before

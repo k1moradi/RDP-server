@@ -1,3 +1,26 @@
+## R9 scripted TLS-completion regression correction receipt — 2026-10-26
+
+**Reconciled parent:** `27ce32bc7aed75423a6f7b2cefc24a266252c60e`. Exact-SHA primary run
+`40293109580`, Windows job `121472661802`, built the full-CREDSSP harness.
+`security.windows-credssp-harness-stream-buffer-retention` **PASSed**. The
+multi-turn harness regression reached its required
+`tls-complete-empty-peer-continue` SSPI call and produced the scripted first
+application token, then **FAILed** because the scripted server frame guard still
+expected three client feeds while the revised scenario and completion predicate
+require four. The production Microsoft fixed-name control did not run in that
+job because the harness-integrity preflight failed first.
+
+This correction changes only the scripted server guard from three delivered
+client feeds to four and removes the checked TSRequest version narrowing
+warning. Connector source/reconciliation review: **PASS by inspection**.
+Local owner-root Windows compile/CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted Windows harness/control execution:
+**PENDING**. Owner candidate dispatch remains **BLOCKED**.
+
+**Next gate:** both harness-integrity tests must pass on the exact new SHA,
+after which the fixed-name Microsoft control must reach first TSRequest ->
+unchanged production Type 2 -> next Microsoft TSRequest -> observed Type 3.
+
 ## Agent 6 hosted blocker diagnosis and empty-peer repair receipt — 2026-10-26
 
 Current dependency state was rechecked on GitHub before editing. Agent 9 has already added exact-SHA candidate/matrix qualification on top of Agent 6, but the critical dependency remains blocked upstream at the Microsoft fixed-name control. Hosted Windows run `40289047769`, job `121459879597`, compiled the full harness and passed both inner NTLM target tests. The full CREDSSP fixed-name control then reported TLS 1.2 established, three `SEC_I_CONTINUE_NEEDED` client calls and a final 94-byte client TLS flight. That flight made OpenSSL TLS-ready with zero server reply bytes; round 3 shows `sspi-called=no`, after which the server application reader fails before the initial TSRequest. The physical-IP and bare-IP failures therefore remain non-diagnostic.

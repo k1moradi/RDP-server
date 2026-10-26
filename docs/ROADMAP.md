@@ -1,3 +1,35 @@
+## R9 P0 — scripted post-TLS continuation fixture correction (2026-10-26)
+
+**Reconciled parent:** `27ce32bc7aed75423a6f7b2cefc24a266252c60e`. Exact-SHA Windows run
+`40293109580` compiled the harness, passed
+`security.windows-credssp-harness-stream-buffer-retention`, and reached the
+new `tls-complete-empty-peer-continue` phase in the scripted multi-turn
+regression. That regression then failed before the production control ran.
+
+The failure is fixture-only: Agent 6 correctly added a fourth scripted
+client->server feed for the application token produced by the zero-length
+post-TLS Microsoft continuation, but the scripted server's
+`advanceFrame()` guard still required the old pre-change feed count of three.
+The server completion predicate already required four feeds. R9 changes that
+single guard to four so the behavior-named regression tests the intended
+sequence: TLS completion -> empty-peer client continuation -> first
+application token delivery -> server frame completion. The ordinary production
+control remains untouched.
+
+The same test-only source now narrows the already-validated TSRequest version
+from `uint32_t` to `uint8_t` before the diagnostic reply encoder, removing
+the hosted MSVC C4244 warning without changing bytes or accepting any new
+version.
+
+Production Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, TLS identity,
+SPNEGO framing, native Admission, MCS, graphics, input and clipboard remain
+**UNCHANGED**.
+
+**Next gate:** exact-publication-SHA Windows must first pass both harness
+integrity regressions, then run the fixed-name Microsoft full-CREDSSP control.
+Candidate/physical-owner nomination remains blocked until that control reaches
+production Type 2 and observed Type 3 and every Agent-9 prerequisite is green.
+
 ## Agent 6 P0 — TLS-completion empty-peer CredSSP continuation (2026-10-26)
 
 **Reconciled parent:** `f1500b20552e7bbcaeb11e87ddf908c2ab45f74c`. Hosted Windows evidence from protocol run `40289047769`, job `121459879597`, resolves the remaining harness blocker precisely. The fixed-name control builds successfully and Microsoft returns `SEC_I_CONTINUE_NEEDED (0x00090312)` through three client TLS outputs. The last client flight is 94 bytes; OpenSSL consumes it and reaches TLS 1.2 Ready with **zero server bytes**, but the pump does not call Microsoft again. It instead enters the first application read and fails at `memory-bio-server-initial-tsrequest`. Therefore the control still has `initial-tsrequest=no`, `type2-queued=no`, `type3=no`; the IP matrix remains non-authorizing.

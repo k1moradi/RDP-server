@@ -1422,6 +1422,8 @@ public:
         {
             return false;
         }
+        const auto requestVersion =
+            static_cast<std::uint8_t>(request.value.version);
 
         if (experiment_ != ChallengeExperiment::Production)
         {
@@ -1454,7 +1456,7 @@ public:
             }
             return writer_.queueReply(
                 tls_.get(),
-                request.value.version,
+                requestVersion,
                 CredSspServerReplyField::NegoToken,
                 selectedProviderReply);
         }
@@ -2280,7 +2282,7 @@ public:
         ++frameReadCount_;
         if (!tlsReady_ ||
             !coalescedApplicationPending_ ||
-            clientFeedCount_ != 3U)
+            clientFeedCount_ != 4U)
         {
             failed_ = true;
             return FrameAdvance::Failed;

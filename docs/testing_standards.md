@@ -1,3 +1,17 @@
+## Scripted CredSSP TLS-completion fixtures must gate application readiness on delivered output (2026-10-26)
+
+When a scripted Microsoft continuation produces the first post-TLS application
+token, the scripted server must not make application plaintext available merely
+because the client continuation was called. Application readiness is gated on
+that output token being delivered through the shared pump's next
+client-to-server feed. Regression predicates and frame-read guards must count
+the same delivered feeds; otherwise the fixture can fail before testing the
+real pump transition.
+
+Keep this fixture independent from production DER/TLS encoders: byte markers
+only model ownership and ordering. A scripted PASS never qualifies Microsoft
+interop or authorizes production identity changes.
+
 ## CredSSP TLS-ready empty-peer continuation rule (2026-10-26)
 
 A completed TLS handshake can be a semantic peer transition even when the server emits zero wire bytes. In the Windows full-CREDSSP memory-BIO oracle, a zero-length SSPI TOKEN continuation is allowed only when all of these are true in the same bounded pump iteration: nonzero client bytes were actually fed to the server; the server changed from TLS-not-ready to TLS-ready; the drained server token is empty; the Microsoft CREDSSP context already exists; the previous Microsoft status is `SEC_I_CONTINUE_NEEDED`; and no provider input is retained. The continuation still uses exactly `SECBUFFER_TOKEN + SECBUFFER_EMPTY`.

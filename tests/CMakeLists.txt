@@ -432,7 +432,7 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle
         PROPERTIES
-            LABELS "r10;r8-lifetime;clipboard;runtime;security;r1-tls;r2-standalone;r2-owner-consent;r2-admission;credssp;ntlmv2;linux;native-environment"
+            LABELS "transport;tls;security;runtime;authentication;credssp;ntlmv2;native-admission;clipboard;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
     foreach(host_control_case IN ITEMS

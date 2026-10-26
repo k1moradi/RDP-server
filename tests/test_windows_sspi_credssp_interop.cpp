@@ -1102,8 +1102,32 @@ private:
 {
     if (token.empty())
         return "empty";
-    if (token.front() == 0x30U)
+
+    constexpr std::array<std::uint8_t, 8> ntlmSignature{
+        'N','T','L','M','S','S','P',0U};
+    if (token.size() >= ntlmSignature.size() &&
+        std::equal(
+            ntlmSignature.begin(),
+            ntlmSignature.end(),
+            token.begin()))
+    {
+        return "ntlmssp";
+    }
+
+    switch (token.front())
+    {
+    case 0x30U:
         return "der-sequence";
+    case 0x60U:
+        return "gss-initial-context-token";
+    case 0xa0U:
+        return "spnego-neg-token-init";
+    case 0xa1U:
+        return "spnego-neg-token-resp";
+    default:
+        break;
+    }
+
     if (token.size() < 5U || token[1] != 0x03U)
         return "opaque-other";
 

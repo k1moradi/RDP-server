@@ -1,3 +1,18 @@
+## CredSSP token-envelope diagnostics may classify authentication wrappers without exposing bytes (2026-10-26)
+
+For the Windows full-CredSSP oracle, an SSPI output token remains opaque.
+Fail-only diagnostics may recognize only non-secret structural signatures needed
+to route the test harness correctly: TLS record content type/version shape,
+DER SEQUENCE, GSS InitialContextToken, SPNEGO NegTokenInit/NegTokenResp, or the
+fixed `NTLMSSP\0` signature. Do not print token bytes, lengths beyond the
+already reported total size, OID payloads, challenge/response fields or
+credential material.
+
+A structural class is diagnostic evidence, not permission to mutate the token,
+production Type 2 or target identity. Any architectural correction must keep
+Microsoft control-first semantics and independently prove the exact
+TSRequest/TLS boundary before target results are interpreted.
+
 ## Full-CredSSP opaque-token failure diagnostics stay structural (2026-10-26)
 
 Microsoft CredSSP SSPI output remains opaque to the harness. When a hosted

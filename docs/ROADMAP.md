@@ -1,3 +1,27 @@
+## R9 P0 — distinguish opaque post-TLS authentication-token shape (2026-10-26)
+
+**Exact evidence parent:** `dc1904e5e5a53a35c535e77552c6a00cae5556a2`. Hosted Windows proved the 94-byte
+Microsoft output is not accepted by OpenSSL as TLS: the server memory BIO has
+94 bytes, `SSL_pending()` is zero, the first application read produces zero
+plaintext, and OpenSSL reports record-layer failure. The fixed-name control
+therefore still has no initial TSRequest, production Type 2 or Type 3.
+
+Before changing harness architecture, extend the existing fail-only token
+classifier with safe structural classes for a direct `NTLMSSP\0` signature,
+GSS InitialContextToken, SPNEGO NegTokenInit and SPNEGO NegTokenResp. No token
+payload or credential material is logged. This distinguishes a raw inner
+authentication token from TLS wire data without assuming that the Microsoft
+`CREDSSP` package's opaque output can be interpreted or rewritten.
+
+Production Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, TLS identity,
+SPNEGO production framing, native Admission, MCS, graphics, input and clipboard
+remain **UNCHANGED**. Candidate dispatch remains **BLOCKED**.
+
+**Next gate:** exact-SHA Windows fixed-name control must classify the 94-byte
+output. If it is an inner GSS/SPNEGO/NTLM token, repair only the demonstrated
+test-harness token/wire boundary; do not feed it to OpenSSL as a TLS record or
+change production identity.
+
 ## R9 P0 — classify the Microsoft 94-byte post-TLS token (2026-10-26)
 
 **Exact hosted evidence SHA:** `e4b1dfa84640288910a13c33817b969748d7d0b4`. The workflow-structure guard,

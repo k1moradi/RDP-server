@@ -1,3 +1,22 @@
+## R9 post-TLS opaque-token classification follow-up — 2026-10-26
+
+**Reconciled parent:** `dc1904e5e5a53a35c535e77552c6a00cae5556a2`. Exact-parent Windows evidence: harness
+integrity **PASS**, NTLM fixed-name/IP **PASS**, full-CREDSSP fixed-name
+**FAIL**, IP-SPN/bare-IP **BLOCKED_CONTROL**. The 94-byte Microsoft output was
+classified only as `opaque-other`; OpenSSL then failed with record-layer
+failure before any plaintext reached the TSRequest reader.
+
+This follow-up adds only safe structural recognition for direct NTLMSSP,
+GSS InitialContextToken and SPNEGO NegTokenInit/NegTokenResp to the existing
+test-only fail-only classifier. It changes no provider call order, TLS pump,
+production encoder/parser, identity or downstream authority. Connector
+transformation review: **PASS by inspection**. Owner-root compile/CTest:
+**NOT RUN**. Exact-publication-SHA Windows execution: **PENDING**.
+`r9_credssp_owner_candidate`: **BLOCKED**.
+
+**Next gate:** classify the exact 94-byte fixed-name output on hosted Windows
+and use that evidence to repair only the test harness boundary.
+
 ## R9 exact-SHA 94-byte post-TLS failure receipt — 2026-10-26
 
 **Evidence SHA:** `e4b1dfa84640288910a13c33817b969748d7d0b4`, primary run `40293861759`, Windows job

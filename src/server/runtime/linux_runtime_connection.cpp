@@ -197,7 +197,7 @@ void captureCertificatePresentationMetadata(
     for (int index = 0; index < count; ++index)
     {
         const GENERAL_NAME *const name =
-            ::sk_GENERAL_NAME_value(names.get(), index);
+            sk_GENERAL_NAME_value(names.get(), index);
         if (name == nullptr)
             continue;
         sanIpPresent = sanIpPresent || name->type == GEN_IPADD;

@@ -1,3 +1,11 @@
+## Agent 1 P0 — hosted Linux compile portability correction (2026-10-26)
+
+**Failed exact implementation SHA:** `9fa22d5ca728fe5dc6eca8200663a6869cb54063`, workflow `40339785393`, Linux protocol job `121631208633`. Configure passed, then Debug compile failed in the new TLS certificate fixture because OpenSSL's typed-stack `sk_GENERAL_NAME_value` accessor is a macro and cannot be prefixed with `::`, and because an inferred initializer list mixed `const X509 *` with mutable `X509 *`.
+
+The correction is portability-only: use the macro without namespace qualification in both production SAN observation and the test helper, and use an explicit contiguous `std::array<const X509 *, 3>` for the three certificate-profile checks. TLS/certificate semantics, production generated identity, fixed-name `RDP-SERVER`, Type-2 bytes and all authorization boundaries are unchanged.
+
+**Next gate:** exact-publication-SHA hosted Linux compile, the two new TLS behavior CTests, existing Linux acceptance diagnostics, then the full cross-platform workflow.
+
 ## Agent 1 P0 — physical TLS/certificate identity differential diagnostics (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`. Concurrent R4/R8 dormancy and Agent-2 Type-1 profile observation are preserved. Owner-supplied physical Linux/X11 evidence reaches TLS Established -> Direct NTLM Type 1 -> production Type 2 fully committed through TLS -> Await-Type-3 -> peer EOF; Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard remain unreached. Hosted Windows proves Microsoft NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP through observed Type 3, so production remains `fixed-name / RDP-SERVER` and this increment does not change Type-2 TargetName, TargetInfo, MsvAvTargetName or target-profile selection.

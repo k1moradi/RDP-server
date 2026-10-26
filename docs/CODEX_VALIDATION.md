@@ -1,3 +1,9 @@
+## Agent 1 hosted Linux compile failure/correction receipt — 2026-10-26
+
+Exact SHA `9fa22d5ca728fe5dc6eca8200663a6869cb54063` reached GitHub Actions workflow `40339785393`. CI workflow structure and documentation-policy gates passed, but Linux protocol job `121631208633` **FAILED** during Debug compile before CTest. Compiler evidence identified only the introduced OpenSSL typed-stack macro qualification and mixed-const initializer-list issues in the certificate-profile work. The correction removes the invalid `::` qualifier from `sk_GENERAL_NAME_value` and makes the three-certificate iteration an explicit `std::array<const X509 *, 3>`. No wire, TLS policy, certificate profile, authentication or target-identity behavior changes.
+
+**Validation after correction:** exact-publication-SHA hosted execution **PENDING**.
+
 ## Agent 1 physical TLS/certificate differential authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`. Concurrent R4/R8 and Agent-2 publications were retained. The implementation preserves the production generated certificate profile and `fixed-name / RDP-SERVER` authentication identity, and changes no Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, TLS minimum, security level or certificate-validation policy.

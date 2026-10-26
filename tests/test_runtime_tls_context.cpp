@@ -511,7 +511,7 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     if (!names || ::sk_GENERAL_NAME_num(names.get()) != 1)
         return false;
     const GENERAL_NAME *const name =
-        ::sk_GENERAL_NAME_value(names.get(), 0);
+        sk_GENERAL_NAME_value(names.get(), 0);
     if (name == nullptr || name->type != GEN_IPADD ||
         name->d.iPAddress == nullptr)
     {
@@ -549,8 +549,9 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
         return fail("certificate profile common-name differential mismatch");
     }
 
-    for (const X509 *certificate :
-         {production.certificate(), generic.get(), endpointCommonName.get()})
+    const std::array<const X509 *, 3> certificates{
+        production.certificate(), generic.get(), endpointCommonName.get()};
+    for (const X509 *certificate : certificates)
     {
         if (!certificateHasOnlyExpectedIpv4San(certificate) ||
             ::X509_check_ip_asc(

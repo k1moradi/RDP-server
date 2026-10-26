@@ -1527,9 +1527,11 @@ struct CredSspPumpResult final
         const std::size_t applicationPendingBefore =
             server.applicationPendingBytes();
 
+        bool serverProviderOperationPerformed = false;
         if (!server.tlsReady())
         {
             const TlsAdvance tlsAdvance = server.advanceHandshake();
+            serverProviderOperationPerformed = true;
             if (tlsAdvance == TlsAdvance::Failed)
             {
                 result.failureStage = "memory-bio-server-tls";
@@ -1539,7 +1541,7 @@ struct CredSspPumpResult final
             }
         }
 
-        if (server.tlsReady())
+        if (server.tlsReady() && !serverProviderOperationPerformed)
         {
             result.tlsEstablished = true;
             result.negotiatedTlsVersion =

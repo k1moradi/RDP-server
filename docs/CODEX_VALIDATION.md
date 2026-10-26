@@ -24,6 +24,14 @@ BIO/`SSL_pending()`/application details; termination is boundary, typed
 failure, true no-progress or round limit. Negotiated TLS version is reported;
 no production TLS version or wire profile is changed.
 
+Post-publication source inspection of parent `0dd418b7660816a8e2f63c775cc266fb2bab3900` caught one
+test-only sequencing mismatch before qualification: the round that completed
+`SSL_do_handshake()` could also enter the application reader. The correction
+defers that application read/write work to the following bounded pump
+iteration, so a TLS-ready transition performs exactly one OpenSSL provider
+operation while residual BIO/`SSL_pending()` bytes remain available without
+requiring new wire input.
+
 Connector source and R1 semantic audit: **PASS by inspection**. Modified-tree
 Windows compile/focused three full-CredSSP CTests/full CTest: **NOT RUN** in
 this connector environment. Exact-publication-SHA hosted CI: **PENDING**.

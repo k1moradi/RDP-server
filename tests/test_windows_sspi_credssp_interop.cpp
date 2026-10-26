@@ -831,21 +831,27 @@ public:
         SecBufferDesc *input = nullptr;
         if (contextValid_)
         {
-            if (pendingServerInput_.empty() ||
-                pendingServerInput_.size() >
-                    static_cast<std::size_t>(
-                        (std::numeric_limits<unsigned long>::max)()))
+            if (pendingServerInput_.size() >
+                static_cast<std::size_t>(
+                    (std::numeric_limits<unsigned long>::max)()))
             {
-                result.status = SEC_E_INCOMPLETE_MESSAGE;
+                result.status = SEC_E_INSUFFICIENT_MEMORY;
                 return result;
             }
 
+            // CredSSP can require one additional ISC leg after Schannel has
+            // completed even when the TLS peer has no further handshake bytes.
+            // Preserve the documented TOKEN+EMPTY shape and represent that
+            // bounded transition as a zero-length TOKEN instead of inventing
+            // wire data or treating it as an incomplete transport message.
             inputBuffers[0].BufferType = SECBUFFER_TOKEN;
             inputBuffers[0].cbBuffer =
                 static_cast<unsigned long>(
                     pendingServerInput_.size());
             inputBuffers[0].pvBuffer =
-                pendingServerInput_.data();
+                pendingServerInput_.empty()
+                    ? nullptr
+                    : pendingServerInput_.data();
             inputBuffers[1].BufferType = SECBUFFER_EMPTY;
             inputDescriptor.ulVersion = SECBUFFER_VERSION;
             inputDescriptor.cBuffers =
@@ -1198,7 +1204,7 @@ public:
             }
             return writer_.queueReply(
                 tls_.get(),
-                request.value.version,
+                static_cast<std::uint8_t>(request.value.version),
                 CredSspServerReplyField::NegoToken,
                 selectedProviderReply);
         }
@@ -1371,14 +1377,24 @@ struct FullCredSspAttempt final
 
         result.stage = "server-to-client";
         const auto serverToken = server.drainRaw();
-        if (serverToken.empty())
-            return result;
 
-        result.stage = "credssp-client-continue";
+        // Microsoft CredSSP may finish the Schannel leg with
+        // SEC_I_CONTINUE_NEEDED after the OpenSSL server has no further TLS
+        // handshake bytes to send. Give the SSP one bounded zero-token
+        // continuation so it can emit the first TLS-protected TSRequest.
+        // This is test-harness sequencing only; no production TLS/CredSSP
+        // bytes or server state are changed.
+        result.stage = serverToken.empty()
+            ? "credssp-client-post-tls-continue"
+            : "credssp-client-continue";
         clientStep = client.step(profile, serverToken);
         result.lastClientStatus = clientStep.status;
         printClientStatus(
-            profile, "tls-or-credssp-continue", clientStep.status);
+            profile,
+            serverToken.empty()
+                ? "post-tls-empty-continue"
+                : "tls-or-credssp-continue",
+            clientStep.status);
         if (!securityStatusSucceeded(clientStep.status) ||
             clientStep.output.empty())
         {

@@ -2550,6 +2550,8 @@ struct FullCredSspAttempt final
     CredSspPumpResult nextPump{};
     bool typeOneObserved{};
     bool directNtlmTypeOneAccepted{};
+    const char *rawTokenType{"not-observed"};
+    std::size_t rawTokenBytes{};
     std::size_t typeOneTokenBytes{};
     NtlmNegotiateMessage typeOne{};
     NtlmChallengeMessageObservation typeTwo{};
@@ -2570,6 +2572,25 @@ struct FullCredSspAttempt final
     bool nextClientHasPubKeyAuth{};
 };
 
+
+[[nodiscard]] const char *rawInitialTokenType(
+    const StandaloneSpnegoInitialTokenObservation &observation) noexcept
+{
+    if (observation.negotiationEnvelope ==
+        StandaloneNtlmNegotiationEnvelope::DirectNtlm)
+        return "direct-ntlm-type1";
+    if (observation.gssInitialContextToken)
+        return "gss-initial-context-token";
+    if (observation.negTokenInit2)
+        return "spnego-neg-token-init2";
+    if (observation.negTokenInit)
+        return "spnego-neg-token-init";
+    if (observation.negotiationEnvelope ==
+        StandaloneNtlmNegotiationEnvelope::Spnego)
+        return "spnego-other";
+    return "unknown";
+}
+
 void printClientProfileObservation(
     TargetProfile profile,
     const FullCredSspAttempt &result) noexcept
@@ -2588,15 +2609,15 @@ void printClientProfileObservation(
     std::fprintf(
         stderr,
         "microsoft-credssp-type1-profile target=%s observed=yes "
-        "raw-token=%s message-type=1 bytes=%zu flags=0x%08lx "
+        "raw-token=%s raw-token-bytes=%zu message-type=1 "
+        "type1-bytes=%zu flags=0x%08lx "
         "version-present=%s "
         "version=%u.%u.%u ntlm-revision=0x%02x "
         "domain-supplied=%s workstation-supplied=%s "
         "domain-field-bytes=%zu workstation-field-bytes=%zu\n",
         targetLabel(profile),
-        result.directNtlmTypeOneAccepted
-            ? "direct-ntlm-type1"
-            : "spnego-or-other",
+        result.rawTokenType,
+        result.rawTokenBytes,
         result.typeOneTokenBytes,
         static_cast<unsigned long>(typeOne.negotiateFlags),
         typeOne.versionPresent ? "yes" : "no",
@@ -2736,6 +2757,8 @@ void printClientProfileObservation(
     result.typeOneObserved = initialToken.ntlmTypeOneObserved;
     result.directNtlmTypeOneAccepted =
         initialToken.directNtlmType1Accepted;
+    result.rawTokenType = rawInitialTokenType(initialToken);
+    result.rawTokenBytes = initialToken.tokenBytes;
     result.typeOneTokenBytes =
         initialToken.negotiationEnvelope ==
             StandaloneNtlmNegotiationEnvelope::DirectNtlm

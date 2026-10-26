@@ -1,3 +1,32 @@
+## Agent 6 P0 correction — raw envelope versus Type-1 evidence (2026-10-26)
+
+**Reconciled authoring parent:** `d1395a747a579b99322d15716446e84e8fae5fd0`. Current main already
+contains the TLS version/cipher/target/certificate-profile reporting, the
+separate native Windows certificate-policy oracle, the unchanged
+fixed-name/IP-SPN/bare-IP matrix and the R8 Type-2 -> EOF -> retry
+clipboard-dormancy pin.
+
+This correction separates the raw first-TSRequest authentication envelope from
+the exact inner NTLM Type-1 mechanism token. It reports raw envelope type/size,
+then the existing production parser's Type-1 size, flags, VERSION and redacted
+domain/workstation structure. Direct NTLM uses the raw token size; GSS/SPNEGO
+uses the bounded optimistic mechanism-token size. The physical comparison stays
+`bytes=40 flags=0xe2088235`; no physical VERSION values are inferred.
+
+The existing Windows CryptoAPI certificate-policy oracle additionally exposes
+explicit `chain-failure` and `time-failure` fields while preserving
+test-anchor trust, IP name match, server-auth purpose and raw Windows status.
+Its exclusive in-memory trusted-people store remains nonpersistent.
+
+Production Type-2 TargetName, TargetInfo, MsvAvTargetName, flags,
+target-profile selection, TLS identity and CredSSP framing are **UNCHANGED**;
+production remains `fixed-name / RDP-SERVER`. Agent 8 remains dormant and
+receives no activation.
+
+Connector/source review: **PASS by inspection**. Canonical local one-root
+build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## Agent 9 P0 — exact-SHA physical-client owner-candidate gate (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. Concurrent R4/R8 dormancy, Agent-1 TLS diagnostics/portability fixes, Agent-2 Type-1 observation/evidence, Agent-5/6 native certificate-policy/client-profile work and its CI publication correction, and R7 Advanced environment diagnostics are retained. The physical Linux/X11 reference remains TLS Established -> Direct NTLM Type 1 (`flags=0xe2088235`, `bytes=40`) -> unchanged production Type 2 (`0xe08a8235`) fully committed -> Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard remain **NOT REACHED**. Hosted Microsoft NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP already reach Type 3, so production remains exactly `fixed-name / RDP-SERVER`; Type-2 TargetName, TargetInfo, MsvAvTargetName and target-profile selection are unchanged.

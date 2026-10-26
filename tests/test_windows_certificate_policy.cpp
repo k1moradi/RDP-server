@@ -54,6 +54,8 @@ struct CertificatePolicyObservation final
     bool trustedUnderTestAnchor{};
     bool nameMatches{};
     bool purposeMatches{};
+    bool chainFailure{};
+    bool timeFailure{};
     bool timeValid{};
     DWORD chainErrorStatus{};
     DWORD chainInfoStatus{};
@@ -158,9 +160,19 @@ struct CertificatePolicyObservation final
     result.purposeMatches =
         (result.chainErrorStatus &
          CERT_TRUST_IS_NOT_VALID_FOR_USAGE) == 0U;
-    result.timeValid =
+    constexpr DWORD kTimeFailureMask =
+        CERT_TRUST_IS_NOT_TIME_VALID |
+        CERT_TRUST_IS_NOT_TIME_NESTED;
+    result.timeFailure =
+        (result.chainErrorStatus & kTimeFailureMask) != 0U;
+    result.timeValid = !result.timeFailure;
+    const DWORD nonChainClassificationMask =
+        static_cast<DWORD>(
+            CERT_TRUST_IS_NOT_VALID_FOR_USAGE |
+            kTimeFailureMask);
+    result.chainFailure =
         (result.chainErrorStatus &
-         CERT_TRUST_IS_NOT_TIME_VALID) == 0U;
+         static_cast<DWORD>(~nonChainClassificationMask)) != 0U;
 
     DWORD leafInfoStatus = 0U;
     if (resources.chain_->cChain != 0U &&
@@ -225,13 +237,16 @@ void printObservation(
         stderr,
         "windows-certificate-policy profile=%s endpoint=192.168.1.5 "
         "trusted-under-test-anchor=%s name-match=%s purpose-match=%s "
-        "time-valid=%s chain-errors=0x%08lx chain-info=0x%08lx "
+        "chain-failure=%s time-failure=%s time-valid=%s "
+        "chain-errors=0x%08lx chain-info=0x%08lx "
         "policy-error=0x%08lx setup-error=0x%08lx "
         "custom-anchor=exclusive-memory-store\n",
         profile,
         observation.trustedUnderTestAnchor ? "yes" : "no",
         observation.nameMatches ? "yes" : "no",
         observation.purposeMatches ? "yes" : "no",
+        observation.chainFailure ? "yes" : "no",
+        observation.timeFailure ? "yes" : "no",
         observation.timeValid ? "yes" : "no",
         static_cast<unsigned long>(observation.chainErrorStatus),
         static_cast<unsigned long>(observation.chainInfoStatus),
@@ -246,6 +261,8 @@ void printObservation(
            observation.trustedUnderTestAnchor &&
            observation.nameMatches &&
            observation.purposeMatches &&
+           !observation.chainFailure &&
+           !observation.timeFailure &&
            observation.timeValid &&
            observation.chainErrorStatus == CERT_TRUST_NO_ERROR &&
            observation.policyError == ERROR_SUCCESS &&

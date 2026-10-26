@@ -1,3 +1,19 @@
+## CREDSSP raw envelope size and inner Type-1 size are distinct (2026-10-26)
+
+The Windows full-CREDSSP diagnostic must report the first TSRequest's raw
+authentication envelope class and raw byte count separately from the exact NTLM
+Type-1 mechanism-token byte count. For Direct NTLM the sizes coincide; for
+GSS/SPNEGO the Type-1 byte count is the bounded optimistic mechanism token, not
+the outer envelope. Flags, VERSION and domain/workstation structural metadata
+continue to come from the single production Type-1 parser.
+
+The Windows generated-certificate policy oracle must expose chain failure and
+time failure separately alongside test-anchor trust, endpoint-name match,
+server-auth purpose and raw CryptoAPI status. Time and wrong-usage bits are
+classified before remaining chain-error bits are projected as chain failure.
+These fields are diagnostics only and do not change certificate acceptance or
+production identity.
+
 ## Agent 9 exact-SHA physical-client owner-candidate gate (2026-10-26)
 
 Before nominating another Linux physical candidate, exact-SHA hosted protocol qualification must run the platform-native certificate-policy oracle on both macOS and Windows and also run `runtime.generated-tls-identity-owner-ipv4-san-der`, `runtime.rejects-tls-credentials-client-only-certificate`, `runtime.rejects-tls-credentials-expired-certificate` and `runtime.rejects-tls-credentials-not-yet-valid-certificate`. The native tests remain test-only, use evaluation-local/in-memory trust, disable network/AIA retrieval as implemented, and never mutate persistent OS trust stores. Full CTest remains the final hosted test authority.

@@ -1,3 +1,24 @@
+## Agent 6 raw-token/Type-1 and Windows certificate classification correction — 2026-10-26
+
+**Reconciled authoring parent:** `d1395a747a579b99322d15716446e84e8fae5fd0`. Current main was re-read
+after the physical-client candidate gate. The already-landed Agent 5/6 work
+supplies TLS version/cipher/target/certificate-profile reporting and the
+separate Windows CryptoAPI current-vs-endpoint-CN oracle; R8 already pins the
+requested Type-2/EOF/retry clipboard dormancy boundary.
+
+This correction is test-diagnostic/documentation only. The full-CREDSSP oracle
+retains `tokenBytes` as the raw authentication-envelope size and uses the
+exact optimistic mechanism-token size for SPNEGO Type 1 (raw size for Direct
+NTLM), with explicit non-secret envelope classification. The Windows
+certificate-policy oracle projects chain and time failures separately while
+retaining existing trust/name/purpose and raw status reporting.
+
+No production source, Type-2 bytes/profile, target selection, TLS identity,
+authentication authority, native Admission, MCS, Share, graphics, input or
+clipboard behavior changes. Source review: **PASS by inspection**. Canonical
+one-root configure/build/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**.
+
 ## Agent 9 exact-SHA physical-client owner-candidate authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. Mandatory project context was re-read after the concurrent R4/R8, Agent-1, Agent-2, Agent-5/6, CI-repair and R7 Advanced diagnostics publications. Production remains `fixed-name / RDP-SERVER`; no Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, certificate generator or downstream authorization behavior is changed.

@@ -1155,6 +1155,11 @@ int main(int argc, char** argv)
     assert(firstAuthenticated.acceptedClientPreauthDiagnostics
                .standaloneFailureStage ==
            RuntimeAcceptedClientStandaloneFailureStage::Admission);
+    // A native Admission denial must not be relabeled as a TLS failure.
+    assert(firstAuthenticated.acceptedClientPreauthDiagnostics.termination !=
+           RuntimeAcceptedClientTermination::TlsFailure);
+    assert(firstAuthenticated.acceptedClientPreauthDiagnostics.termination !=
+           RuntimeAcceptedClientTermination::LocalTlsFailure);
     // DirectNtlm crossed the complete CredSSP credential boundary. Hosted CI
     // then correctly stopped at real native admission; no MCS or X11 authority
     // may be inferred from synthetic owner evidence.

@@ -1,3 +1,35 @@
+## R1 follow-up — unblock Microsoft CredSSP oracle after TLS completion (2026-10-25)
+
+**Reconciled main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. The full Windows CredSSP
+target-principal matrix is now present on main. Exact-main Windows evidence
+from parent `eda88212f2f02d7406fa69e56a7a73b15fe5b530` shows all three
+targets (`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5`, and bare
+`192.168.1.5`) reaching Microsoft `CREDSSP` over the production generated-IP
+TLS server, then stopping immediately after TLS becomes established. No
+initial CredSSP TSRequest, NTLM Type 1/Type 2, or target-principal comparison
+has occurred yet.
+
+The common control failure identifies a test-harness sequencing gap rather
+than a production target-identity result. Microsoft documents that
+`SEC_I_CONTINUE_NEEDED` can carry an empty output token and CredSSP context
+initialization can require additional `InitializeSecurityContext` calls.
+After OpenSSL completes TLS with no further server handshake bytes, this
+increment therefore performs the same documented TOKEN+EMPTY continuation
+with a zero-length TOKEN, bounded by the existing 128-round exchange limit.
+No synthetic server bytes are introduced and no production TLS, NTLM,
+CredSSP, target identity, native Admission, MCS, graphics, input or clipboard
+behavior changes.
+
+The Windows-only oracle also converts the already-validated TSRequest v6
+version explicitly when queuing a diagnostic reply, eliminating the MSVC
+narrowing warning without changing wire content.
+
+Baseline Windows target matrix: **3/3 FAIL before initial TSRequest**.
+Modified-branch Windows execution: **PENDING**. If the control target advances
+after this harness correction, resume the target-principal matrix exactly as
+authored; if it still does not, the blocker remains Microsoft CredSSP client
+orchestration rather than production Type-2 format.
+
 ## R7 P1 dependency recheck — pre-Type-3 client-failure presentation (2026-10-25)
 
 **Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 evidence remains

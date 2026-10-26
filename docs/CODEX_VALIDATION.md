@@ -1,3 +1,30 @@
+## R9 owner-candidate preflight consumes admission, username and taxonomy gates — 2026-10-25
+
+Owner baseline `9fd1db518076713f30b41af2aff023308f95a925` remains **966/966
+PASS** with the first real Microsoft-client failure at native Admission after
+TLS, Direct NTLM and CredSSP. Current main already carries the bounded
+admission-reason implementation, safe local-Username suggestion with empty
+user-entered Session Password, and functional CTest name/label cleanup.
+
+On authoring parent `496748bc52126e1b4b28332d6d761452b4dc671b`, Actions run `40225741777` reports
+Linux/macOS/Windows protocol, Windows Clang23, focused security/protocol
+sanitizers and Linux/macOS owner-GUI credential parity **PASS**. This change
+does not reinterpret those receipts as validation of the modified tree.
+
+The focused security owner-candidate step is strengthened to execute
+`admission-denial-exposes-bounded-reason-and-retries`,
+`native-admission-reason-taxonomy-and-positive-fixture`, and
+`project.ctest-durable-label-taxonomy` directly. The GUI parity selector adds
+`gui.offscreen-local-username-default-keeps-session-password-empty` and its
+exact count advances 5 -> 6. The manual exact-SHA candidate aggregator now
+requires the GUI parity matrix result as a prerequisite. No production
+TLS/SPNEGO/NTLM/CredSSP/native-admission code changes.
+
+Connector source/workflow reconciliation: **PASS**. Modified-tree local build,
+full CTest and hosted exact-SHA CI: **NOT RUN / PENDING**. No candidate is
+nominated by this authoring receipt; an explicit candidate dispatch remains
+required after the publication SHA is green.
+
 ## R1 clean TLS-close fixture reconciliation after SSPI PASS — 2026-10-25
 
 **Reconciled parent:** `bbd16622c6728329b090ad9a5ae2b6c849a27a01`.

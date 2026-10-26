@@ -1,3 +1,39 @@
+## R9 owner-candidate admission/username/taxonomy prerequisite closure (2026-10-25)
+
+**Authoring parent:** `496748bc52126e1b4b28332d6d761452b4dc671b`. The owner evidence remains the reported
+assignment baseline `9fd1db518076713f30b41af2aff023308f95a925`: local full
+CTest **966/966 PASS** and a real Microsoft client progressed through TLS,
+Direct NTLM Type 1/Type 2 and CredSSP before the first demonstrated failure at
+native Admission. Do not reopen speculative TLS/SPNEGO/NTLM work from that
+receipt.
+
+Concurrent main already contains the requested production behavior: bounded
+native-admission first-failure reasons are projected into fail-only diagnostics,
+the standalone GUI safely suggests the current local interactive Username where
+available without retrieving any OS password, and CTest names/labels reject
+R1-R10 ownership taxonomy. This increment changes qualification only.
+
+The focused security owner-candidate gate now directly executes the
+production-backed admission-denial/retry diagnostic case, the deterministic
+all-reason native-admission taxonomy fixture, and the durable CTest taxonomy
+guard alongside the existing Start -> Stop -> Start and Direct NTLM gates. The
+Linux/macOS owner-GUI parity selector now includes the local-Username /
+empty-Session-Password regression and expands from five to six cases. The final
+manual owner-candidate aggregation now requires that GUI parity matrix to pass,
+so a candidate cannot be nominated merely because transport/authentication
+qualification is green.
+
+This creates no positive physical-admission claim and changes no production
+TLS, SPNEGO, NTLM, CredSSP or native-admission authority. Authoring-parent
+Actions run `40225741777` had Linux/macOS/Windows protocol, Windows Clang23,
+focused sanitizer and both owner-GUI parity jobs **PASS**; the clean-Windows
+release job was still queued when inspected and is unrelated to this candidate
+rule. Modified-tree local build/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and explicit
+`r9_credssp_owner_candidate` dispatch: **PENDING**. The next physical run must
+record the concrete `stage=admission; admission=<reason>` boundary and fix only
+that demonstrated native predicate.
+
 ## R1 dependency continuation — Microsoft Type-2 gate resolved; align clean TLS-close fixture (2026-10-25)
 
 **Reconciled parent:** `bbd16622c6728329b090ad9a5ae2b6c849a27a01`.

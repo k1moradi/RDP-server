@@ -848,6 +848,12 @@ jobs:
             direct-ntlm-reconnect-stop-start-lifecycle
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-type2-peer-eof-pre-admission-diagnostics
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            admission-denial-exposes-bounded-reason-and-retries
+          build/tests/test_linux_gssapi_spnego \
+            native-admission-reason-taxonomy-and-positive-fixture
+          ctest --test-dir build --build-config Debug \
+            -R '^project[.]ctest-durable-label-taxonomy$' --output-on-failure
 
           # R1 remains the one established HYBRID/TLS transport for the raw
           # DirectNtlm token, and stale/alternate transport provenance denies.
@@ -1948,6 +1954,7 @@ jobs:
       - protocol
       - r6-windows-clang23
       - r9-security-protocol-sanitizers
+      - r9-owner-gui-credential-parity
       - documentation-policy
     runs-on: ubuntu-latest
     steps:
@@ -1958,6 +1965,7 @@ jobs:
           PROTOCOL_RESULT: ${{ needs.protocol.result }}
           WINDOWS_CLANG_RESULT: ${{ needs.r6-windows-clang23.result }}
           R9_RESULT: ${{ needs.r9-security-protocol-sanitizers.result }}
+          GUI_PARITY_RESULT: ${{ needs.r9-owner-gui-credential-parity.result }}
           DOCUMENTATION_RESULT: ${{ needs.documentation-policy.result }}
         shell: bash
         run: |
@@ -1967,6 +1975,7 @@ jobs:
             "$PROTOCOL_RESULT" \
             "$WINDOWS_CLANG_RESULT" \
             "$R9_RESULT" \
+            "$GUI_PARITY_RESULT" \
             "$DOCUMENTATION_RESULT"; do
             test "$result" = success
           done
@@ -1976,6 +1985,14 @@ jobs:
             .github/workflows/ci.yml
           grep -Fq 'security.credssp-direct-ntlm-physical-type1-tsrequest-conformance' \
             tests/CMakeLists.txt
+          grep -Fq 'native-admission-reason-taxonomy-and-positive-fixture' \
+            .github/workflows/ci.yml
+          grep -Fq 'admission-denial-exposes-bounded-reason-and-retries' \
+            .github/workflows/ci.yml
+          grep -Fq 'project[.]ctest-durable-label-taxonomy' \
+            .github/workflows/ci.yml
+          grep -Fq 'gui.offscreen-local-username-default-keeps-session-password-empty' \
+            .github/workflows/ci.yml
           printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
@@ -2851,7 +2868,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity|gui[.]offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential|gui[.]offscreen-authentication-incomplete-before-native-admission|gui[.]offscreen-owner-authentication-failure-product-language-and-retention)$'
+          selector='^(gui[.]owner-acceptance-release-gate-and-production-path|gui[.]offscreen-owner-acceptance-credential-editor-parity|gui[.]offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential|gui[.]offscreen-authentication-incomplete-before-native-admission|gui[.]offscreen-owner-authentication-failure-product-language-and-retention|gui[.]offscreen-local-username-default-keeps-session-password-empty)$'
           inventory="$(ctest --test-dir build -C Release -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required in \
@@ -2859,10 +2876,11 @@ jobs:
             gui.offscreen-owner-acceptance-credential-editor-parity \
             gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential \
             gui.offscreen-authentication-incomplete-before-native-admission \
-            gui.offscreen-owner-authentication-failure-product-language-and-retention; do
+            gui.offscreen-owner-authentication-failure-product-language-and-retention \
+            gui.offscreen-local-username-default-keeps-session-password-empty; do
             grep -Fq ": $required" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 5
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 6
           QT_QPA_PLATFORM=offscreen ctest --test-dir build -C Release \
             --timeout 30 -R "$selector" --output-on-failure
           # A registered skip must not qualify the owner-acceptance surface.

@@ -1,3 +1,25 @@
+## Owner-candidate admission, username and CTest-taxonomy preflight (2026-10-25)
+
+Before an exact-SHA owner candidate may be reported ready for another physical
+Microsoft-client run, the focused security qualification must directly execute
+the production-backed native-admission denial/retry path, the deterministic
+native-admission reason taxonomy covering every bounded reason, and the durable
+CTest name/label taxonomy guard. These gates are diagnostic and policy evidence
+only: the deterministic positive lease fixture is synthetic and must never be
+reported as positive physical admission.
+
+The owner GUI credential-parity matrix must also execute
+`gui.offscreen-local-username-default-keeps-session-password-empty` on Linux
+and macOS. A safe current local account may initialize only the editable
+Username convenience field; Session Password and confirmation remain empty and
+user-entered, and no OS password retrieval is permitted.
+
+The explicit owner-candidate aggregation must require that GUI parity matrix in
+addition to ordinary protocol, Windows Clang, sanitizer, workflow-structure and
+documentation success. Internal R1-R10 fixture command modes may remain
+implementation details, but ordinary CTest names and labels must remain durable
+functional taxonomy.
+
 ## R10 peer-close versus authentication-rejection taxonomy gate (2026-10-25)
 
 Keep the existing production-backed

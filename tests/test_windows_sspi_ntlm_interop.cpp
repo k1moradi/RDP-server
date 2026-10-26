@@ -904,10 +904,10 @@ void printTargetIdentityAttempt(
         result.secondStatus);
 }
 
-[[nodiscard]] int runTargetIdentityMatrix(
-    std::uint64_t timestampFileTime) noexcept
+[[nodiscard]] std::array<TargetIdentityProfile, 4>
+targetIdentityProfiles() noexcept
 {
-    const std::array profiles{
+    return {{
         TargetIdentityProfile{
             "control-portable-service",
             kPortableServiceTarget,
@@ -927,8 +927,43 @@ void printTargetIdentityAttempt(
             "physical-ip-endpoint-service-spn",
             kPhysicalIpServiceTarget,
             kPhysicalIpTargetName,
-            kPhysicalIpServiceSpn}};
+            kPhysicalIpServiceSpn}}};
+}
 
+[[nodiscard]] int runTargetIdentityProfile(
+    std::string_view profileName,
+    std::uint64_t timestampFileTime) noexcept
+{
+    const auto profiles = targetIdentityProfiles();
+    for (std::size_t index = 0; index < profiles.size(); ++index)
+    {
+        if (profileName != profiles[index].name)
+            continue;
+
+        const AttemptResult result = runAttempt(
+            ChallengeVariant::Production,
+            timestampFileTime,
+            profiles[index]);
+        printTargetIdentityAttempt(profiles[index], result);
+        if (!result.variantApplied || !result.targetIdentityProfileApplied)
+            return 1;
+        if (index == 0U)
+            return completeAttemptSucceeded(result) ? 0 : 1;
+
+        // Return CTest's configured skip code when Microsoft rejects the
+        // candidate before Type 3. A Type 3 that our parser/verifier cannot
+        // consume remains a real failure, never a skip.
+        if (!result.microsoftProducedTypeThree)
+            return 77;
+        return completeAttemptSucceeded(result) ? 0 : 1;
+    }
+    return 2;
+}
+
+[[nodiscard]] int runTargetIdentityMatrix(
+    std::uint64_t timestampFileTime) noexcept
+{
+    const auto profiles = targetIdentityProfiles();
     bool matrixValid = true;
     for (std::size_t index = 0; index < profiles.size(); ++index)
     {
@@ -939,9 +974,7 @@ void printTargetIdentityAttempt(
         printTargetIdentityAttempt(profiles[index], result);
 
         // The control must continue reproducing the established Microsoft
-        // SSPI PASS. Candidate rejection is evidence, not a test failure.
-        // If Microsoft does emit Type 3, however, the production parser and
-        // verifier must accept it and preserve requested context properties.
+        // SSPI PASS. Candidate rejection is evidence, not a matrix failure.
         if (index == 0U)
         {
             matrixValid = matrixValid && completeAttemptSucceeded(result);
@@ -1000,7 +1033,7 @@ int main(int argc, char **argv)
         const std::string_view mode{argv[1]};
         if (mode == "target-identity-matrix")
             return runTargetIdentityMatrix(timestampFileTime);
-        return 2;
+        return runTargetIdentityProfile(mode, timestampFileTime);
     }
 
     const TargetIdentityProfile controlIdentity{

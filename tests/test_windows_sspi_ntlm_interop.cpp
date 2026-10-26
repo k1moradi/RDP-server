@@ -27,6 +27,32 @@ enum class TargetProfile : std::uint8_t
     PhysicalIpv4,
 };
 
+enum class TypeTwoIdentityProfile : std::uint8_t
+{
+    ProductionPortable,
+    EndpointTargetName,
+    EndpointServiceSpn,
+};
+
+[[nodiscard]] constexpr const char *typeTwoIdentityProfileName(
+    TypeTwoIdentityProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case TypeTwoIdentityProfile::ProductionPortable:
+        return "production-portable";
+    case TypeTwoIdentityProfile::EndpointTargetName:
+        return "endpoint-target-name";
+    case TypeTwoIdentityProfile::EndpointServiceSpn:
+        return "endpoint-service-spn";
+    }
+    return "unknown";
+}
+
+constexpr std::u16string_view kPhysicalIpTargetName{u"192.168.1.5"};
+constexpr std::u16string_view kPhysicalIpServiceSpn{
+    u"TERMSRV/192.168.1.5"};
+
 [[nodiscard]] constexpr const char *targetProfileName(
     TargetProfile profile) noexcept
 {
@@ -112,6 +138,173 @@ constexpr void storeLe32(
     output[2] = static_cast<std::uint8_t>(value >> 16U);
     output[3] = static_cast<std::uint8_t>(value >> 24U);
 }
+
+[[nodiscard]] bool replaceTypeTwoTargetName(
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize,
+    std::u16string_view targetName) noexcept
+{
+    constexpr std::size_t challengeHeaderBytes = 56U;
+    if (messageSize < challengeHeaderBytes || messageSize > storage.size() ||
+        targetName.empty() ||
+        targetName.size() > kMaximumStandaloneNtlmServerNameCodeUnits)
+    {
+        return false;
+    }
+
+    const std::size_t oldTargetNameBytes = loadLe16(storage.data() + 12U);
+    const std::size_t oldTargetNameOffset = loadLe32(storage.data() + 16U);
+    const std::size_t targetInfoBytes = loadLe16(storage.data() + 40U);
+    const std::size_t oldTargetInfoOffset = loadLe32(storage.data() + 44U);
+    const std::size_t newTargetNameBytes = targetName.size() * 2U;
+    if (oldTargetNameOffset != challengeHeaderBytes ||
+        oldTargetInfoOffset != oldTargetNameOffset + oldTargetNameBytes ||
+        oldTargetInfoOffset > messageSize ||
+        targetInfoBytes > messageSize - oldTargetInfoOffset ||
+        oldTargetInfoOffset + targetInfoBytes != messageSize ||
+        newTargetNameBytes > 0xffffU)
+    {
+        return false;
+    }
+
+    const std::size_t newTargetInfoOffset =
+        oldTargetNameOffset + newTargetNameBytes;
+    const std::size_t newMessageSize =
+        newTargetInfoOffset + targetInfoBytes;
+    if (newMessageSize > storage.size())
+        return false;
+
+    std::memmove(
+        storage.data() + newTargetInfoOffset,
+        storage.data() + oldTargetInfoOffset,
+        targetInfoBytes);
+    for (std::size_t index = 0; index < targetName.size(); ++index)
+    {
+        storeLe16(
+            storage.data() + oldTargetNameOffset + index * 2U,
+            static_cast<std::uint16_t>(targetName[index]));
+    }
+
+    storeLe16(
+        storage.data() + 12U,
+        static_cast<std::uint16_t>(newTargetNameBytes));
+    storeLe16(
+        storage.data() + 14U,
+        static_cast<std::uint16_t>(newTargetNameBytes));
+    storeLe32(
+        storage.data() + 44U,
+        static_cast<std::uint32_t>(newTargetInfoOffset));
+    if (newMessageSize < messageSize)
+    {
+        std::fill(
+            storage.begin() + static_cast<std::ptrdiff_t>(newMessageSize),
+            storage.begin() + static_cast<std::ptrdiff_t>(messageSize),
+            std::uint8_t{0});
+    }
+    messageSize = newMessageSize;
+    return true;
+}
+
+[[nodiscard]] bool appendTargetInfoServiceTarget(
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize,
+    std::u16string_view serviceTarget) noexcept
+{
+    constexpr std::uint16_t msvAvEol = 0U;
+    constexpr std::uint16_t msvAvTargetName = 9U;
+    if (messageSize < 56U || messageSize > storage.size() ||
+        serviceTarget.empty())
+    {
+        return false;
+    }
+
+    const std::size_t targetInfoBytes = loadLe16(storage.data() + 40U);
+    const std::size_t targetInfoOffset = loadLe32(storage.data() + 44U);
+    if (targetInfoOffset > messageSize ||
+        targetInfoBytes > messageSize - targetInfoOffset ||
+        targetInfoOffset + targetInfoBytes != messageSize)
+    {
+        return false;
+    }
+
+    const std::size_t targetInfoEnd = targetInfoOffset + targetInfoBytes;
+    std::size_t eolOffset = targetInfoOffset;
+    while (eolOffset + 4U <= targetInfoEnd)
+    {
+        const std::uint16_t avId = loadLe16(storage.data() + eolOffset);
+        const std::size_t avBytes = loadLe16(storage.data() + eolOffset + 2U);
+        if (avId == msvAvEol)
+        {
+            if (avBytes != 0U || eolOffset + 4U != targetInfoEnd)
+                return false;
+            break;
+        }
+        if (avId == msvAvTargetName ||
+            avBytes > targetInfoEnd - (eolOffset + 4U))
+        {
+            return false;
+        }
+        eolOffset += 4U + avBytes;
+    }
+    if (eolOffset + 4U != targetInfoEnd)
+        return false;
+
+    const std::size_t serviceTargetBytes = serviceTarget.size() * 2U;
+    const std::size_t insertedBytes = 4U + serviceTargetBytes;
+    const std::size_t newTargetInfoBytes = targetInfoBytes + insertedBytes;
+    const std::size_t newMessageSize = messageSize + insertedBytes;
+    if (serviceTargetBytes > 0xffffU ||
+        newTargetInfoBytes > 0xffffU ||
+        newMessageSize > storage.size())
+    {
+        return false;
+    }
+
+    std::memmove(
+        storage.data() + eolOffset + insertedBytes,
+        storage.data() + eolOffset,
+        messageSize - eolOffset);
+    storeLe16(storage.data() + eolOffset, msvAvTargetName);
+    storeLe16(
+        storage.data() + eolOffset + 2U,
+        static_cast<std::uint16_t>(serviceTargetBytes));
+    for (std::size_t index = 0; index < serviceTarget.size(); ++index)
+    {
+        storeLe16(
+            storage.data() + eolOffset + 4U + index * 2U,
+            static_cast<std::uint16_t>(serviceTarget[index]));
+    }
+    storeLe16(
+        storage.data() + 40U,
+        static_cast<std::uint16_t>(newTargetInfoBytes));
+    storeLe16(
+        storage.data() + 42U,
+        static_cast<std::uint16_t>(newTargetInfoBytes));
+    messageSize = newMessageSize;
+    return true;
+}
+
+[[nodiscard]] bool applyTypeTwoIdentityProfile(
+    TypeTwoIdentityProfile profile,
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize) noexcept
+{
+    switch (profile)
+    {
+    case TypeTwoIdentityProfile::ProductionPortable:
+        return true;
+    case TypeTwoIdentityProfile::EndpointTargetName:
+        return replaceTypeTwoTargetName(
+            storage, messageSize, kPhysicalIpTargetName);
+    case TypeTwoIdentityProfile::EndpointServiceSpn:
+        return replaceTypeTwoTargetName(
+                   storage, messageSize, kPhysicalIpTargetName) &&
+               appendTargetInfoServiceTarget(
+                   storage, messageSize, kPhysicalIpServiceSpn);
+    }
+    return false;
+}
+
 
 [[nodiscard]] bool securityStatusSucceeded(SECURITY_STATUS status) noexcept
 {
@@ -606,6 +799,7 @@ struct AttemptResult final
     std::uint32_t typeTwoFlags{};
     ULONG contextAttributes{};
     bool variantApplied{};
+    bool identityProfileApplied{};
     bool microsoftProducedTypeThree{};
     bool contextComplete{};
     bool securityAttributesSatisfied{};
@@ -614,6 +808,7 @@ struct AttemptResult final
 
 [[nodiscard]] AttemptResult runAttempt(
     TargetProfile targetProfile,
+    TypeTwoIdentityProfile identityProfile,
     ChallengeVariant variant,
     std::uint64_t timestampFileTime) noexcept
 {
@@ -666,6 +861,13 @@ struct AttemptResult final
         variant, typeTwo, typeTwoSize, result.typeOneFlags);
     if (!result.variantApplied)
         return result;
+
+    result.failureStage = "apply-target-identity-profile";
+    result.identityProfileApplied = applyTypeTwoIdentityProfile(
+        identityProfile, typeTwo, typeTwoSize);
+    if (!result.identityProfileApplied)
+        return result;
+
     result.typeTwoFlags = loadLe32(typeTwo.data() + 20U);
     result.failureStage = "validate-single-delta";
     NtlmChallengeMessageObservation variantObservation;
@@ -719,15 +921,17 @@ void printStatus(
 
 void printAttemptFailure(
     TargetProfile targetProfile,
+    TypeTwoIdentityProfile identityProfile,
     ChallengeVariant variant,
     const AttemptResult &result) noexcept
 {
     std::fprintf(
         stderr,
-        "microsoft-sspi-ntlm target=%s variant=%s stage=%s "
+        "microsoft-sspi-ntlm target=%s type2-identity=%s variant=%s stage=%s "
         "type1-flags=0x%08lx type2-flags=0x%08lx "
         "type3=%s complete=%s attributes=%s local-verify=%s\n",
         targetProfileName(targetProfile),
+        typeTwoIdentityProfileName(identityProfile),
         variantName(variant),
         result.failureStage,
         static_cast<unsigned long>(result.typeOneFlags),
@@ -741,20 +945,58 @@ void printAttemptFailure(
     printStatus("microsoft-sspi-type2-status", result.secondStatus);
 }
 
+[[nodiscard]] bool isExploratoryTargetRejection(
+    SECURITY_STATUS status) noexcept
+{
+    if (securityStatusSucceeded(status))
+        return false;
+    switch (status)
+    {
+    case SEC_E_BUFFER_TOO_SMALL:
+    case SEC_E_INSUFFICIENT_MEMORY:
+    case SEC_E_INVALID_HANDLE:
+    case SEC_E_INTERNAL_ERROR:
+        return false;
+    default:
+        return true;
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
 {
     TargetProfile targetProfile = TargetProfile::PortableServerName;
+    TypeTwoIdentityProfile identityProfile =
+        TypeTwoIdentityProfile::ProductionPortable;
+    bool exploratoryIdentityProfile = false;
     if (argc == 2 && argv[1] != nullptr)
     {
         const std::string_view mode{argv[1]};
         if (mode == "control-target")
+        {
             targetProfile = TargetProfile::PortableServerName;
+        }
         else if (mode == "physical-ip-target")
+        {
             targetProfile = TargetProfile::PhysicalIpv4;
+        }
+        else if (mode == "physical-ip-endpoint-target-name")
+        {
+            targetProfile = TargetProfile::PhysicalIpv4;
+            identityProfile = TypeTwoIdentityProfile::EndpointTargetName;
+            exploratoryIdentityProfile = true;
+        }
+        else if (mode == "physical-ip-endpoint-service-spn")
+        {
+            targetProfile = TargetProfile::PhysicalIpv4;
+            identityProfile = TypeTwoIdentityProfile::EndpointServiceSpn;
+            exploratoryIdentityProfile = true;
+        }
         else
+        {
             return 2;
+        }
     }
     else if (argc != 1)
     {
@@ -769,7 +1011,8 @@ int main(int argc, char **argv)
     }
 
     const AttemptResult production = runAttempt(
-        targetProfile, ChallengeVariant::Production, timestampFileTime);
+        targetProfile, identityProfile,
+        ChallengeVariant::Production, timestampFileTime);
     if (production.microsoftProducedTypeThree)
     {
         if (production.contextComplete &&
@@ -783,7 +1026,8 @@ int main(int argc, char **argv)
             stderr,
             "microsoft-sspi-production-type2=accepted-but-local-chain-failed\n");
         printAttemptFailure(
-            targetProfile, ChallengeVariant::Production, production);
+            targetProfile, identityProfile,
+            ChallengeVariant::Production, production);
         return 1;
     }
 
@@ -792,7 +1036,16 @@ int main(int argc, char **argv)
         "microsoft-sspi-production-type2=rejected target=%s\n",
         targetProfileName(targetProfile));
     printAttemptFailure(
-        targetProfile, ChallengeVariant::Production, production);
+        targetProfile, identityProfile,
+        ChallengeVariant::Production, production);
+
+    if (exploratoryIdentityProfile)
+    {
+        return production.identityProfileApplied &&
+               isExploratoryTargetRejection(production.secondStatus)
+            ? 77
+            : 1;
+    }
 
     // The endpoint-target differential is evidence about the target principal,
     // not authorization to mutate a Microsoft-accepted production challenge.
@@ -812,7 +1065,8 @@ int main(int argc, char **argv)
     for (const ChallengeVariant variant : diagnosticVariants)
     {
         const AttemptResult diagnostic = runAttempt(
-            targetProfile, variant, timestampFileTime);
+            targetProfile, TypeTwoIdentityProfile::ProductionPortable,
+            variant, timestampFileTime);
         if (!diagnostic.variantApplied)
         {
             std::fprintf(

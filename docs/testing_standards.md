@@ -451,11 +451,13 @@ Keep the dedicated offscreen regression
 `gui.offscreen-authentication-incomplete-before-native-admission`. Main must
 show `Remote client authentication did not complete.`, must not claim wrong
 password or local-desktop/native-admission failure, and must expose no NTLM
-protocol details. When `directNtlmTypeTwoDelivered` is true, Advanced may
-show `NTLM challenge delivered; client disconnected before authentication
-response.`. The same case must clear only that delivery receipt and prove the
-GUI falls back to a less-specific redacted authentication diagnostic rather
-than inferring delivery from the challenge stage.
+protocol details on Main. When `directNtlmTypeTwoDelivered` is true, Advanced
+may show `Client disconnected after authentication challenge.`. The same case
+must clear only that delivery receipt and prove the GUI falls back to a
+less-specific redacted authentication diagnostic rather than inferring delivery
+from the challenge stage. Target-identity mismatch language is permitted only
+when a future typed runtime diagnosis explicitly reports that condition; tests
+must not infer it from the destination address or fixed server TargetName.
 
 The historical contradictory
 `Admission/Failed/Admission/admission=None/PeerEof` tuple must remain

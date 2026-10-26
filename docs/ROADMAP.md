@@ -1,3 +1,13 @@
+## Agent 6 P0 — request CredSSP stream semantics for the wire oracle (2026-10-26)
+
+**Reconciled parent:** `08ce14baed353415a11f0926cbceb0c2a3f673ba`. Exact-parent Windows run `40295613485`, job `121480868153`, passes both harness-integrity CTests and both independent Microsoft NTLM Type-2 oracles, then fails the fixed-name full-CREDSSP control before the first TSRequest. The successful Microsoft sequence is 153-byte TLS handshake output -> 1222-byte server TLS flight -> 158-byte TLS handshake output -> 226-byte server TLS flight -> 94-byte output with `SEC_I_CONTINUE_NEEDED`. On the exact parent that 94-byte output classifies as `opaque-other`; OpenSSL consumes zero plaintext and reports `0x0a000139` (record-layer failure). Therefore it is not valid evidence to feed that token into the production TLS BIO as a TLS record.
+
+The harness was requesting `ISC_REQ_CONNECTION` from Microsoft CREDSSP. Microsoft's API contract defines that flag as a context that does **not** handle message formatting, while `ISC_REQ_STREAM` requests a stream-oriented context. Because this oracle directly connects Microsoft's CREDSSP client output to the production OpenSSL wire peer, this increment changes only the test client's context requirement from `ISC_REQ_CONNECTION` to `ISC_REQ_STREAM`, retaining `ISC_REQ_ALLOCATE_MEMORY` and `ISC_REQ_MANUAL_CRED_VALIDATION`. The existing scripted multi-turn harness CTest now explicitly requires stream semantics and rejects connection semantics.
+
+This is a test-harness contract correction, not a production wire/profile change. Production Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, TLS certificate identity, SPNEGO/CredSSP production framing, native Admission, MCS, Share, graphics, input and clipboard remain **UNCHANGED**. The independent inner NTLM oracle remains unchanged.
+
+**Next gate:** exact-publication-SHA Windows must show that the fixed-name Microsoft CREDSSP control now emits a TLS-consumable first TSRequest, reaches unchanged production Type 2, Microsoft consumes that Type 2, emits the next TSRequest and production observes NTLM Type 3. Only then may the IP target matrix become typed.
+
 ## R9 P0 — distinguish opaque post-TLS authentication-token shape (2026-10-26)
 
 **Exact evidence parent:** `dc1904e5e5a53a35c535e77552c6a00cae5556a2`. Hosted Windows proved the 94-byte

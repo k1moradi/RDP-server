@@ -1,3 +1,11 @@
+## Agent 6 CredSSP stream-context correction receipt — 2026-10-26
+
+**Authoring parent:** `08ce14baed353415a11f0926cbceb0c2a3f673ba`. Exact-parent Windows job `121480868153` under run `40295613485` provides the current blocking evidence: harness stream-buffer retention **PASS**, harness multi-turn progression **PASS**, Microsoft NTLM fixed-name **PASS**, Microsoft NTLM IP target **PASS**, full-CREDSSP fixed-name **FAIL**, IP-SPN/bare-IP **BLOCKED_CONTROL**. The fixed-name third successful Microsoft continuation consumes 226 server bytes and returns 94 bytes with `SEC_I_CONTINUE_NEEDED`; safe classification remains `opaque-other`. The production OpenSSL reader sees 94 rbio bytes, zero `SSL_pending()`, zero plaintext and error `0x0a000139` (record-layer failure). Initial TSRequest, production Type 2 and Type 3 are not reached.
+
+Source audit found the CREDSSP client requested `ISC_REQ_CONNECTION`. The Microsoft CredSSP API defines that request as not handling message formatting; the same API offers `ISC_REQ_STREAM` for stream-oriented operation. This publication changes only that Windows test-client request bit and pins it through the existing scripted harness CTest. It does not inspect or rewrite the opaque token and does not change production source.
+
+Connector transformation/source review: **PASS**. Native Windows compile/focused/full CTest on the modified tree: **NOT RUN** in this connector environment. Exact-publication-SHA Windows execution: **PENDING**. Agent 2 interpretation, Agent 10 production-profile selection, Agent 9 owner-candidate qualification and the next physical Linux/X11 retry remain **BLOCKED** until the fixed-name control reaches observed Type 3 and the target matrix becomes typed.
+
 ## R9 post-TLS opaque-token classification follow-up — 2026-10-26
 
 **Reconciled parent:** `dc1904e5e5a53a35c535e77552c6a00cae5556a2`. Exact-parent Windows evidence: harness

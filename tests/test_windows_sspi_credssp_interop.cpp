@@ -107,8 +107,14 @@ constexpr NtlmServerChallenge kServerChallenge{
     0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef};
 constexpr ULONG kCredSspContextRequirements =
     ISC_REQ_ALLOCATE_MEMORY |
-    ISC_REQ_CONNECTION |
+    ISC_REQ_STREAM |
     ISC_REQ_MANUAL_CRED_VALIDATION;
+
+[[nodiscard]] constexpr bool credSspUsesWireStreamSemantics() noexcept
+{
+    return (kCredSspContextRequirements & ISC_REQ_STREAM) != 0U &&
+           (kCredSspContextRequirements & ISC_REQ_CONNECTION) == 0U;
+}
 constexpr std::size_t kMaximumExchangeRounds = 128U;
 constexpr std::size_t kMaximumRawTokenBytes = 256U * 1024U;
 
@@ -2490,6 +2496,13 @@ private:
 
 [[nodiscard]] bool runHarnessMultiTurnRoundProgression()
 {
+    // This oracle connects SSPI output directly to the production OpenSSL
+    // memory-BIO peer. Stream semantics keep SSPI message framing on the
+    // bytes handed to that wire peer; connection semantics deliberately do
+    // not handle message formatting.
+    if (!credSspUsesWireStreamSemantics())
+        return false;
+
     ScriptedCredSspClient scriptedClient;
     ScriptedCredSspServer scriptedServer;
     const CredSspPumpResult pumpResult =

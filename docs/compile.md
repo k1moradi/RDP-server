@@ -1,3 +1,9 @@
+## Windows full-CredSSP oracle uses SSPI stream context (2026-10-26)
+
+The Windows-only `test_windows_sspi_credssp_interop` target keeps the same source, executable, linkage and one-`build/` root. Its Microsoft CREDSSP client now requests `ISC_REQ_STREAM` instead of `ISC_REQ_CONNECTION`; this adds no dependency, socket, service, permission, install/export surface or production compile definition.
+
+The existing `security.windows-credssp-harness-multi-turn-round-progression` CTest pins the context-mode requirement before exercising the shared pump. The exact-SHA Windows protocol lane remains responsible for compiling the harness and then running harness integrity before the fixed-name control and target matrix.
+
 ## R9 Windows full-CredSSP harness qualification and result matrix (2026-10-26)
 
 The existing Windows-only `test_windows_sspi_credssp_interop` target keeps its

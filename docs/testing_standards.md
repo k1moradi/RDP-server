@@ -1,3 +1,11 @@
+## Full Microsoft CredSSP wire oracle must request stream semantics (2026-10-26)
+
+When the Windows CREDSSP SSPI client is connected directly to the production OpenSSL memory-BIO server, request `ISC_REQ_STREAM`, not `ISC_REQ_CONNECTION`. Microsoft documents `ISC_REQ_CONNECTION` as a context where the security context does not handle message formatting and `ISC_REQ_STREAM` as stream-oriented operation. A full wire oracle requires the provider's stream framing to remain on the bytes handed to the production TLS peer.
+
+Keep `ISC_REQ_ALLOCATE_MEMORY` and `ISC_REQ_MANUAL_CRED_VALIDATION`. The existing behavior-named multi-turn harness CTest must fail if the full-oracle context requirements do not include `ISC_REQ_STREAM` or if they include `ISC_REQ_CONNECTION`. This is a harness-integrity assertion only; it does not qualify Microsoft interop by itself.
+
+The evidence gate remains unchanged: fixed-name control first, and PASS requires TLS -> first Microsoft TSRequest -> production Type 1 -> unchanged production Type 2 -> Microsoft Type-2 consumption -> next Microsoft TSRequest -> independently observed NTLM Type 3. IP-SPN and bare-IP remain `BLOCKED_CONTROL` until that exact control passes.
+
 ## CredSSP token-envelope diagnostics may classify authentication wrappers without exposing bytes (2026-10-26)
 
 For the Windows full-CredSSP oracle, an SSPI output token remains opaque.

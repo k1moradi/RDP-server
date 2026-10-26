@@ -426,9 +426,15 @@ void prepareReadyHost(FakeRuntimeHost& runtime)
 void assertNoRoadLabelsInUserText(DesktopWindow& window)
 {
     const auto containsRoadLabel = [](const QString& text) {
-        return text.contains("R1", Qt::CaseInsensitive) ||
-               text.contains("R2", Qt::CaseInsensitive) ||
-               text.contains("R10", Qt::CaseInsensitive);
+        constexpr std::array roadLabels{
+            "R1", "R2", "R3", "R4", "R5",
+            "R6", "R7", "R8", "R9", "R10"};
+        return std::ranges::any_of(
+            roadLabels,
+            [&text](const char* roadLabel) {
+                return text.contains(
+                    QLatin1StringView(roadLabel), Qt::CaseInsensitive);
+            });
     };
 
     for (QLabel* item : window.findChildren<QLabel*>())

@@ -531,6 +531,43 @@ int main(int argumentCount, char** argumentValues)
             RuntimeHostStage::Revoked, RuntimeProductHostState::Stopped));
         return 0;
     }
+    if (testCase == "host-control-endpoint-bound-preauth-identity-consistency")
+    {
+        RuntimePreauthConnectionIdentityView identity;
+        identity.available = true;
+        identity.selectedLanNumericAddress = "192.168.1.5";
+        identity.selectedLanPort = 3389U;
+        identity.tlsCertificateIdentity = "192.168.1.5";
+        identity.certificateFingerprintAvailable = true;
+        identity.certificateSha256[0] = 0x5aU;
+        identity.rdpServiceTargetIdentity = "TERMSRV/192.168.1.5";
+        identity.endpointBoundProfileConsistent =
+            runtimeEndpointBoundIdentityConsistent(identity);
+        assert(identity.endpointBoundProfileConsistent);
+
+        auto mismatchedCertificate = identity;
+        mismatchedCertificate.tlsCertificateIdentity = "192.168.1.6";
+        assert(!runtimeEndpointBoundIdentityConsistent(
+            mismatchedCertificate));
+
+        auto mismatchedServiceTarget = identity;
+        mismatchedServiceTarget.rdpServiceTargetIdentity =
+            "TERMSRV/RDP-SERVER";
+        assert(!runtimeEndpointBoundIdentityConsistent(
+            mismatchedServiceTarget));
+
+        auto missingFingerprint = identity;
+        missingFingerprint.certificateFingerprintAvailable = false;
+        assert(!runtimeEndpointBoundIdentityConsistent(
+            missingFingerprint));
+
+        auto ipv6 = identity;
+        ipv6.selectedLanNumericAddress = "fd00::15";
+        ipv6.tlsCertificateIdentity = "fd00::15";
+        ipv6.rdpServiceTargetIdentity = "TERMSRV/fd00::15";
+        assert(runtimeEndpointBoundIdentityConsistent(ipv6));
+        return 0;
+    }
     if (testCase == "host-control-clipboard-state-denials")
     {
         assert(host.status().clipboardState == RuntimeClipboardState::Unavailable);

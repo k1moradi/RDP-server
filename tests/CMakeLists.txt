@@ -802,6 +802,7 @@ foreach(host_control_case IN ITEMS
         host-control-product-status-projection
         host-control-incomplete-peer-product-state
         host-control-credential-editing-lifecycle-policy
+        host-control-endpoint-bound-preauth-identity-consistency
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials
         host-control-credential-setup-denials

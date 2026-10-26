@@ -1,3 +1,42 @@
+## R1 P0 supporting — endpoint-bound CredSSP identity correlation and Type-3 loopback handoff (2026-10-25)
+
+Owner Linux/X11 evidence is **986/986 CTest PASS** and a physical Microsoft
+Windows App connection reaches TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type
+1 -> production Type 2 completely committed through TLS -> Await-Type-3, then
+terminates with `peer-eof-before-type3`. Type 3, pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS and graphics/X11 are **NOT
+REACHED**. Hosted Windows evidence independently proves Microsoft native NTLM
+SSPI accepts the untouched production Type 2 and emits Type 3, and the
+independent outer CredSSP TSRequest DER oracle passes. Do not alter the
+production Type-2 profile from this evidence.
+
+The remaining concrete difference is target context: the inner SSPI oracle has
+used `TERMSRV/RDP-SERVER`, while the physical connection is addressed by a
+numeric LAN endpoint such as `192.168.1.5` and the portable NTLM challenge
+continues to advertise `RDP-SERVER`. This increment therefore adds one
+non-authorizing endpoint-bound pre-auth identity view correlating the selected
+numeric LAN address/port, the exact numeric identity validated against the
+selected TLS leaf, its SHA-256 fingerprint, and the proposed
+`TERMSRV/<numeric-address>` service target. The consistency predicate and the
+production-backed Type-2/EOF lifecycle pin that correlation across peer
+retirement and the next accepted connection on the unchanged listener.
+
+A test-only, externally driven loopback server mode is also added to the
+existing pre-auth test executable for the next Microsoft CredSSP oracle. It
+runs production X.224/HYBRID, an exact-IP generated TLS identity, production
+CredSSP framing and the standalone NTLM acceptor, and reports success as soon
+as production observes NTLM Type 3. It deliberately stops before native
+Admission/MCS and requires no logind, X11 or desktop authority. R6 may launch
+it with port `0`, consume the emitted loopback endpoint and
+`TERMSRV/127.0.0.1` target, and drive the Microsoft CredSSP/SSPI client.
+
+TLS cipher/protocol behavior, generated-certificate policy, production
+NTLM/CredSSP challenge bytes, native admission, MCS, graphics, input and
+clipboard are **UNCHANGED**. Connector source/reconciliation review: **PASS**.
+Modified-tree local build/CTest: **NOT RUN** because the connector execution
+environment cannot resolve GitHub for a checkout. Exact-publication-SHA hosted
+CI: **PENDING**. Full Microsoft CredSSP target-principal oracle: **PENDING**.
+
 ## R1 dependency continuation — Microsoft Type-2 gate resolved; align clean TLS-close fixture (2026-10-25)
 
 **Reconciled parent:** `bbd16622c6728329b090ad9a5ae2b6c849a27a01`.

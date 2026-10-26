@@ -890,6 +890,44 @@ struct RuntimeProductHostStatus final
     bool credentialEditingAllowed{};
 };
 
+inline constexpr std::string_view kRuntimeRdpServiceTargetPrefix{"TERMSRV/"};
+
+// One non-authorizing view of the selected pre-auth server target. The numeric
+// LAN address/port come from R10's selected endpoint, the certificate identity
+// is populated only after the exact R1 TLS leaf matches that numeric address,
+// and the RDP service target is the endpoint-bound identity proposed for a
+// Microsoft CredSSP client. No field changes NTLM Type-2 bytes or grants
+// authentication, owner consent, native admission or protocol authority.
+struct RuntimePreauthConnectionIdentityView final
+{
+    bool available{};
+    std::string selectedLanNumericAddress;
+    std::uint16_t selectedLanPort{};
+    std::string tlsCertificateIdentity;
+    RuntimeTlsCertificateFingerprint certificateSha256{};
+    bool certificateFingerprintAvailable{};
+    std::string rdpServiceTargetIdentity;
+    bool endpointBoundProfileConsistent{};
+};
+
+[[nodiscard]] inline bool runtimeEndpointBoundIdentityConsistent(
+    const RuntimePreauthConnectionIdentityView& identity) noexcept
+{
+    if (!identity.available ||
+        identity.selectedLanNumericAddress.empty() ||
+        identity.selectedLanPort == 0U ||
+        identity.tlsCertificateIdentity != identity.selectedLanNumericAddress ||
+        !identity.certificateFingerprintAvailable)
+    {
+        return false;
+    }
+
+    const std::string_view serviceTarget{identity.rdpServiceTargetIdentity};
+    return serviceTarget.starts_with(kRuntimeRdpServiceTargetPrefix) &&
+           serviceTarget.substr(kRuntimeRdpServiceTargetPrefix.size()) ==
+               identity.selectedLanNumericAddress;
+}
+
 struct RuntimeFirstLiveGraphicsTrace final
 {
     // Read-only first-client correlation facts. These fields never authorize
@@ -962,6 +1000,11 @@ struct RuntimeHostStatus
     // Current/last accepted-client pre-auth observation for diagnostics only.
     // It contains no protocol bytes, credential material or authority.
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics{};
+
+    // Current endpoint-bound pre-auth identity correlation. Descriptive only;
+    // the TLS context, credential owner and accepted connection remain the
+    // authoritative owners of their respective security state.
+    RuntimePreauthConnectionIdentityView preauthConnectionIdentity{};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.

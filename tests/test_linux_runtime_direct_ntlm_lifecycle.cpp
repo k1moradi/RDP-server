@@ -1337,6 +1337,25 @@ int main(int argc, char** argv)
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
 
+    // One endpoint-bound diagnostic view must correlate the selected numeric
+    // listener target, the exact certificate-matched identity/fingerprint and
+    // the RDP service target proposed for a full Microsoft CredSSP oracle.
+    const auto& connectionIdentity = firstListener.preauthConnectionIdentity;
+    assert(connectionIdentity.available);
+    assert(connectionIdentity.selectedLanNumericAddress ==
+           recommendation.address);
+    assert(connectionIdentity.selectedLanPort == selectedPort);
+    assert(connectionIdentity.tlsCertificateIdentity ==
+           recommendation.address);
+    assert(connectionIdentity.certificateFingerprintAvailable);
+    assert(connectionIdentity.certificateSha256 ==
+           firstListener.tlsIdentity.certificateSha256);
+    assert(connectionIdentity.rdpServiceTargetIdentity ==
+           std::string{kRuntimeRdpServiceTargetPrefix} +
+               recommendation.address);
+    assert(connectionIdentity.endpointBoundProfileConsistent);
+    assert(runtimeEndpointBoundIdentityConsistent(connectionIdentity));
+
     if (typeTwoTimeoutOnly)
     {
         std::atomic<bool> typeTwoReceived{false};
@@ -1522,6 +1541,19 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.product.state ==
                RuntimeProductHostState::Listening);
         assert(afterTypeTwoEof.product.credentialsConfigured);
+        assert(afterTypeTwoEof.preauthConnectionIdentity.available);
+        assert(afterTypeTwoEof.preauthConnectionIdentity
+                   .endpointBoundProfileConsistent);
+        assert(afterTypeTwoEof.preauthConnectionIdentity
+                   .selectedLanNumericAddress ==
+               connectionIdentity.selectedLanNumericAddress);
+        assert(afterTypeTwoEof.preauthConnectionIdentity.selectedLanPort ==
+               connectionIdentity.selectedLanPort);
+        assert(afterTypeTwoEof.preauthConnectionIdentity
+                   .rdpServiceTargetIdentity ==
+               connectionIdentity.rdpServiceTargetIdentity);
+        assert(afterTypeTwoEof.preauthConnectionIdentity.certificateSha256 ==
+               connectionIdentity.certificateSha256);
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
 
@@ -1647,6 +1679,18 @@ int main(int argc, char** argv)
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
+        assert(retryWaitingForTypeThree.preauthConnectionIdentity.available);
+        assert(retryWaitingForTypeThree.preauthConnectionIdentity
+                   .endpointBoundProfileConsistent);
+        assert(retryWaitingForTypeThree.preauthConnectionIdentity
+                   .selectedLanNumericAddress ==
+               connectionIdentity.selectedLanNumericAddress);
+        assert(retryWaitingForTypeThree.preauthConnectionIdentity
+                   .rdpServiceTargetIdentity ==
+               connectionIdentity.rdpServiceTargetIdentity);
+        assert(retryWaitingForTypeThree.preauthConnectionIdentity
+                   .certificateSha256 ==
+               connectionIdentity.certificateSha256);
         assertClipboardDormant(retryWaitingForTypeThree);
         assertGraphicsDormant(retryWaitingForTypeThree);
         assert(challengesDiffer(

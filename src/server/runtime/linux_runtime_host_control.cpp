@@ -1705,6 +1705,34 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
                     RuntimeTlsIdentityState::ConfiguredUnbound;
         }
     }
+
+    // Keep endpoint/certificate/service-target correlation in one diagnostic
+    // view. This proposes TERMSRV/<numeric-address> for the full CredSSP oracle
+    // without changing the production NTLM TargetName or any TLS behavior.
+    if (listenerCurrent && selectionConfigured_ && tlsContext_ != nullptr &&
+        snapshot.selectedEndpoint == snapshot.boundEndpoint &&
+        snapshot.tlsIdentity.boundIdentityMatchesGeneration(
+            snapshot.listenerGeneration) &&
+        tlsContext_->validateEndpointIdentity(selection_.localAddress) ==
+            RuntimeTlsEndpointIdentityStatus::Match)
+    {
+        auto& identity = snapshot.preauthConnectionIdentity;
+        identity.available = true;
+        identity.selectedLanNumericAddress = selection_.localAddress;
+        identity.selectedLanPort = selection_.port;
+        identity.tlsCertificateIdentity = selection_.localAddress;
+        identity.certificateSha256 = snapshot.tlsIdentity.certificateSha256;
+        identity.certificateFingerprintAvailable =
+            snapshot.tlsIdentity.fingerprintAvailable;
+        identity.rdpServiceTargetIdentity.reserve(
+            kRuntimeRdpServiceTargetPrefix.size() +
+            selection_.localAddress.size());
+        identity.rdpServiceTargetIdentity.append(
+            kRuntimeRdpServiceTargetPrefix);
+        identity.rdpServiceTargetIdentity.append(selection_.localAddress);
+        identity.endpointBoundProfileConsistent =
+            runtimeEndpointBoundIdentityConsistent(identity);
+    }
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.graphicsReady =
         acceptedClient_ != nullptr &&

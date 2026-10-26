@@ -8,6 +8,7 @@
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
 #include "security/standalone_ntlmssp.h"
+#include "security/standalone_credssp.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "server/runtime/linux_runtime_connection.h"
 #include "security/gssapi_spnego_acceptor.h"
@@ -24,6 +25,8 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <charconv>
+#include <cstdio>
 #include <cstdint>
 #include <limits>
 #include <fstream>
@@ -39,6 +42,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -1540,6 +1544,109 @@ private:
     }
 };
 
+class ExternalLoopbackListener final
+{
+public:
+    explicit ExternalLoopbackListener(std::uint16_t requestedPort) noexcept
+    {
+#ifdef _WIN32
+        if (::WSAStartup(MAKEWORD(2, 2), &wsa_) != 0)
+            return;
+        winsockInitialized_ = true;
+#endif
+        listener_.value = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (listener_.value == kInvalidLocalSocket)
+            return;
+
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        address.sin_port = htons(requestedPort);
+        if (::bind(
+                listener_.value,
+                reinterpret_cast<const sockaddr *>(&address),
+                sizeof(address)) != 0 ||
+            ::listen(listener_.value, 1) != 0)
+        {
+            listener_.close();
+            return;
+        }
+
+#ifdef _WIN32
+        int addressLength = sizeof(address);
+#else
+        socklen_t addressLength = sizeof(address);
+#endif
+        if (::getsockname(
+                listener_.value,
+                reinterpret_cast<sockaddr *>(&address),
+                &addressLength) != 0 ||
+            address.sin_addr.s_addr != htonl(INADDR_LOOPBACK))
+        {
+            listener_.close();
+            return;
+        }
+
+#ifdef _WIN32
+        u_long nonblocking = 1;
+        if (::ioctlsocket(
+                listener_.value, FIONBIO, &nonblocking) != 0)
+        {
+            listener_.close();
+            return;
+        }
+#else
+        const int flags = ::fcntl(listener_.value, F_GETFL, 0);
+        if (flags < 0 ||
+            ::fcntl(
+                listener_.value, F_SETFL, flags | O_NONBLOCK) != 0)
+        {
+            listener_.close();
+            return;
+        }
+#endif
+        port_ = ntohs(address.sin_port);
+    }
+
+    ExternalLoopbackListener(const ExternalLoopbackListener &) = delete;
+    ExternalLoopbackListener &operator=(const ExternalLoopbackListener &) =
+        delete;
+
+    ~ExternalLoopbackListener()
+    {
+        listener_.close();
+#ifdef _WIN32
+        if (winsockInitialized_)
+            (void)::WSACleanup();
+#endif
+    }
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return listener_.value != kInvalidLocalSocket && port_ != 0U;
+    }
+
+    [[nodiscard]] std::uintptr_t nativeSocket() const noexcept
+    {
+        return valid()
+            ? static_cast<std::uintptr_t>(listener_.value)
+            : OwnedNativeTcpSocket::kInvalidSocket;
+    }
+
+    [[nodiscard]] std::uint16_t port() const noexcept
+    {
+        return port_;
+    }
+
+private:
+    LocalSocket listener_{};
+    std::uint16_t port_{};
+#ifdef _WIN32
+    WSADATA wsa_{};
+    bool winsockInitialized_{};
+#endif
+};
+
 [[nodiscard]] bool waitForLocalSocketReady(
     LocalSocketId socket,
     bool wantRead,
@@ -3000,6 +3107,280 @@ void testOwnedRuntimeTlsHandshake(const char *certificatePath,
         assert(result.outcome == TlsApplicationIoOutcome::TransportClosed);
         assertRuntimeTransportRevoked(owner, pair);
     }
+}
+
+[[nodiscard]] std::optional<std::uint16_t>
+parseExternalLoopbackPort(std::string_view text) noexcept
+{
+    if (text.empty())
+        return std::nullopt;
+
+    std::uint32_t parsed = 0U;
+    const auto result = std::from_chars(
+        text.data(), text.data() + text.size(), parsed);
+    if (result.ec != std::errc{} ||
+        result.ptr != text.data() + text.size() ||
+        parsed > (std::numeric_limits<std::uint16_t>::max)())
+    {
+        return std::nullopt;
+    }
+    return static_cast<std::uint16_t>(parsed);
+}
+
+[[nodiscard]] std::uint64_t currentPortableNtlmFileTime() noexcept
+{
+    constexpr std::uint64_t kWindowsToUnixEpochHundredNanoseconds =
+        116444736000000000ULL;
+    const auto unixNanoseconds =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    if (unixNanoseconds <= 0)
+        return 0U;
+
+    const auto unixHundredNanoseconds =
+        static_cast<std::uint64_t>(unixNanoseconds) / 100U;
+    if (unixHundredNanoseconds >
+        (std::numeric_limits<std::uint64_t>::max)() -
+            kWindowsToUnixEpochHundredNanoseconds)
+    {
+        return 0U;
+    }
+    return kWindowsToUnixEpochHundredNanoseconds +
+           unixHundredNanoseconds;
+}
+
+[[nodiscard]] int runExternalCredSspTypeThreeLoopbackHarness(
+    std::uint16_t requestedPort) noexcept
+{
+    using Clock = std::chrono::steady_clock;
+    using FrameStatus = StandaloneCredSspFrameStatus;
+    using ReadStatus = TsRequestTlsReadStatus;
+    using WriteStatus = TsRequestTlsWriteStatus;
+
+    ExternalLoopbackListener listener{requestedPort};
+    if (!listener.valid())
+        return 1;
+
+    RuntimeServerTlsContext tlsContext =
+        RuntimeServerTlsContext::fromGeneratedIpAddress("127.0.0.1");
+    if (!tlsContext ||
+        tlsContext.validateEndpointIdentity("127.0.0.1") !=
+            rdp_server::server::runtime::
+                RuntimeTlsEndpointIdentityStatus::Match)
+    {
+        return 1;
+    }
+
+    rdp_server::server::runtime::RuntimeTlsCertificateFingerprint
+        certificateFingerprint{};
+    if (!tlsContext.certificateSha256Fingerprint(
+            certificateFingerprint) ||
+        std::all_of(
+            certificateFingerprint.begin(),
+            certificateFingerprint.end(),
+            [](std::uint8_t byte) { return byte == 0U; }))
+    {
+        return 1;
+    }
+
+    // R6 may launch this executable as a child process, read the selected
+    // ephemeral port when requestedPort == 0, and then drive Microsoft
+    // CredSSP/SSPI against the endpoint-bound target below.
+    std::fprintf(
+        stdout,
+        "RDP_PREAUTH_LOOPBACK_READY endpoint=127.0.0.1:%u "
+        "tls-identity=127.0.0.1 service-target=TERMSRV/127.0.0.1\n",
+        static_cast<unsigned int>(listener.port()));
+    std::fflush(stdout);
+
+    const auto deadline = Clock::now() + std::chrono::seconds{30};
+    TcpAcceptResult accepted{};
+    while (Clock::now() < deadline)
+    {
+        accepted = acceptNonblockingTcpConnection(listener.nativeSocket());
+        if (accepted.outcome == TcpAcceptOutcome::Accepted)
+            break;
+        if (accepted.outcome != TcpAcceptOutcome::WouldBlock)
+            return 1;
+        std::this_thread::sleep_for(std::chrono::milliseconds{1});
+    }
+    if (accepted.outcome != TcpAcceptOutcome::Accepted ||
+        !accepted.connection.valid())
+    {
+        return 1;
+    }
+
+    OwnedPreauthTcpConnection connection{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+
+    // Production X.224/HYBRID selection and the exact R1 TLS state machine are
+    // exercised here. The harness contributes no client-side protocol bytes.
+    while (connection.active() &&
+           connection.ioInterest() != TcpConnectionIoInterest::ConfigureTls &&
+           Clock::now() < deadline)
+    {
+        const auto polled =
+            connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        if (polled.outcome == TcpConnectionPollOutcome::Failure ||
+            polled.outcome == TcpConnectionPollOutcome::Expired ||
+            polled.outcome == TcpConnectionPollOutcome::Closed)
+        {
+            return 1;
+        }
+    }
+    if (!connection.active() ||
+        connection.ioInterest() != TcpConnectionIoInterest::ConfigureTls ||
+        connection.stage() != PreauthStage::AwaitTls ||
+        !connection.attachServerTls(tlsContext.createServerTls()))
+    {
+        return 1;
+    }
+
+    while (connection.active() &&
+           connection.establishedTls() == nullptr &&
+           Clock::now() < deadline)
+    {
+        const auto polled =
+            connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        if (polled.outcome == TcpConnectionPollOutcome::Failure ||
+            polled.outcome == TcpConnectionPollOutcome::Expired ||
+            polled.outcome == TcpConnectionPollOutcome::Closed)
+        {
+            return 1;
+        }
+    }
+
+    const auto provenance = connection.securityNegotiationProvenance();
+    if (!connection.active() ||
+        connection.establishedTls() == nullptr ||
+        connection.stage() != PreauthStage::AwaitCredSsp ||
+        !provenance.has_value() ||
+        provenance->serverSelectedProtocol != kRdpProtocolHybrid)
+    {
+        return 1;
+    }
+
+    StandaloneCredSspNtlmAcceptor acceptor;
+    const NtlmServerChallenge challenge{
+        0x01U, 0x23U, 0x45U, 0x67U,
+        0x89U, 0xabU, 0xcdU, 0xefU};
+    const std::uint64_t timestampFileTime =
+        currentPortableNtlmFileTime();
+    if (timestampFileTime == 0U ||
+        !acceptor.configureChallenge(
+            {challenge,
+             kStandaloneNtlmPortableDomainName,
+             kStandaloneNtlmPortableServerName,
+             timestampFileTime}))
+    {
+        return 1;
+    }
+
+    EphemeralNtlmV2Credential credential;
+    std::array<char16_t, 8> password{
+        u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+    if (!credential.configure(u"User", password))
+        return 1;
+
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+
+    while (connection.active() && Clock::now() < deadline)
+    {
+        if (writer.status() != WriteStatus::Idle)
+        {
+            const auto written = writer.writeOneTlsStep(connection);
+            switch (written.status)
+            {
+            case WriteStatus::Progress:
+                continue;
+            case WriteStatus::NeedRead:
+            case WriteStatus::NeedWrite:
+                break;
+            case WriteStatus::Complete:
+                if (!writer.releaseReply())
+                    return 1;
+                continue;
+            case WriteStatus::Invalid:
+            case WriteStatus::Closed:
+            case WriteStatus::Idle:
+                return 1;
+            }
+
+            const auto polled =
+                connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            if (polled.outcome == TcpConnectionPollOutcome::Failure ||
+                polled.outcome == TcpConnectionPollOutcome::Expired ||
+                polled.outcome == TcpConnectionPollOutcome::Closed)
+            {
+                return 1;
+            }
+            continue;
+        }
+
+        const auto read = reader.readOneTlsStep(connection);
+        switch (read.status)
+        {
+        case ReadStatus::Progress:
+            continue;
+        case ReadStatus::NeedRead:
+        case ReadStatus::NeedWrite:
+        {
+            const auto polled =
+                connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+            if (polled.outcome == TcpConnectionPollOutcome::Failure ||
+                polled.outcome == TcpConnectionPollOutcome::Expired ||
+                polled.outcome == TcpConnectionPollOutcome::Closed)
+            {
+                return 1;
+            }
+            continue;
+        }
+        case ReadStatus::Complete:
+            break;
+        case ReadStatus::Closed:
+        case ReadStatus::Invalid:
+            return 1;
+        }
+
+        const FrameStatus frame = acceptor.processCompleteOwnedFrame(
+            connection, reader, writer, credential);
+
+        // This is the deliberate R1/R6 handoff. Type 3 has crossed X.224,
+        // HYBRID, the endpoint-bound TLS channel and the production CredSSP
+        // parser. Stop before native Admission/MCS regardless of whether the
+        // same final TSRequest would later pass pubKeyAuth or credentials.
+        if (acceptor.lastNtlmMessageType() == 3U)
+        {
+            std::fprintf(
+                stdout,
+                "RDP_PREAUTH_LOOPBACK_TYPE3 observed "
+                "tls-identity=127.0.0.1 "
+                "service-target=TERMSRV/127.0.0.1\n");
+            std::fflush(stdout);
+            return 0;
+        }
+
+        if (frame == FrameStatus::Rejected ||
+            frame == FrameStatus::CredentialsVerified)
+        {
+            return 1;
+        }
+        if (frame != FrameStatus::NegoReplyQueued &&
+            frame != FrameStatus::BindingReplyQueued)
+        {
+            return 1;
+        }
+    }
+
+    std::fprintf(
+        stderr,
+        "rdp-server-test: preauth loopback ended before Type 3; "
+        "termination=%u ntlm-message-type=%u\n",
+        static_cast<unsigned int>(connection.termination()),
+        static_cast<unsigned int>(acceptor.lastNtlmMessageType()));
+    return 1;
 }
 
 void testOwnedGeneratedIpHybridTlsClientVerification()
@@ -11839,6 +12220,15 @@ int main(int argc, char **argv)
     if (argc >= 2 && argv[1] != nullptr)
     {
         const std::string_view fixtureCase{argv[1]};
+        if (fixtureCase == "tcp-owned-credssp-type3-loopback-harness")
+        {
+            if (argc != 3 || argv[2] == nullptr)
+                return 2;
+            const auto port = parseExternalLoopbackPort(argv[2]);
+            if (!port.has_value())
+                return 2;
+            return runExternalCredSspTypeThreeLoopbackHarness(*port);
+        }
         if (fixtureCase == "tcp-owned-runtime-tls-handshake")
         {
             if (argc != 4 || argv[2] == nullptr || argv[3] == nullptr)

@@ -1,3 +1,27 @@
+## Agent 5/6 native certificate-policy test targets (2026-10-26)
+
+`test_windows_certificate_policy` is Windows-only and links the existing
+`rdp-server-runtime-tls`, `OpenSSL::Crypto` and SDK `crypt32`.
+`test_macos_certificate_policy` is macOS-only and links the same runtime TLS
+library and OpenSSL crypto plus the existing Security and CoreFoundation
+framework handles. Both are test-only; neither is installed or linked into the
+server.
+
+The behavior-named CTests are
+`security.windows-generated-tls-certificate-policy-profiles` and
+`security.macos-generated-tls-certificate-policy-profiles`. Linux adds no
+executable or duplicate CTest: Agent 5 consumes the existing
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` runtime
+gate and strengthens the existing
+`runtime.linux-host-control-native-desktop-bounded-post-share` source
+contract. The full-CREDSSP matrix keeps its existing executable and linkage;
+only non-secret diagnostic output is extended.
+
+All configuration/build/test commands continue to use the canonical single
+`build/` root. CI runs the platform certificate-policy CTest verbosely after
+the Debug build so trust/name/policy observations are visible for the exact
+publication SHA.
+
 ## Agent 1 TLS/certificate differential build surface (2026-10-26)
 
 The TLS diagnostic change adds no production target, library, dependency, install/export surface, runtime switch or second build root. Linux runtime security continues to consume OpenSSL through the existing `rdp-server-runtime-tls` owner; the host-control terminal record only projects the established connection's bounded public metadata.

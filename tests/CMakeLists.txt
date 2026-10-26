@@ -232,6 +232,52 @@ if(WIN32)
         PROPERTIES
         LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
         TIMEOUT 45)
+
+    # Test-only Windows certificate-policy oracle. The current production leaf
+    # and endpoint-CN comparison leaf are trusted only by an exclusive in-memory
+    # application store; no machine/user trust store is modified.
+    add_executable(test_windows_certificate_policy
+        test_windows_certificate_policy.cpp)
+    target_link_libraries(test_windows_certificate_policy PRIVATE
+        rdp-server-runtime-tls
+        OpenSSL::Crypto
+        crypt32)
+    if(MSVC)
+        target_compile_options(test_windows_certificate_policy PRIVATE
+            /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_windows_certificate_policy PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME security.windows-generated-tls-certificate-policy-profiles
+        COMMAND test_windows_certificate_policy)
+    set_tests_properties(
+        security.windows-generated-tls-certificate-policy-profiles
+        PROPERTIES
+        LABELS "security;tls;certificate;windows;interop;offline"
+        TIMEOUT 30)
+endif()
+
+# Test-only macOS Security.framework certificate-policy oracle. Custom anchors
+# are scoped to each SecTrust object and network fetching is disabled; no
+# Keychain, system trust-store or user prompt is used.
+if(APPLE)
+    add_executable(test_macos_certificate_policy
+        test_macos_certificate_policy.cpp)
+    target_link_libraries(test_macos_certificate_policy PRIVATE
+        rdp-server-runtime-tls
+        OpenSSL::Crypto
+        "${RDP_SERVER_SECURITY_FRAMEWORK}"
+        "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}")
+    target_compile_options(test_macos_certificate_policy PRIVATE
+        -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    add_test(NAME security.macos-generated-tls-certificate-policy-profiles
+        COMMAND test_macos_certificate_policy)
+    set_tests_properties(
+        security.macos-generated-tls-certificate-policy-profiles
+        PROPERTIES
+        LABELS "security;tls;certificate;macos;interop;offline"
+        TIMEOUT 30)
 endif()
 
 # R2 standalone NTLM transcript MIC and connection-oriented SIGN/SEAL state.

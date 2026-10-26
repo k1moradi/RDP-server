@@ -1,3 +1,32 @@
+## Agent 5/6 certificate-policy and hosted-client observations are non-authorizing (2026-10-26)
+
+Native certificate-policy comparisons belong to test code. The current profile
+must obtain its leaf from `RuntimeServerTlsContext::fromGeneratedIpAddress`;
+an endpoint-CN comparison certificate may exist only in test fixtures. Neither
+result by itself authorizes a production Common Name, SAN, TLS identity,
+Type-2 TargetName/TargetInfo/MsvAvTargetName or target-profile change.
+
+On macOS, scope custom anchors to the individual `SecTrust`, exclude built-in
+anchors for the oracle and disable network fetching. On Windows, use a
+nondefault chain engine with an exclusive in-memory trusted-people store and
+disable network/AIA retrieval. Never modify a Keychain, user/machine
+certificate store or system trust policy. Report trust separately from endpoint
+name/policy; on Windows also keep purpose and time/chain failures distinct.
+
+The existing production Type-1 observer remains the single parser for hosted
+CREDSSP diagnostics. Test output may additionally identify the non-secret raw
+token class/message type, compare total Type-1 bytes with the physical trace,
+and report negotiated TLS version/cipher, target string and generated
+certificate profile. Do not log domain/workstation contents or any credential,
+challenge-response, session-key or delegated data.
+
+Pre-Type-3 Linux native dormancy is a construction-boundary invariant as well
+as a status invariant. The production-backed two-peer Type-2/EOF test must
+remain without native/graphics/framebuffer readiness, and source checks must
+keep X11 capture, XTEST/input and capture-generation creation behind the
+existing `GraphicsReady` native-owner gate. Do not add a pre-admission native
+probe merely to prove absence.
+
 ## Physical TLS diagnostics are bounded, public and non-authorizing (2026-10-26)
 
 Capture negotiated TLS presentation metadata only from the already-established R1 `SSL*`, never from a parallel TLS owner. Cipher/CN text is fixed-capacity; certificate CN is logged only when printable ASCII and otherwise reports `redacted`. Client SNI is reduced to presence plus IP/DNS/none class rather than retaining the name. IP/DNS SAN observations, certificate fingerprint and exact-endpoint self-check are diagnostics only and cannot create CredSSP, native Admission, MCS, Share, graphics, input or clipboard authority.

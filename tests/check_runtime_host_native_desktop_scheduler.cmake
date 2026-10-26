@@ -208,7 +208,34 @@ foreach(token IN LISTS native_child_retirement_tokens)
     set(previous ${position})
 endforeach()
 
-# Fresh X11 ownership remains post-authentication only.
+# Fresh X11 ownership remains post-authentication only. The X11 aggregate's
+# constructor is the production point that creates capture and XTEST/input
+# resources, so keeping the constructor unreachable before GraphicsReady also
+# keeps capture generations/framebuffer publication dormant before Type 3.
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::X11DesktopResources(" x11_constructor_begin)
+string(FIND "${x11_desktop_source}"
+    "X11DesktopResources::~X11DesktopResources() noexcept"
+    x11_constructor_end)
+if(x11_constructor_begin LESS 0 OR
+   x11_constructor_end LESS_EQUAL x11_constructor_begin)
+    message(FATAL_ERROR "unable to isolate X11 native desktop constructor")
+endif()
+math(EXPR x11_constructor_length
+    "${x11_constructor_end} - ${x11_constructor_begin}")
+string(SUBSTRING "${x11_desktop_source}" ${x11_constructor_begin}
+    ${x11_constructor_length} x11_constructor_source)
+foreach(required_text IN ITEMS
+        "capture_.emplace("
+        "input_.emplace("
+        "captureGeneration_ = allocateNativeCaptureGeneration()")
+    string(FIND "${x11_constructor_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "X11 capture/XTEST/framebuffer construction seam missing: ${required_text}")
+    endif()
+endforeach()
+
 string(FIND "${host_source}"
     "RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept"
     initialize_native_begin)
@@ -233,6 +260,17 @@ foreach(required_text IN ITEMS
             "fresh post-authentication R5 construction gate missing: ${required_text}")
     endif()
 endforeach()
+
+string(FIND "${initialize_native_source}"
+    "acceptedClientPhase_ != AcceptedClientPhase::GraphicsReady"
+    graphics_ready_gate)
+string(FIND "${initialize_native_source}"
+    "visitNativeDesktopSelection(" native_selection)
+if(graphics_ready_gate LESS 0 OR native_selection LESS 0 OR
+   NOT graphics_ready_gate LESS native_selection)
+    message(FATAL_ERROR
+        "pre-Type-3 state can reach native X11 selection before GraphicsReady")
+endif()
 
 string(FIND "${host_source}"
     "void LinuxRuntimeHostControl::retireAcceptedClient(" retire_client_begin)

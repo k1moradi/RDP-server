@@ -1,3 +1,41 @@
+## Agent 5/6 generated-certificate and hosted-client differential gate (2026-10-26)
+
+For endpoint `192.168.1.5`, native platform tests compare two fresh leaves:
+the exact current production-generated profile (CN `RDP Server` plus IP SAN
+`192.168.1.5`) and a test-only endpoint-CN profile (CN
+`192.168.1.5` plus the same IP SAN). Production certificate generation is
+unchanged.
+
+The macOS oracle uses Security.framework SSL-server policy, per-`SecTrust`
+custom anchors only, built-in anchors excluded and network fetching disabled.
+It reports custom-anchor trust independently from hostname/policy evaluation.
+The Windows oracle uses a nondefault CryptoAPI chain engine with an exclusive
+in-memory trusted-people store and cached/no-AIA evaluation; it reports
+trusted-under-test-anchor, endpoint name match, server-auth purpose, time
+validity, chain status and SSL policy error. Neither test may persist trust or
+prompt the user.
+
+If the current macOS profile is trusted and name-matches when custom-anchored,
+generic CN is not a Security.framework name-matching defect. If the current
+profile is trusted but name-fails while the endpoint-CN control passes, retain
+that exact-SHA evidence for escalation; do not change production in this gate.
+
+The Windows full-CREDSSP matrix keeps the shared production Type-1 parser and
+all fixed-name/IP-SPN/bare-IP cases. Its structural output additionally reports
+raw token class/message type and explicitly compares the hosted Type-1 length
+with the physical `40`-byte trace while retaining the physical
+`0xe2088235` flag comparison. Every matrix attempt also reports negotiated
+TLS version, cipher, SSPI target string and the non-secret production
+certificate profile.
+
+For Linux, keep using
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` for the
+production-backed two-peer Type-2/EOF boundary. The complementary
+`runtime.linux-host-control-native-desktop-bounded-post-share` source contract
+must prove X11 capture, XTEST/input and capture-generation construction remain
+downstream of `GraphicsReady`. These gates do not manufacture Type 3, native
+Admission or a positive X11 owner.
+
 ## Physical TLS/certificate differential qualification (2026-10-26)
 
 The production accepted-connection diagnostic regression must prove bounded capture of negotiated TLS version/cipher, absent/DNS/IP SNI classification, safe certificate CN classification/value and IP/DNS SAN-type presence without retaining SNI text, TLS secrets or credentials. The fail-only physical terminal record keeps the existing selected endpoint, SHA-256 fingerprint and exact-IP SAN self-check.

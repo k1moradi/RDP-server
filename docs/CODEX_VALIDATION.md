@@ -1,3 +1,39 @@
+## Agent 5/6 P0 supporting validation receipt — certificate/client differential (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `ab2256d0d75c942fd81cae6f510f90d988682448`.
+
+This increment is test/diagnostic/CI/documentation only. Production continues
+to use the generated CN `RDP Server` + endpoint IP SAN and fixed Type-2
+`RDP-SERVER`. It changes no TargetName, TargetInfo, MsvAvTargetName,
+target-profile selection, TLS certificate generator, CredSSP framing,
+logind/native Admission or desktop implementation.
+
+Validation surfaces added or extended:
+
+- macOS Security.framework current-vs-endpoint-CN certificate policy using only
+  per-trust custom anchors, with built-in anchors excluded and network fetch
+  disabled;
+- Windows CryptoAPI current-vs-endpoint-CN certificate policy using an
+  exclusive in-memory trusted-people chain engine, separating trust, name,
+  server-auth purpose, time and chain-policy results;
+- existing Microsoft full-CREDSSP Type-1 structural output extended with
+  raw-token/message kind, explicit hosted-vs-physical 40-byte comparison and
+  per-attempt TLS version/cipher/target/certificate profile;
+- existing Linux two-peer Type-2/EOF runtime coverage retained, while the
+  native-desktop source contract additionally pins X11 capture, XTEST/input and
+  capture-generation construction behind `GraphicsReady`;
+- exact-SHA protocol CI runs the native certificate-policy CTest verbosely on
+  Windows and macOS so successful trust/name/policy observations are retained
+  in job output.
+
+**Connector/source review:** **PASS by inspection** on the reconciled parent.
+**Native build/CTest:** **NOT RUN** in this connector environment.
+**Exact-publication-SHA hosted CI:** **PENDING**.
+**Physical Windows App/macOS and Linux/X11 acceptance:** **NOT RUN**.
+No observation below Type 3 is represented as credential verification, native
+Admission, MCS, Share, graphics, X11 ownership or clipboard authority.
+
 ## Agent 1 hosted Linux compile failure/correction receipt — 2026-10-26
 
 Exact SHA `9fa22d5ca728fe5dc6eca8200663a6869cb54063` reached GitHub Actions workflow `40339785393`. CI workflow structure and documentation-policy gates passed, but Linux protocol job `121631208633` **FAILED** during Debug compile before CTest. Compiler evidence identified only the introduced OpenSSL typed-stack macro qualification and mixed-const initializer-list issues in the certificate-profile work. The correction removes the invalid `::` qualifier from `sk_GENERAL_NAME_value` and makes the three-certificate iteration an explicit `std::array<const X509 *, 3>`. No wire, TLS policy, certificate profile, authentication or target-identity behavior changes.

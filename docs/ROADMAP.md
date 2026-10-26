@@ -1,3 +1,54 @@
+## Agent 5/6 P0 supporting — certificate policy and physical-client differential instrumentation (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `ab2256d0d75c942fd81cae6f510f90d988682448`. Concurrent Agent-1 TLS
+diagnostics, R4/R8 dormancy and Agent-2 Type-1 observation are preserved. The
+physical Linux/X11 boundary remains production Type 2 fully committed ->
+Await-Type-3 -> peer EOF, with Type 3 and every downstream authority not
+reached. Hosted Microsoft NTLM and full-CREDSSP fixed/IP target cases already
+reach Type 3, so production remains exactly `fixed-name / RDP-SERVER`.
+
+Agent 5 adds native, test-only certificate-policy comparisons for
+`192.168.1.5`. The macOS Security.framework oracle evaluates the exact
+production-generated CN `RDP Server` + IP SAN leaf and a test-only
+endpoint-CN + identical IP-SAN profile using only per-trust custom anchors,
+built-in-anchor exclusion and disabled network fetch. The Windows CryptoAPI
+oracle performs the same profile comparison through a nondefault chain engine
+with an exclusive in-memory trusted-people store and no persistent trust
+mutation. Both separate trust from endpoint-name policy; Windows additionally
+reports server-auth purpose, time validity and chain status. CI runs the native
+policy CTest verbosely on macOS and Windows so these observations are visible
+on the exact SHA.
+
+Agent 6 consumes Agent 2's single production Type-1 structural observer rather
+than adding a parser. The full-CREDSSP output now identifies the raw Direct-NTLM
+Type-1/message kind, compares hosted Type-1 byte length explicitly with the
+physical `bytes=40` baseline while retaining the `flags=0xe2088235`
+comparison, and reports negotiated TLS version, cipher, SSPI target string and
+production generated-certificate profile for every fixed-name/IP-SPN/bare-IP
+attempt. The target matrix and production Type 2 are unchanged.
+
+Linux reuses the existing two-peer Type-2/EOF production lifecycle and
+strengthens the existing native-desktop source contract to pin X11 capture,
+XTEST/input and capture-generation construction behind the
+`GraphicsReady` native-owner gate. No duplicate lifecycle CTest, logind or
+native-admission change is introduced.
+
+**Authoring verification:** connector/source reconciliation against the
+reconciled parent **PASS by inspection**. Native Windows CryptoAPI/MSVC, macOS
+Security.framework/Clang, Linux owner-root build/CTest and physical X11 are
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI is
+**PENDING**. No certificate-policy result is claimed before the native tests
+execute.
+
+**Next gate:** consume the exact-SHA platform policy output together with the
+existing full-CREDSSP matrix. If the current macOS certificate is custom-anchor
+trusted and name-matches, generic CN is not the Security.framework
+name-matching defect. If it is trusted but name-fails while endpoint-CN passes,
+escalate that exact evidence without independently changing production. Compare
+the hosted Type-1/TLS profile with the next physical Windows App trace before
+selecting a new client-environment hypothesis.
+
 ## Agent 1 P0 — hosted Linux compile portability correction (2026-10-26)
 
 **Failed exact implementation SHA:** `9fa22d5ca728fe5dc6eca8200663a6869cb54063`, workflow `40339785393`, Linux protocol job `121631208633`. Configure passed, then Debug compile failed in the new TLS certificate fixture because OpenSSL's typed-stack `sk_GENERAL_NAME_value` accessor is a macro and cannot be prefixed with `::`, and because an inferred initializer list mixed `const X509 *` with mutable `X509 *`.

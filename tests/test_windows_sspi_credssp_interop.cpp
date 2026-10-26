@@ -1423,6 +1423,19 @@ public:
         return tls_ ? SSL_get_max_proto_version(tls_.get()) : 0;
     }
 
+    [[nodiscard]] const char *negotiatedTlsVersionName() const noexcept
+    {
+        return tlsReady() ? SSL_get_version(tls_.get()) : "none";
+    }
+
+    [[nodiscard]] const char *negotiatedCipherName() const noexcept
+    {
+        if (!tlsReady())
+            return "none";
+        const SSL_CIPHER *const cipher = SSL_get_current_cipher(tls_.get());
+        return cipher != nullptr ? SSL_CIPHER_get_name(cipher) : "none";
+    }
+
     [[nodiscard]] std::size_t inputBioPendingBytes() const noexcept
     {
         return inputBio_ != nullptr
@@ -2536,6 +2549,7 @@ struct FullCredSspAttempt final
     CredSspPumpResult initialPump{};
     CredSspPumpResult nextPump{};
     bool typeOneObserved{};
+    bool directNtlmTypeOneAccepted{};
     std::size_t typeOneTokenBytes{};
     NtlmNegotiateMessage typeOne{};
     NtlmChallengeMessageObservation typeTwo{};
@@ -2574,11 +2588,15 @@ void printClientProfileObservation(
     std::fprintf(
         stderr,
         "microsoft-credssp-type1-profile target=%s observed=yes "
-        "bytes=%zu flags=0x%08lx version-present=%s "
+        "raw-token=%s message-type=1 bytes=%zu flags=0x%08lx "
+        "version-present=%s "
         "version=%u.%u.%u ntlm-revision=0x%02x "
         "domain-supplied=%s workstation-supplied=%s "
         "domain-field-bytes=%zu workstation-field-bytes=%zu\n",
         targetLabel(profile),
+        result.directNtlmTypeOneAccepted
+            ? "direct-ntlm-type1"
+            : "spnego-or-other",
         result.typeOneTokenBytes,
         static_cast<unsigned long>(typeOne.negotiateFlags),
         typeOne.versionPresent ? "yes" : "no",
@@ -2591,6 +2609,7 @@ void printClientProfileObservation(
         typeOne.domainFieldBytes,
         typeOne.workstationFieldBytes);
 
+    constexpr std::size_t physicalTypeOneBytes = 40U;
     constexpr std::uint32_t physicalTypeOneFlags = 0xe2088235U;
     constexpr std::uint32_t physicalTypeTwoFlags = 0xe08a8235U;
     constexpr std::size_t physicalTargetNameCodeUnits = 10U;
@@ -2613,6 +2632,8 @@ void printClientProfileObservation(
     std::fprintf(
         stderr,
         "microsoft-credssp-client-profile-differential target=%s "
+        "physical-type1-bytes=%zu hosted-type1-bytes=%zu "
+        "type1-bytes-match=%s "
         "physical-type1-flags=0x%08lx hosted-type1-flags=0x%08lx "
         "type1-flags-xor=0x%08lx physical-version=pending-observer "
         "hosted-version=%u.%u.%u/0x%02x "
@@ -2622,6 +2643,9 @@ void printClientProfileObservation(
         "physical-type2-bytes=%zu hosted-type2-bytes=%zu "
         "physical-av-ids=2,1,7,0 hosted-av-ids=",
         targetLabel(profile),
+        physicalTypeOneBytes,
+        result.typeOneTokenBytes,
+        result.typeOneTokenBytes == physicalTypeOneBytes ? "yes" : "no",
         static_cast<unsigned long>(physicalTypeOneFlags),
         static_cast<unsigned long>(typeOne.negotiateFlags),
         static_cast<unsigned long>(
@@ -2683,6 +2707,16 @@ void printClientProfileObservation(
     result.tlsEstablished = result.initialPump.tlsEstablished;
     result.negotiatedTlsVersion =
         result.initialPump.negotiatedTlsVersion;
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-tls-profile target=%s negotiated-tls=%s "
+        "cipher=%s target-string=%s "
+        "certificate-profile=generated-cn-rdp-server-ip-san "
+        "certificate-endpoint=192.168.1.5\n",
+        targetLabel(profile),
+        server.negotiatedTlsVersionName(),
+        server.negotiatedCipherName(),
+        targetLabel(profile));
     if (result.initialPump.stopReason !=
         CredSspPumpStopReason::BoundaryComplete)
     {
@@ -2697,6 +2731,8 @@ void printClientProfileObservation(
     result.productionTypeTwoQueued = true;
     const auto initialToken = server.initialTokenObservation();
     result.typeOneObserved = initialToken.ntlmTypeOneObserved;
+    result.directNtlmTypeOneAccepted =
+        initialToken.directNtlmType1Accepted;
     result.typeOneTokenBytes = initialToken.tokenBytes;
     result.typeOne = initialToken.ntlmTypeOne;
     if (!result.typeOneObserved)

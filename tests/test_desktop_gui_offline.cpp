@@ -1553,6 +1553,34 @@ int main(int argc, char** argv)
                 RuntimeAcceptedClientAdmissionFailureReason::None;
         runtime.snapshot.acceptedClientPreauthDiagnostics.termination =
             RuntimeAcceptedClientTermination::PeerEof;
+
+        // R10's current target observation is authoritative status, but it is
+        // not a typed target-identity failure diagnosis and cannot authorize
+        // target-rejection product language.
+        runtime.snapshot.listenerGeneration = 73U;
+        runtime.snapshot.connectionTargetIdentity.numericEndpointAddress =
+            "192.168.0.10";
+        runtime.snapshot.connectionTargetIdentity.port = 3389U;
+        runtime.snapshot.connectionTargetIdentity.targetClass =
+            RuntimeConnectionTargetClass::Ip;
+        runtime.snapshot.connectionTargetIdentity.serviceClass =
+            RuntimeConnectionServiceClass::Termsrv;
+        runtime.snapshot.connectionTargetIdentity.protocolServerIdentity =
+            u"RDP-SERVER";
+        runtime.snapshot.connectionTargetIdentity.serviceIdentityProfile =
+            RuntimeServiceIdentityProfile::FixedName;
+        runtime.snapshot.connectionTargetIdentity.startGeneration =
+            runtime.snapshot.listenerGeneration;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.clientTargetClass =
+            RuntimeConnectionTargetClass::Ip;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.serviceClass =
+            RuntimeConnectionServiceClass::Termsrv;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .serviceIdentityProfile =
+                RuntimeServiceIdentityProfile::FixedName;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .connectionTargetGeneration =
+                runtime.snapshot.listenerGeneration;
         runtime.interfaces = {
             RuntimeHostInterface{
                 "ethernet-1", "Private Ethernet",
@@ -1595,11 +1623,16 @@ int main(int argc, char** argv)
              {QStringLiteral("wrong password"),
               QStringLiteral("local desktop"),
               QStringLiteral("native admission"),
-              QStringLiteral("stage=admission")})
+              QStringLiteral("stage=admission"),
+              QStringLiteral("target identity"),
+              QStringLiteral("target principal"),
+              QStringLiteral("RDP-SERVER")})
         {
             assert(!availability->text().contains(
                 disallowedClaim, Qt::CaseInsensitive));
             assert(!diagnostic->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+            assert(!activity->text().contains(
                 disallowedClaim, Qt::CaseInsensitive));
         }
 

@@ -110,45 +110,50 @@ the exact production Type 2 and advances to the next client TSRequest. Only
 then may an IP-target production failure trigger the existing three bounded
 diagnostics or provide R2 evidence for a minimal target-profile change.
 
-## R7 P1 dependency recheck — pre-Type-3 client-failure presentation (2026-10-25)
+## R7 P1 dependency recheck — fixed-name target observation remains non-diagnostic (2026-10-26)
 
-**Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 evidence remains
-**986/986 CTest PASS** with the physical Microsoft Windows App reaching a fully
-committed production Type 2 and Await-Type-3 before peer EOF. Type 3,
-pubKeyAuth, authInfo, CredentialsVerified, native Admission, MCS and graphics
-are **NOT REACHED**.
+**Assignment main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled parent:** `dadb6f320294800ca922ad54d44d54b3f948c1a0`.
+Owner Linux/X11 reports **989/989 CTest PASS**. The physical Microsoft Windows
+App boundary remains TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 ->
+production Type 2 queued and fully committed through TLS -> Await-Type-3 ->
+peer EOF. Type 3, pubKeyAuth, authInfo, CredentialsVerified, native Admission,
+MCS, Share, graphics, X11 owner and clipboard are **NOT REACHED**.
 
-Other-agent progress has cleared both repository-side blockers previously
-observed by R7: `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11` fixes the
-target-identity assertion portability error, and parent `50676eaa0467f7f79883b1ebb977866a31b7e8f7` narrows
-the bootstrap clipboard source guard so its former `listener_.` failure is
-recognized as a test-only false positive. Neither change modifies production
-authentication or clipboard behavior.
+Microsoft native NTLM SSPI accepts the unchanged production Type 2 and emits
+Type 3, and the independent production Type-2 TSRequest oracle passes. The full
+Microsoft `CREDSSP` harness still provides no target-principal evidence:
+`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5` and bare
+`192.168.1.5` all reach TLS and stop at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest is
+produced/consumed. Because the portable-name control fails at the same boundary,
+this remains a harness round-progression defect, not evidence for selecting the
+dormant endpoint-bound production identity.
 
-The upstream Microsoft target-principal investigation remains **BLOCKED**:
-exact-SHA Windows run `40258471605` shows the portable-SPN, IP-SPN and bare-IP
-full-CredSSP cases all reaching TLS but stopping at
-`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)` before
-production Type 2. Because the control fails at the same boundary, this is still
-a harness/round-progression problem and does not establish a target-identity
-mismatch or authorize a production wire/profile change.
-
-R7 is not blocked by that upstream gate. Main stays
+R7 production presentation is unchanged: Main remains
 `Remote client authentication did not complete.`; exact delivered-challenge
 evidence permits Advanced Diagnostics to show
-`Client disconnected after authentication challenge.`. The GUI must not claim
-wrong password, local-desktop/native Admission failure or target-identity
-rejection without the corresponding typed runtime evidence. A failed peer keeps
-Sharing ON while listener/consent/credential authority remains current.
+`Client disconnected after authentication challenge.`. Wrong-password,
+local-desktop/native-Admission and target-identity rejection wording remain
+forbidden without their corresponding typed runtime evidence. Sharing remains
+ON after the interrupted peer while listener/consent/credential authority is
+current; the independent Session Password and safe local Username behavior are
+unchanged.
 
-This increment changes no TLS, SPNEGO, NTLM, CredSSP, target-profile,
-native-Admission, MCS, graphics, input or clipboard behavior. It registers
-`gui.offscreen-authentication-challenge-disconnect-product-language` using the
-existing authoritative fixture. Connector source/test reconciliation:
-**PASS by inspection**. Modified-tree configure/build/focused/full CTest:
-**NOT RUN** in this connector environment. Next R7 gate: exact-publication-SHA
-hosted qualification; target-identity-specific UX remains blocked until a
-typed diagnosis exists.
+This round strengthens the existing
+`gui.offscreen-authentication-challenge-disconnect-product-language` fixture:
+it now carries the authoritative R10 observation
+`ip / TERMSRV / fixed-name / RDP-SERVER` and proves that observation alone
+does not produce target-identity/target-principal product language. No protocol
+state is added to the GUI and no production TLS, SPNEGO, NTLM, CredSSP,
+target-profile, native Admission, MCS, Share, graphics, input or clipboard code
+changes.
+
+Connector source/test/doc reconciliation: **PASS by inspection**. Modified-tree
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Next R7 gate: keep the existing product-language tests green. The next physical
+Linux owner run remains **BLOCKED** until the Microsoft full-CredSSP oracle
+itself reaches the production Type 2.
+
 
 ## R10 CI source-contract reconciliation after target-identity ownership — 2026-10-25
 

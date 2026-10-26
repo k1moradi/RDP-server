@@ -481,14 +481,26 @@ XTEST or a native desktop owner. It does not synthesize physical-session
 evidence and does not weaken the detailed native-admission diagnostics used
 after Type 3/pubKeyAuth/authInfo complete.
 
-## R7 Type-2 peer-EOF GUI presentation gate (2026-10-25)
+## R7 Type-2 peer-EOF GUI presentation gate (updated 2026-10-26)
 
-Current owner evidence is Linux/X11 full CTest **986/986 PASS**
-plus the physical Microsoft Windows App path through TCP, X.224/HYBRID, TLS,
-Direct NTLM Type 1, production Type 2 completely committed through TLS and
-Await-Type-3, followed by peer EOF before Type 3. pubKeyAuth, authInfo,
-CredentialsVerified, native Admission, MCS and graphics/native desktop are not
+Assignment-time remote main is
+`ddba1f369f9a5cb3756610a7119e20a8bf864666`; owner Linux/X11 reports full CTest **989/989 PASS**. The
+physical Microsoft Windows App path remains TCP, X.224/HYBRID, TLS, Direct NTLM
+Type 1, production Type 2 completely committed through TLS and Await-Type-3,
+followed by peer EOF before Type 3. pubKeyAuth, authInfo, CredentialsVerified,
+native Admission, MCS, Share, graphics/native desktop and clipboard are not
 reached.
+
+Microsoft native NTLM SSPI accepts the unchanged production Type 2 and emits
+Type 3, and the independent production Type-2 TSRequest oracle passes. The
+Windows full-`CREDSSP` harness is not yet target-principal evidence: the
+portable `TERMSRV/RDP-SERVER` control, the IP-SPN case and the bare-IP case
+all stop after TLS at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest. Treat
+that common boundary as a harness round-progression defect. Do not select an
+endpoint-bound production identity or change Type-2/TLS/SPNEGO behavior from
+this result. A new physical Linux candidate remains blocked until the full
+Microsoft CredSSP oracle reaches the production Type 2.
 
 The retained runtime boundary is authentication-level:
 `NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`.
@@ -501,10 +513,15 @@ NTLM protocol details on Main. When `directNtlmTypeTwoDelivered` is true,
 Advanced may show `Client disconnected after authentication challenge.`. The
 same case must clear only that delivery receipt and prove the GUI falls back to
 a less-specific redacted authentication diagnostic rather than inferring
-delivery from the challenge stage. Target-identity mismatch language is
-permitted only when a typed runtime diagnosis explicitly reports that
-condition; tests must not infer it from the destination address or fixed server
-TargetName.
+delivery from the challenge stage.
+
+Populate that fixture with the authoritative current R10 target observation
+(`clientTargetClass=ip`, service class `TERMSRV`, profile `fixed-name`,
+protocol identity `RDP-SERVER`, matching listener/target generation) and prove
+those facts alone do not produce target-identity/target-principal rejection
+language. Target-identity mismatch wording is permitted only when a typed
+runtime diagnosis explicitly reports that condition; never infer it from the
+destination address, TargetName, service profile or protocol identity.
 
 The historical contradictory
 `Admission/Failed/Admission/admission=None/PeerEof` tuple must remain
@@ -515,9 +532,8 @@ after one failed peer. Ordinary Stop/Start credential-retention coverage
 remains separate and must stay green.
 
 This GUI gate does not validate or alter Type-2 wire bytes and must not change
-Linux native admission, MCS, graphics or clipboard. Do not nominate another
-Linux physical candidate until a Microsoft-native Windows SSPI test consumes
-the production Type 2 and produces a Type 3 Authenticate message.
+Linux native admission, MCS, graphics or clipboard.
+
 
 ## Direct NTLM Type-2 delivery and peer-EOF gates (2026-10-25)
 

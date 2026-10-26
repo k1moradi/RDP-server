@@ -72,31 +72,40 @@ preserved. Source/test/doc reconciliation: **PASS by inspection**. Modified-tree
 build/CTest: **NOT RUN**; production/test source is unchanged. Exact-publication
 hosted CI: **PENDING**.
 
-## R7 pre-Type-3 client-failure presentation dependency recheck — 2026-10-25
+## R7 fixed-name target observation product-language recheck — 2026-10-26
 
-**Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 baseline: **986/986 CTest
-PASS**. Exact-SHA Windows run `40258471605` still has all three Microsoft
-full-CredSSP target forms stop at `server-initial-tsrequest` with
-`SEC_I_CONTINUE_NEEDED (0x00090312)` before production Type 2, so no
-target-principal conclusion is available. The prior Linux bootstrap clipboard
-source-contract failure is resolved by parent `50676eaa0467f7f79883b1ebb977866a31b7e8f7` as a test-slice
-false positive; production runtime/clipboard behavior is unchanged.
+**Assignment main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled parent:** `dadb6f320294800ca922ad54d44d54b3f948c1a0`.
+Owner Linux/X11 reports **989/989 CTest PASS**. The physical Microsoft Windows
+App still reaches a fully committed production Type 2 and Await-Type-3 before
+peer EOF; Type 3, pubKeyAuth, authInfo, CredentialsVerified, native Admission,
+MCS, Share, graphics/X11 and clipboard remain **NOT REACHED**.
 
-R7 changes only presentation: a completely delivered authentication challenge
-followed by peer close maps to
-`Client disconnected after authentication challenge.` in Advanced
-Diagnostics while Main remains
-`Remote client authentication did not complete.`. The focused fixture also
-forbids wrong-password, local-desktop/native-Admission and
-`stage=admission` claims, and the new behavior-named CTest is
-`gui.offscreen-authentication-challenge-disconnect-product-language`.
+Microsoft native NTLM SSPI accepts the unchanged production Type 2 and emits
+Type 3, and the independent production Type-2 TSRequest oracle passes. The full
+Microsoft `CREDSSP` target harness currently stops identically for
+`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5` and bare
+`192.168.1.5`: TLS is reached, then `server-initial-tsrequest` reports
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest is
+produced/consumed. This is therefore a harness round-progression defect, not
+evidence for endpoint-bound production identity or target-rejection UX.
 
-No TLS/SPNEGO/NTLM/CredSSP bytes, target-profile selection, native Admission,
-MCS, graphics, input or clipboard behavior changes. Connector source/test/doc
-reconciliation: **PASS by inspection**. Modified-tree local configure/build and
-CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
-CI: **PENDING**. Next gate: keep the product-language tests green; do not show
-target-identity rejection until a typed runtime diagnosis exists.
+Production GUI source already has the required presentation and is unchanged.
+The existing behavior-named CTest
+`gui.offscreen-authentication-challenge-disconnect-product-language` is
+strengthened to carry the authoritative R10
+`ip / TERMSRV / fixed-name / RDP-SERVER` observation and to reject
+target-identity/target-principal wording in Main, activity and Advanced
+diagnostics without a typed diagnosis. Existing wrong-password and native
+Admission exclusions, Sharing retention, empty independent Session Password
+and safe local Username behavior remain intact.
+
+Connector source/test/doc reconciliation: **PASS by inspection**. Modified-tree
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+No production TLS/SPNEGO/NTLM/CredSSP, target-profile, native Admission, MCS,
+graphics, input or clipboard source changes. Next physical Linux owner run
+remains **BLOCKED** until the Microsoft full-CredSSP oracle itself reaches
+production Type 2.
+
 
 ## R10 bootstrap dormancy source-scope correction — 2026-10-25
 

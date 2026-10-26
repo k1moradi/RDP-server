@@ -1,3 +1,28 @@
+## Standalone CredSSP target identity boundaries (2026-10-25)
+
+Treat four names as separate interoperability inputs unless Microsoft evidence
+requires a deliberate relationship:
+
+1. the R10-selected TLS endpoint identity, for example `192.168.1.5`;
+2. the NTLM CHALLENGE_MESSAGE TargetName;
+3. TargetInfo `MsvAvTargetName`, when that AV pair is present; and
+4. the client CredSSP/RDP service target, conceptually `TERMSRV/<target>`.
+
+Current production uses portable Type-2 TargetName `RDP-SERVER`, current
+TargetInfo without `MsvAvTargetName`, and receives no endpoint/service target
+inside the deterministic encoder. Do not silently make these fields aliases.
+
+If Microsoft-native evidence selects an endpoint-bound production profile, R10
+must provide the already-authoritative selected endpoint/service identity through
+an explicit bounded configuration API. The NTLM encoder must not discover it
+from DNS, hostname, environment variables, process `DISPLAY`, local account
+state, or the remote standalone Username.
+
+Client NTLMv2 `MsvAvTargetName`, `MsvAvFlags`, and
+`MsvAvChannelBindings` are authenticated blob data. Preserve legitimate
+bounded values through proof verification. Never disable channel binding or
+fabricate a zero channel-binding value as an interoperability workaround.
+
 ## Pre-Type-3 peer close never creates MCS authority (2026-10-25)
 
 A Direct NTLM connection that has fully committed production Type 2 through TLS

@@ -1,3 +1,34 @@
+## Agent 1/9 owner-candidate TLS diagnostic sentinel correction — 2026-10-26
+
+**Reconciled parent:** `eb927e151d430c16209a05bca27e5fe40465fe96`. Exact-parent workflow `40348799825` has the
+Agent-9 owner-candidate producer dependencies **PASS**: CI structure, Linux/macOS/Windows protocol,
+Windows Clang, R9 security sanitizers, owner GUI credential parity and documentation policy.
+The separately queued self-hosted clean-Windows packaging job is not a dependency of
+`r9-credssp-owner-candidate`.
+
+Source reconciliation found one qualification-only stale sentinel. Agent 10's retained terminal
+diagnostic now emits the contiguous format
+`tls-version=%s tls-cipher-id=0x%04x tls-cipher=%.*s`, while the manual Agent-9 aggregate still
+searched for the older adjacent `tls-version=%s tls-cipher=%.*s` text. A manual candidate
+dispatch would therefore fail its source-presence check even though the real TLS version/cipher
+diagnostic is present and its producers are green.
+
+This correction updates only the manual gate's source sentinel to the current bounded
+version/cipher-id/cipher format and adds the same literal to the workflow structure validator's
+required-token inventory. Production TLS policy, certificate bytes/profile, SNI handling, NTLM
+Type 1/Type 2, CredSSP framing, target selection and every authorization boundary are **UNCHANGED**.
+No physical-client evidence is inferred.
+
+**Validation at authoring:** connector source/transformation review **PASS** against the exact
+parent. Canonical owner one-`build/` configure/build/CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and explicit Agent-9 manual owner-candidate dispatch:
+**PENDING**.
+
+**Next gate:** qualify the publication SHA through its ordinary push producer jobs, then explicitly
+dispatch `r9_credssp_owner_candidate=true`. Do not request another physical Linux/X11 attempt
+until that manual aggregate passes. The next physical success criterion remains
+`direct-ntlm-type3=received`.
+
 ## Agent 1 exact-SHA sanitizer compile correction after retained diagnostics — 2026-10-26
 
 **Reconciled authoring parent:** `ee1bd259b6922720d0eb882c4c71217591838b04`. Exact-parent workflow

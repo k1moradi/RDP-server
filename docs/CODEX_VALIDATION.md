@@ -1,3 +1,24 @@
+## Agent 1/9 owner-candidate TLS sentinel correction receipt — 2026-10-26
+
+**Authoring parent:** `eb927e151d430c16209a05bca27e5fe40465fe96`. Workflow `40348799825` proves all dependencies named by
+`r9-credssp-owner-candidate` are **PASS** at that SHA: workflow structure, protocol matrix,
+Windows Clang, R9 security sanitizers, owner GUI credential parity and documentation policy.
+The clean-Windows self-hosted packaging lane remains a separate release-evidence track and is not
+in the candidate job's `needs` list.
+
+Inspection found that the candidate's Linux TLS diagnostic source check had drifted behind Agent
+10: the source emits
+`tls-version=%s tls-cipher-id=0x%04x tls-cipher=%.*s`, but the manual gate searched for
+`tls-version=%s tls-cipher=%.*s`. The correction aligns that sentinel and pins the current
+literal in `scripts/validate_ci_workflow.py`. This is CI qualification metadata only; runtime
+TLS/certificate behavior, generated identity, fixed-name `RDP-SERVER`, Type-2 bytes/profile and
+authentication/admission state are unchanged.
+
+Connector source/transformation review: **PASS**. Canonical owner one-`build/` local
+configure/build/focused/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
+**PENDING**. Manual `r9_credssp_owner_candidate` workflow dispatch: **PENDING** until the new
+publication SHA's producer jobs are green.
+
 ## Agent 1 retained-diagnostics sanitizer correction receipt — 2026-10-26
 
 **Authoring parent:** `ee1bd259b6922720d0eb882c4c71217591838b04`; workflow `40344070701`. Exact-parent

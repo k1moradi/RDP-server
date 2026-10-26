@@ -213,6 +213,7 @@ REQUIRED_TOKENS = (
     "r9-owner-gui-credential-parity",
     "r9_credssp_owner_candidate",
     "r9-credssp-owner-candidate",
+    "tls-version=%s tls-cipher-id=0x%04x tls-cipher=%.*s",
     "security.windows-sspi-production-type2-interop",
     "security.windows-sspi-production-type2-physical-ip-target",
     "security.windows-credssp-production-control-target-next-token",

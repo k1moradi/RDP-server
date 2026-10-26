@@ -2133,7 +2133,7 @@ jobs:
           grep -Fq 'security.windows-generated-tls-certificate-policy-profiles' tests/CMakeLists.txt
           grep -Fq 'security.macos-generated-tls-certificate-policy-profiles' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-connection-tls-acceptance-diagnostics' tests/CMakeLists.txt
-          grep -Fq 'tls-version=%s tls-cipher=%.*s' \
+          grep -Fq 'tls-version=%s tls-cipher-id=0x%04x tls-cipher=%.*s' \
             src/server/runtime/linux_runtime_host_control.cpp
           grep -Fq 'Primary Microsoft Windows NTLM and CredSSP target differential' \
             .github/workflows/ci.yml

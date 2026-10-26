@@ -1,3 +1,13 @@
+## Full-CredSSP per-call evidence and Type-3 acceptance gate (2026-10-26)
+
+The bounded Windows CREDSSP memory-BIO pump must emit one non-secret structural record for every `InitializeSecurityContextW` call: target profile, phase, symbolic status, exact hexadecimal status, input bytes, output bytes, retained `SECBUFFER_EXTRA` bytes, total retained provider input, `SECBUFFER_MISSING` bytes when reported, whether the call used a zero-length TOKEN, whether TLS is finished, whether the initial client TSRequest is already established, whether Microsoft has consumed the committed production Type 2, whether that call produced the next client TSRequest token, and whether Type 3 has been independently observed. Do not log credentials, challenge/response bytes, keys or delegated credential material.
+
+A zero-output `SEC_I_CONTINUE_NEEDED` remains a state classification, not automatic failure. The pump may make a zero-length TOKEN+EMPTY continuation only from its existing explicit SSPI-owned continuation state; a repeated call with no changed SSPI/TLS/application/buffer state must terminate through the bounded no-progress path. `SEC_E_INCOMPLETE_MESSAGE` retains the complete provider input and reports any `SECBUFFER_MISSING`; `SECBUFFER_EXTRA` remains retained for the next continuation. This records the behavior under Microsoft's provider instead of silently treating empty output as a malformed exchange. Microsoft Learn's `InitializeSecurityContext (CredSSP)` contract remains the API reference for TOKEN+EMPTY continuation and possibly empty continuation output.
+
+The portable production control passes only when all of these are independently true: TLS completed; the first client TSRequest was parsed; production parsed Type 1; the unchanged production Type 2 was fully committed through TLS; Microsoft consumed that Type-2 input without incomplete-message; Microsoft generated a next client token; the server parsed the next client TSRequest; and that decrypted request contains an NTLM Type-3 signature. pubKeyAuth/authInfo/native Admission remain outside this P0 boundary. A next TSRequest without Type 3 is a failing `next-client-tsrequest-without-type3` result and cannot unlock the IP-target matrix or diagnostic identity experiments.
+
+Keep `security.windows-sspi-production-type2-interop` as the independent inner Microsoft NTLM oracle. The three existing full-CredSSP CTests remain the behavior-named matrix, so this test-only strengthening does not add a duplicate executable or CTest registration.
+
 ## Microsoft full-CredSSP memory-BIO round-progression gate (2026-10-26)
 
 All three Windows full-`CREDSSP` target cases must use the same bounded

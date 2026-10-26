@@ -1,3 +1,11 @@
+## Agent 6 full-CredSSP Type-3/per-call evidence receipt — 2026-10-26
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled authoring parent:** `cfdc0727e28de105e6de5828a6da9b56e615340f`. Owner-supplied Linux/X11 evidence remains **989/989 CTest PASS** on the assignment SHA. Physical Microsoft Windows App evidence remains fully committed production Type 2 -> Await-Type-3 -> peer EOF; Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard are not reached.
+
+The concurrent R1 test-only memory-BIO repair is preserved. Review against the Agent-6 acceptance contract found that its pump already handles bounded TLS/application progression and SSPI-owned no-wire continuation, but its production success predicate still accepted any next client TSRequest even when `productionObservedTypeThree == false`, and its immediate per-call logging exposed status only. This follow-up makes Type-3 signature observation mandatory for production/control success and adds the requested non-secret per-`InitializeSecurityContextW` evidence, including exact input/output/EXTRA/MISSING/zero-TOKEN fields and progression booleans. The failure pump trace carries the same byte-level SSPI evidence.
+
+Production source and wire/profile bytes are unchanged. The existing inner Microsoft NTLM Type-2 oracle, R8 harness-isolation source contract, R1 one-provider-operation pump correction and R10 non-authorizing target-tuple work remain intact. Connector transformation/source review: **PASS**. Modified-tree native Windows compile, focused control/IP-SPN/bare-IP CTests and full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted execution: **PENDING**. The next physical Linux run and all target-principal conclusions remain **BLOCKED** until an exact-SHA Windows run proves the portable full-CredSSP control consumes production Type 2 and yields a next TSRequest containing Type 3.
+
 ## R1 Microsoft full-CredSSP memory-BIO pump repair — 2026-10-26
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled publication parent:**

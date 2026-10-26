@@ -1,3 +1,13 @@
+## Agent 6 P0 — full-CredSSP Type-3 and per-call evidence gate (2026-10-26)
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled authoring parent:** `cfdc0727e28de105e6de5828a6da9b56e615340f`. Owner Linux/X11 baseline remains **989/989 CTest PASS** for the assignment SHA. The physical Microsoft Windows App still stops after a completely committed production Type 2 at Await-Type-3 with peer EOF; Type 3 and all downstream authority remain **NOT REACHED**.
+
+R1's concurrent memory-BIO pump repair is retained rather than replaced. It removes the strict ping-pong transport assumption, performs one bounded OpenSSL provider operation per pump iteration, preserves buffered TLS/application state and supports an SSPI-owned no-wire continuation. Agent 6 closes two remaining P0 evidence gaps: every CREDSSP `InitializeSecurityContextW` call now reports phase, symbolic and hexadecimal result, input/output byte counts, retained EXTRA/total input, requested MISSING bytes, zero-length TOKEN use, TLS-finished state, initial-TSRequest state, production-Type-2 consumption, next-client-TSRequest production and Type-3 observation; and a production attempt is no longer accepted unless the decrypted next client TSRequest independently contains an NTLM Type-3 signature.
+
+The existing three production target CTests remain the matrix. `TERMSRV/RDP-SERVER` is still the mandatory control; IP-SPN and bare-IP results have no target-principal authority unless that control reaches first TSRequest -> unchanged production Type 2 -> Microsoft consumption -> next TSRequest -> observed Type 3. The existing single-property Type-2 identity diagnostics remain gated behind a fresh successful control and remain fail-only. The independent `security.windows-sspi-production-type2-interop` inner NTLM oracle is unchanged.
+
+No production TLS, SPNEGO, Type-2 flags/TargetName/TargetInfo/MsvAvTargetName, certificate identity, target-profile selection, native Admission, MCS, Share, graphics, input or clipboard code is changed. Connector source reconciliation: **PASS**. Modified-tree Windows compile, focused three full-CredSSP CTests and full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted CI: **PENDING**. **Next gate:** exact-SHA Windows execution must make the portable control reach observed Type 3 before the target matrix can be interpreted or another physical Linux owner run can be nominated.
+
 ## R1 P1 — Microsoft full-CredSSP memory-BIO round progression (2026-10-26)
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled publication parent:** `420a91168ae0faffc2c5decc744aaad44b9b6f42`.

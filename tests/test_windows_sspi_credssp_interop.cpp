@@ -702,7 +702,11 @@ struct CredSspClientStep final
     SECURITY_STATUS status{SEC_E_INTERNAL_ERROR};
     ULONG contextAttributes{};
     AllocatedSspiToken output{};
+    std::size_t inputBytes{};
     std::size_t retainedServerInputBytes{};
+    std::size_t retainedExtraBytes{};
+    std::size_t missingBytes{};
+    bool zeroLengthInputToken{};
     bool stateChanged{};
 };
 
@@ -862,6 +866,9 @@ public:
             continuationWithoutWireAllowed_;
         const std::size_t providerInputBytes =
             pendingServerInput_.size();
+        result.inputBytes = providerInputBytes;
+        result.zeroLengthInputToken =
+            contextWasValid && providerInputBytes == 0U;
 
         std::array<SecBuffer, 2> inputBuffers{};
         SecBufferDesc inputDescriptor{};
@@ -936,35 +943,48 @@ public:
                 result.status, context_, outputDescriptor);
         }
 
-        if (input != nullptr &&
-            result.status != SEC_E_INCOMPLETE_MESSAGE)
+        if (input != nullptr)
         {
-            if (inputBuffers[1].BufferType == SECBUFFER_EXTRA)
+            for (const SecBuffer &buffer : inputBuffers)
             {
-                const std::size_t extraBytes =
-                    inputBuffers[1].cbBuffer;
-                if (extraBytes > pendingServerInput_.size())
+                if (buffer.BufferType == SECBUFFER_MISSING)
                 {
-                    result.status = SEC_E_INVALID_TOKEN;
-                    pendingServerInput_.clear();
+                    result.missingBytes = (std::max)(
+                        result.missingBytes,
+                        static_cast<std::size_t>(buffer.cbBuffer));
+                }
+            }
+
+            if (result.status != SEC_E_INCOMPLETE_MESSAGE)
+            {
+                if (inputBuffers[1].BufferType == SECBUFFER_EXTRA)
+                {
+                    const std::size_t extraBytes =
+                        inputBuffers[1].cbBuffer;
+                    result.retainedExtraBytes = extraBytes;
+                    if (extraBytes > pendingServerInput_.size())
+                    {
+                        result.status = SEC_E_INVALID_TOKEN;
+                        pendingServerInput_.clear();
+                    }
+                    else
+                    {
+                        const std::size_t extraOffset =
+                            pendingServerInput_.size() - extraBytes;
+                        if (extraBytes != 0U)
+                        {
+                            std::memmove(
+                                pendingServerInput_.data(),
+                                pendingServerInput_.data() + extraOffset,
+                                extraBytes);
+                        }
+                        pendingServerInput_.resize(extraBytes);
+                    }
                 }
                 else
                 {
-                    const std::size_t extraOffset =
-                        pendingServerInput_.size() - extraBytes;
-                    if (extraBytes != 0U)
-                    {
-                        std::memmove(
-                            pendingServerInput_.data(),
-                            pendingServerInput_.data() + extraOffset,
-                            extraBytes);
-                    }
-                    pendingServerInput_.resize(extraBytes);
+                    pendingServerInput_.clear();
                 }
-            }
-            else
-            {
-                pendingServerInput_.clear();
             }
         }
 
@@ -1030,6 +1050,62 @@ private:
     bool needsMoreServerBytes_{};
     bool continuationWithoutWireAllowed_{};
 };
+
+[[nodiscard]] const char *credSspClientStepDisposition(
+    const CredSspClientStep &step) noexcept
+{
+    if (step.status == SEC_E_INCOMPLETE_MESSAGE)
+        return "incomplete-message";
+    if (!credSspClientStatusCanContinue(step.status))
+        return "hard-error";
+    if (!step.output.empty())
+        return "output-generated";
+    if (step.retainedExtraBytes != 0U)
+        return "extra-input-retained";
+    if (step.status == SEC_E_OK)
+        return "context-complete";
+    if (step.status == SEC_I_CONTINUE_NEEDED)
+        return "local-continuation-allowed";
+    return "peer-input-required";
+}
+
+void printCredSspClientCall(
+    TargetProfile profile,
+    const char *phase,
+    const CredSspClientStep &step,
+    bool tlsFinished,
+    bool initialTsRequestSeen,
+    bool productionTypeTwoConsumed,
+    bool nextClientTsRequestProduced,
+    bool typeThreeObserved) noexcept
+{
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-call target=%s phase=%s status=%s "
+        "code=0x%08lx input-bytes=%zu output-bytes=%zu "
+        "retained-extra-bytes=%zu retained-input-bytes=%zu "
+        "missing-bytes=%zu zero-token-input=%s disposition=%s "
+        "tls-finished=%s initial-tsrequest-seen=%s "
+        "production-type2-consumed=%s "
+        "next-client-tsrequest-produced=%s type3-observed=%s\n",
+        targetLabel(profile),
+        phase,
+        securityStatusName(step.status),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(step.status)),
+        step.inputBytes,
+        step.output.view().size(),
+        step.retainedExtraBytes,
+        step.retainedServerInputBytes,
+        step.missingBytes,
+        step.zeroLengthInputToken ? "yes" : "no",
+        credSspClientStepDisposition(step),
+        tlsFinished ? "yes" : "no",
+        initialTsRequestSeen ? "yes" : "no",
+        productionTypeTwoConsumed ? "yes" : "no",
+        nextClientTsRequestProduced ? "yes" : "no",
+        typeThreeObserved ? "yes" : "no");
+}
 
 enum class TlsAdvance : std::uint8_t
 {
@@ -1452,8 +1528,13 @@ struct CredSspPumpIteration final
     std::size_t serverInputBioPendingBytes{};
     std::size_t serverOutputBioPendingBytes{};
     std::size_t serverApplicationPendingBytes{};
+    std::size_t microsoftInputBytes{};
+    std::size_t microsoftOutputBytes{};
     std::size_t microsoftRetainedServerInputBytes{};
+    std::size_t microsoftRetainedExtraBytes{};
+    std::size_t microsoftMissingBytes{};
     SECURITY_STATUS microsoftStatus{SEC_E_INTERNAL_ERROR};
+    bool microsoftZeroLengthInputToken{};
     bool serverTlsStateChanged{};
     bool serverApplicationFrameCompleted{};
     bool microsoftSspiCalled{};
@@ -1483,6 +1564,7 @@ struct CredSspPumpResult final
     int negotiatedTlsVersion{};
     bool tlsEstablished{};
     bool productionReplyCommitted{};
+    bool productionTypeTwoConsumed{};
     bool microsoftOutputGenerated{};
 };
 
@@ -1663,14 +1745,45 @@ struct CredSspPumpResult final
             iteration.microsoftSspiCalled = true;
             iteration.microsoftSspiStateChanged =
                 pendingClientStep.stateChanged;
+            iteration.microsoftInputBytes =
+                pendingClientStep.inputBytes;
+            iteration.microsoftOutputBytes =
+                pendingClientStep.output.view().size();
             iteration.microsoftStatus =
                 pendingClientStep.status;
             iteration.microsoftRetainedServerInputBytes =
                 pendingClientStep.retainedServerInputBytes;
+            iteration.microsoftRetainedExtraBytes =
+                pendingClientStep.retainedExtraBytes;
+            iteration.microsoftMissingBytes =
+                pendingClientStep.missingBytes;
+            iteration.microsoftZeroLengthInputToken =
+                pendingClientStep.zeroLengthInputToken;
             result.lastClientStatus =
                 pendingClientStep.status;
-            printClientStatus(
-                profile, phase, pendingClientStep.status);
+
+            const bool productionTypeTwoConsumedThisCall =
+                sendQueuedProductionReply &&
+                productionReplyCommitted &&
+                pendingClientStep.inputBytes != 0U &&
+                pendingClientStep.status != SEC_E_INCOMPLETE_MESSAGE &&
+                securityStatusSucceeded(pendingClientStep.status);
+            result.productionTypeTwoConsumed =
+                result.productionTypeTwoConsumed ||
+                productionTypeTwoConsumedThisCall;
+            const bool nextClientTsRequestProduced =
+                sendQueuedProductionReply &&
+                result.productionTypeTwoConsumed &&
+                !pendingClientStep.output.empty();
+            printCredSspClientCall(
+                profile,
+                phase,
+                pendingClientStep,
+                server.tlsReady(),
+                boundary == CredSspPumpBoundary::NextClientTsRequest,
+                result.productionTypeTwoConsumed,
+                nextClientTsRequestProduced,
+                false);
 
             if (!credSspClientStatusCanContinue(
                     pendingClientStep.status))
@@ -1731,6 +1844,7 @@ struct FullCredSspAttempt final
     bool initialClientTsRequestReceived{};
     bool productionTypeTwoQueued{};
     bool productionTypeTwoTlsCommitted{};
+    bool productionTypeTwoConsumed{};
     bool microsoftNextTokenGenerated{};
     bool nextClientTsRequestReceived{};
     bool productionObservedTypeThree{};
@@ -1792,6 +1906,8 @@ struct FullCredSspAttempt final
     result.lastClientStatus = result.nextPump.lastClientStatus;
     result.productionTypeTwoTlsCommitted =
         result.nextPump.productionReplyCommitted;
+    result.productionTypeTwoConsumed =
+        result.nextPump.productionTypeTwoConsumed;
     result.microsoftNextTokenGenerated =
         result.nextPump.microsoftOutputGenerated;
     if (result.nextPump.negotiatedTlsVersion != 0)
@@ -1814,7 +1930,9 @@ struct FullCredSspAttempt final
     {
         return result;
     }
-    result.stage = "none";
+    result.stage = result.productionObservedTypeThree
+        ? "none"
+        : "next-client-tsrequest-without-type3";
     return result;
 }
 
@@ -1873,7 +1991,9 @@ void printPumpTrace(
             "sspi-called=%s sspi-state-changed=%s "
             "app-state-changed=%s buffered-state-changed=%s "
             "rbio-pending=%zu wbio-pending=%zu ssl-pending=%zu "
-            "sspi-retained=%zu sspi-status=%s code=0x%08lx\n",
+            "sspi-input=%zu sspi-output=%zu sspi-retained=%zu "
+            "sspi-extra=%zu sspi-missing=%zu zero-token-input=%s "
+            "sspi-status=%s code=0x%08lx\n",
             phase, index,
             iteration.clientToServerBytes,
             iteration.serverToClientBytes,
@@ -1886,7 +2006,12 @@ void printPumpTrace(
             iteration.serverInputBioPendingBytes,
             iteration.serverOutputBioPendingBytes,
             iteration.serverApplicationPendingBytes,
+            iteration.microsoftInputBytes,
+            iteration.microsoftOutputBytes,
             iteration.microsoftRetainedServerInputBytes,
+            iteration.microsoftRetainedExtraBytes,
+            iteration.microsoftMissingBytes,
+            iteration.microsoftZeroLengthInputToken ? "yes" : "no",
             securityStatusName(iteration.microsoftStatus),
             static_cast<unsigned long>(
                 static_cast<std::uint32_t>(iteration.microsoftStatus)));
@@ -1912,7 +2037,8 @@ void printFailure(
         "microsoft-credssp target=%s stage=%s tls=%s "
         "tls-version=%s tls-min=%s tls-max=%s "
         "initial-tsrequest=%s type2-queued=%s type2-tls-committed=%s "
-        "type2-flags=0x%08lx type2-target-code-units=%zu "
+        "type2-consumed=%s type2-flags=0x%08lx "
+        "type2-target-code-units=%zu "
         "next-token=%s next-tsrequest=%s type3=%s "
         "type3-verified=%s pubkeyauth=%s\n",
         targetLabel(profile),
@@ -1924,6 +2050,7 @@ void printFailure(
         result.initialClientTsRequestReceived ? "yes" : "no",
         result.productionTypeTwoQueued ? "yes" : "no",
         result.productionTypeTwoTlsCommitted ? "yes" : "no",
+        result.productionTypeTwoConsumed ? "yes" : "no",
         static_cast<unsigned long>(result.typeTwoFlags),
         result.typeTwoTargetNameCodeUnits,
         result.microsoftNextTokenGenerated ? "yes" : "no",
@@ -1969,8 +2096,10 @@ int main(int argc, char **argv)
                attempt.initialClientTsRequestReceived &&
                attempt.productionTypeTwoQueued &&
                attempt.productionTypeTwoTlsCommitted &&
+               attempt.productionTypeTwoConsumed &&
                attempt.microsoftNextTokenGenerated &&
-               attempt.nextClientTsRequestReceived;
+               attempt.nextClientTsRequestReceived &&
+               attempt.productionObservedTypeThree;
     };
 
     const FullCredSspAttempt result =
@@ -1981,8 +2110,8 @@ int main(int argc, char **argv)
         std::fprintf(
             stderr,
             "microsoft-credssp target=%s production-type2=accepted "
-            "tls=%s next-client-token=yes type3=%s type3-verified=%s "
-            "pubkeyauth=%s\n",
+            "tls=%s type2-consumed=yes next-client-tsrequest=yes "
+            "type3=%s type3-verified=%s pubkeyauth=%s\n",
             targetLabel(profile),
             tlsVersionName(result.negotiatedTlsVersion),
             result.productionObservedTypeThree ? "yes" : "no",

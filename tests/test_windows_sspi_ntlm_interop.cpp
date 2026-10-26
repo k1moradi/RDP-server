@@ -35,6 +35,15 @@ constexpr ULONG kRequiredContextAttributes =
     ISC_RET_REPLAY_DETECT |
     ISC_RET_SEQUENCE_DETECT;
 
+// Keep the client service target independent from the Type-2 server TargetName.
+// The physical owner case connects to an IP endpoint while the current
+// production challenge still advertises the portable RDP-SERVER identity.
+wchar_t kPortableServiceTarget[] = L"TERMSRV/RDP-SERVER";
+wchar_t kPhysicalIpServiceTarget[] = L"TERMSRV/192.168.1.5";
+constexpr std::u16string_view kPhysicalIpTargetName{u"192.168.1.5"};
+constexpr std::u16string_view kPhysicalIpServiceSpn{
+    u"TERMSRV/192.168.1.5"};
+
 struct TokenBuffer final
 {
     std::array<std::uint8_t, kMaximumStandaloneNtlmMessageBytes> bytes{};
@@ -156,12 +165,13 @@ public:
     }
 
     [[nodiscard]] SECURITY_STATUS begin(
+        wchar_t *targetName,
         TokenBuffer &output,
         ULONG &contextAttributes) noexcept
     {
         output = {};
         contextAttributes = 0;
-        if (!credentialValid_)
+        if (!credentialValid_ || targetName == nullptr)
             return SEC_E_INVALID_HANDLE;
 
         SecBuffer outputBuffer{};
@@ -172,7 +182,6 @@ public:
         SecBufferDesc outputDescriptor{
             SECBUFFER_VERSION, 1U, &outputBuffer};
 
-        wchar_t targetName[] = L"TERMSRV/RDP-SERVER";
         TimeStamp expiry{};
         SECURITY_STATUS status = InitializeSecurityContextW(
             &credential_,
@@ -205,14 +214,18 @@ public:
     }
 
     [[nodiscard]] SECURITY_STATUS continueWithChallenge(
+        wchar_t *targetName,
         std::span<std::uint8_t> challenge,
         TokenBuffer &output,
         ULONG &contextAttributes) noexcept
     {
         output = {};
         contextAttributes = 0;
-        if (!credentialValid_ || !contextValid_ || challenge.empty())
+        if (!credentialValid_ || !contextValid_ || targetName == nullptr ||
+            challenge.empty())
+        {
             return SEC_E_INVALID_HANDLE;
+        }
 
         SecBuffer inputBuffer{};
         inputBuffer.cbBuffer =
@@ -504,6 +517,178 @@ enum class ChallengeVariant : std::uint8_t
     return false;
 }
 
+
+struct TargetIdentityProfile final
+{
+    const char *name{};
+    wchar_t *clientServiceTarget{};
+    std::u16string_view typeTwoTargetName{};
+    std::u16string_view targetInfoServiceTarget{};
+};
+
+[[nodiscard]] bool replaceTypeTwoTargetName(
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize,
+    std::u16string_view targetName) noexcept
+{
+    constexpr std::size_t challengeHeaderBytes = 56U;
+    if (messageSize < challengeHeaderBytes || messageSize > storage.size() ||
+        targetName.empty() ||
+        targetName.size() > kMaximumStandaloneNtlmServerNameCodeUnits)
+    {
+        return false;
+    }
+
+    const std::size_t oldTargetNameBytes = loadLe16(storage.data() + 12U);
+    const std::size_t oldTargetNameOffset = loadLe32(storage.data() + 16U);
+    const std::size_t targetInfoBytes = loadLe16(storage.data() + 40U);
+    const std::size_t oldTargetInfoOffset = loadLe32(storage.data() + 44U);
+    const std::size_t newTargetNameBytes = targetName.size() * 2U;
+    if (oldTargetNameOffset != challengeHeaderBytes ||
+        oldTargetInfoOffset != oldTargetNameOffset + oldTargetNameBytes ||
+        oldTargetInfoOffset > messageSize ||
+        targetInfoBytes > messageSize - oldTargetInfoOffset ||
+        oldTargetInfoOffset + targetInfoBytes != messageSize ||
+        newTargetNameBytes > 0xffffU)
+    {
+        return false;
+    }
+
+    const std::size_t newTargetInfoOffset =
+        oldTargetNameOffset + newTargetNameBytes;
+    const std::size_t newMessageSize =
+        newTargetInfoOffset + targetInfoBytes;
+    if (newMessageSize > storage.size())
+        return false;
+
+    std::memmove(
+        storage.data() + newTargetInfoOffset,
+        storage.data() + oldTargetInfoOffset,
+        targetInfoBytes);
+    for (std::size_t index = 0; index < targetName.size(); ++index)
+    {
+        storeLe16(
+            storage.data() + oldTargetNameOffset + index * 2U,
+            static_cast<std::uint16_t>(targetName[index]));
+    }
+
+    storeLe16(
+        storage.data() + 12U,
+        static_cast<std::uint16_t>(newTargetNameBytes));
+    storeLe16(
+        storage.data() + 14U,
+        static_cast<std::uint16_t>(newTargetNameBytes));
+    storeLe32(
+        storage.data() + 44U,
+        static_cast<std::uint32_t>(newTargetInfoOffset));
+    if (newMessageSize < messageSize)
+    {
+        std::fill(
+            storage.begin() + static_cast<std::ptrdiff_t>(newMessageSize),
+            storage.begin() + static_cast<std::ptrdiff_t>(messageSize),
+            std::uint8_t{0});
+    }
+    messageSize = newMessageSize;
+    return true;
+}
+
+[[nodiscard]] bool appendTargetInfoServiceTarget(
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize,
+    std::u16string_view serviceTarget) noexcept
+{
+    constexpr std::uint16_t msvAvEol = 0U;
+    constexpr std::uint16_t msvAvTargetName = 9U;
+    if (messageSize < 56U || messageSize > storage.size() ||
+        serviceTarget.empty())
+    {
+        return false;
+    }
+
+    const std::size_t targetInfoBytes = loadLe16(storage.data() + 40U);
+    const std::size_t targetInfoOffset = loadLe32(storage.data() + 44U);
+    if (targetInfoOffset > messageSize ||
+        targetInfoBytes > messageSize - targetInfoOffset ||
+        targetInfoOffset + targetInfoBytes != messageSize)
+    {
+        return false;
+    }
+
+    const std::size_t targetInfoEnd = targetInfoOffset + targetInfoBytes;
+    std::size_t eolOffset = targetInfoOffset;
+    while (eolOffset + 4U <= targetInfoEnd)
+    {
+        const std::uint16_t avId = loadLe16(storage.data() + eolOffset);
+        const std::size_t avBytes = loadLe16(storage.data() + eolOffset + 2U);
+        if (avId == msvAvEol)
+        {
+            if (avBytes != 0U || eolOffset + 4U != targetInfoEnd)
+                return false;
+            break;
+        }
+        if (avId == msvAvTargetName ||
+            avBytes > targetInfoEnd - (eolOffset + 4U))
+        {
+            return false;
+        }
+        eolOffset += 4U + avBytes;
+    }
+    if (eolOffset + 4U != targetInfoEnd)
+        return false;
+
+    const std::size_t serviceTargetBytes = serviceTarget.size() * 2U;
+    const std::size_t insertedBytes = 4U + serviceTargetBytes;
+    const std::size_t newTargetInfoBytes = targetInfoBytes + insertedBytes;
+    const std::size_t newMessageSize = messageSize + insertedBytes;
+    if (serviceTargetBytes > 0xffffU ||
+        newTargetInfoBytes > 0xffffU ||
+        newMessageSize > storage.size())
+    {
+        return false;
+    }
+
+    std::memmove(
+        storage.data() + eolOffset + insertedBytes,
+        storage.data() + eolOffset,
+        messageSize - eolOffset);
+    storeLe16(storage.data() + eolOffset, msvAvTargetName);
+    storeLe16(
+        storage.data() + eolOffset + 2U,
+        static_cast<std::uint16_t>(serviceTargetBytes));
+    for (std::size_t index = 0; index < serviceTarget.size(); ++index)
+    {
+        storeLe16(
+            storage.data() + eolOffset + 4U + index * 2U,
+            static_cast<std::uint16_t>(serviceTarget[index]));
+    }
+    storeLe16(
+        storage.data() + 40U,
+        static_cast<std::uint16_t>(newTargetInfoBytes));
+    storeLe16(
+        storage.data() + 42U,
+        static_cast<std::uint16_t>(newTargetInfoBytes));
+    messageSize = newMessageSize;
+    return true;
+}
+
+[[nodiscard]] bool applyTargetIdentityProfile(
+    const TargetIdentityProfile &profile,
+    std::span<std::uint8_t> storage,
+    std::size_t &messageSize) noexcept
+{
+    if (profile.clientServiceTarget == nullptr)
+        return false;
+    if (!profile.typeTwoTargetName.empty() &&
+        !replaceTypeTwoTargetName(
+            storage, messageSize, profile.typeTwoTargetName))
+    {
+        return false;
+    }
+    return profile.targetInfoServiceTarget.empty() ||
+           appendTargetInfoServiceTarget(
+               storage, messageSize, profile.targetInfoServiceTarget);
+}
+
 [[nodiscard]] bool applyVariant(
     ChallengeVariant variant,
     std::span<std::uint8_t> storage,
@@ -566,6 +751,7 @@ struct AttemptResult final
     std::uint32_t typeTwoFlags{};
     ULONG contextAttributes{};
     bool variantApplied{};
+    bool targetIdentityProfileApplied{};
     bool microsoftProducedTypeThree{};
     bool contextComplete{};
     bool securityAttributesSatisfied{};
@@ -574,7 +760,8 @@ struct AttemptResult final
 
 [[nodiscard]] AttemptResult runAttempt(
     ChallengeVariant variant,
-    std::uint64_t timestampFileTime) noexcept
+    std::uint64_t timestampFileTime,
+    const TargetIdentityProfile &identityProfile) noexcept
 {
     AttemptResult result{};
     SspiNtlmClient client;
@@ -586,7 +773,10 @@ struct AttemptResult final
     TokenBuffer typeOne;
     ULONG ignoredFirstAttributes = 0;
     result.failureStage = "initialize-type1";
-    result.firstStatus = client.begin(typeOne, ignoredFirstAttributes);
+    result.firstStatus = client.begin(
+        identityProfile.clientServiceTarget,
+        typeOne,
+        ignoredFirstAttributes);
     if (result.firstStatus != SEC_I_CONTINUE_NEEDED)
         return result;
 
@@ -624,6 +814,11 @@ struct AttemptResult final
         variant, typeTwo, typeTwoSize, result.typeOneFlags);
     if (!result.variantApplied)
         return result;
+    result.failureStage = "apply-target-identity-profile";
+    result.targetIdentityProfileApplied = applyTargetIdentityProfile(
+        identityProfile, typeTwo, typeTwoSize);
+    if (!result.targetIdentityProfileApplied)
+        return result;
     result.typeTwoFlags = loadLe32(typeTwo.data() + 20U);
     result.failureStage = "validate-single-delta";
     NtlmChallengeMessageObservation variantObservation;
@@ -638,6 +833,7 @@ struct AttemptResult final
     TokenBuffer typeThree;
     result.failureStage = "initialize-type3";
     result.secondStatus = client.continueWithChallenge(
+        identityProfile.clientServiceTarget,
         std::span<std::uint8_t>{typeTwo}.first(typeTwoSize),
         typeThree,
         result.contextAttributes);
@@ -674,6 +870,95 @@ void printStatus(
             static_cast<std::uint32_t>(status)));
 }
 
+
+[[nodiscard]] bool completeAttemptSucceeded(
+    const AttemptResult &result) noexcept
+{
+    return result.variantApplied &&
+           result.targetIdentityProfileApplied &&
+           result.microsoftProducedTypeThree &&
+           result.contextComplete &&
+           result.securityAttributesSatisfied &&
+           result.localVerificationPassed;
+}
+
+void printTargetIdentityAttempt(
+    const TargetIdentityProfile &profile,
+    const AttemptResult &result) noexcept
+{
+    std::fprintf(
+        stderr,
+        "microsoft-sspi-target-identity profile=%s stage=%s "
+        "type1-flags=0x%08lx type2-flags=0x%08lx "
+        "type3=%s complete=%s attributes=%s local-verify=%s\n",
+        profile.name,
+        result.failureStage,
+        static_cast<unsigned long>(result.typeOneFlags),
+        static_cast<unsigned long>(result.typeTwoFlags),
+        result.microsoftProducedTypeThree ? "yes" : "no",
+        result.contextComplete ? "yes" : "no",
+        result.securityAttributesSatisfied ? "yes" : "no",
+        result.localVerificationPassed ? "yes" : "no");
+    printStatus(
+        "microsoft-sspi-target-identity-type2-status",
+        result.secondStatus);
+}
+
+[[nodiscard]] int runTargetIdentityMatrix(
+    std::uint64_t timestampFileTime) noexcept
+{
+    const std::array profiles{
+        TargetIdentityProfile{
+            "control-portable-service",
+            kPortableServiceTarget,
+            {},
+            {}},
+        TargetIdentityProfile{
+            "physical-ip-client-portable-type2",
+            kPhysicalIpServiceTarget,
+            {},
+            {}},
+        TargetIdentityProfile{
+            "physical-ip-endpoint-target-name",
+            kPhysicalIpServiceTarget,
+            kPhysicalIpTargetName,
+            {}},
+        TargetIdentityProfile{
+            "physical-ip-endpoint-service-spn",
+            kPhysicalIpServiceTarget,
+            kPhysicalIpTargetName,
+            kPhysicalIpServiceSpn}};
+
+    bool matrixValid = true;
+    for (std::size_t index = 0; index < profiles.size(); ++index)
+    {
+        const AttemptResult result = runAttempt(
+            ChallengeVariant::Production,
+            timestampFileTime,
+            profiles[index]);
+        printTargetIdentityAttempt(profiles[index], result);
+
+        // The control must continue reproducing the established Microsoft
+        // SSPI PASS. Candidate rejection is evidence, not a test failure.
+        // If Microsoft does emit Type 3, however, the production parser and
+        // verifier must accept it and preserve requested context properties.
+        if (index == 0U)
+        {
+            matrixValid = matrixValid && completeAttemptSucceeded(result);
+        }
+        else
+        {
+            matrixValid =
+                matrixValid &&
+                result.variantApplied &&
+                result.targetIdentityProfileApplied &&
+                (!result.microsoftProducedTypeThree ||
+                 completeAttemptSucceeded(result));
+        }
+    }
+    return matrixValid ? 0 : 1;
+}
+
 void printAttemptFailure(
     ChallengeVariant variant,
     const AttemptResult &result) noexcept
@@ -698,8 +983,11 @@ void printAttemptFailure(
 
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
+    if (argc > 2 || (argc == 2 && argv[1] == nullptr))
+        return 2;
+
     const std::uint64_t timestampFileTime = currentWindowsFileTime();
     if (timestampFileTime == 0U)
     {
@@ -707,8 +995,23 @@ int main()
         return 1;
     }
 
+    if (argc == 2)
+    {
+        const std::string_view mode{argv[1]};
+        if (mode == "target-identity-matrix")
+            return runTargetIdentityMatrix(timestampFileTime);
+        return 2;
+    }
+
+    const TargetIdentityProfile controlIdentity{
+        "control-portable-service",
+        kPortableServiceTarget,
+        {},
+        {}};
     const AttemptResult production = runAttempt(
-        ChallengeVariant::Production, timestampFileTime);
+        ChallengeVariant::Production,
+        timestampFileTime,
+        controlIdentity);
     if (production.microsoftProducedTypeThree)
     {
         if (production.contextComplete &&
@@ -741,7 +1044,7 @@ int main()
     for (const ChallengeVariant variant : diagnosticVariants)
     {
         const AttemptResult diagnostic = runAttempt(
-            variant, timestampFileTime);
+            variant, timestampFileTime, controlIdentity);
         if (!diagnostic.variantApplied)
         {
             std::fprintf(

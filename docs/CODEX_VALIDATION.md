@@ -1,3 +1,46 @@
+## R9 full-CredSSP qualification/candidate authoring receipt — 2026-10-26
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.
+**Reconciled authoring parent:** `199009f3cdf51e5a0833358ccc2e5761748db9d8`. Owner Linux/X11 baseline is
+**989/989 CTest PASS**, but its physical report omitted `git rev-parse HEAD`,
+so it is not exact-SHA qualification evidence. Physical Windows App remains at
+fully committed production Type 2 -> Await-Type-3 -> peer EOF; Type 3 and every
+downstream native/session boundary remain not reached.
+
+Current main already contains R1's memory-BIO pump, Agent 6's Type-3/per-call
+evidence gate and fresh control-first target ordering. R9 preserves all three.
+It factors the SSPI pending-input storage without semantic change so
+`SECBUFFER_EXTRA` and `SEC_E_INCOMPLETE_MESSAGE` retention are directly
+testable, templates the same R1 pump over test providers, and adds a scripted
+multi-turn regression. Two new behavior-named Windows CTests cover harness
+integrity without relying on production wire encoders.
+
+Windows protocol CI produces a five-row exact-SHA NTLM/CREDSSP artifact and
+refuses to execute or interpret IP-SPN/bare-IP as differential evidence while
+the fixed-name Type-3 control fails. The manual owner-candidate aggregate
+consumes the artifact and pins Start/Stop, same-listener retry, independent
+TSRequest and pre-Type-3 dormancy gates. It prints the mandatory next-owner
+`git rev-parse HEAD` receipt instruction.
+
+Production Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, TLS
+certificate identity, SPNEGO/CredSSP production framing, native Admission, MCS,
+graphics, input and clipboard source are **UNCHANGED**. Concurrent work on this
+parent is preserved.
+
+Verification: current-main mandatory-document/affected-file reconciliation
+**PASS**; static source/CTest/CI and R8 harness-isolation review **PASS by
+inspection**; modified-tree Windows compile, two new Windows CTests and one-root
+full CTest **NOT RUN** in this connector environment; exact-publication-SHA
+hosted CI **PENDING**; explicit `r9_credssp_owner_candidate` dispatch
+**PENDING / BLOCKED** until all exact-SHA prerequisites and fixed-name Type-3
+control are green.
+
+**Next gate:** hosted Windows fixed-name full-CREDSSP must consume exact
+production Type 2 and return a next Microsoft TSRequest with Type 3. Only after
+the exact-SHA candidate aggregate passes may a physical Linux owner run be
+requested, and that receipt must capture `git rev-parse HEAD` before
+build/test.
+
 ## Agent 6 full-CredSSP Type-3/per-call evidence receipt — 2026-10-26
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled authoring parent:** `cfdc0727e28de105e6de5828a6da9b56e615340f`. Owner-supplied Linux/X11 evidence remains **989/989 CTest PASS** on the assignment SHA. Physical Microsoft Windows App evidence remains fully committed production Type 2 -> Await-Type-3 -> peer EOF; Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard are not reached.

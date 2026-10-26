@@ -1,3 +1,46 @@
+## R9 P0 — full-CredSSP qualification and exact-SHA candidate semantics (2026-10-26)
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.
+**Reconciled publication parent:** `199009f3cdf51e5a0833358ccc2e5761748db9d8`. Owner Linux/X11 reports
+**989/989 CTest PASS**, but that receipt omitted `git rev-parse HEAD` and is
+not exact-SHA candidate evidence. Physical Windows App remains at fully
+committed production Type 2 -> Await-Type-3 -> peer EOF; Type 3 and all
+downstream authority are **NOT REACHED**.
+
+Current main already contains R1's bounded memory-BIO pump, Agent 6's Type-3
+and per-call evidence gate, and fresh fixed-name-control-first target ordering.
+R9 adds independent qualification around that same pump: direct bounded tests
+for `SECBUFFER_EXTRA` and `SEC_E_INCOMPLETE_MESSAGE` retention plus a
+scripted shared-pump regression covering several TLS turns, successful
+zero-output `SEC_I_CONTINUE_NEEDED`, retained local re-pump, incomplete
+recovery, multiple peer operations and application data buffered across the
+TLS-ready transition.
+
+Windows protocol CI reports five separate exact-SHA results: NTLM fixed-name,
+NTLM IP target, CREDSSP fixed-name control, CREDSSP IP-SPN and CREDSSP bare-IP.
+The CREDSSP differential is `BLOCKED_CONTROL` unless fixed-name passes its
+Type-3 gate; only then are IP-SPN and bare-IP treated as target evidence and
+the matrix becomes `TYPED`. No production Type-2/TLS/SPNEGO/native or
+downstream behavior changes are authorized.
+
+The explicit `r9_credssp_owner_candidate` aggregate consumes that exact-SHA
+matrix and requires green workflow structure, Linux/macOS/Windows protocol and
+full CTest, Windows Clang23, sanitizer qualification, GUI credential parity and
+documentation. Sanitizer qualification directly pins the independent outer
+TSRequest oracle, Start -> Stop -> Start, failed-peer same-listener retry and
+pre-Type-3 native/MCS/graphics/clipboard dormancy.
+
+Connector reconciliation: **PASS by inspection**. Modified-tree Windows
+compile/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI and explicit owner-candidate dispatch:
+**PENDING**. No physical candidate is nominated here.
+
+**Next gate:** fixed-name full-CREDSSP must reach first client TSRequest ->
+exact production Type 2 -> next Microsoft TSRequest with Type 3. After every
+exact-SHA prerequisite is green, explicitly dispatch
+`r9_credssp_owner_candidate`. The next physical Linux owner receipt must
+capture `git rev-parse HEAD` before build/test.
+
 ## Agent 6 P0 — full-CredSSP Type-3 and per-call evidence gate (2026-10-26)
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled authoring parent:** `cfdc0727e28de105e6de5828a6da9b56e615340f`. Owner Linux/X11 baseline remains **989/989 CTest PASS** for the assignment SHA. The physical Microsoft Windows App still stops after a completely committed production Type 2 at Await-Type-3 with peer EOF; Type 3 and all downstream authority remain **NOT REACHED**.

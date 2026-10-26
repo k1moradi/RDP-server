@@ -201,6 +201,19 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
+      - name: Qualify Microsoft Windows CredSSP harness round progression
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^security[.]windows-credssp-harness-(stream-buffer-retention|multi-turn-round-progression)$'
+          inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          grep -Fq ': security.windows-credssp-harness-stream-buffer-retention' <<< "$inventory"
+          grep -Fq ': security.windows-credssp-harness-multi-turn-round-progression' <<< "$inventory"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 2
+          ctest --test-dir build --build-config Debug --timeout 30 -R "$selector" --verbose
+
       - name: Primary Microsoft Windows NTLM and CredSSP target differential
         if: runner.os == 'Windows'
         shell: bash
@@ -218,8 +231,44 @@ jobs:
             grep -Fq ": $required_test" <<< "$inventory"
           done
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 5
-          ctest --test-dir build --build-config Debug --timeout 45 \
-            -R "$selector" --verbose
+          result_file='build/r9-microsoft-interop-results.txt'
+          : > "$result_file"
+          run_case() {
+            local result_key="$1"
+            local test_name="$2"
+            local escaped_test_name="${test_name//./[.]}"
+            if ctest --test-dir build --build-config Debug --timeout 45 -R "^${escaped_test_name}$" --verbose; then
+              printf '%s=PASS test=%s\n' "$result_key" "$test_name" | tee -a "$result_file"
+              return 0
+            fi
+            printf '%s=FAIL test=%s\n' "$result_key" "$test_name" | tee -a "$result_file"
+            return 1
+          }
+          overall_status=0
+          run_case ntlm-fixed-name security.windows-sspi-production-type2-interop || overall_status=1
+          run_case ntlm-ip-target security.windows-sspi-production-type2-physical-ip-target || overall_status=1
+          if run_case credssp-fixed-name-control security.windows-credssp-production-control-target-next-token; then
+            run_case credssp-ip-spn-target security.windows-credssp-production-physical-ip-target-next-token || overall_status=1
+            run_case credssp-bare-ip-target security.windows-credssp-production-bare-ip-target-next-token || overall_status=1
+            printf 'credssp-target-differential=TYPED\n' | tee -a "$result_file"
+          else
+            overall_status=1
+            printf '%s\n' \
+              'credssp-ip-spn-target=BLOCKED_CONTROL test=security.windows-credssp-production-physical-ip-target-next-token' \
+              'credssp-bare-ip-target=BLOCKED_CONTROL test=security.windows-credssp-production-bare-ip-target-next-token' \
+              'credssp-target-differential=BLOCKED_CONTROL' | tee -a "$result_file"
+          fi
+          printf 'Microsoft NTLM/CredSSP candidate matrix:\n' >> "$GITHUB_STEP_SUMMARY"
+          cat "$result_file" >> "$GITHUB_STEP_SUMMARY"
+          exit "$overall_status"
+
+      - name: Upload exact-SHA Microsoft interop result matrix
+        if: ${{ always() && runner.os == 'Windows' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-microsoft-interop-${{ github.sha }}
+          path: build/r9-microsoft-interop-results.txt
+          if-no-files-found: error
       - name: Preflight and run focused R7 macOS lifecycle tests (Debug)
         if: runner.os == 'macOS'
         shell: bash
@@ -859,6 +908,8 @@ jobs:
             direct-ntlm-reconnect-stop-start-lifecycle
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-type2-peer-eof-pre-admission-diagnostics
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            connection-target-identity-retained-across-peer-retry
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             admission-denial-exposes-bounded-reason-and-retries
           build/tests/test_linux_gssapi_spnego \
@@ -1970,6 +2021,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Download exact-SHA Microsoft interop result matrix
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: r9-microsoft-interop-${{ github.sha }}
+          path: build/r9-microsoft-interop
       - name: Require exact-SHA CredSSP owner-candidate prerequisites
         env:
           STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
@@ -1981,6 +2038,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          matrix_file='build/r9-microsoft-interop/r9-microsoft-interop-results.txt'
+          test -f "$matrix_file"
+          cat "$matrix_file"
+          grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
+          grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
+          grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
+          grep -Eq '^credssp-ip-spn-target=(PASS|FAIL) test=security[.]windows-credssp-production-physical-ip-target-next-token$' "$matrix_file"
+          grep -Eq '^credssp-bare-ip-target=(PASS|FAIL) test=security[.]windows-credssp-production-bare-ip-target-next-token$' "$matrix_file"
+          grep -Fxq 'credssp-target-differential=TYPED' "$matrix_file"
           for result in \
             "$STRUCTURE_RESULT" \
             "$PROTOCOL_RESULT" \
@@ -1994,10 +2060,14 @@ jobs:
             tests/CMakeLists.txt
           grep -Fq 'security.windows-sspi-production-type2-physical-ip-target' \
             tests/CMakeLists.txt
-          grep -Fq 'security.windows-credssp-production-control-target-next-token' \
-            tests/CMakeLists.txt
-          grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' \
-            tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-harness-stream-buffer-retention' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-harness-multi-turn-round-progression' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-production-control-target-next-token' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-production-bare-ip-target-next-token' tests/CMakeLists.txt
+          grep -Fq 'runtime.start-stop-start-and-tls-interop' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-connection-target-identity-retained-across-peer-retry' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics' tests/CMakeLists.txt
           grep -Fq 'Primary Microsoft Windows NTLM and CredSSP target differential' \
             .github/workflows/ci.yml
           grep -Fq 'security.credssp-direct-ntlm-physical-type1-tsrequest-conformance' \
@@ -2011,6 +2081,7 @@ jobs:
           grep -Fq 'gui.offscreen-local-username-default-keeps-session-password-empty' \
             .github/workflows/ci.yml
           printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
+          printf 'NEXT OWNER RECEIPT MUST CAPTURE BEFORE BUILD/TEST: git rev-parse HEAD -> %s\n' "$GITHUB_SHA"
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.

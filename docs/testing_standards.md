@@ -1,3 +1,31 @@
+## R9 full-CredSSP harness-integrity and candidate gate (2026-10-26)
+
+R1 owns the bounded memory-BIO pump; Agent 6 owns its Type-3/per-call evidence
+acceptance and control-first target ordering. R9 qualification exercises that
+same pump without cloning production TLS/DER/NTLM assumptions. Two
+behavior-named Windows regressions are mandatory: direct bounded contiguous
+SSPI input retention for `SECBUFFER_EXTRA` and
+`SEC_E_INCOMPLETE_MESSAGE`, and scripted providers through the shared pump
+covering several TLS turns, one successful zero-output
+`SEC_I_CONTINUE_NEEDED`, retained local re-pump, incomplete recovery,
+multiple peer operations and buffered application data across TLS Ready.
+Harness-integrity PASS grants no authentication or desktop authority.
+
+Fixed-name full-CREDSSP is prerequisite to target evidence. Its candidate PASS
+boundary is first client TSRequest -> exact production Type 2 -> next Microsoft
+TSRequest containing NTLM Type 3. If it fails, IP-SPN and bare-IP are
+`BLOCKED_CONTROL`; do not interpret them as a target differential. Once it
+passes, report separately NTLM fixed-name, NTLM IP, CREDSSP fixed-name,
+CREDSSP IP-SPN and CREDSSP bare-IP.
+
+An exact-SHA physical candidate additionally requires green full CTest,
+Linux/macOS/Windows protocol, Windows Clang23, sanitizer qualification,
+Microsoft NTLM, fixed-name full-CREDSSP, a typed target matrix, independent
+outer TSRequest oracle, Start -> Stop -> Start, same-listener failed-peer retry
+and pre-Type-3 native/MCS/graphics/clipboard dormancy. Nomination occurs only
+through explicit `r9_credssp_owner_candidate` dispatch. The next owner
+receipt must capture `git rev-parse HEAD` before build/test.
+
 ## Full-CredSSP per-call evidence and Type-3 acceptance gate (2026-10-26)
 
 The bounded Windows CREDSSP memory-BIO pump must emit one non-secret structural record for every `InitializeSecurityContextW` call: target profile, phase, symbolic status, exact hexadecimal status, input bytes, output bytes, retained `SECBUFFER_EXTRA` bytes, total retained provider input, `SECBUFFER_MISSING` bytes when reported, whether the call used a zero-length TOKEN, whether TLS is finished, whether the initial client TSRequest is already established, whether Microsoft has consumed the committed production Type 2, whether that call produced the next client TSRequest token, and whether Type 3 has been independently observed. Do not log credentials, challenge/response bytes, keys or delegated credential material.

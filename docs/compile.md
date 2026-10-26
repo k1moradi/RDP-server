@@ -1,3 +1,24 @@
+## R9 Windows full-CredSSP harness qualification and result matrix (2026-10-26)
+
+The existing Windows-only `test_windows_sspi_credssp_interop` target keeps its
+current test-only linkage: `rdp-server-standalone-ntlmv2`,
+`rdp-server-runtime-tls` and Windows `secur32`. The same executable adds two
+offline harness-integrity modes for stream-buffer retention and shared-pump
+multi-turn progression; add no HostControl, native-desktop, clipboard, socket,
+service or shipped dependency.
+
+Windows protocol CI runs those two harness regressions before the five
+Microsoft target cases and writes the exact-SHA
+`r9-microsoft-interop-results.txt` artifact with separate NTLM fixed-name,
+NTLM IP, CREDSSP fixed-name control, CREDSSP IP-SPN and CREDSSP bare-IP rows.
+Target-differential status remains `BLOCKED_CONTROL` until the fixed-name
+CREDSSP control reaches Type 3. The manual R9 owner-candidate aggregate consumes
+that exact-SHA artifact in addition to its existing job prerequisites.
+
+All configuration and test commands continue to reuse the one persistent
+`build/` root. Non-Windows builds do not compile the SSPI harness, and no new
+install/export surface is introduced.
+
 ## R8 Windows full-CredSSP harness linkage isolation (2026-10-26)
 
 The Windows-only `test_windows_sspi_credssp_interop` target remains a

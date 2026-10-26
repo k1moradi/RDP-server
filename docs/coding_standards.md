@@ -1,3 +1,21 @@
+## R9 CredSSP harness-integrity seam remains test-only (2026-10-26)
+
+Keep the R1 memory-BIO pump as the single round-progression implementation and
+preserve Agent 6's per-call evidence fields. Harness-integrity fixtures may
+parameterize that pump with scripted test providers, but must not fork its
+scheduling rules or reproduce production TLS/DER/NTLM encoders. The Microsoft
+client keeps one bounded contiguous server-input owner: append within the
+existing cap, retain the complete input on `SEC_E_INCOMPLETE_MESSAGE`, retain
+only trailing `SECBUFFER_EXTRA` bytes after a consuming call, and clear
+consumed input otherwise.
+
+The scripted provider seam is qualification only. It can expose bounded
+statuses, byte counts and state transitions needed to prove zero-output
+continuation, local/peer pump sequencing and coalesced buffered work, but it
+cannot mint an SSPI identity, authentication result, native Admission, MCS,
+Share, graphics, input or clipboard authority. Production Type-2/TLS/SPNEGO
+behavior remains outside this seam.
+
 ## R1 full-CredSSP memory-BIO tests mirror production TLS event semantics (2026-10-26)
 
 The Windows Microsoft `CREDSSP` oracle is test transport, not a second R1

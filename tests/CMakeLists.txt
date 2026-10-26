@@ -207,6 +207,17 @@ if(WIN32)
         target_compile_options(test_windows_sspi_credssp_interop PRIVATE
             -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
+    add_test(NAME security.windows-credssp-harness-stream-buffer-retention
+        COMMAND test_windows_sspi_credssp_interop harness-stream-buffer-retention)
+    add_test(NAME security.windows-credssp-harness-multi-turn-round-progression
+        COMMAND test_windows_sspi_credssp_interop harness-multi-turn-round-progression)
+    set_tests_properties(
+        security.windows-credssp-harness-stream-buffer-retention
+        security.windows-credssp-harness-multi-turn-round-progression
+        PROPERTIES
+        LABELS "security;credentials;credssp;tls;windows;harness;offline"
+        TIMEOUT 15)
+
     add_test(NAME security.windows-credssp-production-control-target-next-token
         COMMAND test_windows_sspi_credssp_interop control-target)
     add_test(NAME security.windows-credssp-production-physical-ip-target-next-token

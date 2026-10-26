@@ -1493,10 +1493,39 @@ bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept
     return true;
 }
 
+bool LinuxRuntimeHostControl::connectionTargetIdentityMatchesActiveListener()
+    const noexcept
+{
+    return selectionConfigured_ && listener_.valid() &&
+           connectionTargetIdentity_.matchesStart(
+               selection_.localAddress, selection_.port,
+               listener_.generation());
+}
+
+void LinuxRuntimeHostControl::applyConnectionTargetDiagnostics(
+    RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept
+{
+    if (!diagnostics.available ||
+        !connectionTargetIdentityMatchesActiveListener())
+    {
+        return;
+    }
+
+    diagnostics.clientTargetClass = connectionTargetIdentity_.targetClass;
+    diagnostics.serviceClass = connectionTargetIdentity_.serviceClass;
+    diagnostics.serviceIdentityProfile =
+        connectionTargetIdentity_.serviceIdentityProfile;
+    diagnostics.connectionTargetGeneration =
+        connectionTargetIdentity_.startGeneration;
+}
+
 bool LinuxRuntimeHostControl::buildAuthenticationSelection(
     LinuxRuntimeAuthenticationSelection& selection) const noexcept
 {
     selection = {};
+    if (!connectionTargetIdentityMatchesActiveListener())
+        return false;
+
     switch (authenticationMode_)
     {
     case ConfiguredAuthenticationMode::ExistingOsAccount:
@@ -1505,8 +1534,14 @@ bool LinuxRuntimeHostControl::buildAuthenticationSelection(
 
     case ConfiguredAuthenticationMode::StandalonePassword:
     {
-        if (!selectedStandaloneCredentialReady())
+        if (!selectedStandaloneCredentialReady() ||
+            (connectionTargetIdentity_.serviceIdentityProfile !=
+                 RuntimeServiceIdentityProfile::FixedName &&
+             connectionTargetIdentity_.serviceIdentityProfile !=
+                 RuntimeServiceIdentityProfile::EndpointBound))
+        {
             return false;
+        }
 
         selection.mode = LinuxRuntimeAuthenticationMode::StandalonePassword;
         selection.standaloneCredentialOwner = &standalonePasswordCredential_;
@@ -1515,7 +1550,9 @@ bool LinuxRuntimeHostControl::buildAuthenticationSelection(
         selection.standaloneChallenge.netbiosDomainName =
             rdp_server::server::security::kStandaloneNtlmPortableDomainName;
         selection.standaloneChallenge.netbiosComputerName =
-            rdp_server::server::security::kStandaloneNtlmPortableServerName;
+            std::u16string_view{
+                connectionTargetIdentity_.protocolServerIdentity.data(),
+                connectionTargetIdentity_.protocolServerIdentity.size()};
         selection.standaloneChallenge.timestampFileTime =
             currentWindowsFileTime();
         if (selection.standaloneChallenge.timestampFileTime == 0U)
@@ -1677,6 +1714,11 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             std::string(currentDesktop.display());
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured = selectedCredentialConfigured();
+    if (listenerCurrent &&
+        connectionTargetIdentityMatchesActiveListener())
+    {
+        snapshot.connectionTargetIdentity = connectionTargetIdentity_;
+    }
     snapshot.acceptedClientPreauthDiagnostics =
         acceptedClientPreauthDiagnostics_;
     if (acceptedClient_ != nullptr)
@@ -1685,6 +1727,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             projectLinuxAcceptedClientPreauthDiagnostics(
                 acceptedClient_->acceptanceDiagnostics());
     }
+    applyConnectionTargetDiagnostics(
+        snapshot.acceptedClientPreauthDiagnostics);
 #endif
     if (tlsContext_ != nullptr)
     {
@@ -1867,8 +1911,12 @@ RuntimeHostResult LinuxRuntimeHostControl::configure(
         return deny(RuntimeHostError::InternalFailure);
 
     // Automatic identities are selection-scoped. A new preparation attempt
-    // retires the previous key/certificate before evaluating the new address.
+    // retires the previous key/certificate and Start-scoped service identity
+    // before evaluating the new address.
     retireGeneratedTlsIdentity();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    connectionTargetIdentity_ = {};
+#endif
 
     // A rejected new selection must not retain a previously approved
     // interface/address preference for a later independent Start request.
@@ -2132,6 +2180,34 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         unboundIdentity.state != RuntimeTlsIdentityState::ConfiguredUnbound)
         return deny(RuntimeHostError::TlsIdentityUnavailable);
 
+    // Build the one non-secret product target tuple before opening a socket.
+    // Current production deliberately stays on the already-qualified fixed
+    // NTLM server identity. EndpointBound remains dormant until Microsoft
+    // full-CredSSP IP-target evidence selects it.
+    RuntimeConnectionTargetIdentity targetIdentity;
+    targetIdentity.numericEndpointAddress = selection_.localAddress;
+    targetIdentity.port = selection_.port;
+    targetIdentity.targetClass = RuntimeConnectionTargetClass::Ip;
+    targetIdentity.serviceClass = RuntimeConnectionServiceClass::Termsrv;
+    switch (authenticationMode_)
+    {
+    case ConfiguredAuthenticationMode::ExistingOsAccount:
+        targetIdentity.serviceIdentityProfile =
+            RuntimeServiceIdentityProfile::Unavailable;
+        break;
+    case ConfiguredAuthenticationMode::StandalonePassword:
+        targetIdentity.serviceIdentityProfile =
+            RuntimeServiceIdentityProfile::FixedName;
+        targetIdentity.protocolServerIdentity.assign(
+            rdp_server::server::security::kStandaloneNtlmPortableServerName.data(),
+            rdp_server::server::security::kStandaloneNtlmPortableServerName.size());
+        break;
+    case ConfiguredAuthenticationMode::Unconfigured:
+        return deny(RuntimeHostError::CredentialNotConfigured);
+    }
+    if (!targetIdentity.configured())
+        return deny(RuntimeHostError::InvalidConfiguration);
+
     auto listenerResult =
         rdp_server::server::transport::openLanListener({
             nativeIdentity->nativeName, selection_.localAddress,
@@ -2161,7 +2237,15 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::InvalidConfiguration);
     }
 
+    targetIdentity.startGeneration = candidate.generation();
+    if (!targetIdentity.valid())
+    {
+        deploymentPolicy_.reset();
+        return deny(RuntimeHostError::InternalFailure);
+    }
+
     listener_ = std::move(candidate);
+    connectionTargetIdentity_ = std::move(targetIdentity);
     acceptedClientPreauthDiagnostics_ = {};
     stage_ = RuntimeHostStage::ListenerAvailable;
     lastError_ = RuntimeHostError::None;
@@ -2586,6 +2670,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
         const auto diagnostics = acceptedClient_->acceptanceDiagnostics();
         acceptedClientPreauthDiagnostics_ =
             projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
+        applyConnectionTargetDiagnostics(
+            acceptedClientPreauthDiagnostics_);
         if (error == RuntimeHostError::AuthenticationRejected &&
             peerAuthenticationIncompleteAfterDeliveredTypeTwo(
                 acceptedClientPreauthDiagnostics_))
@@ -2616,6 +2702,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             const auto preType3Termination =
                 runtimeAcceptedClientPreType3TerminationName(
                     acceptedClientPreauthDiagnostics_.preType3Termination);
+            const auto clientTargetClass =
+                runtimeConnectionTargetClassName(
+                    acceptedClientPreauthDiagnostics_.clientTargetClass);
+            const auto serviceClass =
+                runtimeConnectionServiceClassName(
+                    acceptedClientPreauthDiagnostics_.serviceClass);
+            const auto serviceIdentityProfile =
+                runtimeServiceIdentityProfileName(
+                    acceptedClientPreauthDiagnostics_.serviceIdentityProfile);
             const bool directNtlmTypeOneReceived =
                 directNtlmTypeOneWasReceived(acceptedClientPreauthDiagnostics_);
             const bool directNtlmTypeThreeReceived =
@@ -2640,6 +2735,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 stderr,
                 "rdp-server: connection terminal: connection=%llu endpoint=%s "
                 "protocol-stage=%s authentication-stage=%s admission=%.*s "
+                "client-target-class=%.*s service-class=%.*s "
+                "service-identity-profile=%.*s target-start-generation=%llu "
                 "direct-ntlm-type1=%s direct-ntlm-type2-queued=%s "
                 "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
                 "direct-ntlm-await-type3=%s direct-ntlm-type3=%s "
@@ -2661,6 +2758,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                     acceptedClientPreauthDiagnostics_),
                 static_cast<int>(admissionReason.size()),
                 admissionReason.data(),
+                static_cast<int>(clientTargetClass.size()),
+                clientTargetClass.data(),
+                static_cast<int>(serviceClass.size()),
+                serviceClass.data(),
+                static_cast<int>(serviceIdentityProfile.size()),
+                serviceIdentityProfile.data(),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .connectionTargetGeneration),
                 directNtlmTypeOneReceived ? "received" : "not-received",
                 acceptedClientPreauthDiagnostics_.directNtlmTypeTwoQueued
                     ? "yes" : "no",
@@ -2823,6 +2929,8 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
     acceptedClientPreauthDiagnostics_ =
         projectLinuxAcceptedClientPreauthDiagnostics(
             acceptedClient_->acceptanceDiagnostics());
+    applyConnectionTargetDiagnostics(
+        acceptedClientPreauthDiagnostics_);
     acceptedClientDeadline_ = now + acceptedClientPreauthTimeout_;
     acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;
     acceptedClientId_ = nextClientId_++;
@@ -3387,11 +3495,16 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
         acceptedClientPreauthDiagnostics_ =
             projectLinuxAcceptedClientPreauthDiagnostics(
                 acceptedClient_->acceptanceDiagnostics());
+        applyConnectionTargetDiagnostics(
+            acceptedClientPreauthDiagnostics_);
     }
     clearAcceptedClient();
     clientDisconnected_ = false;
 #endif
     listener_.close();
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    connectionTargetIdentity_ = {};
+#endif
     // Generated key/certificate ownership is session preparation state, not a
     // process-global secret. Stop retires it after accepted TLS and listener.
     retireGeneratedTlsIdentity();

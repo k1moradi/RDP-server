@@ -1042,6 +1042,39 @@ struct PeerResult final
     return acceptedCurrentAttempt && badClientRetired(control.status());
 }
 
+void assertFixedConnectionTargetIdentity(
+    const RuntimeHostStatus& status,
+    std::string_view numericAddress,
+    std::uint16_t port,
+    std::uint64_t listenerGeneration)
+{
+    const auto& target = status.connectionTargetIdentity;
+    assert(target.valid());
+    assert(target.matchesStart(
+        numericAddress, port, listenerGeneration));
+    assert(target.targetClass == RuntimeConnectionTargetClass::Ip);
+    assert(target.serviceClass == RuntimeConnectionServiceClass::Termsrv);
+    assert(target.serviceIdentityProfile ==
+           RuntimeServiceIdentityProfile::FixedName);
+    assert(!target.endpointBound());
+    assert(std::u16string_view{
+               target.protocolServerIdentity.data(),
+               target.protocolServerIdentity.size()} ==
+           kStandaloneNtlmPortableServerName);
+
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    if (!diagnostics.available)
+        return;
+    assert(diagnostics.clientTargetClass ==
+           RuntimeConnectionTargetClass::Ip);
+    assert(diagnostics.serviceClass ==
+           RuntimeConnectionServiceClass::Termsrv);
+    assert(diagnostics.serviceIdentityProfile ==
+           RuntimeServiceIdentityProfile::FixedName);
+    assert(diagnostics.connectionTargetGeneration ==
+           listenerGeneration);
+}
+
 [[nodiscard]] bool directTypeTwoPeerEofRemainsPreAdmission(
     const RuntimeHostStatus& status) noexcept
 {
@@ -1268,8 +1301,12 @@ int main(int argc, char** argv)
     const bool peerCloseClassificationOnly =
         testCase ==
             "type2-peer-close-distinct-from-authentication-rejection";
+    const bool targetIdentityRetryOnly =
+        testCase ==
+            "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
-        !typeTwoTimeoutOnly && !peerCloseClassificationOnly)
+        !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
+        !targetIdentityRetryOnly)
     {
         return 2;
     }
@@ -1345,6 +1382,9 @@ int main(int argc, char** argv)
     const std::uint64_t firstListenerGeneration =
         firstListener.listenerGeneration;
     assert(firstListenerGeneration != 0U);
+    assertFixedConnectionTargetIdentity(
+        firstListener, recommendation.address, selectedPort,
+        firstListenerGeneration);
 
     if (typeTwoTimeoutOnly)
     {
@@ -1452,7 +1492,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    if (typeTwoPeerEofOnly || peerCloseClassificationOnly)
+    if (typeTwoPeerEofOnly || peerCloseClassificationOnly ||
+        targetIdentityRetryOnly)
     {
         std::atomic<bool> typeTwoReceived{false};
         std::atomic<bool> closeAfterTypeTwo{false};
@@ -1507,6 +1548,9 @@ int main(int argc, char** argv)
         assert(!waitingForTypeThree.activeClients.front().desktopVisible);
         assertClipboardDormant(waitingForTypeThree);
         assertGraphicsDormant(waitingForTypeThree);
+        assertFixedConnectionTargetIdentity(
+            waitingForTypeThree, recommendation.address, selectedPort,
+            firstListenerGeneration);
 
         closeAfterTypeTwo.store(true, std::memory_order_release);
         assert(pumpUntilClientRetired(control));
@@ -1542,6 +1586,9 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.product.credentialsConfigured);
         assert(control.standaloneApplicationPasswordObservation().generation ==
                credential.generation);
+        assertFixedConnectionTargetIdentity(
+            afterTypeTwoEof, recommendation.address, selectedPort,
+            firstListenerGeneration);
 
         if (peerCloseClassificationOnly)
         {
@@ -1668,6 +1715,9 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientPreType3Termination::None);
         assertClipboardDormant(retryWaitingForTypeThree);
         assertGraphicsDormant(retryWaitingForTypeThree);
+        assertFixedConnectionTargetIdentity(
+            retryWaitingForTypeThree, recommendation.address, selectedPort,
+            firstListenerGeneration);
         assert(challengesDiffer(
             peerResult.serverChallenge, retryTypeTwoResult.serverChallenge));
 
@@ -1683,6 +1733,9 @@ int main(int argc, char** argv)
         assertPhysicalOwnerGrantActive(afterRetryTypeTwoEof);
         assertClipboardDormant(afterRetryTypeTwoEof);
         assertGraphicsDormant(afterRetryTypeTwoEof);
+        assertFixedConnectionTargetIdentity(
+            afterRetryTypeTwoEof, recommendation.address, selectedPort,
+            firstListenerGeneration);
 
         // Preserve the existing same-listener positive synthetic retry after
         // the R8 freshness observation. Peer 3 completes Type 3 + pubKeyAuth
@@ -1700,6 +1753,7 @@ int main(int argc, char** argv)
             control.standaloneApplicationPasswordObservation();
         assert(retainedCredential.configured);
         assert(retainedCredential.generation == credential.generation);
+        assert(!control.status().connectionTargetIdentity.valid());
         assert(control.revokeSharing().succeeded());
         assert(!control.standaloneApplicationPasswordObservation().configured);
         return 0;
@@ -1875,6 +1929,9 @@ int main(int argc, char** argv)
     assert(restarted.listenerGeneration != firstListenerGeneration);
     assert(restarted.hostOwnerAuthorized);
     assert(restarted.credentialsConfigured);
+    assertFixedConnectionTargetIdentity(
+        restarted, recommendation.address, selectedPort,
+        restarted.listenerGeneration);
     assertGraphicsDormant(restarted);
     assertClipboardDormant(restarted);
     assert(control.standaloneApplicationPasswordObservation().generation ==

@@ -47,6 +47,7 @@ foreach(forbidden IN ITEMS
     "standalonePasswordCredential_.revoke()"
     "standaloneCredentialGeneration_ = 0U"
     "credentialsConfigured_ = false"
+    "connectionTargetIdentity_ = {};"
     "listener_.close()")
     string(FIND "${retire_source}" "${forbidden}" position)
     if(NOT position EQUAL -1)

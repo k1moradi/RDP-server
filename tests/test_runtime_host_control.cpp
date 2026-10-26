@@ -132,6 +132,45 @@ int main(int argumentCount, char** argumentValues)
         assert(recommended.address == "192.168.50.10");
         return 0;
     }
+    if (testCase == "host-control-connection-target-identity-taxonomy")
+    {
+        RuntimeConnectionTargetIdentity target;
+        target.numericEndpointAddress = "192.168.1.5";
+        target.port = 3389U;
+        target.targetClass = RuntimeConnectionTargetClass::Ip;
+        target.serviceClass = RuntimeConnectionServiceClass::Termsrv;
+        target.protocolServerIdentity = u"RDP-SERVER";
+        target.serviceIdentityProfile =
+            RuntimeServiceIdentityProfile::FixedName;
+        target.startGeneration = 42U;
+
+        assert(target.configured());
+        assert(target.valid());
+        assert(!target.endpointBound());
+        assert(target.matchesStart("192.168.1.5", 3389U, 42U));
+        assert(!target.matchesStart("192.168.1.6", 3389U, 42U));
+        assert(!target.matchesStart("192.168.1.5", 3389U, 43U));
+        assert(runtimeConnectionTargetClassName(target.targetClass) == "ip");
+        assert(runtimeConnectionTargetClassName(
+                   RuntimeConnectionTargetClass::Dns) == "dns");
+        assert(runtimeConnectionServiceClassName(target.serviceClass) ==
+               "TERMSRV");
+        assert(runtimeServiceIdentityProfileName(
+                   target.serviceIdentityProfile) == "fixed-name");
+
+        target.serviceIdentityProfile =
+            RuntimeServiceIdentityProfile::EndpointBound;
+        target.protocolServerIdentity = u"192.168.1.5";
+        assert(target.valid());
+        assert(target.endpointBound());
+        assert(runtimeServiceIdentityProfileName(
+                   target.serviceIdentityProfile) == "endpoint-bound");
+
+        target.startGeneration = 0U;
+        assert(target.configured());
+        assert(!target.valid());
+        return 0;
+    }
     if (testCase == "host-control-route-aware-recommendation-non-authority")
     {
         using Family = RuntimeHostAddressFamily;

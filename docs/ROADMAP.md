@@ -1,3 +1,42 @@
+## P0 target/service identity owner after physical Await-Type-3 EOF (2026-10-25)
+
+**Authoring parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`. Owner Linux/X11 reports **986/986
+CTest PASS**. The physical Microsoft Windows App reaches TCP, X.224/HYBRID,
+TLS, Direct NTLM Type 1, complete production Type-2 TLS commitment and
+Await-Type-3, then closes with `peer-eof-before-type3`. Type 3, pubKeyAuth,
+authInfo, `CredentialsVerified`, native Admission, MCS and graphics/X11 are
+**NOT REACHED**.
+
+Hosted Windows independently proves Microsoft native NTLM SSPI Type 1 ->
+unchanged production Type 2 -> Microsoft Type 3, and the independent outer
+CredSSP TSRequest DER oracle passes. The uncovered matrix difference is the
+target: that oracle uses `TERMSRV/RDP-SERVER`, while the physical owner
+connects to an IP endpoint. Random Type-2 changes remain prohibited.
+
+This R10 increment introduces one Start-scoped product target identity:
+numeric endpoint, `TERMSRV` service class, typed target/profile metadata,
+optional protocol/server identity and listener generation. The standalone
+challenge now consumes that R10-owned identity, but production selection remains
+exactly `fixed-name / RDP-SERVER`; no NTLM/CredSSP wire profile is changed.
+Endpoint-bound identity remains dormant pending R6/R2 Microsoft evidence.
+Reconfiguration/Stop retire the target identity; ordinary failed-peer retirement
+preserves it with the listener, owner consent and Session Password for immediate
+retry. Terminal diagnostics add only safe target class/service/profile/generation
+fields alongside the existing authentication stage.
+
+New CTests are
+`runtime.host-control-connection-target-identity-taxonomy` and
+`runtime.linux-connection-target-identity-retained-across-peer-retry`.
+Connector source/reconciliation checks: **PASS**. Modified-tree configure,
+compile and CTest: **NOT RUN** in this connector environment. Exact-publication
+SHA hosted CI: **PENDING**.
+
+**Next gate:** R6 full Microsoft CredSSP with an IP target must consume the
+exact production server response. R2 then owns the target-identity matrix and
+minimal compatible profile decision. Do not nominate or ask for another
+physical Linux owner test before that evidence. The next physical minimum
+success criterion remains `direct-ntlm-type3=received`.
+
 ## R9 P0 — Microsoft target-principal + full CredSSP gate before next Linux owner run (2026-10-25)
 
 The newest owner Linux/X11 receipt is **986/986 CTest PASS**. The real Microsoft

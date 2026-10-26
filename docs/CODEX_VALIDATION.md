@@ -1,3 +1,33 @@
+## R10 Start-scoped target/service identity authoring receipt — 2026-10-25
+
+**Reconciled parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`. Owner evidence supplied for this
+round is Linux/X11 **986/986 CTest PASS** plus a physical Microsoft Windows App
+trace through committed production Type 2 and Await-Type-3, followed by peer
+EOF before Type 3. The exact owner-tested SHA was not supplied. Hosted Windows
+Microsoft NTLM SSPI independently accepts the unchanged production Type 2 and
+emits Type 3; the independent outer CredSSP TSRequest DER oracle also passes.
+
+The remaining observed matrix difference is target-principal context:
+the hosted SSPI oracle uses `TERMSRV/RDP-SERVER`, while the physical client
+connects to an IP endpoint. This publication does **not** infer a wire fix from
+that difference. Production remains `fixed-name / RDP-SERVER`.
+
+R10 now owns one Start-scoped target tuple containing the numeric endpoint,
+`TERMSRV` service class, safe target/profile taxonomy, optional protocol
+server identity and listener generation. The standalone challenge consumes the
+owned tuple only when it matches the active listener generation. Fail-only
+terminal output adds target class, service class, profile and target generation;
+no credentials, NTLM challenge/response or native identity data are added.
+A rejected/interrupted peer leaves that tuple, listener, current owner grant and
+Session Password intact for immediate retry; Stop/reconfiguration retire it.
+
+Registered coverage adds the portable target taxonomy CTest and a
+production-backed same-listener target-identity retry CTest. Connector
+transformation/source checks: **PASS**. Modified-tree configure/build/full
+CTest: **NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**.
+R6/R2 full Microsoft CredSSP IP-target qualification remains the prerequisite
+for any endpoint-bound profile selection or another physical owner candidate.
+
 ## R9 Microsoft target-principal/full-CredSSP qualification authoring — 2026-10-25
 
 Owner Linux/X11 reports **986/986 PASS** and a real Microsoft Windows App

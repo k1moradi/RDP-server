@@ -1,3 +1,29 @@
+## Connection target identity and IP-target CredSSP gate (2026-10-25)
+
+Keep the production Type-2 profile unchanged while the physical Microsoft
+client still stops after committed Type 2 and before Type 3. The next external
+qualification gate is a full Microsoft CredSSP oracle whose client target is an
+IP address and which consumes the exact production server response. A new
+physical owner candidate is **BLOCKED** until that oracle either reaches
+Microsoft Type 3 with the fixed profile or provides evidence for a minimal
+compatible replacement.
+
+The runtime target-identity tests must remain behavior-named and prove both
+portable taxonomy and production lifecycle ownership. For the current
+standalone profile they require target class `ip`, service class `TERMSRV`,
+profile `fixed-name`, protocol identity `RDP-SERVER`, and a target generation
+equal to the active listener generation. Two consecutive Type-2/EOF attempts on
+the same listener must observe the same Start target identity while using fresh
+connection-local NTLM challenges; listener, owner consent and Session Password
+remain current. Stop must retire the target identity while retaining the
+configured Session Password according to the existing Stop contract.
+
+The dormant `endpoint-bound` profile may be tested as pure taxonomy, but no
+ordinary production test may select it as the challenge identity before the
+Microsoft IP-target matrix authorizes that profile. Native Admission, MCS,
+graphics, input and clipboard remain downstream and must not be modified to
+force pre-Type-3 progress.
+
 ## Microsoft target-principal differential and full CredSSP owner gate (2026-10-25)
 
 The latest owner physical trace is **986/986 CTest PASS** and stops after a

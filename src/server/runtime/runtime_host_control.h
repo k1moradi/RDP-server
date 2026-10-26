@@ -122,6 +122,126 @@ struct RuntimeHostOptions
     bool afterLoginLaunchRequested{};
 };
 
+// One Start-scoped, non-secret connection target identity. R10 owns this
+// product tuple; GUI text and R2 native admission must never reconstruct it.
+enum class RuntimeConnectionTargetClass : std::uint8_t
+{
+    Unavailable,
+    Ip,
+    Dns,
+};
+
+[[nodiscard]] constexpr std::string_view runtimeConnectionTargetClassName(
+    RuntimeConnectionTargetClass targetClass) noexcept
+{
+    switch (targetClass)
+    {
+    case RuntimeConnectionTargetClass::Unavailable: return "unavailable";
+    case RuntimeConnectionTargetClass::Ip: return "ip";
+    case RuntimeConnectionTargetClass::Dns: return "dns";
+    }
+    return "unavailable";
+}
+
+enum class RuntimeConnectionServiceClass : std::uint8_t
+{
+    Unavailable,
+    Termsrv,
+};
+
+[[nodiscard]] constexpr std::string_view runtimeConnectionServiceClassName(
+    RuntimeConnectionServiceClass serviceClass) noexcept
+{
+    switch (serviceClass)
+    {
+    case RuntimeConnectionServiceClass::Unavailable: return "unavailable";
+    case RuntimeConnectionServiceClass::Termsrv: return "TERMSRV";
+    }
+    return "unavailable";
+}
+
+enum class RuntimeServiceIdentityProfile : std::uint8_t
+{
+    Unavailable,
+    FixedName,
+    EndpointBound,
+};
+
+[[nodiscard]] constexpr std::string_view runtimeServiceIdentityProfileName(
+    RuntimeServiceIdentityProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case RuntimeServiceIdentityProfile::Unavailable: return "unavailable";
+    case RuntimeServiceIdentityProfile::FixedName: return "fixed-name";
+    case RuntimeServiceIdentityProfile::EndpointBound: return "endpoint-bound";
+    }
+    return "unavailable";
+}
+
+struct RuntimeConnectionTargetIdentity final
+{
+    // Current product Start binds to a native numeric address. Dns remains a
+    // diagnostic target-class vocabulary for a future qualified client path.
+    std::string numericEndpointAddress;
+    std::uint16_t port{};
+    RuntimeConnectionTargetClass targetClass{
+        RuntimeConnectionTargetClass::Unavailable};
+    RuntimeConnectionServiceClass serviceClass{
+        RuntimeConnectionServiceClass::Unavailable};
+    // Optional bounded protocol/server identity. This is non-secret but is not
+    // presentation authority and must not be derived from GUI display text.
+    std::u16string protocolServerIdentity;
+    RuntimeServiceIdentityProfile serviceIdentityProfile{
+        RuntimeServiceIdentityProfile::Unavailable};
+    // Exact listener generation that committed this Start transaction.
+    std::uint64_t startGeneration{};
+
+    [[nodiscard]] bool configured() const noexcept
+    {
+        if (numericEndpointAddress.empty() || port == 0U ||
+            targetClass == RuntimeConnectionTargetClass::Unavailable ||
+            serviceClass != RuntimeConnectionServiceClass::Termsrv)
+        {
+            return false;
+        }
+
+        switch (serviceIdentityProfile)
+        {
+        case RuntimeServiceIdentityProfile::Unavailable:
+            return protocolServerIdentity.empty();
+        case RuntimeServiceIdentityProfile::FixedName:
+        case RuntimeServiceIdentityProfile::EndpointBound:
+            return !protocolServerIdentity.empty();
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool valid() const noexcept
+    {
+        return configured() && startGeneration != 0U;
+    }
+
+    [[nodiscard]] bool endpointBound() const noexcept
+    {
+        return serviceIdentityProfile ==
+               RuntimeServiceIdentityProfile::EndpointBound;
+    }
+
+    [[nodiscard]] bool matchesStart(
+        std::string_view expectedNumericAddress,
+        std::uint16_t expectedPort,
+        std::uint64_t expectedStartGeneration) const noexcept
+    {
+        return valid() &&
+               std::string_view{
+                   numericEndpointAddress.data(),
+                   numericEndpointAddress.size()} == expectedNumericAddress &&
+               port == expectedPort &&
+               startGeneration == expectedStartGeneration;
+    }
+};
+
 enum class RuntimeHostAddressFamily : std::uint8_t
 {
     Unspecified,
@@ -647,6 +767,15 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     bool directNtlmTypeTwoDelivered{};
     RuntimeAcceptedClientPreType3Termination preType3Termination{
         RuntimeAcceptedClientPreType3Termination::None};
+    // Safe Start-scoped target/service identity correlation. These values are
+    // diagnostic only and never grant TLS, credential, native or MCS authority.
+    RuntimeConnectionTargetClass clientTargetClass{
+        RuntimeConnectionTargetClass::Unavailable};
+    RuntimeConnectionServiceClass serviceClass{
+        RuntimeConnectionServiceClass::Unavailable};
+    RuntimeServiceIdentityProfile serviceIdentityProfile{
+        RuntimeServiceIdentityProfile::Unavailable};
+    std::uint64_t connectionTargetGeneration{};
 };
 
 struct RuntimeHostPermissionRequest final
@@ -962,6 +1091,9 @@ struct RuntimeHostStatus
     // Current/last accepted-client pre-auth observation for diagnostics only.
     // It contains no protocol bytes, credential material or authority.
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics{};
+    // Current Start-scoped endpoint/service tuple owned by R10. Invalid after
+    // Stop/reconfiguration; a retired peer does not clear it while listening.
+    RuntimeConnectionTargetIdentity connectionTargetIdentity{};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.

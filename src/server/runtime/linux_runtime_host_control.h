@@ -178,6 +178,10 @@ private:
     [[nodiscard]] bool prepareAutomaticStandaloneAdmission() noexcept;
     [[nodiscard]] bool buildAuthenticationSelection(
         LinuxRuntimeAuthenticationSelection& selection) const noexcept;
+    [[nodiscard]] bool connectionTargetIdentityMatchesActiveListener()
+        const noexcept;
+    void applyConnectionTargetDiagnostics(
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept;
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
     [[nodiscard]] RuntimeHostResult acceptClientOnce(
         std::chrono::steady_clock::time_point now) noexcept;
@@ -248,6 +252,7 @@ private:
     bool acceptedClientWritable_{};
     bool clientDisconnected_{};
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics_{};
+    RuntimeConnectionTargetIdentity connectionTargetIdentity_{};
     ConfiguredAuthenticationMode authenticationMode_{
         ConfiguredAuthenticationMode::Unconfigured};
     std::uint64_t standaloneCredentialGeneration_{};

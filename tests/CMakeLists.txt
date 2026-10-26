@@ -520,6 +520,19 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # One Start-scoped endpoint/service identity must survive a rejected peer
+    # and an immediate second attempt without changing the current fixed Type-2
+    # server name or widening retirement to the listener/credential/owner grant.
+    add_test(
+        NAME runtime.linux-connection-target-identity-retained-across-peer-retry
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            connection-target-identity-retained-across-peer-retry)
+    set_tests_properties(
+        runtime.linux-connection-target-identity-retained-across-peer-retry
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;identity;listener;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # A delivered Type 2 followed by peer close is an incomplete exchange,
     # distinct from malformed Type 3 rejection and later native Admission denial.
     add_test(
@@ -831,6 +844,7 @@ foreach(host_control_case IN ITEMS
         host-control-gui-round2-endpoint-recommendation
         host-control-product-status-projection
         host-control-incomplete-peer-product-state
+        host-control-connection-target-identity-taxonomy
         host-control-credential-editing-lifecycle-policy
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials

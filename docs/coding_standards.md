@@ -1,3 +1,32 @@
+## Start-scoped connection target/service identity ownership (2026-10-25)
+
+R10 owns one non-secret connection target identity for each successful Start:
+the freshly selected numeric endpoint, service class `TERMSRV`, an optional
+protocol/server identity, a typed service-identity profile, and the exact
+listener/Start generation. GUI text is never authority, and R2 native admission
+must not derive or reconstruct this tuple from globals.
+
+Standalone authentication consumes the R10-owned protocol/server identity only
+after the tuple matches the active listener generation. Current production
+remains deliberately `fixed-name`: the protocol identity is still the exact
+existing `RDP-SERVER` value. The `endpoint-bound` profile is vocabulary and
+ownership plumbing only; do not select it or change Type-2 bytes until a full
+Microsoft CredSSP IP-target oracle proves the fixed profile fails and identifies
+a passing replacement.
+
+Build the target tuple before listener publication, then commit its generation
+only from the verified listener that also binds the selected numeric endpoint
+and TLS identity. Reconfiguration and Stop retire the target identity. Retiring
+one failed/interrupted peer does not: the listener, target identity, current
+owner consent and configured memory-only Session Password remain available for
+the immediate next attempt while those host authorities are still current.
+
+Fail-only diagnostics may expose only safe structural fields: target class
+(`ip`/`dns`), service class, service-identity profile, Start generation and
+the existing authentication progress. Never add username/password, NTLM
+challenge/response, keys, delegated credentials or native account/session
+identifiers to this projection.
+
 ## Pre-Type-3 peer close never creates MCS authority (2026-10-25)
 
 A Direct NTLM connection that has fully committed production Type 2 through TLS

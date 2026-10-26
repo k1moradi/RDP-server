@@ -201,14 +201,24 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
-      - name: Primary Microsoft Windows SSPI Type-2 oracle
+      - name: Primary Microsoft Windows NTLM and CredSSP target differential
         if: runner.os == 'Windows'
         shell: bash
         run: |
           set -euo pipefail
-          ctest --test-dir build --build-config Debug --timeout 30 \
-            -R '^security\.windows-sspi-production-type2-interop$' \
-            --output-on-failure
+          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target)|credssp-production-(control-target|physical-ip-target)-next-token)$'
+          inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          for required_test in \
+            security.windows-sspi-production-type2-interop \
+            security.windows-sspi-production-type2-physical-ip-target \
+            security.windows-credssp-production-control-target-next-token \
+            security.windows-credssp-production-physical-ip-target-next-token; do
+            grep -Fq ": $required_test" <<< "$inventory"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 4
+          ctest --test-dir build --build-config Debug --timeout 45 \
+            -R "$selector" --output-on-failure
       - name: Preflight and run focused R7 macOS lifecycle tests (Debug)
         if: runner.os == 'macOS'
         shell: bash
@@ -1981,7 +1991,13 @@ jobs:
           done
           grep -Fq 'security.windows-sspi-production-type2-interop' \
             tests/CMakeLists.txt
-          grep -Fq 'Primary Microsoft Windows SSPI Type-2 oracle' \
+          grep -Fq 'security.windows-sspi-production-type2-physical-ip-target' \
+            tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-production-control-target-next-token' \
+            tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' \
+            tests/CMakeLists.txt
+          grep -Fq 'Primary Microsoft Windows NTLM and CredSSP target differential' \
             .github/workflows/ci.yml
           grep -Fq 'security.credssp-direct-ntlm-physical-type1-tsrequest-conformance' \
             tests/CMakeLists.txt

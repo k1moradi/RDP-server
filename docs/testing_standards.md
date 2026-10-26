@@ -1,3 +1,33 @@
+## Microsoft target-principal differential and full CredSSP owner gate (2026-10-25)
+
+The latest owner physical trace is **986/986 CTest PASS** and stops after a
+completely committed Direct NTLM Type 2: TLS/HYBRID and Type 1 succeed,
+Await-Type-3 is reached, and Microsoft Windows App closes with
+`peer-eof-before-type3`. Type 3, pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS, graphics, input and clipboard are
+not reached and are not eligible investigation targets for this boundary.
+
+Keep the existing Microsoft NTLM SSPI control with target
+`TERMSRV/RDP-SERVER`, and add a second native SSPI run with target
+`TERMSRV/192.168.1.5`. Both consume the unchanged production challenge. A
+physical-target failure is target-principal evidence: it blocks the candidate
+and must not trigger production Type-2 mutation experiments.
+
+A candidate also requires Microsoft's Windows-native `CREDSSP` security
+package, not only bare NTLM SSPI. The test uses explicit test credentials and a
+memory-only transport: Microsoft CredSSP owns the client TLS/CredSSP context;
+the existing production runtime TLS identity and
+`StandaloneCredSspNtlmAcceptor` own the server TLS/CredSSP path. The test
+stops at the requested boundary. After the production Type-2 TSRequest is
+written through TLS, Microsoft must return a non-empty next client token; that
+token must decrypt as a TSRequest and production must observe NTLM Type 3 with
+pubKeyAuth. No authInfo is sent and no native admission is constructed.
+
+The Microsoft CredSSP status is authoritative. Project-owned NTLM/DER parser
+success may add structural evidence but can never convert a Microsoft CredSSP
+rejection into PASS. Control and physical-target outcomes are separately named
+in CTest/CI output.
+
 ## Await-Type-3 EOF and next-boundary diagnostics gate (2026-10-25)
 
 The latest owner physical trace supersedes the earlier admission-boundary

@@ -1,3 +1,31 @@
+## R9 Microsoft target-principal/full-CredSSP qualification authoring — 2026-10-25
+
+Owner Linux/X11 reports **986/986 PASS** and a real Microsoft Windows App
+boundary of committed production Type 2 -> Await-Type-3 -> peer EOF, with Type
+3 and every later stage not reached. Existing hosted Windows evidence already
+shows Microsoft NTLM SSPI accepts the unchanged production challenge when the
+target is `TERMSRV/RDP-SERVER`; the independent TSRequest DER oracle also
+passes.
+
+This increment changes tests/CI/documentation only. The bare Microsoft NTLM
+SSPI oracle separately runs `TERMSRV/RDP-SERVER` and
+`TERMSRV/192.168.1.5` against identical production Type-2 bytes. A new
+Windows-native `CREDSSP` client is connected in memory to the existing
+production runtime TLS identity and production standalone CredSSP acceptor.
+PASS requires Microsoft to consume the production Type-2 TSRequest, emit the
+next client token, and production to observe Type 3 + pubKeyAuth. The test
+intentionally stops before authInfo/native admission.
+
+The Windows protocol workflow inventories four Microsoft tests and fails if any
+is missing or rejected. Candidate structure pins all four names. No
+project-owned parser result can override the Microsoft package status, and a
+physical-target rejection runs no Type-2 mutation search.
+
+Connector source/CMake/workflow reconciliation: **PASS by inspection**.
+Modified-tree Windows compile/CTest and exact-publication-SHA hosted execution:
+**NOT RUN / PENDING**. No owner candidate is nominated by this authoring
+receipt.
+
 ## R3 Await-Type-3 EOF dormancy and next-boundary diagnostics — 2026-10-25
 
 **Reconciled connector main:** `2a2e57cdb4c746b9152ffa502c897cfaa0045b2b`.

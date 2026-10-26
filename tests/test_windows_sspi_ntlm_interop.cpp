@@ -21,6 +21,40 @@ using namespace rdp_server::server::security;
 namespace
 {
 
+enum class TargetProfile : std::uint8_t
+{
+    PortableServerName,
+    PhysicalIpv4,
+};
+
+[[nodiscard]] constexpr const char *targetProfileName(
+    TargetProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case TargetProfile::PortableServerName:
+        return "TERMSRV/RDP-SERVER";
+    case TargetProfile::PhysicalIpv4:
+        return "TERMSRV/192.168.1.5";
+    }
+    return "unknown";
+}
+
+[[nodiscard]] bool copyTargetName(
+    TargetProfile profile,
+    std::array<wchar_t, 64> &target) noexcept
+{
+    target.fill(L'\0');
+    const std::wstring_view source =
+        profile == TargetProfile::PortableServerName
+            ? std::wstring_view{L"TERMSRV/RDP-SERVER"}
+            : std::wstring_view{L"TERMSRV/192.168.1.5"};
+    if (source.size() + 1U > target.size())
+        return false;
+    std::copy(source.begin(), source.end(), target.begin());
+    return true;
+}
+
 constexpr NtlmServerChallenge kServerChallenge{
     0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef};
 constexpr ULONG kContextRequirements =
@@ -156,6 +190,7 @@ public:
     }
 
     [[nodiscard]] SECURITY_STATUS begin(
+        TargetProfile targetProfile,
         TokenBuffer &output,
         ULONG &contextAttributes) noexcept
     {
@@ -172,12 +207,14 @@ public:
         SecBufferDesc outputDescriptor{
             SECBUFFER_VERSION, 1U, &outputBuffer};
 
-        wchar_t targetName[] = L"TERMSRV/RDP-SERVER";
+        std::array<wchar_t, 64> targetName{};
+        if (!copyTargetName(targetProfile, targetName))
+            return SEC_E_TARGET_UNKNOWN;
         TimeStamp expiry{};
         SECURITY_STATUS status = InitializeSecurityContextW(
             &credential_,
             nullptr,
-            targetName,
+            targetName.data(),
             kContextRequirements,
             0U,
             SECURITY_NATIVE_DREP,
@@ -205,6 +242,7 @@ public:
     }
 
     [[nodiscard]] SECURITY_STATUS continueWithChallenge(
+        TargetProfile targetProfile,
         std::span<std::uint8_t> challenge,
         TokenBuffer &output,
         ULONG &contextAttributes) noexcept
@@ -230,12 +268,14 @@ public:
         SecBufferDesc outputDescriptor{
             SECBUFFER_VERSION, 1U, &outputBuffer};
 
-        wchar_t targetName[] = L"TERMSRV/RDP-SERVER";
+        std::array<wchar_t, 64> targetName{};
+        if (!copyTargetName(targetProfile, targetName))
+            return SEC_E_TARGET_UNKNOWN;
         TimeStamp expiry{};
         SECURITY_STATUS status = InitializeSecurityContextW(
             &credential_,
             &context_,
-            targetName,
+            targetName.data(),
             kContextRequirements,
             0U,
             SECURITY_NATIVE_DREP,
@@ -573,6 +613,7 @@ struct AttemptResult final
 };
 
 [[nodiscard]] AttemptResult runAttempt(
+    TargetProfile targetProfile,
     ChallengeVariant variant,
     std::uint64_t timestampFileTime) noexcept
 {
@@ -586,7 +627,8 @@ struct AttemptResult final
     TokenBuffer typeOne;
     ULONG ignoredFirstAttributes = 0;
     result.failureStage = "initialize-type1";
-    result.firstStatus = client.begin(typeOne, ignoredFirstAttributes);
+    result.firstStatus = client.begin(
+        targetProfile, typeOne, ignoredFirstAttributes);
     if (result.firstStatus != SEC_I_CONTINUE_NEEDED)
         return result;
 
@@ -638,6 +680,7 @@ struct AttemptResult final
     TokenBuffer typeThree;
     result.failureStage = "initialize-type3";
     result.secondStatus = client.continueWithChallenge(
+        targetProfile,
         std::span<std::uint8_t>{typeTwo}.first(typeTwoSize),
         typeThree,
         result.contextAttributes);
@@ -675,14 +718,16 @@ void printStatus(
 }
 
 void printAttemptFailure(
+    TargetProfile targetProfile,
     ChallengeVariant variant,
     const AttemptResult &result) noexcept
 {
     std::fprintf(
         stderr,
-        "microsoft-sspi-ntlm variant=%s stage=%s "
+        "microsoft-sspi-ntlm target=%s variant=%s stage=%s "
         "type1-flags=0x%08lx type2-flags=0x%08lx "
         "type3=%s complete=%s attributes=%s local-verify=%s\n",
+        targetProfileName(targetProfile),
         variantName(variant),
         result.failureStage,
         static_cast<unsigned long>(result.typeOneFlags),
@@ -698,8 +743,24 @@ void printAttemptFailure(
 
 } // namespace
 
-int main()
+int main(int argc, char **argv)
 {
+    TargetProfile targetProfile = TargetProfile::PortableServerName;
+    if (argc == 2 && argv[1] != nullptr)
+    {
+        const std::string_view mode{argv[1]};
+        if (mode == "control-target")
+            targetProfile = TargetProfile::PortableServerName;
+        else if (mode == "physical-ip-target")
+            targetProfile = TargetProfile::PhysicalIpv4;
+        else
+            return 2;
+    }
+    else if (argc != 1)
+    {
+        return 2;
+    }
+
     const std::uint64_t timestampFileTime = currentWindowsFileTime();
     if (timestampFileTime == 0U)
     {
@@ -708,7 +769,7 @@ int main()
     }
 
     const AttemptResult production = runAttempt(
-        ChallengeVariant::Production, timestampFileTime);
+        targetProfile, ChallengeVariant::Production, timestampFileTime);
     if (production.microsoftProducedTypeThree)
     {
         if (production.contextComplete &&
@@ -721,12 +782,22 @@ int main()
         std::fprintf(
             stderr,
             "microsoft-sspi-production-type2=accepted-but-local-chain-failed\n");
-        printAttemptFailure(ChallengeVariant::Production, production);
+        printAttemptFailure(
+            targetProfile, ChallengeVariant::Production, production);
         return 1;
     }
 
-    std::fprintf(stderr, "microsoft-sspi-production-type2=rejected\n");
-    printAttemptFailure(ChallengeVariant::Production, production);
+    std::fprintf(
+        stderr,
+        "microsoft-sspi-production-type2=rejected target=%s\n",
+        targetProfileName(targetProfile));
+    printAttemptFailure(
+        targetProfile, ChallengeVariant::Production, production);
+
+    // The endpoint-target differential is evidence about the target principal,
+    // not authorization to mutate a Microsoft-accepted production challenge.
+    if (targetProfile == TargetProfile::PhysicalIpv4)
+        return 1;
 
     constexpr std::array diagnosticVariants{
         ChallengeVariant::WithVersion,
@@ -741,7 +812,7 @@ int main()
     for (const ChallengeVariant variant : diagnosticVariants)
     {
         const AttemptResult diagnostic = runAttempt(
-            variant, timestampFileTime);
+            targetProfile, variant, timestampFileTime);
         if (!diagnostic.variantApplied)
         {
             std::fprintf(

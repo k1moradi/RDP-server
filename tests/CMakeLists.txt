@@ -182,11 +182,41 @@ if(WIN32)
             -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     endif()
     add_test(NAME security.windows-sspi-production-type2-interop
-        COMMAND test_windows_sspi_ntlm_interop)
+        COMMAND test_windows_sspi_ntlm_interop control-target)
+    add_test(NAME security.windows-sspi-production-type2-physical-ip-target
+        COMMAND test_windows_sspi_ntlm_interop physical-ip-target)
     set_tests_properties(
-        security.windows-sspi-production-type2-interop PROPERTIES
+        security.windows-sspi-production-type2-interop
+        security.windows-sspi-production-type2-physical-ip-target
+        PROPERTIES
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
         TIMEOUT 30)
+
+    # Microsoft CredSSP owns the client TLS/CredSSP context. Production owns
+    # the server TLS identity and exact standalone CredSSP Type-2 response.
+    add_executable(test_windows_sspi_credssp_interop
+        test_windows_sspi_credssp_interop.cpp)
+    target_link_libraries(test_windows_sspi_credssp_interop PRIVATE
+        rdp-server-standalone-ntlmv2
+        rdp-server-runtime-tls
+        secur32)
+    if(MSVC)
+        target_compile_options(test_windows_sspi_credssp_interop PRIVATE
+            /W4 /UNDEBUG)
+    else()
+        target_compile_options(test_windows_sspi_credssp_interop PRIVATE
+            -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    endif()
+    add_test(NAME security.windows-credssp-production-control-target-next-token
+        COMMAND test_windows_sspi_credssp_interop control-target)
+    add_test(NAME security.windows-credssp-production-physical-ip-target-next-token
+        COMMAND test_windows_sspi_credssp_interop physical-ip-target)
+    set_tests_properties(
+        security.windows-credssp-production-control-target-next-token
+        security.windows-credssp-production-physical-ip-target-next-token
+        PROPERTIES
+        LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
+        TIMEOUT 45)
 endif()
 
 # R2 standalone NTLM transcript MIC and connection-oriented SIGN/SEAL state.

@@ -1,3 +1,45 @@
+## R9 P0 — Microsoft target-principal + full CredSSP gate before next Linux owner run (2026-10-25)
+
+The newest owner Linux/X11 receipt is **986/986 CTest PASS**. The real Microsoft
+Windows App reaches TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 ->
+production Type 2 completely committed through TLS -> Await-Type-3, then the
+peer closes. Type 3, pubKeyAuth, authInfo, CredentialsVerified, native
+Admission, MCS and graphics are **NOT REACHED**. The production challenge
+remains flags `0xe08a8235`, TargetName `RDP-SERVER`, TargetInfo AV IDs
+`2,1,7,0`. Hosted Microsoft NTLM SSPI already proves that this unchanged Type
+2 can produce Type 3, and the independent outer TSRequest DER oracle is green.
+Random production Type-2 edits remain prohibited.
+
+The uncovered differential is target identity: the prior Microsoft NTLM oracle
+uses `TERMSRV/RDP-SERVER`, while the physical connection targets
+`192.168.1.5`. This increment strengthens Windows qualification without
+changing production bytes. The Microsoft NTLM SSPI executable now has explicit
+control `TERMSRV/RDP-SERVER` and physical-simulation
+`TERMSRV/192.168.1.5` CTests. If the physical-target form is rejected, owner
+candidate nomination is blocked and the test does not search Type-2 mutations.
+
+A second Windows-only executable uses Microsoft's native `CREDSSP` package
+against the production server TLS identity and actual production standalone
+CredSSP acceptor in memory. Both target profiles must advance through the
+production Type-2 TSRequest and cause Microsoft to emit the next client
+TSRequest; production then requires the genuine Type-3 + pubKeyAuth boundary.
+The fixture stops before authInfo/native admission and therefore creates no
+desktop/session authority.
+
+The Windows protocol job explicitly inventories and executes all four Microsoft
+target tests. The exact-SHA candidate aggregator pins those gates in addition
+to the existing independent Type-2 conformance, outer TSRequest DER,
+cross-platform protocol matrix, failed-peer listener reuse and
+Start -> Stop -> Start qualification. Project-owned parser success cannot
+override a Microsoft `CREDSSP` rejection.
+
+**Authoring parent:** `6493e115064a8755efa726d6099faee2a684075d`. Modified-tree local Windows execution:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted Windows
+results and manual owner-candidate dispatch: **PENDING**. **Candidate remains
+BLOCKED** until both Microsoft physical-target tests pass. No production TLS,
+NTLM, CredSSP, admission, MCS, graphics, input or clipboard behavior changes in
+this increment.
+
 ## R3 P2 — Await-Type-3 peer EOF remains pre-MCS (2026-10-25)
 
 **Reconciled connector main:** `2a2e57cdb4c746b9152ffa502c897cfaa0045b2b`.

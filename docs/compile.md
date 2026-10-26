@@ -1,3 +1,18 @@
+## Windows native CredSSP target-differential oracle linkage (2026-10-25)
+
+Windows protocol tests build `test_windows_sspi_credssp_interop`, linking the
+platform `secur32` SSPI implementation with the existing noninstalled
+`rdp-server-standalone-ntlmv2` production CredSSP owner and
+`rdp-server-runtime-tls` production TLS identity. This is test-only linkage;
+no runtime dependency is added and non-Windows builds do not compile the test.
+
+The fixture uses Microsoft's `CREDSSP` package with fixed in-memory test
+credentials and manual Schannel certificate validation so the self-signed,
+memory-only production test identity requires no host trust-store mutation.
+It opens no network socket, performs no domain login, writes no credentials,
+and creates no native desktop. Ordinary Windows CTest runs both
+`TERMSRV/RDP-SERVER` and `TERMSRV/192.168.1.5` target profiles.
+
 ## Windows SSPI Type-2 oracle linkage (2026-10-25)
 
 The noninstalled Windows-only `test_windows_sspi_ntlm_interop` target links

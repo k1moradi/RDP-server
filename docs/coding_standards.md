@@ -1,3 +1,32 @@
+## R1 full-CredSSP memory-BIO tests mirror production TLS event semantics (2026-10-26)
+
+The Windows Microsoft `CREDSSP` oracle is test transport, not a second R1
+state machine. Feed every complete SSPI output token into the server memory BIO
+without assuming one TLS record, and drain all pending server BIO bytes without
+assuming one record or one response per provider call. Perform at most one
+`SSL_do_handshake`, bounded TLS application read, or bounded TLS application
+write per pump iteration, preserving WANT_READ/WANT_WRITE as continuation
+states exactly as the production R1 owner does.
+
+TLS handshake completion is not a buffer boundary. A call that changes the SSL
+state to Ready may leave encrypted client application records in the input BIO;
+the existing CredSSP reader may consume them immediately. Likewise TLS 1.3 may
+leave post-handshake server output in the write BIO. Track both BIO pending
+counts and `SSL_pending()`; do not discard, reorder or fabricate bytes.
+Production permits TLS 1.2 and leaves the maximum at the provider default, so
+the test pump must be version-agnostic and report the actually negotiated TLS
+version rather than special-case TLS 1.2 or TLS 1.3.
+
+Microsoft SSPI continuation is also not a wire-output guarantee. Preserve
+`SECBUFFER_EXTRA` for the next TOKEN+EMPTY call, retain the complete input on
+`SEC_E_INCOMPLETE_MESSAGE`, and allow an empty-output
+`SEC_I_CONTINUE_NEEDED` to make a bounded subsequent call only when the SSPI
+owner has retained input or explicitly exposed a no-wire continuation. A round
+is deadlocked only when wire movement, TLS/application buffered state, server
+frame progress and SSPI state all make no progress. None of these test-only
+observations grants authentication, native Admission, MCS, Share, graphics,
+input or clipboard authority.
+
 ## R10 shared product target-tuple construction remains non-authorizing (2026-10-26)
 
 Use `prepareRuntimeConnectionTargetIdentity()` as the single portable constructor

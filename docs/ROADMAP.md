@@ -1,3 +1,45 @@
+## R1 P1 — Microsoft full-CredSSP memory-BIO round progression (2026-10-26)
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled publication parent:** `420a91168ae0faffc2c5decc744aaad44b9b6f42`.
+Owner Linux/X11 reports **989/989 CTest PASS** for the assignment baseline.
+The physical Microsoft Windows App remains at fully committed production Type 2
+-> Await-Type-3 -> peer EOF; Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 owner and
+clipboard are **NOT REACHED**.
+
+R1 production transport/TLS source is unchanged. Audit against
+`PreauthConnectionStream::advanceTlsHandshake()` and
+`OwnedPreauthTcpConnection` confirms the production owner already performs one
+OpenSSL operation per readiness callback, preserves WANT direction and exposes
+`SSL_pending()` plaintext readiness. The defect is test-only: the Windows
+full-`CREDSSP` memory-BIO harness assumed every round had non-empty peer output
+and internally spun OpenSSL steps, so a legitimate
+`SEC_I_CONTINUE_NEEDED`/retained-stream continuation could stop before the
+first client TSRequest.
+
+The harness now uses one bounded memory-BIO pump for all three target profiles.
+Each iteration records client->server bytes, server->client bytes, TLS-state
+change, server application-frame completion and Microsoft SSPI-state change,
+plus bounded BIO/`SSL_pending()` and partial application progress. It feeds
+whole SSPI output tokens, drains all server BIO output, preserves
+`SECBUFFER_EXTRA`, retains the whole token on `SEC_E_INCOMPLETE_MESSAGE`,
+permits a no-wire continuation only from SSPI-owned state, and terminates only
+on the requested frame boundary, typed failure, true no-progress or the
+existing round bound. TLS Ready never implies the input BIO contains only
+handshake bytes.
+
+Source/R1 semantic reconciliation: **PASS by inspection**. Modified-tree
+Windows compile, the three focused Microsoft full-CredSSP CTests and full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. No production Type-2/TLS/SPNEGO/Admission/MCS/graphics/input/
+clipboard code changes.
+
+**Next gate:** exact-SHA Windows execution must show the portable
+`TERMSRV/RDP-SERVER` control itself reaches the first client TSRequest and
+consumes the unchanged production Type 2. Only then can the IP-target cases
+provide target-principal evidence; another physical Linux owner run remains
+**BLOCKED** until that boundary is reached.
+
 ## R8 P2 — full-CredSSP harness remains clipboard-isolated (2026-10-26)
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.

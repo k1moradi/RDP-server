@@ -1,3 +1,40 @@
+## R1 Microsoft full-CredSSP memory-BIO pump repair — 2026-10-26
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`; **reconciled publication parent:**
+`420a91168ae0faffc2c5decc744aaad44b9b6f42`. Owner-supplied Linux/X11 baseline is **989/989 CTest PASS**.
+The physical Windows App boundary remains committed production Type 2 ->
+Await-Type-3 -> peer EOF; Type 3 and every downstream authority remain not
+reached. Microsoft native NTLM SSPI accepts the unchanged Type 2 and the
+independent outer TSRequest oracle passes.
+
+R1 audit found no production TLS transport defect. The Windows full-`CREDSSP`
+test harness was lock-step: it required non-empty peer output every round and
+spun server OpenSSL operations internally. That can terminate at
+`server-initial-tsrequest / SEC_I_CONTINUE_NEEDED` even when SSPI has retained
+stream state or OpenSSL has residual/post-handshake bytes.
+
+The test-only repair replaces those assumptions with one bounded pump shared by
+the portable-name, IP-SPN and bare-IP cases. Whole SSPI tokens are fed to the
+server BIO, all server BIO output is drained, one OpenSSL operation runs per
+iteration, TLS Ready can flow directly into residual application data,
+`SECBUFFER_EXTRA` and `SEC_E_INCOMPLETE_MESSAGE` lifetimes are preserved,
+and an empty-output continuation is allowed only from SSPI-owned state. Every
+iteration records the five requested progress facts and bounded
+BIO/`SSL_pending()`/application details; termination is boundary, typed
+failure, true no-progress or round limit. Negotiated TLS version is reported;
+no production TLS version or wire profile is changed.
+
+Connector source and R1 semantic audit: **PASS by inspection**. Modified-tree
+Windows compile/focused three full-CredSSP CTests/full CTest: **NOT RUN** in
+this connector environment. Exact-publication-SHA hosted CI: **PENDING**.
+Production R1, Type-2 flags/TargetName/TargetInfo/MsvAvTargetName, certificate
+identity, SPNEGO, native Admission, MCS, graphics, input and clipboard are
+**UNCHANGED**.
+
+Next gate: exact-SHA Windows full-CredSSP control must reach the initial client
+TSRequest, consume production Type 2 and produce the next client TSRequest
+before any target-principal conclusion or new physical Linux candidate.
+
 ## R10 shared product target-tuple helper — 2026-10-26
 
 **Authoring parent:** `e96b78ebfca6e2495574d1b2b5f4573ac1bb20bd`. Owner-supplied Linux/X11 baseline is

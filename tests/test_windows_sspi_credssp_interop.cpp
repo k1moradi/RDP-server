@@ -15,6 +15,7 @@
 #include "server/security/standalone_spnego.h"
 
 #include <openssl/bio.h>
+#include <openssl/err.h>
 #include <openssl/ssl.h>
 
 #include <algorithm>
@@ -701,7 +702,17 @@ struct CredSspClientStep final
     SECURITY_STATUS status{SEC_E_INTERNAL_ERROR};
     ULONG contextAttributes{};
     AllocatedSspiToken output{};
+    std::size_t retainedServerInputBytes{};
+    bool stateChanged{};
 };
+
+[[nodiscard]] bool credSspClientStatusCanContinue(
+    SECURITY_STATUS status) noexcept
+{
+    return status == SEC_E_OK ||
+           status == SEC_I_CONTINUE_NEEDED ||
+           status == SEC_E_INCOMPLETE_MESSAGE;
+}
 
 [[nodiscard]] SECURITY_STATUS completeOutputTokenIfNeeded(
     SECURITY_STATUS status,
@@ -782,6 +793,23 @@ public:
         return status;
     }
 
+    [[nodiscard]] bool hasContext() const noexcept
+    {
+        return contextValid_;
+    }
+
+    [[nodiscard]] bool canContinueWithoutNewServerBytes() const noexcept
+    {
+        return contextValid_ && !needsMoreServerBytes_ &&
+               (!pendingServerInput_.empty() ||
+                continuationWithoutWireAllowed_);
+    }
+
+    [[nodiscard]] std::size_t pendingServerInputBytes() const noexcept
+    {
+        return pendingServerInput_.size();
+    }
+
     [[nodiscard]] CredSspClientStep step(
         TargetProfile profile,
         std::span<const std::uint8_t> serverToken) noexcept
@@ -826,17 +854,31 @@ public:
             }
         }
 
+        const bool contextWasValid = contextValid_;
+        const SECURITY_STATUS previousStatus = lastStatus_;
+        const ULONG previousContextAttributes = lastContextAttributes_;
+        const bool previouslyNeededMoreServerBytes = needsMoreServerBytes_;
+        const bool previouslyAllowedContinuation =
+            continuationWithoutWireAllowed_;
+        const std::size_t providerInputBytes =
+            pendingServerInput_.size();
+
         std::array<SecBuffer, 2> inputBuffers{};
         SecBufferDesc inputDescriptor{};
         SecBufferDesc *input = nullptr;
         if (contextValid_)
         {
-            if (pendingServerInput_.empty() ||
-                pendingServerInput_.size() >
+            if (pendingServerInput_.size() >
                     static_cast<std::size_t>(
                         (std::numeric_limits<unsigned long>::max)()))
             {
+                result.status = SEC_E_INSUFFICIENT_MEMORY;
+                return result;
+            }
+            if (pendingServerInput_.empty() && needsMoreServerBytes_)
+            {
                 result.status = SEC_E_INCOMPLETE_MESSAGE;
+                result.retainedServerInputBytes = 0U;
                 return result;
             }
 
@@ -845,7 +887,9 @@ public:
                 static_cast<unsigned long>(
                     pendingServerInput_.size());
             inputBuffers[0].pvBuffer =
-                pendingServerInput_.data();
+                pendingServerInput_.empty()
+                    ? nullptr
+                    : pendingServerInput_.data();
             inputBuffers[1].BufferType = SECBUFFER_EMPTY;
             inputDescriptor.ulVersion = SECBUFFER_VERSION;
             inputDescriptor.cBuffers =
@@ -931,6 +975,26 @@ public:
             outputBuffer.pvBuffer = nullptr;
             outputBuffer.cbBuffer = 0U;
         }
+
+        needsMoreServerBytes_ =
+            result.status == SEC_E_INCOMPLETE_MESSAGE;
+        continuationWithoutWireAllowed_ =
+            result.status == SEC_I_CONTINUE_NEEDED &&
+            result.output.empty() &&
+            !needsMoreServerBytes_;
+        result.retainedServerInputBytes =
+            pendingServerInput_.size();
+        result.stateChanged =
+            contextWasValid != contextValid_ ||
+            providerInputBytes != pendingServerInput_.size() ||
+            previousStatus != result.status ||
+            previousContextAttributes != result.contextAttributes ||
+            previouslyNeededMoreServerBytes != needsMoreServerBytes_ ||
+            previouslyAllowedContinuation !=
+                continuationWithoutWireAllowed_ ||
+            !result.output.empty();
+        lastStatus_ = result.status;
+        lastContextAttributes_ = result.contextAttributes;
         return result;
     }
 
@@ -959,20 +1023,36 @@ private:
     CredHandle credential_{};
     CtxtHandle context_{};
     std::vector<std::uint8_t> pendingServerInput_{};
+    SECURITY_STATUS lastStatus_{SEC_E_INTERNAL_ERROR};
+    ULONG lastContextAttributes_{};
     bool credentialValid_{};
     bool contextValid_{};
+    bool needsMoreServerBytes_{};
+    bool continuationWithoutWireAllowed_{};
 };
 
 enum class TlsAdvance : std::uint8_t
 {
-    NeedPeer,
+    NeedRead,
+    NeedWrite,
     Ready,
     Failed,
 };
 
 enum class FrameAdvance : std::uint8_t
 {
-    NeedPeer,
+    Progress,
+    NeedRead,
+    NeedWrite,
+    Complete,
+    Failed,
+};
+
+enum class ReplyAdvance : std::uint8_t
+{
+    Progress,
+    NeedRead,
+    NeedWrite,
     Complete,
     Failed,
 };
@@ -1109,6 +1189,62 @@ public:
         return output;
     }
 
+    [[nodiscard]] bool tlsReady() const noexcept
+    {
+        return valid_ && SSL_is_init_finished(tls_.get()) == 1;
+    }
+
+    [[nodiscard]] int tlsStateValue() const noexcept
+    {
+        return tls_
+            ? static_cast<int>(SSL_get_state(tls_.get()))
+            : -1;
+    }
+
+    [[nodiscard]] int negotiatedTlsVersion() const noexcept
+    {
+        return tlsReady() ? SSL_version(tls_.get()) : 0;
+    }
+
+    [[nodiscard]] int minimumTlsVersion() const noexcept
+    {
+        return tls_ ? SSL_get_min_proto_version(tls_.get()) : 0;
+    }
+
+    [[nodiscard]] int maximumTlsVersion() const noexcept
+    {
+        return tls_ ? SSL_get_max_proto_version(tls_.get()) : 0;
+    }
+
+    [[nodiscard]] std::size_t inputBioPendingBytes() const noexcept
+    {
+        return inputBio_ != nullptr
+            ? static_cast<std::size_t>(BIO_ctrl_pending(inputBio_))
+            : 0U;
+    }
+
+    [[nodiscard]] std::size_t outputBioPendingBytes() const noexcept
+    {
+        return outputBio_ != nullptr
+            ? static_cast<std::size_t>(BIO_ctrl_pending(outputBio_))
+            : 0U;
+    }
+
+    [[nodiscard]] std::size_t applicationPendingBytes() const noexcept
+    {
+        if (!tls_)
+            return 0U;
+        const int pending = SSL_pending(tls_.get());
+        return pending > 0
+            ? static_cast<std::size_t>(pending)
+            : 0U;
+    }
+
+    [[nodiscard]] int replyStateValue() const noexcept
+    {
+        return static_cast<int>(writer_.status());
+    }
+
     [[nodiscard]] TlsAdvance advanceHandshake() noexcept
     {
         if (!valid_)
@@ -1116,17 +1252,15 @@ public:
         if (SSL_is_init_finished(tls_.get()) == 1)
             return TlsAdvance::Ready;
 
-        for (std::size_t attempt = 0U; attempt < 64U; ++attempt)
-        {
-            const int handshakeResult = SSL_do_handshake(tls_.get());
-            if (handshakeResult == 1)
-                return TlsAdvance::Ready;
-            const int error = SSL_get_error(tls_.get(), handshakeResult);
-            if (error == SSL_ERROR_WANT_READ)
-                return TlsAdvance::NeedPeer;
-            if (error != SSL_ERROR_WANT_WRITE)
-                return TlsAdvance::Failed;
-        }
+        ERR_clear_error();
+        const int handshakeResult = SSL_do_handshake(tls_.get());
+        if (handshakeResult == 1)
+            return TlsAdvance::Ready;
+        const int error = SSL_get_error(tls_.get(), handshakeResult);
+        if (error == SSL_ERROR_WANT_READ)
+            return TlsAdvance::NeedRead;
+        if (error == SSL_ERROR_WANT_WRITE)
+            return TlsAdvance::NeedWrite;
         return TlsAdvance::Failed;
     }
 
@@ -1135,22 +1269,20 @@ public:
         if (!valid_ || SSL_is_init_finished(tls_.get()) != 1)
             return FrameAdvance::Failed;
 
-        for (std::size_t attempt = 0U; attempt < 64U; ++attempt)
+        const auto result = reader_.readOneTlsStep(tls_.get());
+        switch (result.status)
         {
-            const auto result = reader_.readOneTlsStep(tls_.get());
-            switch (result.status)
-            {
-            case TsRequestTlsReadStatus::Progress:
-                continue;
-            case TsRequestTlsReadStatus::NeedRead:
-            case TsRequestTlsReadStatus::NeedWrite:
-                return FrameAdvance::NeedPeer;
-            case TsRequestTlsReadStatus::Complete:
-                return FrameAdvance::Complete;
-            case TsRequestTlsReadStatus::Invalid:
-            case TsRequestTlsReadStatus::Closed:
-                return FrameAdvance::Failed;
-            }
+        case TsRequestTlsReadStatus::Progress:
+            return FrameAdvance::Progress;
+        case TsRequestTlsReadStatus::NeedRead:
+            return FrameAdvance::NeedRead;
+        case TsRequestTlsReadStatus::NeedWrite:
+            return FrameAdvance::NeedWrite;
+        case TsRequestTlsReadStatus::Complete:
+            return FrameAdvance::Complete;
+        case TsRequestTlsReadStatus::Invalid:
+        case TsRequestTlsReadStatus::Closed:
+            return FrameAdvance::Failed;
         }
         return FrameAdvance::Failed;
     }
@@ -1210,27 +1342,34 @@ public:
                acceptor_.stage() == StandaloneCredSspStage::NegoContinue;
     }
 
-    [[nodiscard]] std::vector<std::uint8_t> flushProductionReply()
+    [[nodiscard]] ReplyAdvance advanceProductionReply() noexcept
     {
-        for (std::size_t attempt = 0U; attempt < 64U; ++attempt)
-        {
-            const auto result = writer_.writeOneTlsStep(tls_.get());
-            if (result.status == TsRequestTlsWriteStatus::Complete)
-                break;
-            if (result.status == TsRequestTlsWriteStatus::Progress ||
-                result.status == TsRequestTlsWriteStatus::NeedWrite)
-            {
-                continue;
-            }
-            return {};
-        }
-        if (writer_.status() != TsRequestTlsWriteStatus::Complete)
-            return {};
+        if (!valid_ || SSL_is_init_finished(tls_.get()) != 1)
+            return ReplyAdvance::Failed;
 
-        auto raw = drainRaw();
-        if (raw.empty() || !writer_.releaseReply())
-            return {};
-        return raw;
+        const auto result = writer_.writeOneTlsStep(tls_.get());
+        switch (result.status)
+        {
+        case TsRequestTlsWriteStatus::Progress:
+            return ReplyAdvance::Progress;
+        case TsRequestTlsWriteStatus::NeedRead:
+            return ReplyAdvance::NeedRead;
+        case TsRequestTlsWriteStatus::NeedWrite:
+            return ReplyAdvance::NeedWrite;
+        case TsRequestTlsWriteStatus::Complete:
+            return ReplyAdvance::Complete;
+        case TsRequestTlsWriteStatus::Idle:
+        case TsRequestTlsWriteStatus::Invalid:
+        case TsRequestTlsWriteStatus::Closed:
+            return ReplyAdvance::Failed;
+        }
+        return ReplyAdvance::Failed;
+    }
+
+    [[nodiscard]] bool releaseProductionReply() noexcept
+    {
+        return writer_.status() == TsRequestTlsWriteStatus::Complete &&
+               writer_.releaseReply();
     }
 
     [[nodiscard]] bool processNextClientFrame(
@@ -1292,16 +1431,304 @@ private:
     bool valid_{};
 };
 
+enum class CredSspPumpBoundary : std::uint8_t
+{
+    InitialClientTsRequest,
+    NextClientTsRequest,
+};
+
+enum class CredSspPumpStopReason : std::uint8_t
+{
+    BoundaryComplete,
+    TypedFailure,
+    NoProgress,
+    RoundLimit,
+};
+
+struct CredSspPumpIteration final
+{
+    std::size_t clientToServerBytes{};
+    std::size_t serverToClientBytes{};
+    std::size_t serverInputBioPendingBytes{};
+    std::size_t serverOutputBioPendingBytes{};
+    std::size_t serverApplicationPendingBytes{};
+    std::size_t microsoftRetainedServerInputBytes{};
+    SECURITY_STATUS microsoftStatus{SEC_E_INTERNAL_ERROR};
+    bool serverTlsStateChanged{};
+    bool serverApplicationFrameCompleted{};
+    bool microsoftSspiCalled{};
+    bool microsoftSspiStateChanged{};
+    bool serverApplicationStateChanged{};
+    bool serverBufferedStateChanged{};
+
+    [[nodiscard]] bool anyProgress() const noexcept
+    {
+        return clientToServerBytes != 0U ||
+               serverToClientBytes != 0U ||
+               serverTlsStateChanged ||
+               serverApplicationFrameCompleted ||
+               microsoftSspiStateChanged ||
+               serverApplicationStateChanged ||
+               serverBufferedStateChanged;
+    }
+};
+
+struct CredSspPumpResult final
+{
+    std::array<CredSspPumpIteration, kMaximumExchangeRounds> iterations{};
+    std::size_t iterationCount{};
+    SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
+    const char *failureStage{"memory-bio-round-limit"};
+    CredSspPumpStopReason stopReason{CredSspPumpStopReason::RoundLimit};
+    int negotiatedTlsVersion{};
+    bool tlsEstablished{};
+    bool productionReplyCommitted{};
+    bool microsoftOutputGenerated{};
+};
+
+[[nodiscard]] CredSspPumpResult pumpCredSspMemoryBio(
+    TargetProfile profile,
+    WindowsCredSspClient &client,
+    ProductionCredSspServer &server,
+    CredSspPumpBoundary boundary,
+    bool sendQueuedProductionReply)
+{
+    CredSspPumpResult result{};
+    CredSspClientStep pendingClientStep{};
+    bool havePendingClientStep = false;
+    bool productionReplyCommitted = !sendQueuedProductionReply;
+
+    for (std::size_t round = 0U;
+         round < kMaximumExchangeRounds;
+         ++round)
+    {
+        CredSspPumpIteration iteration{};
+        iteration.microsoftStatus = result.lastClientStatus;
+
+        if (havePendingClientStep &&
+            !pendingClientStep.output.empty())
+        {
+            const auto output = pendingClientStep.output.view();
+            iteration.clientToServerBytes = output.size();
+            if (!server.feedRaw(output))
+            {
+                result.failureStage = "memory-bio-client-to-server";
+                result.stopReason = CredSspPumpStopReason::TypedFailure;
+                result.iterations[result.iterationCount++] = iteration;
+                return result;
+            }
+        }
+        pendingClientStep = {};
+        havePendingClientStep = false;
+
+        const int tlsStateBefore = server.tlsStateValue();
+        const std::size_t inputPendingBefore =
+            server.inputBioPendingBytes();
+        const std::size_t applicationPendingBefore =
+            server.applicationPendingBytes();
+
+        if (!server.tlsReady())
+        {
+            const TlsAdvance tlsAdvance = server.advanceHandshake();
+            if (tlsAdvance == TlsAdvance::Failed)
+            {
+                result.failureStage = "memory-bio-server-tls";
+                result.stopReason = CredSspPumpStopReason::TypedFailure;
+                result.iterations[result.iterationCount++] = iteration;
+                return result;
+            }
+        }
+
+        if (server.tlsReady())
+        {
+            result.tlsEstablished = true;
+            result.negotiatedTlsVersion =
+                server.negotiatedTlsVersion();
+
+            if (!productionReplyCommitted)
+            {
+                const int replyStateBefore =
+                    server.replyStateValue();
+                const ReplyAdvance reply =
+                    server.advanceProductionReply();
+                iteration.serverApplicationStateChanged =
+                    reply == ReplyAdvance::Progress ||
+                    reply == ReplyAdvance::Complete ||
+                    server.replyStateValue() != replyStateBefore;
+                if (reply == ReplyAdvance::Failed)
+                {
+                    result.failureStage =
+                        "memory-bio-production-type2-write";
+                    result.stopReason =
+                        CredSspPumpStopReason::TypedFailure;
+                    result.iterations[result.iterationCount++] =
+                        iteration;
+                    return result;
+                }
+                if (reply == ReplyAdvance::Complete)
+                {
+                    if (!server.releaseProductionReply())
+                    {
+                        result.failureStage =
+                            "memory-bio-production-type2-release";
+                        result.stopReason =
+                            CredSspPumpStopReason::TypedFailure;
+                        result.iterations[result.iterationCount++] =
+                            iteration;
+                        return result;
+                    }
+                    productionReplyCommitted = true;
+                    result.productionReplyCommitted = true;
+                }
+            }
+            else
+            {
+                const FrameAdvance frame = server.advanceFrame();
+                iteration.serverApplicationStateChanged =
+                    frame == FrameAdvance::Progress;
+                if (frame == FrameAdvance::Failed)
+                {
+                    result.failureStage =
+                        boundary ==
+                            CredSspPumpBoundary::InitialClientTsRequest
+                        ? "memory-bio-server-initial-tsrequest"
+                        : "memory-bio-server-next-tsrequest";
+                    result.stopReason =
+                        CredSspPumpStopReason::TypedFailure;
+                    result.iterations[result.iterationCount++] =
+                        iteration;
+                    return result;
+                }
+                iteration.serverApplicationFrameCompleted =
+                    frame == FrameAdvance::Complete;
+            }
+        }
+
+        iteration.serverTlsStateChanged =
+            server.tlsStateValue() != tlsStateBefore;
+        const std::size_t inputPendingAfter =
+            server.inputBioPendingBytes();
+        const std::size_t applicationPendingAfter =
+            server.applicationPendingBytes();
+        iteration.serverBufferedStateChanged =
+            inputPendingAfter != inputPendingBefore ||
+            applicationPendingAfter != applicationPendingBefore;
+
+        if (iteration.serverApplicationFrameCompleted)
+        {
+            iteration.serverInputBioPendingBytes =
+                inputPendingAfter;
+            iteration.serverOutputBioPendingBytes =
+                server.outputBioPendingBytes();
+            iteration.serverApplicationPendingBytes =
+                applicationPendingAfter;
+            iteration.microsoftRetainedServerInputBytes =
+                client.pendingServerInputBytes();
+            result.iterations[result.iterationCount++] =
+                iteration;
+            result.stopReason =
+                CredSspPumpStopReason::BoundaryComplete;
+            result.failureStage = "none";
+            return result;
+        }
+
+        const auto serverToken = server.drainRaw();
+        if (!server.valid())
+        {
+            result.failureStage = "memory-bio-server-to-client";
+            result.stopReason = CredSspPumpStopReason::TypedFailure;
+            result.iterations[result.iterationCount++] = iteration;
+            return result;
+        }
+        iteration.serverToClientBytes = serverToken.size();
+
+        const bool shouldAdvanceMicrosoft =
+            !serverToken.empty() ||
+            !client.hasContext() ||
+            client.canContinueWithoutNewServerBytes();
+        if (shouldAdvanceMicrosoft)
+        {
+            const char *const phase =
+                !client.hasContext()
+                ? "initial-context"
+                : boundary ==
+                      CredSspPumpBoundary::InitialClientTsRequest
+                    ? "tls-or-credssp-continue"
+                    : "after-production-type2";
+            pendingClientStep =
+                client.step(profile, serverToken);
+            havePendingClientStep = true;
+            iteration.microsoftSspiCalled = true;
+            iteration.microsoftSspiStateChanged =
+                pendingClientStep.stateChanged;
+            iteration.microsoftStatus =
+                pendingClientStep.status;
+            iteration.microsoftRetainedServerInputBytes =
+                pendingClientStep.retainedServerInputBytes;
+            result.lastClientStatus =
+                pendingClientStep.status;
+            printClientStatus(
+                profile, phase, pendingClientStep.status);
+
+            if (!credSspClientStatusCanContinue(
+                    pendingClientStep.status))
+            {
+                result.failureStage = "memory-bio-microsoft-credssp";
+                result.stopReason =
+                    CredSspPumpStopReason::TypedFailure;
+                result.iterations[result.iterationCount++] =
+                    iteration;
+                return result;
+            }
+
+            if (sendQueuedProductionReply &&
+                productionReplyCommitted &&
+                !pendingClientStep.output.empty())
+            {
+                result.microsoftOutputGenerated = true;
+            }
+        }
+        else
+        {
+            iteration.microsoftRetainedServerInputBytes =
+                client.pendingServerInputBytes();
+        }
+
+        iteration.serverInputBioPendingBytes =
+            server.inputBioPendingBytes();
+        iteration.serverOutputBioPendingBytes =
+            server.outputBioPendingBytes();
+        iteration.serverApplicationPendingBytes =
+            server.applicationPendingBytes();
+        result.iterations[result.iterationCount++] = iteration;
+
+        if (!iteration.anyProgress())
+        {
+            result.failureStage = "memory-bio-no-progress";
+            result.stopReason = CredSspPumpStopReason::NoProgress;
+            return result;
+        }
+    }
+
+    return result;
+}
+
 struct FullCredSspAttempt final
 {
     const char *stage{"not-started"};
     SECURITY_STATUS acquireStatus{SEC_E_INTERNAL_ERROR};
     SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
+    CredSspPumpResult initialPump{};
+    CredSspPumpResult nextPump{};
     std::uint32_t typeTwoFlags{};
     std::size_t typeTwoTargetNameCodeUnits{};
+    int minimumTlsVersion{};
+    int maximumTlsVersion{};
+    int negotiatedTlsVersion{};
     bool tlsEstablished{};
     bool initialClientTsRequestReceived{};
     bool productionTypeTwoQueued{};
+    bool productionTypeTwoTlsCommitted{};
     bool microsoftNextTokenGenerated{};
     bool nextClientTsRequestReceived{};
     bool productionObservedTypeThree{};
@@ -1322,6 +1749,8 @@ struct FullCredSspAttempt final
         result.stage = "production-server-setup";
         return result;
     }
+    result.minimumTlsVersion = server.minimumTlsVersion();
+    result.maximumTlsVersion = server.maximumTlsVersion();
 
     result.stage = "acquire-credssp";
     result.acquireStatus = client.acquire();
@@ -1330,65 +1759,18 @@ struct FullCredSspAttempt final
     if (!securityStatusSucceeded(result.acquireStatus))
         return result;
 
-    result.stage = "credssp-client-initial";
-    auto clientStep = client.step(profile, {});
-    result.lastClientStatus = clientStep.status;
-    printClientStatus(
-        profile, "initial-context", clientStep.status);
-    if (!securityStatusSucceeded(clientStep.status) ||
-        clientStep.output.empty())
+    result.stage = "memory-bio-initial-tsrequest";
+    result.initialPump = pumpCredSspMemoryBio(
+        profile, client, server,
+        CredSspPumpBoundary::InitialClientTsRequest, false);
+    result.lastClientStatus = result.initialPump.lastClientStatus;
+    result.tlsEstablished = result.initialPump.tlsEstablished;
+    result.negotiatedTlsVersion =
+        result.initialPump.negotiatedTlsVersion;
+    if (result.initialPump.stopReason !=
+        CredSspPumpStopReason::BoundaryComplete)
     {
-        return result;
-    }
-
-    bool initialFrameReady = false;
-    for (std::size_t round = 0U;
-         round < kMaximumExchangeRounds && !initialFrameReady;
-         ++round)
-    {
-        result.stage = "client-to-server";
-        if (!server.feedRaw(clientStep.output.view()))
-            return result;
-
-        result.stage = "server-tls";
-        const TlsAdvance tls = server.advanceHandshake();
-        if (tls == TlsAdvance::Failed)
-            return result;
-        result.tlsEstablished = tls == TlsAdvance::Ready;
-
-        if (result.tlsEstablished)
-        {
-            result.stage = "server-initial-tsrequest";
-            const FrameAdvance frame = server.advanceFrame();
-            if (frame == FrameAdvance::Failed)
-                return result;
-            if (frame == FrameAdvance::Complete)
-            {
-                initialFrameReady = true;
-                break;
-            }
-        }
-
-        result.stage = "server-to-client";
-        const auto serverToken = server.drainRaw();
-        if (serverToken.empty())
-            return result;
-
-        result.stage = "credssp-client-continue";
-        clientStep = client.step(profile, serverToken);
-        result.lastClientStatus = clientStep.status;
-        printClientStatus(
-            profile, "tls-or-credssp-continue", clientStep.status);
-        if (!securityStatusSucceeded(clientStep.status) ||
-            clientStep.output.empty())
-        {
-            return result;
-        }
-    }
-
-    if (!initialFrameReady)
-    {
-        result.stage = "initial-tsrequest-timeout";
+        result.stage = result.initialPump.failureStage;
         return result;
     }
     result.initialClientTsRequestReceived = true;
@@ -1399,36 +1781,25 @@ struct FullCredSspAttempt final
     result.productionTypeTwoQueued = true;
     const auto challenge = server.challengeObservation();
     result.typeTwoFlags = challenge.negotiateFlags;
-    result.typeTwoTargetNameCodeUnits =
-        challenge.targetNameCodeUnits;
+    result.typeTwoTargetNameCodeUnits = challenge.targetNameCodeUnits;
 
-    const auto productionTypeTwo = server.flushProductionReply();
-    if (productionTypeTwo.empty())
+    result.stage = "memory-bio-after-production-type2";
+    result.nextPump = pumpCredSspMemoryBio(
+        profile, client, server,
+        CredSspPumpBoundary::NextClientTsRequest, true);
+    result.lastClientStatus = result.nextPump.lastClientStatus;
+    result.productionTypeTwoTlsCommitted =
+        result.nextPump.productionReplyCommitted;
+    result.microsoftNextTokenGenerated =
+        result.nextPump.microsoftOutputGenerated;
+    if (result.nextPump.negotiatedTlsVersion != 0)
+        result.negotiatedTlsVersion = result.nextPump.negotiatedTlsVersion;
+    if (result.nextPump.stopReason !=
+        CredSspPumpStopReason::BoundaryComplete)
     {
-        result.stage = "production-type2-tls-write";
+        result.stage = result.nextPump.failureStage;
         return result;
     }
-
-    result.stage = "microsoft-credssp-after-type2";
-    auto nextClientStep = client.step(profile, productionTypeTwo);
-    result.lastClientStatus = nextClientStep.status;
-    printClientStatus(
-        profile, "after-production-type2", nextClientStep.status);
-    if (!securityStatusSucceeded(nextClientStep.status) ||
-        nextClientStep.output.empty())
-    {
-        return result;
-    }
-    result.microsoftNextTokenGenerated = true;
-
-    result.stage = "next-client-token-to-server";
-    if (!server.feedRaw(nextClientStep.output.view()))
-        return result;
-
-    result.stage = "next-client-tsrequest";
-    const FrameAdvance nextFrame = server.advanceFrame();
-    if (nextFrame != FrameAdvance::Complete)
-        return result;
     result.nextClientTsRequestReceived = true;
 
     [[maybe_unused]] std::uint8_t tokenCount = 0U;
@@ -1443,6 +1814,81 @@ struct FullCredSspAttempt final
     }
     result.stage = "none";
     return result;
+}
+
+[[nodiscard]] const char *tlsVersionName(int version) noexcept
+{
+    switch (version)
+    {
+    case 0:
+        return "default";
+    case TLS1_2_VERSION:
+        return "TLS1.2";
+#if defined(TLS1_3_VERSION)
+    case TLS1_3_VERSION:
+        return "TLS1.3";
+#endif
+    default:
+        return "other";
+    }
+}
+
+[[nodiscard]] const char *pumpStopReasonName(
+    CredSspPumpStopReason reason) noexcept
+{
+    switch (reason)
+    {
+    case CredSspPumpStopReason::BoundaryComplete:
+        return "boundary-complete";
+    case CredSspPumpStopReason::TypedFailure:
+        return "typed-failure";
+    case CredSspPumpStopReason::NoProgress:
+        return "no-progress";
+    case CredSspPumpStopReason::RoundLimit:
+        return "round-limit";
+    }
+    return "unknown";
+}
+
+void printPumpTrace(
+    const char *phase,
+    const CredSspPumpResult &pump) noexcept
+{
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-pump-summary phase=%s stop=%s "
+        "rounds=%zu failure-stage=%s\n",
+        phase, pumpStopReasonName(pump.stopReason),
+        pump.iterationCount, pump.failureStage);
+    for (std::size_t index = 0U; index < pump.iterationCount; ++index)
+    {
+        const auto &iteration = pump.iterations[index];
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-pump phase=%s round=%zu "
+            "client-to-server=%zu server-to-client=%zu "
+            "tls-state-changed=%s app-frame-completed=%s "
+            "sspi-called=%s sspi-state-changed=%s "
+            "app-state-changed=%s buffered-state-changed=%s "
+            "rbio-pending=%zu wbio-pending=%zu ssl-pending=%zu "
+            "sspi-retained=%zu sspi-status=%s code=0x%08lx\n",
+            phase, index,
+            iteration.clientToServerBytes,
+            iteration.serverToClientBytes,
+            iteration.serverTlsStateChanged ? "yes" : "no",
+            iteration.serverApplicationFrameCompleted ? "yes" : "no",
+            iteration.microsoftSspiCalled ? "yes" : "no",
+            iteration.microsoftSspiStateChanged ? "yes" : "no",
+            iteration.serverApplicationStateChanged ? "yes" : "no",
+            iteration.serverBufferedStateChanged ? "yes" : "no",
+            iteration.serverInputBioPendingBytes,
+            iteration.serverOutputBioPendingBytes,
+            iteration.serverApplicationPendingBytes,
+            iteration.microsoftRetainedServerInputBytes,
+            securityStatusName(iteration.microsoftStatus),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(iteration.microsoftStatus)));
+    }
 }
 
 void printStatus(const char *label, SECURITY_STATUS status) noexcept
@@ -1462,14 +1908,20 @@ void printFailure(
     std::fprintf(
         stderr,
         "microsoft-credssp target=%s stage=%s tls=%s "
-        "initial-tsrequest=%s type2-queued=%s type2-flags=0x%08lx "
-        "type2-target-code-units=%zu next-token=%s next-tsrequest=%s "
-        "type3=%s type3-verified=%s pubkeyauth=%s\n",
+        "tls-version=%s tls-min=%s tls-max=%s "
+        "initial-tsrequest=%s type2-queued=%s type2-tls-committed=%s "
+        "type2-flags=0x%08lx type2-target-code-units=%zu "
+        "next-token=%s next-tsrequest=%s type3=%s "
+        "type3-verified=%s pubkeyauth=%s\n",
         targetLabel(profile),
         result.stage,
         result.tlsEstablished ? "established" : "not-established",
+        tlsVersionName(result.negotiatedTlsVersion),
+        tlsVersionName(result.minimumTlsVersion),
+        tlsVersionName(result.maximumTlsVersion),
         result.initialClientTsRequestReceived ? "yes" : "no",
         result.productionTypeTwoQueued ? "yes" : "no",
+        result.productionTypeTwoTlsCommitted ? "yes" : "no",
         static_cast<unsigned long>(result.typeTwoFlags),
         result.typeTwoTargetNameCodeUnits,
         result.microsoftNextTokenGenerated ? "yes" : "no",
@@ -1481,6 +1933,12 @@ void printFailure(
     printStatus(
         "microsoft-credssp-last-client-status",
         result.lastClientStatus);
+    if (result.initialPump.iterationCount != 0U &&
+        result.initialPump.stopReason != CredSspPumpStopReason::BoundaryComplete)
+        printPumpTrace("initial-tsrequest", result.initialPump);
+    if (result.nextPump.iterationCount != 0U &&
+        result.nextPump.stopReason != CredSspPumpStopReason::BoundaryComplete)
+        printPumpTrace("after-production-type2", result.nextPump);
 }
 
 } // namespace
@@ -1508,6 +1966,7 @@ int main(int argc, char **argv)
                attempt.tlsEstablished &&
                attempt.initialClientTsRequestReceived &&
                attempt.productionTypeTwoQueued &&
+               attempt.productionTypeTwoTlsCommitted &&
                attempt.microsoftNextTokenGenerated &&
                attempt.nextClientTsRequestReceived;
     };
@@ -1520,9 +1979,10 @@ int main(int argc, char **argv)
         std::fprintf(
             stderr,
             "microsoft-credssp target=%s production-type2=accepted "
-            "next-client-token=yes type3=%s type3-verified=%s "
+            "tls=%s next-client-token=yes type3=%s type3-verified=%s "
             "pubkeyauth=%s\n",
             targetLabel(profile),
+            tlsVersionName(result.negotiatedTlsVersion),
             result.productionObservedTypeThree ? "yes" : "no",
             result.productionVerifiedTypeThree ? "yes" : "no",
             result.nextClientHasPubKeyAuth ? "yes" : "no");

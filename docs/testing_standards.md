@@ -1,3 +1,33 @@
+## Microsoft full-CredSSP memory-BIO round-progression gate (2026-10-26)
+
+All three Windows full-`CREDSSP` target cases must use the same bounded
+memory-BIO pump. For every pump iteration retain a bounded diagnostic record of
+whether bytes moved client->server, bytes moved server->client, the server TLS
+state changed, a server application frame completed, and Microsoft SSPI state
+changed. Also retain non-secret counts for input/output BIO pending bytes,
+`SSL_pending()`, retained SSPI input and partial server application progress
+so buffered TLS/application work cannot be mistaken for a deadlock.
+
+A complete SSPI output token may contain multiple TLS records and one server
+drain may contain multiple handshake, post-handshake or application records.
+Feed/drain them as byte streams. When TLS becomes Ready, immediately permit the
+same production CredSSP reader to consume residual encrypted/application bytes;
+never assume the preceding token was handshake-only. Preserve
+`SECBUFFER_EXTRA`, preserve the full token on
+`SEC_E_INCOMPLETE_MESSAGE`, and do not fail merely because
+`SEC_I_CONTINUE_NEEDED` produced no output. A no-wire SSPI continuation is
+valid only from retained/explicit SSPI state and cannot invent a byte.
+
+Each server pump iteration performs at most one OpenSSL handshake/read/write
+operation. Stop only at the requested initial/next TSRequest boundary, a typed
+provider/framing failure, a true no-progress iteration, or the existing bounded
+round limit. Failure output prints the bounded pump trace and negotiated TLS
+version. The production TLS context remains minimum TLS 1.2 with no test-side
+version assumption; the same pump must work when the platform negotiates TLS
+1.2 or TLS 1.3. The existing three behavior-named CTests remain the gates; this
+test-only transport repair does not create a production R1 owner or authorize
+target-profile changes.
+
 ## Shared product target-tuple parity gate (2026-10-26)
 
 Register the portable offline CTest

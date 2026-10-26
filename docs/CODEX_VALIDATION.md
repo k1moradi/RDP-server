@@ -1,3 +1,36 @@
+## R2 target-identity candidate-profile follow-up — 2026-10-25
+
+**Reconciled parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`.
+That parent already adds the hard Microsoft-native differential required by the
+new owner evidence: bare NTLM SSPI runs unchanged production Type 2 with both
+`TERMSRV/RDP-SERVER` and `TERMSRV/192.168.1.5`, and a Windows-native
+`CREDSSP` package exercises both targets against the production TLS/CredSSP
+server path through the next Type-3 + pubKeyAuth boundary.
+
+This follow-up does not replace or soften those gates. It adds only the two
+requested test-only challenge identity candidates—endpoint Type-2 TargetName,
+then endpoint TargetName plus `MsvAvTargetName=TERMSRV/192.168.1.5`—to the
+native NTLM SSPI oracle. Microsoft rejection is reported as SKIP for these
+exploratory profiles; any emitted Type 3 must pass the production parser,
+NTLMv2 verifier and requested SSPI context attributes.
+
+Portable Type-3 coverage now inserts `MsvAvTargetName`, nonzero
+`MsvAvChannelBindings`, and `MsvAvFlags` into a known authenticated-response
+shape. The intentionally stale proof must fail specifically at proof comparison,
+demonstrating that the client AVs are structurally accepted and remain part of
+the exact authenticated blob rather than being zeroed or discarded.
+
+The design documentation now separates the TLS endpoint, Type-2 TargetName,
+optional TargetInfo service target and CredSSP/RDP service target. A future
+endpoint-bound production profile remains gated on executed Microsoft evidence
+and must receive the authoritative endpoint/service identity from R10; the
+encoder stays deterministic. Remote application Username remains independent.
+
+Production Type-2 bytes, native Admission, MCS, graphics, input and clipboard:
+**UNCHANGED**. Connector source/reconciliation: **PASS by inspection**.
+Modified-tree local build/CTest: **NOT RUN** (connector environment has no
+checkout/network clone). Exact-branch Windows execution: **PENDING**.
+
 ## R9 Microsoft target-principal/full-CredSSP qualification authoring — 2026-10-25
 
 Owner Linux/X11 reports **986/986 PASS** and a real Microsoft Windows App

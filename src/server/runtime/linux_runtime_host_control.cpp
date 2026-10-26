@@ -956,6 +956,38 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         projected.tlsConnection.cipherNameBytes =
             source.negotiatedTlsCipherSuiteBytes;
     }
+    projected.tlsConnection.cipherProtocolId =
+        source.negotiatedTlsCipherProtocolId;
+    switch (source.clientSniClass)
+    {
+    case LinuxRuntimeTlsClientSniClass::None:
+        projected.tlsConnection.sniClass =
+            RuntimeAcceptedClientTlsSniClass::None;
+        break;
+    case LinuxRuntimeTlsClientSniClass::Ip:
+        projected.tlsConnection.sniClass =
+            RuntimeAcceptedClientTlsSniClass::Ip;
+        break;
+    case LinuxRuntimeTlsClientSniClass::Dns:
+        projected.tlsConnection.sniClass =
+            RuntimeAcceptedClientTlsSniClass::Dns;
+        break;
+    }
+
+    if (source.standaloneNtlmTypeOneObserved)
+    {
+        projected.ntlmTypeOne.observed = true;
+        projected.ntlmTypeOne.versionPresent =
+            source.standaloneNtlmTypeOne.versionPresent;
+        projected.ntlmTypeOne.majorVersion =
+            source.standaloneNtlmTypeOne.majorVersion;
+        projected.ntlmTypeOne.minorVersion =
+            source.standaloneNtlmTypeOne.minorVersion;
+        projected.ntlmTypeOne.buildNumber =
+            source.standaloneNtlmTypeOne.buildNumber;
+        projected.ntlmTypeOne.ntlmRevision =
+            source.standaloneNtlmTypeOne.ntlmRevision;
+    }
 
     switch (source.credSspTransition)
     {
@@ -1602,6 +1634,30 @@ void LinuxRuntimeHostControl::applyConnectionTargetDiagnostics(
         connectionTargetIdentity_.startGeneration;
 }
 
+void LinuxRuntimeHostControl::applyConnectionCertificateDiagnostics(
+    RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept
+{
+    diagnostics.tlsConnection.certificateProfile =
+        RuntimeTlsCertificateProfile::Unavailable;
+    diagnostics.tlsConnection.certificateEndpointGeneration = 0U;
+    if (!diagnostics.available || tlsContext_ == nullptr || !listener_.valid())
+        return;
+
+    if (!externalTlsContext_)
+    {
+        diagnostics.tlsConnection.certificateProfile =
+            RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
+    }
+
+    const RuntimeTlsIdentityStatus identity =
+        tlsContext_->boundIdentityStatus(listener_);
+    if (identity.boundIdentityMatchesGeneration(listener_.generation()))
+    {
+        diagnostics.tlsConnection.certificateEndpointGeneration =
+            identity.endpointGeneration;
+    }
+}
+
 bool LinuxRuntimeHostControl::buildAuthenticationSelection(
     LinuxRuntimeAuthenticationSelection& selection) const noexcept
 {
@@ -1811,6 +1867,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
                 acceptedClient_->acceptanceDiagnostics());
     }
     applyConnectionTargetDiagnostics(
+        snapshot.acceptedClientPreauthDiagnostics);
+    applyConnectionCertificateDiagnostics(
         snapshot.acceptedClientPreauthDiagnostics);
 #endif
     if (tlsContext_ != nullptr)
@@ -2759,6 +2817,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
         applyConnectionTargetDiagnostics(
             acceptedClientPreauthDiagnostics_);
+        applyConnectionCertificateDiagnostics(
+            acceptedClientPreauthDiagnostics_);
         if (error == RuntimeHostError::AuthenticationRejected &&
             peerAuthenticationIncompleteAfterDeliveredTypeTwo(
                 acceptedClientPreauthDiagnostics_))
@@ -2839,13 +2899,16 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
                 "direct-ntlm-await-type3=%s direct-ntlm-type3=%s "
                 "pre-type3-termination=%.*s "
-                "ntlm-type1-flags=0x%08x ntlm-type2-flags=0x%08x "
+                "ntlm-type1-flags=0x%08x ntlm-version-present=%s "
+                "ntlm-version=%u.%u.%u ntlm-revision=0x%02x "
+                "ntlm-type2-flags=0x%08x "
                 "ntlm-target-name-code-units=%zu ntlm-target-info-bytes=%zu "
                 "ntlm-type2-bytes=%zu ntlm-av-ids=%.*s "
                 "ntlm-server-target=%s ntlm-target-name-present=%s "
-                "tls-version=%s tls-cipher=%.*s "
+                "tls-version=%s tls-cipher-id=0x%04x tls-cipher=%.*s "
                 "client-sni=%s client-sni-class=%s "
                 "cert-cn-class=%s cert-cn=%.*s cert-san-ip=%s cert-san-dns=%s "
+                "certificate-profile=%.*s certificate-generation=%llu "
                 "fingerprint=%s "
                 "ip-self-check=%s selected-cert=%s handshake-step=%llu "
                 "handshake-result=%s ssl-error=%d openssl-reason=%u "
@@ -2880,6 +2943,16 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 preType3Termination.data(),
                 static_cast<unsigned int>(
                     ntlmChallenge.clientNegotiateFlags),
+                acceptedClientPreauthDiagnostics_.ntlmTypeOne.versionPresent
+                    ? "yes" : "no",
+                static_cast<unsigned int>(
+                    acceptedClientPreauthDiagnostics_.ntlmTypeOne.majorVersion),
+                static_cast<unsigned int>(
+                    acceptedClientPreauthDiagnostics_.ntlmTypeOne.minorVersion),
+                static_cast<unsigned int>(
+                    acceptedClientPreauthDiagnostics_.ntlmTypeOne.buildNumber),
+                static_cast<unsigned int>(
+                    acceptedClientPreauthDiagnostics_.ntlmTypeOne.ntlmRevision),
                 static_cast<unsigned int>(ntlmChallenge.negotiateFlags),
                 ntlmChallenge.targetNameCodeUnits,
                 ntlmChallenge.targetInfoBytes,
@@ -2888,15 +2961,32 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 ntlmChallenge.targetTypeServer ? "yes" : "no",
                 ntlmChallenge.targetNamePresent ? "yes" : "no",
                 tlsProtocolVersionName(diagnostics.negotiatedTlsProtocolVersion),
+                static_cast<unsigned int>(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsConnection.cipherProtocolId),
                 static_cast<int>(tlsCipherSuite.size()), tlsCipherSuite.data(),
-                diagnostics.clientSniPresent ? "present" : "absent",
-                tlsClientSniClassName(diagnostics.clientSniClass),
+                acceptedClientPreauthDiagnostics_.tlsConnection.sniClass ==
+                        RuntimeAcceptedClientTlsSniClass::None
+                    ? "absent" : "present",
+                runtimeAcceptedClientTlsSniClassName(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsConnection.sniClass).data(),
                 tlsCertificateCommonNameClassName(
                     diagnostics.certificateSubjectCommonNameClass),
                 static_cast<int>(certificateCommonName.size()),
                 certificateCommonName.data(),
                 diagnostics.certificateSanIpPresent ? "yes" : "no",
                 diagnostics.certificateSanDnsPresent ? "yes" : "no",
+                static_cast<int>(
+                    runtimeTlsCertificateProfileName(
+                        acceptedClientPreauthDiagnostics_
+                            .tlsConnection.certificateProfile).size()),
+                runtimeTlsCertificateProfileName(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsConnection.certificateProfile).data(),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsConnection.certificateEndpointGeneration),
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),
@@ -3041,6 +3131,8 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
         projectLinuxAcceptedClientPreauthDiagnostics(
             acceptedClient_->acceptanceDiagnostics());
     applyConnectionTargetDiagnostics(
+        acceptedClientPreauthDiagnostics_);
+    applyConnectionCertificateDiagnostics(
         acceptedClientPreauthDiagnostics_);
     acceptedClientDeadline_ = now + acceptedClientPreauthTimeout_;
     acceptedClientPhase_ = AcceptedClientPhase::PreAdmission;
@@ -3607,6 +3699,8 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
             projectLinuxAcceptedClientPreauthDiagnostics(
                 acceptedClient_->acceptanceDiagnostics());
         applyConnectionTargetDiagnostics(
+            acceptedClientPreauthDiagnostics_);
+        applyConnectionCertificateDiagnostics(
             acceptedClientPreauthDiagnostics_);
     }
     clearAcceptedClient();

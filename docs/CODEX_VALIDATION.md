@@ -1,3 +1,41 @@
+## Agent 10 retained physical-client diagnostics authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.
+**Reconciled authoring parent:** `f68f90989f44211a235ceb6c6eacb60eef21ade5`.
+Current main already owns Agent-1/R7 established TLS/certificate presentation,
+Agent-2 Type-1 structural parsing/evidence, Agent-6 raw-envelope separation and
+Agent-9's exact-SHA physical candidate gate/CI sentinel repair. Agent 10 reuses
+those owners and adds no second TLS, NTLM or CredSSP state machine.
+
+The accepted-client fail-only snapshot now retains the selected TLS cipher
+protocol identifier, SNI class, Type-1 VERSION
+presence/major/minor/build/revision, and generated certificate-profile/listener
+generation beside the already-present TLS version/cipher name. R2 terminal
+cleanup resets the live CredSSP acceptor, so only the already-redacted Type-1
+parser result is copied into connection-local diagnostics before reset.
+
+Certificate generation correlation is derived from the same live
+`boundIdentityStatus(listener)` transaction. The existing generated
+`SelfSignedExactIpSan` profile, certificate bytes, endpoint retirement and
+non-persistent lifetime are unchanged. Production authentication target
+identity remains exactly `fixed-name / RDP-SERVER`; Type-2 TargetName,
+TargetInfo, MsvAvTargetName, flags and profile selection are **UNCHANGED**.
+
+New behavior CTest:
+`runtime.linux-host-control-physical-client-environment-diagnostic-projection`.
+Strengthened existing coverage:
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` and
+`runtime.linux-connection-tls-acceptance-diagnostics`. The two-peer fixture
+continues to require `AuthenticationIncompletePeerClosed`, one unchanged
+listener, current owner grant, retained Session Password generation, exact
+fixed target tuple and immediate connection 2. The synthetic Type-1 has no
+VERSION field, so retained VERSION structure must remain absent/zero.
+
+Connector/source reconciliation: **PASS by inspection**. Canonical owner
+one-root build/full CTest: **NOT RUN** because this connector environment does
+not own the required checkout/build root. Exact-publication-SHA hosted CI:
+**PENDING**. No physical client or post-Type-3 authority is claimed.
+
 ## CI structure guard correction after Agent 6 diagnostic publication — 2026-10-26
 
 Exact SHA `9c38cefad024493ec706d815429f17dd01eacce0`:

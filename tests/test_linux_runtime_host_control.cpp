@@ -579,6 +579,73 @@ int main(int argc, char** argv)
     }
 
     if (testCase ==
+        "linux-host-control-physical-client-environment-diagnostic-projection")
+    {
+#if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+        return 77;
+#else
+        LinuxRuntimeConnectionAcceptanceDiagnostics source{};
+        source.preauthStage =
+            rdp_server::server::transport::PreauthStage::AwaitCredSsp;
+        source.tlsHandshakeStage =
+            LinuxRuntimeTlsHandshakeDiagnosticStage::Established;
+        source.negotiatedTlsProtocolVersion = TLS1_3_VERSION;
+        source.negotiatedTlsCipherProtocolId = 0x1301U;
+        constexpr std::string_view cipherName{"TLS_AES_128_GCM_SHA256"};
+        std::copy(
+            cipherName.begin(), cipherName.end(),
+            source.negotiatedTlsCipherSuite.begin());
+        source.negotiatedTlsCipherSuiteBytes = cipherName.size();
+        source.clientSniPresent = true;
+        source.clientSniClass = LinuxRuntimeTlsClientSniClass::Dns;
+        source.authenticationProgress =
+            LinuxRuntimeAuthenticationProgress::NtlmChallenge;
+        source.standaloneNegotiationEnvelope =
+            rdp_server::server::security::
+                StandaloneNtlmNegotiationEnvelope::DirectNtlm;
+        source.standaloneNtlmTypeOneObserved = true;
+        source.standaloneNtlmTypeOne.versionPresent = true;
+        source.standaloneNtlmTypeOne.majorVersion = 10U;
+        source.standaloneNtlmTypeOne.minorVersion = 0U;
+        source.standaloneNtlmTypeOne.buildNumber = 26100U;
+        source.standaloneNtlmTypeOne.ntlmRevision = 0x0fU;
+
+        const auto projected =
+            projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.available);
+        assert(projected.tlsConnection.protocolVersion ==
+               RuntimeAcceptedClientTlsProtocolVersion::Tls13);
+        assert(projected.tlsConnection.cipherProtocolId == 0x1301U);
+        assert(projected.tlsConnection.cipherNameView() == cipherName);
+        assert(projected.tlsConnection.sniClass ==
+               RuntimeAcceptedClientTlsSniClass::Dns);
+        assert(projected.ntlmTypeOne.observed);
+        assert(projected.ntlmTypeOne.versionPresent);
+        assert(projected.ntlmTypeOne.majorVersion == 10U);
+        assert(projected.ntlmTypeOne.minorVersion == 0U);
+        assert(projected.ntlmTypeOne.buildNumber == 26100U);
+        assert(projected.ntlmTypeOne.ntlmRevision == 0x0fU);
+        assert(projected.tlsConnection.certificateProfile ==
+               RuntimeTlsCertificateProfile::Unavailable);
+        assert(projected.tlsConnection.certificateEndpointGeneration == 0U);
+
+        LinuxRuntimeConnectionAcceptanceDiagnostics absent{};
+        const auto absentProjected =
+            projectLinuxAcceptedClientPreauthDiagnostics(absent);
+        assert(absentProjected.tlsConnection.protocolVersion ==
+               RuntimeAcceptedClientTlsProtocolVersion::Unavailable);
+        assert(absentProjected.tlsConnection.cipherProtocolId == 0U);
+        assert(absentProjected.tlsConnection.cipherNameView().empty());
+        assert(absentProjected.tlsConnection.sniClass ==
+               RuntimeAcceptedClientTlsSniClass::None);
+        assert(!absentProjected.ntlmTypeOne.observed);
+        assert(!absentProjected.ntlmTypeOne.versionPresent);
+        assert(absentProjected.ntlmTypeOne.buildNumber == 0U);
+        return 0;
+#endif
+    }
+
+    if (testCase ==
         "linux-host-control-credentials-admission-mcs-diagnostic-projection")
     {
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)

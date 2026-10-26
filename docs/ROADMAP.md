@@ -1,3 +1,59 @@
+## Agent 10 P0 — retained physical-client environment diagnostics (2026-10-26)
+
+**Assignment-time remote main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.
+**Reconciled authoring parent:** `f68f90989f44211a235ceb6c6eacb60eef21ade5`.
+Concurrent R7 Advanced diagnostics, Agent-6 raw-envelope/Type-1 evidence
+correction, Agent-9 exact-SHA physical-candidate gate and its CI structure
+sentinel repair are preserved.
+
+The physical Linux/X11 reference remains TLS Established -> Direct NTLM Type 1
+(`flags=0xe2088235`, 40 bytes) -> unchanged production Type 2
+(`0xe08a8235`) fully committed -> Await-Type-3 -> peer EOF. Type 3,
+pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share,
+graphics/X11 and clipboard remain **NOT REACHED**. Hosted Microsoft NTLM and
+full CREDSSP fixed-name/IP controls already reach Type 3, so production remains
+exactly `fixed-name / RDP-SERVER`.
+
+R10 now retains the existing R1/R2 environment observations across terminal
+pre-Type-3 cleanup: negotiated TLS version, cipher protocol identifier plus
+bounded name, SNI class, and Type-1 VERSION
+major/minor/build/revision. Because R2 resets the live CredSSP acceptor on
+terminal closure, only its already-redacted Type-1 structural observation is
+copied before reset; no token or duplicate authentication state survives.
+
+The existing R10 TLS snapshot also carries the generated
+`SelfSignedExactIpSan` profile and the exact live listener generation obtained
+from the same TLS-context/listener binding transaction. This does not change the
+certificate generator, trust policy or persistence. Endpoint reconfiguration
+and Stop continue to retire generated identity ownership.
+
+Production target identity is **UNCHANGED**: endpoint + TERMSRV + IP target
+class + `fixed-name / RDP-SERVER` + Start/listener generation. Endpoint-bound
+identity remains dormant. Type-2 TargetName, TargetInfo, MsvAvTargetName, flags
+and target-profile selection are untouched.
+
+Retry behavior remains `AuthenticationIncompletePeerClosed`. The strengthened
+two-peer production fixture requires Sharing, current owner grant, Session
+Password generation, listener generation, fixed target tuple and the new
+environment snapshot to survive peer 1 retirement, with immediate connection 2
+accepted on the same listener.
+
+**Authored coverage:** new behavior CTest
+`runtime.linux-host-control-physical-client-environment-diagnostic-projection`;
+strengthened
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` and
+`runtime.linux-connection-tls-acceptance-diagnostics`. Existing anchored CI
+sanitizer selector cardinalities are unchanged. Connector/source reconciliation
+against the authoring parent: **PASS by inspection**. Canonical owner
+`~/rdp-server/build/` configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** exact-SHA hosted compile/CTest and Agent-9 candidate
+qualification, then the next owner-authorized physical Windows App/Linux retry.
+Record the retained TLS/cipher/SNI, physical Type-1 VERSION/build/revision and
+certificate-profile fields at the same Type-2/Await-Type-3 boundary before any
+production wire or identity change is considered.
+
 ## CI structure sentinel correction for physical-owner receipt wording (2026-10-26)
 
 Exact SHA `9c38cefad024493ec706d815429f17dd01eacce0` reached workflow

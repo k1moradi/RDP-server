@@ -1,3 +1,30 @@
+## R10 retained physical-client environment diagnostics (2026-10-26)
+
+R10 consumes the existing R1 established-TLS observer and R2 Type-1 parser; it
+must not create a second TLS, NTLM or CredSSP state machine. The retained
+accepted-client fail-only snapshot may carry only bounded, non-secret facts:
+negotiated TLS version, selected cipher protocol identifier plus bounded cipher
+name, SNI class, NTLM Type-1 VERSION presence and major/minor/build/revision,
+and the current generated-certificate profile with its exact live listener
+generation. Never retain the SNI hostname, NTLM domain/workstation contents,
+tokens, challenge/response material, passwords, keys or delegated data.
+
+R2 may reset its live CredSSP mechanism on terminal peer closure. Preserve only
+the already-redacted Type-1 structural parser result immediately before that
+reset, beside the existing cached negotiation-envelope and Type-2 shape
+observations. The cache is connection-local, is never reparsed, and cannot be
+consulted for authentication, Admission, MCS, Share, graphics, input or
+clipboard authority.
+
+The existing R10 target tuple remains independently authoritative: numeric
+endpoint, TERMSRV service class, IP target class, `fixed-name / RDP-SERVER`,
+and Start/listener generation. TLS/SNI/VERSION/certificate diagnostics must not
+activate endpoint-bound identity or change Type-2 flags, TargetName, TargetInfo
+or MsvAvTargetName. The generated certificate profile remains the existing
+self-signed exact-IP-SAN profile; its diagnostic generation is obtained from
+the same live TLS-context/listener binding and is zero when that binding is not
+current.
+
 ## Agent 9 physical-client candidate observations remain non-authorizing (2026-10-26)
 
 Native certificate-policy qualification must consume the production-generated leaf or an explicitly test-only comparison profile and must never install, delete or persist trust in a Keychain or user/machine certificate store. macOS custom anchors remain scoped to the individual `SecTrust`; Windows comparison trust remains confined to the existing exclusive in-memory store/chain engine. Endpoint policy, purpose, time and trust observations grant no CredSSP, native Admission, MCS, Share, graphics, input or clipboard authority.

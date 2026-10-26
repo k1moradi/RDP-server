@@ -725,6 +725,7 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
     snapshot.negotiatedTlsCipherSuite = negotiatedTlsCipherSuite_;
     snapshot.negotiatedTlsCipherSuiteBytes = negotiatedTlsCipherSuiteBytes_;
+    snapshot.negotiatedTlsCipherProtocolId = negotiatedTlsCipherProtocolId_;
     snapshot.clientSniPresent = clientSniPresent_;
     snapshot.clientSniClass = clientSniClass_;
     snapshot.certificateSubjectCommonName = certificateSubjectCommonName_;
@@ -739,6 +740,10 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.protocolStage = protocolDiagnosticStage_;
     snapshot.standaloneNegotiationEnvelope =
         standaloneNegotiationEnvelope_;
+    snapshot.standaloneNtlmTypeOneObserved =
+        standaloneNtlmTypeOneObserved_;
+    snapshot.standaloneNtlmTypeOne =
+        standaloneNtlmTypeOneObservation_;
     snapshot.standaloneNtlmChallenge =
         standaloneNtlmChallengeObservation_;
     snapshot.standalonePasswordSelected =
@@ -793,10 +798,13 @@ void LinuxRuntimeConnection::captureEstablishedTlsDiagnostics() noexcept
     negotiatedTlsProtocolVersion_ = ::SSL_version(tls);
     negotiatedTlsCipherSuiteBytes_ = 0U;
     negotiatedTlsCipherSuite_.fill('\0');
+    negotiatedTlsCipherProtocolId_ = 0U;
     if (const SSL_CIPHER *const cipher = ::SSL_get_current_cipher(tls))
     {
         negotiatedTlsCipherSuiteBytes_ = copyPrintableDiagnosticCString(
             negotiatedTlsCipherSuite_, ::SSL_CIPHER_get_name(cipher));
+        negotiatedTlsCipherProtocolId_ =
+            ::SSL_CIPHER_get_protocol_id(cipher);
     }
     clientSniClass_ = classifyClientSni(tls, clientSniPresent_);
     if (const auto provenance = connection_.securityNegotiationProvenance())
@@ -1505,6 +1513,12 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         {
             standaloneNegotiationEnvelope_ =
                 initial.spnego.negotiationEnvelope;
+        }
+        if (initial.observed && initial.spnego.ntlmTypeOneObserved)
+        {
+            standaloneNtlmTypeOneObserved_ = true;
+            standaloneNtlmTypeOneObservation_ =
+                initial.spnego.ntlmTypeOne;
         }
         const auto challenge =
             standaloneCredSspAcceptor_.challengeObservation();

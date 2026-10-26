@@ -1076,6 +1076,33 @@ void assertFixedConnectionTargetIdentity(
            listenerGeneration);
 }
 
+[[nodiscard]] bool physicalClientEnvironmentDiagnosticsMatch(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    return diagnostics.available &&
+           (diagnostics.tlsConnection.protocolVersion ==
+                RuntimeAcceptedClientTlsProtocolVersion::Tls12 ||
+            diagnostics.tlsConnection.protocolVersion ==
+                RuntimeAcceptedClientTlsProtocolVersion::Tls13) &&
+           diagnostics.tlsConnection.cipherProtocolId != 0U &&
+           !diagnostics.tlsConnection.cipherNameView().empty() &&
+           diagnostics.tlsConnection.sniClass ==
+               RuntimeAcceptedClientTlsSniClass::None &&
+           diagnostics.ntlmTypeOne.observed &&
+           !diagnostics.ntlmTypeOne.versionPresent &&
+           diagnostics.ntlmTypeOne.majorVersion == 0U &&
+           diagnostics.ntlmTypeOne.minorVersion == 0U &&
+           diagnostics.ntlmTypeOne.buildNumber == 0U &&
+           diagnostics.ntlmTypeOne.ntlmRevision == 0U &&
+           diagnostics.tlsConnection.certificateProfile ==
+               RuntimeTlsCertificateProfile::SelfSignedExactIpSan &&
+           diagnostics.tlsConnection.certificateEndpointGeneration ==
+               status.listenerGeneration &&
+           status.tlsCertificateProfile ==
+               RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
+}
+
 [[nodiscard]] bool directTypeTwoPeerEofRemainsPreAdmission(
     const RuntimeHostStatus& status) noexcept
 {
@@ -1111,8 +1138,7 @@ void assertFixedConnectionTargetIdentity(
             diagnostics.tlsConnection.protocolVersion ==
                 RuntimeAcceptedClientTlsProtocolVersion::Tls13) &&
            !diagnostics.tlsConnection.cipherNameView().empty() &&
-           status.tlsCertificateProfile ==
-               RuntimeTlsCertificateProfile::SelfSignedExactIpSan &&
+           physicalClientEnvironmentDiagnosticsMatch(status) &&
            !status.nativeDesktopReady &&
            !status.nativeDesktopInitializing &&
            !status.graphicsReady;
@@ -1559,6 +1585,8 @@ int main(int argc, char** argv)
         assertFixedConnectionTargetIdentity(
             waitingForTypeThree, recommendation.address, selectedPort,
             firstListenerGeneration);
+        assert(physicalClientEnvironmentDiagnosticsMatch(
+            waitingForTypeThree));
 
         closeAfterTypeTwo.store(true, std::memory_order_release);
         assert(pumpUntilClientRetired(control));
@@ -1740,6 +1768,8 @@ int main(int argc, char** argv)
         assertFixedConnectionTargetIdentity(
             retryWaitingForTypeThree, recommendation.address, selectedPort,
             firstListenerGeneration);
+        assert(physicalClientEnvironmentDiagnosticsMatch(
+            retryWaitingForTypeThree));
         assert(challengesDiffer(
             peerResult.serverChallenge, retryTypeTwoResult.serverChallenge));
 

@@ -530,6 +530,13 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     // reply was released; neither state is evidence of peer receipt or Type 3.
     bool directNtlmTypeTwoQueued{};
     bool directNtlmTypeTwoDelivered{};
+
+    // Appended fail-only observations preserve the established aggregate
+    // layout. No token, identity payload, challenge response or key is kept.
+    std::uint32_t negotiatedTlsCipherProtocolId{};
+    bool standaloneNtlmTypeOneObserved{};
+    rdp_server::server::security::NtlmNegotiateMessage
+        standaloneNtlmTypeOne{};
 };
 
 namespace detail
@@ -1304,6 +1311,11 @@ private:
         standaloneNegotiationEnvelope_{
             rdp_server::server::security::
                 StandaloneNtlmNegotiationEnvelope::Undetermined};
+    // Redacted parser output survives R2 mechanism reset only for terminal
+    // diagnostics. It is never consulted for authentication or Admission.
+    bool standaloneNtlmTypeOneObserved_{};
+    rdp_server::server::security::NtlmNegotiateMessage
+        standaloneNtlmTypeOneObservation_{};
     rdp_server::server::security::NtlmChallengeMessageObservation
         standaloneNtlmChallengeObservation_{};
     rdp_server::server::security::StandaloneAuthenticationFailureStage
@@ -1319,6 +1331,7 @@ private:
     std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity>
         negotiatedTlsCipherSuite_{};
     std::size_t negotiatedTlsCipherSuiteBytes_{};
+    std::uint32_t negotiatedTlsCipherProtocolId_{};
     bool clientSniPresent_{};
     LinuxRuntimeTlsClientSniClass clientSniClass_{
         LinuxRuntimeTlsClientSniClass::None};

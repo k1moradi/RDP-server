@@ -182,6 +182,8 @@ private:
         const noexcept;
     void applyConnectionTargetDiagnostics(
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept;
+    void applyConnectionCertificateDiagnostics(
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept;
     [[nodiscard]] bool serviceCredentialsReady() const noexcept;
     [[nodiscard]] RuntimeHostResult acceptClientOnce(
         std::chrono::steady_clock::time_point now) noexcept;

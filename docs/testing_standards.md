@@ -1,3 +1,28 @@
+## R10 retained environment projection and pre-Type-3 retry gate (2026-10-26)
+
+Keep the physical-client differential inside the existing production owners.
+`runtime.linux-host-control-physical-client-environment-diagnostic-projection`
+must project R1's TLS version/cipher identifier/name/SNI class and R2's bounded
+Type-1 VERSION structure into the R10 fail-only snapshot. Its unavailable case
+stays zero/Unavailable; it grants no authentication or desktop authority.
+
+The production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` remains
+the retry gate. Before peer 1 closes, after the retained
+`AuthenticationIncompletePeerClosed` snapshot, on immediate connection 2 and
+after connection 2 closes, require the same listener generation, current owner
+grant, Session Password generation, fixed TERMSRV / `RDP-SERVER` target tuple,
+established TLS diagnostics, generated certificate profile/generation and
+pre-MCS/pre-Share/native/graphics/clipboard dormancy. Its synthetic Type-1
+intentionally has no VERSION field, so VERSION/build/revision must remain
+absent/zero rather than being inferred.
+
+The low-level established-TLS regression also requires a nonzero selected
+cipher protocol identifier. The new host-control CTest remains outside the
+existing anchored sanitizer inventory selectors, so their exact cardinalities
+do not change. Endpoint reconfiguration and Stop retain the existing generated
+certificate retirement behavior; no persistent certificate storage is added.
+
 ## CREDSSP raw envelope size and inner Type-1 size are distinct (2026-10-26)
 
 The Windows full-CREDSSP diagnostic must report the first TSRequest's raw

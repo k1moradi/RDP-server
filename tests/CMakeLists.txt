@@ -641,6 +641,7 @@ if(TARGET rdp-server-linux-host-control)
             linux-host-control-no-consent-start-denials
             linux-host-control-product-status-projection
             linux-host-control-preauth-diagnostic-projection
+            linux-host-control-physical-client-environment-diagnostic-projection
             linux-host-control-sharing-permission-product-projection
             linux-host-control-injected-owner-evidence-permission-determinism
             linux-host-control-standalone-credential-native-admission-separation

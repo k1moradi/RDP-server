@@ -621,6 +621,38 @@ enum class RuntimeTlsCertificateProfile : std::uint8_t
     SelfSignedExactIpSan,
 };
 
+[[nodiscard]] constexpr std::string_view runtimeTlsCertificateProfileName(
+    RuntimeTlsCertificateProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case RuntimeTlsCertificateProfile::Unavailable:
+        return "unavailable";
+    case RuntimeTlsCertificateProfile::SelfSignedExactIpSan:
+        return "self-signed-exact-ip-san";
+    }
+    return "unavailable";
+}
+
+enum class RuntimeAcceptedClientTlsSniClass : std::uint8_t
+{
+    None,
+    Ip,
+    Dns,
+};
+
+[[nodiscard]] constexpr std::string_view runtimeAcceptedClientTlsSniClassName(
+    RuntimeAcceptedClientTlsSniClass sniClass) noexcept
+{
+    switch (sniClass)
+    {
+    case RuntimeAcceptedClientTlsSniClass::None: return "none";
+    case RuntimeAcceptedClientTlsSniClass::Ip: return "IP";
+    case RuntimeAcceptedClientTlsSniClass::Dns: return "DNS";
+    }
+    return "none";
+}
+
 inline constexpr std::size_t kMaximumRuntimeTlsCipherNameBytes = 127U;
 
 // Read-only connection metadata projected from the exact established R1 TLS
@@ -631,6 +663,15 @@ struct RuntimeAcceptedClientTlsConnectionDiagnostics final
         RuntimeAcceptedClientTlsProtocolVersion::Unavailable};
     std::array<char, kMaximumRuntimeTlsCipherNameBytes + 1U> cipherName{};
     std::size_t cipherNameBytes{};
+    // TLS registry protocol identifier for the selected cipher suite.
+    std::uint32_t cipherProtocolId{};
+    RuntimeAcceptedClientTlsSniClass sniClass{
+        RuntimeAcceptedClientTlsSniClass::None};
+    RuntimeTlsCertificateProfile certificateProfile{
+        RuntimeTlsCertificateProfile::Unavailable};
+    // Exact live listener generation bound to this certificate observation.
+    // Zero means no current binding was demonstrated.
+    std::uint64_t certificateEndpointGeneration{};
 
     [[nodiscard]] constexpr std::string_view cipherNameView() const noexcept
     {
@@ -815,6 +856,16 @@ runtimeAcceptedClientPreType3TerminationName(
     return "none";
 }
 
+struct RuntimeAcceptedClientNtlmTypeOneDiagnostics final
+{
+    bool observed{};
+    bool versionPresent{};
+    std::uint8_t majorVersion{};
+    std::uint8_t minorVersion{};
+    std::uint16_t buildNumber{};
+    std::uint8_t ntlmRevision{};
+};
+
 struct RuntimeAcceptedClientPreauthDiagnostics final
 {
     bool available{};
@@ -862,6 +913,7 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t connectionTargetGeneration{};
     // Appended to preserve existing aggregate field positions. Diagnostic only.
     RuntimeAcceptedClientTlsConnectionDiagnostics tlsConnection{};
+    RuntimeAcceptedClientNtlmTypeOneDiagnostics ntlmTypeOne{};
 };
 
 struct RuntimeHostPermissionRequest final

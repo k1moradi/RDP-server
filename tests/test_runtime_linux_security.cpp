@@ -1492,6 +1492,7 @@ void testConnectionR1AcceptanceDiagnostics(
     assert(diagnostics.negotiatedTlsProtocolVersion == TLS1_2_VERSION ||
            diagnostics.negotiatedTlsProtocolVersion == TLS1_3_VERSION);
     assert(diagnostics.negotiatedTlsCipherSuiteBytes != 0U);
+    assert(diagnostics.negotiatedTlsCipherProtocolId != 0U);
     assert(!diagnostics.clientSniPresent);
     assert(diagnostics.clientSniClass ==
            rdp_server::server::runtime::LinuxRuntimeTlsClientSniClass::None);

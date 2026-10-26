@@ -184,11 +184,20 @@ if(WIN32)
     endif()
     add_test(NAME security.windows-sspi-production-type2-interop
         COMMAND test_windows_sspi_ntlm_interop)
-    add_test(NAME security.windows-sspi-target-identity-matrix
-        COMMAND test_windows_sspi_ntlm_interop target-identity-matrix)
+    foreach(target_identity_case IN ITEMS
+            physical-ip-client-portable-type2
+            physical-ip-endpoint-target-name
+            physical-ip-endpoint-service-spn)
+        add_test(NAME "security.windows-sspi-${target_identity_case}"
+            COMMAND test_windows_sspi_ntlm_interop "${target_identity_case}")
+        set_tests_properties(
+            "security.windows-sspi-${target_identity_case}" PROPERTIES
+            LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 30)
+    endforeach()
     set_tests_properties(
-        security.windows-sspi-production-type2-interop
-        security.windows-sspi-target-identity-matrix PROPERTIES
+        security.windows-sspi-production-type2-interop PROPERTIES
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
         TIMEOUT 30)
 endif()

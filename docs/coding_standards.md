@@ -1,3 +1,28 @@
+## R7 Advanced TLS/environment presentation is evidence-only (2026-10-26)
+
+R7 may display negotiated TLS version/cipher, SHA-256 certificate fingerprint,
+selected endpoint and a certificate-profile summary only from existing runtime
+owners. Reuse R1's bounded established-SSL metadata; do not inspect TLS records,
+certificate extensions, TargetName/TargetInfo or authentication tokens in Qt,
+and do not add a second TLS/certificate parser or cache.
+
+R10 may classify its normal automatically generated numeric-LAN certificate as
+`Self-signed, exact-IP SAN` from the provisioning path it owns. Expert or
+otherwise unclassified identities remain profile-unavailable rather than being
+guessed from certificate text. Fingerprint/profile/endpoint/version/cipher are
+descriptive facts: none reveal the client's trust decision, prove certificate
+or target rejection, grant authentication/native authority or justify a bypass
+control. Native certificate-policy oracle results remain test evidence until a
+typed runtime/client boundary proves relevance.
+
+Keep Main authentication wording at
+`Remote client authentication did not complete.` for the proven
+Type-2-delivered/pre-Type-3 peer close. Advanced may retain
+`Client disconnected after authentication challenge.`. The new environment
+facts must not be rewritten as wrong-password, target-identity-rejection,
+certificate-rejection or local-desktop-authorization claims without matching
+typed authority.
+
 ## Agent 5/6 certificate-policy and hosted-client observations are non-authorizing (2026-10-26)
 
 Native certificate-policy comparisons belong to test code. The current profile

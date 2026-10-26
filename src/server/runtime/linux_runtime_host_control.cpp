@@ -928,6 +928,35 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     }
 
+    switch (source.negotiatedTlsProtocolVersion)
+    {
+    case TLS1_2_VERSION:
+        projected.tlsConnection.protocolVersion =
+            RuntimeAcceptedClientTlsProtocolVersion::Tls12;
+        break;
+#if defined(TLS1_3_VERSION)
+    case TLS1_3_VERSION:
+        projected.tlsConnection.protocolVersion =
+            RuntimeAcceptedClientTlsProtocolVersion::Tls13;
+        break;
+#endif
+    default:
+        projected.tlsConnection.protocolVersion =
+            RuntimeAcceptedClientTlsProtocolVersion::Unavailable;
+        break;
+    }
+    if (source.negotiatedTlsCipherSuiteBytes > 0U &&
+        source.negotiatedTlsCipherSuiteBytes <=
+            kMaximumRuntimeTlsCipherNameBytes)
+    {
+        std::copy_n(
+            source.negotiatedTlsCipherSuite.begin(),
+            source.negotiatedTlsCipherSuiteBytes,
+            projected.tlsConnection.cipherName.begin());
+        projected.tlsConnection.cipherNameBytes =
+            source.negotiatedTlsCipherSuiteBytes;
+    }
+
     switch (source.credSspTransition)
     {
     case LinuxRuntimeCredSspDiagnosticTransition::NotStarted:
@@ -1786,6 +1815,10 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
 #endif
     if (tlsContext_ != nullptr)
     {
+        snapshot.tlsCertificateProfile =
+            externalTlsContext_
+                ? RuntimeTlsCertificateProfile::Unavailable
+                : RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
         if (listener_.valid())
         {
             snapshot.tlsIdentity = tlsContext_->boundIdentityStatus(listener_);

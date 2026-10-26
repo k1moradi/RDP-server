@@ -4644,6 +4644,15 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;authentication;admission;diagnostics;runtime"
         TIMEOUT 30)
 
+    # Advanced connection-security details are display-only and may use only
+    # bounded facts supplied by R10/R1, never inference or bypass controls.
+    add_test(NAME gui.offscreen-advanced-runtime-security-diagnostics
+        COMMAND test_desktop_gui_offline
+            advanced-runtime-security-diagnostics)
+    set_tests_properties(gui.offscreen-advanced-runtime-security-diagnostics
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;tls;diagnostics" TIMEOUT 30)
+
     add_test(NAME gui.offscreen-authentication-incomplete-before-native-admission
         COMMAND test_desktop_gui_offline
             authentication-incomplete-before-native-admission)

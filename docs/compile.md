@@ -1,3 +1,13 @@
+## R7 Advanced diagnostics add no build or dependency surface (2026-10-26)
+
+The GUI projection reuses the existing desktop UI, Linux HostControl, Agent-1
+established-TLS diagnostics and the current certificate test inventory. It adds
+no executable, library, dependency, compile definition, install/export surface,
+runtime switch or second build directory. The dedicated
+`gui.offscreen-advanced-runtime-security-diagnostics` CTest is another mode
+of the existing `test_desktop_gui_offline` executable; all configure/build/
+focused/full commands continue to reuse the canonical single `build/` root.
+
 ## Agent 5/6 native certificate-policy test targets (2026-10-26)
 
 `test_windows_certificate_policy` is Windows-only and links the existing

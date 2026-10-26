@@ -1106,6 +1106,13 @@ void assertFixedConnectionTargetIdentity(
            diagnostics.directNtlmTypeTwoDelivered &&
            diagnostics.preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::PeerEof &&
+           (diagnostics.tlsConnection.protocolVersion ==
+                RuntimeAcceptedClientTlsProtocolVersion::Tls12 ||
+            diagnostics.tlsConnection.protocolVersion ==
+                RuntimeAcceptedClientTlsProtocolVersion::Tls13) &&
+           !diagnostics.tlsConnection.cipherNameView().empty() &&
+           status.tlsCertificateProfile ==
+               RuntimeTlsCertificateProfile::SelfSignedExactIpSan &&
            !status.nativeDesktopReady &&
            !status.nativeDesktopInitializing &&
            !status.graphicsReady;

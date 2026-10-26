@@ -36,6 +36,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace rdp::gui;
@@ -1519,6 +1520,103 @@ int main(int argc, char** argv)
         assert(changed.authenticationDiagnostic ==
                QStringLiteral(
                    "Local desktop authorization: active session changed"));
+        return 0;
+    }
+
+    if (mode == "advanced-runtime-security-diagnostics")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 73U;
+        runtime.snapshot.selectedEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::BoundAndMatched;
+        runtime.snapshot.tlsIdentity.endpointGeneration =
+            runtime.snapshot.listenerGeneration;
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
+        runtime.snapshot.tlsIdentity.certificateSha256.fill(0xabU);
+        runtime.snapshot.tlsCertificateProfile =
+            RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.available = true;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .tlsHandshakeStage =
+                RuntimeAcceptedClientTlsHandshakeStage::Established;
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .tlsConnection.protocolVersion =
+                RuntimeAcceptedClientTlsProtocolVersion::Tls12;
+        constexpr std::string_view cipherName{
+            "ECDHE-RSA-AES256-GCM-SHA384"};
+        static_assert(
+            cipherName.size() <= kMaximumRuntimeTlsCipherNameBytes);
+        std::copy(
+            cipherName.begin(), cipherName.end(),
+            runtime.snapshot.acceptedClientPreauthDiagnostics
+                .tlsConnection.cipherName.begin());
+        runtime.snapshot.acceptedClientPreauthDiagnostics
+            .tlsConnection.cipherNameBytes = cipherName.size();
+
+        DesktopWindow window(host);
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
+        auto* tlsIdentity = requiredLabel(window, "tlsIdentityStatus");
+        assert(mainTab != nullptr);
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("TLS version: TLS 1.2")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("Cipher: ECDHE-RSA-AES256-GCM-SHA384")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("SHA-256: AB:AB:AB:AB")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral(
+                "Selected endpoint: 192.168.0.10:3389")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral(
+                "Certificate profile: Self-signed, exact-IP SAN")));
+
+        for (QLabel* item : mainTab->findChildren<QLabel*>())
+        {
+            const QString text = item->text();
+            assert(!text.contains(
+                QStringLiteral("TLS version"), Qt::CaseInsensitive));
+            assert(!text.contains(
+                QStringLiteral("ECDHE-RSA"), Qt::CaseInsensitive));
+            assert(!text.contains(
+                QStringLiteral("Self-signed"), Qt::CaseInsensitive));
+            assert(!text.contains(
+                QStringLiteral("AB:AB:AB"), Qt::CaseInsensitive));
+        }
+
+        for (const QString& disallowedClaim :
+             {QStringLiteral("wrong password"),
+              QStringLiteral("target identity rejection"),
+              QStringLiteral("certificate rejection"),
+              QStringLiteral("local desktop authorization failure"),
+              QStringLiteral("RDP-SERVER")})
+        {
+            assert(!tlsIdentity->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+        }
+
+        // Missing negotiated values stay missing. The existing certificate
+        // fingerprint remains visible because R10 still supplies it, while
+        // Qt must not reconstruct version/cipher/profile/selected endpoint.
+        runtime.snapshot.selectedEndpoint.clear();
+        runtime.snapshot.tlsCertificateProfile =
+            RuntimeTlsCertificateProfile::Unavailable;
+        runtime.snapshot.acceptedClientPreauthDiagnostics.tlsConnection = {};
+        window.refresh();
+        assert(!tlsIdentity->text().contains(
+            QStringLiteral("TLS version"), Qt::CaseInsensitive));
+        assert(!tlsIdentity->text().contains(
+            QStringLiteral("Cipher:"), Qt::CaseInsensitive));
+        assert(!tlsIdentity->text().contains(
+            QStringLiteral("Selected endpoint:"), Qt::CaseInsensitive));
+        assert(!tlsIdentity->text().contains(
+            QStringLiteral("Certificate profile:"), Qt::CaseInsensitive));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("SHA-256: AB:AB:AB:AB")));
         return 0;
     }
 

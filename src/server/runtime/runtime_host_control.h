@@ -6,6 +6,7 @@
 #include "server/runtime/runtime_tls_identity_status.h"
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -607,6 +608,39 @@ enum class RuntimeAcceptedClientTlsHandshakeStage : std::uint8_t
     Closed,
 };
 
+enum class RuntimeAcceptedClientTlsProtocolVersion : std::uint8_t
+{
+    Unavailable,
+    Tls12,
+    Tls13,
+};
+
+enum class RuntimeTlsCertificateProfile : std::uint8_t
+{
+    Unavailable,
+    SelfSignedExactIpSan,
+};
+
+inline constexpr std::size_t kMaximumRuntimeTlsCipherNameBytes = 127U;
+
+// Read-only connection metadata projected from the exact established R1 TLS
+// owner. It contains no records, keys, credentials or client-trust decision.
+struct RuntimeAcceptedClientTlsConnectionDiagnostics final
+{
+    RuntimeAcceptedClientTlsProtocolVersion protocolVersion{
+        RuntimeAcceptedClientTlsProtocolVersion::Unavailable};
+    std::array<char, kMaximumRuntimeTlsCipherNameBytes + 1U> cipherName{};
+    std::size_t cipherNameBytes{};
+
+    [[nodiscard]] constexpr std::string_view cipherNameView() const noexcept
+    {
+        if (cipherNameBytes == 0U ||
+            cipherNameBytes > kMaximumRuntimeTlsCipherNameBytes)
+            return {};
+        return {cipherName.data(), cipherNameBytes};
+    }
+};
+
 enum class RuntimeAcceptedClientCredSspTransition : std::uint8_t
 {
     NotStarted,
@@ -826,6 +860,8 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     RuntimeServiceIdentityProfile serviceIdentityProfile{
         RuntimeServiceIdentityProfile::Unavailable};
     std::uint64_t connectionTargetGeneration{};
+    // Appended to preserve existing aggregate field positions. Diagnostic only.
+    RuntimeAcceptedClientTlsConnectionDiagnostics tlsConnection{};
 };
 
 struct RuntimeHostPermissionRequest final
@@ -1144,6 +1180,10 @@ struct RuntimeHostStatus
     // Current Start-scoped endpoint/service tuple owned by R10. Invalid after
     // Stop/reconfiguration; a retired peer does not clear it while listening.
     RuntimeConnectionTargetIdentity connectionTargetIdentity{};
+    // Appended to preserve existing aggregate field positions. R10 supplies
+    // this from the provisioning path; presentation must not infer it.
+    RuntimeTlsCertificateProfile tlsCertificateProfile{
+        RuntimeTlsCertificateProfile::Unavailable};
 };
 
 // Pure in-process facade, no second listener/poller/connection owner.

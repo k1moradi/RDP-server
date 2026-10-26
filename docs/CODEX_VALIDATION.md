@@ -1,3 +1,43 @@
+## R7 Advanced physical-client diagnostics authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `1df484df8b77265af6552cf64aace09dffc39554`.
+Mandatory project context was reconciled from current main. The newest
+concurrent publication adds exact-SHA Agent-2 Type-1 qualification evidence in
+ROADMAP/validation only; it changes no R7 source surface. Agent 1 already owns
+bounded established-R1 TLS version/cipher capture, so R7 reuses it instead of
+creating a second SSL diagnostic path. Agent-5/6 certificate-policy oracles
+remain test-only and are preserved unchanged. Hosted Windows fixed-name/IP NTLM
+and full CREDSSP fixed-name/IP-SPN/bare-IP all reach Type 3 with the unchanged
+production Type 2; the physical Linux/X11 peer still closes after delivered
+Type 2 and before Type 3. Production remains `fixed-name / RDP-SERVER`; no
+TargetName, TargetInfo, MsvAvTargetName, Type-2 flag, target-profile or
+certificate-generation behavior changes.
+
+R10 now projects the existing version/cipher evidence into its bounded accepted
+client status and supplies a typed profile for only its normal automatically
+generated self-signed exact-IP-SAN identity. R7 renders that information,
+R10's selected endpoint and the existing SHA-256 fingerprint only in Advanced.
+Main and delivered-challenge wording remain
+`Remote client authentication did not complete.` and
+`Client disconnected after authentication challenge.` respectively. No
+certificate bypass, secret/token logging, trust inference or native/protocol
+authority is introduced.
+
+Added CTest:
+`gui.offscreen-advanced-runtime-security-diagnostics`. The production Linux
+Direct-NTLM Type-2/EOF predicate also asserts retained portable
+TLS-version/cipher/profile evidence without advancing authentication. Connector
+source/document transformation review: **PASS by inspection**. The owner
+one-build-root command and affected CTests are **NOT RUN** here: this connector
+environment has no owner checkout/build root, and its attempted GitHub clone
+could not resolve `github.com`. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** on the next authorized physical Windows App/Linux attempt,
+record these fields beside the Type-1/Type-2/peer-EOF evidence and compare them
+with hosted/native-policy controls. Any certificate trust/name guidance remains
+blocked until typed evidence proves that boundary.
+
 ## Agent 2 exact-SHA Type-1 observer qualification receipt — 2026-10-26
 
 Implementation SHA `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`,

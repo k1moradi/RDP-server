@@ -89,6 +89,14 @@ struct HostStatus
     // Presentation-only subtype for a peer that disconnected before
     // authentication completed. It grants no protocol or native authority.
     bool remoteAuthenticationIncomplete{};
+    // Advanced-only, read-only diagnostics supplied by R10. Qt neither
+    // inspects TLS/certificate internals nor treats these values as authority.
+    rdp_server::server::runtime::RuntimeAcceptedClientTlsConnectionDiagnostics
+        tlsConnection{};
+    rdp_server::server::runtime::RuntimeTlsCertificateProfile
+        tlsCertificateProfile{
+            rdp_server::server::runtime::RuntimeTlsCertificateProfile::Unavailable};
+    QString selectedEndpoint;
 };
 
 struct HostRequest

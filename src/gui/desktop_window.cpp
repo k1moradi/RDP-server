@@ -38,6 +38,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string_view>
 #include <tuple>
 
 namespace rdp::gui
@@ -233,6 +234,46 @@ QString tlsIdentityStatusText(const HostStatus& status)
 
     explanation += QStringLiteral(
         "\nClient trust: unknown. Verify the fingerprint independently.");
+
+    using TlsVersion = rdp_server::server::runtime::
+        RuntimeAcceptedClientTlsProtocolVersion;
+    switch (status.tlsConnection.protocolVersion)
+    {
+    case TlsVersion::Unavailable:
+        break;
+    case TlsVersion::Tls12:
+        explanation += QStringLiteral("\nTLS version: TLS 1.2");
+        break;
+    case TlsVersion::Tls13:
+        explanation += QStringLiteral("\nTLS version: TLS 1.3");
+        break;
+    }
+
+    const std::string_view cipherName =
+        status.tlsConnection.cipherNameView();
+    if (!cipherName.empty())
+    {
+        explanation += QStringLiteral("\nCipher: ") +
+            QString::fromLatin1(
+                cipherName.data(),
+                static_cast<qsizetype>(cipherName.size()));
+    }
+
+    if (!status.selectedEndpoint.isEmpty())
+    {
+        explanation += QStringLiteral("\nSelected endpoint: ") +
+            status.selectedEndpoint;
+    }
+
+    using CertificateProfile =
+        rdp_server::server::runtime::RuntimeTlsCertificateProfile;
+    if (status.tlsCertificateProfile ==
+        CertificateProfile::SelfSignedExactIpSan)
+    {
+        explanation += QStringLiteral(
+            "\nCertificate profile: Self-signed, exact-IP SAN");
+    }
+
     return explanation;
 }
 

@@ -1,3 +1,30 @@
+## R7 Advanced runtime connection-security presentation gate (2026-10-26)
+
+Register the deterministic offscreen CTest
+`gui.offscreen-advanced-runtime-security-diagnostics`. Through the fake R10
+status supply an established TLS version, bounded cipher name, SHA-256
+fingerprint, selected endpoint and typed `Self-signed, exact-IP SAN` profile.
+The existing Advanced TLS identity field must render every supplied value while
+Main contains none of the TLS version, cipher, profile or fingerprint details.
+Clearing connection-specific runtime values must remove version/cipher/profile/
+selected-endpoint text while retaining only independently supplied TLS-identity
+facts; the GUI must not reconstruct missing values.
+
+The same test rejects wrong-password, target-identity-rejection,
+certificate-rejection, local-desktop-authorization-failure and
+`RDP-SERVER` claims from these neutral observations. Keep the existing
+authentication-challenge product-language gate unchanged for the exact Main and
+Advanced authentication wording.
+
+The production Linux Type-2/EOF lifecycle predicate additionally checks that
+R10's retained portable projection carries TLS 1.2 or TLS 1.3, a non-empty
+bounded public cipher name and the normal-generated certificate profile after
+the peer closes. Agent 1's lower-level established-R1 version/cipher/CN/SAN/SNI
+tests remain the source evidence, and Agent-5/6 native certificate-policy
+oracles remain independent test-only evidence; R7 adds no duplicate TLS or
+trust oracle. None of these observations advance Type 3, Admission, MCS, Share,
+graphics or clipboard.
+
 ## Agent 5/6 generated-certificate and hosted-client differential gate (2026-10-26)
 
 For endpoint `192.168.1.5`, native platform tests compare two fresh leaves:

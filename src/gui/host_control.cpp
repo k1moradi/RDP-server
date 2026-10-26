@@ -296,6 +296,8 @@ HostStatus HostControl::status() const
     view.recommendationSource =
         runtimeStatus.product.recommendedEndpoint.source;
     view.clientCount = runtimeStatus.product.clientCount;
+    view.selectedEndpoint = toQString(runtimeStatus.selectedEndpoint);
+    view.tlsCertificateProfile = runtimeStatus.tlsCertificateProfile;
 
     if (view.controlAvailable && productMayHost && !terminalHostSession)
     {
@@ -354,6 +356,8 @@ HostStatus HostControl::status() const
 
     const auto& authenticationDiagnostics =
         runtimeStatus.acceptedClientPreauthDiagnostics;
+    if (authenticationDiagnostics.available)
+        view.tlsConnection = authenticationDiagnostics.tlsConnection;
     const bool localDesktopAuthorizationFailed =
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
         isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);

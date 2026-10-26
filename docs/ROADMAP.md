@@ -1,3 +1,58 @@
+## R7 P1 — Advanced physical-client environment diagnostics (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `1df484df8b77265af6552cf64aace09dffc39554`.
+Concurrent R4/R8 dormancy, Agent-2 Type-1 observation and exact-SHA evidence,
+Agent-1 bounded TLS diagnostics/portability fixes, and Agent-5/6 native
+certificate-policy/client differential plus CI publication correction are
+preserved. The latest physical Linux/X11 trace remains TLS established ->
+Direct NTLM Type 1 (`0xe2088235`) -> unchanged production Type 2
+(`0xe08a8235`) fully committed -> Await-Type-3 -> peer EOF. Type 3,
+pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share,
+graphics/X11 ownership and clipboard remain **NOT REACHED**.
+
+Hosted Windows independently proves Microsoft NTLM SSPI fixed-name/IP and full
+CREDSSP fixed-name/IP-SPN/bare-IP all progress through Type 3 with the unchanged
+production Type 2. Production therefore remains exactly
+`fixed-name / RDP-SERVER`. This increment does **not** change Type-2
+TargetName, TargetInfo, MsvAvTargetName, flags, target-profile selection or the
+production generated certificate.
+
+R7 reuses Agent 1's existing bounded established-R1 TLS version/cipher evidence
+and projects it through R10 into the existing Advanced Security presentation.
+Advanced also shows the already-existing SHA-256 leaf fingerprint, R10's
+selected endpoint and a typed `Self-signed, exact-IP SAN` profile only for
+R10's normal automatically generated numeric-IP certificate. Expert or
+unclassified identities remain profile-unavailable. Missing values stay
+missing; R7 does not infer client certificate trust, target rejection or an
+authentication cause from display text. Agent-5/6 native certificate policy
+oracles remain test-only evidence and are not converted into GUI conclusions.
+
+Main product wording remains exactly
+`Remote client authentication did not complete.`; the delivered-challenge
+Advanced wording remains
+`Client disconnected after authentication challenge.`. No wrong-password,
+target-identity-rejection, certificate-rejection or local-desktop-authorization
+claim is added. No secret, TLS record, credential/token byte or certificate
+bypass control is exposed.
+
+New deterministic CTest:
+`gui.offscreen-advanced-runtime-security-diagnostics`. The existing
+production-backed Type-2/EOF lifecycle predicate is also strengthened to
+require the R10-projected retained TLS 1.2/1.3 classification, non-empty bounded
+cipher name and generated-certificate profile after peer retirement.
+
+Connector source/document transformation review: **PASS by inspection**.
+Modified-tree configure/build/focused/full CTest: **NOT RUN** because this
+connector environment has no owner checkout/build root and the attempted
+GitHub clone could not resolve `github.com`. Exact-publication-SHA hosted CI:
+**PENDING**.
+
+**Next R7 gate:** record these Advanced fields on the next authorized physical
+Windows App/Linux attempt and compare the physical client environment with the
+hosted and native-policy controls. Certificate trust/name guidance remains
+blocked until typed evidence proves that boundary.
+
 ## Agent 2 exact-SHA Type-1 profile differential evidence (2026-10-26)
 
 **Implementation SHA:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`.

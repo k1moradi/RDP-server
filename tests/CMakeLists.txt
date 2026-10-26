@@ -159,6 +159,7 @@ foreach(ntlmssp_case IN ITEMS
         ntlmssp-challenge-compatibility-profiles
         ntlmssp-challenge-target-name-conformance
         ntlmssp-microsoft-authenticate-bridge
+        ntlmssp-authenticate-client-av-compatibility
         ntlmssp-security-buffer-mic-denials)
     add_test(NAME "security.${ntlmssp_case}"
         COMMAND test_standalone_ntlmssp "${ntlmssp_case}")

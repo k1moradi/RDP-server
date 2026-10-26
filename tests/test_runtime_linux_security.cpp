@@ -1498,10 +1498,10 @@ void testConnectionR1AcceptanceDiagnostics(
     assert(diagnostics.certificateSubjectCommonNameClass ==
            rdp_server::server::runtime::
                LinuxRuntimeTlsCertificateCommonNameClass::Other);
-    assert(std::string_view{
-               diagnostics.certificateSubjectCommonName.data(),
-               diagnostics.certificateSubjectCommonNameBytes} ==
-           "rdp-runtime-credssp-test");
+    const std::string_view certificateSubjectCommonName{
+        diagnostics.certificateSubjectCommonName.data(),
+        diagnostics.certificateSubjectCommonNameBytes};
+    assert(certificateSubjectCommonName == "rdp-runtime-credssp-test");
     assert(!diagnostics.certificateSanIpPresent);
     assert(!diagnostics.certificateSanDnsPresent);
     assert(diagnostics.credSspTransition == DiagnosticCredSsp::AwaitingToken);

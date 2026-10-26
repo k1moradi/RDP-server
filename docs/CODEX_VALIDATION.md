@@ -1,3 +1,9 @@
+## Agent 1 Linux assert portability correction receipt — 2026-10-26
+
+Exact SHA `ab2256d0d75c942fd81cae6f510f90d988682448`, workflow `40340104183`: CI structure **PASS**, documentation policy **PASS**, production Linux security build **PASS**, Windows Debug compile **PASS**, and Microsoft CredSSP harness/target differential **PASS** before the Linux full Debug build failed in `test_runtime_linux_security.cpp`. The failure was the C `assert` macro splitting an inline braced `std::string_view` constructor at its comma. The correction creates the bounded view in a named local and asserts on that variable. No production behavior changes.
+
+Concurrent native certificate-policy work on reconciled parent `e0207b8557b43613f83cfd004f78ca69872a7e1d` is retained. Exact-publication-SHA hosted execution after this correction is **PENDING**.
+
 ## Agent 5/6 P0 supporting validation receipt — certificate/client differential (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

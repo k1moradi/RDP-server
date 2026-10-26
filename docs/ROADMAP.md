@@ -1,3 +1,11 @@
+## Agent 1 P0 — Linux acceptance-diagnostic assert portability correction (2026-10-26)
+
+**Failed exact SHA:** `ab2256d0d75c942fd81cae6f510f90d988682448`, workflow `40340104183`, Linux protocol job `121632304470`. The production Linux security build **PASS** and Windows Debug compile plus Microsoft CredSSP qualification **PASS**, but the Linux full Debug build failed when the C `assert` macro parsed the comma in an inline braced `std::string_view` constructor as a second macro argument.
+
+The correction names the bounded CN view before the assertion. This is test-source portability only; accepted-connection diagnostics, TLS/certificate behavior, generated identity, fixed-name `RDP-SERVER`, Type-2 bytes and all authorization boundaries are unchanged. Concurrent native Windows/macOS certificate-policy oracle work at parent `e0207b8557b43613f83cfd004f78ca69872a7e1d` is preserved.
+
+**Next gate:** exact-publication-SHA Linux/Windows/macOS Debug compile and CTest, including `runtime.linux-connection-tls-acceptance-diagnostics`, `runtime.generated-tls-test-only-cn-variants-retain-ip-san` and `runtime.generated-tls-context-negotiates-tls13`.
+
 ## Agent 5/6 P0 supporting — certificate policy and physical-client differential instrumentation (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

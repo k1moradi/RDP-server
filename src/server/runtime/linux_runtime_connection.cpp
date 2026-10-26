@@ -1184,19 +1184,37 @@ void LinuxRuntimeConnection::recordStandaloneAuthenticationFailure(
         rdp_server::server::security::
             StandaloneNtlmNegotiationEnvelope::DirectNtlm)
     {
+        const auto &typeOne = spnego.ntlmTypeOne;
         std::fprintf(
             stderr,
             "rdp-server: standalone authentication failed: stage=%s; "
             "tls=%s; credssp=ntlm-direct-initial; "
             "os-gss-fallback=disabled; tsrequest-version=%u; "
             "nego-token-count=%zu; ntlm-message-type=1; "
-            "ntlm-token-bytes=%zu; negotiation-envelope=direct-ntlm; "
+            "ntlm-token-bytes=%zu; ntlm-type1-observed=%s; "
+            "ntlm-type1-flags=0x%08x; ntlm-version-present=%s; "
+            "ntlm-version=%u.%u.%u; ntlm-revision=0x%02x; "
+            "ntlm-domain-supplied=%s; ntlm-workstation-supplied=%s; "
+            "ntlm-domain-field-bytes=%zu; "
+            "ntlm-workstation-field-bytes=%zu; "
+            "negotiation-envelope=direct-ntlm; "
             "credssp-progress=%s; admission=%s\n",
             standaloneFailureStageName(failureStage),
             tlsEverEstablished_ ? "established" : "not-established",
             static_cast<unsigned int>(initial.tsRequestVersion),
             initial.tokenCount,
             spnego.tokenBytes,
+            yesNo(spnego.ntlmTypeOneObserved),
+            static_cast<unsigned int>(typeOne.negotiateFlags),
+            yesNo(typeOne.versionPresent),
+            static_cast<unsigned int>(typeOne.majorVersion),
+            static_cast<unsigned int>(typeOne.minorVersion),
+            static_cast<unsigned int>(typeOne.buildNumber),
+            static_cast<unsigned int>(typeOne.ntlmRevision),
+            yesNo(typeOne.domainSupplied),
+            yesNo(typeOne.workstationSupplied),
+            typeOne.domainFieldBytes,
+            typeOne.workstationFieldBytes,
             directNtlmProgressName(
                 authenticationProgress_, failureStage,
                 directNtlmTypeTwoQueued_, directNtlmTypeTwoDelivered_),

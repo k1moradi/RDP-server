@@ -1,3 +1,42 @@
+## Agent 2 P0 — NTLM Type-1 client profile observer (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `578cf0969e196c5799d1229506f18d0495623619`. Concurrent R4/R8 pre-Type-3
+dormancy work is preserved. The current physical Linux/X11 boundary is
+unchanged: TLS -> Direct NTLM Type 1 (`0xe2088235`) -> production Type 2
+(`0xe08a8235`) fully committed -> Await-Type-3 -> peer EOF. Type 3 and every
+downstream authority remain not reached. Hosted Microsoft NTLM and
+full-CREDSSP fixed/IP target cases already reach Type 3 with the unchanged
+production Type 2, so production remains `fixed-name / RDP-SERVER`.
+
+This increment adds a redacted structural Type-1 observation to the existing
+production parser result and carries it through the existing SPNEGO/CredSSP
+observation owner. Physical fail-only diagnostics now report token flags,
+VERSION presence + major/minor/build/revision, domain/workstation supplied bits
+and their byte counts without logging either field's contents. The Windows
+full-CREDSSP oracle reports the same fields and compares its resulting
+production Type 2 against the known physical Type-2 shape, including flags,
+TargetName/TargetInfo sizes, total bytes and AV IDs. Physical VERSION details
+are intentionally **PENDING** the next owner run; they are not inferred from
+VERSION being offered.
+
+Production Type-2 flags, VERSION selection, TargetName, TargetInfo,
+MsvAvTargetName, target-profile selection, TLS/CredSSP framing and the exact
+Type1+Type2+Type3 verifier transcript are **UNCHANGED**. MS-NLMP VERSION remains
+debugging metadata only; no production VERSION change is selected. New offline
+CTest: `security.ntlmssp-type1-structural-observation`.
+
+Connector source/transformation review: **PASS by inspection**. Modified-tree
+owner-root configure/build/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and the refreshed Microsoft
+full-CREDSSP profile output: **PENDING**.
+
+**Next Agent-2 gate:** consume exact-SHA hosted profile output, then on the next
+authorized physical Windows App/Linux attempt capture the new Type-1 VERSION
+and field-count record. Compare the two profiles and their resulting Type 2
+structurally; do not infer incompatibility from a difference. If physical Type 3
+appears, retain the existing exact-transcript MIC/NTLMv2 verification.
+
 ## R8 P2 — Type-2/EOF retry keeps clipboard lifetime absent (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled parent:** `282268e67b3917f53deab71831882a3953a7fcfe`.

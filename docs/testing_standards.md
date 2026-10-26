@@ -1,3 +1,27 @@
+## NTLM Type-1 physical/hosted profile differential uses one parser (2026-10-26)
+
+The physical Linux/X11 fail-only authentication diagnostic and the Windows
+full-CREDSSP oracle must report the same production-parsed Type-1 structure:
+token byte count, NegotiateFlags, VERSION presence and
+major/minor/build/revision, OEM domain and workstation supplied bits, and the
+two field byte counts. Logs must never expose domain/workstation contents. A
+dedicated offline CTest `security.ntlmssp-type1-structural-observation` pins
+VERSION-present, VERSION-absent and supplied-field-length behavior.
+
+When physical and hosted Type-1 profiles differ, report the flag XOR and compare
+the resulting production Type 2 by flags, TargetName code-unit count,
+TargetInfo byte count, total byte count, target/name presence and AV-ID
+sequence. A profile difference is diagnostic, not an incompatibility finding.
+The known physical baseline remains Type-1 flags `0xe2088235` and Type-2
+`0xe08a8235` / 10 TargetName code units / 50 TargetInfo bytes / 126 total
+bytes / AV IDs `2,1,7,0`; the physical VERSION tuple must be measured by the
+new observer rather than inferred.
+
+Do not enable NTLMSSP_NEGOTIATE_VERSION in production Type 2 from client offer
+alone. If a later physical run reaches Type 3, existing exact Type1+Type2+Type3
+MIC/NTLMv2 verification remains the acceptance path; tests must not normalize
+the transcript before verification.
+
 ## R8 Type-2/EOF retry clipboard-dormancy gate (2026-10-26)
 
 Keep the existing production-backed

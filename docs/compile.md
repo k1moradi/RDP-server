@@ -1,3 +1,13 @@
+## Type-1 structural observer adds no build dependency (2026-10-26)
+
+The Type-1 profile observer extends the existing portable
+`rdp-server-standalone-ntlmv2` parser metadata and existing Linux runtime /
+Windows full-CREDSSP test targets only. It adds no library, compile definition,
+service, socket, generated file or build directory. The new behavior-named
+`security.ntlmssp-type1-structural-observation` case is another mode of the
+existing `test_standalone_ntlmssp` executable and runs from the canonical
+single `build/` root.
+
 ## R8 Type-2/EOF retry dormancy uses existing test targets (2026-10-26)
 
 The R8 P2 strengthening adds no executable, library, dependency, compile

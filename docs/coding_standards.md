@@ -1,3 +1,22 @@
+## R2 Type-1 client profile observation is structural only (2026-10-26)
+
+Parse each accepted NTLM NEGOTIATE_MESSAGE once through the production bounded
+Type-1 parser and retain only non-secret structure needed for interoperability:
+NegotiateFlags, VERSION presence and major/minor/build/revision, the OEM domain
+and workstation supplied bits, and their security-buffer byte counts. Never
+retain or log domain/workstation payload bytes. The same observation may be
+projected into fail-only physical diagnostics and Windows SSPI qualification,
+but it is evidence only and grants no authentication, native or session
+authority.
+
+MS-NLMP VERSION is debugging metadata and does not affect normal NTLM message
+processing. A client offering VERSION is therefore not a reason to set VERSION
+in the server Type 2. Keep the fixed-name `RDP-SERVER` Type-2 profile and its
+TargetName/TargetInfo/MsvAvTargetName behavior unchanged unless independent
+Microsoft/client evidence selects a wire change. Preserve the exact received
+Type 1 and emitted Type 2 byte sequences for later Type-3 MIC/NTLMv2
+verification; structural observation must never normalize that transcript.
+
 ## Pre-Type-3 retry cannot create a clipboard lifetime (2026-10-26)
 
 A Direct NTLM connection with Type 2 fully delivered but no Type 3 remains

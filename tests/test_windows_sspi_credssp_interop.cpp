@@ -1643,6 +1643,14 @@ public:
         return reader_.releaseFrame();
     }
 
+    [[nodiscard]] StandaloneSpnegoInitialTokenObservation
+    initialTokenObservation() const noexcept
+    {
+        return experiment_ == ChallengeExperiment::Production
+            ? acceptor_.initialNegoObservation().spnego
+            : diagnosticMechanism_.initialTokenObservation();
+    }
+
     [[nodiscard]] NtlmChallengeMessageObservation
     challengeObservation() const noexcept
     {
@@ -2527,6 +2535,10 @@ struct FullCredSspAttempt final
     SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
     CredSspPumpResult initialPump{};
     CredSspPumpResult nextPump{};
+    bool typeOneObserved{};
+    std::size_t typeOneTokenBytes{};
+    NtlmNegotiateMessage typeOne{};
+    NtlmChallengeMessageObservation typeTwo{};
     std::uint32_t typeTwoFlags{};
     std::size_t typeTwoTargetNameCodeUnits{};
     int minimumTlsVersion{};
@@ -2543,6 +2555,102 @@ struct FullCredSspAttempt final
     bool productionVerifiedTypeThree{};
     bool nextClientHasPubKeyAuth{};
 };
+
+void printClientProfileObservation(
+    TargetProfile profile,
+    const FullCredSspAttempt &result) noexcept
+{
+    if (!result.typeOneObserved)
+    {
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-type1-profile target=%s observed=no\n",
+            targetLabel(profile));
+        return;
+    }
+
+    const auto &typeOne = result.typeOne;
+    const auto &typeTwo = result.typeTwo;
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-type1-profile target=%s observed=yes "
+        "bytes=%zu flags=0x%08lx version-present=%s "
+        "version=%u.%u.%u ntlm-revision=0x%02x "
+        "domain-supplied=%s workstation-supplied=%s "
+        "domain-field-bytes=%zu workstation-field-bytes=%zu\n",
+        targetLabel(profile),
+        result.typeOneTokenBytes,
+        static_cast<unsigned long>(typeOne.negotiateFlags),
+        typeOne.versionPresent ? "yes" : "no",
+        static_cast<unsigned int>(typeOne.majorVersion),
+        static_cast<unsigned int>(typeOne.minorVersion),
+        static_cast<unsigned int>(typeOne.buildNumber),
+        static_cast<unsigned int>(typeOne.ntlmRevision),
+        typeOne.domainSupplied ? "yes" : "no",
+        typeOne.workstationSupplied ? "yes" : "no",
+        typeOne.domainFieldBytes,
+        typeOne.workstationFieldBytes);
+
+    constexpr std::uint32_t physicalTypeOneFlags = 0xe2088235U;
+    constexpr std::uint32_t physicalTypeTwoFlags = 0xe08a8235U;
+    constexpr std::size_t physicalTargetNameCodeUnits = 10U;
+    constexpr std::size_t physicalTargetInfoBytes = 50U;
+    constexpr std::size_t physicalTypeTwoBytes = 126U;
+    constexpr std::array<std::uint16_t, 4> physicalAvIds{2U, 1U, 7U, 0U};
+    const bool sameAvIds =
+        typeTwo.targetInfoAvIdCount == physicalAvIds.size() &&
+        std::equal(
+            physicalAvIds.begin(), physicalAvIds.end(),
+            typeTwo.targetInfoAvIds.begin());
+    const bool typeTwoStructureDiffers =
+        typeTwo.negotiateFlags != physicalTypeTwoFlags ||
+        typeTwo.targetNameCodeUnits != physicalTargetNameCodeUnits ||
+        typeTwo.targetInfoBytes != physicalTargetInfoBytes ||
+        typeTwo.totalBytes != physicalTypeTwoBytes ||
+        !typeTwo.targetTypeServer || !typeTwo.targetNamePresent ||
+        !sameAvIds;
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-client-profile-differential target=%s "
+        "physical-type1-flags=0x%08lx hosted-type1-flags=0x%08lx "
+        "type1-flags-xor=0x%08lx physical-version=pending-observer "
+        "hosted-version=%u.%u.%u/0x%02x "
+        "physical-type2-flags=0x%08lx hosted-type2-flags=0x%08lx "
+        "physical-target-name-code-units=%zu hosted-target-name-code-units=%zu "
+        "physical-target-info-bytes=%zu hosted-target-info-bytes=%zu "
+        "physical-type2-bytes=%zu hosted-type2-bytes=%zu "
+        "physical-av-ids=2,1,7,0 hosted-av-ids=",
+        targetLabel(profile),
+        static_cast<unsigned long>(physicalTypeOneFlags),
+        static_cast<unsigned long>(typeOne.negotiateFlags),
+        static_cast<unsigned long>(
+            physicalTypeOneFlags ^ typeOne.negotiateFlags),
+        static_cast<unsigned int>(typeOne.majorVersion),
+        static_cast<unsigned int>(typeOne.minorVersion),
+        static_cast<unsigned int>(typeOne.buildNumber),
+        static_cast<unsigned int>(typeOne.ntlmRevision),
+        static_cast<unsigned long>(physicalTypeTwoFlags),
+        static_cast<unsigned long>(typeTwo.negotiateFlags),
+        physicalTargetNameCodeUnits,
+        typeTwo.targetNameCodeUnits,
+        physicalTargetInfoBytes,
+        typeTwo.targetInfoBytes,
+        physicalTypeTwoBytes,
+        typeTwo.totalBytes);
+    for (std::size_t index = 0U;
+         index < typeTwo.targetInfoAvIdCount;
+         ++index)
+    {
+        std::fprintf(
+            stderr, "%s%u", index == 0U ? "" : ",",
+            static_cast<unsigned int>(typeTwo.targetInfoAvIds[index]));
+    }
+    std::fprintf(
+        stderr,
+        " type2-structure-differs=%s\n",
+        typeTwoStructureDiffers ? "yes" : "no");
+}
 
 [[nodiscard]] FullCredSspAttempt runFullCredSspAttempt(
     TargetProfile profile,
@@ -2587,9 +2695,20 @@ struct FullCredSspAttempt final
     if (!server.processInitialFrame())
         return result;
     result.productionTypeTwoQueued = true;
+    const auto initialToken = server.initialTokenObservation();
+    result.typeOneObserved = initialToken.ntlmTypeOneObserved;
+    result.typeOneTokenBytes = initialToken.tokenBytes;
+    result.typeOne = initialToken.ntlmTypeOne;
+    if (!result.typeOneObserved)
+    {
+        result.stage = "production-type1-observation";
+        return result;
+    }
     const auto challenge = server.challengeObservation();
+    result.typeTwo = challenge;
     result.typeTwoFlags = challenge.negotiateFlags;
     result.typeTwoTargetNameCodeUnits = challenge.targetNameCodeUnits;
+    printClientProfileObservation(profile, result);
 
     result.stage = "memory-bio-after-production-type2";
     result.nextPump = pumpCredSspMemoryBio(

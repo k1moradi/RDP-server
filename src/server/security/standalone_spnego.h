@@ -151,6 +151,10 @@ struct StandaloneSpnegoInitialTokenObservation final
     StandaloneNtlmNegotiationEnvelope negotiationEnvelope{
         StandaloneNtlmNegotiationEnvelope::Undetermined};
     bool directNtlmType1Accepted{};
+    // Same production Type-1 parser result used to select the challenge.
+    // Payload identities are absent; only safe structural metadata survives.
+    bool ntlmTypeOneObserved{};
+    NtlmNegotiateMessage ntlmTypeOne{};
     std::size_t tokenBytes{};
     std::uint8_t topLevelTag{};
     bool gssInitialContextToken{};

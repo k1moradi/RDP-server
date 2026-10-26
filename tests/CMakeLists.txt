@@ -154,6 +154,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(ntlmssp_case IN ITEMS
+        ntlmssp-type1-structural-observation
         ntlmssp-negotiate-challenge-framing
         ntlmssp-challenge-portable-target-name
         ntlmssp-challenge-compatibility-profiles

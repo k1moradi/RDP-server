@@ -418,20 +418,22 @@ NtlmMessageParseResult parseNtlmNegotiateMessage(
 
     const std::uint32_t flags = loadLe32(message.data() + 12U);
     const std::size_t headerBytes = kNegotiateHeaderBytes;
-    if ((flags & kNtlmNegotiateVersion) == 0U &&
-        !allZero(message.subspan(32U, 8U)))
-    {
+    const bool versionPresent = (flags & kNtlmNegotiateVersion) != 0U;
+    if (!versionPresent && !allZero(message.subspan(32U, 8U)))
         return NtlmMessageParseResult::InvalidInput;
-    }
 
+    const bool domainSupplied =
+        (flags & kNtlmNegotiateOemDomainSupplied) != 0U;
+    const bool workstationSupplied =
+        (flags & kNtlmNegotiateOemWorkstationSupplied) != 0U;
     SecurityBuffer domain;
     SecurityBuffer workstation;
-    if ((flags & kNtlmNegotiateOemDomainSupplied) != 0U &&
+    if (domainSupplied &&
         !readSecurityBuffer(message, 16U, headerBytes, domain))
     {
         return NtlmMessageParseResult::InvalidSecurityBuffer;
     }
-    if ((flags & kNtlmNegotiateOemWorkstationSupplied) != 0U &&
+    if (workstationSupplied &&
         !readSecurityBuffer(message, 24U, headerBytes, workstation))
     {
         return NtlmMessageParseResult::InvalidSecurityBuffer;
@@ -440,6 +442,18 @@ NtlmMessageParseResult parseNtlmNegotiateMessage(
         return NtlmMessageParseResult::InvalidSecurityBuffer;
 
     output.negotiateFlags = flags;
+    output.versionPresent = versionPresent;
+    if (versionPresent)
+    {
+        output.majorVersion = message[32U];
+        output.minorVersion = message[33U];
+        output.buildNumber = loadLe16(message.data() + 34U);
+        output.ntlmRevision = message[39U];
+    }
+    output.domainSupplied = domainSupplied;
+    output.workstationSupplied = workstationSupplied;
+    output.domainFieldBytes = loadLe16(message.data() + 16U);
+    output.workstationFieldBytes = loadLe16(message.data() + 24U);
     return NtlmMessageParseResult::Parsed;
 }
 

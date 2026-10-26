@@ -178,6 +178,70 @@ int main(int argc, char **argv)
         return 2;
     const std::string_view testCase{argv[1]};
 
+    if (testCase == "ntlmssp-type1-structural-observation")
+    {
+        NtlmNegotiateMessage observation;
+        assert(parseNtlmNegotiateMessage(
+                   kMicrosoftNegotiateMessage, observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(observation.negotiateFlags == 0xa2088207U);
+        assert(observation.versionPresent);
+        assert(observation.majorVersion == 5U);
+        assert(observation.minorVersion == 1U);
+        assert(observation.buildNumber == 2600U);
+        assert(observation.ntlmRevision == 0x0fU);
+        assert(!observation.domainSupplied);
+        assert(!observation.workstationSupplied);
+        assert(observation.domainFieldBytes == 0U);
+        assert(observation.workstationFieldBytes == 0U);
+
+        auto withoutVersion = kMicrosoftNegotiateMessage;
+        storeLe32(
+            withoutVersion.data() + 12U,
+            observation.negotiateFlags & ~kNtlmNegotiateVersion);
+        std::fill(
+            withoutVersion.begin() + 32,
+            withoutVersion.begin() + 40,
+            std::uint8_t{0});
+        assert(parseNtlmNegotiateMessage(
+                   withoutVersion, observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(!observation.versionPresent);
+        assert(observation.majorVersion == 0U);
+        assert(observation.minorVersion == 0U);
+        assert(observation.buildNumber == 0U);
+        assert(observation.ntlmRevision == 0U);
+
+        std::array<std::uint8_t, 44> suppliedFields{};
+        std::copy(
+            kMicrosoftNegotiateMessage.begin(),
+            kMicrosoftNegotiateMessage.end(),
+            suppliedFields.begin());
+        constexpr std::uint32_t suppliedFlags =
+            0xa2088207U |
+            kNtlmNegotiateOemDomainSupplied |
+            kNtlmNegotiateOemWorkstationSupplied;
+        storeLe32(suppliedFields.data() + 12U, suppliedFlags);
+        storeLe16(suppliedFields.data() + 16U, 2U);
+        storeLe16(suppliedFields.data() + 18U, 2U);
+        storeLe32(suppliedFields.data() + 20U, 40U);
+        storeLe16(suppliedFields.data() + 24U, 2U);
+        storeLe16(suppliedFields.data() + 26U, 2U);
+        storeLe32(suppliedFields.data() + 28U, 42U);
+        suppliedFields[40U] = 'D';
+        suppliedFields[41U] = 'M';
+        suppliedFields[42U] = 'W';
+        suppliedFields[43U] = 'S';
+        assert(parseNtlmNegotiateMessage(
+                   suppliedFields, observation) ==
+               NtlmMessageParseResult::Parsed);
+        assert(observation.domainSupplied);
+        assert(observation.workstationSupplied);
+        assert(observation.domainFieldBytes == 2U);
+        assert(observation.workstationFieldBytes == 2U);
+        return 0;
+    }
+
     if (testCase == "ntlmssp-negotiate-challenge-framing")
     {
         NtlmNegotiateMessage negotiate;

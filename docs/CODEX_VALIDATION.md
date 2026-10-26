@@ -1,3 +1,34 @@
+## Agent 2 Type-1 profile observer authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;
+**reconciled authoring parent:** `578cf0969e196c5799d1229506f18d0495623619`. Mandatory project context
+was re-read after the concurrent R4/R8 publications. Microsoft's MS-NLMP
+VERSION definition was rechecked: VERSION is debugging metadata and does not
+affect normal NTLM processing. The implementation therefore observes VERSION
+and security-buffer lengths without changing the production Type-2 profile.
+
+The production bounded Type-1 parser now returns only redacted structural
+metadata in addition to NegotiateFlags. The existing SPNEGO/CredSSP owner
+retains that parsed observation while continuing to preserve the exact raw
+Type-1 transcript for later MIC verification. Linux fail-only authentication
+diagnostics and the Windows full-CREDSSP oracle consume the same parser result.
+No domain/workstation payload, challenge/response, key or credential bytes are
+logged. The hosted oracle also prints a field-by-field Type-2 shape comparison
+against the latest physical baseline instead of treating a Type-1 difference as
+failure.
+
+Dedicated CTest source transformation review:
+`security.ntlmssp-type1-structural-observation` **PASS by inspection** for
+VERSION-present, VERSION-absent and supplied domain/workstation field lengths.
+Modified-tree compile/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI and Microsoft CREDSSP profile
+evidence: **PENDING**. Physical VERSION tuple: **PENDING** the next authorized
+owner run.
+
+Production Type-2 TargetName/TargetInfo/MsvAvTargetName, fixed-name target
+selection and VERSION clearing are **UNCHANGED**. Exact Type1+Type2+Type3
+MIC/NTLMv2 verification is **UNCHANGED**.
+
 ## R8 Type-2/EOF retry clipboard-dormancy authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring

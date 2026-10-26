@@ -814,6 +814,8 @@ StandaloneSpnegoStep StandaloneSpnegoNtlmAcceptor::issueChallenge(
     {
         return fail(StandaloneSpnegoStatus::InvalidToken);
     }
+    initialTokenObservation_.ntlmTypeOneObserved = true;
+    initialTokenObservation_.ntlmTypeOne = parsed;
     challengeObservation_ = observation;
 
     std::copy(

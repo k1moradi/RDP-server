@@ -53,9 +53,21 @@ enum class NtlmMessageParseResult : std::uint8_t
     InvalidNtlmV2Response,
 };
 
+// Redacted structural view of one MS-NLMP NEGOTIATE_MESSAGE. Domain and
+// workstation payload bytes are deliberately excluded; only their supplied
+// bits and byte counts are retained for interoperability diagnostics.
 struct NtlmNegotiateMessage final
 {
     std::uint32_t negotiateFlags{};
+    bool versionPresent{};
+    std::uint8_t majorVersion{};
+    std::uint8_t minorVersion{};
+    std::uint16_t buildNumber{};
+    std::uint8_t ntlmRevision{};
+    bool domainSupplied{};
+    bool workstationSupplied{};
+    std::size_t domainFieldBytes{};
+    std::size_t workstationFieldBytes{};
 };
 
 // Parsed Type 3 fields borrow only opaque response/key/MIC bytes from the

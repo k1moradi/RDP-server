@@ -473,24 +473,28 @@ after Type 3/pubKeyAuth/authInfo complete.
 
 ## R7 Type-2 peer-EOF GUI presentation gate (2026-10-25)
 
-Owner evidence on assignment main
-`1e6a7c6ea11fcfde09061355328080591a6d7e30` is Linux local CTest
-**980/980 PASS** plus the physical Linux/X11 owner path: TCP,
-X.224/HYBRID and TLS pass; raw Direct NTLM Type 1 is accepted; server Type 2
-is completely delivered; the peer closes with EOF before any Type 3; native
-Admission, MCS and graphics/native desktop are not reached.
+Current owner evidence is Linux/X11 full CTest **986/986 PASS**
+plus the physical Microsoft Windows App path through TCP, X.224/HYBRID, TLS,
+Direct NTLM Type 1, production Type 2 completely committed through TLS and
+Await-Type-3, followed by peer EOF before Type 3. pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS and graphics/native desktop are not
+reached.
 
 The retained runtime boundary is authentication-level:
 `NtlmChallenge / NtlmNegotiation / PreAdmission / admission=None / PeerEof`.
-Keep the dedicated offscreen regression
-`gui.offscreen-authentication-incomplete-before-native-admission`. Main must
-show `Remote client authentication did not complete.`, must not claim wrong
-password or local-desktop/native-admission failure, and must expose no NTLM
-protocol details. When `directNtlmTypeTwoDelivered` is true, Advanced may
-show `NTLM challenge delivered; client disconnected before authentication
-response.`. The same case must clear only that delivery receipt and prove the
-GUI falls back to a less-specific redacted authentication diagnostic rather
-than inferring delivery from the challenge stage.
+Keep `gui.offscreen-authentication-incomplete-before-native-admission` and the
+dedicated product-language gate
+`gui.offscreen-authentication-challenge-disconnect-product-language`. Main
+must show `Remote client authentication did not complete.`, must not claim
+wrong password or local-desktop/native-admission failure, and must expose no
+NTLM protocol details on Main. When `directNtlmTypeTwoDelivered` is true,
+Advanced may show `Client disconnected after authentication challenge.`. The
+same case must clear only that delivery receipt and prove the GUI falls back to
+a less-specific redacted authentication diagnostic rather than inferring
+delivery from the challenge stage. Target-identity mismatch language is
+permitted only when a typed runtime diagnosis explicitly reports that
+condition; tests must not infer it from the destination address or fixed server
+TargetName.
 
 The historical contradictory
 `Admission/Failed/Admission/admission=None/PeerEof` tuple must remain

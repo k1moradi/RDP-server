@@ -1590,10 +1590,18 @@ int main(int argc, char** argv)
                 "Remote client authentication did not complete.")));
         assert(diagnostic->text() ==
                QStringLiteral(
-                   "NTLM challenge delivered; client disconnected before "
-                   "authentication response."));
-        assert(!availability->text().contains(
-            QStringLiteral("local desktop"), Qt::CaseInsensitive));
+                   "Client disconnected after authentication challenge."));
+        for (const QString& disallowedClaim :
+             {QStringLiteral("wrong password"),
+              QStringLiteral("local desktop"),
+              QStringLiteral("native admission"),
+              QStringLiteral("stage=admission")})
+        {
+            assert(!availability->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+            assert(!diagnostic->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+        }
 
         // A challenge-stage snapshot alone is not a delivery receipt.
         // Keep Main neutral and fall back to a less-specific redacted

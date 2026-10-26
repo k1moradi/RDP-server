@@ -264,11 +264,13 @@ but before Type 3 remains authentication-level. The current runtime snapshot is
 admission None + PeerEof`; R7 may also accept the immediately preceding
 standalone-failure-`None` snapshot only for safe presentation compatibility.
 Main shows `Remote client authentication did not complete.`. Advanced
-Diagnostics may state `NTLM challenge delivered; client disconnected before
-authentication response.` only when the retained R1
-`directNtlmTypeTwoDelivered` receipt is true. A queued-only or legacy
-snapshot uses a less-specific redacted authentication diagnostic; never infer
-delivery from `NtlmChallenge` alone.
+Diagnostics may state `Client disconnected after authentication challenge.`
+only when the retained R1 `directNtlmTypeTwoDelivered` receipt is true. A
+queued-only or legacy snapshot uses a less-specific redacted authentication
+diagnostic; never infer delivery from `NtlmChallenge` alone. Do not infer a
+target-identity mismatch from the destination address, TargetName or other
+presentation data. A future `Remote target identity was not accepted.`
+diagnostic requires an explicit typed runtime diagnosis.
 
 R7 must also fail safely for an older contradictory retained tuple such as
 `Admission + CredSSP Failed + standalone failure Admission + admission None +

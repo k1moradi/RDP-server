@@ -1,3 +1,43 @@
+## R7 P1 dependency recheck — pre-Type-3 client-failure presentation (2026-10-25)
+
+**Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 evidence remains
+**986/986 CTest PASS** with the physical Microsoft Windows App reaching a fully
+committed production Type 2 and Await-Type-3 before peer EOF. Type 3,
+pubKeyAuth, authInfo, CredentialsVerified, native Admission, MCS and graphics
+are **NOT REACHED**.
+
+Other-agent progress has cleared both repository-side blockers previously
+observed by R7: `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11` fixes the
+target-identity assertion portability error, and parent `50676eaa0467f7f79883b1ebb977866a31b7e8f7` narrows
+the bootstrap clipboard source guard so its former `listener_.` failure is
+recognized as a test-only false positive. Neither change modifies production
+authentication or clipboard behavior.
+
+The upstream Microsoft target-principal investigation remains **BLOCKED**:
+exact-SHA Windows run `40258471605` shows the portable-SPN, IP-SPN and bare-IP
+full-CredSSP cases all reaching TLS but stopping at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)` before
+production Type 2. Because the control fails at the same boundary, this is still
+a harness/round-progression problem and does not establish a target-identity
+mismatch or authorize a production wire/profile change.
+
+R7 is not blocked by that upstream gate. Main stays
+`Remote client authentication did not complete.`; exact delivered-challenge
+evidence permits Advanced Diagnostics to show
+`Client disconnected after authentication challenge.`. The GUI must not claim
+wrong password, local-desktop/native Admission failure or target-identity
+rejection without the corresponding typed runtime evidence. A failed peer keeps
+Sharing ON while listener/consent/credential authority remains current.
+
+This increment changes no TLS, SPNEGO, NTLM, CredSSP, target-profile,
+native-Admission, MCS, graphics, input or clipboard behavior. It registers
+`gui.offscreen-authentication-challenge-disconnect-product-language` using the
+existing authoritative fixture. Connector source/test reconciliation:
+**PASS by inspection**. Modified-tree configure/build/focused/full CTest:
+**NOT RUN** in this connector environment. Next R7 gate: exact-publication-SHA
+hosted qualification; target-identity-specific UX remains blocked until a
+typed diagnosis exists.
+
 ## R10 CI source-contract reconciliation after target-identity ownership — 2026-10-25
 
 **Reconciled parent:** `eda88212f2f02d7406fa69e56a7a73b15fe5b530`. Exact-SHA Linux CI exposed one
@@ -892,9 +932,10 @@ wire behavior. Main keeps the product-safe message
 password, local-desktop authorization failure or native-admission failure.
 Advanced uses the exact positive R1 receipt: only
 `directNtlmTypeTwoDelivered=true` permits
-`NTLM challenge delivered; client disconnected before authentication
-response.`; queued-only/legacy evidence falls back to a less-specific redacted
-authentication diagnostic.
+`Client disconnected after authentication challenge.`; queued-only/legacy
+evidence falls back to a less-specific redacted authentication diagnostic.
+Target-identity mismatch presentation remains blocked until a typed runtime
+diagnosis exists; the GUI must not infer it from address/TargetName differences.
 
 The existing dedicated CTest
 `gui.offscreen-authentication-incomplete-before-native-admission` covers the

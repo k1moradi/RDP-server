@@ -131,8 +131,7 @@ using rdp_server::server::runtime::RuntimeHostError;
             diagnostics.directNtlmTypeTwoDelivered;
         return deliveredChallenge
             ? QStringLiteral(
-                  "NTLM challenge delivered; client disconnected before "
-                  "authentication response.")
+                  "Client disconnected after authentication challenge.")
             : QStringLiteral(
                   "Authentication: Direct NTLM — "
                   "client disconnected before authentication completed.");

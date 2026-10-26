@@ -1,3 +1,29 @@
+## R7 pre-Type-3 client-failure presentation dependency recheck — 2026-10-25
+
+**Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 baseline: **986/986 CTest
+PASS**. Exact-SHA Windows run `40258471605` still has all three Microsoft
+full-CredSSP target forms stop at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before production Type 2, so no
+target-principal conclusion is available. The prior Linux bootstrap clipboard
+source-contract failure is resolved by parent `50676eaa0467f7f79883b1ebb977866a31b7e8f7` as a test-slice
+false positive; production runtime/clipboard behavior is unchanged.
+
+R7 changes only presentation: a completely delivered authentication challenge
+followed by peer close maps to
+`Client disconnected after authentication challenge.` in Advanced
+Diagnostics while Main remains
+`Remote client authentication did not complete.`. The focused fixture also
+forbids wrong-password, local-desktop/native-Admission and
+`stage=admission` claims, and the new behavior-named CTest is
+`gui.offscreen-authentication-challenge-disconnect-product-language`.
+
+No TLS/SPNEGO/NTLM/CredSSP bytes, target-profile selection, native Admission,
+MCS, graphics, input or clipboard behavior changes. Connector source/test/doc
+reconciliation: **PASS by inspection**. Modified-tree local configure/build and
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. Next gate: keep the product-language tests green; do not show
+target-identity rejection until a typed runtime diagnosis exists.
+
 ## R10 bootstrap dormancy source-scope correction — 2026-10-25
 
 Exact-SHA CI for `eda88212f2f02d7406fa69e56a7a73b15fe5b530` found

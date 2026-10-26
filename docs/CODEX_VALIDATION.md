@@ -1,3 +1,17 @@
+## Agent 5/6 CI publication correction receipt — 2026-10-26
+
+The `e0207b8557b43613f83cfd004f78ca69872a7e1d` workflow publication is
+**INVALID AS QUALIFICATION EVIDENCE**: a text-replacement escape collision
+duplicated the workflow suffix before GitHub Actions execution. The intended
+certificate-policy selector and all C++/CTest changes remain unchanged.
+
+Repair parent: `dc963e90ea3a0635a84df88e5c50073727f76b5b`. The workflow is rebuilt from the exact canonical
+pre-change blob and receives only the intended verbose Windows/macOS
+certificate-policy CTest step. Source reconciliation: **PASS by inspection**.
+Native compile/CTest and exact-repair-SHA CI remain **PENDING** until the repair
+commit executes. No production wire, TLS identity, authentication, Admission,
+graphics, input or clipboard behavior changes in this correction.
+
 ## Agent 1 Linux assert portability correction receipt — 2026-10-26
 
 Exact SHA `ab2256d0d75c942fd81cae6f510f90d988682448`, workflow `40340104183`: CI structure **PASS**, documentation policy **PASS**, production Linux security build **PASS**, Windows Debug compile **PASS**, and Microsoft CredSSP harness/target differential **PASS** before the Linux full Debug build failed in `test_runtime_linux_security.cpp`. The failure was the C `assert` macro splitting an inline braced `std::string_view` constructor at its comma. The correction creates the bounded view in a named local and asserts on that variable. No production behavior changes.

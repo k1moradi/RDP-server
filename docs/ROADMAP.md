@@ -1,3 +1,20 @@
+## Agent 5/6 CI publication correction — literal certificate-policy selector (2026-10-26)
+
+**Repair parent:** `dc963e90ea3a0635a84df88e5c50073727f76b5b`. The preceding Agent 5/6 publication
+`e0207b8557b43613f83cfd004f78ca69872a7e1d` accidentally duplicated the
+workflow suffix while inserting the certificate-policy evidence step. The
+failure was authoring-tool replacement semantics interpreting the literal
+shell-regex suffix `$'` as a replacement token; it was not a protocol,
+certificate-policy or C++ test failure.
+
+This repair reconstructs `.github/workflows/ci.yml` from the exact
+pre-Agent-5/6 workflow blob and inserts only the intended Windows/macOS
+behavior-named certificate-policy CTest step. Production source, Type-2 target
+identity, certificate generation, platform-oracle test source and Linux native
+dormancy assertions are unchanged. The failed `e0207b...` Actions run is not
+qualification evidence. Only the exact repair publication SHA and its native
+jobs may be used for the next certificate/client differential decision.
+
 ## Agent 1 P0 — Linux acceptance-diagnostic assert portability correction (2026-10-26)
 
 **Failed exact SHA:** `ab2256d0d75c942fd81cae6f510f90d988682448`, workflow `40340104183`, Linux protocol job `121632304470`. The production Linux security build **PASS** and Windows Debug compile plus Microsoft CredSSP qualification **PASS**, but the Linux full Debug build failed when the C `assert` macro parsed the comma in an inline braced `std::string_view` constructor as a second macro argument.

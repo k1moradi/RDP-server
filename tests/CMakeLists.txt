@@ -183,8 +183,11 @@ if(WIN32)
     endif()
     add_test(NAME security.windows-sspi-production-type2-interop
         COMMAND test_windows_sspi_ntlm_interop)
+    add_test(NAME security.windows-sspi-target-identity-matrix
+        COMMAND test_windows_sspi_ntlm_interop target-identity-matrix)
     set_tests_properties(
-        security.windows-sspi-production-type2-interop PROPERTIES
+        security.windows-sspi-production-type2-interop
+        security.windows-sspi-target-identity-matrix PROPERTIES
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
         TIMEOUT 30)
 endif()

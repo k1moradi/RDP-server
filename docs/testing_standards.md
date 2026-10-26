@@ -1,3 +1,31 @@
+## Test-only endpoint identity profiles and client AV compatibility (2026-10-25)
+
+The hard Microsoft gates remain the current production Type 2 with
+`TERMSRV/RDP-SERVER` and with `TERMSRV/192.168.1.5`, plus the Windows-native
+CREDSSP control/IP-target differential. Two additional NTLM SSPI profiles are
+exploratory only:
+
+- `security.windows-sspi-physical-ip-endpoint-target-name`: client target
+  `TERMSRV/192.168.1.5`, test-only Type-2 TargetName `192.168.1.5`, otherwise
+  current TargetInfo.
+- `security.windows-sspi-physical-ip-endpoint-service-spn`: the preceding
+  profile plus test-only
+  `MsvAvTargetName=TERMSRV/192.168.1.5`.
+
+PASS means Microsoft emitted Type 3 and the production parser/verifier accepted
+it with the requested context properties. SKIP means Microsoft rejected the
+exploratory profile before Type 3. FAIL means the test profile could not be
+constructed/validated or a produced Type 3 failed the production verification
+chain. Neither exploratory PASS is authority to change production.
+
+Keep `security.ntlmssp-authenticate-client-av-compatibility` portable. It
+injects `MsvAvTargetName`, a nonzero 16-byte `MsvAvChannelBindings`, and
+`MsvAvFlags` into a known NTLMv2 response while deliberately leaving the old
+proof unchanged. The parser must accept the AV structure and verification must
+reach `ProofMismatch`; an earlier structural rejection would indicate that a
+legitimate Microsoft client AV could be rejected, while a successful
+verification would imply the added bytes were not authenticated.
+
 ## Connection target identity and IP-target CredSSP gate (2026-10-25)
 
 Keep the production Type-2 profile unchanged while the physical Microsoft

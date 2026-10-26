@@ -1,3 +1,40 @@
+## R2 target-profile and future Type-3 AV-field review — 2026-10-26
+
+**Authoring parent:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. Owner-supplied Linux/X11 baseline:
+**989/989 CTest PASS**. The physical Windows App remains at fully committed
+production Type 2 -> Await-Type-3 -> peer EOF, with Type 3 and every downstream
+authentication/session boundary not reached.
+
+Connector review of current `main` confirms the production target selection
+is still `fixed-name / RDP-SERVER`; `EndpointBound` is not selected by
+normal Start. The Windows full-`CREDSSP` fixture keeps the three production
+targets unchanged and gates its only three Type-2 identity experiments behind
+a fresh successful portable-name control. A failing bare-IP case does not run
+the experiment matrix, and diagnostic success never changes the production
+CTest result.
+
+The current full Microsoft `CREDSSP` evidence is **BLOCKED BEFORE PRODUCTION
+TYPE 2**: control, IP-SPN and bare-IP all stop after TLS at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)`.
+Therefore this receipt makes no target-principal inference and authorizes no
+production Type-2, TLS, SPNEGO/CredSSP, Admission, MCS, graphics, input or
+clipboard change.
+
+R2 also reviewed the future Type-3 verifier. The existing parser already
+traverses bounded NTLMv2 AV framing, reads `MsvAvFlags` for MIC placement,
+and the SPNEGO/Direct-NTLM owner verifies MIC against the exact stored Type 1,
+exact emitted Type 2 and original Type 3 bytes. No new
+`MsvAvTargetName`/`MsvAvChannelBindings` semantic branch was added because
+full CredSSP has not reached Type 3 and supplied such evidence. MS-NLMP binding
+checks remain a later authenticated-response/application-binding responsibility
+if the field is actually observed.
+
+Independent Session Password ownership, no OS-GSS fallback, no standalone
+remote-identity-to-local-UID mapping and exact transcript MIC verification are
+preserved. Source/test/doc reconciliation: **PASS by inspection**. Modified-tree
+build/CTest: **NOT RUN**; production/test source is unchanged. Exact-publication
+hosted CI: **PENDING**.
+
 ## R7 pre-Type-3 client-failure presentation dependency recheck — 2026-10-25
 
 **Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 baseline: **986/986 CTest

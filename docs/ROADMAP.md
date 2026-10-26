@@ -1,3 +1,66 @@
+## R2 P0 review — fixed-name target profile retained while full-CredSSP control is harness-blocked (2026-10-26)
+
+**Assignment/current-main parent:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. Owner Linux/X11 reports
+**989/989 CTest PASS**. The physical Microsoft Windows App boundary remains
+TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 -> production Type 2 queued
+and fully committed through TLS -> Await-Type-3 -> peer EOF. Type 3,
+pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share,
+graphics/X11 and clipboard are **NOT REACHED**.
+
+R2 review confirms production remains exactly `fixed-name / RDP-SERVER`.
+The Start-scoped runtime target tuple records the numeric IP endpoint and
+`TERMSRV` service class, but the standalone-password Start path constructs
+only `RuntimeServiceIdentityProfile::FixedName` and copies the portable
+`RDP-SERVER` protocol identity into the production challenge. The
+`EndpointBound` profile remains dormant vocabulary/test plumbing only.
+
+The Windows native full-`CREDSSP` matrix remains correctly bounded to three
+unchanged production target contexts: `TERMSRV/RDP-SERVER`,
+`TERMSRV/192.168.1.5`, and bare `192.168.1.5`. A failing physical-IP
+production case runs the three existing diagnostic challenge variants
+(TargetName-only, MsvAvTargetName-only, then both) **only after** a fresh
+`TERMSRV/RDP-SERVER` production control has generated and consumed the next
+client TSRequest. The bare-IP case never starts that diagnostic search, and no
+diagnostic acceptance can make the production CTest green.
+
+Current hosted evidence does not satisfy that prerequisite. All three full
+Microsoft `CREDSSP` cases reach TLS and stop at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)` before
+production Type 2. Because the portable-name control fails at the same harness
+round, this remains a CredSSP round-progression defect and supplies no
+fixed-name-versus-endpoint-bound differential. Do not change Type-2 flags,
+TargetName, TargetInfo, MsvAvTargetName, TLS identity or SPNEGO/CredSSP framing
+from this result.
+
+The future Type-3 path was reviewed without changing production parsing.
+The bounded AUTHENTICATE_MESSAGE parser already walks canonical NTLMv2 AV
+framing and treats `MsvAvFlags` as the MIC-presence authority. The connection
+owner retains the exact received Type 1 and exact emitted Type 2 bytes and
+verifies the Type-3 MIC over those exact transcript buffers; it does not
+reconstruct either message. `MsvAvTargetName` and `MsvAvChannelBindings`
+remain possible authenticated-response/application-binding inputs, but no new
+semantic acceptance or relaxation is added before full Microsoft CredSSP
+actually reaches Type 3 and exposes the needed field. If that evidence arrives,
+add only the field-specific bounded validation/binding check required by
+MS-NLMP; do not broaden into arbitrary AV combinations.
+
+The independent memory-only Session Password remains separate from OS account
+authentication. Standalone-password verification gains no OS-GSS fallback,
+does not map the remote standalone identity to a local UID/account, and grants
+no native/session authority before the existing authenticated-proof and native
+Admission boundaries.
+
+Connector source/test/document review: **PASS by inspection**. Production code,
+CTest registry, CI, build linkage and wire bytes: **UNCHANGED**. Modified-tree
+configure/build/CTest: **NOT RUN** in this connector environment; no new CTest
+is required because this review changes no production code.
+
+**Next gate:** Agent 6 must repair the Microsoft full-CredSSP control so
+`TERMSRV/RDP-SERVER` itself produces the initial client TSRequest, consumes
+the exact production Type 2 and advances to the next client TSRequest. Only
+then may an IP-target production failure trigger the existing three bounded
+diagnostics or provide R2 evidence for a minimal target-profile change.
+
 ## R7 P1 dependency recheck — pre-Type-3 client-failure presentation (2026-10-25)
 
 **Authoring parent:** `50676eaa0467f7f79883b1ebb977866a31b7e8f7`. Owner Linux/X11 evidence remains

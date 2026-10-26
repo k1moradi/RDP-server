@@ -1,3 +1,26 @@
+## Pre-Type-3 peer close never creates MCS authority (2026-10-25)
+
+A Direct NTLM connection that has fully committed production Type 2 through TLS
+and is waiting for Type 3 remains pre-admission. Peer EOF at that point must
+retain `protocolStage=PreAdmission`, no native-admission failure reason, no
+MCS session advancement and no Share activation. Closing the transport may
+retire the connection-local protocol owner; it must never reinterpret the
+retained snapshot as having reached Admission or MCS.
+
+The diagnostic boundary for the next successful physical progression is narrow:
+after CredSSP reports `CredentialsVerified`, a native Admission rejection is
+reported as `admission`; successful Admission is observable as
+`native-admission-verified`; only acceptance of a real client MCS
+Connect-Initial is observable as `mcs-connect-initial-received`. These are
+diagnostic observations only and grant no authority. Do not add or advance
+Connect-Response, Share, RDPGFX, graphics, input or clipboard behavior merely
+to make hosted diagnostics exercise later stages.
+
+Microsoft SSPI acceptance of the unmodified production Type 2 plus the
+independent outer TSRequest DER oracle rule out random Type-2-format churn as
+an R3 response. A physical target-principal/identity mismatch hypothesis belongs
+to the CredSSP/security boundary until a real Type 3 arrives.
+
 ## R10 peer interruption is not authentication rejection (2026-10-25)
 
 A peer-driven close after a completely delivered Direct NTLM Type 2 and before

@@ -551,19 +551,19 @@ if(TARGET rdp-server-linux-host-control)
     endforeach()
 
     add_test(
-        NAME runtime.linux-host-control-post-admission-protocol-diagnostics
+        NAME runtime.linux-host-control-credentials-admission-mcs-diagnostics
         COMMAND test_linux_runtime_host_control
-            linux-host-control-post-admission-protocol-diagnostic-projection)
+            linux-host-control-credentials-admission-mcs-diagnostic-projection)
     set_tests_properties(
-        runtime.linux-host-control-post-admission-protocol-diagnostics
+        runtime.linux-host-control-credentials-admission-mcs-diagnostics
         PROPERTIES
-            LABELS "runtime;security;protocol;mcs;share;diagnostics;offline"
+            LABELS "runtime;security;authentication;admission;protocol;mcs;diagnostics;offline"
             SKIP_RETURN_CODE 77)
 
     add_test(
         NAME runtime.linux-host-control-pre-admission-protocol-dormancy
         COMMAND test_linux_runtime_host_control
-            linux-host-control-r3-diagnostic-dormancy-projection)
+            linux-host-control-pre-admission-protocol-dormancy-projection)
     set_tests_properties(
         runtime.linux-host-control-pre-admission-protocol-dormancy
         PROPERTIES

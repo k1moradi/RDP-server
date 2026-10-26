@@ -1,3 +1,42 @@
+## R3 P2 — Await-Type-3 peer EOF remains pre-MCS (2026-10-25)
+
+**Reconciled connector main:** `2a2e57cdb4c746b9152ffa502c897cfaa0045b2b`.
+Owner-reported Linux/X11 full CTest is **986/986 PASS**; the exact owner-tested
+SHA was **NOT PROVIDED** with this receipt. This newer physical receipt
+**supersedes the admission-boundary assumption in the older R9 section below**.
+Do not use that older physical assumption to drive native-admission or
+downstream protocol changes.
+
+The real Microsoft Windows App path reaches TCP, X.224/HYBRID, TLS, Direct
+NTLM Type 1, queues and fully commits the production Type 2 through TLS, and
+reaches Await-Type-3. The client then closes with
+`peer-eof-before-type3`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS and graphics/X11 are all
+**NOT REACHED**.
+
+Hosted Windows evidence independently proves Microsoft native NTLM SSPI can
+produce Type 1, consume the unmodified production Type 2 and produce Type 3,
+and the independent outer CredSSP TSRequest DER oracle also passes. Therefore
+R3 authorizes no speculative TLS/SPNEGO/NTLM Type-2 changes. The observed
+difference between the hosted oracle target `TERMSRV/RDP-SERVER` and the
+physical connection target `192.168.1.5` while Type 2 advertises
+`RDP-SERVER` is a security/CredSSP target-principal investigation, not an R3
+MCS/Share/RDPGFX task.
+
+R3 remains **P2 / BLOCKED**. The production-backed Direct NTLM lifecycle must
+retain `PreAdmission`, no native-admission reason, no MCS session advancement
+and no Share activation both while awaiting Type 3 and after peer EOF. The
+diagnostic projection is limited to preparing the next valid boundary:
+`CredentialsVerified` -> native Admission failure or
+`native-admission-verified` -> accepted MCS Connect-Initial. No
+Connect-Response, Share or RDPGFX production change is part of this increment.
+
+Connector source reconciliation: **PASS**. Modified-tree configure/build and
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**. Next R3 gate: a real client must first send Type 3, reach
+`CredentialsVerified`, and obtain a positive native admission lease before
+any later MCS failure is R3-owned.
+
 ## Linux pre-Type-3 native dormancy after Microsoft SSPI qualification — 2026-10-25
 
 Owner Linux/X11 evidence reports **986/986 CTests PASS** and a physical

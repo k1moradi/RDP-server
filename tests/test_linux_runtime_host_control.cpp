@@ -579,56 +579,88 @@ int main(int argc, char** argv)
     }
 
     if (testCase ==
-        "linux-host-control-post-admission-protocol-diagnostic-projection")
+        "linux-host-control-credentials-admission-mcs-diagnostic-projection")
     {
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         return 77;
 #else
-        using SourceStage = LinuxRuntimeProtocolDiagnosticStage;
-        struct ProtocolProjectionCase final
-        {
-            SourceStage source;
-            RuntimeAcceptedClientProtocolStage expected;
-        };
-        constexpr std::array<ProtocolProjectionCase, 10U> cases{{
-            {SourceStage::PreAdmission, RuntimeAcceptedClientProtocolStage::PreAdmission},
-            {SourceStage::NativeAdmissionVerified, RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified},
-            {SourceStage::McsConnectInitialReceived, RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived},
-            {SourceStage::McsConnectResponseSent, RuntimeAcceptedClientProtocolStage::McsConnectResponseSent},
-            {SourceStage::McsErectDomainReceived, RuntimeAcceptedClientProtocolStage::McsErectDomainReceived},
-            {SourceStage::McsAttachUserReceived, RuntimeAcceptedClientProtocolStage::McsAttachUserReceived},
-            {SourceStage::McsChannelJoin, RuntimeAcceptedClientProtocolStage::McsChannelJoin},
-            {SourceStage::McsEstablished, RuntimeAcceptedClientProtocolStage::McsEstablished},
-            {SourceStage::ShareActivation, RuntimeAcceptedClientProtocolStage::ShareActivation},
-            {SourceStage::ShareActivated, RuntimeAcceptedClientProtocolStage::ShareActivated},
-        }};
+        using McsPhase = rdp_server::server::transport::McsSessionPhase;
+        using SourceFailure = rdp_server::server::security::
+            StandaloneAuthenticationFailureStage;
+        using SourceAdmissionFailure = rdp_server::server::security::
+            LinuxConsoleAdmissionFailureReason;
 
         LinuxRuntimeConnectionAcceptanceDiagnostics source{};
         source.credSspTransition =
             LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
         source.authenticationProgress =
             LinuxRuntimeAuthenticationProgress::Authenticated;
-        source.standaloneAuthenticationFailureStage =
-            rdp_server::server::security::
-                StandaloneAuthenticationFailureStage::Admission;
-        source.protocolStage = SourceStage::PreAdmission;
+        source.standaloneAuthenticationFailureStage = SourceFailure::None;
+        source.admissionFailureReason = SourceAdmissionFailure::None;
+        source.protocolStage = LinuxRuntimeProtocolDiagnosticStage::PreAdmission;
+        source.mcsPhase = McsPhase::AwaitVerifiedR2Admission;
+        source.shareActivated = false;
+
         auto projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Authenticated);
         assert(projected.protocolStage ==
                RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(projected.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
+        assert(!projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
 
-        for (const ProtocolProjectionCase& entry : cases)
-        {
-            source.protocolStage = entry.source;
-            projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
-            assert(projected.protocolStage == entry.expected);
-        }
+        // A rejected native Admission remains the exact failure boundary and
+        // cannot be reclassified as MCS progress.
+        source.standaloneAuthenticationFailureStage = SourceFailure::Admission;
+        source.admissionFailureReason =
+            SourceAdmissionFailure::ConsoleSessionUnavailable;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Admission);
+        assert(projected.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(projected.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::
+                   ConsoleSessionUnavailable);
+        assert(!projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
+
+        // A successful native Admission is observable before any MCS packet.
+        source.standaloneAuthenticationFailureStage = SourceFailure::None;
+        source.admissionFailureReason = SourceAdmissionFailure::None;
+        source.protocolStage =
+            LinuxRuntimeProtocolDiagnosticStage::NativeAdmissionVerified;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Authenticated);
+        assert(projected.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::NativeAdmissionVerified);
+        assert(!projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
+
+        // Only an accepted real Connect-Initial advances the MCS diagnostic.
+        source.authenticationProgress = LinuxRuntimeAuthenticationProgress::Mcs;
+        source.protocolStage =
+            LinuxRuntimeProtocolDiagnosticStage::McsConnectInitialReceived;
+        source.mcsPhase = McsPhase::AwaitConnectResponse;
+        projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
+        assert(projected.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::Mcs);
+        assert(projected.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived);
+        assert(projected.mcsSessionAdvanced);
+        assert(!projected.shareActivated);
         return 0;
 #endif
     }
 
 
     if (testCase ==
-        "linux-host-control-r3-diagnostic-dormancy-projection")
+        "linux-host-control-pre-admission-protocol-dormancy-projection")
     {
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         return 77;
@@ -651,8 +683,8 @@ int main(int argc, char** argv)
         assert(!projected.mcsSessionAdvanced);
         assert(!projected.shareActivated);
 
-        // Terminal pre-admission teardown closes R3 without creating a
-        // positive MCS/Share milestone.
+        // Terminal pre-admission teardown cannot create a positive MCS/Share
+        // milestone.
         source.credSspTransition =
             LinuxRuntimeCredSspDiagnosticTransition::Closed;
         source.mcsPhase = McsPhase::Closed;
@@ -660,8 +692,8 @@ int main(int argc, char** argv)
         assert(!projected.mcsSessionAdvanced);
         assert(!projected.shareActivated);
 
-        // Sanity-check the diagnostic projection against genuine later R3
-        // phases; these observations still grant no protocol authority.
+        // Sanity-check the diagnostic projection against genuine later
+        // protocol phases; these observations still grant no authority.
         source.credSspTransition =
             LinuxRuntimeCredSspDiagnosticTransition::CredentialsVerified;
         source.authenticationProgress =

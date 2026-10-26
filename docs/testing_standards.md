@@ -1,3 +1,40 @@
+## Await-Type-3 EOF and next-boundary diagnostics gate (2026-10-25)
+
+The latest owner physical trace supersedes the earlier admission-boundary
+assumption: production Type 2 is fully committed through TLS, Await-Type-3 is
+reached, and the Microsoft client closes before Type 3. Type 3, pubKeyAuth,
+authInfo, `CredentialsVerified`, native Admission and MCS are **NOT REACHED**.
+Any admission-focused qualification below remains synthetic/policy coverage,
+not evidence that the physical client reached Admission.
+
+The production-backed Direct NTLM lifecycle must prove the retained terminal
+snapshot remains `PreAdmission`, has no admission failure reason, reports no
+MCS session advancement and no Share activation, and keeps native desktop,
+graphics and clipboard dormant. A later successful synthetic retry in the same
+fixture does not rewrite the earlier peer's boundary.
+
+Keep one deterministic offline diagnostic regression for the next legitimate
+progression only:
+
+- `CredentialsVerified`: authentication is verified, protocol remains
+  `PreAdmission`, and MCS has not advanced.
+- native Admission rejection: authentication diagnostic becomes `Admission`
+  with the concrete typed admission reason, still with no MCS progress.
+- successful native Admission: protocol diagnostic becomes
+  `NativeAdmissionVerified`, still before MCS.
+- accepted MCS Connect-Initial: protocol diagnostic becomes
+  `McsConnectInitialReceived` and only then may the MCS-session-advanced
+  diagnostic become true.
+
+Do not extend this regression into Connect-Response, Share or RDPGFX for this
+round. Hosted Microsoft SSPI Type 1 -> unchanged production Type 2 -> Type 3 and
+the independent outer TSRequest DER oracle are already positive evidence; they
+do not authorize random production Type-2 mutations, native Admission
+fabrication or synthetic MCS authority.
+
+CTest names and labels for these regressions remain durable behavior/domain
+taxonomy such as `authentication;admission;protocol;mcs;diagnostics`.
+
 ## Repeated pre-Type-3 attempts preserve native dormancy and owner consent (2026-10-25)
 
 A delivered Direct NTLM Type 2 followed by peer EOF is accepted-connection

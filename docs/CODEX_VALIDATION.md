@@ -1,3 +1,40 @@
+## R3 Await-Type-3 EOF dormancy and next-boundary diagnostics — 2026-10-25
+
+**Reconciled connector main:** `2a2e57cdb4c746b9152ffa502c897cfaa0045b2b`.
+Owner-reported Linux/X11 full CTest: **986/986 PASS**; exact owner-tested SHA:
+**NOT PROVIDED**. This newer physical trace supersedes the older
+admission-boundary owner receipt below.
+
+Physical Microsoft Windows App trace: TCP PASS -> X.224/HYBRID PASS -> TLS
+PASS -> Direct NTLM Type 1 received -> production Type 2 queued -> production
+Type 2 completely committed through TLS -> Await-Type-3 reached -> peer EOF.
+Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS
+and graphics/X11 are **NOT REACHED**. Retained production evidence includes
+Type-1 flags `0xe2088235`, Type-2 flags `0xe08a8235`,
+`TargetName=RDP-SERVER`, TargetInfo AV IDs `2,1,7,0`,
+`direct-ntlm-type2-tls=committed`,
+`direct-ntlm-await-type3=reached`,
+`direct-ntlm-type3=not-received` and
+`pre-type3-termination=peer-eof-before-type3`.
+
+Hosted Windows independently proves native Microsoft NTLM SSPI Type 1 ->
+unmodified production Type 2 -> Microsoft Type 3, and the independent outer
+CredSSP TSRequest DER oracle passes. No production Type-2 mutation is made or
+authorized here. The hosted target `TERMSRV/RDP-SERVER` versus physical
+target `192.168.1.5` / advertised `RDP-SERVER` difference remains a
+CredSSP/security target-principal question outside this R3 increment.
+
+Test-only changes strengthen the retained post-EOF assertion to require
+`PreAdmission`, no admission reason, no MCS session advancement and no Share
+activation. The offline HostControl projection is narrowed to the next useful
+diagnostic boundary only: `CredentialsVerified`, Admission rejection,
+`NativeAdmissionVerified`, then accepted MCS Connect-Initial. No production
+MCS/Share/RDPGFX, native Admission, graphics, input or clipboard code changes.
+
+Connector source reconciliation: **PASS**. Modified-tree compile/focused/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
 ## Linux repeated Type-2 native-dormancy authoring receipt — 2026-10-25
 
 Owner evidence supplied for this round: Linux/X11 full CTest **986/986 PASS**;

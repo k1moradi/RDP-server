@@ -1526,6 +1526,15 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::PeerEof);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                    .mcsSessionAdvanced);
+        assert(!afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                    .shareActivated);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
         assertClipboardDormant(afterTypeTwoEof);
         assertGraphicsDormant(afterTypeTwoEof);
         assert(afterTypeTwoEof.product.state ==

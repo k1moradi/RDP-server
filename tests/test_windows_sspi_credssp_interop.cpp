@@ -2102,6 +2102,29 @@ int main(int argc, char **argv)
                attempt.productionObservedTypeThree;
     };
 
+    if (profile != TargetProfile::PortableServerName)
+    {
+        const FullCredSspAttempt control =
+            runFullCredSspAttempt(
+                TargetProfile::PortableServerName,
+                ChallengeExperiment::Production);
+        if (!acceptedNextClientMessage(control))
+        {
+            printFailure(TargetProfile::PortableServerName, control);
+            std::fprintf(
+                stderr,
+                "microsoft-credssp-matrix target=%s "
+                "status=blocked-control-not-accepted\n",
+                targetLabel(profile));
+            return 1;
+        }
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-matrix target=%s "
+            "control=TERMSRV/RDP-SERVER status=accepted\n",
+            targetLabel(profile));
+    }
+
     const FullCredSspAttempt result =
         runFullCredSspAttempt(
             profile, ChallengeExperiment::Production);
@@ -2124,19 +2147,6 @@ int main(int argc, char **argv)
 
     if (profile != TargetProfile::PhysicalIpv4)
         return 1;
-
-    const FullCredSspAttempt control =
-        runFullCredSspAttempt(
-            TargetProfile::PortableServerName,
-            ChallengeExperiment::Production);
-    if (!acceptedNextClientMessage(control))
-    {
-        std::fprintf(
-            stderr,
-            "microsoft-credssp-identity-experiments="
-            "skipped-control-not-accepted\n");
-        return 1;
-    }
 
     constexpr std::array experiments{
         ChallengeExperiment::EndpointTypeTwoTargetName,

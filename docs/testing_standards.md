@@ -1,3 +1,13 @@
+## Agent 9 exact-SHA physical-client owner-candidate gate (2026-10-26)
+
+Before nominating another Linux physical candidate, exact-SHA hosted protocol qualification must run the platform-native certificate-policy oracle on both macOS and Windows and also run `runtime.generated-tls-identity-owner-ipv4-san-der`, `runtime.rejects-tls-credentials-client-only-certificate`, `runtime.rejects-tls-credentials-expired-certificate` and `runtime.rejects-tls-credentials-not-yet-valid-certificate`. The native tests remain test-only, use evaluation-local/in-memory trust, disable network/AIA retrieval as implemented, and never mutate persistent OS trust stores. Full CTest remains the final hosted test authority.
+
+The Windows full-CREDSSP fixed-name control's exact-SHA artifact must include hosted Type-1 flags, exact **inner NTLM Type-1** byte count and VERSION presence/validated structure beside physical `flags=0xe2088235`, `bytes=40`. Direct NTLM may use the raw token length; SPNEGO must use the bounded optimistic mechanism-token length rather than the outer envelope. The artifact must explicitly state that exact equality is not required. A different hosted profile is diagnostic evidence, not permission to mutate production Type 2 or target identity.
+
+The manual `r9_credssp_owner_candidate` aggregate is authoritative for physical nomination and remains intentionally skipped by ordinary push. It may pass only after all exact-SHA producer jobs are green, both full-CREDSSP IP target rows are PASS, the differential is TYPED, the Type-1 profile record is present, the certificate-policy/SAN/purpose/time requirements are registered and exercised by the `protocol` matrix, and Linux established-TLS diagnostics expose version/cipher through the existing fail-only path. Do not infer manual-gate PASS from producer success.
+
+A subsequent physical receipt is incomplete unless its first pre-build/test command is `git rev-parse HEAD` and the submitted bundle contains that exact SHA, the complete Linux terminal failure record, the Windows App client-side connection log from the same attempt, certificate-warning shown yes/no, certificate-warning accepted yes/no, and the destination string exactly as entered. Do not claim exact-SHA physical qualification from an incomplete receipt.
+
 ## R7 Advanced runtime connection-security presentation gate (2026-10-26)
 
 Register the deterministic offscreen CTest

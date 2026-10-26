@@ -2633,9 +2633,10 @@ void printClientProfileObservation(
         stderr,
         "microsoft-credssp-client-profile-differential target=%s "
         "physical-type1-bytes=%zu hosted-type1-bytes=%zu "
-        "type1-bytes-match=%s "
+        "type1-bytes-match=%s type1-exact-equality-required=no "
         "physical-type1-flags=0x%08lx hosted-type1-flags=0x%08lx "
         "type1-flags-xor=0x%08lx physical-version=pending-observer "
+        "hosted-version-present=%s hosted-version-structure=%s "
         "hosted-version=%u.%u.%u/0x%02x "
         "physical-type2-flags=0x%08lx hosted-type2-flags=0x%08lx "
         "physical-target-name-code-units=%zu hosted-target-name-code-units=%zu "
@@ -2650,6 +2651,8 @@ void printClientProfileObservation(
         static_cast<unsigned long>(typeOne.negotiateFlags),
         static_cast<unsigned long>(
             physicalTypeOneFlags ^ typeOne.negotiateFlags),
+        typeOne.versionPresent ? "yes" : "no",
+        typeOne.versionPresent ? "valid" : "absent",
         static_cast<unsigned int>(typeOne.majorVersion),
         static_cast<unsigned int>(typeOne.minorVersion),
         static_cast<unsigned int>(typeOne.buildNumber),
@@ -2733,7 +2736,11 @@ void printClientProfileObservation(
     result.typeOneObserved = initialToken.ntlmTypeOneObserved;
     result.directNtlmTypeOneAccepted =
         initialToken.directNtlmType1Accepted;
-    result.typeOneTokenBytes = initialToken.tokenBytes;
+    result.typeOneTokenBytes =
+        initialToken.negotiationEnvelope ==
+            StandaloneNtlmNegotiationEnvelope::DirectNtlm
+        ? initialToken.tokenBytes
+        : initialToken.optimisticMechanismTokenBytes;
     result.typeOne = initialToken.ntlmTypeOne;
     if (!result.typeOneObserved)
     {

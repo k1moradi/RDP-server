@@ -1,3 +1,11 @@
+## Agent 9 physical-client candidate observations remain non-authorizing (2026-10-26)
+
+Native certificate-policy qualification must consume the production-generated leaf or an explicitly test-only comparison profile and must never install, delete or persist trust in a Keychain or user/machine certificate store. macOS custom anchors remain scoped to the individual `SecTrust`; Windows comparison trust remains confined to the existing exclusive in-memory store/chain engine. Endpoint policy, purpose, time and trust observations grant no CredSSP, native Admission, MCS, Share, graphics, input or clipboard authority.
+
+Type-1 comparability is structural evidence only. Report the exact inner NTLM NEGOTIATE_MESSAGE byte count, negotiate flags and VERSION presence/validated structure already produced by the bounded parser. When the TSRequest carries SPNEGO, use the parser's bounded optimistic mechanism-token length rather than the enclosing SPNEGO/GSS token length. Display hosted values beside physical `flags=0xe2088235`, `bytes=40`, but do not make byte/flag equality a candidate requirement without a normative protocol requirement. Never log domain/workstation contents, credentials, challenge/response data, session keys or delegated data.
+
+Reuse the established Linux TLS diagnostic owner for physical evidence. Negotiated TLS version/cipher and bounded certificate/environment metadata are fail-only observations. Do not add a parallel TLS owner or change production Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, certificate identity or TLS policy to force a hosted/physical match.
+
 ## R7 Advanced TLS/environment presentation is evidence-only (2026-10-26)
 
 R7 may display negotiated TLS version/cipher, SHA-256 certificate fingerprint,

@@ -1,3 +1,9 @@
+## Agent 9 owner-candidate qualification reuses the one-root native policy targets (2026-10-26)
+
+Agent 9 reuses the existing test-only `test_windows_certificate_policy` and `test_macos_certificate_policy` targets; it adds no production dependency or second build target. The normal `protocol` matrix continues to configure and compile through the single checkout-local `build/` root. After Debug compile, Windows/macOS run their behavior-named native policy CTest verbosely together with the existing exact-IP SAN and certificate purpose/time regressions, then continue to full CTest.
+
+The Windows full-CREDSSP matrix keeps its existing executable/linkage and only strengthens non-secret evidence capture. Release packaging and the one-build-root policy are unchanged.
+
 ## R7 Advanced diagnostics add no build or dependency surface (2026-10-26)
 
 The GUI projection reuses the existing desktop UI, Linux HostControl, Agent-1

@@ -1,3 +1,19 @@
+## Agent 9 P0 — exact-SHA physical-client owner-candidate gate (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. Concurrent R4/R8 dormancy, Agent-1 TLS diagnostics/portability fixes, Agent-2 Type-1 observation/evidence, Agent-5/6 native certificate-policy/client-profile work and its CI publication correction, and R7 Advanced environment diagnostics are retained. The physical Linux/X11 reference remains TLS Established -> Direct NTLM Type 1 (`flags=0xe2088235`, `bytes=40`) -> unchanged production Type 2 (`0xe08a8235`) fully committed -> Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard remain **NOT REACHED**. Hosted Microsoft NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP already reach Type 3, so production remains exactly `fixed-name / RDP-SERVER`; Type-2 TargetName, TargetInfo, MsvAvTargetName and target-profile selection are unchanged.
+
+Historical exact-SHA Agent-2 evidence at `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc` reports hosted Type 1 `bytes=40 flags=0xe20882b7`, VERSION `10.0.26100/0x0f`, with the fixed/IP target matrix PASS/TYPED. That is a typed client-profile differential, not an equality requirement. Agent 9 therefore makes the current exact-SHA artifact explicitly report `type1-exact-equality-required=no` and VERSION presence/validated structure beside the physical `0xe2088235 / 40` reference.
+
+Before nomination, the exact-SHA `protocol` matrix explicitly runs the existing native Security.framework or Windows CryptoAPI certificate-policy oracle plus `runtime.generated-tls-identity-owner-ipv4-san-der`, client-only-purpose rejection, expired-certificate rejection and not-yet-valid rejection. The native oracles remain test-only and use per-trust/exclusive-memory trust rather than persistent OS trust stores. Full CTest remains authoritative.
+
+The Windows full-CREDSSP fixed-name control reports the exact **inner NTLM Type-1** message byte count: Direct NTLM uses raw token bytes; SPNEGO uses the bounded optimistic mechanism-token byte count instead of the enclosing GSS/SPNEGO token size. Agent-1/R7's existing Linux fail-only runtime path already exposes negotiated TLS version/cipher plus bounded certificate/environment diagnostics; Agent 9 reuses that owner.
+
+The manual `r9_credssp_owner_candidate` aggregate now requires both IP-target CREDSSP rows to be **PASS** rather than merely typed PASS/FAIL, requires the exact-SHA Type-1 comparison record, pins native certificate-policy/IP-SAN/purpose/time registrations and Linux TLS diagnostics, and prints the complete next-physical evidence contract.
+
+**Validation at authoring:** connector reconciliation/transformation review **PASS** against `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. Canonical owner one-`build/` configure/build/focused/full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted protocol/Clang/sanitizer/documentation evidence: **PENDING**. Manual owner-candidate dispatch: **NOT RUN** until those exact-publication-SHA prerequisites are green.
+
+**Next gate:** after the publication SHA's ordinary push jobs are green, explicitly dispatch `r9_credssp_owner_candidate` according to repository policy. Do **not** request another physical owner run before that manual aggregate passes. The next owner receipt must begin with `git rev-parse HEAD` before build/test and include: exact SHA; complete Linux terminal failure block; Windows App client-side connection log from the same attempt; whether a certificate warning appeared; whether it was accepted; and the destination string exactly as entered in Windows App.
+
 ## R7 P1 — Advanced physical-client environment diagnostics (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

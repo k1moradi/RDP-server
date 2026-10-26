@@ -1,3 +1,17 @@
+## Agent 9 exact-SHA physical-client owner-candidate authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. Mandatory project context was re-read after the concurrent R4/R8, Agent-1, Agent-2, Agent-5/6, CI-repair and R7 Advanced diagnostics publications. Production remains `fixed-name / RDP-SERVER`; no Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, certificate generator or downstream authorization behavior is changed.
+
+The reconciled parent already contains native Security.framework and Windows CryptoAPI certificate-policy CTests and established Linux TLS/environment diagnostics. Agent 9 strengthens the exact-SHA `protocol` gate so those native oracles execute alongside the existing current-production exact-IP SAN regression and wrong-purpose/expired/not-yet-valid certificate tests before another physical candidate can be nominated.
+
+The full-CREDSSP profile report is corrected so `hosted-type1-bytes` always means the inner NTLM NEGOTIATE_MESSAGE bytes, not an enclosing SPNEGO/GSS token. The matrix artifact records physical `flags=0xe2088235` / `bytes=40`, hosted flags/inner bytes, VERSION presence/validated structure and `type1-exact-equality-required=no`. Historical exact-SHA Agent-2 evidence already shows hosted `bytes=40 flags=0xe20882b7 version=10.0.26100/0x0f`; this remains comparative evidence only.
+
+The manual aggregate now requires both IP-SPN and bare-IP full-CREDSSP **PASS**, consumes the Type-1 profile record, pins native certificate-policy/IP-SAN/purpose/time registrations plus the existing Linux TLS version/cipher diagnostic, and prints the six-part next-physical evidence contract.
+
+**Connector/source reconciliation:** **PASS** against `cb2a0e8ac79987dbf9333b03c517a630932d25c0`. **Canonical owner one-`build/` compile/focused/full CTest:** **NOT RUN** in this connector environment. **Exact-publication-SHA hosted CI:** **PENDING**. **Manual `r9_credssp_owner_candidate` dispatch:** **NOT RUN/PENDING** until the publication SHA's producer jobs are green.
+
+**Next gate:** verify exact-publication-SHA push CI; explicitly run `r9_credssp_owner_candidate`; only after that aggregate passes request a physical attempt whose first command is `git rev-parse HEAD` and whose bundle contains the complete Linux terminal record, same-attempt Windows App log, certificate-warning shown/accepted state and exact destination string.
+
 ## R7 Advanced physical-client diagnostics authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

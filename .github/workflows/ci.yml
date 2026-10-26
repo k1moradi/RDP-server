@@ -201,17 +201,39 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 20 -R '^windows\.(geometry|capture|cursor|input)-' --output-on-failure
       - name: Compile Debug
         run: cmake --build build --config Debug --parallel 2
-      - name: Report native generated-certificate policy differential
+      - name: Qualify production certificate policy and generated identity
         if: runner.os == 'Windows' || runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          selector='^security[.](windows|macos)-generated-tls-certificate-policy-profiles$'
-          inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
-          printf '%s\n' "$inventory"
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 1
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            native_policy='security.windows-generated-tls-certificate-policy-profiles'
+          else
+            native_policy='security.macos-generated-tls-certificate-policy-profiles'
+          fi
+
+          generated_identity_selector='^runtime[.](generated-tls-identity-owner-ipv4-san-der|rejects-tls-credentials-client-only-certificate|rejects-tls-credentials-expired-certificate|rejects-tls-credentials-not-yet-valid-certificate)$'
+          generated_inventory="$(ctest --test-dir build --build-config Debug -N -R "$generated_identity_selector")"
+          printf '%s\n' "$generated_inventory"
+          for required_test in \
+            runtime.generated-tls-identity-owner-ipv4-san-der \
+            runtime.rejects-tls-credentials-client-only-certificate \
+            runtime.rejects-tls-credentials-expired-certificate \
+            runtime.rejects-tls-credentials-not-yet-valid-certificate; do
+            grep -Fq ": $required_test" <<< "$generated_inventory"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$generated_inventory")" -eq 4
+
+          native_selector="^${native_policy//./[.]}$"
+          native_inventory="$(ctest --test-dir build --build-config Debug -N -R "$native_selector")"
+          printf '%s\n' "$native_inventory"
+          grep -Fq ": $native_policy" <<< "$native_inventory"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$native_inventory")" -eq 1
+
           ctest --test-dir build --build-config Debug --timeout 30 \
-            -R "$selector" --verbose
+            -R "$generated_identity_selector" --verbose
+          ctest --test-dir build --build-config Debug --timeout 30 \
+            -R "$native_selector" --verbose
       - name: Qualify Microsoft Windows CredSSP harness round progression
         if: runner.os == 'Windows'
         shell: bash
@@ -247,8 +269,16 @@ jobs:
           run_case() {
             local result_key="$1"
             local test_name="$2"
+            local output_file="${3:-}"
             local escaped_test_name="${test_name//./[.]}"
-            if ctest --test-dir build --build-config Debug --timeout 45 -R "^${escaped_test_name}$" --verbose; then
+            if [[ -n "$output_file" ]]; then
+              if ctest --test-dir build --build-config Debug --timeout 45 \
+                  -R "^${escaped_test_name}$" --verbose 2>&1 | tee "$output_file"; then
+                printf '%s=PASS test=%s\n' "$result_key" "$test_name" | tee -a "$result_file"
+                return 0
+              fi
+            elif ctest --test-dir build --build-config Debug --timeout 45 \
+                -R "^${escaped_test_name}$" --verbose; then
               printf '%s=PASS test=%s\n' "$result_key" "$test_name" | tee -a "$result_file"
               return 0
             fi
@@ -258,7 +288,16 @@ jobs:
           overall_status=0
           run_case ntlm-fixed-name security.windows-sspi-production-type2-interop || overall_status=1
           run_case ntlm-ip-target security.windows-sspi-production-type2-physical-ip-target || overall_status=1
-          if run_case credssp-fixed-name-control security.windows-credssp-production-control-target-next-token; then
+          control_output='build/r9-credssp-fixed-name-control.txt'
+          if run_case credssp-fixed-name-control security.windows-credssp-production-control-target-next-token "$control_output"; then
+            profile_line="$(grep -Eo 'microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER .*' "$control_output" | tail -n 1)"
+            test -n "$profile_line"
+            grep -Fq 'physical-type1-flags=0xe2088235' <<< "$profile_line"
+            grep -Fq 'physical-type1-bytes=40' <<< "$profile_line"
+            grep -Fq 'type1-exact-equality-required=no' <<< "$profile_line"
+            grep -Eq 'hosted-type1-bytes=[1-9][0-9]*' <<< "$profile_line"
+            grep -Eq 'hosted-version-structure=(valid|absent)' <<< "$profile_line"
+            printf 'credssp-fixed-name-%s\n' "$profile_line" | tee -a "$result_file"
             run_case credssp-ip-spn-target security.windows-credssp-production-physical-ip-target-next-token || overall_status=1
             run_case credssp-bare-ip-target security.windows-credssp-production-bare-ip-target-next-token || overall_status=1
             printf 'credssp-target-differential=TYPED\n' | tee -a "$result_file"
@@ -2055,9 +2094,17 @@ jobs:
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
-          grep -Eq '^credssp-ip-spn-target=(PASS|FAIL) test=security[.]windows-credssp-production-physical-ip-target-next-token$' "$matrix_file"
-          grep -Eq '^credssp-bare-ip-target=(PASS|FAIL) test=security[.]windows-credssp-production-bare-ip-target-next-token$' "$matrix_file"
+          grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
+          grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-target-differential=TYPED' "$matrix_file"
+          type1_profile="$(grep '^credssp-fixed-name-microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER ' "$matrix_file")"
+          test -n "$type1_profile"
+          grep -Fq 'physical-type1-flags=0xe2088235' <<< "$type1_profile"
+          grep -Fq 'physical-type1-bytes=40' <<< "$type1_profile"
+          grep -Fq 'hosted-type1-flags=0x' <<< "$type1_profile"
+          grep -Eq 'hosted-type1-bytes=[1-9][0-9]*' <<< "$type1_profile"
+          grep -Fq 'type1-exact-equality-required=no' <<< "$type1_profile"
+          grep -Eq 'hosted-version-structure=(valid|absent)' <<< "$type1_profile"
           for result in \
             "$STRUCTURE_RESULT" \
             "$PROTOCOL_RESULT" \
@@ -2079,6 +2126,15 @@ jobs:
           grep -Fq 'runtime.start-stop-start-and-tls-interop' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-connection-target-identity-retained-across-peer-retry' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics' tests/CMakeLists.txt
+          grep -Fq 'runtime.generated-tls-identity-owner-ipv4-san-der' tests/CMakeLists.txt
+          grep -Fq 'runtime.rejects-tls-credentials-client-only-certificate' tests/CMakeLists.txt
+          grep -Fq 'runtime.rejects-tls-credentials-expired-certificate' tests/CMakeLists.txt
+          grep -Fq 'runtime.rejects-tls-credentials-not-yet-valid-certificate' tests/CMakeLists.txt
+          grep -Fq 'security.windows-generated-tls-certificate-policy-profiles' tests/CMakeLists.txt
+          grep -Fq 'security.macos-generated-tls-certificate-policy-profiles' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-connection-tls-acceptance-diagnostics' tests/CMakeLists.txt
+          grep -Fq 'tls-version=%s tls-cipher=%.*s' \
+            src/server/runtime/linux_runtime_host_control.cpp
           grep -Fq 'Primary Microsoft Windows NTLM and CredSSP target differential' \
             .github/workflows/ci.yml
           grep -Fq 'security.credssp-direct-ntlm-physical-type1-tsrequest-conformance' \
@@ -2092,7 +2148,17 @@ jobs:
           grep -Fq 'gui.offscreen-local-username-default-keeps-session-password-empty' \
             .github/workflows/ci.yml
           printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
-          printf 'NEXT OWNER RECEIPT MUST CAPTURE BEFORE BUILD/TEST: git rev-parse HEAD -> %s\n' "$GITHUB_SHA"
+          printf 'NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:\n'
+          printf 'git rev-parse HEAD\n'
+          printf 'expected exact SHA: %s\n' "$GITHUB_SHA"
+          printf '%s\n' \
+            'NEXT PHYSICAL EVIDENCE BUNDLE REQUIRED:' \
+            '1. exact SHA from the initial git rev-parse HEAD' \
+            '2. complete Linux terminal failure block from the same attempt' \
+            '3. Windows App client-side connection log from the same attempt' \
+            '4. whether Windows App showed a certificate warning' \
+            '5. whether that certificate warning was accepted' \
+            '6. destination string exactly as entered in Windows App'
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.

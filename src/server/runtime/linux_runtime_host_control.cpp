@@ -447,18 +447,6 @@ readLinuxDefaultRoutePreferences()
     }
 }
 
-[[nodiscard]] constexpr const char *tlsClientSniClassName(
-    LinuxRuntimeTlsClientSniClass serverNameClass) noexcept
-{
-    switch (serverNameClass)
-    {
-    case LinuxRuntimeTlsClientSniClass::None: return "none";
-    case LinuxRuntimeTlsClientSniClass::Ip: return "IP";
-    case LinuxRuntimeTlsClientSniClass::Dns: return "DNS";
-    }
-    return "none";
-}
-
 [[nodiscard]] constexpr const char *tlsCertificateCommonNameClassName(
     LinuxRuntimeTlsCertificateCommonNameClass commonNameClass) noexcept
 {

@@ -1,3 +1,39 @@
+## Agent 1 retained-diagnostics sanitizer correction receipt — 2026-10-26
+
+**Authoring parent:** `ee1bd259b6922720d0eb882c4c71217591838b04`; workflow `40344070701`. Exact-parent
+protocol jobs are **PASS** on Linux, macOS and Windows. Native policy output
+proves the current generated exact-IP certificate is accepted when explicitly
+trusted on both platforms: macOS reports
+`trust-result=trusted hostname-result=match policy-error=0` and Windows reports
+`trusted-under-test-anchor=yes name-match=yes purpose-match=yes time-valid=yes
+chain-errors=0x00000000 policy-error=0x00000000`. Both classify the endpoint-CN
+comparison as unnecessary for name matching:
+`differential=generic-cn-not-name-defect production-certificate-change-authorized=no`.
+
+The same Windows exact-parent job reports hosted Microsoft full CREDSSP at
+`negotiated-tls=TLSv1.2 cipher=ECDHE-RSA-AES256-GCM-SHA384`. Hosted inner
+NTLM Type 1 is 40 bytes, flags `0xe20882b7`, VERSION
+`10.0.26100/0x0f`; physical reference remains 40 bytes,
+`0xe2088235`. The fixed-name, IP-SPN and bare-IP full-CREDSSP rows all **PASS**
+through Type 3 with unchanged production Type 2.
+
+Exact-parent candidate qualification is nevertheless blocked by sanitizer job
+`121646276756`, whose first failure is
+`linux_runtime_host_control.cpp: tlsClientSniClassName unused function` under
+Clang `-Werror`. Agent 10 had already moved terminal formatting to the shared
+`runtimeAcceptedClientTlsSniClassName()`; this correction deletes only the
+obsolete private duplicate and extends the existing
+`runtime.linux-host-control-preauth-diagnostic-projection` behavior test to
+assert the shared `DNS` and `none` spellings. No wire, certificate, TLS
+policy, Type-2, target-profile, native Admission, MCS, Share, graphics/X11 or
+clipboard behavior changes.
+
+Connector/source review: **PASS by inspection**. Owner one-`build/` local
+compile/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. Agent-9 manual owner-candidate
+dispatch remains **BLOCKED** until the exact correction SHA's required producer
+jobs are green.
+
 ## Agent 10 retained physical-client diagnostics authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.

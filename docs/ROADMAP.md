@@ -1,3 +1,33 @@
+## Agent 1 exact-SHA sanitizer compile correction after retained diagnostics — 2026-10-26
+
+**Reconciled authoring parent:** `ee1bd259b6922720d0eb882c4c71217591838b04`. Exact-parent workflow
+`40344070701` has Linux/macOS/Windows protocol **PASS**, including the native
+certificate-policy oracles and the Microsoft full-CREDSSP target matrix. macOS
+Security.framework accepts the current generated `CN=RDP Server` + exact IP SAN
+under its explicit in-memory test anchor and reports
+`generic-cn-not-name-defect`. Windows CryptoAPI likewise reports trust/name/
+server-auth/time **PASS** under its exclusive in-memory trusted-people engine.
+The hosted Microsoft CREDSSP control negotiates TLS 1.2 with
+`ECDHE-RSA-AES256-GCM-SHA384`; its inner Type 1 remains 40 bytes with
+`0xe20882b7` versus physical `0xe2088235`, and the fixed-name/IP-SPN/bare-IP
+cases all reach Type 3 with the unchanged production Type 2.
+
+The remaining exact-parent blocker is job `121646276756`,
+`r9-security-protocol-sanitizers`: Clang `-Werror` stops while compiling
+`linux_runtime_host_control.cpp` because Agent 10 switched terminal SNI
+formatting to the shared `runtimeAcceptedClientTlsSniClassName()` owner and left
+Agent 1's private `tlsClientSniClassName()` unused. This correction removes only
+that stale duplicate helper and strengthens the existing behavior-named
+`runtime.linux-host-control-preauth-diagnostic-projection` test to pin the shared
+DNS/none spellings. TLS/certificate observations, generated certificate bytes,
+fixed-name/`RDP-SERVER` Type-2 identity, Admission and all downstream authority
+are unchanged.
+
+**Next gate:** exact-publication-SHA sanitizer/full hosted qualification, then
+explicit Agent-9 `r9_credssp_owner_candidate` dispatch. Do not request another
+physical Linux/X11 attempt until that aggregate passes. The next physical
+success criterion remains `direct-ntlm-type3=received`.
+
 ## Agent 10 P0 — retained physical-client environment diagnostics (2026-10-26)
 
 **Assignment-time remote main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.

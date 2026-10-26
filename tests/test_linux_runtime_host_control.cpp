@@ -619,6 +619,11 @@ int main(int argc, char** argv)
         assert(projected.tlsConnection.cipherNameView() == cipherName);
         assert(projected.tlsConnection.sniClass ==
                RuntimeAcceptedClientTlsSniClass::Dns);
+        // The shared public formatter is also used by terminal diagnostics;
+        // keep the projected SNI taxonomy and emitted spelling in one owner.
+        assert(rdp_server::server::runtime::
+                   runtimeAcceptedClientTlsSniClassName(
+                       projected.tlsConnection.sniClass) == "DNS");
         assert(projected.ntlmTypeOne.observed);
         assert(projected.ntlmTypeOne.versionPresent);
         assert(projected.ntlmTypeOne.majorVersion == 10U);
@@ -638,6 +643,9 @@ int main(int argc, char** argv)
         assert(absentProjected.tlsConnection.cipherNameView().empty());
         assert(absentProjected.tlsConnection.sniClass ==
                RuntimeAcceptedClientTlsSniClass::None);
+        assert(rdp_server::server::runtime::
+                   runtimeAcceptedClientTlsSniClassName(
+                       absentProjected.tlsConnection.sniClass) == "none");
         assert(!absentProjected.ntlmTypeOne.observed);
         assert(!absentProjected.ntlmTypeOne.versionPresent);
         assert(absentProjected.ntlmTypeOne.buildNumber == 0U);

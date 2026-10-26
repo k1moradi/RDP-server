@@ -1,3 +1,19 @@
+## CI structure sentinel correction for physical-owner receipt wording (2026-10-26)
+
+Exact SHA `9c38cefad024493ec706d815429f17dd01eacce0` reached workflow
+`40342905580`, where the structure guard failed before integration evidence:
+the validator required the literal text
+`NEXT OWNER RECEIPT MUST CAPTURE BEFORE BUILD/TEST`, while the current
+owner-candidate workflow emits the stronger concrete instruction
+`NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:` immediately before
+`git rev-parse HEAD`.
+
+This correction aligns the structure sentinel to that existing workflow
+contract. It changes no candidate prerequisite, command ordering, RDP wire
+behavior, Type-2 profile, TLS/certificate policy, authentication authority,
+native Admission, desktop state or clipboard behavior. Exact-correction-SHA
+hosted CI is **PENDING**; the failed prior SHA is not qualification evidence.
+
 ## Agent 6 P0 correction — raw envelope versus Type-1 evidence (2026-10-26)
 
 **Reconciled authoring parent:** `d1395a747a579b99322d15716446e84e8fae5fd0`. Current main already

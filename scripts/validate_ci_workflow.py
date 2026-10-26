@@ -225,7 +225,7 @@ REQUIRED_TOKENS = (
     "credssp-fixed-name-control=PASS",
     "credssp-target-differential=TYPED",
     "connection-target-identity-retained-across-peer-retry",
-    "NEXT OWNER RECEIPT MUST CAPTURE BEFORE BUILD/TEST",
+    "NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:",
     "Primary Microsoft Windows NTLM and CredSSP target differential",
     "security.credssp-direct-ntlm-physical-type1-tsrequest-conformance",
     "r9-credssp-direct-ntlm-physical-type1-tsrequest-conformance",

@@ -1,3 +1,19 @@
+## CI structure guard correction after Agent 6 diagnostic publication — 2026-10-26
+
+Exact SHA `9c38cefad024493ec706d815429f17dd01eacce0`:
+CI workflow structure run `40342905580` **FAIL** at
+`scripts/validate_ci_workflow.py` before any protocol qualification. The
+first failing boundary was a stale literal required-token string. The workflow
+already prints `NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:`
+followed by `git rev-parse HEAD`; the validator instead searched for
+`NEXT OWNER RECEIPT MUST CAPTURE BEFORE BUILD/TEST`.
+
+The correction changes only the workflow source validator to match the current
+candidate-receipt wording. Agent 6 raw-envelope/inner-Type-1 diagnostics and
+Windows certificate failure classifications from the preceding commit are
+unchanged. Local one-root build/CTest remains **NOT RUN** in this connector
+environment. Exact-correction-SHA structure/full hosted CI: **PENDING**.
+
 ## Agent 6 raw-token/Type-1 and Windows certificate classification correction — 2026-10-26
 
 **Reconciled authoring parent:** `d1395a747a579b99322d15716446e84e8fae5fd0`. Current main was re-read

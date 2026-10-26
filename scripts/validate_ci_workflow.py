@@ -217,6 +217,7 @@ REQUIRED_TOKENS = (
     "security.windows-sspi-production-type2-physical-ip-target",
     "security.windows-credssp-production-control-target-next-token",
     "security.windows-credssp-production-physical-ip-target-next-token",
+    "security.windows-credssp-production-bare-ip-target-next-token",
     "Primary Microsoft Windows NTLM and CredSSP target differential",
     "security.credssp-direct-ntlm-physical-type1-tsrequest-conformance",
     "r9-credssp-direct-ntlm-physical-type1-tsrequest-conformance",

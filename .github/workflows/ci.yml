@@ -206,19 +206,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target)|credssp-production-(control-target|physical-ip-target)-next-token)$'
+          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target)|credssp-production-(control-target|physical-ip-target|bare-ip-target)-next-token)$'
           inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required_test in \
             security.windows-sspi-production-type2-interop \
             security.windows-sspi-production-type2-physical-ip-target \
             security.windows-credssp-production-control-target-next-token \
-            security.windows-credssp-production-physical-ip-target-next-token; do
+            security.windows-credssp-production-physical-ip-target-next-token \
+            security.windows-credssp-production-bare-ip-target-next-token; do
             grep -Fq ": $required_test" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 4
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 5
           ctest --test-dir build --build-config Debug --timeout 45 \
-            -R "$selector" --output-on-failure
+            -R "$selector" --verbose
       - name: Preflight and run focused R7 macOS lifecycle tests (Debug)
         if: runner.os == 'macOS'
         shell: bash

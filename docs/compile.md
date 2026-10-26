@@ -1,3 +1,21 @@
+## Windows Microsoft full-CredSSP target matrix (2026-10-25)
+
+The existing Windows-only `test_windows_sspi_credssp_interop` remains linked
+only to the production standalone CredSSP/NTLM component,
+`rdp-server-runtime-tls`, OpenSSL already owned by that runtime target, and
+the Windows SDK `secur32` import library. It opens no socket and uses the
+production generated-IP certificate with memory BIOs.
+
+The executable now has three ordinary CTest command modes: portable
+`TERMSRV/RDP-SERVER`, owner-like `TERMSRV/192.168.1.5`, and bare
+`192.168.1.5`. The existing native NTLM SSPI tests remain separate and
+unchanged. Windows protocol CI enumerates all five NTLM/CredSSP target-oracle
+CTest entries before execution and runs them verbosely so exact SSPI status
+codes remain in hosted evidence.
+
+No new production library, shipped dependency, build root, service permission,
+network access, native desktop or OS-account credential is introduced.
+
 ## Windows native CredSSP target-differential oracle linkage (2026-10-25)
 
 Windows protocol tests build `test_windows_sspi_credssp_interop`, linking the

@@ -1,3 +1,24 @@
+## CredSSP target-principal identity experiments are test-only (2026-10-25)
+
+The demonstrated physical boundary is a completely committed production Type 2
+followed by Await-Type-3 and peer EOF, while Microsoft native NTLM SSPI already
+accepts that exact Type 2. Do not change production Type-2 flags, TargetName,
+TargetInfo, TLS, SPNEGO or CredSSP framing without full-context Microsoft
+CredSSP evidence.
+
+TargetName and MsvAvTargetName are separate diagnostic wire properties for this
+investigation. The first experiment changes only the CHALLENGE_MESSAGE
+TargetName to the endpoint identity. The second leaves TargetName untouched and
+adds only MsvAvTargetName (AV ID 9) with the endpoint service principal. The
+third combines those two deliberate changes. Each candidate is rebuilt from the
+exact production challenge, remains bounded, and must pass the production
+challenge validator before SSPI consumes it.
+
+These variants are internal test diagnostics only. They never become runtime
+switches, never make a failing production oracle green, never weaken server
+authentication/security requirements, and never authorize native Admission,
+MCS, Share, graphics, input or clipboard.
+
 ## Start-scoped connection target/service identity ownership (2026-10-25)
 
 R10 owns one non-secret connection target identity for each successful Start:

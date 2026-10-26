@@ -1,3 +1,54 @@
+## P0 follow-up — Microsoft full-CredSSP target-principal matrix (2026-10-25)
+
+**Reconciled parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner Linux/X11 evidence is **986/986
+CTest PASS**. The physical Microsoft Windows App reaches TCP, X.224/HYBRID,
+TLS, Direct NTLM Type 1, a completely committed production Type 2 and
+Await-Type-3, then closes before Type 3. pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS and graphics/X11 are **NOT
+REACHED**. This remains the first unresolved physical boundary; do not change
+downstream owners.
+
+Hosted Windows evidence already proves Microsoft native NTLM SSPI accepts the
+unchanged production Type 2 and emits Microsoft Type 3. The independent outer
+CredSSP TSRequest DER oracle also passes. The concurrent main harness adds a
+Microsoft `CREDSSP` SSPI client over the production generated-IP TLS identity
+and production standalone CredSSP response. This follow-up completes the P0
+matrix and keeps the inner NTLM oracle intact.
+
+Fresh CredSSP contexts now cover `TERMSRV/RDP-SERVER`,
+`TERMSRV/192.168.1.5`, and bare `192.168.1.5`. Every
+`InitializeSecurityContextW` result is emitted with symbolic classification
+and exact hexadecimal status. The client keeps the required TOKEN+EMPTY input
+shape and retains `SECBUFFER_EXTRA` bytes across calls so a stream-framing
+artifact cannot masquerade as a target-principal failure. The credential handle
+uses only fixed in-memory `RDP\\User / Password` test credentials through
+`CREDSSP_CRED`; Schannel default credentials are disabled and the CI/process
+account is never requested.
+
+PASS for this round is intentionally the requested pre-Type-3 boundary:
+production TLS -> production TSRequest v6 -> production negoTokens ->
+production Type 2 -> Microsoft CredSSP accepts the response and emits the next
+client TSRequest. The harness independently scans that decrypted next TSRequest
+for an NTLM Type-3 signature and reports whether Type 3 was observed; it does
+not require pubKeyAuth, authInfo or credential delegation to advance merely to
+qualify this boundary.
+
+If the `TERMSRV/RDP-SERVER` production control succeeds while the
+`TERMSRV/192.168.1.5` production case fails, that failing test alone runs
+three fresh test-only one-property experiments derived from the exact production
+challenge: endpoint-derived Type-2 TargetName only, MsvAvTargetName (AV ID 9)
+only, and both. Every resulting Type 2 must pass the production structural
+validator before Microsoft consumes it. A diagnostic acceptance is printed as
+the first accepted single delta but **never makes the production CTest green**
+and never authorizes a production identity change.
+
+Production TLS, NTLM, CredSSP, native Admission, MCS, graphics, input and
+clipboard source are **UNCHANGED**. Connector source/reconciliation review:
+**PASS**. Modified-tree Windows compile/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA Windows execution: **PENDING**.
+The next decision is exclusively the Microsoft CredSSP target matrix and any
+minimal one-property identity delta it selects.
+
 ## P0 target/service identity owner after physical Await-Type-3 EOF (2026-10-25)
 
 **Authoring parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`. Owner Linux/X11 reports **986/986

@@ -211,9 +211,12 @@ if(WIN32)
         COMMAND test_windows_sspi_credssp_interop control-target)
     add_test(NAME security.windows-credssp-production-physical-ip-target-next-token
         COMMAND test_windows_sspi_credssp_interop physical-ip-target)
+    add_test(NAME security.windows-credssp-production-bare-ip-target-next-token
+        COMMAND test_windows_sspi_credssp_interop bare-ip-target)
     set_tests_properties(
         security.windows-credssp-production-control-target-next-token
         security.windows-credssp-production-physical-ip-target-next-token
+        security.windows-credssp-production-bare-ip-target-next-token
         PROPERTIES
         LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
         TIMEOUT 45)

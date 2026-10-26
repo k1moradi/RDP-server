@@ -1,3 +1,38 @@
+## Microsoft full-CredSSP target-principal gate (2026-10-25)
+
+Keep both existing independent gates: Microsoft native NTLM SSPI qualifies the
+inner Type-2 mechanism and the standalone DER oracle qualifies the outer
+production TSRequest shape. Neither substitutes for Microsoft CredSSP consuming
+the exact production TLS/CredSSP response under the target principal the owner
+client actually uses.
+
+Register fresh Windows `CREDSSP` SSPI contexts for
+`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5`, and bare
+`192.168.1.5`. Use only explicit fixed in-memory test credentials through
+`CREDSSP_CRED`; disable Schannel default credentials. Log each SSPI return as
+both a symbolic class and exact hexadecimal value, including continuation,
+wrong-principal, target-unknown, NTLM-only/delegation-policy and invalid-token
+outcomes when Microsoft returns them.
+
+On calls after the initial context creation, preserve the documented
+TOKEN+EMPTY input-buffer contract. Retain any `SECBUFFER_EXTRA` bytes for the
+next call and retain the whole token on `SEC_E_INCOMPLETE_MESSAGE`; dropping
+stream leftovers is a harness defect, not interoperability evidence.
+
+For this P0 round, PASS means the unmodified production response is accepted and
+Microsoft emits the next client TSRequest after the production Type 2. Inspect
+that decrypted TSRequest independently enough to report whether it contains an
+NTLM Type-3 signature, but do not require pubKeyAuth/authInfo/native Admission
+to answer the pre-Type-3 question.
+
+Only when the portable-name production control succeeds while the IP-SPN
+production case fails may the same failing CTest run fresh diagnostic contexts
+for: endpoint-derived Type-2 TargetName only, MsvAvTargetName (AV ID 9) only,
+and both. Start from the exact production challenge and require the production
+Type-2 structural validator to accept every variant. Diagnostic acceptance is
+fail-only evidence; it cannot turn the production test green and cannot mint
+authentication, admission or downstream authority.
+
 ## Connection target identity and IP-target CredSSP gate (2026-10-25)
 
 Keep the production Type-2 profile unchanged while the physical Microsoft

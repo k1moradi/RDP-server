@@ -12,6 +12,7 @@
 #include "server/security/standalone_credssp.h"
 #include "server/security/standalone_ntlmssp.h"
 #include "server/security/standalone_ntlmv2.h"
+#include "server/security/standalone_spnego.h"
 
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -21,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <span>
 #include <string_view>
@@ -37,7 +39,33 @@ enum class TargetProfile : std::uint8_t
 {
     PortableServerName,
     PhysicalIpv4,
+    BarePhysicalIpv4,
 };
+
+enum class ChallengeExperiment : std::uint8_t
+{
+    Production,
+    EndpointTypeTwoTargetName,
+    EndpointMsvAvTargetName,
+    EndpointTypeTwoAndMsvAvTargetName,
+};
+
+[[nodiscard]] constexpr const char *experimentName(
+    ChallengeExperiment experiment) noexcept
+{
+    switch (experiment)
+    {
+    case ChallengeExperiment::Production:
+        return "production";
+    case ChallengeExperiment::EndpointTypeTwoTargetName:
+        return "endpoint-type2-target-name";
+    case ChallengeExperiment::EndpointMsvAvTargetName:
+        return "endpoint-msv-av-target-name";
+    case ChallengeExperiment::EndpointTypeTwoAndMsvAvTargetName:
+        return "endpoint-type2-and-msv-av-target-name";
+    }
+    return "unknown";
+}
 
 [[nodiscard]] constexpr std::wstring_view targetName(
     TargetProfile profile) noexcept
@@ -48,6 +76,8 @@ enum class TargetProfile : std::uint8_t
         return L"TERMSRV/RDP-SERVER";
     case TargetProfile::PhysicalIpv4:
         return L"TERMSRV/192.168.1.5";
+    case TargetProfile::BarePhysicalIpv4:
+        return L"192.168.1.5";
     }
     return {};
 }
@@ -61,11 +91,16 @@ enum class TargetProfile : std::uint8_t
         return "TERMSRV/RDP-SERVER";
     case TargetProfile::PhysicalIpv4:
         return "TERMSRV/192.168.1.5";
+    case TargetProfile::BarePhysicalIpv4:
+        return "192.168.1.5";
     }
     return "unknown";
 }
 
 constexpr std::string_view kPhysicalEndpoint{"192.168.1.5"};
+constexpr std::u16string_view kPhysicalEndpointUtf16{u"192.168.1.5"};
+constexpr std::u16string_view kPhysicalEndpointSpnUtf16{
+    u"TERMSRV/192.168.1.5"};
 constexpr NtlmServerChallenge kServerChallenge{
     0x01,0x23,0x45,0x67,0x89,0xab,0xcd,0xef};
 constexpr ULONG kCredSspContextRequirements =
@@ -87,6 +122,519 @@ constexpr std::size_t kMaximumRawTokenBytes = 256U * 1024U;
     GetSystemTimeAsFileTime(&fileTime);
     return (static_cast<std::uint64_t>(fileTime.dwHighDateTime) << 32U) |
            static_cast<std::uint64_t>(fileTime.dwLowDateTime);
+}
+
+
+[[nodiscard]] const char *securityStatusName(
+    SECURITY_STATUS status) noexcept
+{
+    const auto code = static_cast<std::uint32_t>(status);
+    switch (code)
+    {
+    case 0x00000000U: return "SEC_E_OK";
+    case 0x00090312U: return "SEC_I_CONTINUE_NEEDED";
+    case 0x00090313U: return "SEC_I_COMPLETE_NEEDED";
+    case 0x00090314U: return "SEC_I_COMPLETE_AND_CONTINUE";
+    case 0x00090320U: return "SEC_I_INCOMPLETE_CREDENTIALS";
+    case 0x80090303U: return "SEC_E_TARGET_UNKNOWN";
+    case 0x80090308U: return "SEC_E_INVALID_TOKEN";
+    case 0x80090318U: return "SEC_E_INCOMPLETE_MESSAGE";
+    case 0x80090322U: return "SEC_E_WRONG_PRINCIPAL";
+    case 0x8009035eU: return "SEC_E_DELEGATION_POLICY";
+    case 0x8009035fU: return "SEC_E_POLICY_NLTM_ONLY";
+    case 0x80090363U: return "SEC_E_MUTUAL_AUTH_FAILED";
+    default: return "OTHER";
+    }
+}
+
+void printClientStatus(
+    TargetProfile profile,
+    const char *phase,
+    SECURITY_STATUS status) noexcept
+{
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-status target=%s phase=%s status=%s "
+        "code=0x%08lx\n",
+        targetLabel(profile),
+        phase,
+        securityStatusName(status),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(status)));
+}
+
+[[nodiscard]] constexpr std::uint16_t loadLe16(
+    const std::uint8_t *bytes) noexcept
+{
+    return static_cast<std::uint16_t>(
+        static_cast<std::uint16_t>(bytes[0]) |
+        (static_cast<std::uint16_t>(bytes[1]) << 8U));
+}
+
+[[nodiscard]] constexpr std::uint32_t loadLe32(
+    const std::uint8_t *bytes) noexcept
+{
+    return static_cast<std::uint32_t>(bytes[0]) |
+           (static_cast<std::uint32_t>(bytes[1]) << 8U) |
+           (static_cast<std::uint32_t>(bytes[2]) << 16U) |
+           (static_cast<std::uint32_t>(bytes[3]) << 24U);
+}
+
+constexpr void storeLe16(
+    std::uint8_t *output,
+    std::uint16_t value) noexcept
+{
+    output[0] = static_cast<std::uint8_t>(value);
+    output[1] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+constexpr void storeLe32(
+    std::uint8_t *output,
+    std::uint32_t value) noexcept
+{
+    output[0] = static_cast<std::uint8_t>(value);
+    output[1] = static_cast<std::uint8_t>(value >> 8U);
+    output[2] = static_cast<std::uint8_t>(value >> 16U);
+    output[3] = static_cast<std::uint8_t>(value >> 24U);
+}
+
+[[nodiscard]] bool isNtlmMessageAt(
+    std::span<const std::uint8_t> token,
+    std::size_t offset,
+    std::uint32_t messageType) noexcept
+{
+    constexpr std::array<std::uint8_t, 8> signature{
+        'N','T','L','M','S','S','P',0};
+    return offset <= token.size() &&
+           token.size() - offset >= 12U &&
+           std::equal(
+               signature.begin(),
+               signature.end(),
+               token.begin() +
+                   static_cast<std::ptrdiff_t>(offset)) &&
+           loadLe32(token.data() + offset + 8U) == messageType;
+}
+
+[[nodiscard]] bool hasNtlmMessageType(
+    std::span<const std::uint8_t> token,
+    std::uint32_t messageType) noexcept
+{
+    constexpr std::array<std::uint8_t, 8> signature{
+        'N','T','L','M','S','S','P',0};
+    for (std::size_t offset = 0U;
+         offset + 12U <= token.size();
+         ++offset)
+    {
+        if (std::equal(
+                signature.begin(),
+                signature.end(),
+                token.begin() +
+                    static_cast<std::ptrdiff_t>(offset)) &&
+            loadLe32(token.data() + offset + 8U) == messageType)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> utf16LittleEndian(
+    std::u16string_view text)
+{
+    std::vector<std::uint8_t> bytes(text.size() * 2U);
+    for (std::size_t index = 0U; index < text.size(); ++index)
+    {
+        storeLe16(
+            bytes.data() + index * 2U,
+            static_cast<std::uint16_t>(text[index]));
+    }
+    return bytes;
+}
+
+[[nodiscard]] std::size_t typeTwoBytesAt(
+    std::span<const std::uint8_t> bytes,
+    std::size_t offset) noexcept
+{
+    if (offset > bytes.size() || bytes.size() - offset < 56U ||
+        !isNtlmMessageAt(bytes, offset, 2U))
+    {
+        return 0U;
+    }
+
+    const auto message = bytes.subspan(offset);
+    std::size_t required = 56U;
+    for (const std::size_t fieldOffset : {12U, 40U})
+    {
+        const std::size_t length =
+            loadLe16(message.data() + fieldOffset);
+        const std::size_t dataOffset =
+            loadLe32(message.data() + fieldOffset + 4U);
+        if (dataOffset > message.size() ||
+            length > message.size() - dataOffset)
+        {
+            return 0U;
+        }
+        required = std::max(required, dataOffset + length);
+    }
+    return required;
+}
+
+struct TypeTwoLocation final
+{
+    std::size_t offset{};
+    std::size_t bytes{};
+};
+
+[[nodiscard]] TypeTwoLocation findTypeTwo(
+    std::span<const std::uint8_t> bytes) noexcept
+{
+    for (std::size_t offset = 0U;
+         offset + 56U <= bytes.size();
+         ++offset)
+    {
+        const std::size_t messageBytes =
+            typeTwoBytesAt(bytes, offset);
+        if (messageBytes != 0U)
+            return {offset, messageBytes};
+    }
+    return {};
+}
+
+[[nodiscard]] bool readTypeOneFlags(
+    std::span<const std::uint8_t> bytes,
+    std::uint32_t &flags) noexcept
+{
+    flags = 0U;
+    for (std::size_t offset = 0U;
+         offset + 16U <= bytes.size();
+         ++offset)
+    {
+        if (isNtlmMessageAt(bytes, offset, 1U))
+        {
+            flags = loadLe32(bytes.data() + offset + 12U);
+            return true;
+        }
+    }
+    return false;
+}
+
+[[nodiscard]] bool appendTargetNameAvPair(
+    std::vector<std::uint8_t> &targetInfo)
+{
+    if (targetInfo.size() < 4U ||
+        loadLe16(targetInfo.data() + targetInfo.size() - 4U) != 0U ||
+        loadLe16(targetInfo.data() + targetInfo.size() - 2U) != 0U)
+    {
+        return false;
+    }
+
+    const auto value = utf16LittleEndian(kPhysicalEndpointSpnUtf16);
+    if (value.empty() ||
+        value.size() >
+            static_cast<std::size_t>(
+                (std::numeric_limits<std::uint16_t>::max)()))
+    {
+        return false;
+    }
+
+    targetInfo.resize(targetInfo.size() - 4U);
+    const std::size_t avOffset = targetInfo.size();
+    targetInfo.resize(avOffset + 4U);
+    storeLe16(targetInfo.data() + avOffset, 9U);
+    storeLe16(
+        targetInfo.data() + avOffset + 2U,
+        static_cast<std::uint16_t>(value.size()));
+    targetInfo.insert(targetInfo.end(), value.begin(), value.end());
+    targetInfo.insert(targetInfo.end(), {0U,0U,0U,0U});
+    return true;
+}
+
+[[nodiscard]] std::vector<std::uint8_t> makeTypeTwoExperiment(
+    std::span<const std::uint8_t> production,
+    std::uint32_t clientFlags,
+    ChallengeExperiment experiment)
+{
+    if (experiment == ChallengeExperiment::Production ||
+        production.size() < 56U)
+    {
+        return {};
+    }
+
+    const std::size_t targetNameLength =
+        loadLe16(production.data() + 12U);
+    const std::size_t targetNameOffset =
+        loadLe32(production.data() + 16U);
+    const std::size_t targetInfoLength =
+        loadLe16(production.data() + 40U);
+    const std::size_t targetInfoOffset =
+        loadLe32(production.data() + 44U);
+    if (targetNameOffset > production.size() ||
+        targetNameLength > production.size() - targetNameOffset ||
+        targetInfoOffset > production.size() ||
+        targetInfoLength > production.size() - targetInfoOffset)
+    {
+        return {};
+    }
+
+    std::vector<std::uint8_t> targetName(
+        production.begin() +
+            static_cast<std::ptrdiff_t>(targetNameOffset),
+        production.begin() +
+            static_cast<std::ptrdiff_t>(
+                targetNameOffset + targetNameLength));
+    std::vector<std::uint8_t> targetInfo(
+        production.begin() +
+            static_cast<std::ptrdiff_t>(targetInfoOffset),
+        production.begin() +
+            static_cast<std::ptrdiff_t>(
+                targetInfoOffset + targetInfoLength));
+
+    if (experiment == ChallengeExperiment::EndpointTypeTwoTargetName ||
+        experiment ==
+            ChallengeExperiment::EndpointTypeTwoAndMsvAvTargetName)
+    {
+        targetName = utf16LittleEndian(kPhysicalEndpointUtf16);
+    }
+    if (experiment == ChallengeExperiment::EndpointMsvAvTargetName ||
+        experiment ==
+            ChallengeExperiment::EndpointTypeTwoAndMsvAvTargetName)
+    {
+        if (!appendTargetNameAvPair(targetInfo))
+            return {};
+    }
+
+    if (targetName.empty() || targetInfo.empty() ||
+        targetName.size() >
+            static_cast<std::size_t>(
+                (std::numeric_limits<std::uint16_t>::max)()) ||
+        targetInfo.size() >
+            static_cast<std::size_t>(
+                (std::numeric_limits<std::uint16_t>::max)()))
+    {
+        return {};
+    }
+
+    std::vector<std::uint8_t> output(56U);
+    std::copy_n(production.begin(), 56U, output.begin());
+    storeLe16(
+        output.data() + 12U,
+        static_cast<std::uint16_t>(targetName.size()));
+    storeLe16(
+        output.data() + 14U,
+        static_cast<std::uint16_t>(targetName.size()));
+    storeLe32(output.data() + 16U, 56U);
+    storeLe16(
+        output.data() + 40U,
+        static_cast<std::uint16_t>(targetInfo.size()));
+    storeLe16(
+        output.data() + 42U,
+        static_cast<std::uint16_t>(targetInfo.size()));
+    storeLe32(
+        output.data() + 44U,
+        static_cast<std::uint32_t>(56U + targetName.size()));
+    output.insert(output.end(), targetName.begin(), targetName.end());
+    output.insert(output.end(), targetInfo.begin(), targetInfo.end());
+
+    NtlmChallengeMessageObservation observation;
+    if (validateNtlmChallengeMessage(
+            output, clientFlags, observation) !=
+        NtlmMessageParseResult::Parsed)
+    {
+        return {};
+    }
+    return output;
+}
+
+[[nodiscard]] bool readDerObject(
+    std::span<const std::uint8_t> input,
+    std::uint8_t &tag,
+    std::size_t &headerBytes,
+    std::size_t &payloadBytes) noexcept
+{
+    tag = 0U;
+    headerBytes = 0U;
+    payloadBytes = 0U;
+    if (input.size() < 2U)
+        return false;
+
+    tag = input[0];
+    const std::uint8_t firstLength = input[1];
+    if (firstLength < 0x80U)
+    {
+        headerBytes = 2U;
+        payloadBytes = firstLength;
+    }
+    else
+    {
+        const std::size_t lengthOctets = firstLength & 0x7fU;
+        if (lengthOctets == 0U || lengthOctets > 2U ||
+            input.size() < 2U + lengthOctets ||
+            input[2] == 0U)
+        {
+            return false;
+        }
+        headerBytes = 2U + lengthOctets;
+        for (std::size_t index = 0U;
+             index < lengthOctets;
+             ++index)
+        {
+            payloadBytes =
+                (payloadBytes << 8U) | input[2U + index];
+        }
+        if (payloadBytes < 128U)
+            return false;
+    }
+    return payloadBytes <= input.size() - headerBytes;
+}
+
+void appendDerHeader(
+    std::vector<std::uint8_t> &output,
+    std::uint8_t tag,
+    std::size_t payloadBytes)
+{
+    output.push_back(tag);
+    if (payloadBytes < 128U)
+    {
+        output.push_back(
+            static_cast<std::uint8_t>(payloadBytes));
+    }
+    else if (payloadBytes <= 0xffU)
+    {
+        output.push_back(0x81U);
+        output.push_back(
+            static_cast<std::uint8_t>(payloadBytes));
+    }
+    else
+    {
+        output.push_back(0x82U);
+        output.push_back(
+            static_cast<std::uint8_t>(payloadBytes >> 8U));
+        output.push_back(
+            static_cast<std::uint8_t>(payloadBytes));
+    }
+}
+
+[[nodiscard]] bool rewriteDerTypeTwo(
+    std::span<const std::uint8_t> input,
+    std::span<const std::uint8_t> replacement,
+    std::vector<std::uint8_t> &output,
+    bool &replaced,
+    std::size_t depth = 0U)
+{
+    if (depth > 16U)
+        return false;
+
+    std::uint8_t tag = 0U;
+    std::size_t headerBytes = 0U;
+    std::size_t payloadBytes = 0U;
+    if (!readDerObject(
+            input, tag, headerBytes, payloadBytes) ||
+        headerBytes + payloadBytes != input.size())
+    {
+        return false;
+    }
+
+    const auto payload =
+        input.subspan(headerBytes, payloadBytes);
+    if (tag == 0x04U &&
+        typeTwoBytesAt(payload, 0U) == payload.size())
+    {
+        if (replaced)
+            return false;
+        appendDerHeader(output, tag, replacement.size());
+        output.insert(
+            output.end(),
+            replacement.begin(),
+            replacement.end());
+        replaced = true;
+        return true;
+    }
+
+    if ((tag & 0x20U) == 0U)
+    {
+        output.insert(output.end(), input.begin(), input.end());
+        return true;
+    }
+
+    std::vector<std::uint8_t> rewrittenPayload;
+    std::size_t offset = 0U;
+    while (offset < payload.size())
+    {
+        [[maybe_unused]] std::uint8_t childTag = 0U;
+        std::size_t childHeaderBytes = 0U;
+        std::size_t childPayloadBytes = 0U;
+        const auto remaining = payload.subspan(offset);
+        if (!readDerObject(
+                remaining,
+                childTag,
+                childHeaderBytes,
+                childPayloadBytes))
+        {
+            return false;
+        }
+        const std::size_t childBytes =
+            childHeaderBytes + childPayloadBytes;
+        if (!rewriteDerTypeTwo(
+                remaining.first(childBytes),
+                replacement,
+                rewrittenPayload,
+                replaced,
+                depth + 1U))
+        {
+            return false;
+        }
+        offset += childBytes;
+    }
+
+    appendDerHeader(output, tag, rewrittenPayload.size());
+    output.insert(
+        output.end(),
+        rewrittenPayload.begin(),
+        rewrittenPayload.end());
+    return true;
+}
+
+[[nodiscard]] std::vector<std::uint8_t>
+buildDiagnosticProviderReply(
+    std::span<const std::uint8_t> clientToken,
+    std::span<const std::uint8_t> providerReply,
+    ChallengeExperiment experiment)
+{
+    std::uint32_t clientFlags = 0U;
+    if (!readTypeOneFlags(clientToken, clientFlags))
+        return {};
+
+    const TypeTwoLocation location =
+        findTypeTwo(providerReply);
+    if (location.bytes == 0U)
+        return {};
+
+    const auto productionTypeTwo =
+        providerReply.subspan(location.offset, location.bytes);
+    const auto experimentalTypeTwo =
+        makeTypeTwoExperiment(
+            productionTypeTwo, clientFlags, experiment);
+    if (experimentalTypeTwo.empty())
+        return {};
+
+    if (location.offset == 0U &&
+        location.bytes == providerReply.size())
+    {
+        return experimentalTypeTwo;
+    }
+
+    std::vector<std::uint8_t> rewritten;
+    bool replaced = false;
+    if (!rewriteDerTypeTwo(
+            providerReply,
+            experimentalTypeTwo,
+            rewritten,
+            replaced) ||
+        !replaced)
+    {
+        return {};
+    }
+    return rewritten;
 }
 
 class AllocatedSspiToken final
@@ -256,34 +804,48 @@ public:
         std::copy(
             sourceTarget.begin(), sourceTarget.end(), mutableTarget.begin());
 
-        std::vector<std::uint8_t> mutableInput;
-        std::array<SecBuffer, 2> inputBuffers{};
-        SecBufferDesc inputDescriptor{};
-        SecBufferDesc *input = nullptr;
-        if (contextValid_)
+        if (!serverToken.empty())
         {
-            if (serverToken.empty() ||
-                serverToken.size() >
-                    static_cast<std::size_t>(
-                        (std::numeric_limits<unsigned long>::max)()))
+            if (serverToken.size() >
+                    kMaximumRawTokenBytes - pendingServerInput_.size())
             {
-                result.status = SEC_E_INCOMPLETE_MESSAGE;
+                result.status = SEC_E_INSUFFICIENT_MEMORY;
                 return result;
             }
             try
             {
-                mutableInput.assign(serverToken.begin(), serverToken.end());
+                pendingServerInput_.insert(
+                    pendingServerInput_.end(),
+                    serverToken.begin(),
+                    serverToken.end());
             }
             catch (...)
             {
                 result.status = SEC_E_INSUFFICIENT_MEMORY;
                 return result;
             }
+        }
+
+        std::array<SecBuffer, 2> inputBuffers{};
+        SecBufferDesc inputDescriptor{};
+        SecBufferDesc *input = nullptr;
+        if (contextValid_)
+        {
+            if (pendingServerInput_.empty() ||
+                pendingServerInput_.size() >
+                    static_cast<std::size_t>(
+                        (std::numeric_limits<unsigned long>::max)()))
+            {
+                result.status = SEC_E_INCOMPLETE_MESSAGE;
+                return result;
+            }
 
             inputBuffers[0].BufferType = SECBUFFER_TOKEN;
             inputBuffers[0].cbBuffer =
-                static_cast<unsigned long>(mutableInput.size());
-            inputBuffers[0].pvBuffer = mutableInput.data();
+                static_cast<unsigned long>(
+                    pendingServerInput_.size());
+            inputBuffers[0].pvBuffer =
+                pendingServerInput_.data();
             inputBuffers[1].BufferType = SECBUFFER_EMPTY;
             inputDescriptor.ulVersion = SECBUFFER_VERSION;
             inputDescriptor.cBuffers =
@@ -330,6 +892,38 @@ public:
                 result.status, context_, outputDescriptor);
         }
 
+        if (input != nullptr &&
+            result.status != SEC_E_INCOMPLETE_MESSAGE)
+        {
+            if (inputBuffers[1].BufferType == SECBUFFER_EXTRA)
+            {
+                const std::size_t extraBytes =
+                    inputBuffers[1].cbBuffer;
+                if (extraBytes > pendingServerInput_.size())
+                {
+                    result.status = SEC_E_INVALID_TOKEN;
+                    pendingServerInput_.clear();
+                }
+                else
+                {
+                    const std::size_t extraOffset =
+                        pendingServerInput_.size() - extraBytes;
+                    if (extraBytes != 0U)
+                    {
+                        std::memmove(
+                            pendingServerInput_.data(),
+                            pendingServerInput_.data() + extraOffset,
+                            extraBytes);
+                    }
+                    pendingServerInput_.resize(extraBytes);
+                }
+            }
+            else
+            {
+                pendingServerInput_.clear();
+            }
+        }
+
         if (outputBuffer.pvBuffer != nullptr)
         {
             result.output.adopt(
@@ -364,6 +958,7 @@ private:
     CREDSSP_CRED credSsp_{};
     CredHandle credential_{};
     CtxtHandle context_{};
+    std::vector<std::uint8_t> pendingServerInput_{};
     bool credentialValid_{};
     bool contextValid_{};
 };
@@ -385,8 +980,11 @@ enum class FrameAdvance : std::uint8_t
 class ProductionCredSspServer final
 {
 public:
-    ProductionCredSspServer() noexcept
-        : tls_(nullptr, &SSL_free)
+    explicit ProductionCredSspServer(
+        ChallengeExperiment experiment =
+            ChallengeExperiment::Production) noexcept
+        : experiment_(experiment),
+          tls_(nullptr, &SSL_free)
     {
         tlsContext_ =
             RuntimeServerTlsContext::fromGeneratedIpAddress(
@@ -433,7 +1031,11 @@ public:
             kStandaloneNtlmPortableDomainName,
             kStandaloneNtlmPortableServerName,
             timestamp};
-        if (!acceptor_.configureChallenge(challenge))
+        const bool mechanismReady =
+            experiment_ == ChallengeExperiment::Production
+            ? acceptor_.configureChallenge(challenge)
+            : diagnosticMechanism_.configureChallenge(challenge);
+        if (!mechanismReady)
             return;
 
         valid_ = inputBio_ != nullptr && outputBio_ != nullptr;
@@ -558,10 +1160,47 @@ public:
         if (reader_.status() != TsRequestFrameStatus::Complete)
             return false;
         const auto request = parseCredSspTsRequest(reader_.completeDer());
-        if (!request || request.value.tokenCount != 1U ||
+        if (!request || request.value.version != 6U ||
+            request.value.tokenCount != 1U ||
             !request.value.initialNegoTokenOnly())
         {
             return false;
+        }
+
+        if (experiment_ != ChallengeExperiment::Production)
+        {
+            std::array<
+                std::uint8_t,
+                kMaximumStandaloneSpnegoTokenBytes> providerStorage{};
+            const StandaloneSpnegoStep mechanismStep =
+                diagnosticMechanism_.acceptInitialToken(
+                    request.value.tokens[0],
+                    providerStorage);
+            if (!mechanismStep ||
+                mechanismStep.bytesWritten == 0U ||
+                mechanismStep.bytesWritten > providerStorage.size())
+            {
+                return false;
+            }
+
+            const auto providerReply =
+                std::span<const std::uint8_t>{providerStorage}.first(
+                    mechanismStep.bytesWritten);
+            const auto selectedProviderReply =
+                buildDiagnosticProviderReply(
+                    request.value.tokens[0],
+                    providerReply,
+                    experiment_);
+            if (selectedProviderReply.empty() ||
+                !reader_.releaseFrame())
+            {
+                return false;
+            }
+            return writer_.queueReply(
+                tls_.get(),
+                request.value.version,
+                CredSspServerReplyField::NegoToken,
+                selectedProviderReply);
         }
 
         const auto status = acceptor_.processCompleteFrame(
@@ -596,10 +1235,14 @@ public:
 
     [[nodiscard]] bool processNextClientFrame(
         std::uint8_t &tokenCount,
-        bool &hasPubKeyAuth) noexcept
+        bool &hasPubKeyAuth,
+        bool &typeThreeObserved,
+        bool &typeThreeVerified) noexcept
     {
         tokenCount = 0U;
         hasPubKeyAuth = false;
+        typeThreeObserved = false;
+        typeThreeVerified = false;
         if (reader_.status() != TsRequestFrameStatus::Complete)
             return false;
 
@@ -608,23 +1251,35 @@ public:
             return false;
         tokenCount = request.value.tokenCount;
         hasPubKeyAuth = request.value.hasPubKeyAuth;
+        for (std::uint8_t index = 0U;
+             index < request.value.tokenCount;
+             ++index)
+        {
+            if (hasNtlmMessageType(
+                    request.value.tokens[index], 3U))
+            {
+                typeThreeObserved = true;
+                break;
+            }
+        }
 
-        const auto status = acceptor_.processCompleteFrame(
-            reader_, writer_, credential_);
-        return acceptor_.lastNtlmMessageType() == 3U &&
-               status ==
-                   StandaloneCredSspFrameStatus::BindingReplyQueued &&
-               acceptor_.stage() ==
-                   StandaloneCredSspStage::ServerBindingReplyQueued;
+        // The P0 oracle stops at the next client message. A Type 3 signature
+        // is useful evidence but does not require advancing pubKeyAuth or
+        // credential delegation in this test.
+        typeThreeVerified = false;
+        return reader_.releaseFrame();
     }
 
     [[nodiscard]] NtlmChallengeMessageObservation
     challengeObservation() const noexcept
     {
-        return acceptor_.challengeObservation();
+        return experiment_ == ChallengeExperiment::Production
+            ? acceptor_.challengeObservation()
+            : diagnosticMechanism_.challengeObservation();
     }
 
 private:
+    ChallengeExperiment experiment_{ChallengeExperiment::Production};
     RuntimeServerTlsContext tlsContext_{};
     RuntimeServerTlsContext::ServerTls tls_;
     BIO *inputBio_{};
@@ -632,6 +1287,7 @@ private:
     TsRequestFrameReader reader_{};
     TsRequestTlsReplyWriter writer_{};
     StandaloneCredSspNtlmAcceptor acceptor_{};
+    StandaloneSpnegoNtlmAcceptor diagnosticMechanism_{};
     EphemeralNtlmV2Credential credential_{};
     bool valid_{};
 };
@@ -649,15 +1305,18 @@ struct FullCredSspAttempt final
     bool microsoftNextTokenGenerated{};
     bool nextClientTsRequestReceived{};
     bool productionObservedTypeThree{};
+    bool productionVerifiedTypeThree{};
     bool nextClientHasPubKeyAuth{};
 };
 
 [[nodiscard]] FullCredSspAttempt runFullCredSspAttempt(
-    TargetProfile profile)
+    TargetProfile profile,
+    ChallengeExperiment experiment =
+        ChallengeExperiment::Production)
 {
     FullCredSspAttempt result{};
     WindowsCredSspClient client;
-    ProductionCredSspServer server;
+    ProductionCredSspServer server{experiment};
     if (!server.valid())
     {
         result.stage = "production-server-setup";
@@ -666,12 +1325,16 @@ struct FullCredSspAttempt final
 
     result.stage = "acquire-credssp";
     result.acquireStatus = client.acquire();
+    printClientStatus(
+        profile, "acquire-credentials", result.acquireStatus);
     if (!securityStatusSucceeded(result.acquireStatus))
         return result;
 
     result.stage = "credssp-client-initial";
     auto clientStep = client.step(profile, {});
     result.lastClientStatus = clientStep.status;
+    printClientStatus(
+        profile, "initial-context", clientStep.status);
     if (!securityStatusSucceeded(clientStep.status) ||
         clientStep.output.empty())
     {
@@ -714,6 +1377,8 @@ struct FullCredSspAttempt final
         result.stage = "credssp-client-continue";
         clientStep = client.step(profile, serverToken);
         result.lastClientStatus = clientStep.status;
+        printClientStatus(
+            profile, "tls-or-credssp-continue", clientStep.status);
         if (!securityStatusSucceeded(clientStep.status) ||
             clientStep.output.empty())
         {
@@ -747,6 +1412,8 @@ struct FullCredSspAttempt final
     result.stage = "microsoft-credssp-after-type2";
     auto nextClientStep = client.step(profile, productionTypeTwo);
     result.lastClientStatus = nextClientStep.status;
+    printClientStatus(
+        profile, "after-production-type2", nextClientStep.status);
     if (!securityStatusSucceeded(nextClientStep.status) ||
         nextClientStep.output.empty())
     {
@@ -764,17 +1431,16 @@ struct FullCredSspAttempt final
         return result;
     result.nextClientTsRequestReceived = true;
 
-    std::uint8_t tokenCount = 0U;
+    [[maybe_unused]] std::uint8_t tokenCount = 0U;
     result.stage = "production-consume-next-client-token";
     if (!server.processNextClientFrame(
-            tokenCount, result.nextClientHasPubKeyAuth))
+            tokenCount,
+            result.nextClientHasPubKeyAuth,
+            result.productionObservedTypeThree,
+            result.productionVerifiedTypeThree))
     {
         return result;
     }
-    result.productionObservedTypeThree = tokenCount == 1U;
-    if (!result.productionObservedTypeThree)
-        return result;
-
     result.stage = "none";
     return result;
 }
@@ -798,7 +1464,7 @@ void printFailure(
         "microsoft-credssp target=%s stage=%s tls=%s "
         "initial-tsrequest=%s type2-queued=%s type2-flags=0x%08lx "
         "type2-target-code-units=%zu next-token=%s next-tsrequest=%s "
-        "type3=%s pubkeyauth=%s\n",
+        "type3=%s type3-verified=%s pubkeyauth=%s\n",
         targetLabel(profile),
         result.stage,
         result.tlsEstablished ? "established" : "not-established",
@@ -809,6 +1475,7 @@ void printFailure(
         result.microsoftNextTokenGenerated ? "yes" : "no",
         result.nextClientTsRequestReceived ? "yes" : "no",
         result.productionObservedTypeThree ? "yes" : "no",
+        result.productionVerifiedTypeThree ? "yes" : "no",
         result.nextClientHasPubKeyAuth ? "yes" : "no");
     printStatus("microsoft-credssp-acquire-status", result.acquireStatus);
     printStatus(
@@ -829,27 +1496,92 @@ int main(int argc, char **argv)
         profile = TargetProfile::PortableServerName;
     else if (mode == "physical-ip-target")
         profile = TargetProfile::PhysicalIpv4;
+    else if (mode == "bare-ip-target")
+        profile = TargetProfile::BarePhysicalIpv4;
     else
         return 2;
 
-    const FullCredSspAttempt result = runFullCredSspAttempt(profile);
-    if (std::string_view{result.stage} == "none" &&
-        result.tlsEstablished &&
-        result.initialClientTsRequestReceived &&
-        result.productionTypeTwoQueued &&
-        result.microsoftNextTokenGenerated &&
-        result.nextClientTsRequestReceived &&
-        result.productionObservedTypeThree &&
-        result.nextClientHasPubKeyAuth)
+    const auto acceptedNextClientMessage =
+        [](const FullCredSspAttempt &attempt) noexcept
+    {
+        return std::string_view{attempt.stage} == "none" &&
+               attempt.tlsEstablished &&
+               attempt.initialClientTsRequestReceived &&
+               attempt.productionTypeTwoQueued &&
+               attempt.microsoftNextTokenGenerated &&
+               attempt.nextClientTsRequestReceived;
+    };
+
+    const FullCredSspAttempt result =
+        runFullCredSspAttempt(
+            profile, ChallengeExperiment::Production);
+    if (acceptedNextClientMessage(result))
     {
         std::fprintf(
             stderr,
             "microsoft-credssp target=%s production-type2=accepted "
-            "next-client-token=yes type3=yes pubkeyauth=yes\n",
-            targetLabel(profile));
+            "next-client-token=yes type3=%s type3-verified=%s "
+            "pubkeyauth=%s\n",
+            targetLabel(profile),
+            result.productionObservedTypeThree ? "yes" : "no",
+            result.productionVerifiedTypeThree ? "yes" : "no",
+            result.nextClientHasPubKeyAuth ? "yes" : "no");
         return 0;
     }
 
     printFailure(profile, result);
+
+    if (profile != TargetProfile::PhysicalIpv4)
+        return 1;
+
+    const FullCredSspAttempt control =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeExperiment::Production);
+    if (!acceptedNextClientMessage(control))
+    {
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-identity-experiments="
+            "skipped-control-not-accepted\n");
+        return 1;
+    }
+
+    constexpr std::array experiments{
+        ChallengeExperiment::EndpointTypeTwoTargetName,
+        ChallengeExperiment::EndpointMsvAvTargetName,
+        ChallengeExperiment::EndpointTypeTwoAndMsvAvTargetName};
+
+    const char *firstAcceptedExperiment = nullptr;
+    for (const ChallengeExperiment experiment : experiments)
+    {
+        const FullCredSspAttempt diagnostic =
+            runFullCredSspAttempt(
+                TargetProfile::PhysicalIpv4, experiment);
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-diagnostic target=%s experiment=%s "
+            "next-client-token=%s type3=%s pubkeyauth=%s stage=%s\n",
+            targetLabel(TargetProfile::PhysicalIpv4),
+            experimentName(experiment),
+            diagnostic.microsoftNextTokenGenerated ? "yes" : "no",
+            diagnostic.productionObservedTypeThree ? "yes" : "no",
+            diagnostic.nextClientHasPubKeyAuth ? "yes" : "no",
+            diagnostic.stage);
+        if (firstAcceptedExperiment == nullptr &&
+            acceptedNextClientMessage(diagnostic))
+        {
+            firstAcceptedExperiment = experimentName(experiment);
+        }
+    }
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-first-accepted-single-delta=%s\n",
+        firstAcceptedExperiment != nullptr
+            ? firstAcceptedExperiment
+            : "none");
+
+    // Test-only diagnostic variants never make the production gate green.
     return 1;
 }

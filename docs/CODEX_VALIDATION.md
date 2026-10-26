@@ -1,3 +1,29 @@
+## Microsoft full-CredSSP target-principal matrix follow-up — 2026-10-25
+
+**Reconciled authoring parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner evidence is **986/986**
+local CTest PASS with the physical Microsoft client reaching production Type 2
+fully committed and Await-Type-3 before peer EOF; Type 3 and all downstream
+boundaries are not reached. Existing hosted Microsoft NTLM SSPI and independent
+outer TSRequest DER evidence remain PASS and production Type-2 bytes are not
+changed.
+
+The concurrent Windows `CREDSSP` SSPI harness is extended rather than
+duplicated. It adds the bare-IP target, exact per-call symbolic/hexadecimal SSPI
+status logging, retained `SECBUFFER_EXTRA` stream bytes, and the requested
+round boundary of “Microsoft generated the next client TSRequest after
+production Type 2.” The next plaintext TSRequest is inspected for a Type-3
+signature without advancing native Admission or downstream protocol state.
+
+When and only when the portable production control succeeds while the
+owner-like IP-SPN production case fails, the test runs TargetName-only,
+MsvAvTargetName-only, and combined test-only challenge variants. Each passes the
+production structural validator before use and no diagnostic variant can make
+the production gate pass.
+
+Connector source/reconciliation review: **PASS**. Modified-tree Windows
+compile, focused CTest and full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted Windows execution: **PENDING**.
+
 ## Exact-SHA target-identity lifecycle compile correction — 2026-10-25
 
 Exact-SHA CI for `675768b868c35416959f365802474b6089e76ac3` exposed one

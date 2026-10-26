@@ -1,3 +1,32 @@
+## Agent 2 exact-SHA Type-1 observer qualification receipt — 2026-10-26
+
+Implementation SHA `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`,
+workflow `40339309546`: Linux protocol Debug/Release full CTest **945/945
+PASS**, macOS protocol Debug/Release **750/750 PASS**, Windows MSVC
+Debug/Release **790/790 PASS**, Windows Clang23 Debug/Release **835/835 PASS**,
+R9 security sanitizers **PASS**, workflow structure **PASS**, and documentation
+policy **PASS**. The new
+`security.ntlmssp-type1-structural-observation` test executes and passes in
+each ordinary full protocol/toolchain suite where registered.
+
+Windows job `121629369790` also passes the harness-integrity gate and exact
+Microsoft matrix. The full-CREDSSP structural output is stable across
+fixed-name, IP-SPN and bare-IP targets:
+`bytes=40 flags=0xe20882b7 version-present=yes version=10.0.26100
+ntlm-revision=0x0f domain-supplied=no workstation-supplied=no
+domain-field-bytes=0 workstation-field-bytes=0`.
+Relative to physical flags `0xe2088235`, Type-1 XOR `0x82` is OEM plus
+LM_KEY. The resulting production Type-2 comparison is
+`0xe08a8235 -> 0xe08a8237`: only OEM differs; TargetName=10 code units,
+TargetInfo=50 bytes, total=126 bytes, server target/name presence and AV IDs
+`2,1,7,0` are identical. All hosted full-CREDSSP cases still reach Type 3.
+
+No production Type-2 TargetName/TargetInfo/MsvAvTargetName, target selection,
+VERSION behavior, TLS/CredSSP framing, authentication authority or transcript
+verification changed. Physical VERSION/build/revision and descriptor byte
+counts remain **NOT RUN/PENDING** until the next authorized physical owner
+attempt.
+
 ## Agent 5/6 CI publication correction receipt — 2026-10-26
 
 The `e0207b8557b43613f83cfd004f78ca69872a7e1d` workflow publication is

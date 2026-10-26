@@ -1,3 +1,50 @@
+## Agent 2 exact-SHA Type-1 profile differential evidence (2026-10-26)
+
+**Implementation SHA:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`.
+GitHub Actions workflow `40339309546` qualifies the observer on the exact
+implementation SHA: Linux protocol Debug/Release full CTest **945/945 PASS**
+(job `121629369957`), macOS protocol Debug/Release full CTest **750/750
+PASS** (job `121629369967`), Windows protocol Debug/Release full CTest
+**790/790 PASS** (job `121629369790`), Windows Clang23 Debug/Release full
+CTest **835/835 PASS** (job `121629370293`), and the R9 security sanitizer
+job **PASS** (job `121629370176`). The new
+`security.ntlmssp-type1-structural-observation` CTest passes in the ordinary
+full suites on all four protocol/toolchain lanes above. Workflow structure and
+documentation policy also pass.
+
+The exact-SHA Windows Microsoft matrix remains **PASS/TYPED** for NTLM
+fixed-name, NTLM IP target, full-CREDSSP fixed-name control, full-CREDSSP
+IP-SPN and full-CREDSSP bare-IP. The production full-CREDSSP observer reports,
+for every hosted target, a raw 40-byte Type 1 with
+`flags=0xe20882b7`, VERSION present `10.0.26100`,
+`NTLMRevisionCurrent=0x0f`, domain supplied **no**, workstation supplied
+**no**, and both field byte counts zero.
+
+Against the latest physical Windows App Type-1 flags
+`0xe2088235`, the hosted Type-1 XOR is exactly `0x00000082`:
+`NTLM_NEGOTIATE_OEM (0x00000002)` plus
+`NTLMSSP_NEGOTIATE_LM_KEY (0x00000080)`. The resulting production Type 2
+differs only by the OEM flag:
+physical `0xe08a8235` versus hosted `0xe08a8237`.
+TargetName remains 10 UTF-16 code units, TargetInfo 50 bytes, total Type-2
+length 126 bytes, server-target/name presence remains true, and the AV-ID
+sequence remains exactly `2,1,7,0`. Production does not echo LM_KEY and
+continues to clear VERSION. This is a typed client-profile difference, **not**
+evidence of incompatibility: the hosted Microsoft CREDSSP client consumes that
+Type 2 and produces Type 3 for all three target forms.
+
+Production remains exactly `fixed-name / RDP-SERVER`; Type-2 TargetName,
+TargetInfo, MsvAvTargetName, target-profile selection and VERSION behavior are
+**UNCHANGED**. The exact Type1+Type2+Type3 MIC/NTLMv2 transcript verifier is
+also **UNCHANGED**. The physical VERSION tuple and physical descriptor byte
+counts remain **PENDING** the next authorized Windows App/Linux run; do not
+infer them from the VERSION offer or from the 40-byte message length.
+
+**Next Agent-2 gate:** capture the new physical structural line and compare it
+with hosted `10.0.26100/0x0f`. If the physical client still closes before
+Type 3, treat the environment/TLS/certificate differential as the next
+investigation surface; do not alter the Microsoft-qualified production Type 2.
+
 ## Agent 5/6 CI publication correction — literal certificate-policy selector (2026-10-26)
 
 **Repair parent:** `dc963e90ea3a0635a84df88e5c50073727f76b5b`. The preceding Agent 5/6 publication

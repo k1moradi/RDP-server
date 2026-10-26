@@ -1,3 +1,24 @@
+## R2 P0 follow-up — endpoint challenge profiles remain evidence-only (2026-10-25)
+
+Current main already owns the hard target-principal decision gates: unchanged
+production Type 2 under Microsoft NTLM SSPI for both portable and physical-IP
+service targets, plus a Windows-native full-CREDSSP control/IP differential.
+Those results decide whether the physical `TERMSRV/192.168.1.5` target itself
+explains the missing Type 3.
+
+Two further native-SSPI profiles remain strictly diagnostic: endpoint Type-2
+TargetName, and endpoint TargetName plus
+`MsvAvTargetName=TERMSRV/192.168.1.5`. They may identify a minimal identity
+relationship only after the hard control/IP gates execute. A PASS does not by
+itself authorize a production challenge change.
+
+If executed Microsoft evidence selects an endpoint-bound profile, thread the
+already-selected R10 endpoint/service identity through an explicit bounded API.
+Do not query DNS/hostname/environment inside the encoder, map remote Username to
+a host identity, disable channel binding, or fabricate zero channel-binding
+data. Native Admission, MCS, graphics, input and clipboard remain blocked until
+the real client emits Type 3 and progresses naturally.
+
 ## R9 P0 — Microsoft target-principal + full CredSSP gate before next Linux owner run (2026-10-25)
 
 The newest owner Linux/X11 receipt is **986/986 CTest PASS**. The real Microsoft

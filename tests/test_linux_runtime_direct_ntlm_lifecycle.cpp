@@ -1171,6 +1171,43 @@ int main(int argc, char** argv)
     assert(challengesDiffer(
         badResult.serverChallenge, goodOneResult.serverChallenge));
 
+    // Native Admission denial is accepted-peer scoped. Before any Stop/Start,
+    // accept another TLS/CredSSP peer through the same listener and configured
+    // credential generation; the rejected peer must not poison the next one.
+    assert(firstAuthenticated.listenerAvailable);
+    assert(firstAuthenticated.product.credentialsConfigured);
+    assert(control.standaloneApplicationPasswordObservation().generation ==
+           credential.generation);
+    std::atomic<bool> releaseSameListener{false};
+    std::atomic<bool> sameListenerFinished{false};
+    PeerResult sameListenerResult;
+    std::thread sameListenerPeer([&] {
+        sameListenerResult = runDirectNtlmPeer(
+            recommendation.address, selectedPort, true, 0x30U,
+            releaseSameListener);
+        sameListenerFinished.store(true, std::memory_order_release);
+    });
+    assert(pumpUntil(
+        control, sameListenerFinished,
+        &directClientCredentialsVerifiedThenAdmissionDenied));
+    const auto sameListenerStatus = control.status();
+    assert(sameListenerStatus.stage == RuntimeHostStage::ListenerAvailable);
+    assert(sameListenerStatus.listenerAvailable);
+    assert(sameListenerStatus.listenerGeneration == firstListenerGeneration);
+    assert(sameListenerStatus.hostOwnerAuthorized);
+    assert(sameListenerStatus.product.credentialsConfigured);
+    assert(sameListenerStatus.acceptedClientPreauthDiagnostics
+               .standaloneCredentialGeneration == credential.generation);
+    assertClipboardDormant(sameListenerStatus);
+    releaseSameListener.store(true, std::memory_order_release);
+    sameListenerPeer.join();
+    assert(sameListenerResult.passed);
+    assert(sameListenerResult.directTypeTwoReceived);
+    assert(sameListenerResult.authInfoSent);
+    assert(challengesDiffer(
+        goodOneResult.serverChallenge,
+        sameListenerResult.serverChallenge));
+
     // Ordinary Stop retires the accepted client/listener/native/TLS owners and
     // consent, but retains the exact memory-only Session Password generation.
     assert(control.stopSharing().succeeded());

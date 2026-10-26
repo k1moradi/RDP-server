@@ -1,3 +1,19 @@
+## Exact-SHA target-identity lifecycle compile correction — 2026-10-25
+
+Exact-SHA CI for `675768b868c35416959f365802474b6089e76ac3` exposed one
+test-only GCC/Clang preprocessing error in the new target-identity lifecycle
+assertion: a braced two-argument `std::u16string_view` initializer was passed
+directly to the `assert` macro, so its comma was parsed as a second macro
+argument. The production target-identity implementation compiled successfully;
+the portable host-control target taxonomy also passed on Windows.
+
+This correction names the borrowed `std::u16string_view` before the assertion.
+It changes no production code, no NTLM/CredSSP bytes and no target-profile
+selection. The independent Windows Microsoft CredSSP control and physical-IP
+oracles remain a separate unresolved gate: on that SHA both fail before the
+server receives the initial TSRequest, so those results do not yet distinguish
+`TERMSRV/RDP-SERVER` from `TERMSRV/192.168.1.5`.
+
 ## R10 Start-scoped target/service identity authoring receipt — 2026-10-25
 
 **Reconciled parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`. Owner evidence supplied for this

@@ -1057,9 +1057,10 @@ void assertFixedConnectionTargetIdentity(
     assert(target.serviceIdentityProfile ==
            RuntimeServiceIdentityProfile::FixedName);
     assert(!target.endpointBound());
-    assert(std::u16string_view{
-               target.protocolServerIdentity.data(),
-               target.protocolServerIdentity.size()} ==
+    const std::u16string_view protocolServerIdentity{
+        target.protocolServerIdentity.data(),
+        target.protocolServerIdentity.size()};
+    assert(protocolServerIdentity ==
            kStandaloneNtlmPortableServerName);
 
     const auto& diagnostics = status.acceptedClientPreauthDiagnostics;

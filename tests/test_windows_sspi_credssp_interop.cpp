@@ -743,31 +743,82 @@ struct CredSspClientStep final
 class SspiServerInputBuffer final
 {
 public:
-    [[nodiscard]] bool append(std::span<const std::uint8_t> bytes) noexcept
+    [[nodiscard]] bool append(
+        std::span<const std::uint8_t> bytes) noexcept
     {
-        if (bytes.empty()) return true;
-        if (bytes.size() > kMaximumRawTokenBytes - bytes_.size()) return false;
-        try { bytes_.insert(bytes_.end(), bytes.begin(), bytes.end()); }
-        catch (...) { return false; }
+        if (bytes.empty())
+            return true;
+        if (bytes_.size() > kMaximumRawTokenBytes ||
+            bytes.size() > kMaximumRawTokenBytes - bytes_.size())
+        {
+            return false;
+        }
+        try
+        {
+            bytes_.insert(bytes_.end(), bytes.begin(), bytes.end());
+        }
+        catch (...)
+        {
+            return false;
+        }
         return true;
     }
+
     [[nodiscard]] bool retainAfterStep(
-        SECURITY_STATUS status, const SecBuffer &extraBuffer,
+        SECURITY_STATUS status,
+        const SecBuffer &extraBuffer,
         std::size_t &retainedExtraBytes) noexcept
     {
-        retainedExtraBytes=0U;
-        if(status==SEC_E_INCOMPLETE_MESSAGE)return true;
-        if(extraBuffer.BufferType!=SECBUFFER_EXTRA){bytes_.clear();return true;}
-        const std::size_t extraBytes=extraBuffer.cbBuffer;
-        if(extraBytes>bytes_.size()){bytes_.clear();return false;}
-        const std::size_t offset=bytes_.size()-extraBytes;
-        if(extraBytes!=0U)std::memmove(bytes_.data(),bytes_.data()+offset,extraBytes);
-        bytes_.resize(extraBytes);retainedExtraBytes=extraBytes;return true;
+        retainedExtraBytes = 0U;
+        if (status == SEC_E_INCOMPLETE_MESSAGE)
+            return true;
+
+        if (extraBuffer.BufferType != SECBUFFER_EXTRA)
+        {
+            bytes_.clear();
+            return true;
+        }
+
+        const std::size_t extraBytes = extraBuffer.cbBuffer;
+        if (extraBytes > bytes_.size())
+        {
+            bytes_.clear();
+            return false;
+        }
+
+        const std::size_t extraOffset = bytes_.size() - extraBytes;
+        if (extraBytes != 0U)
+        {
+            std::memmove(
+                bytes_.data(),
+                bytes_.data() + extraOffset,
+                extraBytes);
+        }
+        bytes_.resize(extraBytes);
+        retainedExtraBytes = extraBytes;
+        return true;
     }
-    [[nodiscard]] bool empty() const noexcept{return bytes_.empty();}
-    [[nodiscard]] std::size_t size() const noexcept{return bytes_.size();}
-    [[nodiscard]] std::uint8_t *data() noexcept{return bytes_.data();}
-    [[nodiscard]] std::span<const std::uint8_t> view() const noexcept{return bytes_;}
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return bytes_.empty();
+    }
+
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        return bytes_.size();
+    }
+
+    [[nodiscard]] std::uint8_t *data() noexcept
+    {
+        return bytes_.data();
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t> view() const noexcept
+    {
+        return bytes_;
+    }
+
 private:
     std::vector<std::uint8_t> bytes_{};
 };
@@ -1826,104 +1877,469 @@ template <typename Client, typename Server>
     return result;
 }
 
-class ScriptedToken final
+class ScriptedCredSspToken final
 {
 public:
-    ScriptedToken()=default;
-    ScriptedToken(std::initializer_list<std::uint8_t> bytes):bytes_(bytes){}
-    [[nodiscard]] bool empty()const noexcept{return bytes_.empty();}
-    [[nodiscard]] std::span<const std::uint8_t> view()const noexcept{return bytes_;}
-private: std::vector<std::uint8_t> bytes_{};
+    ScriptedCredSspToken() = default;
+
+    ScriptedCredSspToken(
+        std::initializer_list<std::uint8_t> bytes)
+        : bytes_(bytes)
+    {
+    }
+
+    [[nodiscard]] bool empty() const noexcept
+    {
+        return bytes_.empty();
+    }
+
+    [[nodiscard]] std::span<const std::uint8_t> view() const noexcept
+    {
+        return bytes_;
+    }
+
+private:
+    std::vector<std::uint8_t> bytes_{};
 };
+
 struct ScriptedCredSspClientStep final
 {
-    SECURITY_STATUS status{SEC_E_INTERNAL_ERROR}; ULONG contextAttributes{};
-    ScriptedToken output{}; std::size_t inputBytes{},retainedServerInputBytes{},
-    retainedExtraBytes{},missingBytes{}; bool zeroLengthInputToken{},stateChanged{};
+    SECURITY_STATUS status{SEC_E_INTERNAL_ERROR};
+    ULONG contextAttributes{};
+    ScriptedCredSspToken output{};
+    std::size_t inputBytes{};
+    std::size_t retainedServerInputBytes{};
+    std::size_t retainedExtraBytes{};
+    std::size_t missingBytes{};
+    bool zeroLengthInputToken{};
+    bool stateChanged{};
 };
-[[nodiscard]] bool scriptedBytesEqual(std::span<const std::uint8_t> bytes,
-    std::initializer_list<std::uint8_t> expected)noexcept
-{return bytes.size()==expected.size()&&std::equal(bytes.begin(),bytes.end(),expected.begin());}
+
+[[nodiscard]] bool scriptedBytesEqual(
+    std::span<const std::uint8_t> bytes,
+    std::initializer_list<std::uint8_t> expected) noexcept
+{
+    return bytes.size() == expected.size() &&
+           std::equal(
+               bytes.begin(),
+               bytes.end(),
+               expected.begin());
+}
 
 class ScriptedCredSspClient final
 {
 public:
-    using Step=ScriptedCredSspClientStep;
-    [[nodiscard]] bool hasContext()const noexcept{return stepIndex_!=0U;}
-    [[nodiscard]] bool canContinueWithoutNewServerBytes()const noexcept{return local_;}
-    [[nodiscard]] std::size_t pendingServerInputBytes()const noexcept{return retained_;}
-    [[nodiscard]] Step step(TargetProfile,std::span<const std::uint8_t> token)
+    using Step = ScriptedCredSspClientStep;
+
+    [[nodiscard]] bool hasContext() const noexcept
     {
-        ++calls_;if(!token.empty())++peerCalls_;
-        switch(stepIndex_++){
-        case 0U:if(!token.empty())return fail();return ok(SEC_I_CONTINUE_NEEDED,{0x10U},0,0,0,0,false,false);
-        case 1U:if(!scriptedBytesEqual(token,{0x20U,0x21U}))return fail();zero_=extra_=true;return ok(SEC_I_CONTINUE_NEEDED,{},2,1,1,0,false,true);
-        case 2U:if(!token.empty()||!local_)return fail();localSeen_=true;return ok(SEC_I_CONTINUE_NEEDED,{0x11U},1,0,0,0,true,false);
-        case 3U:if(!scriptedBytesEqual(token,{0x22U}))return fail();incomplete_=true;return ok(SEC_E_INCOMPLETE_MESSAGE,{},1,1,0,1,false,false);
-        case 4U:if(!scriptedBytesEqual(token,{0x23U,0x24U})||retained_!=1U)return fail();recovered_=true;return ok(SEC_I_CONTINUE_NEEDED,{0x12U,0x13U},3,0,0,0,false,false);
-        default:return fail();}
+        return stepIndex_ != 0U;
     }
-    [[nodiscard]] bool complete()const noexcept
-    {return !failed_&&calls_==5U&&peerCalls_==3U&&zero_&&extra_&&localSeen_&&incomplete_&&recovered_;}
+
+    [[nodiscard]] bool canContinueWithoutNewServerBytes() const noexcept
+    {
+        return allowLocalRepump_;
+    }
+
+    [[nodiscard]] std::size_t pendingServerInputBytes() const noexcept
+    {
+        return retainedServerInputBytes_;
+    }
+
+    [[nodiscard]] Step step(
+        TargetProfile,
+        std::span<const std::uint8_t> serverToken)
+    {
+        ++stepCount_;
+        if (!serverToken.empty())
+            ++peerTokenStepCount_;
+
+        switch (stepIndex_++)
+        {
+        case 0U:
+            if (!serverToken.empty())
+                return makeFailedStep();
+            return makeSuccessfulStep(
+                SEC_I_CONTINUE_NEEDED,
+                ScriptedCredSspToken{0x10U},
+                0U,
+                0U,
+                0U,
+                0U,
+                false,
+                false);
+
+        case 1U:
+            if (!scriptedBytesEqual(
+                    serverToken, {0x20U, 0x21U}))
+            {
+                return makeFailedStep();
+            }
+            sawZeroOutputContinuation_ = true;
+            sawExtraRetention_ = true;
+            return makeSuccessfulStep(
+                SEC_I_CONTINUE_NEEDED,
+                ScriptedCredSspToken{},
+                2U,
+                1U,
+                1U,
+                0U,
+                false,
+                true);
+
+        case 2U:
+            if (!serverToken.empty() || !allowLocalRepump_)
+                return makeFailedStep();
+            sawLocalRepump_ = true;
+            return makeSuccessfulStep(
+                SEC_I_CONTINUE_NEEDED,
+                ScriptedCredSspToken{0x11U},
+                1U,
+                0U,
+                0U,
+                0U,
+                false,
+                false);
+
+        case 3U:
+            if (!scriptedBytesEqual(serverToken, {0x22U}))
+                return makeFailedStep();
+            sawIncompleteMessage_ = true;
+            return makeSuccessfulStep(
+                SEC_E_INCOMPLETE_MESSAGE,
+                ScriptedCredSspToken{},
+                1U,
+                1U,
+                0U,
+                1U,
+                false,
+                false);
+
+        case 4U:
+            if (!scriptedBytesEqual(
+                    serverToken, {0x23U, 0x24U}) ||
+                retainedServerInputBytes_ != 1U)
+            {
+                return makeFailedStep();
+            }
+            sawIncompleteRecovery_ = true;
+            return makeSuccessfulStep(
+                SEC_I_CONTINUE_NEEDED,
+                ScriptedCredSspToken{0x12U, 0x13U},
+                3U,
+                0U,
+                0U,
+                0U,
+                false,
+                false);
+
+        default:
+            return makeFailedStep();
+        }
+    }
+
+    [[nodiscard]] bool complete() const noexcept
+    {
+        return !failed_ &&
+               stepCount_ == 5U &&
+               peerTokenStepCount_ == 3U &&
+               sawZeroOutputContinuation_ &&
+               sawExtraRetention_ &&
+               sawLocalRepump_ &&
+               sawIncompleteMessage_ &&
+               sawIncompleteRecovery_;
+    }
+
 private:
-    [[nodiscard]] Step ok(SECURITY_STATUS status,std::initializer_list<std::uint8_t> out,
-        std::size_t in,std::size_t retained,std::size_t extra,std::size_t missing,bool zeroToken,bool local)
-    {retained_=retained;local_=local;return{status,0U,ScriptedToken{out},in,retained_,extra,missing,zeroToken,true};}
-    [[nodiscard]] Step fail(){failed_=true;retained_=0;local_=false;return{SEC_E_INVALID_TOKEN,0U,{},0,0,0,0,false,true};}
-    std::size_t stepIndex_{},calls_{},peerCalls_{},retained_{};
-    bool local_{},zero_{},extra_{},localSeen_{},incomplete_{},recovered_{},failed_{};
+    [[nodiscard]] Step makeSuccessfulStep(
+        SECURITY_STATUS status,
+        ScriptedCredSspToken output,
+        std::size_t inputBytes,
+        std::size_t retainedServerInputBytes,
+        std::size_t retainedExtraBytes,
+        std::size_t missingBytes,
+        bool zeroLengthInputToken,
+        bool allowLocalRepump)
+    {
+        retainedServerInputBytes_ = retainedServerInputBytes;
+        allowLocalRepump_ = allowLocalRepump;
+        return {
+            status,
+            0U,
+            std::move(output),
+            inputBytes,
+            retainedServerInputBytes_,
+            retainedExtraBytes,
+            missingBytes,
+            zeroLengthInputToken,
+            true};
+    }
+
+    [[nodiscard]] Step makeFailedStep()
+    {
+        failed_ = true;
+        retainedServerInputBytes_ = 0U;
+        allowLocalRepump_ = false;
+        return {
+            SEC_E_INVALID_TOKEN,
+            0U,
+            {},
+            0U,
+            0U,
+            0U,
+            0U,
+            false,
+            true};
+    }
+
+    std::size_t stepIndex_{};
+    std::size_t stepCount_{};
+    std::size_t peerTokenStepCount_{};
+    std::size_t retainedServerInputBytes_{};
+    bool allowLocalRepump_{};
+    bool sawZeroOutputContinuation_{};
+    bool sawExtraRetention_{};
+    bool sawLocalRepump_{};
+    bool sawIncompleteMessage_{};
+    bool sawIncompleteRecovery_{};
+    bool failed_{};
 };
+
 class ScriptedCredSspServer final
 {
 public:
-    [[nodiscard]] bool valid()const noexcept{return !failed_;}
-    [[nodiscard]] bool feedRaw(std::span<const std::uint8_t> bytes)noexcept
+    [[nodiscard]] bool valid() const noexcept
     {
-        const bool good=(feeds_==0&&scriptedBytesEqual(bytes,{0x10U}))||
-        (feeds_==1&&scriptedBytesEqual(bytes,{0x11U}))||
-        (feeds_==2&&scriptedBytesEqual(bytes,{0x12U,0x13U}));
-        if(!good){failed_=true;return false;}++feeds_;if(feeds_==3)app_=true;return true;
+        return !failed_;
     }
-    [[nodiscard]] bool tlsReady()const noexcept{return ready_;}
-    [[nodiscard]] int tlsStateValue()const noexcept{return tlsState_;}
-    [[nodiscard]] int negotiatedTlsVersion()const noexcept{return ready_?TLS1_2_VERSION:0;}
-    [[nodiscard]] std::size_t inputBioPendingBytes()const noexcept{return app_?1U:0U;}
-    [[nodiscard]] std::size_t outputBioPendingBytes()const noexcept{return out_.size();}
-    [[nodiscard]] std::size_t applicationPendingBytes()const noexcept{return app_?1U:0U;}
-    [[nodiscard]] int replyStateValue()const noexcept{return 0;}
-    [[nodiscard]] TlsAdvance advanceHandshake()noexcept
+
+    [[nodiscard]] bool feedRaw(
+        std::span<const std::uint8_t> bytes) noexcept
     {
-        ++turns_;out_.clear();
-        switch(turns_){case 1:return TlsAdvance::NeedRead;case 2:out_={0x20U,0x21U};++tlsState_;return TlsAdvance::NeedRead;
-        case 3:return TlsAdvance::NeedRead;case 4:out_={0x22U};++tlsState_;return TlsAdvance::NeedRead;
-        case 5:out_={0x23U,0x24U};++tlsState_;return TlsAdvance::NeedRead;
-        case 6:if(feeds_!=3){failed_=true;return TlsAdvance::Failed;}ready_=true;++tlsState_;return TlsAdvance::Ready;
-        default:failed_=true;return TlsAdvance::Failed;}
+        const bool expectedBytes =
+            (clientFeedCount_ == 0U &&
+             scriptedBytesEqual(bytes, {0x10U})) ||
+            (clientFeedCount_ == 1U &&
+             scriptedBytesEqual(bytes, {0x11U})) ||
+            (clientFeedCount_ == 2U &&
+             scriptedBytesEqual(bytes, {0x12U, 0x13U}));
+        if (!expectedBytes)
+        {
+            failed_ = true;
+            return false;
+        }
+
+        ++clientFeedCount_;
+        if (clientFeedCount_ == 3U)
+            coalescedApplicationPending_ = true;
+        return true;
     }
-    [[nodiscard]] FrameAdvance advanceFrame()noexcept
-    {++frames_;if(!ready_||!app_||feeds_!=3){failed_=true;return FrameAdvance::Failed;}app_=false;consumed_=true;return FrameAdvance::Complete;}
-    [[nodiscard]] ReplyAdvance advanceProductionReply()noexcept{failed_=true;return ReplyAdvance::Failed;}
-    [[nodiscard]] bool releaseProductionReply()noexcept{failed_=true;return false;}
-    [[nodiscard]] std::vector<std::uint8_t> drainRaw(){auto v=std::move(out_);out_.clear();return v;}
-    [[nodiscard]] bool complete()const noexcept{return !failed_&&feeds_==3&&turns_==6&&frames_==1&&consumed_;}
+
+    [[nodiscard]] bool tlsReady() const noexcept
+    {
+        return tlsReady_;
+    }
+
+    [[nodiscard]] int tlsStateValue() const noexcept
+    {
+        return tlsStateValue_;
+    }
+
+    [[nodiscard]] int negotiatedTlsVersion() const noexcept
+    {
+        return tlsReady_ ? TLS1_2_VERSION : 0;
+    }
+
+    [[nodiscard]] std::size_t inputBioPendingBytes() const noexcept
+    {
+        return coalescedApplicationPending_ ? 1U : 0U;
+    }
+
+    [[nodiscard]] std::size_t outputBioPendingBytes() const noexcept
+    {
+        return outgoingBytes_.size();
+    }
+
+    [[nodiscard]] std::size_t applicationPendingBytes() const noexcept
+    {
+        return coalescedApplicationPending_ ? 1U : 0U;
+    }
+
+    [[nodiscard]] int replyStateValue() const noexcept
+    {
+        return 0;
+    }
+
+    [[nodiscard]] TlsAdvance advanceHandshake() noexcept
+    {
+        ++handshakeOperationCount_;
+        outgoingBytes_.clear();
+
+        switch (handshakeOperationCount_)
+        {
+        case 1U:
+            return TlsAdvance::NeedRead;
+
+        case 2U:
+            outgoingBytes_ = {0x20U, 0x21U};
+            ++tlsStateValue_;
+            return TlsAdvance::NeedRead;
+
+        case 3U:
+            return TlsAdvance::NeedRead;
+
+        case 4U:
+            outgoingBytes_ = {0x22U};
+            ++tlsStateValue_;
+            return TlsAdvance::NeedRead;
+
+        case 5U:
+            outgoingBytes_ = {0x23U, 0x24U};
+            ++tlsStateValue_;
+            return TlsAdvance::NeedRead;
+
+        case 6U:
+            if (clientFeedCount_ != 3U)
+            {
+                failed_ = true;
+                return TlsAdvance::Failed;
+            }
+            tlsReady_ = true;
+            ++tlsStateValue_;
+            return TlsAdvance::Ready;
+
+        default:
+            failed_ = true;
+            return TlsAdvance::Failed;
+        }
+    }
+
+    [[nodiscard]] FrameAdvance advanceFrame() noexcept
+    {
+        ++frameReadCount_;
+        if (!tlsReady_ ||
+            !coalescedApplicationPending_ ||
+            clientFeedCount_ != 3U)
+        {
+            failed_ = true;
+            return FrameAdvance::Failed;
+        }
+
+        coalescedApplicationPending_ = false;
+        coalescedApplicationConsumed_ = true;
+        return FrameAdvance::Complete;
+    }
+
+    [[nodiscard]] ReplyAdvance advanceProductionReply() noexcept
+    {
+        failed_ = true;
+        return ReplyAdvance::Failed;
+    }
+
+    [[nodiscard]] bool releaseProductionReply() noexcept
+    {
+        failed_ = true;
+        return false;
+    }
+
+    [[nodiscard]] std::vector<std::uint8_t> drainRaw()
+    {
+        std::vector<std::uint8_t> outgoingBytes =
+            std::move(outgoingBytes_);
+        outgoingBytes_.clear();
+        return outgoingBytes;
+    }
+
+    [[nodiscard]] bool complete() const noexcept
+    {
+        return !failed_ &&
+               clientFeedCount_ == 3U &&
+               handshakeOperationCount_ == 6U &&
+               frameReadCount_ == 1U &&
+               coalescedApplicationConsumed_;
+    }
+
 private:
-    std::vector<std::uint8_t> out_{};std::size_t feeds_{},turns_{},frames_{};int tlsState_{};
-    bool ready_{},app_{},consumed_{},failed_{};
+    std::vector<std::uint8_t> outgoingBytes_{};
+    std::size_t clientFeedCount_{};
+    std::size_t handshakeOperationCount_{};
+    std::size_t frameReadCount_{};
+    int tlsStateValue_{};
+    bool tlsReady_{};
+    bool coalescedApplicationPending_{};
+    bool coalescedApplicationConsumed_{};
+    bool failed_{};
 };
+
 [[nodiscard]] bool runHarnessStreamBufferRetention()
 {
-    SspiServerInputBuffer b;const std::array<std::uint8_t,6>a{1,2,3,4,5,6};if(!b.append(a))return false;
-    std::size_t kept=0;SecBuffer e{};e.BufferType=SECBUFFER_EXTRA;e.cbBuffer=2;
-    if(!b.retainAfterStep(SEC_I_CONTINUE_NEEDED,e,kept)||kept!=2||!scriptedBytesEqual(b.view(),{5,6}))return false;
-    const std::array<std::uint8_t,2>c{7,8};if(!b.append(c))return false;SecBuffer m{};m.BufferType=SECBUFFER_MISSING;m.cbBuffer=3;
-    if(!b.retainAfterStep(SEC_E_INCOMPLETE_MESSAGE,m,kept)||kept!=0||!scriptedBytesEqual(b.view(),{5,6,7,8}))return false;
-    SecBuffer z{};z.BufferType=SECBUFFER_EMPTY;return b.retainAfterStep(SEC_I_CONTINUE_NEEDED,z,kept)&&kept==0&&b.empty();
+    SspiServerInputBuffer inputBuffer;
+    const std::array<std::uint8_t, 6> initialBytes{
+        1U, 2U, 3U, 4U, 5U, 6U};
+    if (!inputBuffer.append(initialBytes))
+        return false;
+
+    std::size_t retainedExtraBytes = 0U;
+    SecBuffer extraBuffer{};
+    extraBuffer.BufferType = SECBUFFER_EXTRA;
+    extraBuffer.cbBuffer = 2U;
+    if (!inputBuffer.retainAfterStep(
+            SEC_I_CONTINUE_NEEDED,
+            extraBuffer,
+            retainedExtraBytes) ||
+        retainedExtraBytes != 2U ||
+        !scriptedBytesEqual(
+            inputBuffer.view(), {5U, 6U}))
+    {
+        return false;
+    }
+
+    const std::array<std::uint8_t, 2> additionalBytes{
+        7U, 8U};
+    if (!inputBuffer.append(additionalBytes))
+        return false;
+
+    SecBuffer missingBuffer{};
+    missingBuffer.BufferType = SECBUFFER_MISSING;
+    missingBuffer.cbBuffer = 3U;
+    if (!inputBuffer.retainAfterStep(
+            SEC_E_INCOMPLETE_MESSAGE,
+            missingBuffer,
+            retainedExtraBytes) ||
+        retainedExtraBytes != 0U ||
+        !scriptedBytesEqual(
+            inputBuffer.view(), {5U, 6U, 7U, 8U}))
+    {
+        return false;
+    }
+
+    SecBuffer emptyBuffer{};
+    emptyBuffer.BufferType = SECBUFFER_EMPTY;
+    return inputBuffer.retainAfterStep(
+               SEC_I_CONTINUE_NEEDED,
+               emptyBuffer,
+               retainedExtraBytes) &&
+           retainedExtraBytes == 0U &&
+           inputBuffer.empty();
 }
+
 [[nodiscard]] bool runHarnessMultiTurnRoundProgression()
 {
-    ScriptedCredSspClient c;ScriptedCredSspServer v;
-    const auto r=pumpCredSspMemoryBio(TargetProfile::PortableServerName,c,v,CredSspPumpBoundary::InitialClientTsRequest,false);
-    return r.stopReason==CredSspPumpStopReason::BoundaryComplete&&r.tlsEstablished&&r.iterationCount==7&&c.complete()&&v.complete();
+    ScriptedCredSspClient scriptedClient;
+    ScriptedCredSspServer scriptedServer;
+    const CredSspPumpResult pumpResult =
+        pumpCredSspMemoryBio(
+            TargetProfile::PortableServerName,
+            scriptedClient,
+            scriptedServer,
+            CredSspPumpBoundary::InitialClientTsRequest,
+            false);
+    return pumpResult.stopReason ==
+               CredSspPumpStopReason::BoundaryComplete &&
+           pumpResult.tlsEstablished &&
+           pumpResult.iterationCount == 7U &&
+           scriptedClient.complete() &&
+           scriptedServer.complete();
 }
 
 struct FullCredSspAttempt final

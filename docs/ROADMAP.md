@@ -1,3 +1,17 @@
+## R9 post-publication harness-source cleanup (2026-10-26)
+
+**Reconciled parent:** `10885478de9934e0d758c0ba24d9ba53a9fb0e3a`. Exact-SHA workflow-structure validation for
+the R9 candidate increment passed. Before relying on hosted Windows compilation,
+the newly added scripted harness seam was reread against the project's C++23
+naming/readability requirements. This follow-up changes no pump schedule,
+Microsoft status handling, target ordering, candidate gate or production
+behavior; it only expands the test-only scripted provider names/formatting,
+removes ambiguous temporary names, hardens the bounded append guard, and makes
+the scripted token construction unambiguous.
+
+Hosted Windows execution remains the next qualification gate. No physical
+candidate is nominated and `r9_credssp_owner_candidate` remains blocked.
+
 ## R9 P0 — full-CredSSP qualification and exact-SHA candidate semantics (2026-10-26)
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.

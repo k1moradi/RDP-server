@@ -1,3 +1,17 @@
+## R9 harness-source cleanup receipt — 2026-10-26
+
+**Reconciled parent:** `10885478de9934e0d758c0ba24d9ba53a9fb0e3a`. The exact-SHA CI workflow-structure guard
+completed **PASS** for the initial R9 publication. Post-publication source
+inspection found no candidate-semantics issue, but the new scripted test
+provider used overly compact names and an avoidable initializer-list
+construction shape. The test-only source is rewritten for descriptive C++23
+ownership/state naming and explicit move-safe scripted tokens; the bounded SSPI
+input append guard also checks its invariant before subtraction.
+
+No R1 pump ordering, Agent-6 Type-3 acceptance, CTest inventory, CI matrix,
+production source, wire bytes or authority boundary changes. Hosted Windows
+compile/focused/full CTest for this follow-up are **PENDING**.
+
 ## R9 full-CredSSP qualification/candidate authoring receipt — 2026-10-26
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.

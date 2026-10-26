@@ -1,3 +1,21 @@
+## Pre-Type-3 authentication cannot initialize graphics state (2026-10-26)
+
+A connection waiting for Direct NTLM Type 3 remains `PreAdmission`. The
+pre-admission control-flow region must not start or advance the Graphics DVC,
+construct the native graphics owner, reconfigure a surface, preflight/reserve
+frame credit, prepare ClearCodec/AVC state, dispatch post-Share graphics/ACK
+traffic, borrow a framebuffer or publish a frame. Peer EOF at that boundary
+must retire only the accepted connection and leave all of those graphics
+owners/states absent.
+
+Prove the boundary without adding production diagnostic state merely for a
+test. Pair the existing production-backed Type-2/EOF status assertions
+(framebuffer/ClearCodec/write/ACK observations remain zero) with a source
+contract that forbids the hidden state-transition calls from the isolated
+`AcceptedClientPhase::PreAdmission` branch. Surface, codec and frame-credit
+state may become reachable only through the already ordered post-admission
+MCS/Share/GraphicsReady path.
+
 ## R9 CredSSP harness-integrity seam remains test-only (2026-10-26)
 
 Keep the R1 memory-BIO pump as the single round-progression implementation and

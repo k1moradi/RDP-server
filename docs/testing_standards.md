@@ -1,3 +1,24 @@
+## R4 pre-Type-3 graphics-state dormancy gate (2026-10-26)
+
+Keep two complementary gates for a delivered Direct NTLM Type 2 followed by
+peer EOF before Type 3. The production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` case must
+assert the waiting and retired snapshots remain `PreAdmission`, with no
+MCS/Share/native/graphics readiness, no framebuffer observation, no prepared
+ClearCodec frame, no committed graphics TLS write, zero outstanding frame
+acknowledgements and no genuine matching FRAME_ACK.
+
+The existing behavior-named source contract
+`runtime.linux-auth-envelope-independent-native-owner` must additionally
+isolate the HostControl `PreAdmission` branch and reject any call or phase
+transition that could initialize hidden graphics state: Graphics DVC
+start/advance, surface reconfiguration, frame-credit preflight, ClearCodec frame
+publication/cancellation, post-Share application/graphics ACK dispatch,
+GraphicsControl/GraphicsReady transition, native-owner construction,
+framebuffer consumption or frame publication. This is a control-flow proof,
+not permission to add production diagnostics or exercise synthetic positive
+graphics authority.
+
 ## Full Microsoft CredSSP wire oracle must request stream semantics (2026-10-26)
 
 When the Windows CREDSSP SSPI client is connected directly to the production OpenSSL memory-BIO server, request `ISC_REQ_STREAM`, not `ISC_REQ_CONNECTION`. Microsoft documents `ISC_REQ_CONNECTION` as a context where the security context does not handle message formatting and `ISC_REQ_STREAM` as stream-oriented operation. A full wire oracle requires the provider's stream framing to remain on the bytes handed to the production TLS peer.

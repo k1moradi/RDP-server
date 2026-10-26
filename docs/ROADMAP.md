@@ -1,3 +1,44 @@
+## R4 P2 — pre-Type-3 graphics state remains dormant (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.
+The latest physical Linux/X11 trace remains TLS established -> Direct NTLM
+Type 1 received -> production Type 2 queued -> Type 2 fully committed through
+TLS -> Await-Type-3 -> peer EOF. Physical flags remain
+`Type1=0xe2088235` and `Type2=0xe08a8235`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 ownership
+and clipboard are **NOT REACHED**.
+
+Hosted Windows now independently proves Microsoft NTLM SSPI fixed-name/IP and
+full CREDSSP fixed-name/IP-SPN/bare-IP all progress through Type 3 with the
+unchanged production Type 2. That resolves the target-profile question only:
+production remains `fixed-name / RDP-SERVER`. It does not authorize R4 work
+for a physical client that still terminates before Type 3.
+
+R4 therefore changes **tests/documentation only**. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` gate
+already proves, while awaiting Type 3 and after peer EOF, no graphics/native
+readiness, no framebuffer observation, no ClearCodec frame preparation, no
+committed graphics TLS write, zero outstanding FRAME_ACK state and no genuine
+matching ACK. The existing behavior-named source contract
+`runtime.linux-auth-envelope-independent-native-owner` is strengthened so its
+isolated `PreAdmission` branch also forbids entry into the Graphics DVC,
+surface reconfiguration, frame-credit preflight, ClearCodec publication,
+post-Share graphics read/ACK dispatch and GraphicsReady/native-owner paths.
+This closes the hidden-state assurance gap without adding production
+observability or touching ClearCodec, AVC420, FRAME_ACK, surface or scheduler
+implementation.
+
+Connector source/test/document reconciliation: **PASS by inspection**.
+Modified-tree configure/build/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next R4 gate:** remain **P2 / BLOCKED**. Do not change ClearCodec, AVC420,
+FRAME_ACK, surface, frame-credit or scheduler production behavior until a
+physical Windows App trace reaches Type 3 -> pubKeyAuth -> authInfo ->
+`CredentialsVerified` -> native Admission -> MCS -> Share -> RDPGFX
+`GraphicsReady`. At the present physical Type-2/EOF boundary, every graphics
+owner/state remains dormant.
+
 ## R2 P0 — typed Microsoft CredSSP matrix retains fixed-name production identity (2026-10-26)
 
 **Exact target-security evidence SHA:** `14cb27094a57e0a462027ba92f0871bd29396a94`, primary run `40303546395`, Windows protocol job `121507043588`. Agent 6's test-only stream-context correction clears the full-CREDSSP control blocker. The mandatory `TERMSRV/RDP-SERVER` control now establishes TLS 1.2, emits and parses the first Microsoft TSRequest, accepts production Direct NTLM Type 1, emits the unchanged production Type 2, has Microsoft consume that Type 2, receives the next Microsoft TSRequest, and independently observes NTLM Type 3. The minimum control evidence required before target interpretation is therefore **PASS**.

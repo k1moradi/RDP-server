@@ -1,3 +1,29 @@
+## R4 pre-Type-3 graphics-state dormancy authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.
+Mandatory project context and the affected Linux runtime/test sources were
+re-read from that exact remote `main`. The physical Linux/X11 boundary remains
+production Type 2 fully committed -> Await-Type-3 -> peer EOF, with Type 3 and
+all downstream native/session/graphics authority not reached. Hosted Windows
+Microsoft NTLM and full-CREDSSP target cases now reach Type 3 with the unchanged
+production Type 2, so no Type-2 target/profile mutation is justified.
+
+R4 makes no production change. The existing production-backed Type-2/EOF
+fixture already reports zero framebuffer, ClearCodec preparation, graphics TLS
+write and ACK state before and after EOF. The existing behavior-named
+`runtime.linux-auth-envelope-independent-native-owner` source contract is
+tightened to reject pre-admission entry into Graphics DVC start/advance,
+surface reconfiguration, frame-credit preflight, ClearCodec publication,
+post-Share graphics/ACK dispatch, GraphicsControl/GraphicsReady and native
+framebuffer-owner paths. This explicitly covers hidden codec/surface/credit
+state without adding test-only authority to production.
+
+Connector transformation/source review: **PASS by inspection**. No new CTest
+inventory entry or CI count is introduced. Modified-tree configure/build/focused
+CTest/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**. R4 remains **P2 / BLOCKED** until
+physical evidence reaches RDPGFX GraphicsReady.
+
 ## R2 typed target-security decision receipt — 2026-10-26
 
 **Evidence SHA:** `14cb27094a57e0a462027ba92f0871bd29396a94`; GitHub Actions run `40303546395`; Windows protocol job `121507043588`. Windows protocol qualification **PASSed**, including the full Microsoft NTLM/CREDSSP differential. The exact matrix is: `ntlm-fixed-name=PASS`, `ntlm-ip-target=PASS`, `credssp-fixed-name-control=PASS`, `credssp-ip-spn-target=PASS`, `credssp-bare-ip-target=PASS`, and `credssp-target-differential=TYPED`.

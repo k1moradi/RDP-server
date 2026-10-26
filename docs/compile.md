@@ -1,3 +1,13 @@
+## R4 pre-Type-3 graphics dormancy uses the existing source-contract CTest (2026-10-26)
+
+The R4 P2 pre-Type-3 strengthening adds no executable, library, dependency,
+compile definition, CTest registration or build directory. It extends the
+existing CMake-script gate behind
+`runtime.linux-auth-envelope-independent-native-owner`, which reads the
+production HostControl/connection sources as data and remains part of ordinary
+CTest. The canonical single `build/` root and all platform build commands are
+unchanged.
+
 ## Windows full-CredSSP oracle uses SSPI stream context (2026-10-26)
 
 The Windows-only `test_windows_sspi_credssp_interop` target keeps the same source, executable, linkage and one-`build/` root. Its Microsoft CREDSSP client now requests `ISC_REQ_STREAM` instead of `ISC_REQ_CONNECTION`; this adds no dependency, socket, service, permission, install/export surface or production compile definition.

@@ -105,6 +105,9 @@ if(credentials_verified_case LESS 0 OR issue_admission_call LESS 0 OR
         "native admission sampling must remain after CredentialsVerified")
 endif()
 
+# PreAdmission must not enter any native or graphics state owner. The
+# production-backed Type-2/EOF lifecycle separately proves the observable
+# framebuffer/codec/write/ACK trace remains zero before and after retirement.
 foreach(forbidden_text IN ITEMS
         "selectCurrentPhysicalX11Desktop("
         "initializeNativeDesktop("
@@ -113,13 +116,23 @@ foreach(forbidden_text IN ITEMS
         "registerNativeChange("
         "X11DesktopResources"
         "X11AuthorizedInputRoute"
+        "startPersonalDesktopGraphicsDynamicVirtualChannel("
+        "advancePersonalDesktopGraphicsDynamicVirtualChannel("
+        "beginPersonalDesktopGraphicsSurfaceReconfiguration("
+        "preflightPersonalDesktopGraphicsFramePublication("
+        "startPersonalDesktopClearCodecFramePublication("
+        "cancelUnwrittenPersonalDesktopGraphicsFrame("
+        "advancePersonalDesktopPostShareApplicationRead("
+        "dispatchPersonalDesktopPostShareGraphicsTpkt("
+        "AcceptedClientPhase::GraphicsControl"
+        "AcceptedClientPhase::GraphicsReady"
         "publishHostCapturedFrame("
         "processEvents("
         "consumeR4Frame("
         "nativeDesktop_ =")
     forbid_text(
         "${preadmission_source}" "${forbidden_text}"
-        "pre-admission authentication failure must not touch the R5 native owner")
+        "pre-admission authentication failure must not touch native/graphics state")
 endforeach()
 
 extract_between(

@@ -1,3 +1,11 @@
+## Agent 6 hosted blocker diagnosis and empty-peer repair receipt — 2026-10-26
+
+Current dependency state was rechecked on GitHub before editing. Agent 9 has already added exact-SHA candidate/matrix qualification on top of Agent 6, but the critical dependency remains blocked upstream at the Microsoft fixed-name control. Hosted Windows run `40289047769`, job `121459879597`, compiled the full harness and passed both inner NTLM target tests. The full CREDSSP fixed-name control then reported TLS 1.2 established, three `SEC_I_CONTINUE_NEEDED` client calls and a final 94-byte client TLS flight. That flight made OpenSSL TLS-ready with zero server reply bytes; round 3 shows `sspi-called=no`, after which the server application reader fails before the initial TSRequest. The physical-IP and bare-IP failures therefore remain non-diagnostic.
+
+The test-only repair adds the missing measured empty-peer continuation after TLS completion and extends the existing scripted shared-pump test to require it. No production identity or wire change is made. The Microsoft return from this zero-length TOKEN call remains the authoritative provider evidence; the harness does not assume it will succeed. Exact-call diagnostics already report phase/status/input/output/EXTRA/MISSING/zero-token/TLS/progression fields.
+
+GitHub connector transformation and source-contract review: **PASS**. Local/native Windows compile and CTest: **NOT RUN** here. Exact-publication-SHA workflow structure/full Windows execution: **PENDING**. Agent 2/R10 interpretation, Agent 9 owner-candidate qualification, and the next physical Linux/X11 retry remain **BLOCKED** until the fixed-name control reaches observed NTLM Type 3 and the IP target matrix becomes typed.
+
 ## R9 harness-source cleanup receipt — 2026-10-26
 
 **Reconciled parent:** `10885478de9934e0d758c0ba24d9ba53a9fb0e3a`. The exact-SHA CI workflow-structure guard

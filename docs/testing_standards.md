@@ -1,3 +1,11 @@
+## CredSSP TLS-ready empty-peer continuation rule (2026-10-26)
+
+A completed TLS handshake can be a semantic peer transition even when the server emits zero wire bytes. In the Windows full-CREDSSP memory-BIO oracle, a zero-length SSPI TOKEN continuation is allowed only when all of these are true in the same bounded pump iteration: nonzero client bytes were actually fed to the server; the server changed from TLS-not-ready to TLS-ready; the drained server token is empty; the Microsoft CREDSSP context already exists; the previous Microsoft status is `SEC_I_CONTINUE_NEEDED`; and no provider input is retained. The continuation still uses exactly `SECBUFFER_TOKEN + SECBUFFER_EMPTY`.
+
+This TLS-ready transition is itself measurable progress and can happen only once per server context. It does not authorize arbitrary zero-token retries. If Microsoft accepts it and produces output, deliver that output before any server application read. If Microsoft returns `SEC_E_INCOMPLETE_MESSAGE`, report `memory-bio-zero-token-after-tls-incomplete` and stop because the peer has no bytes to supply. If Microsoft returns `SEC_E_OK` with no output, report `memory-bio-zero-token-after-tls-no-tsrequest`. If Microsoft returns zero-output `SEC_I_CONTINUE_NEEDED`, only the existing SSPI-owned continuation state may permit another local call; unchanged state must terminate through the no-progress guard.
+
+The scripted multi-turn harness regression must model this exact boundary: the final client TLS token makes the server TLS-ready but does not create application plaintext; the scripted Microsoft continuation is invoked with a zero-length input token and only that call emits the first application token. This keeps the regression aligned with the hosted Microsoft failure rather than merely testing generic zero-output continuation elsewhere in the handshake.
+
 ## R9 full-CredSSP harness-integrity and candidate gate (2026-10-26)
 
 R1 owns the bounded memory-BIO pump; Agent 6 owns its Type-3/per-call evidence

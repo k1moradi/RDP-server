@@ -1653,13 +1653,14 @@ template <typename Client, typename Server>
         havePendingClientStep = false;
 
         const int tlsStateBefore = server.tlsStateValue();
+        const bool tlsReadyBefore = server.tlsReady();
         const std::size_t inputPendingBefore =
             server.inputBioPendingBytes();
         const std::size_t applicationPendingBefore =
             server.applicationPendingBytes();
 
         bool serverProviderOperationPerformed = false;
-        if (!server.tlsReady())
+        if (!tlsReadyBefore)
         {
             const TlsAdvance tlsAdvance = server.advanceHandshake();
             serverProviderOperationPerformed = true;
@@ -1672,12 +1673,17 @@ template <typename Client, typename Server>
             }
         }
 
-        if (server.tlsReady() && !serverProviderOperationPerformed)
+        const bool tlsBecameReady =
+            !tlsReadyBefore && server.tlsReady();
+        if (server.tlsReady())
         {
             result.tlsEstablished = true;
             result.negotiatedTlsVersion =
                 server.negotiatedTlsVersion();
+        }
 
+        if (server.tlsReady() && !serverProviderOperationPerformed)
+        {
             if (!productionReplyCommitted)
             {
                 const int replyStateBefore =
@@ -1775,19 +1781,29 @@ template <typename Client, typename Server>
         }
         iteration.serverToClientBytes = serverToken.size();
 
+        const bool tlsCompletedWithEmptyPeerToken =
+            tlsBecameReady &&
+            iteration.clientToServerBytes != 0U &&
+            serverToken.empty() &&
+            client.hasContext() &&
+            result.lastClientStatus == SEC_I_CONTINUE_NEEDED &&
+            client.pendingServerInputBytes() == 0U;
         const bool shouldAdvanceMicrosoft =
             !serverToken.empty() ||
             !client.hasContext() ||
-            client.canContinueWithoutNewServerBytes();
+            client.canContinueWithoutNewServerBytes() ||
+            tlsCompletedWithEmptyPeerToken;
         if (shouldAdvanceMicrosoft)
         {
             const char *const phase =
                 !client.hasContext()
                 ? "initial-context"
-                : boundary ==
-                      CredSspPumpBoundary::InitialClientTsRequest
-                    ? "tls-or-credssp-continue"
-                    : "after-production-type2";
+                : tlsCompletedWithEmptyPeerToken
+                    ? "tls-complete-empty-peer-continue"
+                    : boundary ==
+                          CredSspPumpBoundary::InitialClientTsRequest
+                        ? "tls-or-credssp-continue"
+                        : "after-production-type2";
             pendingClientStep =
                 client.step(profile, serverToken);
             havePendingClientStep = true;
@@ -1838,6 +1854,30 @@ template <typename Client, typename Server>
                     pendingClientStep.status))
             {
                 result.failureStage = "memory-bio-microsoft-credssp";
+                result.stopReason =
+                    CredSspPumpStopReason::TypedFailure;
+                result.iterations[result.iterationCount++] =
+                    iteration;
+                return result;
+            }
+
+            if (tlsCompletedWithEmptyPeerToken &&
+                pendingClientStep.status == SEC_E_INCOMPLETE_MESSAGE)
+            {
+                result.failureStage =
+                    "memory-bio-zero-token-after-tls-incomplete";
+                result.stopReason =
+                    CredSspPumpStopReason::TypedFailure;
+                result.iterations[result.iterationCount++] =
+                    iteration;
+                return result;
+            }
+            if (tlsCompletedWithEmptyPeerToken &&
+                pendingClientStep.status == SEC_E_OK &&
+                pendingClientStep.output.empty())
+            {
+                result.failureStage =
+                    "memory-bio-zero-token-after-tls-no-tsrequest";
                 result.stopReason =
                     CredSspPumpStopReason::TypedFailure;
                 result.iterations[result.iterationCount++] =
@@ -2033,6 +2073,23 @@ public:
                 false,
                 false);
 
+        case 5U:
+            if (!serverToken.empty() || allowLocalRepump_ ||
+                retainedServerInputBytes_ != 0U)
+            {
+                return makeFailedStep();
+            }
+            sawTlsCompletionEmptyPeerContinuation_ = true;
+            return makeSuccessfulStep(
+                SEC_I_CONTINUE_NEEDED,
+                ScriptedCredSspToken{0x14U, 0x15U},
+                0U,
+                0U,
+                0U,
+                0U,
+                true,
+                false);
+
         default:
             return makeFailedStep();
         }
@@ -2041,13 +2098,14 @@ public:
     [[nodiscard]] bool complete() const noexcept
     {
         return !failed_ &&
-               stepCount_ == 5U &&
+               stepCount_ == 6U &&
                peerTokenStepCount_ == 3U &&
                sawZeroOutputContinuation_ &&
                sawExtraRetention_ &&
                sawLocalRepump_ &&
                sawIncompleteMessage_ &&
-               sawIncompleteRecovery_;
+               sawIncompleteRecovery_ &&
+               sawTlsCompletionEmptyPeerContinuation_;
     }
 
 private:
@@ -2102,6 +2160,7 @@ private:
     bool sawLocalRepump_{};
     bool sawIncompleteMessage_{};
     bool sawIncompleteRecovery_{};
+    bool sawTlsCompletionEmptyPeerContinuation_{};
     bool failed_{};
 };
 
@@ -2122,7 +2181,9 @@ public:
             (clientFeedCount_ == 1U &&
              scriptedBytesEqual(bytes, {0x11U})) ||
             (clientFeedCount_ == 2U &&
-             scriptedBytesEqual(bytes, {0x12U, 0x13U}));
+             scriptedBytesEqual(bytes, {0x12U, 0x13U})) ||
+            (clientFeedCount_ == 3U &&
+             scriptedBytesEqual(bytes, {0x14U, 0x15U}));
         if (!expectedBytes)
         {
             failed_ = true;
@@ -2130,7 +2191,7 @@ public:
         }
 
         ++clientFeedCount_;
-        if (clientFeedCount_ == 3U)
+        if (clientFeedCount_ == 4U)
             coalescedApplicationPending_ = true;
         return true;
     }
@@ -2253,7 +2314,7 @@ public:
     [[nodiscard]] bool complete() const noexcept
     {
         return !failed_ &&
-               clientFeedCount_ == 3U &&
+               clientFeedCount_ == 4U &&
                handshakeOperationCount_ == 6U &&
                frameReadCount_ == 1U &&
                coalescedApplicationConsumed_;

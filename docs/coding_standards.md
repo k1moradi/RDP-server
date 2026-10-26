@@ -1,3 +1,9 @@
+## Physical TLS diagnostics are bounded, public and non-authorizing (2026-10-26)
+
+Capture negotiated TLS presentation metadata only from the already-established R1 `SSL*`, never from a parallel TLS owner. Cipher/CN text is fixed-capacity; certificate CN is logged only when printable ASCII and otherwise reports `redacted`. Client SNI is reduced to presence plus IP/DNS/none class rather than retaining the name. IP/DNS SAN observations, certificate fingerprint and exact-endpoint self-check are diagnostics only and cannot create CredSSP, native Admission, MCS, Share, graphics, input or clipboard authority.
+
+Generated-certificate identity experiments remain test-only. Production keeps the generic `RDP Server` CN and exact numeric `iPAddress` SAN until external client/policy evidence selects a different profile. A test may vary the CN while preserving the same IP SAN, but must not expose that choice through runtime configuration, add a textual-IP `dNSName` SAN, weaken certificate validation or cap production at TLS 1.2 merely to match one oracle.
+
 ## R2 Type-1 client profile observation is structural only (2026-10-26)
 
 Parse each accepted NTLM NEGOTIATE_MESSAGE once through the production bounded

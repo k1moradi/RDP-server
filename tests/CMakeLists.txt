@@ -2918,6 +2918,8 @@ foreach(generated_tls_context_case IN ITEMS
         generated-tls-identity-ipv6-san
         generated-tls-identity-generic-subject-ip-san-authority
         generated-tls-identity-owner-ipv4-san-der
+        generated-tls-test-only-cn-variants-retain-ip-san
+        generated-tls-context-negotiates-tls13
         generated-tls-identity-wrong-endpoint-denial
         generated-tls-identity-stop-retirement
         generated-tls-identity-no-listener-side-effect)

@@ -411,7 +411,8 @@ inline constexpr std::array<std::uint8_t, 15> kV6LogonFailure{
 
 [[nodiscard]] TestSsl establishHybridTls(
     LinuxRuntimeConnection &connection, int clientDescriptor,
-    const RuntimeServerTlsContext &tlsContext)
+    const RuntimeServerTlsContext &tlsContext,
+    const char *clientServerName = nullptr)
 {
     assert(setNonblocking(clientDescriptor));
     assert(sendSocketAll(clientDescriptor, kHybridNlaRequest));
@@ -455,6 +456,11 @@ inline constexpr std::array<std::uint8_t, 15> kV6LogonFailure{
     TestSsl clientTls{SSL_new(clientContext.get()), SSL_free};
     assert(clientTls);
     SSL_set_connect_state(clientTls.get());
+    if (clientServerName != nullptr)
+    {
+        assert(SSL_set_tlsext_host_name(
+                   clientTls.get(), clientServerName) == 1);
+    }
     assert(SSL_set_fd(clientTls.get(), clientDescriptor) == 1);
 
     bool clientEstablished = false;
@@ -1485,6 +1491,19 @@ void testConnectionR1AcceptanceDiagnostics(
     assert(diagnostics.negotiatedSecurityProtocol == kRdpProtocolHybrid);
     assert(diagnostics.negotiatedTlsProtocolVersion == TLS1_2_VERSION ||
            diagnostics.negotiatedTlsProtocolVersion == TLS1_3_VERSION);
+    assert(diagnostics.negotiatedTlsCipherSuiteBytes != 0U);
+    assert(!diagnostics.clientSniPresent);
+    assert(diagnostics.clientSniClass ==
+           rdp_server::server::runtime::LinuxRuntimeTlsClientSniClass::None);
+    assert(diagnostics.certificateSubjectCommonNameClass ==
+           rdp_server::server::runtime::
+               LinuxRuntimeTlsCertificateCommonNameClass::Other);
+    assert(std::string_view{
+               diagnostics.certificateSubjectCommonName.data(),
+               diagnostics.certificateSubjectCommonNameBytes} ==
+           "rdp-runtime-credssp-test");
+    assert(!diagnostics.certificateSanIpPresent);
+    assert(!diagnostics.certificateSanDnsPresent);
     assert(diagnostics.credSspTransition == DiagnosticCredSsp::AwaitingToken);
     assert(diagnostics.certificateFingerprintAvailable);
     assert(!diagnostics.shareActivated);
@@ -1510,7 +1529,34 @@ void testConnectionR1AcceptanceDiagnostics(
     assert(diagnostics.termination == Termination::OwnerCancellation);
     assert(diagnostics.certificateFingerprintAvailable);
     assert(!connection.hasAdmissionLease());
+    clientTls.reset();
     assert(::close(clientDescriptor) == 0);
+
+    const auto validateClientSniClass =
+        [&](const char *serverName,
+            rdp_server::server::runtime::LinuxRuntimeTlsClientSniClass
+                expectedClass)
+    {
+        int sniClientDescriptor = -1;
+        auto sniAccepted = acceptLoopbackConnection(sniClientDescriptor);
+        LinuxRuntimeConnection sniConnection{
+            configuration, std::move(sniAccepted)};
+        TestSsl sniClientTls = establishHybridTls(
+            sniConnection, sniClientDescriptor, tlsContext, serverName);
+        const auto sniDiagnostics = sniConnection.acceptanceDiagnostics();
+        assert(sniDiagnostics.clientSniPresent);
+        assert(sniDiagnostics.clientSniClass == expectedClass);
+        assert(sniDiagnostics.negotiatedTlsCipherSuiteBytes != 0U);
+        sniConnection.revoke();
+        sniClientTls.reset();
+        assert(::close(sniClientDescriptor) == 0);
+    };
+    validateClientSniClass(
+        "rdp-runtime.test",
+        rdp_server::server::runtime::LinuxRuntimeTlsClientSniClass::Dns);
+    validateClientSniClass(
+        "127.0.0.1",
+        rdp_server::server::runtime::LinuxRuntimeTlsClientSniClass::Ip);
 
     int handshakeClientDescriptor = -1;
     auto handshakeAccepted =

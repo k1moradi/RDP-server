@@ -434,6 +434,60 @@ readLinuxDefaultRoutePreferences()
     return "invalid";
 }
 
+[[nodiscard]] constexpr const char *tlsProtocolVersionName(
+    int protocolVersion) noexcept
+{
+    switch (protocolVersion)
+    {
+    case TLS1_2_VERSION: return "TLS1.2";
+#if defined(TLS1_3_VERSION)
+    case TLS1_3_VERSION: return "TLS1.3";
+#endif
+    default: return "unavailable";
+    }
+}
+
+[[nodiscard]] constexpr const char *tlsClientSniClassName(
+    LinuxRuntimeTlsClientSniClass serverNameClass) noexcept
+{
+    switch (serverNameClass)
+    {
+    case LinuxRuntimeTlsClientSniClass::None: return "none";
+    case LinuxRuntimeTlsClientSniClass::Ip: return "IP";
+    case LinuxRuntimeTlsClientSniClass::Dns: return "DNS";
+    }
+    return "none";
+}
+
+[[nodiscard]] constexpr const char *tlsCertificateCommonNameClassName(
+    LinuxRuntimeTlsCertificateCommonNameClass commonNameClass) noexcept
+{
+    switch (commonNameClass)
+    {
+    case LinuxRuntimeTlsCertificateCommonNameClass::Unavailable:
+        return "unavailable";
+    case LinuxRuntimeTlsCertificateCommonNameClass::Generic:
+        return "generic";
+    case LinuxRuntimeTlsCertificateCommonNameClass::Endpoint:
+        return "endpoint";
+    case LinuxRuntimeTlsCertificateCommonNameClass::Other:
+        return "other";
+    case LinuxRuntimeTlsCertificateCommonNameClass::Redacted:
+        return "redacted";
+    }
+    return "unavailable";
+}
+
+[[nodiscard]] std::string_view boundedTlsDiagnosticText(
+    const std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity> &storage,
+    std::size_t bytes,
+    std::string_view fallback) noexcept
+{
+    return bytes <= storage.size() && bytes != 0U
+        ? std::string_view{storage.data(), bytes}
+        : fallback;
+}
+
 [[nodiscard]] std::string_view ntlmChallengeAvIdsText(
     const rdp_server::server::security::NtlmChallengeMessageObservation
         &observation,
@@ -2728,6 +2782,17 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             std::array<char, 128> ntlmAvIdStorage{};
             const std::string_view ntlmAvIds =
                 ntlmChallengeAvIdsText(ntlmChallenge, ntlmAvIdStorage);
+            const std::string_view tlsCipherSuite = boundedTlsDiagnosticText(
+                diagnostics.negotiatedTlsCipherSuite,
+                diagnostics.negotiatedTlsCipherSuiteBytes, "unavailable");
+            const std::string_view certificateCommonName =
+                boundedTlsDiagnosticText(
+                    diagnostics.certificateSubjectCommonName,
+                    diagnostics.certificateSubjectCommonNameBytes,
+                    diagnostics.certificateSubjectCommonNameClass ==
+                            LinuxRuntimeTlsCertificateCommonNameClass::Redacted
+                        ? "redacted"
+                        : "unavailable");
 
             // One bounded fail-only record. Never add credentials, hashes,
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
@@ -2745,6 +2810,9 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "ntlm-target-name-code-units=%zu ntlm-target-info-bytes=%zu "
                 "ntlm-type2-bytes=%zu ntlm-av-ids=%.*s "
                 "ntlm-server-target=%s ntlm-target-name-present=%s "
+                "tls-version=%s tls-cipher=%.*s "
+                "client-sni=%s client-sni-class=%s "
+                "cert-cn-class=%s cert-cn=%.*s cert-san-ip=%s cert-san-dns=%s "
                 "fingerprint=%s "
                 "ip-self-check=%s selected-cert=%s handshake-step=%llu "
                 "handshake-result=%s ssl-error=%d openssl-reason=%u "
@@ -2786,6 +2854,16 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 static_cast<int>(ntlmAvIds.size()), ntlmAvIds.data(),
                 ntlmChallenge.targetTypeServer ? "yes" : "no",
                 ntlmChallenge.targetNamePresent ? "yes" : "no",
+                tlsProtocolVersionName(diagnostics.negotiatedTlsProtocolVersion),
+                static_cast<int>(tlsCipherSuite.size()), tlsCipherSuite.data(),
+                diagnostics.clientSniPresent ? "present" : "absent",
+                tlsClientSniClassName(diagnostics.clientSniClass),
+                tlsCertificateCommonNameClassName(
+                    diagnostics.certificateSubjectCommonNameClass),
+                static_cast<int>(certificateCommonName.size()),
+                certificateCommonName.data(),
+                diagnostics.certificateSanIpPresent ? "yes" : "no",
+                diagnostics.certificateSanDnsPresent ? "yes" : "no",
                 fingerprint.data(),
                 endpointIdentityStatusName(
                     diagnostics.certificateExactIpSelfCheck),

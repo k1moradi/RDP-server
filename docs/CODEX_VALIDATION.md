@@ -1,3 +1,11 @@
+## Agent 1 physical TLS/certificate differential authoring receipt — 2026-10-26
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`. Concurrent R4/R8 and Agent-2 publications were retained. The implementation preserves the production generated certificate profile and `fixed-name / RDP-SERVER` authentication identity, and changes no Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, TLS minimum, security level or certificate-validation policy.
+
+Authored source adds bounded established-TLS diagnostics for version/cipher, SNI presence/class, safe CN class/value and SAN types to the existing R1/R10 fail-only terminal evidence. Test-only certificate variants compare generic CN and endpoint CN while retaining one identical exact `iPAddress` SAN and no DNS SAN. A production-context memory-BIO test requires TLS 1.3 with certificate verification and exact-IP checking.
+
+Behavior coverage is registered as `runtime.generated-tls-test-only-cn-variants-retain-ip-san`, `runtime.generated-tls-context-negotiates-tls13`, plus the extended `runtime.linux-connection-tls-acceptance-diagnostics`. Connector transformation/source review: **PASS**. Canonical owner one-`build/` compile/focused/full CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted execution: **PENDING**.
+
 ## Agent 2 Type-1 profile observer authoring receipt — 2026-10-26
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

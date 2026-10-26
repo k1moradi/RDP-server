@@ -439,9 +439,30 @@ enum class LinuxRuntimeProtocolDiagnosticStage : std::uint8_t
     ShareActivated,
 };
 
+enum class LinuxRuntimeTlsClientSniClass : std::uint8_t
+{
+    None,
+    Ip,
+    Dns,
+};
+
+enum class LinuxRuntimeTlsCertificateCommonNameClass : std::uint8_t
+{
+    Unavailable,
+    Generic,
+    Endpoint,
+    Other,
+    Redacted,
+};
+
+inline constexpr std::size_t kLinuxRuntimeTlsDiagnosticTextCapacity = 128U;
+inline constexpr std::size_t kLinuxRuntimeTlsSelectedEndpointCapacity = 64U;
+
 // Bounded, non-authorizing first-client diagnostic snapshot. It contains only
-// protocol/lifecycle scalars plus the public certificate fingerprint; never
-// passwords, NTLM/GSS responses, session keys or delegated credentials.
+// protocol/lifecycle scalars plus public TLS/certificate metadata; never
+// passwords, NTLM/GSS responses, session keys, TLS secrets or delegated
+// credentials. Text fields are fixed-capacity and may contain only printable
+// public diagnostic text captured from the established connection.
 struct LinuxRuntimeConnectionAcceptanceDiagnostics final
 {
     rdp_server::server::transport::PreauthStage preauthStage{
@@ -450,6 +471,20 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
         LinuxRuntimeTlsHandshakeDiagnosticStage::Closed};
     std::uint32_t negotiatedSecurityProtocol{};
     int negotiatedTlsProtocolVersion{};
+    std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity>
+        negotiatedTlsCipherSuite{};
+    std::size_t negotiatedTlsCipherSuiteBytes{};
+    bool clientSniPresent{};
+    LinuxRuntimeTlsClientSniClass clientSniClass{
+        LinuxRuntimeTlsClientSniClass::None};
+    std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity>
+        certificateSubjectCommonName{};
+    std::size_t certificateSubjectCommonNameBytes{};
+    LinuxRuntimeTlsCertificateCommonNameClass
+        certificateSubjectCommonNameClass{
+            LinuxRuntimeTlsCertificateCommonNameClass::Unavailable};
+    bool certificateSanIpPresent{};
+    bool certificateSanDnsPresent{};
     LinuxRuntimeCredSspDiagnosticTransition credSspTransition{
         LinuxRuntimeCredSspDiagnosticTransition::NotStarted};
     LinuxRuntimeAuthenticationProgress authenticationProgress{
@@ -1281,6 +1316,23 @@ private:
                 LinuxConsoleAdmissionFailureReason::None};
     RuntimeTlsCertificateFingerprint negotiatedCertificateSha256_{};
     bool negotiatedCertificateFingerprintAvailable_{};
+    std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity>
+        negotiatedTlsCipherSuite_{};
+    std::size_t negotiatedTlsCipherSuiteBytes_{};
+    bool clientSniPresent_{};
+    LinuxRuntimeTlsClientSniClass clientSniClass_{
+        LinuxRuntimeTlsClientSniClass::None};
+    std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity>
+        certificateSubjectCommonName_{};
+    std::size_t certificateSubjectCommonNameBytes_{};
+    LinuxRuntimeTlsCertificateCommonNameClass
+        certificateSubjectCommonNameClass_{
+            LinuxRuntimeTlsCertificateCommonNameClass::Unavailable};
+    bool certificateSanIpPresent_{};
+    bool certificateSanDnsPresent_{};
+    std::array<char, kLinuxRuntimeTlsSelectedEndpointCapacity>
+        selectedTlsEndpoint_{};
+    std::size_t selectedTlsEndpointBytes_{};
     RuntimeTlsEndpointIdentityStatus certificateExactIpSelfCheck_{
         RuntimeTlsEndpointIdentityStatus::CertificateUnavailable};
     bool selectedCertificateIdentityChecked_{};

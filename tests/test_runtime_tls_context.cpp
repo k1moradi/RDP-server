@@ -10,12 +10,14 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <limits>
 #include <string_view>
 
 #include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
@@ -40,10 +42,42 @@ struct X509Closer
 {
     void operator()(X509 *certificate) const noexcept { ::X509_free(certificate); }
 };
+struct PrivateKeyCloser
+{
+    void operator()(EVP_PKEY *privateKey) const noexcept
+    {
+        ::EVP_PKEY_free(privateKey);
+    }
+};
+struct X509NameCloser
+{
+    void operator()(X509_NAME *name) const noexcept { ::X509_NAME_free(name); }
+};
+struct X509ExtensionCloser
+{
+    void operator()(X509_EXTENSION *extension) const noexcept
+    {
+        ::X509_EXTENSION_free(extension);
+    }
+};
+struct SslContextCloser
+{
+    void operator()(SSL_CTX *context) const noexcept { ::SSL_CTX_free(context); }
+};
+struct SslCloser
+{
+    void operator()(SSL *tls) const noexcept { ::SSL_free(tls); }
+};
 
 using OwnedFile = std::unique_ptr<std::FILE, FileCloser>;
 using OwnedBio = std::unique_ptr<BIO, BioCloser>;
 using OwnedCertificate = std::unique_ptr<X509, X509Closer>;
+using OwnedPrivateKey = std::unique_ptr<EVP_PKEY, PrivateKeyCloser>;
+using OwnedX509Name = std::unique_ptr<X509_NAME, X509NameCloser>;
+using OwnedX509Extension =
+    std::unique_ptr<X509_EXTENSION, X509ExtensionCloser>;
+using OwnedSslContext = std::unique_ptr<SSL_CTX, SslContextCloser>;
+using OwnedSsl = std::unique_ptr<SSL, SslCloser>;
 
 constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
 
@@ -381,6 +415,269 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+[[nodiscard]] bool certificateCommonNameEquals(
+    const X509 *certificate, std::string_view expected) noexcept
+{
+    if (certificate == nullptr)
+        return false;
+    const X509_NAME *const subject =
+        ::X509_get_subject_name(const_cast<X509 *>(certificate));
+    const int index = subject == nullptr
+        ? -1
+        : ::X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+    if (index < 0 ||
+        ::X509_NAME_get_index_by_NID(subject, NID_commonName, index) != -1)
+    {
+        return false;
+    }
+    const X509_NAME_ENTRY *const entry = ::X509_NAME_get_entry(subject, index);
+    const ASN1_STRING *const value =
+        entry == nullptr ? nullptr : ::X509_NAME_ENTRY_get_data(entry);
+    const int bytes = value == nullptr ? 0 : ::ASN1_STRING_length(value);
+    const unsigned char *const data =
+        value == nullptr ? nullptr : ::ASN1_STRING_get0_data(value);
+    return bytes >= 0 && static_cast<std::size_t>(bytes) == expected.size() &&
+           data != nullptr &&
+           std::equal(
+               expected.begin(), expected.end(),
+               reinterpret_cast<const char *>(data));
+}
+
+[[nodiscard]] OwnedCertificate makeTestOnlyCertificateProfile(
+    std::string_view commonName) noexcept
+{
+    if (commonName.empty() ||
+        commonName.size() >
+            static_cast<std::size_t>((std::numeric_limits<int>::max)()))
+    {
+        return {};
+    }
+
+    OwnedPrivateKey privateKey{
+        ::EVP_PKEY_Q_keygen(nullptr, nullptr, "RSA", 2048), PrivateKeyCloser{}};
+    OwnedCertificate certificate{::X509_new(), X509Closer{}};
+    OwnedX509Name subject{::X509_NAME_new(), X509NameCloser{}};
+    if (!privateKey || !certificate || !subject ||
+        ::X509_set_version(certificate.get(), 2) != 1 ||
+        ::ASN1_INTEGER_set(::X509_get_serialNumber(certificate.get()), 1) != 1 ||
+        ::X509_gmtime_adj(::X509_getm_notBefore(certificate.get()), -60) ==
+            nullptr ||
+        ::X509_gmtime_adj(
+            ::X509_getm_notAfter(certificate.get()), 60 * 60) == nullptr ||
+        ::X509_set_pubkey(certificate.get(), privateKey.get()) != 1 ||
+        ::X509_NAME_add_entry_by_NID(
+            subject.get(), NID_commonName, MBSTRING_ASC,
+            reinterpret_cast<const unsigned char *>(commonName.data()),
+            static_cast<int>(commonName.size()), -1, 0) != 1 ||
+        ::X509_set_subject_name(certificate.get(), subject.get()) != 1 ||
+        ::X509_set_issuer_name(certificate.get(), subject.get()) != 1)
+    {
+        return {};
+    }
+
+    X509V3_CTX extensionContext{};
+    ::X509V3_set_ctx(
+        &extensionContext, certificate.get(), certificate.get(),
+        nullptr, nullptr, 0);
+    OwnedX509Extension subjectAlternativeName{
+        ::X509V3_EXT_conf_nid(
+            nullptr, &extensionContext, NID_subject_alt_name,
+            const_cast<char *>("IP:192.0.2.60")),
+        X509ExtensionCloser{}};
+    if (!subjectAlternativeName ||
+        ::X509_add_ext(
+            certificate.get(), subjectAlternativeName.get(), -1) != 1 ||
+        ::X509_sign(certificate.get(), privateKey.get(), ::EVP_sha256()) <= 0)
+    {
+        return {};
+    }
+    return certificate;
+}
+
+[[nodiscard]] bool certificateHasOnlyExpectedIpv4San(
+    const X509 *certificate) noexcept
+{
+    constexpr std::array<unsigned char, 4> expected{
+        0xc0U, 0x00U, 0x02U, 0x3cU};
+    if (certificate == nullptr)
+        return false;
+
+    GENERAL_NAMES *rawNames = static_cast<GENERAL_NAMES *>(
+        ::X509_get_ext_d2i(
+            const_cast<X509 *>(certificate),
+            NID_subject_alt_name, nullptr, nullptr));
+    std::unique_ptr<GENERAL_NAMES, decltype(&GENERAL_NAMES_free)>
+        names{rawNames, GENERAL_NAMES_free};
+    if (!names || ::sk_GENERAL_NAME_num(names.get()) != 1)
+        return false;
+    const GENERAL_NAME *const name =
+        ::sk_GENERAL_NAME_value(names.get(), 0);
+    if (name == nullptr || name->type != GEN_IPADD ||
+        name->d.iPAddress == nullptr)
+    {
+        return false;
+    }
+    const ASN1_OCTET_STRING *const ip = name->d.iPAddress;
+    return ::ASN1_STRING_length(ip) == static_cast<int>(expected.size()) &&
+           std::equal(
+               expected.begin(), expected.end(),
+               ::ASN1_STRING_get0_data(ip));
+}
+
+[[nodiscard]] bool validateTestOnlyGeneratedCertificateProfiles() noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+    constexpr std::string_view endpoint{"192.0.2.60"};
+
+    RuntimeServerTlsContext production =
+        RuntimeServerTlsContext::fromGeneratedIpAddress(endpoint);
+    const OwnedCertificate generic =
+        makeTestOnlyCertificateProfile("RDP Server");
+    const OwnedCertificate endpointCommonName =
+        makeTestOnlyCertificateProfile(endpoint);
+    if (!production || production.certificate() == nullptr ||
+        !generic || !endpointCommonName)
+    {
+        return fail("test-only certificate profile construction failed");
+    }
+
+    if (!certificateCommonNameEquals(production.certificate(), "RDP Server") ||
+        !certificateCommonNameEquals(generic.get(), "RDP Server") ||
+        !certificateCommonNameEquals(endpointCommonName.get(), endpoint))
+    {
+        return fail("certificate profile common-name differential mismatch");
+    }
+
+    for (const X509 *certificate :
+         {production.certificate(), generic.get(), endpointCommonName.get()})
+    {
+        if (!certificateHasOnlyExpectedIpv4San(certificate) ||
+            ::X509_check_ip_asc(
+                const_cast<X509 *>(certificate), endpoint.data(), 0) != 1 ||
+            ::X509_check_host(
+                const_cast<X509 *>(certificate), endpoint.data(),
+                endpoint.size(), X509_CHECK_FLAG_NEVER_CHECK_SUBJECT,
+                nullptr) == 1)
+        {
+            return fail(
+                "certificate profile changed exact-IP SAN authority");
+        }
+    }
+
+    if (production.validateEndpointIdentity(endpoint) !=
+            RuntimeTlsEndpointIdentityStatus::Match ||
+        production.validateEndpointIdentity("192.0.2.61") !=
+            RuntimeTlsEndpointIdentityStatus::Mismatch)
+    {
+        return fail("production generated endpoint identity changed");
+    }
+    return true;
+}
+
+[[nodiscard]] bool validateGeneratedTls13Negotiation() noexcept
+{
+#if !defined(TLS1_3_VERSION)
+    return fail("TLS 1.3 is unavailable in this OpenSSL build");
+#else
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    constexpr std::string_view endpoint{"192.0.2.70"};
+
+    RuntimeServerTlsContext context =
+        RuntimeServerTlsContext::fromGeneratedIpAddress(endpoint);
+    RuntimeServerTlsContext::ServerTls serverTls = context.createServerTls();
+    OwnedSslContext clientContext{
+        ::SSL_CTX_new(::TLS_client_method()), SslContextCloser{}};
+    if (!context || !serverTls || !clientContext)
+        return fail("TLS 1.3 fixture construction failed");
+
+    if (::SSL_CTX_set_min_proto_version(
+            clientContext.get(), TLS1_3_VERSION) != 1 ||
+        ::SSL_CTX_set_max_proto_version(
+            clientContext.get(), TLS1_3_VERSION) != 1)
+    {
+        return fail("TLS 1.3 client policy is unavailable");
+    }
+    ::SSL_CTX_set_verify(clientContext.get(), SSL_VERIFY_PEER, nullptr);
+    X509_STORE *const trustStore =
+        ::SSL_CTX_get_cert_store(clientContext.get());
+    if (trustStore == nullptr ||
+        ::X509_STORE_add_cert(
+            trustStore, const_cast<X509 *>(context.certificate())) != 1)
+    {
+        return fail("cannot trust exact generated TLS 1.3 certificate");
+    }
+
+    OwnedSsl clientTls{::SSL_new(clientContext.get()), SslCloser{}};
+    if (!clientTls)
+        return fail("TLS 1.3 client allocation failed");
+    ::SSL_set_connect_state(clientTls.get());
+    X509_VERIFY_PARAM *const verifyParameters =
+        ::SSL_get0_param(clientTls.get());
+    if (verifyParameters == nullptr ||
+        ::X509_VERIFY_PARAM_set1_ip_asc(
+            verifyParameters, endpoint.data()) != 1)
+    {
+        return fail("TLS 1.3 client exact-IP verification setup failed");
+    }
+
+    BIO *clientBio = nullptr;
+    BIO *serverBio = nullptr;
+    if (::BIO_new_bio_pair(&clientBio, 0, &serverBio, 0) != 1)
+    {
+        ::BIO_free(clientBio);
+        ::BIO_free(serverBio);
+        return fail("TLS 1.3 memory BIO pair allocation failed");
+    }
+    ::SSL_set_bio(clientTls.get(), clientBio, clientBio);
+    ::SSL_set_bio(serverTls.get(), serverBio, serverBio);
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    for (std::size_t iteration = 0U; iteration < 128U; ++iteration)
+    {
+        if (!clientEstablished)
+        {
+            const int result = ::SSL_do_handshake(clientTls.get());
+            if (result == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = ::SSL_get_error(clientTls.get(), result);
+                if (error != SSL_ERROR_WANT_READ &&
+                    error != SSL_ERROR_WANT_WRITE)
+                    return fail("TLS 1.3 client handshake failed");
+            }
+        }
+        if (!serverEstablished)
+        {
+            const int result = ::SSL_do_handshake(serverTls.get());
+            if (result == 1)
+                serverEstablished = true;
+            else
+            {
+                const int error = ::SSL_get_error(serverTls.get(), result);
+                if (error != SSL_ERROR_WANT_READ &&
+                    error != SSL_ERROR_WANT_WRITE)
+                    return fail("TLS 1.3 production server handshake failed");
+            }
+        }
+        if (clientEstablished && serverEstablished)
+            break;
+    }
+
+    if (!clientEstablished || !serverEstablished ||
+        ::SSL_version(clientTls.get()) != TLS1_3_VERSION ||
+        ::SSL_version(serverTls.get()) != TLS1_3_VERSION ||
+        ::SSL_get_current_cipher(serverTls.get()) == nullptr ||
+        ::SSL_get_verify_result(clientTls.get()) != X509_V_OK)
+    {
+        return fail("production generated context did not negotiate TLS 1.3");
+    }
+    return true;
+#endif
+}
+
 [[nodiscard]] bool validateGeneratedIdentity(
     std::string_view endpoint, std::string_view wrongEndpoint) noexcept
 {
@@ -554,6 +851,10 @@ int main(int argumentCount, char **argumentValues)
         return validateGeneratedGenericSubject() ? 0 : 1;
     if (testCase == "generated-tls-identity-owner-ipv4-san-der")
         return validateGeneratedOwnerIpv4SanDer() ? 0 : 1;
+    if (testCase == "generated-tls-test-only-cn-variants-retain-ip-san")
+        return validateTestOnlyGeneratedCertificateProfiles() ? 0 : 1;
+    if (testCase == "generated-tls-context-negotiates-tls13")
+        return validateGeneratedTls13Negotiation() ? 0 : 1;
     if (testCase == "generated-tls-identity-wrong-endpoint-denial")
     {
         RuntimeServerTlsContext context =

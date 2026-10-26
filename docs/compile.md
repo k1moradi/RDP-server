@@ -1,3 +1,9 @@
+## Agent 1 TLS/certificate differential build surface (2026-10-26)
+
+The TLS diagnostic change adds no production target, library, dependency, install/export surface, runtime switch or second build root. Linux runtime security continues to consume OpenSSL through the existing `rdp-server-runtime-tls` owner; the host-control terminal record only projects the established connection's bounded public metadata.
+
+The existing `test_runtime_tls_context` executable gains two behavior cases for test-only CN variants and TLS 1.3 production-context negotiation. The existing Linux runtime-security executable extends `linux-connection-tls-acceptance-diagnostics` for cipher/SNI/CN/SAN metadata. All configure/build/focused/full CTest commands continue to reuse the single checkout-local `build/` root.
+
 ## Type-1 structural observer adds no build dependency (2026-10-26)
 
 The Type-1 profile observer extends the existing portable

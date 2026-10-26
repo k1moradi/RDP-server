@@ -1,3 +1,11 @@
+## Physical TLS/certificate differential qualification (2026-10-26)
+
+The production accepted-connection diagnostic regression must prove bounded capture of negotiated TLS version/cipher, absent/DNS/IP SNI classification, safe certificate CN classification/value and IP/DNS SAN-type presence without retaining SNI text, TLS secrets or credentials. The fail-only physical terminal record keeps the existing selected endpoint, SHA-256 fingerprint and exact-IP SAN self-check.
+
+Certificate-profile experiments are test-only: compare the current generic CN + exact IP SAN with endpoint CN + the same exact IP SAN, assert there is no DNS SAN, and do not add a runtime selector. The production generated profile remains unchanged unless independent external evidence requires a change.
+
+`runtime.generated-tls-context-negotiates-tls13` must exercise the real production server TLS context with a TLS-1.3-only test peer, explicit peer verification and exact-IP certificate checking. It complements, not replaces, TLS 1.2 coverage and must never justify forcing production to TLS 1.2. A physical Windows App TLS 1.3 trace is evidence for a missing Microsoft full-CREDSSP TLS 1.3 oracle if that provider path has only been qualified under TLS 1.2.
+
 ## NTLM Type-1 physical/hosted profile differential uses one parser (2026-10-26)
 
 The physical Linux/X11 fail-only authentication diagnostic and the Windows

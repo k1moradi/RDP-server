@@ -7,12 +7,15 @@
 #include <chrono>
 #include <cstdio>
 #include <limits>
+#include <memory>
 #include <string_view>
 #include <utility>
 
+#include <arpa/inet.h>
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <poll.h>
 
 namespace rdp_server::server::runtime
@@ -23,6 +26,183 @@ namespace
 [[nodiscard]] constexpr const char *yesNo(bool value) noexcept
 {
     return value ? "yes" : "no";
+}
+
+template <std::size_t Size>
+[[nodiscard]] std::size_t copyPrintableDiagnosticText(
+    std::array<char, Size> &destination,
+    std::span<const unsigned char> source) noexcept
+{
+    static_assert(Size > 1U);
+    destination.fill('\0');
+    if (source.empty() || source.size() >= destination.size())
+        return 0U;
+
+    for (std::size_t index = 0U; index < source.size(); ++index)
+    {
+        const unsigned char value = source[index];
+        if (value < 0x20U || value > 0x7eU)
+        {
+            destination.fill('\0');
+            return 0U;
+        }
+        destination[index] = static_cast<char>(value);
+    }
+    return source.size();
+}
+
+template <std::size_t Size>
+[[nodiscard]] std::size_t copyPrintableDiagnosticText(
+    std::array<char, Size> &destination,
+    std::string_view source) noexcept
+{
+    return copyPrintableDiagnosticText(
+        destination,
+        std::span{
+            reinterpret_cast<const unsigned char *>(source.data()),
+            source.size()});
+}
+
+template <std::size_t Size>
+[[nodiscard]] std::size_t copyPrintableDiagnosticCString(
+    std::array<char, Size> &destination,
+    const char *source) noexcept
+{
+    static_assert(Size > 1U);
+    if (source == nullptr)
+    {
+        destination.fill('\0');
+        return 0U;
+    }
+
+    std::size_t length = 0U;
+    while (length < destination.size() && source[length] != '\0')
+        ++length;
+    if (length == destination.size())
+    {
+        destination.fill('\0');
+        return 0U;
+    }
+    return copyPrintableDiagnosticText(
+        destination, std::string_view{source, length});
+}
+
+[[nodiscard]] LinuxRuntimeTlsClientSniClass classifyClientSni(
+    const SSL *tls, bool &present) noexcept
+{
+    present = false;
+    if (tls == nullptr)
+        return LinuxRuntimeTlsClientSniClass::None;
+
+    const char *const serverName =
+        ::SSL_get_servername(tls, TLSEXT_NAMETYPE_host_name);
+    if (serverName == nullptr)
+        return LinuxRuntimeTlsClientSniClass::None;
+
+    present = true;
+    std::array<unsigned char, 16> addressBytes{};
+    if (::inet_pton(AF_INET, serverName, addressBytes.data()) == 1 ||
+        ::inet_pton(AF_INET6, serverName, addressBytes.data()) == 1)
+    {
+        return LinuxRuntimeTlsClientSniClass::Ip;
+    }
+    return LinuxRuntimeTlsClientSniClass::Dns;
+}
+
+void captureCertificatePresentationMetadata(
+    const X509 *certificate,
+    std::string_view selectedEndpoint,
+    std::array<char, kLinuxRuntimeTlsDiagnosticTextCapacity> &commonName,
+    std::size_t &commonNameBytes,
+    LinuxRuntimeTlsCertificateCommonNameClass &commonNameClass,
+    bool &sanIpPresent,
+    bool &sanDnsPresent) noexcept
+{
+    commonName.fill('\0');
+    commonNameBytes = 0U;
+    commonNameClass = LinuxRuntimeTlsCertificateCommonNameClass::Unavailable;
+    sanIpPresent = false;
+    sanDnsPresent = false;
+    if (certificate == nullptr)
+        return;
+
+    const X509_NAME *const subject =
+        ::X509_get_subject_name(const_cast<X509 *>(certificate));
+    const int commonNameIndex =
+        subject == nullptr
+            ? -1
+            : ::X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
+    const X509_NAME_ENTRY *const entry =
+        commonNameIndex < 0
+            ? nullptr
+            : ::X509_NAME_get_entry(subject, commonNameIndex);
+    const ASN1_STRING *const value =
+        entry == nullptr ? nullptr : ::X509_NAME_ENTRY_get_data(entry);
+    const int valueBytes =
+        value == nullptr ? 0 : ::ASN1_STRING_length(value);
+    const unsigned char *const valueData =
+        value == nullptr ? nullptr : ::ASN1_STRING_get0_data(value);
+
+    if (value != nullptr)
+    {
+        if (valueBytes <= 0 || valueData == nullptr)
+        {
+            commonNameClass =
+                LinuxRuntimeTlsCertificateCommonNameClass::Redacted;
+        }
+        else
+        {
+            commonNameBytes = copyPrintableDiagnosticText(
+                commonName,
+                std::span{valueData, static_cast<std::size_t>(valueBytes)});
+            if (commonNameBytes == 0U)
+            {
+                commonNameClass =
+                    LinuxRuntimeTlsCertificateCommonNameClass::Redacted;
+            }
+            else
+            {
+                const std::string_view commonNameView{
+                    commonName.data(), commonNameBytes};
+                if (commonNameView == "RDP Server")
+                {
+                    commonNameClass =
+                        LinuxRuntimeTlsCertificateCommonNameClass::Generic;
+                }
+                else if (!selectedEndpoint.empty() &&
+                         commonNameView == selectedEndpoint)
+                {
+                    commonNameClass =
+                        LinuxRuntimeTlsCertificateCommonNameClass::Endpoint;
+                }
+                else
+                {
+                    commonNameClass =
+                        LinuxRuntimeTlsCertificateCommonNameClass::Other;
+                }
+            }
+        }
+    }
+
+    GENERAL_NAMES *const rawNames = static_cast<GENERAL_NAMES *>(
+        ::X509_get_ext_d2i(
+            const_cast<X509 *>(certificate),
+            NID_subject_alt_name, nullptr, nullptr));
+    std::unique_ptr<GENERAL_NAMES, decltype(&GENERAL_NAMES_free)>
+        names{rawNames, GENERAL_NAMES_free};
+    if (!names)
+        return;
+
+    const int count = ::sk_GENERAL_NAME_num(names.get());
+    for (int index = 0; index < count; ++index)
+    {
+        const GENERAL_NAME *const name =
+            ::sk_GENERAL_NAME_value(names.get(), index);
+        if (name == nullptr)
+            continue;
+        sanIpPresent = sanIpPresent || name->type == GEN_IPADD;
+        sanDnsPresent = sanDnsPresent || name->type == GEN_DNS;
+    }
 }
 
 template <std::size_t Size>
@@ -543,6 +723,17 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
     snapshot.preauthStage = connection_.stage();
     snapshot.negotiatedSecurityProtocol = negotiatedSecurityProtocol_;
     snapshot.negotiatedTlsProtocolVersion = negotiatedTlsProtocolVersion_;
+    snapshot.negotiatedTlsCipherSuite = negotiatedTlsCipherSuite_;
+    snapshot.negotiatedTlsCipherSuiteBytes = negotiatedTlsCipherSuiteBytes_;
+    snapshot.clientSniPresent = clientSniPresent_;
+    snapshot.clientSniClass = clientSniClass_;
+    snapshot.certificateSubjectCommonName = certificateSubjectCommonName_;
+    snapshot.certificateSubjectCommonNameBytes =
+        certificateSubjectCommonNameBytes_;
+    snapshot.certificateSubjectCommonNameClass =
+        certificateSubjectCommonNameClass_;
+    snapshot.certificateSanIpPresent = certificateSanIpPresent_;
+    snapshot.certificateSanDnsPresent = certificateSanDnsPresent_;
     snapshot.credSspTransition = credSspDiagnosticTransition_;
     snapshot.authenticationProgress = authenticationProgress_;
     snapshot.protocolStage = protocolDiagnosticStage_;
@@ -600,10 +791,28 @@ void LinuxRuntimeConnection::captureEstablishedTlsDiagnostics() noexcept
 
     tlsEverEstablished_ = true;
     negotiatedTlsProtocolVersion_ = ::SSL_version(tls);
+    negotiatedTlsCipherSuiteBytes_ = 0U;
+    negotiatedTlsCipherSuite_.fill('\0');
+    if (const SSL_CIPHER *const cipher = ::SSL_get_current_cipher(tls))
+    {
+        negotiatedTlsCipherSuiteBytes_ = copyPrintableDiagnosticCString(
+            negotiatedTlsCipherSuite_, ::SSL_CIPHER_get_name(cipher));
+    }
+    clientSniClass_ = classifyClientSni(tls, clientSniPresent_);
     if (const auto provenance = connection_.securityNegotiationProvenance())
         negotiatedSecurityProtocol_ = provenance->serverSelectedProtocol;
 
     X509 *const certificate = ::SSL_get_certificate(const_cast<SSL *>(tls));
+    const std::string_view selectedEndpoint{
+        selectedTlsEndpoint_.data(), selectedTlsEndpointBytes_};
+    captureCertificatePresentationMetadata(
+        certificate, selectedEndpoint,
+        certificateSubjectCommonName_,
+        certificateSubjectCommonNameBytes_,
+        certificateSubjectCommonNameClass_,
+        certificateSanIpPresent_,
+        certificateSanDnsPresent_);
+
     unsigned int fingerprintBytes = 0U;
     RuntimeTlsCertificateFingerprint fingerprint{};
     if (certificate != nullptr &&
@@ -1053,6 +1262,8 @@ void LinuxRuntimeConnection::configureTlsIdentityDiagnostics(
 {
     certificateExactIpSelfCheck_ =
         tlsContext.validateEndpointIdentity(numericEndpoint);
+    selectedTlsEndpointBytes_ = copyPrintableDiagnosticText(
+        selectedTlsEndpoint_, numericEndpoint);
     RuntimeTlsCertificateFingerprint fingerprint{};
     negotiatedCertificateFingerprintAvailable_ =
         tlsContext.certificateSha256Fingerprint(fingerprint);

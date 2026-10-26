@@ -1,3 +1,17 @@
+## Agent 1 P0 — physical TLS/certificate identity differential diagnostics (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring parent:** `6d4292b04650209b1c7eb2ffeff1fefe3f4a43cc`. Concurrent R4/R8 dormancy and Agent-2 Type-1 profile observation are preserved. Owner-supplied physical Linux/X11 evidence reaches TLS Established -> Direct NTLM Type 1 -> production Type 2 fully committed through TLS -> Await-Type-3 -> peer EOF; Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and clipboard remain unreached. Hosted Windows proves Microsoft NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP through observed Type 3, so production remains `fixed-name / RDP-SERVER` and this increment does not change Type-2 TargetName, TargetInfo, MsvAvTargetName or target-profile selection.
+
+R1's existing accepted-connection diagnostic snapshot now captures only bounded public TLS presentation facts from the established production `SSL*`: negotiated TLS version and cipher, client-SNI presence plus IP/DNS/none class, printable certificate subject CN with generic/endpoint/other/redacted class, and IP/DNS SAN-type presence. R10's existing fail-only terminal record emits those facts beside the selected endpoint, SHA-256 fingerprint, exact-IP SAN self-check and selected-certificate continuity check. No SNI value, certificate key, TLS secret, credential, NTLM/TSRequest payload or delegated data is retained or logged.
+
+The production generated certificate profile is unchanged: CN `RDP Server` with the exact numeric endpoint encoded as an `iPAddress` SAN. A test-only certificate differential creates generic-CN + IP-SAN and endpoint-CN + the same IP-SAN variants; neither is exposed as a runtime/user switch, and no textual-IP `dNSName` SAN is added. A separate production-context memory-BIO regression pins successful TLS 1.3 negotiation with peer verification against the generated exact-IP certificate; production still permits TLS 1.2 and does not force a TLS 1.2 maximum.
+
+New/extended behavior coverage: `runtime.generated-tls-test-only-cn-variants-retain-ip-san`, `runtime.generated-tls-context-negotiates-tls13`, and the existing `runtime.linux-connection-tls-acceptance-diagnostics` now covers absent, DNS and IP SNI classification plus bounded cipher/CN/SAN capture.
+
+**Validation at authoring:** connector source/reconciliation review PASS. The canonical owner one-`build/` compile/focused/full CTest is **NOT RUN** in this connector environment; exact-publication-SHA hosted CI is **PENDING**.
+
+**Next gate:** exact-SHA hosted compile/CTest first, then an owner-authorized physical Windows App retry. The terminal trace must report `tls-version=TLS1.2` or `tls-version=TLS1.3` and the cipher. If the physical Windows App uses TLS 1.3 while the Microsoft full-CREDSSP oracle remains qualified only under TLS 1.2, record TLS 1.3 full-CREDSSP qualification as the next missing oracle rather than forcing production down to TLS 1.2.
+
 ## Agent 2 P0 — NTLM Type-1 client profile observer (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`;

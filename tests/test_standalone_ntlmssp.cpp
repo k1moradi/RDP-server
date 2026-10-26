@@ -195,8 +195,7 @@ authenticateWithClientTargetAndChannelBindings()
     constexpr std::size_t insertedBytes =
         targetNamePairBytes + channelBindingsPairBytes + flagsPairBytes;
     static_assert(
-        kMicrosoftAuthenticateMessage.size() + insertedBytes <=
-        result.bytes.size());
+        kMicrosoftAuthenticateMessage.size() + insertedBytes <= 320U);
 
     std::copy(
         kMicrosoftAuthenticateMessage.begin(),

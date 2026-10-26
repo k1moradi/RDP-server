@@ -1187,9 +1187,30 @@ int main(int argc, char** argv)
             releaseSameListener);
         sameListenerFinished.store(true, std::memory_order_release);
     });
-    assert(pumpUntil(
-        control, sameListenerFinished,
-        &directClientCredentialsVerifiedThenAdmissionDenied));
+    // The previous peer's retained terminal snapshot already matches this
+    // predicate. Require a fresh active accepted lifetime before its retirement
+    // can satisfy the second-peer regression.
+    bool observedSecondAcceptedPeer = false;
+    bool secondPeerRetired = false;
+    const auto secondPeerDeadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < secondPeerDeadline)
+    {
+        const RuntimeHostStatus current = control.status();
+        if (!current.activeClients.empty())
+            observedSecondAcceptedPeer = true;
+        if (observedSecondAcceptedPeer &&
+            directClientCredentialsVerifiedThenAdmissionDenied(current))
+        {
+            secondPeerRetired = true;
+            break;
+        }
+        if (sameListenerFinished.load(std::memory_order_acquire))
+            break;
+        (void)control.serviceOnce();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(secondPeerRetired);
     const auto sameListenerStatus = control.status();
     assert(sameListenerStatus.stage == RuntimeHostStage::ListenerAvailable);
     assert(sameListenerStatus.listenerAvailable);

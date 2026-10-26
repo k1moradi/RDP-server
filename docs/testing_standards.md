@@ -1,3 +1,29 @@
+## Executed endpoint-identity and client-AV evidence (2026-10-25)
+
+The hard Microsoft NTLM SSPI differential already proves the unchanged
+production Type 2 is accepted for both `TERMSRV/RDP-SERVER` and
+`TERMSRV/192.168.1.5`; both produce Microsoft Type 3 accepted by the
+production parser/verifier.
+
+Keep two additional native-SSPI challenge profiles test-only:
+
+- `security.windows-sspi-physical-ip-endpoint-target-name`: client target
+  `TERMSRV/192.168.1.5`, Type-2 TargetName `192.168.1.5`.
+- `security.windows-sspi-physical-ip-endpoint-service-spn`: the same profile
+  plus `MsvAvTargetName=TERMSRV/192.168.1.5`.
+
+On Actions run `40256989648`, Windows CLANG64 job `121360948054`, both
+Debug and Release full CTest, the endpoint TargetName case **PASS**ed and the
+combined AV9 case was **SKIP**ped on a genuine Microsoft pre-Type-3 rejection.
+The portable `security.ntlmssp-authenticate-client-av-compatibility` also
+**PASS**ed in both configurations.
+
+The portable AV fixture adds `MsvAvTargetName`, a nonzero 16-byte
+`MsvAvChannelBindings`, and `MsvAvFlags` to a known NTLMv2 response while
+intentionally retaining the old proof. Parsing must succeed and verification
+must reach `ProofMismatch`, proving the exact augmented blob is structurally
+accepted and proof-authenticated rather than normalized or zeroed.
+
 ## Microsoft full-CredSSP target-principal gate (2026-10-25)
 
 Keep both existing independent gates: Microsoft native NTLM SSPI qualifies the

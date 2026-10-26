@@ -1,3 +1,33 @@
+## R2 executed endpoint identity and client-AV receipt — 2026-10-25
+
+Current main already owns the stronger Microsoft full-CredSSP target oracle,
+the Start-scoped R10 target/service tuple, and the target-identity assertion
+portability correction. This R2 increment does not duplicate or weaken those
+owners.
+
+Executed Microsoft evidence establishes the inner NTLM result:
+
+- exact main `449d70f3fcf5a0c366b8d10fe7f93205ece9c11`, Actions run
+  `40256483516`, Windows protocol job `121359701921`:
+  unchanged production Type 2 **PASS**ed native Microsoft NTLM SSPI for both
+  `TERMSRV/RDP-SERVER` and `TERMSRV/192.168.1.5`; Microsoft emitted Type 3
+  and production verification accepted it.
+- predecessor branch `b69938204e9cd8b6c4c340990dc64f3a41931880`, Actions run
+  `40256989648`, Windows CLANG64 job `121360948054`, Debug and Release:
+  endpoint Type-2 TargetName `192.168.1.5` **PASS**ed; endpoint TargetName
+  plus `MsvAvTargetName=TERMSRV/192.168.1.5` was **SKIP**ped after a genuine
+  Microsoft pre-Type-3 rejection; the portable client AV/channel-binding
+  compatibility regression **PASS**ed.
+
+This selects **no production Type-2 identity change**. The existing
+`RDP-SERVER` TargetName is already Microsoft-accepted for the physical-IP
+service target. Endpoint TargetName is also accepted but unnecessary. Adding
+AV9 in the combined profile is negative evidence, not a workaround.
+
+Production TLS, NTLM, CredSSP, native Admission, MCS, graphics, input and
+clipboard source are unchanged by this increment. Current-main full-CredSSP
+execution remains the authoritative next target-principal gate.
+
 ## Microsoft full-CredSSP target-principal matrix follow-up — 2026-10-25
 
 **Reconciled authoring parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner evidence is **986/986**

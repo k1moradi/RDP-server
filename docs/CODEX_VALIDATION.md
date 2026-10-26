@@ -1,3 +1,40 @@
+## R5 repeated pre-Type-3 owner-grant/native-dormancy verification — 2026-10-26
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. **Reconciled publication parent:** `6be81670596c0dcd17fed71d7a3e385a90a1ef80`.
+Owner Linux/X11 evidence is **989/989 CTest PASS** for the assignment-time
+baseline. The real Microsoft Windows App still reaches complete production
+Type-2 TLS commitment and Await-Type-3, then peer EOF; Type 3, pubKeyAuth,
+authInfo, `CredentialsVerified`, native Admission, MCS, Share, graphics/X11
+and clipboard are not reached.
+
+The unchanged production Type 2 remains accepted by Microsoft native NTLM SSPI,
+and the independent production TSRequest oracle remains positive. The
+Windows-native full-`CREDSSP` harness is not yet a target-principal oracle:
+`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5`, and bare
+`192.168.1.5` all reach TLS and stop at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest is
+produced/consumed. The identical control failure is classified as harness
+round-progression, so no endpoint-bound identity or production wire change is
+authorized.
+
+R5 changes tests/documentation only. The repeated production-backed
+Type-2/EOF fixture already executes two peers on the same listener; its second
+attempt now explicitly pins the original listener generation and retained
+Session Password generation in both Await-Type-3 and retired states while
+reasserting the active view/input owner grant and zero native/graphics/
+framebuffer progress. The existing source-backed
+`runtime.linux-auth-envelope-independent-native-owner` gate continues to
+forbid X11 owner construction, XTEST routing, native-change registration,
+event processing and framebuffer publication in `PreAdmission`. Existing
+`CurrentOwnerSharingAuthority` generation/identity mismatch tests remain
+fail-closed.
+
+Connector source/test/doc reconciliation: **PASS by inspection**.
+Modified-tree local configure/build/CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. Physical positive
+native Admission: **NOT REACHED**. Next Linux owner run: **BLOCKED** until the
+Microsoft full-CredSSP harness reaches the production Type-2 boundary.
+
 ## R2 target-profile and future Type-3 AV-field review — 2026-10-26
 
 **Authoring parent:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. Owner-supplied Linux/X11 baseline:

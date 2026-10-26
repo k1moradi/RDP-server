@@ -1,3 +1,52 @@
+## R5 P1 — repeated pre-Type-3 native-dormancy verification on current main (2026-10-26)
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. **Reconciled publication parent:** `6be81670596c0dcd17fed71d7a3e385a90a1ef80`.
+Owner Linux/X11 reports **989/989 CTest PASS** for the assignment-time baseline.
+The physical Microsoft Windows App boundary remains TCP -> X.224/HYBRID -> TLS
+-> Direct NTLM Type 1 -> production Type 2 queued -> production Type 2 fully
+committed through TLS -> Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 owner and
+clipboard are **NOT REACHED**.
+
+Microsoft native NTLM SSPI still accepts the unchanged production Type 2 and
+emits Type 3, and the independent production Type-2 TSRequest oracle passes.
+The Windows-native full-`CREDSSP` harness still has no target-principal
+evidence: portable `TERMSRV/RDP-SERVER`, IP-SPN
+`TERMSRV/192.168.1.5`, and bare `192.168.1.5` all reach TLS and stop at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)` before
+the first client TSRequest is produced/consumed. Because the portable control
+fails identically, this is a harness round-progression defect. Production
+`fixed-name / RDP-SERVER` remains unchanged.
+
+R5 production Linux admission/native code is unchanged. The existing
+production-backed lifecycle already drives two consecutive delivered-Type-2 ->
+peer-EOF attempts on one listener. This increment tightens the second attempt
+to assert the live listener generation is still the original Start generation,
+the current owner grant remains active with the original view/input scope, the
+configured Session Password generation remains current, and native
+desktop/graphics/framebuffer traces remain dormant before and after peer
+retirement. The existing source contract continues to forbid physical-X11
+selection, native desktop construction/visitation, native-change registration,
+X11 event processing, XTEST routing and framebuffer publication from the
+`PreAdmission` region.
+
+The independent `CurrentOwnerSharingAuthority` negative coverage remains the
+fail-closed counterpart: changing the observed session generation or identity
+causes the next `authorizes()` check to fail and records the bounded mismatch.
+No positive native authority is manufactured for CI, and detailed Admission
+diagnostics remain unchanged for the first future connection that genuinely
+reaches `CredentialsVerified`.
+
+Connector source/test reconciliation: **PASS by inspection**. Modified-tree
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** the Microsoft full-CredSSP oracle must itself advance through
+the initial client TSRequest and consume the exact production Type 2. Another
+physical Linux owner run remains **BLOCKED** until that oracle reaches the
+production Type-2 boundary; R5 must remain dormant until a real client later
+reaches `CredentialsVerified`.
+
 ## R2 P0 review — fixed-name target profile retained while full-CredSSP control is harness-blocked (2026-10-26)
 
 **Assignment/current-main parent:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. Owner Linux/X11 reports

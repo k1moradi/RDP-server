@@ -1682,8 +1682,14 @@ int main(int argc, char** argv)
         assert(pumpUntilPeerSignal(
             control, retryTypeTwoReceived, retryPeerFinished));
         const auto retryWaitingForTypeThree = control.status();
+        assert(retryWaitingForTypeThree.listenerAvailable);
+        assert(retryWaitingForTypeThree.listenerGeneration ==
+               firstListenerGeneration);
         assert(retryWaitingForTypeThree.activeClients.size() == 1U);
         assertPhysicalOwnerGrantActive(retryWaitingForTypeThree);
+        assert(retryWaitingForTypeThree.product.credentialsConfigured);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
         assert(!retryWaitingForTypeThree.clientDisconnected);
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics.available);
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
@@ -1731,7 +1737,14 @@ int main(int argc, char** argv)
 
         const auto afterRetryTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
+        assert(afterRetryTypeTwoEof.listenerGeneration ==
+               firstListenerGeneration);
         assertPhysicalOwnerGrantActive(afterRetryTypeTwoEof);
+        assert(afterRetryTypeTwoEof.product.state ==
+               RuntimeProductHostState::Listening);
+        assert(afterRetryTypeTwoEof.product.credentialsConfigured);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
         assertClipboardDormant(afterRetryTypeTwoEof);
         assertGraphicsDormant(afterRetryTypeTwoEof);
         assertFixedConnectionTargetIdentity(

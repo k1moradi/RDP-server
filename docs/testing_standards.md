@@ -61,12 +61,22 @@ force pre-Type-3 progress.
 
 ## Microsoft target-principal differential and full CredSSP owner gate (2026-10-25)
 
-The latest owner physical trace is **986/986 CTest PASS** and stops after a
-completely committed Direct NTLM Type 2: TLS/HYBRID and Type 1 succeed,
-Await-Type-3 is reached, and Microsoft Windows App closes with
-`peer-eof-before-type3`. Type 3, pubKeyAuth, authInfo,
+The latest owner physical trace is **989/989 CTest PASS** on assignment-time
+main `ddba1f369f9a5cb3756610a7119e20a8bf864666` and stops after a completely committed Direct NTLM
+Type 2: TLS/HYBRID and Type 1 succeed, Await-Type-3 is reached, and Microsoft
+Windows App closes with `peer-eof-before-type3`. Type 3, pubKeyAuth, authInfo,
 CredentialsVerified, native Admission, MCS, graphics, input and clipboard are
 not reached and are not eligible investigation targets for this boundary.
+
+The current Windows-native full-`CREDSSP` harness does **not** yet provide a
+target-principal differential. Portable `TERMSRV/RDP-SERVER`, IP-SPN
+`TERMSRV/192.168.1.5`, and bare `192.168.1.5` all reach TLS, then stop at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)` before
+the first client TSRequest is produced/consumed. Because the portable control
+fails at the same round boundary, classify this as a CredSSP harness
+round-progression defect, not evidence for `endpoint-bound` production
+identity. No Type-2, TLS, SPNEGO, Admission or downstream change is authorized
+by this result.
 
 Keep the existing Microsoft NTLM SSPI control with target
 `TERMSRV/RDP-SERVER`, and add a second native SSPI run with target

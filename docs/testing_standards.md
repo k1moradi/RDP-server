@@ -1,3 +1,22 @@
+## Shared product target-tuple parity gate (2026-10-26)
+
+Register the portable offline CTest
+`runtime.host-control-product-target-tuple-construction`. It must consume the
+same `prepareRuntimeConnectionTargetIdentity()` helper used by production and
+prove that the current fixed-name tuple is numeric target class `ip`, service
+class `TERMSRV`, profile `fixed-name`, protocol identity `RDP-SERVER`, and
+uncommitted `startGeneration == 0`. Its service-principal rendering must be
+`TERMSRV/RDP-SERVER`. Invalid address/port/profile/identity combinations fail
+closed.
+
+The test may construct `endpoint-bound` only as dormant taxonomy and may render
+`TERMSRV/<endpoint>` for oracle plumbing; it must remain uncommitted and must
+not make ordinary production select that profile. The Windows full-CREDSSP
+oracle should consume this shared representation when it needs the product
+control identity rather than inventing a second service-identity model, but the
+helper cannot advance a Microsoft SSPI round or convert a failing control into
+PASS. The three Microsoft target cases and their evidence gate remain unchanged.
+
 ## R8 Windows full-CredSSP harness isolation gate (2026-10-26)
 
 The Windows native full-`CREDSSP` oracle is test-only authentication

@@ -283,6 +283,35 @@ minimal one-property identity delta it selects.
 
 ## P0 target/service identity owner after physical Await-Type-3 EOF (2026-10-25)
 
+**R10 support follow-up (2026-10-26; reconciled parent `e96b78ebfca6e2495574d1b2b5f4573ac1bb20bd`):**
+Owner Linux/X11 baseline is **989/989 CTest PASS** on assignment-time main
+`ddba1f369f9a5cb3756610a7119e20a8bf864666`. The physical Microsoft Windows
+App boundary is unchanged: production Type 2 is fully committed through TLS,
+Await-Type-3 is reached, then peer EOF occurs before Type 3; pubKeyAuth,
+authInfo, CredentialsVerified, native Admission, MCS, Share, graphics, X11 and
+clipboard are not reached. Microsoft native NTLM SSPI and the independent
+production Type-2 TSRequest oracle remain positive, while all three full
+Microsoft `CREDSSP` target cases currently stop at the common
+`server-initial-tsrequest / SEC_I_CONTINUE_NEEDED (0x00090312)` harness
+boundary. That is not target-principal evidence and authorizes no production
+identity change.
+
+R10 centralizes pre-commit product target construction in
+`prepareRuntimeConnectionTargetIdentity()` and exposes only a non-authorizing
+service-principal renderer for test/oracle reuse. Linux production consumes that
+helper but still selects exactly `fixed-name / RDP-SERVER` for standalone
+authentication. The helper always returns an uncommitted tuple with generation
+zero; the existing Start path still commits the generation only after the exact
+listener is open and the generated TLS identity matches that listener
+generation. `endpoint-bound` remains dormant taxonomy. New ordinary offline
+CTest: `runtime.host-control-product-target-tuple-construction`. Connector
+source/test/doc reconciliation: **PASS by inspection**; canonical modified-tree
+configure/build/full CTest: **NOT RUN** in this connector environment;
+exact-publication-SHA CI: **PENDING**. **Next gate remains Agent 6:** repair
+Microsoft full-CREDSSP round progression until the fixed-name control consumes
+production Type 2 and emits a next TSRequest containing Type 3; only then
+run/interpret the IP matrix.
+
 **Authoring parent:** `449d70f3fc69b29b39bbaefe2710cf170de0222c`. Owner Linux/X11 reports **986/986
 CTest PASS**. The physical Microsoft Windows App reaches TCP, X.224/HYBRID,
 TLS, Direct NTLM Type 1, complete production Type-2 TLS commitment and

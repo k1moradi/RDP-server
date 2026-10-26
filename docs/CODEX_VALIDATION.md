@@ -1,3 +1,41 @@
+## R10 shared product target-tuple helper — 2026-10-26
+
+**Authoring parent:** `e96b78ebfca6e2495574d1b2b5f4573ac1bb20bd`. Owner-supplied Linux/X11 baseline is
+**989/989 CTest PASS** on assignment-time main
+`ddba1f369f9a5cb3756610a7119e20a8bf864666`. The physical Microsoft Windows
+App still reaches TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 ->
+production Type 2 fully committed -> Await-Type-3 -> peer EOF; Type 3,
+pubKeyAuth, authInfo, CredentialsVerified, native Admission, MCS, Share,
+graphics, X11 owner and clipboard are **NOT REACHED**.
+
+The Microsoft target-principal decision remains blocked on the Windows
+full-`CREDSSP` harness itself: control `TERMSRV/RDP-SERVER`, IP-SPN and
+bare-IP all stop after TLS at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest reaches
+production. Native Microsoft NTLM SSPI still accepts the unchanged production
+Type 2 and the independent production Type-2 TSRequest oracle remains positive.
+No Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, TLS identity,
+SPNEGO/CredSSP framing or downstream authority changes are authorized.
+
+This R10 support increment adds `prepareRuntimeConnectionTargetIdentity()` to
+centralize the uncommitted numeric-IP / `TERMSRV` product tuple and
+`runtimeConnectionTargetServicePrincipal()` for non-authorizing test/oracle
+rendering. Linux production now consumes the shared constructor. Standalone
+production selection remains exactly `fixed-name / RDP-SERVER`;
+`startGeneration` is still committed only after the exact listener is opened
+and the TLS identity matches that listener generation. Endpoint-bound
+construction is covered only as dormant taxonomy. Dedicated ordinary offline
+CTest: `runtime.host-control-product-target-tuple-construction`.
+
+Connector source/test/documentation reconciliation: **PASS by inspection**.
+Canonical local modified-tree configure/build/full CTest: **NOT RUN** because
+this connector environment has no approved `~/rdp-server` checkout/build
+root. Exact-publication-SHA hosted CI: **PENDING**. Next gate: Agent 6 repairs
+the Microsoft CREDSSP round progression through first client TSRequest ->
+production Type 1 -> production Type 2 -> Microsoft next TSRequest -> Type 3;
+only that evidence can unblock the target matrix and any later R2/R10 profile
+decision.
+
 ## R8 full-CredSSP harness clipboard-isolation receipt — 2026-10-26
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.

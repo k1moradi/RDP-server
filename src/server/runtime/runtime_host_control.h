@@ -242,6 +242,56 @@ struct RuntimeConnectionTargetIdentity final
     }
 };
 
+// Construct the non-secret product target tuple before the listener transaction
+// commits a Start generation. This centralizes the product's numeric-IP and
+// TERMSRV taxonomy for production and test oracles without selecting an
+// identity profile for the caller or granting any authentication authority.
+// startGeneration deliberately remains zero until the verified listener/TLS
+// transaction succeeds.
+[[nodiscard]] inline std::optional<RuntimeConnectionTargetIdentity>
+prepareRuntimeConnectionTargetIdentity(
+    std::string_view numericEndpointAddress,
+    std::uint16_t port,
+    RuntimeServiceIdentityProfile serviceIdentityProfile,
+    std::u16string_view protocolServerIdentity)
+{
+    RuntimeConnectionTargetIdentity targetIdentity;
+    targetIdentity.numericEndpointAddress = numericEndpointAddress;
+    targetIdentity.port = port;
+    targetIdentity.targetClass = RuntimeConnectionTargetClass::Ip;
+    targetIdentity.serviceClass = RuntimeConnectionServiceClass::Termsrv;
+    targetIdentity.protocolServerIdentity = protocolServerIdentity;
+    targetIdentity.serviceIdentityProfile = serviceIdentityProfile;
+    if (!targetIdentity.configured())
+        return std::nullopt;
+    return targetIdentity;
+}
+
+// Test-safe, non-authorizing rendering of the service target represented by
+// the R10-owned tuple. The bare-IP Microsoft oracle case intentionally does
+// not use this helper because it tests a client target without a service class.
+[[nodiscard]] inline std::u16string runtimeConnectionTargetServicePrincipal(
+    const RuntimeConnectionTargetIdentity& targetIdentity)
+{
+    if (!targetIdentity.configured() ||
+        targetIdentity.serviceIdentityProfile ==
+            RuntimeServiceIdentityProfile::Unavailable ||
+        targetIdentity.protocolServerIdentity.empty())
+    {
+        return {};
+    }
+
+    constexpr std::u16string_view servicePrefix{u"TERMSRV/"};
+    std::u16string servicePrincipal;
+    servicePrincipal.reserve(
+        servicePrefix.size() + targetIdentity.protocolServerIdentity.size());
+    servicePrincipal.append(servicePrefix.data(), servicePrefix.size());
+    servicePrincipal.append(
+        targetIdentity.protocolServerIdentity.data(),
+        targetIdentity.protocolServerIdentity.size());
+    return servicePrincipal;
+}
+
 enum class RuntimeHostAddressFamily : std::uint8_t
 {
     Unspecified,

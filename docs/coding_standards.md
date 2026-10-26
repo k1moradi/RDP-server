@@ -1,3 +1,23 @@
+## R10 shared product target-tuple construction remains non-authorizing (2026-10-26)
+
+Use `prepareRuntimeConnectionTargetIdentity()` as the single portable constructor
+for the product's pre-commit numeric-IP / `TERMSRV` target tuple. Production and
+test oracles may supply the deliberately selected profile and protocol identity,
+but the helper itself grants no authority and deliberately leaves
+`startGeneration == 0`. The real R10 Start transaction remains responsible for
+opening the selected endpoint, verifying that the TLS identity is bound to the
+same listener generation, rechecking owner consent/policy, and only then
+committing that exact generation into the tuple.
+
+`runtimeConnectionTargetServicePrincipal()` is a non-secret rendering helper for
+tests and diagnostics that need the service target represented by the tuple. It
+may produce `TERMSRV/RDP-SERVER` for the current fixed-name profile or an
+endpoint-form principal for a test-only endpoint-bound tuple. It does not select
+a profile, prove Microsoft acceptance, or authorize a production identity
+change. Current standalone production remains `fixed-name / RDP-SERVER` until
+the full Microsoft CREDSSP control reaches Type 3 and the subsequent IP-target
+matrix supplies typed evidence.
+
 ## CredSSP target-principal identity experiments are test-only (2026-10-25)
 
 The demonstrated physical boundary is a completely committed production Type 2

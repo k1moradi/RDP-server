@@ -851,6 +851,7 @@ foreach(host_control_case IN ITEMS
         host-control-product-status-projection
         host-control-incomplete-peer-product-state
         host-control-connection-target-identity-taxonomy
+        host-control-product-target-tuple-construction
         host-control-credential-editing-lifecycle-policy
         host-control-route-aware-recommendation-non-authority
         host-control-clipboard-state-denials

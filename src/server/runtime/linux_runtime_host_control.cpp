@@ -2184,28 +2184,28 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
     // Current production deliberately stays on the already-qualified fixed
     // NTLM server identity. EndpointBound remains dormant until Microsoft
     // full-CredSSP IP-target evidence selects it.
-    RuntimeConnectionTargetIdentity targetIdentity;
-    targetIdentity.numericEndpointAddress = selection_.localAddress;
-    targetIdentity.port = selection_.port;
-    targetIdentity.targetClass = RuntimeConnectionTargetClass::Ip;
-    targetIdentity.serviceClass = RuntimeConnectionServiceClass::Termsrv;
+    RuntimeServiceIdentityProfile targetIdentityProfile{
+        RuntimeServiceIdentityProfile::Unavailable};
+    std::u16string_view protocolServerIdentity;
     switch (authenticationMode_)
     {
     case ConfiguredAuthenticationMode::ExistingOsAccount:
-        targetIdentity.serviceIdentityProfile =
-            RuntimeServiceIdentityProfile::Unavailable;
         break;
     case ConfiguredAuthenticationMode::StandalonePassword:
-        targetIdentity.serviceIdentityProfile =
-            RuntimeServiceIdentityProfile::FixedName;
-        targetIdentity.protocolServerIdentity.assign(
-            rdp_server::server::security::kStandaloneNtlmPortableServerName.data(),
-            rdp_server::server::security::kStandaloneNtlmPortableServerName.size());
+        targetIdentityProfile = RuntimeServiceIdentityProfile::FixedName;
+        protocolServerIdentity =
+            rdp_server::server::security::kStandaloneNtlmPortableServerName;
         break;
     case ConfiguredAuthenticationMode::Unconfigured:
         return deny(RuntimeHostError::CredentialNotConfigured);
     }
-    if (!targetIdentity.configured())
+
+    auto targetIdentity = prepareRuntimeConnectionTargetIdentity(
+        selection_.localAddress,
+        selection_.port,
+        targetIdentityProfile,
+        protocolServerIdentity);
+    if (!targetIdentity.has_value())
         return deny(RuntimeHostError::InvalidConfiguration);
 
     auto listenerResult =
@@ -2237,15 +2237,15 @@ RuntimeHostResult LinuxRuntimeHostControl::startSharing()
         return deny(RuntimeHostError::InvalidConfiguration);
     }
 
-    targetIdentity.startGeneration = candidate.generation();
-    if (!targetIdentity.valid())
+    targetIdentity->startGeneration = candidate.generation();
+    if (!targetIdentity->valid())
     {
         deploymentPolicy_.reset();
         return deny(RuntimeHostError::InternalFailure);
     }
 
     listener_ = std::move(candidate);
-    connectionTargetIdentity_ = std::move(targetIdentity);
+    connectionTargetIdentity_ = std::move(*targetIdentity);
     acceptedClientPreauthDiagnostics_ = {};
     stage_ = RuntimeHostStage::ListenerAvailable;
     lastError_ = RuntimeHostError::None;

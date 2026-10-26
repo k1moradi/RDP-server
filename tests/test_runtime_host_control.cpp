@@ -171,6 +171,63 @@ int main(int argumentCount, char** argumentValues)
         assert(!target.valid());
         return 0;
     }
+    if (testCase == "host-control-product-target-tuple-construction")
+    {
+        const auto fixedName = prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 3389U,
+            RuntimeServiceIdentityProfile::FixedName,
+            u"RDP-SERVER");
+        assert(fixedName.has_value());
+        assert(fixedName->configured());
+        assert(!fixedName->valid());
+        assert(fixedName->startGeneration == 0U);
+        assert(fixedName->targetClass == RuntimeConnectionTargetClass::Ip);
+        assert(fixedName->serviceClass ==
+               RuntimeConnectionServiceClass::Termsrv);
+        assert(fixedName->serviceIdentityProfile ==
+               RuntimeServiceIdentityProfile::FixedName);
+        assert(fixedName->protocolServerIdentity == u"RDP-SERVER");
+        assert(runtimeConnectionTargetServicePrincipal(*fixedName) ==
+               u"TERMSRV/RDP-SERVER");
+
+        // Endpoint-bound remains construction/taxonomy only. This test does
+        // not select it for production or commit a listener generation.
+        const auto endpointBound = prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 3389U,
+            RuntimeServiceIdentityProfile::EndpointBound,
+            u"192.168.1.5");
+        assert(endpointBound.has_value());
+        assert(endpointBound->endpointBound());
+        assert(!endpointBound->valid());
+        assert(runtimeConnectionTargetServicePrincipal(*endpointBound) ==
+               u"TERMSRV/192.168.1.5");
+
+        const auto noProtocolIdentity = prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 3389U,
+            RuntimeServiceIdentityProfile::Unavailable,
+            {});
+        assert(noProtocolIdentity.has_value());
+        assert(noProtocolIdentity->configured());
+        assert(runtimeConnectionTargetServicePrincipal(
+                   *noProtocolIdentity).empty());
+
+        assert(!prepareRuntimeConnectionTargetIdentity(
+            {}, 3389U, RuntimeServiceIdentityProfile::FixedName,
+            u"RDP-SERVER").has_value());
+        assert(!prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 0U,
+            RuntimeServiceIdentityProfile::FixedName,
+            u"RDP-SERVER").has_value());
+        assert(!prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 3389U,
+            RuntimeServiceIdentityProfile::FixedName,
+            {}).has_value());
+        assert(!prepareRuntimeConnectionTargetIdentity(
+            "192.168.1.5", 3389U,
+            RuntimeServiceIdentityProfile::Unavailable,
+            u"RDP-SERVER").has_value());
+        return 0;
+    }
     if (testCase == "host-control-route-aware-recommendation-non-authority")
     {
         using Family = RuntimeHostAddressFamily;

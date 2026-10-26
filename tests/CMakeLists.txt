@@ -159,6 +159,7 @@ foreach(ntlmssp_case IN ITEMS
         ntlmssp-challenge-compatibility-profiles
         ntlmssp-challenge-target-name-conformance
         ntlmssp-microsoft-authenticate-bridge
+        ntlmssp-authenticate-client-av-compatibility
         ntlmssp-security-buffer-mic-denials)
     add_test(NAME "security.${ntlmssp_case}"
         COMMAND test_standalone_ntlmssp "${ntlmssp_case}")
@@ -185,6 +186,23 @@ if(WIN32)
         COMMAND test_windows_sspi_ntlm_interop control-target)
     add_test(NAME security.windows-sspi-production-type2-physical-ip-target
         COMMAND test_windows_sspi_ntlm_interop physical-ip-target)
+
+    # These profiles remain exploratory even when Microsoft accepts them.
+    # SKIP means Microsoft rejected the test-only identity profile before Type
+    # 3; a produced Type 3 must still pass the production parser/verifier.
+    add_test(NAME security.windows-sspi-physical-ip-endpoint-target-name
+        COMMAND test_windows_sspi_ntlm_interop
+            physical-ip-endpoint-target-name)
+    add_test(NAME security.windows-sspi-physical-ip-endpoint-service-spn
+        COMMAND test_windows_sspi_ntlm_interop
+            physical-ip-endpoint-service-spn)
+    set_tests_properties(
+        security.windows-sspi-physical-ip-endpoint-target-name
+        security.windows-sspi-physical-ip-endpoint-service-spn
+        PROPERTIES
+        LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30)
     set_tests_properties(
         security.windows-sspi-production-type2-interop
         security.windows-sspi-production-type2-physical-ip-target

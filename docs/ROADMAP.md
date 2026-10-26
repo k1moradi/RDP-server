@@ -1,3 +1,42 @@
+## Linux pre-Type-3 native dormancy after Microsoft SSPI qualification — 2026-10-25
+
+Owner Linux/X11 evidence reports **986/986 CTests PASS** and a physical
+Microsoft Windows App connection reaching TCP -> X.224/HYBRID -> TLS ->
+Direct NTLM Type 1 -> production Type 2 completely committed through TLS ->
+Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo, CredentialsVerified,
+native Admission, MCS and graphics/X11 were **NOT REACHED**. The exact
+owner-tested SHA was not supplied with this receipt, so this is not an
+exact-current-main qualification claim.
+
+Hosted Windows now independently proves Microsoft native NTLM SSPI consumes the
+**unmodified production Type 2** and emits Microsoft Type 3, and the independent
+outer CredSSP TSRequest DER oracle passes. R5 therefore remains strictly
+downstream: no logind/native-admission, MCS, graphics, input or clipboard
+production change is justified by the physical pre-Type-3 EOF.
+
+The existing production-backed Type-2/EOF lifecycle already performs two
+consecutive delivered-Type-2 peer disconnects on one unchanged listener. It is
+strengthened to require the freshly revalidated physical owner grant to remain
+active with the same permission scope before and after both attempts, while
+native desktop initialization, framebuffer observation and graphics remain
+dormant. The R5 source contract additionally names the native X11 aggregate,
+authorized input/XTEST route and framebuffer publication callback as forbidden
+from the `PreAdmission` region. Existing owner-authority tests remain the
+negative counterpart: a genuine session-generation/identity change makes fresh
+authorization fail closed.
+
+Detailed native-admission diagnostics remain unchanged and available for the
+later point at which a real client reaches `CredentialsVerified`. Positive X11
+construction remains gated by genuine native admission followed by
+`GraphicsReady`.
+
+Connector source review of this increment: **PASS**. Owner-reported baseline:
+**986/986 PASS** (exact tested SHA unspecified). Modified-tree local CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Next R5 gate: wait for the authentication/CredSSP target-principal
+owner to produce a physical Type 3; only then consume the genuine native
+Admission result.
+
 ## R9 owner-candidate admission/username/taxonomy prerequisite closure (2026-10-25)
 
 **Authoring parent:** `496748bc52126e1b4b28332d6d761452b4dc671b`. The owner evidence remains the reported

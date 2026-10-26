@@ -1161,6 +1161,16 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
     assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
 }
 
+void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
+{
+    assert(status.hostOwnerAuthorized);
+    assert(status.product.ownerAuthorized);
+    assert(status.ownerGrant.state == RuntimeOwnerGrantState::Active);
+    assert(status.ownerGrant.effectivePermissionMask ==
+           (kConsoleViewPermission | kConsoleInputPermission));
+    assert(status.ownerGrant.remainingMilliseconds > 0U);
+}
+
 [[nodiscard]] bool startSharingOnPort(
     LinuxRuntimeHostControl& control,
     const RuntimeHostRecommendedEndpoint& recommendation,
@@ -1194,8 +1204,7 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
     const auto status = control.status();
     assert(status.listenerAvailable);
     assert(status.listenerGeneration == expectedListenerGeneration);
-    assert(status.hostOwnerAuthorized);
-    assert(status.product.ownerAuthorized);
+    assertPhysicalOwnerGrantActive(status);
     assert(status.product.state == RuntimeProductHostState::Listening);
     assert(status.product.credentialsConfigured);
     assert(status.stage == RuntimeHostStage::ListenerAvailable);
@@ -1328,7 +1337,7 @@ int main(int argc, char** argv)
 
     const auto firstListener = control.status();
     assert(firstListener.listenerAvailable);
-    assert(firstListener.hostOwnerAuthorized);
+    assertPhysicalOwnerGrantActive(firstListener);
     assert(firstListener.credentialsConfigured);
     assert(!firstListener.nativeDesktopReady);
     assert(!firstListener.nativeDesktopInitializing);
@@ -1357,6 +1366,7 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.listenerAvailable);
         assert(waitingForTypeThree.listenerGeneration ==
                firstListenerGeneration);
+        assertPhysicalOwnerGrantActive(waitingForTypeThree);
         assert(waitingForTypeThree.activeClients.size() == 1U);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .authenticationStage ==
@@ -1417,8 +1427,7 @@ int main(int argc, char** argv)
         assert(afterTimeout.stage == RuntimeHostStage::ListenerAvailable);
         assert(afterTimeout.listenerAvailable);
         assert(afterTimeout.listenerGeneration == firstListenerGeneration);
-        assert(afterTimeout.hostOwnerAuthorized);
-        assert(afterTimeout.product.ownerAuthorized);
+        assertPhysicalOwnerGrantActive(afterTimeout);
         assert(afterTimeout.product.state == RuntimeProductHostState::Listening);
         assert(afterTimeout.product.credentialsConfigured);
         assert(afterTimeout.acceptedClientPreauthDiagnostics.termination ==
@@ -1460,6 +1469,7 @@ int main(int argc, char** argv)
             control, typeTwoReceived, peerFinished));
         const auto waitingForTypeThree = control.status();
         assert(waitingForTypeThree.activeClients.size() == 1U);
+        assertPhysicalOwnerGrantActive(waitingForTypeThree);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.available);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
                RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
@@ -1508,8 +1518,7 @@ int main(int argc, char** argv)
         const auto afterTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterTypeTwoEof));
         assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
-        assert(afterTypeTwoEof.hostOwnerAuthorized);
-        assert(afterTypeTwoEof.product.ownerAuthorized);
+        assertPhysicalOwnerGrantActive(afterTypeTwoEof);
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoQueued);
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
@@ -1617,6 +1626,7 @@ int main(int argc, char** argv)
             control, retryTypeTwoReceived, retryPeerFinished));
         const auto retryWaitingForTypeThree = control.status();
         assert(retryWaitingForTypeThree.activeClients.size() == 1U);
+        assertPhysicalOwnerGrantActive(retryWaitingForTypeThree);
         assert(!retryWaitingForTypeThree.clientDisconnected);
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics.available);
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
@@ -1661,6 +1671,7 @@ int main(int argc, char** argv)
 
         const auto afterRetryTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
+        assertPhysicalOwnerGrantActive(afterRetryTypeTwoEof);
         assertClipboardDormant(afterRetryTypeTwoEof);
         assertGraphicsDormant(afterRetryTypeTwoEof);
 
@@ -1705,8 +1716,7 @@ int main(int argc, char** argv)
         assert(afterBad.stage == RuntimeHostStage::ListenerAvailable);
         assert(afterBad.listenerAvailable);
         assert(afterBad.listenerGeneration == firstListenerGeneration);
-        assert(afterBad.hostOwnerAuthorized);
-        assert(afterBad.product.ownerAuthorized);
+        assertPhysicalOwnerGrantActive(afterBad);
         assert(afterBad.product.state == RuntimeProductHostState::Listening);
         assert(afterBad.product.credentialsConfigured);
         assert(afterBad.clientDisconnected);
@@ -1748,6 +1758,7 @@ int main(int argc, char** argv)
         assert(beforeTypeTwoEof.listenerAvailable);
         assert(beforeTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
+        assertPhysicalOwnerGrantActive(beforeTypeTwoEof);
         assert(beforeTypeTwoEof.activeClients.size() == 1U);
         assert(beforeTypeTwoEof.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoQueued);
@@ -1771,8 +1782,7 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.listenerAvailable);
         assert(afterTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
-        assert(afterTypeTwoEof.hostOwnerAuthorized);
-        assert(afterTypeTwoEof.product.ownerAuthorized);
+        assertPhysicalOwnerGrantActive(afterTypeTwoEof);
         assert(afterTypeTwoEof.product.state ==
                RuntimeProductHostState::Listening);
         assert(afterTypeTwoEof.product.credentialsConfigured);

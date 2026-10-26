@@ -1,3 +1,26 @@
+## Linux repeated Type-2 native-dormancy authoring receipt — 2026-10-25
+
+Owner evidence supplied for this round: Linux/X11 full CTest **986/986 PASS**;
+physical Microsoft Windows App reaches committed production Type 2 and
+Await-Type-3, then peer EOF before Type 3. pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS and graphics/X11 are not reached.
+The exact tested SHA was not supplied, so this receipt does not relabel current
+main as owner-tested.
+
+Hosted Windows Microsoft SSPI and the independent outer TSRequest DER oracle
+both accept the unchanged production Type-2 path. This R5 increment therefore
+changes no production authentication or native-admission code. It strengthens
+the existing repeated Type-2/EOF runtime fixture to require fresh active owner
+consent across both attempts and strengthens the source gate so PreAdmission
+cannot reach the X11 aggregate, authorized input/XTEST route or framebuffer
+publication. Existing session-generation mismatch coverage remains the
+fail-closed negative case.
+
+Connector source review: **PASS**. Modified-tree configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Physical positive native admission: **NOT REACHED / BLOCKED ON
+TYPE 3**.
+
 ## R9 owner-candidate preflight consumes admission, username and taxonomy gates — 2026-10-25
 
 Owner baseline `9fd1db518076713f30b41af2aff023308f95a925` remains **966/966

@@ -112,6 +112,8 @@ foreach(forbidden_text IN ITEMS
         "visitNativeDesktopSelection("
         "registerNativeChange("
         "X11DesktopResources"
+        "X11AuthorizedInputRoute"
+        "publishHostCapturedFrame("
         "processEvents("
         "consumeR4Frame("
         "nativeDesktop_ =")

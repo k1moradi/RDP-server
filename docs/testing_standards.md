@@ -1,3 +1,25 @@
+## Repeated pre-Type-3 attempts preserve native dormancy and owner consent (2026-10-25)
+
+A delivered Direct NTLM Type 2 followed by peer EOF is accepted-connection
+scope only. The production-backed Linux lifecycle regression must exercise at
+least two consecutive Type-2 -> EOF peers on the same listener and freshly
+observe the owner authority on every waiting/retired state. With unchanged
+native evidence, the grant remains active with its original view/input scope;
+an authentication interruption must not revoke local owner consent.
+
+That same regression must keep native desktop initialization false and the
+first framebuffer/ClearCodec/write/ACK trace empty. The source-level
+`PreAdmission` gate must forbid native X11 aggregate construction, the authorized
+input/XTEST route, native-change registration, X11 event processing,
+framebuffer capture/consumption and frame publication. These are control-flow
+proofs only; they never manufacture native authority.
+
+Session replacement remains independently fail-closed: the existing
+`CurrentOwnerSharingAuthority` tests mutate native session generation/identity
+and require a fresh `authorizes()` call to fail with the corresponding bounded
+mismatch/revocation. Thus repeated network authentication attempts preserve
+consent only while the actual Linux owner session remains current.
+
 ## Owner-candidate admission, username and CTest-taxonomy preflight (2026-10-25)
 
 Before an exact-SHA owner candidate may be reported ready for another physical

@@ -810,9 +810,10 @@ wire behavior. Main keeps the product-safe message
 password, local-desktop authorization failure or native-admission failure.
 Advanced uses the exact positive R1 receipt: only
 `directNtlmTypeTwoDelivered=true` permits
-`NTLM challenge delivered; client disconnected before authentication
-response.`; queued-only/legacy evidence falls back to a less-specific redacted
-authentication diagnostic.
+`Client disconnected after authentication challenge.`; queued-only/legacy
+evidence falls back to a less-specific redacted authentication diagnostic.
+Target-identity mismatch presentation remains blocked until a typed runtime
+diagnosis exists; the GUI must not infer it from address/TargetName differences.
 
 The existing dedicated CTest
 `gui.offscreen-authentication-incomplete-before-native-admission` covers the

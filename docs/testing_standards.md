@@ -1,3 +1,31 @@
+## R8 Windows full-CredSSP harness isolation gate (2026-10-26)
+
+The Windows native full-`CREDSSP` oracle is test-only authentication
+qualification and has zero clipboard authority. The current control, IP-SPN and
+bare-IP cases all reach TLS and stop at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)` before the first client TSRequest is
+produced/consumed. Because `TERMSRV/RDP-SERVER` fails at the same harness
+round, this is a CredSSP round-progression defect rather than target-principal
+evidence and cannot authorize a production identity or R8 change.
+
+Keep `test_windows_sspi_credssp_interop` linked only to the standalone
+NTLM/CredSSP component, runtime TLS and Windows `secur32`. The existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` source-contract CTest must
+inspect that target and its source and fail if HostControl, native-desktop, R8
+clipboard targets, clipboard/X11 headers or native clipboard APIs enter the
+harness. This is a build/source isolation gate only; it never executes Windows
+SSPI or a host clipboard on Linux.
+
+The production-backed pre-Type-3 lifecycle remains the runtime authority:
+after a completely delivered Type 2 and peer EOF, and on the next accepted
+connection before Type 3, require `NtlmChallenge / PreAdmission`, no MCS or
+Share advancement, `RuntimeClipboardState::Unavailable`, no clipboard
+permission and no native/graphics owner. Native/R8 construction remains
+GraphicsReady-only and allocates a fresh generation-bound owner, so pre-Type-3
+failures cannot leave CLIPRDR negotiation, X11/INCR selection state or a
+clipboard generation to inherit. Keep
+`kLinuxProductionClipboardActivationApproved = false`.
+
 ## Microsoft full-CredSSP target-principal gate (2026-10-25)
 
 Keep both existing independent gates: Microsoft native NTLM SSPI qualifies the

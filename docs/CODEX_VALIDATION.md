@@ -1,3 +1,49 @@
+## R8 full-CredSSP harness clipboard-isolation receipt — 2026-10-26
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.
+**Reconciled authoring parent:** `eb24ff37b8a550be348d922a1c9d021da561af32`.
+Owner-supplied Linux/X11 baseline: **989/989 CTest PASS**. The physical
+Microsoft Windows App boundary remains a fully committed production Type 2
+followed by Await-Type-3 and peer EOF; Type 3 and all downstream native/session
+boundaries, including clipboard, are not reached.
+
+The reconciled parent preserves the same current diagnosis and adds stronger
+R5 repeated pre-Type-3 native-dormancy and R7 non-diagnostic target-observation
+coverage. All three Windows full-`CREDSSP` targets still stop after TLS at
+`server-initial-tsrequest` with `SEC_I_CONTINUE_NEEDED (0x00090312)`,
+including the portable-name control. This supplies no target-principal
+differential and authorizes no production wire, native or clipboard change.
+
+R8 source review found the production activation gate still literal
+`kLinuxProductionClipboardActivationApproved = false`; the existing
+production-backed Type-2/EOF lifecycle asserts
+`RuntimeClipboardState::Unavailable`, no clipboard permission, no
+MCS/Share/native/graphics progression and a fresh next accepted pre-Type-3
+lifetime. The dormant-composition source gate also keeps native/R8 construction
+GraphicsReady-only with fresh generation ownership.
+
+This publication adds one regression to the existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` source-contract CTest. It
+now isolates `test_windows_sspi_credssp_interop` in `tests/CMakeLists.txt`,
+requires only its standalone NTLM/CredSSP + runtime-TLS + `secur32`
+composition, rejects HostControl/native-desktop/R8 clipboard target linkage,
+and rejects clipboard/X11/native-owner headers or native clipboard APIs in the
+harness source. No production source and no CTest registration count changes.
+
+Verification:
+- current-main/affected-file reconciliation through the GitHub connector:
+  **PASS**;
+- static evaluation of the target/source allow/deny contract against the
+  reconciled parent: **PASS**;
+- owner one-root command
+  `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`:
+  **NOT RUN** in this connector environment;
+- exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** the Microsoft full-CredSSP portable-name control must progress
+far enough to consume the exact production Type 2 before any new physical Linux
+owner run or production identity/clipboard decision.
+
 ## R5 repeated pre-Type-3 owner-grant/native-dormancy verification — 2026-10-26
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. **Reconciled publication parent:** `6be81670596c0dcd17fed71d7a3e385a90a1ef80`.

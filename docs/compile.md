@@ -1,3 +1,18 @@
+## R8 Windows full-CredSSP harness linkage isolation (2026-10-26)
+
+The Windows-only `test_windows_sspi_credssp_interop` target remains a
+test-only authentication oracle linked to
+`rdp-server-standalone-ntlmv2`, `rdp-server-runtime-tls` and `secur32`.
+It must not link HostControl, platform-native desktop aggregates or any R8
+clipboard target, and its source must not include clipboard/X11/native-owner
+interfaces or call native clipboard APIs.
+
+The existing Linux source-contract CTest
+`runtime.linux-gui-bootstrap-clipboard-dormancy` now enforces that composition
+by reading the Windows harness target/source as data. No new CTest, production
+library, shipped dependency, build root or platform permission is introduced;
+the one persistent `build/` contract is unchanged.
+
 ## Windows Microsoft full-CredSSP target matrix (2026-10-25)
 
 The existing Windows-only `test_windows_sspi_credssp_interop` remains linked

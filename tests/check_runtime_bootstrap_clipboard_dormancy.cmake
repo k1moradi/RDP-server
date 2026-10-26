@@ -10,7 +10,9 @@ foreach(required_var IN ITEMS
         RDP_LINUX_PREPARED_CLIPBOARD_HEADER
         RDP_RUNTIME_BOOTSTRAP_HEADER
         RDP_RUNTIME_HOST_CONTROL_HEADER
-        RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER)
+        RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER
+        RDP_TESTS_CMAKE
+        RDP_WINDOWS_CREDSSP_HARNESS_SOURCE)
     if(NOT DEFINED ${required_var})
         message(FATAL_ERROR "missing ${required_var}")
     endif()
@@ -25,6 +27,8 @@ file(READ "${RDP_LINUX_PREPARED_CLIPBOARD_HEADER}" owner_header)
 file(READ "${RDP_RUNTIME_BOOTSTRAP_HEADER}" bootstrap_header)
 file(READ "${RDP_RUNTIME_HOST_CONTROL_HEADER}" runtime_host_header)
 file(READ "${RDP_STANDALONE_CREDENTIAL_CONSENT_HEADER}" credential_consent_header)
+file(READ "${RDP_TESTS_CMAKE}" tests_cmake)
+file(READ "${RDP_WINDOWS_CREDSSP_HARNESS_SOURCE}" windows_credssp_harness_source)
 set(gui_source "${desktop_window_header}\n${desktop_window_source}")
 
 # R6 may define where automatic bootstrap state lives, but that policy cannot
@@ -254,6 +258,75 @@ if(activation_gate LESS 0)
     message(FATAL_ERROR
         "R8 production activation gate must remain literal false before FIRST")
 endif()
+
+# The Microsoft full-CredSSP oracle is a test-only authentication harness.
+# It may consume the production standalone CredSSP/TLS components, but it must
+# not gain HostControl, native-desktop or R8 linkage while the physical owner
+# remains pre-Type-3. Keep both build composition and source dependencies
+# clipboard-free so a harness-round fix cannot manufacture R8 lifetime.
+string(FIND "${tests_cmake}"
+    "add_executable(test_windows_sspi_credssp_interop"
+    windows_credssp_target_begin)
+string(FIND "${tests_cmake}"
+    "# R2 standalone NTLM transcript MIC and connection-oriented SIGN/SEAL state."
+    windows_credssp_target_end)
+if(windows_credssp_target_begin LESS 0 OR
+   windows_credssp_target_end LESS_EQUAL windows_credssp_target_begin)
+    message(FATAL_ERROR
+        "unable to isolate Windows full-CredSSP test target")
+endif()
+math(EXPR windows_credssp_target_length
+    "${windows_credssp_target_end} - ${windows_credssp_target_begin}")
+string(SUBSTRING "${tests_cmake}" ${windows_credssp_target_begin}
+    ${windows_credssp_target_length} windows_credssp_target_source)
+
+foreach(required_text IN ITEMS
+        "test_windows_sspi_credssp_interop.cpp"
+        "rdp-server-standalone-ntlmv2"
+        "rdp-server-runtime-tls"
+        "secur32")
+    string(FIND "${windows_credssp_target_source}" "${required_text}" found)
+    if(found LESS 0)
+        message(FATAL_ERROR
+            "Windows full-CredSSP harness lost required test-only dependency: ${required_text}")
+    endif()
+endforeach()
+foreach(forbidden_text IN ITEMS
+        "rdp-server-r8-r3-clipboard"
+        "rdp-server-windows-clipboard"
+        "rdp-server-macos-clipboard"
+        "rdp-server-linux-x11-clipboard"
+        "rdp-server-linux-host-control"
+        "rdp-server-windows-desktop"
+        "rdp-server-runtime-platform-native-desktop"
+        "RDP_SERVER_HAVE_LINUX_X11_CLIPBOARD")
+    string(FIND "${windows_credssp_target_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Windows full-CredSSP harness must not link R8/native host state: ${forbidden_text}")
+    endif()
+endforeach()
+foreach(forbidden_text IN ITEMS
+        "#include \"clipboard/"
+        "#include \"server/clipboard/"
+        "#include \"x11/"
+        "windows_clipboard"
+        "linux_prepared_clipboard_owner"
+        "linux_runtime_host_control"
+        "runtime_host_control.h"
+        "native_desktop"
+        "CLIPRDR"
+        "kLinuxProductionClipboardActivationApproved"
+        "OpenClipboard("
+        "SetClipboardData("
+        "GetClipboardData("
+        "xcb_")
+    string(FIND "${windows_credssp_harness_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "Windows full-CredSSP source must stay outside R8/native clipboard state: ${forbidden_text}")
+    endif()
+endforeach()
 
 # Main may gain Session Password/bootstrap controls, but no clipboard checkbox
 # or writable clipboard preference while production activation remains false.

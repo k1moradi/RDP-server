@@ -1,3 +1,47 @@
+## R8 P2 — full-CredSSP harness remains clipboard-isolated (2026-10-26)
+
+**Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`.
+**Reconciled publication parent:** `eb24ff37b8a550be348d922a1c9d021da561af32`.
+Owner Linux/X11 baseline is **989/989 CTest PASS**. The physical Microsoft
+Windows App still reaches TCP -> X.224/HYBRID -> TLS -> Direct NTLM Type 1 ->
+production Type 2 queued and fully committed -> Await-Type-3 -> peer EOF.
+Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS,
+Share, graphics/X11 and clipboard are **NOT REACHED**.
+
+R8 remains **P2 / BLOCKED** and production activation remains exactly
+`kLinuxProductionClipboardActivationApproved = false`. Microsoft native NTLM
+SSPI already accepts the unchanged Type 2 and the independent Type-2 TSRequest
+oracle passes, but all three full Microsoft `CREDSSP` targets currently stop
+after TLS at `server-initial-tsrequest` with
+`SEC_I_CONTINUE_NEEDED (0x00090312)`. Since the
+`TERMSRV/RDP-SERVER` control fails identically, this is a harness-round
+progression defect, not evidence for endpoint-bound production identity.
+
+This increment changes no production source. It strengthens the existing
+`runtime.linux-gui-bootstrap-clipboard-dormancy` CTest so the Windows
+full-CredSSP test target/source are explicitly isolated from HostControl,
+native-desktop and every R8/native clipboard dependency or API. Reconciled R5
+and R7 work remains intact: repeated pre-Type-3 native/graphics dormancy is
+pinned and target observation alone remains non-diagnostic. The production
+Direct-NTLM Type-2/EOF lifecycle continues to require
+`RuntimeClipboardState::Unavailable`, no clipboard permission, no MCS/Share,
+no native/graphics owner and a fresh next-connection lifetime before Type 3.
+The source composition gate keeps native/R8 construction GraphicsReady-only and
+fresh-generation-owned. Therefore a harness fix cannot create CLIPRDR
+negotiation, stale X11/INCR selection state or a clipboard generation.
+
+No new CTest is registered, so this regression does not intentionally change
+the test inventory. Connector source/reconciliation checks: **PASS by
+inspection**. The owner 989/989 receipt predates this publication.
+Modified-tree one-root configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** repair the Microsoft full-CredSSP round progression until the
+portable-name control reaches and consumes the exact production Type 2. Do not
+nominate another Linux owner run and do not change production Type-2 identity,
+TLS/SPNEGO/CredSSP, native Admission, MCS, graphics, input or clipboard before
+that evidence.
+
 ## R5 P1 — repeated pre-Type-3 native-dormancy verification on current main (2026-10-26)
 
 **Assignment-time main:** `ddba1f369f9a5cb3756610a7119e20a8bf864666`. **Reconciled publication parent:** `6be81670596c0dcd17fed71d7a3e385a90a1ef80`.

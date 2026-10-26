@@ -1,3 +1,32 @@
+## R9 P0 — classify the Microsoft 94-byte post-TLS token (2026-10-26)
+
+**Exact hosted evidence SHA:** `e4b1dfa84640288910a13c33817b969748d7d0b4`. The workflow-structure guard,
+Windows Debug compile and both harness-integrity regressions **PASS**. The
+separate Microsoft NTLM fixed-name and IP-target Type-2 oracles both **PASS**.
+
+The real fixed-name full-CREDSSP control still **FAILS** before production
+Type 2. The exact pump ordering disproves the preceding empty-peer hypothesis:
+round 2 feeds Microsoft's 158-byte TLS flight, OpenSSL transitions the server
+to TLS 1.2 Ready and emits 226 server bytes, and Microsoft consumes those bytes
+and returns a 94-byte output token with `SEC_I_CONTINUE_NEEDED`. Round 3
+feeds those 94 bytes while server TLS is already Ready; the first server TLS
+application read then fails at `memory-bio-server-initial-tsrequest`. No
+initial TSRequest is accepted. The matrix therefore correctly records
+CREDSSP fixed-name FAIL, IP-SPN/bare-IP `BLOCKED_CONTROL`, and
+`credssp-target-differential=BLOCKED_CONTROL`.
+
+The next test-only diagnostic classifies the Microsoft output only by safe
+outer shape (TLS record class, DER sequence, empty or opaque-other) and, on a
+failed server application read, reports TLS-read status, TSRequest framing
+error, plaintext byte count, pre-read memory-BIO/`SSL_pending()` counts and
+numeric OpenSSL error-queue observations. It does not log payload bytes or
+credentials. This is evidence gathering at the harness boundary only; no
+production Type-2/TLS/SPNEGO/native/session behavior changes.
+
+**Next gate:** exact-SHA hosted Windows must establish whether the 94-byte
+output is rejected by TLS record processing or reaches decrypted TSRequest
+framing. Physical-owner nomination and owner-candidate dispatch remain blocked.
+
 ## R9 P0 — scripted post-TLS continuation fixture correction (2026-10-26)
 
 **Reconciled parent:** `27ce32bc7aed75423a6f7b2cefc24a266252c60e`. Exact-SHA Windows run

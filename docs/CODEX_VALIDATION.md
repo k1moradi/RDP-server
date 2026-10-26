@@ -1,3 +1,31 @@
+## R9 exact-SHA 94-byte post-TLS failure receipt — 2026-10-26
+
+**Evidence SHA:** `e4b1dfa84640288910a13c33817b969748d7d0b4`, primary run `40293861759`, Windows job
+`121475102514`. Windows configuration/native preflight/Debug compile:
+**PASS**. Both Agent-9 harness-integrity CTests: **PASS**. Microsoft NTLM
+fixed-name: **PASS**. Microsoft NTLM IP target: **PASS**.
+
+Full-CREDSSP fixed-name control: **FAIL/BLOCKED**. The exact sequence is
+153-byte Microsoft output -> 1222-byte server flight -> 158-byte Microsoft
+output -> 226-byte server flight; after processing the 158-byte flight the
+server is TLS 1.2 Ready, and Microsoft's next successful continuation returns
+94 bytes. Feeding those 94 bytes while TLS is already Ready causes the first
+server application read to fail at
+`memory-bio-server-initial-tsrequest`. Initial TSRequest, production Type 2,
+next TSRequest and Type 3 are **NOT REACHED**. IP-SPN and bare-IP are
+`BLOCKED_CONTROL`; differential is `BLOCKED_CONTROL`.
+
+This increment adds only fail-only structural diagnostics to the Windows test
+harness. It classifies the returned output envelope and records the server
+TLS/TSRequest error boundary without exposing payload bytes. Production source
+and all prohibited identity/native/session changes remain untouched.
+Connector transformation/reconciliation: **PASS by inspection**. Local
+owner-root build/CTest: **NOT RUN**. Exact-publication-SHA Windows execution:
+**PENDING**. Owner-candidate dispatch: **BLOCKED**.
+
+**Next gate:** classify the 94-byte output and the first failed server read on
+the new exact SHA, then repair only the demonstrated harness boundary.
+
 ## R9 scripted TLS-completion regression correction receipt — 2026-10-26
 
 **Reconciled parent:** `27ce32bc7aed75423a6f7b2cefc24a266252c60e`. Exact-SHA primary run

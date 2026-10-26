@@ -1097,6 +1097,57 @@ private:
     bool continuationWithoutWireAllowed_{};
 };
 
+[[nodiscard]] const char *credSspTokenEnvelope(
+    std::span<const std::uint8_t> token) noexcept
+{
+    if (token.empty())
+        return "empty";
+    if (token.front() == 0x30U)
+        return "der-sequence";
+    if (token.size() < 5U || token[1] != 0x03U)
+        return "opaque-other";
+
+    switch (token.front())
+    {
+    case 0x14U: return "tls-change-cipher-spec";
+    case 0x15U: return "tls-alert";
+    case 0x16U: return "tls-handshake";
+    case 0x17U: return "tls-application-data";
+    case 0x18U: return "tls-heartbeat";
+    default: return "opaque-other";
+    }
+}
+
+[[nodiscard]] const char *tsRequestTlsReadStatusName(
+    TsRequestTlsReadStatus status) noexcept
+{
+    switch (status)
+    {
+    case TsRequestTlsReadStatus::Progress: return "progress";
+    case TsRequestTlsReadStatus::NeedRead: return "need-read";
+    case TsRequestTlsReadStatus::NeedWrite: return "need-write";
+    case TsRequestTlsReadStatus::Complete: return "complete";
+    case TsRequestTlsReadStatus::Invalid: return "invalid";
+    case TsRequestTlsReadStatus::Closed: return "closed";
+    }
+    return "unknown";
+}
+
+[[nodiscard]] const char *tsRequestErrorName(
+    TsRequestError error) noexcept
+{
+    switch (error)
+    {
+    case TsRequestError::None: return "none";
+    case TsRequestError::InvalidDer: return "invalid-der";
+    case TsRequestError::InvalidVersion: return "invalid-version";
+    case TsRequestError::InvalidFields: return "invalid-fields";
+    case TsRequestError::InvalidTokens: return "invalid-tokens";
+    case TsRequestError::InvalidNonce: return "invalid-nonce";
+    }
+    return "unknown";
+}
+
 template <typename ClientStep>
 [[nodiscard]] const char *credSspClientStepDisposition(
     const ClientStep &step) noexcept
@@ -1131,6 +1182,7 @@ void printCredSspClientCall(
         stderr,
         "microsoft-credssp-call target=%s phase=%s status=%s "
         "code=0x%08lx input-bytes=%zu output-bytes=%zu "
+        "output-envelope=%s "
         "retained-extra-bytes=%zu retained-input-bytes=%zu "
         "missing-bytes=%zu zero-token-input=%s disposition=%s "
         "tls-finished=%s initial-tsrequest-seen=%s "
@@ -1143,6 +1195,7 @@ void printCredSspClientCall(
             static_cast<std::uint32_t>(step.status)),
         step.inputBytes,
         step.output.view().size(),
+        credSspTokenEnvelope(step.output.view()),
         step.retainedExtraBytes,
         step.retainedServerInputBytes,
         step.missingBytes,
@@ -1393,7 +1446,32 @@ public:
         if (!valid_ || SSL_is_init_finished(tls_.get()) != 1)
             return FrameAdvance::Failed;
 
+        const std::size_t inputBioPendingBefore =
+            inputBioPendingBytes();
+        const std::size_t applicationPendingBefore =
+            applicationPendingBytes();
+        const unsigned long openSslErrorBefore =
+            ERR_peek_last_error();
         const auto result = reader_.readOneTlsStep(tls_.get());
+        if (result.status == TsRequestTlsReadStatus::Invalid ||
+            result.status == TsRequestTlsReadStatus::Closed)
+        {
+            std::fprintf(
+                stderr,
+                "microsoft-credssp-server-frame-failure "
+                "tls-read-status=%s tsrequest-error=%s "
+                "plaintext-read=%zu rbio-before=%zu "
+                "ssl-pending-before=%zu openssl-before=0x%08lx "
+                "openssl-after=0x%08lx\n",
+                tsRequestTlsReadStatusName(result.status),
+                tsRequestErrorName(result.error),
+                result.plaintextBytesRead,
+                inputBioPendingBefore,
+                applicationPendingBefore,
+                openSslErrorBefore,
+                ERR_peek_last_error());
+        }
+
         switch (result.status)
         {
         case TsRequestTlsReadStatus::Progress:

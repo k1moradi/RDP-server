@@ -1,3 +1,19 @@
+## Full-CredSSP opaque-token failure diagnostics stay structural (2026-10-26)
+
+Microsoft CredSSP SSPI output remains opaque to the harness. When a hosted
+failure occurs at the boundary between a returned client token and the first
+server application read, diagnostics may record only the token size and an
+outer-envelope class: TLS record type, DER sequence, empty or opaque-other.
+Never dump token contents, NTLM challenge/response material, credentials,
+session keys or delegated data.
+
+A failed server TSRequest read may additionally record the existing
+`TsRequestTlsReadStatus` and `TsRequestError`, plaintext bytes consumed,
+memory-BIO bytes pending before the read, `SSL_pending()` before the read,
+and numeric OpenSSL error-queue values. These observations distinguish TLS
+record failure from decrypted framing failure without changing the provider
+schedule or granting authentication authority.
+
 ## Scripted CredSSP TLS-completion fixtures must gate application readiness on delivered output (2026-10-26)
 
 When a scripted Microsoft continuation produces the first post-TLS application

@@ -16,10 +16,21 @@ inline constexpr std::size_t kMaximumStandaloneNtlmMessageBytes = 8192U;
 inline constexpr std::size_t kMaximumStandaloneNtlmServerNameCodeUnits = 128U;
 
 // Stable standalone NTLM naming is portable protocol state, not host identity.
+// Keep four identity boundaries explicit:
+// 1. the R10-selected TLS endpoint (for example 192.168.1.5);
+// 2. this CHALLENGE_MESSAGE TargetName;
+// 3. TargetInfo MsvAvTargetName, when a selected profile actually emits it;
+// 4. the client-side CredSSP/RDP service target, conceptually TERMSRV/<target>.
+// They are related interoperability inputs, not aliases that must silently be
+// identical. The current production encoder consumes only (2) plus its current
+// NetBIOS TargetInfo fields; it emits no MsvAvTargetName and does not receive
+// the TLS endpoint or CredSSP service target.
+//
 // Normal hosting never derives these values from the host name, filesystem,
-// locale, local account, or the remote application username. A host may
-// deliberately replace them only through the same bounded UTF-16 challenge
-// configuration used by every platform.
+// locale, local account, or the remote application username. A future
+// endpoint-bound production profile must receive the authoritative selection
+// from R10 through an explicit bounded configuration API; the encoder must not
+// query DNS, hostname or environment state itself.
 inline constexpr std::u16string_view kStandaloneNtlmPortableDomainName{u"RDP"};
 inline constexpr std::u16string_view kStandaloneNtlmPortableServerName{
     u"RDP-SERVER"};

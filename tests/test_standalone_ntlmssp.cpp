@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -168,6 +169,91 @@ constexpr void storeLe32(
         message.end(),
         std::uint8_t{0x11});
     return message;
+}
+
+
+struct ExtendedAuthenticateMessage final
+{
+    std::array<std::uint8_t, 320> bytes{};
+    std::size_t size{};
+};
+
+[[nodiscard]] ExtendedAuthenticateMessage
+authenticateWithClientTargetAndChannelBindings()
+{
+    ExtendedAuthenticateMessage result;
+    constexpr std::size_t existingAvEolOffset = 208U;
+    constexpr std::u16string_view serviceTarget{
+        u"TERMSRV/192.168.1.5"};
+    constexpr std::array<std::uint8_t, 16> channelBindings{
+        0x10,0x21,0x32,0x43,0x54,0x65,0x76,0x87,
+        0x98,0xa9,0xba,0xcb,0xdc,0xed,0xfe,0x0f};
+    constexpr std::size_t targetNamePairBytes =
+        4U + serviceTarget.size() * 2U;
+    constexpr std::size_t channelBindingsPairBytes =
+        4U + channelBindings.size();
+    constexpr std::size_t flagsPairBytes = 8U;
+    constexpr std::size_t insertedBytes =
+        targetNamePairBytes + channelBindingsPairBytes + flagsPairBytes;
+    static_assert(
+        kMicrosoftAuthenticateMessage.size() + insertedBytes <= 320U);
+
+    std::copy(
+        kMicrosoftAuthenticateMessage.begin(),
+        kMicrosoftAuthenticateMessage.begin() + existingAvEolOffset,
+        result.bytes.begin());
+    std::copy(
+        kMicrosoftAuthenticateMessage.begin() + existingAvEolOffset,
+        kMicrosoftAuthenticateMessage.end(),
+        result.bytes.begin() + existingAvEolOffset + insertedBytes);
+
+    std::size_t offset = existingAvEolOffset;
+    storeLe16(result.bytes.data() + offset, 9U); // MsvAvTargetName
+    storeLe16(
+        result.bytes.data() + offset + 2U,
+        static_cast<std::uint16_t>(serviceTarget.size() * 2U));
+    offset += 4U;
+    for (std::size_t index = 0; index < serviceTarget.size(); ++index)
+    {
+        storeLe16(
+            result.bytes.data() + offset + index * 2U,
+            static_cast<std::uint16_t>(serviceTarget[index]));
+    }
+    offset += serviceTarget.size() * 2U;
+
+    storeLe16(result.bytes.data() + offset, 10U); // MsvAvChannelBindings
+    storeLe16(
+        result.bytes.data() + offset + 2U,
+        static_cast<std::uint16_t>(channelBindings.size()));
+    offset += 4U;
+    std::copy(
+        channelBindings.begin(),
+        channelBindings.end(),
+        result.bytes.begin() + static_cast<std::ptrdiff_t>(offset));
+    offset += channelBindings.size();
+
+    storeLe16(result.bytes.data() + offset, 6U); // MsvAvFlags
+    storeLe16(result.bytes.data() + offset + 2U, 4U);
+    storeLe32(result.bytes.data() + offset + 4U, 0U);
+    offset += flagsPairBytes;
+    assert(offset == existingAvEolOffset + insertedBytes);
+
+    constexpr std::uint16_t originalNtResponseBytes = 84U;
+    constexpr std::uint32_t originalSessionKeyOffset = 216U;
+    storeLe16(
+        result.bytes.data() + 20U,
+        static_cast<std::uint16_t>(
+            originalNtResponseBytes + insertedBytes));
+    storeLe16(
+        result.bytes.data() + 22U,
+        static_cast<std::uint16_t>(
+            originalNtResponseBytes + insertedBytes));
+    storeLe32(
+        result.bytes.data() + 56U,
+        static_cast<std::uint32_t>(
+            originalSessionKeyOffset + insertedBytes));
+    result.size = kMicrosoftAuthenticateMessage.size() + insertedBytes;
+    return result;
 }
 
 } // namespace
@@ -602,6 +688,36 @@ int main(int argc, char **argv)
             kExpectedExportedSessionKey.begin(),
             kExpectedExportedSessionKey.end(),
             context.exportedSessionKey().begin()));
+        return 0;
+    }
+
+    if (testCase ==
+        "ntlmssp-authenticate-client-av-compatibility")
+    {
+        const auto extended =
+            authenticateWithClientTargetAndChannelBindings();
+        NtlmAuthenticateMessage authenticate;
+        assert(parseNtlmAuthenticateMessage(
+                   std::span<const std::uint8_t>{extended.bytes}.first(
+                       extended.size),
+                   authenticate) ==
+               NtlmMessageParseResult::Parsed);
+        assert(authenticate.messageIntegrityCode.empty());
+
+        // The fixture intentionally changes the authenticated NTLMv2 blob
+        // without recomputing its proof. Reaching ProofMismatch proves that
+        // MsvAvTargetName, nonzero channel bindings and MsvAvFlags survived
+        // both parser and verifier structural checks instead of being rejected
+        // or normalized away.
+        EphemeralNtlmV2Credential credential;
+        auto mutablePassword = password();
+        assert(credential.configure(u"User", mutablePassword));
+        NtlmV2SecurityContext context;
+        assert(credential.verifyAndDeriveSecurityContext(
+                   authenticate.verificationRequest(kServerChallenge),
+                   context) ==
+               NtlmV2VerifyResult::ProofMismatch);
+        assert(!context.active());
         return 0;
     }
 

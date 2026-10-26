@@ -1,3 +1,21 @@
+## R2 P0 endpoint identity decision — no Type-2 production change (2026-10-25)
+
+The requested native Microsoft NTLM identity matrix is now decisive at the
+inner-mechanism boundary. The unchanged production challenge with
+`TargetName=RDP-SERVER` produces Microsoft Type 3 for the physical-IP client
+service target `TERMSRV/192.168.1.5`. A test-only endpoint TargetName also
+produces Type 3, while adding
+`MsvAvTargetName=TERMSRV/192.168.1.5` to that profile is rejected by
+Microsoft before Type 3.
+
+Therefore keep production fixed-name `RDP-SERVER`; do not activate the dormant
+endpoint-bound R10 profile and do not add AV9 as a workaround. Continue the
+current-main Microsoft full-CredSSP target oracle. Only a genuine full-context
+Microsoft divergence may reopen production target selection.
+
+Native Admission, MCS, graphics, input and clipboard remain blocked until the
+physical Microsoft RDP client itself reaches Type 3.
+
 ## P0 follow-up — Microsoft full-CredSSP target-principal matrix (2026-10-25)
 
 **Reconciled parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner Linux/X11 evidence is **986/986

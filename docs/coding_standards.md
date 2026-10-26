@@ -1,3 +1,22 @@
+## Four standalone target identities and client AV handling (2026-10-25)
+
+Keep four authentication/transport identities explicit rather than silently
+aliasing them: the R10-selected TLS endpoint, the NTLM Type-2 TargetName,
+optional TargetInfo `MsvAvTargetName`, and the client CredSSP/RDP service
+target `TERMSRV/<target>`. Current production remains fixed-name
+`RDP-SERVER`; the endpoint-bound R10 profile stays dormant unless Microsoft
+full-CredSSP evidence requires it.
+
+The remote standalone application Username is independent of all four identities
+and of the local Unix desktop owner. Never use it to derive a host account or
+server/service target.
+
+Client NTLMv2 `MsvAvTargetName`, `MsvAvFlags` and
+`MsvAvChannelBindings` are authenticated response-blob data. Preserve valid
+bounded fields through proof verification. Do not disable channel binding,
+replace a nonzero client value with zeros, or use fabricated CBT data to repair
+interoperability.
+
 ## CredSSP target-principal identity experiments are test-only (2026-10-25)
 
 The demonstrated physical boundary is a completely committed production Type 2

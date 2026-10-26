@@ -1,3 +1,13 @@
+## R8 Type-2/EOF retry dormancy uses existing test targets (2026-10-26)
+
+The R8 P2 strengthening adds no executable, library, dependency, compile
+definition, CTest registration or build directory. It narrows the existing
+`test_linux_runtime_direct_ntlm_lifecycle` Type-2/EOF case to the requested
+pre-Type-3 retry boundary and extends the existing CMake-script gate behind
+`runtime.linux-host-control-dormant-unicode-clipboard-composition`.
+The canonical single `build/` root, clipboard test inventory and all platform
+build commands remain unchanged.
+
 ## R4 pre-Type-3 graphics dormancy uses the existing source-contract CTest (2026-10-26)
 
 The R4 P2 pre-Type-3 strengthening adds no executable, library, dependency,

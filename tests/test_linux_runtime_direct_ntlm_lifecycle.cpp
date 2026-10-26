@@ -1562,6 +1562,7 @@ int main(int argc, char** argv)
         assert(!peerResult.authInfoSent);
         const auto afterTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterTypeTwoEof));
+        assert(afterTypeTwoEof.activeClients.empty());
         assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
         assertPhysicalOwnerGrantActive(afterTypeTwoEof);
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
@@ -1686,6 +1687,9 @@ int main(int argc, char** argv)
         assert(retryWaitingForTypeThree.listenerGeneration ==
                firstListenerGeneration);
         assert(retryWaitingForTypeThree.activeClients.size() == 1U);
+        assert(retryWaitingForTypeThree.activeClients.front().authenticating);
+        assert(!retryWaitingForTypeThree.activeClients.front().shareActivated);
+        assert(!retryWaitingForTypeThree.activeClients.front().desktopVisible);
         assertPhysicalOwnerGrantActive(retryWaitingForTypeThree);
         assert(retryWaitingForTypeThree.product.credentialsConfigured);
         assert(control.standaloneApplicationPasswordObservation().generation ==
@@ -1720,6 +1724,10 @@ int main(int argc, char** argv)
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
+        assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .mcsSessionAdvanced);
+        assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .shareActivated);
         assertClipboardDormant(retryWaitingForTypeThree);
         assertGraphicsDormant(retryWaitingForTypeThree);
         assertFixedConnectionTargetIdentity(
@@ -1737,6 +1745,7 @@ int main(int argc, char** argv)
 
         const auto afterRetryTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
+        assert(afterRetryTypeTwoEof.activeClients.empty());
         assert(afterRetryTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
         assertPhysicalOwnerGrantActive(afterRetryTypeTwoEof);
@@ -1751,16 +1760,20 @@ int main(int argc, char** argv)
             afterRetryTypeTwoEof, recommendation.address, selectedPort,
             firstListenerGeneration);
 
-        // Preserve the existing same-listener positive synthetic retry after
-        // the R8 freshness observation. Peer 3 completes Type 3 + pubKeyAuth
-        // + authInfo through CredentialsVerified before native Admission runs.
-        const PeerResult retryResult = runAdmissionDeniedPeer(
-            control, recommendation.address, selectedPort, 0x20U,
-            firstListenerGeneration, credential.generation);
-        assert(challengesDiffer(
-            peerResult.serverChallenge, retryResult.serverChallenge));
-        assert(challengesDiffer(
-            retryTypeTwoResult.serverChallenge, retryResult.serverChallenge));
+        if (!typeTwoPeerEofOnly)
+        {
+            // The target-identity case keeps its existing positive synthetic
+            // retry. The dedicated Type-2/EOF dormancy case ends above this
+            // boundary and never manufactures downstream clipboard authority.
+            const PeerResult retryResult = runAdmissionDeniedPeer(
+                control, recommendation.address, selectedPort, 0x20U,
+                firstListenerGeneration, credential.generation);
+            assert(challengesDiffer(
+                peerResult.serverChallenge, retryResult.serverChallenge));
+            assert(challengesDiffer(
+                retryTypeTwoResult.serverChallenge,
+                retryResult.serverChallenge));
+        }
 
         assert(control.stopSharing().succeeded());
         const auto retainedCredential =

@@ -1,3 +1,21 @@
+## Pre-Type-3 retry cannot create a clipboard lifetime (2026-10-26)
+
+A Direct NTLM connection with Type 2 fully delivered but no Type 3 remains
+`PreAdmission`. Peer EOF at that boundary retires only the accepted
+connection. A same-listener retry must start with no CLIPRDR route/state, no
+native clipboard owner, no X11 CLIPBOARD selection ownership, no pending or
+INCR transfer, and no admission/session clipboard generation inherited from
+the retired peer.
+
+Do not add production clipboard observability solely to prove this absence.
+Keep native/R8 construction exclusive to the existing post-admission
+`GraphicsReady` path. The production-backed Type-2/EOF lifecycle proves both
+peers remain pre-MCS/pre-Share with clipboard unavailable and no native desktop;
+the source contract proves `PreAdmission` cannot call clipboard
+initialization/service/dispatch/write paths. Existing owner retirement must
+continue to disconnect X11 before bridge retirement, clear pending/INCR and
+selection state, zero clipboard generations, and reject stale route receipts.
+
 ## Pre-Type-3 authentication cannot initialize graphics state (2026-10-26)
 
 A connection waiting for Direct NTLM Type 3 remains `PreAdmission`. The

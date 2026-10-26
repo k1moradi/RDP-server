@@ -1,3 +1,28 @@
+## R8 Type-2/EOF retry clipboard-dormancy gate (2026-10-26)
+
+Keep the existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` case
+bounded to the physical failure boundary. It must drive a fully delivered
+Direct NTLM Type 2 -> peer EOF -> same-listener retry -> freshly delivered
+Type 2 -> peer EOF, and must not continue into synthetic Type 3,
+`CredentialsVerified` or native Admission. Both waiting snapshots remain
+`PreAdmission`, with MCS/Share false, clipboard `Unavailable`, no native or
+graphics readiness, and no active client surviving either EOF.
+
+Pair that runtime gate with
+`runtime.linux-host-control-dormant-unicode-clipboard-composition`. Its
+isolated `AcceptedClientPhase::PreAdmission` source region must contain no
+native clipboard initialization/service, CLIPRDR visit/dispatch, clipboard PDU
+queue, clipboard TLS-write advancement, X11 event-sink hookup or clipboard
+prepare call. Existing retirement assertions must continue to clear X11
+selection/pending/INCR state, R8/R3 route identity and admission/session
+clipboard generations before any later owner can be installed.
+
+`runtime.clipboard-x11-restart-incr-isolation` remains the independent
+lower-level stale-INCR/generation regression. These gates prove absence and
+freshness only; they do not authorize R8 activation or any positive clipboard
+traffic.
+
 ## R4 pre-Type-3 graphics-state dormancy gate (2026-10-26)
 
 Keep two complementary gates for a delivered Direct NTLM Type 2 followed by

@@ -1,3 +1,49 @@
+## R8 P2 — Type-2/EOF retry keeps clipboard lifetime absent (2026-10-26)
+
+**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled parent:** `282268e67b3917f53deab71831882a3953a7fcfe`.
+The current physical Linux/X11 boundary remains TLS established -> Direct NTLM
+Type 1 received -> production Type 2 queued -> Type 2 fully committed through
+TLS -> Await-Type-3 -> peer EOF, with physical flags `Type1=0xe2088235` and
+`Type2=0xe08a8235`. Type 3, pubKeyAuth, authInfo, `CredentialsVerified`,
+native Admission, MCS, Share, graphics/X11 ownership and clipboard remain
+**NOT REACHED**. Hosted Windows now proves the unchanged production Type 2
+through Type 3 for NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP,
+so production remains `fixed-name / RDP-SERVER`; R8 has no target-profile work.
+
+R8 remains **P2 / BLOCKED** and
+`kLinuxProductionClipboardActivationApproved = false`. This increment changes
+tests/documentation only. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` path now
+ends at the exact requested boundary: peer 1 receives a fully delivered Type 2
+and closes before Type 3, peer 2 is accepted on the same listener, receives a
+fresh Type 2, remains `PreAdmission` with no MCS/Share/native/graphics or
+clipboard state, then closes before Type 3. That R8 path no longer proceeds to
+the unrelated synthetic CredentialsVerified/native-Admission denial step.
+
+The existing behavior-named
+`runtime.linux-host-control-dormant-unicode-clipboard-composition` source
+contract now isolates `AcceptedClientPhase::PreAdmission` and rejects any
+native/CLIPRDR initialization, dispatch, queue or TLS-write path there. Its
+existing retirement checks still require X11 disconnect to release selection
+ownership and clear pending/INCR state, zero admission/session clipboard
+generations, retire the R8/R3 route, and allocate a fresh owner only after a
+future genuine `GraphicsReady`. The existing
+`runtime.clipboard-x11-restart-incr-isolation` remains the lower-level stale
+INCR/generation fence. At the present physical boundary no native clipboard
+owner exists, so there is no selection, INCR or previous clipboard generation
+for the retry to inherit.
+
+Production C++/wire behavior, Type-2 TargetName/TargetInfo/MsvAvTargetName,
+target-profile selection and CTest inventory are **UNCHANGED**. Connector
+source/test/document transformation review: **PASS by inspection**. Canonical
+one-root configure/build/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next R8 gate:** remain **P2 / BLOCKED**. Do not activate clipboard or change
+CLIPRDR/native clipboard behavior until the physical client progresses through
+Type 3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` -> native Admission
+-> MCS -> Share -> graphics/native readiness.
+
 ## R4 P2 — pre-Type-3 graphics state remains dormant (2026-10-26)
 
 **Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`.

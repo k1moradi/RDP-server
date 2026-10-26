@@ -165,6 +165,38 @@ if(NOT native_init_call_count EQUAL 1 OR graphics_ready_case LESS 0 OR
         "native clipboard construction must remain exclusive to GraphicsReady")
 endif()
 
+# A delivered Type 2 that is still waiting for Type 3 remains PreAdmission.
+# Neither that peer nor a same-listener retry may enter any CLIPRDR/native
+# clipboard path, so there is no X11 selection/INCR state or clipboard
+# generation to inherit from the retired connection.
+string(FIND "${host_source}"
+    "case AcceptedClientPhase::PreAdmission:" preadmission_begin)
+string(FIND "${host_source}"
+    "case AcceptedClientPhase::McsConnectInitial:" preadmission_end)
+if(preadmission_begin LESS 0 OR
+   preadmission_end LESS_EQUAL preadmission_begin)
+    message(FATAL_ERROR "unable to isolate HostControl PreAdmission branch")
+endif()
+math(EXPR preadmission_length
+    "${preadmission_end} - ${preadmission_begin}")
+string(SUBSTRING "${host_source}" ${preadmission_begin}
+    ${preadmission_length} preadmission_source)
+foreach(forbidden_text IN ITEMS
+        "initializeNativeDesktop("
+        "serviceNativeDesktopOnce("
+        "visitPersonalDesktopClipboardChannel("
+        "dispatchPersonalDesktopClipboardTpkt("
+        "queuePersonalDesktopClipboardPdu("
+        "advancePersonalDesktopClipboardTlsWrite("
+        "clipboard.prepare("
+        "clipboard.eventSink()")
+    string(FIND "${preadmission_source}" "${forbidden_text}" found)
+    if(NOT found EQUAL -1)
+        message(FATAL_ERROR
+            "PreAdmission must not create or service clipboard state: ${forbidden_text}")
+    endif()
+endforeach()
+
 # Every accepted-client replacement must allocate a fresh native/R8 owner.
 string(FIND "${host_source}"
     "RuntimeHostResult LinuxRuntimeHostControl::initializeNativeDesktop() noexcept"

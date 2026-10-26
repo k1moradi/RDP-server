@@ -1,3 +1,19 @@
+## R10 bootstrap dormancy source-scope correction — 2026-10-25
+
+Exact-SHA CI for `eda88212f2f02d7406fa69e56a7a73b15fe5b530` found
+`runtime.linux-gui-bootstrap-clipboard-dormancy` failing because its
+source-text slice for `prepareAutomaticStandaloneAdmission()` extended through
+new R10 helper functions and therefore saw a legitimate `listener_` reference
+outside the function it was intended to police. The guard is narrowed to the
+immediate next function boundary. This is a test-only correction; production
+runtime behavior and all authentication wire bytes are unchanged.
+
+On the same SHA, Microsoft native NTLM SSPI target controls remain **PASS**.
+The full Microsoft CREDSSP control, IP-SPN and bare-IP cases all remain
+**FAIL** before `initial-tsrequest=yes`; each reaches TLS and reports
+`SEC_I_CONTINUE_NEEDED (0x00090312)`. Consequently no endpoint-bound
+production identity change is authorized.
+
 ## Microsoft full-CredSSP target-principal matrix follow-up — 2026-10-25
 
 **Reconciled authoring parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner evidence is **986/986**

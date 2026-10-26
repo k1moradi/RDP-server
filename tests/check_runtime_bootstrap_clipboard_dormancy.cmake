@@ -187,7 +187,7 @@ string(FIND "${host_source}"
     "bool LinuxRuntimeHostControl::prepareAutomaticStandaloneAdmission() noexcept"
     standalone_admission_begin)
 string(FIND "${host_source}"
-    "bool LinuxRuntimeHostControl::buildAuthenticationSelection("
+    "bool LinuxRuntimeHostControl::connectionTargetIdentityMatchesActiveListener()"
     standalone_admission_end)
 if(standalone_admission_begin LESS 0 OR
    standalone_admission_end LESS_EQUAL standalone_admission_begin)

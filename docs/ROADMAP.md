@@ -1,3 +1,34 @@
+## R10 CI source-contract reconciliation after target-identity ownership — 2026-10-25
+
+**Reconciled parent:** `eda88212f2f02d7406fa69e56a7a73b15fe5b530`. Exact-SHA Linux CI exposed one
+test-only false positive in
+`runtime.linux-gui-bootstrap-clipboard-dormancy`: its source slice for
+`prepareAutomaticStandaloneAdmission()` ended at
+`buildAuthenticationSelection()`. R10's new
+`connectionTargetIdentityMatchesActiveListener()` helper was inserted between
+those functions, so the guard incorrectly treated the helper's legitimate
+`listener_` check as automatic-admission/clipboard authority.
+
+The guard now ends at the immediate next function,
+`connectionTargetIdentityMatchesActiveListener()`, and therefore continues to
+inspect exactly the automatic standalone-admission preparation body. Production
+runtime source, listener semantics, target identity, NTLM/CredSSP bytes,
+Admission, MCS, graphics, input and clipboard behavior are unchanged.
+
+The upstream P0 gate is still **BLOCKED**. Hosted Windows on
+`eda88212f2f02d7406fa69e56a7a73b15fe5b530` passes both native Microsoft NTLM target tests, but all three
+full Microsoft `CREDSSP` targets
+(`TERMSRV/RDP-SERVER`, `TERMSRV/192.168.1.5`, and bare
+`192.168.1.5`) reach TLS and remain at `SEC_I_CONTINUE_NEEDED` before the
+production server receives the initial TSRequest. Thus the target-principal
+matrix still has no fixed-name-vs-endpoint-bound decision and R10 must not
+change the production identity profile.
+
+Connector source reconciliation: **PASS**. Modified-tree configure/build/CTest:
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**. Next gate remains
+R6 fixing the Microsoft CREDSSP oracle through the first client TSRequest and
+then consuming the exact production Type 2.
+
 ## P0 follow-up — Microsoft full-CredSSP target-principal matrix (2026-10-25)
 
 **Reconciled parent:** `dc14dd7c5fcf5a0c366b8d10fe7f93205ece9c11`. Owner Linux/X11 evidence is **986/986

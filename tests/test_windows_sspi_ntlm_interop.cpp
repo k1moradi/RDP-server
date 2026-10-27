@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -95,6 +96,13 @@ struct TokenBuffer final
            (static_cast<std::uint32_t>(bytes[1]) << 8U) |
            (static_cast<std::uint32_t>(bytes[2]) << 16U) |
            (static_cast<std::uint32_t>(bytes[3]) << 24U);
+}
+
+[[nodiscard]] constexpr std::uint64_t loadLe64(
+    const std::uint8_t *bytes) noexcept
+{
+    return static_cast<std::uint64_t>(loadLe32(bytes)) |
+           (static_cast<std::uint64_t>(loadLe32(bytes + 4U)) << 32U);
 }
 
 constexpr void storeLe16(
@@ -596,6 +604,120 @@ enum class ChallengeVariant : std::uint8_t
            securityContext.active();
 }
 
+struct ChallengePayloadView final
+{
+    std::span<const std::uint8_t> targetName{};
+    std::span<const std::uint8_t> targetInfo{};
+};
+
+[[nodiscard]] bool readChallengePayloadView(
+    std::span<const std::uint8_t> message,
+    ChallengePayloadView &output) noexcept
+{
+    output = {};
+    if (message.size() < 48U)
+        return false;
+
+    const std::size_t targetNameLength = loadLe16(message.data() + 12U);
+    const std::size_t targetNameOffset = loadLe32(message.data() + 16U);
+    const std::size_t targetInfoLength = loadLe16(message.data() + 40U);
+    const std::size_t targetInfoOffset = loadLe32(message.data() + 44U);
+    if (targetNameOffset > message.size() ||
+        targetNameLength > message.size() - targetNameOffset ||
+        targetInfoOffset > message.size() ||
+        targetInfoLength > message.size() - targetInfoOffset)
+    {
+        return false;
+    }
+
+    output.targetName = message.subspan(targetNameOffset, targetNameLength);
+    output.targetInfo = message.subspan(targetInfoOffset, targetInfoLength);
+    return true;
+}
+
+[[nodiscard]] bool byteSpansEqual(
+    std::span<const std::uint8_t> left,
+    std::span<const std::uint8_t> right) noexcept
+{
+    return left.size() == right.size() &&
+           std::equal(left.begin(), left.end(), right.begin());
+}
+
+[[nodiscard]] bool challengeVersionOmitted(
+    std::span<const std::uint8_t> message) noexcept
+{
+    if (message.size() < 56U ||
+        (loadLe32(message.data() + 20U) & kNtlmNegotiateVersion) != 0U)
+    {
+        return false;
+    }
+
+    return std::all_of(
+        message.begin() + 48,
+        message.begin() + 56,
+        [](std::uint8_t byte) { return byte == 0U; });
+}
+
+[[nodiscard]] bool targetInfoTimestampMatches(
+    std::span<const std::uint8_t> targetInfo,
+    std::uint64_t expectedTimestampFileTime) noexcept
+{
+    constexpr std::uint16_t msvAvEol = 0U;
+    constexpr std::uint16_t msvAvTimestamp = 7U;
+    bool timestampSeen = false;
+    std::size_t offset = 0U;
+
+    while (offset + 4U <= targetInfo.size())
+    {
+        const std::uint16_t avId = loadLe16(targetInfo.data() + offset);
+        const std::size_t avLength =
+            loadLe16(targetInfo.data() + offset + 2U);
+        offset += 4U;
+        if (avLength > targetInfo.size() - offset)
+            return false;
+
+        if (avId == msvAvEol)
+            return avLength == 0U && offset == targetInfo.size() &&
+                   timestampSeen;
+
+        if (avId == msvAvTimestamp)
+        {
+            if (timestampSeen || avLength != 8U ||
+                loadLe64(targetInfo.data() + offset) != expectedTimestampFileTime)
+            {
+                return false;
+            }
+            timestampSeen = true;
+        }
+        offset += avLength;
+    }
+    return false;
+}
+
+[[nodiscard]] bool sameChallengeExceptNegotiateFlags(
+    std::span<const std::uint8_t> productionMessage,
+    std::span<const std::uint8_t> candidateMessage) noexcept
+{
+    constexpr std::size_t negotiateFlagsOffset = 20U;
+    constexpr std::size_t negotiateFlagsBytes = 4U;
+    if (productionMessage.size() != candidateMessage.size() ||
+        productionMessage.size() < negotiateFlagsOffset + negotiateFlagsBytes)
+    {
+        return false;
+    }
+
+    return std::equal(
+               productionMessage.begin(),
+               productionMessage.begin() + negotiateFlagsOffset,
+               candidateMessage.begin()) &&
+           std::equal(
+               productionMessage.begin() + negotiateFlagsOffset +
+                   negotiateFlagsBytes,
+               productionMessage.end(),
+               candidateMessage.begin() + negotiateFlagsOffset +
+                   negotiateFlagsBytes);
+}
+
 struct AttemptResult final
 {
     const char *failureStage{"not-started"};
@@ -603,9 +725,18 @@ struct AttemptResult final
     SECURITY_STATUS firstStatus{SEC_E_INTERNAL_ERROR};
     SECURITY_STATUS secondStatus{SEC_E_INTERNAL_ERROR};
     std::uint32_t typeOneFlags{};
+    std::uint32_t productionTypeTwoFlags{};
     std::uint32_t typeTwoFlags{};
     ULONG contextAttributes{};
+    std::uint64_t challengeTimestampAgeMilliseconds{};
+    bool challengeTimestampAgeRecorded{};
+    bool clientOfferedOem{};
     bool variantApplied{};
+    bool onlyOemResponseBitRemoved{};
+    bool versionOmitted{};
+    bool targetNameUnchanged{};
+    bool targetInfoUnchanged{};
+    bool timestampUnchanged{};
     bool microsoftProducedTypeThree{};
     bool contextComplete{};
     bool securityAttributesSatisfied{};
@@ -614,8 +745,7 @@ struct AttemptResult final
 
 [[nodiscard]] AttemptResult runAttempt(
     TargetProfile targetProfile,
-    ChallengeVariant variant,
-    std::uint64_t timestampFileTime) noexcept
+    ChallengeVariant variant) noexcept
 {
     AttemptResult result{};
     SspiNtlmClient client;
@@ -635,6 +765,16 @@ struct AttemptResult final
     result.failureStage = "parse-type1-flags";
     if (!readTypeOneFlags(typeOne.view(), result.typeOneFlags))
         return result;
+    result.clientOfferedOem =
+        (result.typeOneFlags & kNtlmNegotiateOem) != 0U;
+
+    const auto challengeCreatedAt = std::chrono::steady_clock::now();
+    const std::uint64_t timestampFileTime = currentWindowsFileTime();
+    if (timestampFileTime == 0U)
+    {
+        result.failureStage = "create-challenge-timestamp";
+        return result;
+    }
 
     std::array<std::uint8_t, kMaximumStandaloneNtlmMessageBytes> typeTwo{};
     const NtlmChallengeMessageParameters parameters{
@@ -651,14 +791,17 @@ struct AttemptResult final
 
     NtlmChallengeMessageObservation observation;
     if (validateNtlmChallengeMessage(
-            std::span<const std::uint8_t>{typeTwo}.first(
-                encoded.bytesWritten),
+            std::span<const std::uint8_t>{typeTwo}.first(encoded.bytesWritten),
             result.typeOneFlags,
             observation) != NtlmMessageParseResult::Parsed)
     {
         result.failureStage = "validate-production-type2";
         return result;
     }
+
+    const auto productionTypeTwo = typeTwo;
+    const std::size_t productionTypeTwoSize = encoded.bytesWritten;
+    result.productionTypeTwoFlags = loadLe32(typeTwo.data() + 20U);
 
     std::size_t typeTwoSize = encoded.bytesWritten;
     result.failureStage = "apply-single-delta";
@@ -667,6 +810,7 @@ struct AttemptResult final
     if (!result.variantApplied)
         return result;
     result.typeTwoFlags = loadLe32(typeTwo.data() + 20U);
+
     result.failureStage = "validate-single-delta";
     NtlmChallengeMessageObservation variantObservation;
     if (validateNtlmChallengeMessage(
@@ -676,6 +820,63 @@ struct AttemptResult final
     {
         return result;
     }
+
+    if (variant == ChallengeVariant::WithoutOem)
+    {
+        const auto productionMessage =
+            std::span<const std::uint8_t>{productionTypeTwo}.first(
+                productionTypeTwoSize);
+        const auto candidateMessage =
+            std::span<const std::uint8_t>{typeTwo}.first(typeTwoSize);
+        ChallengePayloadView productionPayload;
+        ChallengePayloadView candidatePayload;
+        const bool payloadViewsValid =
+            readChallengePayloadView(productionMessage, productionPayload) &&
+            readChallengePayloadView(candidateMessage, candidatePayload);
+
+        result.onlyOemResponseBitRemoved =
+            result.clientOfferedOem &&
+            (result.productionTypeTwoFlags & kNtlmNegotiateOem) != 0U &&
+            (result.typeTwoFlags & kNtlmNegotiateOem) == 0U &&
+            (result.productionTypeTwoFlags ^ result.typeTwoFlags) ==
+                kNtlmNegotiateOem &&
+            sameChallengeExceptNegotiateFlags(
+                productionMessage, candidateMessage);
+        result.versionOmitted =
+            challengeVersionOmitted(productionMessage) &&
+            challengeVersionOmitted(candidateMessage);
+        result.targetNameUnchanged =
+            payloadViewsValid &&
+            byteSpansEqual(
+                productionPayload.targetName, candidatePayload.targetName);
+        result.targetInfoUnchanged =
+            payloadViewsValid &&
+            byteSpansEqual(
+                productionPayload.targetInfo, candidatePayload.targetInfo);
+        result.timestampUnchanged =
+            result.targetInfoUnchanged &&
+            targetInfoTimestampMatches(
+                productionPayload.targetInfo, timestampFileTime) &&
+            targetInfoTimestampMatches(
+                candidatePayload.targetInfo, timestampFileTime);
+
+        if (!result.onlyOemResponseBitRemoved ||
+            !result.versionOmitted ||
+            !result.targetNameUnchanged ||
+            !result.targetInfoUnchanged ||
+            !result.timestampUnchanged)
+        {
+            result.failureStage = "qualify-oem-omission";
+            return result;
+        }
+    }
+
+    const auto challengeDeliveryAt = std::chrono::steady_clock::now();
+    const auto timestampAge = std::chrono::duration_cast<
+        std::chrono::milliseconds>(challengeDeliveryAt - challengeCreatedAt);
+    result.challengeTimestampAgeMilliseconds =
+        static_cast<std::uint64_t>(timestampAge.count());
+    result.challengeTimestampAgeRecorded = true;
 
     TokenBuffer typeThree;
     result.failureStage = "initialize-type3";
@@ -746,6 +947,7 @@ void printAttemptFailure(
 int main(int argc, char **argv)
 {
     TargetProfile targetProfile = TargetProfile::PortableServerName;
+    bool runOemOmissionDifferential = false;
     if (argc == 2 && argv[1] != nullptr)
     {
         const std::string_view mode{argv[1]};
@@ -753,6 +955,8 @@ int main(int argc, char **argv)
             targetProfile = TargetProfile::PortableServerName;
         else if (mode == "physical-ip-target")
             targetProfile = TargetProfile::PhysicalIpv4;
+        else if (mode == "oem-omission-differential")
+            runOemOmissionDifferential = true;
         else
             return 2;
     }
@@ -761,15 +965,68 @@ int main(int argc, char **argv)
         return 2;
     }
 
-    const std::uint64_t timestampFileTime = currentWindowsFileTime();
-    if (timestampFileTime == 0U)
+    if (runOemOmissionDifferential)
     {
-        std::fprintf(stderr, "microsoft-sspi-filetime=unavailable\n");
+        const AttemptResult differential = runAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeVariant::WithoutOem);
+        const bool qualified =
+            differential.variantApplied &&
+            differential.clientOfferedOem &&
+            differential.onlyOemResponseBitRemoved &&
+            differential.versionOmitted &&
+            differential.targetNameUnchanged &&
+            differential.targetInfoUnchanged &&
+            differential.timestampUnchanged &&
+            differential.challengeTimestampAgeRecorded &&
+            differential.microsoftProducedTypeThree &&
+            differential.contextComplete &&
+            differential.securityAttributesSatisfied &&
+            differential.localVerificationPassed;
+
+        std::fprintf(
+            stderr,
+            "microsoft-sspi-oem-omission-differential "
+            "target=%s type1-flags=0x%08lx "
+            "production-type2-flags=0x%08lx "
+            "oem-omitted-type2-flags=0x%08lx "
+            "client-offered-oem=%s only-oem-response-bit-removed=%s "
+            "version-omitted=%s target-name-unchanged=%s "
+            "target-info-unchanged=%s timestamp-unchanged=%s "
+            "timestamp-age-recorded=%s timestamp-age-ms=%llu "
+            "type3=%s complete=%s attributes=%s local-verify=%s "
+            "qualified=%s\n",
+            targetProfileName(TargetProfile::PortableServerName),
+            static_cast<unsigned long>(differential.typeOneFlags),
+            static_cast<unsigned long>(differential.productionTypeTwoFlags),
+            static_cast<unsigned long>(differential.typeTwoFlags),
+            differential.clientOfferedOem ? "yes" : "no",
+            differential.onlyOemResponseBitRemoved ? "yes" : "no",
+            differential.versionOmitted ? "yes" : "no",
+            differential.targetNameUnchanged ? "yes" : "no",
+            differential.targetInfoUnchanged ? "yes" : "no",
+            differential.timestampUnchanged ? "yes" : "no",
+            differential.challengeTimestampAgeRecorded ? "yes" : "no",
+            static_cast<unsigned long long>(
+                differential.challengeTimestampAgeMilliseconds),
+            differential.microsoftProducedTypeThree ? "yes" : "no",
+            differential.contextComplete ? "yes" : "no",
+            differential.securityAttributesSatisfied ? "yes" : "no",
+            differential.localVerificationPassed ? "yes" : "no",
+            qualified ? "yes" : "no");
+
+        if (qualified)
+            return 0;
+
+        printAttemptFailure(
+            TargetProfile::PortableServerName,
+            ChallengeVariant::WithoutOem,
+            differential);
         return 1;
     }
 
     const AttemptResult production = runAttempt(
-        targetProfile, ChallengeVariant::Production, timestampFileTime);
+        targetProfile, ChallengeVariant::Production);
     if (production.microsoftProducedTypeThree)
     {
         if (production.contextComplete &&
@@ -811,8 +1068,7 @@ int main(int argc, char **argv)
     const char *firstAcceptedDelta = nullptr;
     for (const ChallengeVariant variant : diagnosticVariants)
     {
-        const AttemptResult diagnostic = runAttempt(
-            targetProfile, variant, timestampFileTime);
+        const AttemptResult diagnostic = runAttempt(targetProfile, variant);
         if (!diagnostic.variantApplied)
         {
             std::fprintf(

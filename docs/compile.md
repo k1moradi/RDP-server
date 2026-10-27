@@ -1,3 +1,14 @@
+## Windows NTLM OEM differential reuses the existing SSPI oracle target (2026-10-27)
+
+The OEM-response experiment adds no library, dependency, service, socket,
+production compile definition or install/export surface. It is another command
+mode of the existing Windows-only `test_windows_sspi_ntlm_interop` executable,
+still linked only to `rdp-server-standalone-ntlmv2` and `secur32`. The
+central CTest registry adds one behavior-named case, so the primary Microsoft
+Windows NTLM/CREDSSP focused matrix enumerates six tests instead of five.
+All configuration/build/test work continues to use the single checkout-local
+`build/` root.
+
 ## R7 Advanced Type-1 profile adds no build surface (2026-10-27)
 
 The GUI consumes the existing R10 redacted Type-1 VERSION diagnostics through

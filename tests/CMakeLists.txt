@@ -186,9 +186,12 @@ if(WIN32)
         COMMAND test_windows_sspi_ntlm_interop control-target)
     add_test(NAME security.windows-sspi-production-type2-physical-ip-target
         COMMAND test_windows_sspi_ntlm_interop physical-ip-target)
+    add_test(NAME security.windows-sspi-production-type2-oem-omission-differential
+        COMMAND test_windows_sspi_ntlm_interop oem-omission-differential)
     set_tests_properties(
         security.windows-sspi-production-type2-interop
         security.windows-sspi-production-type2-physical-ip-target
+        security.windows-sspi-production-type2-oem-omission-differential
         PROPERTIES
         LABELS "security;credentials;ntlmv2;ntlmssp;credssp;windows;interop;offline"
         TIMEOUT 30)

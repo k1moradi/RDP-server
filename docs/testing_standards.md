@@ -1,3 +1,25 @@
+## Microsoft NTLM OEM-omission differential gate (2026-10-27)
+
+The Windows-native SSPI oracle has a dedicated behavior CTest,
+`security.windows-sspi-production-type2-oem-omission-differential`. It must
+use a fresh Microsoft NTLM context and the unmodified Microsoft-generated Type
+1, require OEM was actually offered, generate production Type 2 through the
+first-party encoder, then clear only OEM in a test copy. PASS requires both
+Type-2 messages to validate, an exact OEM-only flags delta, VERSION omitted
+with zero VERSION bytes, byte-identical TargetName and TargetInfo, the exact
+same embedded timestamp, Microsoft Type 3, completed required SSPI context
+attributes and the existing local Type-3 verification.
+
+The diagnostic line may contain only target class, structural flags,
+yes/no invariant results and monotonic timestamp age in milliseconds from
+challenge timestamp creation to Type-2 delivery. It must not print the server
+challenge, timestamp value, credentials, challenge/response material or keys.
+The exact-SHA Windows matrix records the result next to current physical
+`0xe2088235 -> 0xe08a8235` reference flags. Only a green native Microsoft
+execution can classify the OEM response-bit difference as ruled out; authored
+code or synthetic parsing alone remains **NOT RUN** evidence, never physical
+client acceptance.
+
 ## R7 Advanced Type-1 structural-profile presentation gate (2026-10-27)
 
 Register `gui.offscreen-advanced-runtime-type1-structural-profile` in the

@@ -1,3 +1,23 @@
+## Test-only Microsoft NTLM response-bit differentials preserve the exact challenge payload (2026-10-27)
+
+When a native Microsoft SSPI oracle isolates one CHALLENGE_MESSAGE capability
+bit, derive the candidate from the exact production Type 2 for that same
+Microsoft-generated Type 1. Never rewrite the client's Type 1, and never turn a
+diagnostic variant into a production profile. For the OEM differential, the
+candidate may clear only `NTLM_NEGOTIATE_OEM`; all bytes outside
+NegotiateFlags, including ServerChallenge, zero/omitted VERSION, TargetName,
+TargetInfo and MsvAvTimestamp, remain byte-identical to production. Validate
+both messages through the existing production Type-2 validator before giving
+the candidate to SSPI.
+
+Timestamp-age diagnostics are non-authorizing and non-secret. Capture a
+`steady_clock` creation point when the FILETIME timestamp is created and
+report only elapsed milliseconds immediately before Type-2 delivery. Never log
+the FILETIME value, server challenge, NTLM response, password, session key or
+delegated credential. Microsoft Type-3 emission from a test-only variant is an
+interop differential only; it cannot authorize a production flag, identity,
+Admission, MCS, Share, graphics, input or clipboard change.
+
 ## R7 Advanced Type-1 client profile is structural only (2026-10-27)
 
 R7 may render the already-redacted R10 NTLM Type-1 VERSION observation in

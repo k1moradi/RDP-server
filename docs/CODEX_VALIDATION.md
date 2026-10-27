@@ -1,3 +1,33 @@
+## Agent 2 NTLM OEM-response differential authoring receipt — 2026-10-27
+
+**Authoring parent:** `f0da16e423f6f8797503c70dfd0bd4ed87348cda`. Mandatory current-main context,
+including AGENTS, VISION, ROADMAP, coding/testing/compile/benchmark standards
+and this validation ledger, was re-read before editing. The latest owner
+evidence records physical TLS 1.3 / `TLS_AES_256_GCM_SHA384`, Direct NTLM
+Type 1 `0xe2088235` with VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation, unchanged production Type 2 `0xe08a8235`, complete
+Type-2 delivery, Await-Type-3 and peer EOF. Hosted Microsoft remains
+`0xe20882b7 -> 0xe08a8237` and full CREDSSP reaches Type 3.
+
+The existing Windows native NTLM SSPI executable now has a dedicated
+`oem-omission-differential` mode and CTest. It does not alter Microsoft's Type
+1. It copies the production Type 2 and clears only OEM, proves every
+non-NegotiateFlags byte unchanged, separately proves VERSION omitted,
+TargetName/TargetInfo/timestamp unchanged, and records only monotonic timestamp
+age before calling Microsoft SSPI. PASS additionally requires Microsoft Type 3,
+the required SSPI context attributes and the existing local verification. No
+challenge, timestamp value, credential, response or key bytes are logged.
+
+The Windows exact-SHA interop artifact and manual owner-candidate gate now
+require this evidence. Production source and wire/profile behavior are
+**UNCHANGED**.
+
+**Validation at authoring:** connector/source transformation review **PASS**.
+Native Windows compile/focused CTest/full CTest **NOT RUN** here. Owner
+one-`build/` command **NOT RUN**. Exact-publication-SHA hosted Windows
+execution **PENDING**. Do not mark the physical OEM difference ruled out until
+the native Microsoft test reports Type 3 on the publication SHA.
+
 ## R7 Advanced physical Type-1 profile authoring receipt — 2026-10-27
 
 **Assignment-time main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.

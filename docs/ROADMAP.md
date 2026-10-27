@@ -1,3 +1,49 @@
+## Agent 2 P0 supporting — exact physical NTLM OEM-response differential (2026-10-27)
+
+**Re-read current main:** `f0da16e423f6f8797503c70dfd0bd4ed87348cda`. The latest owner evidence reaches
+TLS 1.3 / `TLS_AES_256_GCM_SHA384`, IP-target SNI, the current exact-IP SAN
+certificate, Direct NTLM Type 1 `0xe2088235` with VERSION
+`6.0.6001/0x0f`, no supplied domain/workstation, production Type 2
+`0xe08a8235` completely committed, Await-Type-3, then peer EOF. Type 3 and
+all pubKeyAuth/authInfo/Admission/MCS/Share/graphics/X11/clipboard authority
+remain **NOT REACHED**.
+
+Hosted Microsoft NTLM currently offers Type 1 `0xe20882b7`; the production
+encoder therefore emits Type 2 `0xe08a8237`. The Type-1 delta remains
+`0x82` (OEM + LM_KEY), while the Type-2 delta is only OEM
+(`...37 -> ...35`). Production stays exactly `fixed-name / RDP-SERVER`.
+No Type-2 TargetName, TargetInfo, MsvAvTargetName, certificate CN/SAN,
+Admission, MCS, graphics or clipboard behavior changes in this increment.
+
+Agent 2 extends the existing Windows-native NTLM SSPI oracle with dedicated
+CTest `security.windows-sspi-production-type2-oem-omission-differential`.
+The test leaves Microsoft's generated Type 1 untouched, requires that Microsoft
+actually offered OEM, encodes the exact production Type 2, copies it, clears
+only the OEM response bit in the test copy, and requires every byte outside the
+NegotiateFlags field to remain unchanged. It separately pins VERSION omitted
+with zero VERSION bytes, byte-identical TargetName and TargetInfo, and the same
+embedded server timestamp. The only logged timing fact is monotonic
+`timestamp-age-ms` from challenge timestamp creation to the SSPI Type-2
+delivery call; the challenge nonce, timestamp value and credential material are
+never logged.
+
+The exact-SHA Windows interop artifact now carries this test beside the
+production fixed-name/IP NTLM and full-CREDSSP rows. The manual Agent-9 owner
+candidate requires the OEM differential PASS and its structural invariants
+before nominating another physical attempt.
+
+**Authoring validation:** repository/source/CI transformation review **PASS**.
+Native Windows compile and the new SSPI CTest are **NOT RUN** in this connector
+environment. Owner one-`build/` CTest is **NOT RUN**. Exact-publication-SHA
+hosted Windows execution is **PENDING**.
+
+**Next gate:** hosted Windows must report Microsoft Type 3 with
+`client-offered-oem=yes`, `only-oem-response-bit-removed=yes`, VERSION
+omitted, TargetName/TargetInfo/timestamp unchanged and a bounded timestamp-age
+diagnostic. Only that exact-SHA PASS rules out the `...37 -> ...35` OEM
+response-bit difference as the cause of the physical pre-Type-3 EOF; it is not
+physical-client acceptance.
+
 ## R7 P1 — Advanced physical Type-1 client-profile projection (2026-10-27)
 
 **Assignment-time main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.

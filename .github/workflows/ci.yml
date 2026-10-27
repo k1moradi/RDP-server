@@ -266,18 +266,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target)|credssp-production-(control-target|physical-ip-target|bare-ip-target)-next-token)$'
+          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target|oem-omission-differential)|credssp-production-(control-target|physical-ip-target|bare-ip-target)-next-token)$'
           inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required_test in \
             security.windows-sspi-production-type2-interop \
             security.windows-sspi-production-type2-physical-ip-target \
+            security.windows-sspi-production-type2-oem-omission-differential \
             security.windows-credssp-production-control-target-next-token \
             security.windows-credssp-production-physical-ip-target-next-token \
             security.windows-credssp-production-bare-ip-target-next-token; do
             grep -Fq ": $required_test" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 5
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 6
           result_file='build/r9-microsoft-interop-results.txt'
           : > "$result_file"
           run_case() {
@@ -302,6 +303,24 @@ jobs:
           overall_status=0
           run_case ntlm-fixed-name security.windows-sspi-production-type2-interop || overall_status=1
           run_case ntlm-ip-target security.windows-sspi-production-type2-physical-ip-target || overall_status=1
+          oem_output='build/r9-ntlm-oem-omission-differential.txt'
+          if run_case ntlm-oem-omission security.windows-sspi-production-type2-oem-omission-differential "$oem_output"; then
+            oem_line="$(grep -Eo 'microsoft-sspi-oem-omission-differential .*' "$oem_output" | tail -n 1)"
+            test -n "$oem_line"
+            grep -Fq 'client-offered-oem=yes' <<< "$oem_line"
+            grep -Fq 'only-oem-response-bit-removed=yes' <<< "$oem_line"
+            grep -Fq 'version-omitted=yes' <<< "$oem_line"
+            grep -Fq 'target-name-unchanged=yes' <<< "$oem_line"
+            grep -Fq 'target-info-unchanged=yes' <<< "$oem_line"
+            grep -Fq 'timestamp-unchanged=yes' <<< "$oem_line"
+            grep -Fq 'timestamp-age-recorded=yes' <<< "$oem_line"
+            grep -Eq 'timestamp-age-ms=[0-9]+' <<< "$oem_line"
+            grep -Fq 'type3=yes' <<< "$oem_line"
+            grep -Fq 'qualified=yes' <<< "$oem_line"
+            printf 'ntlm-oem-%s physical-type1-flags=0xe2088235 physical-type2-flags=0xe08a8235\n' "$oem_line" | tee -a "$result_file"
+          else
+            overall_status=1
+          fi
           control_output='build/r9-credssp-fixed-name-control.txt'
           if run_case credssp-fixed-name-control security.windows-credssp-production-control-target-next-token "$control_output"; then
             profile_line="$(grep -Eo 'microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER .*' "$control_output" | tail -n 1)"
@@ -2107,6 +2126,21 @@ jobs:
           cat "$matrix_file"
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
+          grep -Fxq 'ntlm-oem-omission=PASS test=security.windows-sspi-production-type2-oem-omission-differential' "$matrix_file"
+          oem_profile="$(grep '^ntlm-oem-microsoft-sspi-oem-omission-differential ' "$matrix_file")"
+          test -n "$oem_profile"
+          grep -Fq 'client-offered-oem=yes' <<< "$oem_profile"
+          grep -Fq 'only-oem-response-bit-removed=yes' <<< "$oem_profile"
+          grep -Fq 'version-omitted=yes' <<< "$oem_profile"
+          grep -Fq 'target-name-unchanged=yes' <<< "$oem_profile"
+          grep -Fq 'target-info-unchanged=yes' <<< "$oem_profile"
+          grep -Fq 'timestamp-unchanged=yes' <<< "$oem_profile"
+          grep -Fq 'timestamp-age-recorded=yes' <<< "$oem_profile"
+          grep -Eq 'timestamp-age-ms=[0-9]+' <<< "$oem_profile"
+          grep -Fq 'type3=yes' <<< "$oem_profile"
+          grep -Fq 'qualified=yes' <<< "$oem_profile"
+          grep -Fq 'physical-type1-flags=0xe2088235' <<< "$oem_profile"
+          grep -Fq 'physical-type2-flags=0xe08a8235' <<< "$oem_profile"
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
@@ -2131,6 +2165,8 @@ jobs:
           grep -Fq 'security.windows-sspi-production-type2-interop' \
             tests/CMakeLists.txt
           grep -Fq 'security.windows-sspi-production-type2-physical-ip-target' \
+            tests/CMakeLists.txt
+          grep -Fq 'security.windows-sspi-production-type2-oem-omission-differential' \
             tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-stream-buffer-retention' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-multi-turn-round-progression' tests/CMakeLists.txt

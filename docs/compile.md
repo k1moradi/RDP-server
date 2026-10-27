@@ -1,3 +1,17 @@
+## R10 pre-Type-3 timing diagnostics add no build surface (2026-10-27)
+
+The timing increment changes only the existing Linux runtime connection/
+HostControl sources and shared read-only status structure. It uses the already
+included C++23 `<chrono>` facilities and adds no library, dependency, compile
+definition, production target, install/export surface or runtime switch.
+
+The dedicated
+`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` CTest is another
+mode of the existing `test_linux_runtime_direct_ntlm_lifecycle` executable.
+Configure, build, focused tests and full CTest continue to use the one canonical
+checkout-local `build/` root. No R9 focused-selector count is changed by this
+R10 increment.
+
 ## Windows NTLM OEM differential reuses the existing SSPI oracle target (2026-10-27)
 
 The OEM-response experiment adds no library, dependency, service, socket,

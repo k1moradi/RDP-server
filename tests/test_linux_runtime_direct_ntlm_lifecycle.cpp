@@ -1330,6 +1330,9 @@ int main(int argc, char** argv)
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
+    const bool typeTwoTimingDiagnosticsOnly =
+        testCase ==
+            "direct-ntlm-type2-peer-eof-timing-diagnostics";
     const bool typeTwoTimeoutOnly =
         testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
     const bool peerCloseClassificationOnly =
@@ -1339,8 +1342,8 @@ int main(int argc, char** argv)
         testCase ==
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
-        !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
-        !targetIdentityRetryOnly)
+        !typeTwoTimingDiagnosticsOnly && !typeTwoTimeoutOnly &&
+        !peerCloseClassificationOnly && !targetIdentityRetryOnly)
     {
         return 2;
     }
@@ -1526,8 +1529,8 @@ int main(int argc, char** argv)
         return 0;
     }
 
-    if (typeTwoPeerEofOnly || peerCloseClassificationOnly ||
-        targetIdentityRetryOnly)
+    if (typeTwoPeerEofOnly || typeTwoTimingDiagnosticsOnly ||
+        peerCloseClassificationOnly || targetIdentityRetryOnly)
     {
         std::atomic<bool> typeTwoReceived{false};
         std::atomic<bool> closeAfterTypeTwo{false};
@@ -1573,6 +1576,10 @@ int main(int argc, char** argv)
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoDelivered);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .preauthElapsedAtPeerEofAvailable);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
         assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
@@ -1610,6 +1617,14 @@ int main(int argc, char** argv)
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::PeerEof);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preauthElapsedAtPeerEofAvailable);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preauthElapsedAtPeerEofMicroseconds >=
+               afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryMicroseconds);
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics.protocolStage ==
                RuntimeAcceptedClientProtocolStage::PreAdmission);
         assert(!afterTypeTwoEof.acceptedClientPreauthDiagnostics
@@ -1763,6 +1778,10 @@ int main(int argc, char** argv)
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoDelivered);
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+        assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .preauthElapsedAtPeerEofAvailable);
+        assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
         assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
@@ -1788,6 +1807,14 @@ int main(int argc, char** argv)
 
         const auto afterRetryTypeTwoEof = control.status();
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
+        assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+        assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preauthElapsedAtPeerEofAvailable);
+        assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .preauthElapsedAtPeerEofMicroseconds >=
+               afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoCreationToDeliveryMicroseconds);
         assert(afterRetryTypeTwoEof.activeClients.empty());
         assert(afterRetryTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
@@ -1803,7 +1830,7 @@ int main(int argc, char** argv)
             afterRetryTypeTwoEof, recommendation.address, selectedPort,
             firstListenerGeneration);
 
-        if (!typeTwoPeerEofOnly)
+        if (!typeTwoPeerEofOnly && !typeTwoTimingDiagnosticsOnly)
         {
             // The target-identity case keeps its existing positive synthetic
             // retry. The dedicated Type-2/EOF dormancy case ends above this

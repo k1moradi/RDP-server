@@ -914,6 +914,12 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     // Appended to preserve existing aggregate field positions. Diagnostic only.
     RuntimeAcceptedClientTlsConnectionDiagnostics tlsConnection{};
     RuntimeAcceptedClientNtlmTypeOneDiagnostics ntlmTypeOne{};
+    // Latched monotonic timings from the accepted connection. Zero is valid
+    // only when the corresponding availability flag is true.
+    bool directNtlmTypeTwoCreationToDeliveryAgeAvailable{};
+    std::uint64_t directNtlmTypeTwoCreationToDeliveryMicroseconds{};
+    bool preauthElapsedAtPeerEofAvailable{};
+    std::uint64_t preauthElapsedAtPeerEofMicroseconds{};
 };
 
 struct RuntimeHostPermissionRequest final

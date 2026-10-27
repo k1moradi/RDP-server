@@ -1,3 +1,29 @@
+## R10 pre-Type-3 timing diagnostics are monotonic and non-authorizing (2026-10-27)
+
+The exact accepted Linux runtime connection owns one `std::chrono::steady_clock`
+pre-auth origin. For Direct NTLM, R10 latches the Type-2 creation observation
+only when the existing R2 CredSSP owner returns the newly created challenge as
+`NegoReplyQueued`; it latches delivery only when the existing R1 TLS writer
+reports complete accepted plaintext and releases that reply. The
+creation-to-delivery age is recorded once in microseconds and never recomputed
+from status polling.
+
+On terminal R1 `PeerEof` during pre-auth, the same connection latches elapsed
+time from its own accepted lifetime exactly once. Missing observations and a
+valid sub-microsecond zero are distinguished by explicit availability flags.
+Both timings are diagnostics only: they never alter the pre-auth deadline,
+CredSSP state, authentication result, native Admission, MCS, Share, graphics,
+input or clipboard authority.
+
+The event-loop owner is serialized; do not add atomics, wall-clock timestamps,
+a second timer owner or a parallel authentication state machine for these
+fields. Fail-only output may print only the bounded scalar durations and their
+availability. Never log challenge bytes, passwords, Type-3 response material,
+session keys or delegated data. A peer EOF after delivered Type 2 remains
+`AuthenticationIncompletePeerClosed`, and every immediate retry starts a
+fresh connection-local timing lifetime while retaining only the independently
+owned listener, target tuple, owner grant and Session Password.
+
 ## Test-only Microsoft NTLM response-bit differentials preserve the exact challenge payload (2026-10-27)
 
 When a native Microsoft SSPI oracle isolates one CHALLENGE_MESSAGE capability

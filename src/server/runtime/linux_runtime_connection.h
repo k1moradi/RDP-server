@@ -537,6 +537,12 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     bool standaloneNtlmTypeOneObserved{};
     rdp_server::server::security::NtlmNegotiateMessage
         standaloneNtlmTypeOne{};
+    // Monotonic, connection-local timing observations. These are latched
+    // diagnostics only and never influence authentication or timeout policy.
+    bool directNtlmTypeTwoCreationToDeliveryAgeAvailable{};
+    std::uint64_t directNtlmTypeTwoCreationToDeliveryMicroseconds{};
+    bool preauthElapsedAtPeerEofAvailable{};
+    std::uint64_t preauthElapsedAtPeerEofMicroseconds{};
 };
 
 namespace detail
@@ -1243,6 +1249,10 @@ private:
     // exception-free constructor path returns early: R3/lease/broker/GSS die
     // before R1's connection owner.
     rdp_server::server::transport::OwnedPreauthTcpConnection connection_;
+    // Start the monotonic pre-auth clock with this exact accepted connection.
+    // It is diagnostic-only and never drives timeout or authorization policy.
+    const std::chrono::steady_clock::time_point preauthStartedAt_{
+        std::chrono::steady_clock::now()};
     rdp_server::server::security::GssapiSpnegoAcceptor acceptor_{};
     rdp_server::server::security::StandaloneCredSspNtlmAcceptor
         standaloneCredSspAcceptor_{};
@@ -1261,6 +1271,12 @@ private:
     // admission or later protocol state.
     bool directNtlmTypeTwoQueued_{};
     bool directNtlmTypeTwoDelivered_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        directNtlmTypeTwoCreatedAt_{};
+    bool directNtlmTypeTwoCreationToDeliveryAgeAvailable_{};
+    std::uint64_t directNtlmTypeTwoCreationToDeliveryMicroseconds_{};
+    bool preauthElapsedAtPeerEofAvailable_{};
+    std::uint64_t preauthElapsedAtPeerEofMicroseconds_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionBroker>
         broker_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>

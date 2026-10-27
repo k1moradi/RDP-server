@@ -1,3 +1,16 @@
+## Pre-Type-3 diagnostic timings are not performance benchmarks (2026-10-27)
+
+The fail-only Type-2 creation-to-delivery age and connection-local pre-auth
+elapsed-at-peer-EOF values are single-attempt lifecycle diagnostics. They are
+not latency SLAs, throughput measurements, percentile samples or evidence that
+one client/TLS version is faster than another. No production timeout, retry,
+authentication or identity decision may depend on them.
+
+Do not publish p50/p95/p99 or optimization claims from these terminal values.
+Any future performance comparison must use the benchmark methodology below,
+fixed workloads and repeated samples; real-client benchmarking remains a
+separately authorized activity.
+
 # Benchmark standards — reliable native RDP-server measurements
 
 **Mandatory:** Read [AGENTS.md](../AGENTS.md), [VISION.md](VISION.md),

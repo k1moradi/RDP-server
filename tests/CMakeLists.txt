@@ -595,6 +595,19 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # R10 fail-only timing evidence is connection-local and monotonic. The
+    # second peer must start with a fresh EOF timer while the same listener,
+    # owner grant, Session Password and fixed target tuple remain current.
+    add_test(
+        NAME runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-type2-peer-eof-timing-diagnostics)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # One Start-scoped endpoint/service identity must survive a rejected peer
     # and an immediate second attempt without changing the current fixed Type-2
     # server name or widening retirement to the listener/credential/owner grant.

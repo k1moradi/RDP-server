@@ -1,3 +1,41 @@
+## Agent 10 P0 supporting — pre-Type-3 connection timing diagnostics (2026-10-27)
+
+**Authoring parent:** `936a9a443ceb223f84e82d9e2d18dbfb1a451482`. Current `main` and all mandatory project
+guidance were re-read after the current concurrent diagnostics/qualification
+publications. The shared physical boundary already recorded below remains TLS
+1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f` -> unchanged
+production Type 2 `0xe08a8235` fully committed -> Await-Type-3 -> peer EOF.
+Type 3 and all downstream authority remain **NOT REACHED**; the physical
+handoff is not promoted to exact-SHA acceptance.
+
+R10 adds only two connection-local, non-secret monotonic observations: Type-2
+challenge creation-to-R1-delivery age and pre-auth elapsed time latched at real
+peer EOF. The Type-2 start point is R10's first observation of the existing
+R2-created `NegoReplyQueued` challenge; delivery remains the exact R1 TLS
+accepted-byte completion. Values are immutable diagnostic scalars with
+availability flags and are printed only in the existing fail-only terminal
+record. No challenge bytes, password, Type-3 response or session key is stored
+or logged.
+
+Production remains exactly `fixed-name / RDP-SERVER`; TargetName, TargetInfo,
+MsvAvTargetName, generated certificate CN/SAN, native Admission, MCS, Share,
+graphics and clipboard are unchanged. Peer EOF after delivered Type 2 remains
+`AuthenticationIncompletePeerClosed`. The production-backed two-peer timing
+gate requires listener generation, target tuple, owner grant and Session
+Password to survive peer 1 while peer 2 receives a fresh connection/timing
+lifetime immediately.
+
+**Validation at authoring:** connector source/transformation and ownership-path
+review **PASS by inspection**. Canonical owner one-`build/`
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** exact-publication-SHA hosted compile/full CTest. A later
+owner-authorized physical receipt may record the two new scalar timings at the
+same Await-Type-3/EOF boundary; timing differences alone do not authorize an
+identity or wire change.
+
 ## Agent 2 P0 supporting — exact physical NTLM OEM-response differential (2026-10-27)
 
 **Re-read current main:** `f0da16e423f6f8797503c70dfd0bd4ed87348cda`. The latest owner evidence reaches

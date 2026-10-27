@@ -1,3 +1,29 @@
+## R10 Type-2 delivery and peer-EOF timing gate (2026-10-27)
+
+The production-backed CTest
+`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` reuses the real
+LAN listener, HYBRID/TLS, Direct-NTLM CredSSP and R1 TLS-write path. While each
+peer is waiting for Type 3, require a latched Type-2 creation-to-delivery age
+and no peer-EOF elapsed value. After peer EOF, require both values to be
+available and the total connection-local pre-auth elapsed time to be at least
+the Type-2 creation-to-delivery age.
+
+Drive two consecutive peers on the same listener. The second accepted client
+must have a distinct opaque connection ID and a fresh EOF timing lifetime
+(unavailable while it remains open), while listener generation, current owner
+grant, Session Password generation and fixed TERMSRV / `RDP-SERVER` target
+tuple remain unchanged. Both peers remain PreAdmission with no Type 3,
+CredentialsVerified, native Admission, MCS, Share, graphics or clipboard
+authority, and terminal peer EOF remains
+`AuthenticationIncompletePeerClosed`, never `AuthenticationRejected`.
+
+The existing pre-auth projection fixture also pins missing/zero timing defaults
+and exact scalar projection. Do not assert performance thresholds or sleep to
+manufacture a minimum duration; these are diagnostic timestamps, not benchmark
+results. The existing R9 sanitizer execution of the Type-2/EOF production
+fixture continues to exercise the same timing code path; R9 retains ownership
+of focused CI selector cardinalities.
+
 ## Microsoft NTLM OEM-omission differential gate (2026-10-27)
 
 The Windows-native SSPI oracle has a dedicated behavior CTest,

@@ -415,6 +415,10 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientTermination::Open);
         assert(!projected.directNtlmTypeTwoQueued);
         assert(!projected.directNtlmTypeTwoDelivered);
+        assert(!projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+        assert(projected.directNtlmTypeTwoCreationToDeliveryMicroseconds == 0U);
+        assert(!projected.preauthElapsedAtPeerEofAvailable);
+        assert(projected.preauthElapsedAtPeerEofMicroseconds == 0U);
         assert(projected.preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
 
@@ -438,6 +442,10 @@ int main(int argc, char** argv)
         // bounded pre-Type-3 terminal projection without creating Type 3,
         // credentials, native admission or later authority.
         source.directNtlmTypeTwoDelivered = true;
+        source.directNtlmTypeTwoCreationToDeliveryAgeAvailable = true;
+        source.directNtlmTypeTwoCreationToDeliveryMicroseconds = 321U;
+        source.preauthElapsedAtPeerEofAvailable = true;
+        source.preauthElapsedAtPeerEofMicroseconds = 654U;
         source.credSspTransition = SourceCredSsp::Closed;
         source.standaloneAuthenticationFailureStage =
             SourceFailure::NtlmNegotiation;
@@ -482,6 +490,10 @@ int main(int argc, char** argv)
             projected = projectLinuxAcceptedClientPreauthDiagnostics(source);
             assert(projected.directNtlmTypeTwoQueued);
             assert(projected.directNtlmTypeTwoDelivered);
+            assert(projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+            assert(projected.directNtlmTypeTwoCreationToDeliveryMicroseconds == 321U);
+            assert(projected.preauthElapsedAtPeerEofAvailable);
+            assert(projected.preauthElapsedAtPeerEofMicroseconds == 654U);
             assert(projected.authenticationStage ==
                    RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
             assert(projected.protocolStage ==

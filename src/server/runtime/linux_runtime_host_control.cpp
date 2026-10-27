@@ -872,6 +872,14 @@ projectLinuxAcceptedClientPreauthDiagnostics(
     projected.available = true;
     projected.directNtlmTypeTwoQueued = source.directNtlmTypeTwoQueued;
     projected.directNtlmTypeTwoDelivered = source.directNtlmTypeTwoDelivered;
+    projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
+        source.directNtlmTypeTwoCreationToDeliveryAgeAvailable;
+    projected.directNtlmTypeTwoCreationToDeliveryMicroseconds =
+        source.directNtlmTypeTwoCreationToDeliveryMicroseconds;
+    projected.preauthElapsedAtPeerEofAvailable =
+        source.preauthElapsedAtPeerEofAvailable;
+    projected.preauthElapsedAtPeerEofMicroseconds =
+        source.preauthElapsedAtPeerEofMicroseconds;
 
     using SourcePreauth = rdp_server::server::transport::PreauthStage;
     switch (source.preauthStage)
@@ -2885,8 +2893,12 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "service-identity-profile=%.*s target-start-generation=%llu "
                 "direct-ntlm-type1=%s direct-ntlm-type2-queued=%s "
                 "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
+                "type2-creation-to-delivery-us=%llu "
+                "type2-creation-to-delivery-available=%s "
                 "direct-ntlm-await-type3=%s direct-ntlm-type3=%s "
                 "pre-type3-termination=%.*s "
+                "preauth-peer-eof-elapsed-us=%llu "
+                "preauth-peer-eof-elapsed-available=%s "
                 "ntlm-type1-flags=0x%08x ntlm-version-present=%s "
                 "ntlm-version=%u.%u.%u ntlm-revision=0x%02x "
                 "ntlm-type2-flags=0x%08x "
@@ -2925,10 +2937,21 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 directNtlmTypeTwoState,
                 acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered
                     ? "committed" : "not-committed",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .directNtlmTypeTwoCreationToDeliveryMicroseconds),
+                acceptedClientPreauthDiagnostics_
+                        .directNtlmTypeTwoCreationToDeliveryAgeAvailable
+                    ? "yes" : "no",
                 directNtlmAwaitTypeThreeReached ? "reached" : "not-reached",
                 directNtlmTypeThreeReceived ? "received" : "not-received",
                 static_cast<int>(preType3Termination.size()),
                 preType3Termination.data(),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preauthElapsedAtPeerEofMicroseconds),
+                acceptedClientPreauthDiagnostics_.preauthElapsedAtPeerEofAvailable
+                    ? "yes" : "no",
                 static_cast<unsigned int>(
                     ntlmChallenge.clientNegotiateFlags),
                 acceptedClientPreauthDiagnostics_.ntlmTypeOne.versionPresent

@@ -28,6 +28,18 @@ namespace
     return value ? "yes" : "no";
 }
 
+[[nodiscard]] std::uint64_t elapsedMicroseconds(
+    std::chrono::steady_clock::time_point started,
+    std::chrono::steady_clock::time_point ended) noexcept
+{
+    if (ended <= started)
+        return 0U;
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(ended - started)
+            .count();
+    return elapsed > 0 ? static_cast<std::uint64_t>(elapsed) : 0U;
+}
+
 template <std::size_t Size>
 [[nodiscard]] std::size_t copyPrintableDiagnosticText(
     std::array<char, Size> &destination,
@@ -772,6 +784,14 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         selectedCertificateMatchesRuntimeIdentity_;
     snapshot.directNtlmTypeTwoQueued = directNtlmTypeTwoQueued_;
     snapshot.directNtlmTypeTwoDelivered = directNtlmTypeTwoDelivered_;
+    snapshot.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
+        directNtlmTypeTwoCreationToDeliveryAgeAvailable_;
+    snapshot.directNtlmTypeTwoCreationToDeliveryMicroseconds =
+        directNtlmTypeTwoCreationToDeliveryMicroseconds_;
+    snapshot.preauthElapsedAtPeerEofAvailable =
+        preauthElapsedAtPeerEofAvailable_;
+    snapshot.preauthElapsedAtPeerEofMicroseconds =
+        preauthElapsedAtPeerEofMicroseconds_;
 
     if (!connection_.active())
         snapshot.tlsHandshakeStage =
@@ -1535,6 +1555,16 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             status == Step::Closed &&
             failureStage == FailureStage::None &&
             !connection_.active();
+        if (status == Step::Closed && !connection_.active() &&
+            connection_.termination() ==
+                rdp_server::server::transport::
+                    TcpConnectionTermination::PeerEof &&
+            !preauthElapsedAtPeerEofAvailable_)
+        {
+            preauthElapsedAtPeerEofMicroseconds_ = elapsedMicroseconds(
+                preauthStartedAt_, std::chrono::steady_clock::now());
+            preauthElapsedAtPeerEofAvailable_ = true;
+        }
 
         captureNegotiationEnvelope();
         const auto diagnosticFailureStage =
@@ -1602,6 +1632,15 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                 // Complete means the exact R1 TLS write path accepted every
                 // plaintext byte. releaseReply() above also revalidated the
                 // transport generation, SSL identity and selected certificate.
+                if (directNtlmTypeTwoCreatedAt_.has_value() &&
+                    !directNtlmTypeTwoCreationToDeliveryAgeAvailable_)
+                {
+                    directNtlmTypeTwoCreationToDeliveryMicroseconds_ =
+                        elapsedMicroseconds(
+                            *directNtlmTypeTwoCreatedAt_,
+                            std::chrono::steady_clock::now());
+                    directNtlmTypeTwoCreationToDeliveryAgeAvailable_ = true;
+                }
                 directNtlmTypeTwoDelivered_ = true;
                 authenticationProgress_ =
                     LinuxRuntimeAuthenticationProgress::NtlmChallenge;
@@ -1753,8 +1792,12 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             rdp_server::server::security::
                 StandaloneNtlmNegotiationEnvelope::DirectNtlm)
         {
-            // Queue ownership is not delivery. Only R1 accepted-byte
-            // completion may advance this connection to NtlmChallenge.
+            // Queue ownership is not delivery. This is R10's first
+            // observation of the R2-created Direct-NTLM challenge; only R1
+            // accepted-byte completion may advance to NtlmChallenge.
+            if (!directNtlmTypeTwoCreatedAt_.has_value())
+                directNtlmTypeTwoCreatedAt_ =
+                    std::chrono::steady_clock::now();
             directNtlmTypeTwoQueued_ = true;
             authenticationProgress_ =
                 LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm;

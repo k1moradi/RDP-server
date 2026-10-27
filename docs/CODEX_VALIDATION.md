@@ -1,3 +1,36 @@
+## Agent 10 pre-Type-3 timing diagnostics authoring receipt — 2026-10-27
+
+**Authoring parent:** `936a9a443ceb223f84e82d9e2d18dbfb1a451482`. Current main and all mandatory project
+guidance were re-read after the concurrent publications.
+
+The existing `LinuxRuntimeConnection` remains the sole connection owner. It
+now latches one steady-clock pre-auth origin, first observes the R2-created
+Direct-NTLM Type 2 when the existing CredSSP acceptor returns
+`NegoReplyQueued`, and records creation-to-delivery age only when the exact R1
+TLS writer completes and releases that reply. On real R1 `PeerEof`, it latches
+total pre-auth elapsed time once. R10 projects only availability plus
+microsecond scalars into the retained snapshot and fail-only terminal record.
+No protocol bytes, challenge/response material, password, session key or
+delegated data is added.
+
+Dedicated behavior CTest:
+`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics`. The same
+production-backed two-peer path asserts a fresh connection ID/timing lifetime
+on retry, retained listener/target/owner/Session Password, no post-Type-3
+authority and `AuthenticationIncompletePeerClosed` classification. The
+existing pre-auth projection fixture pins unavailable defaults and exact scalar
+forwarding. Existing R9 sanitizer execution of the Type-2/EOF lifecycle
+continues through this timing code path; no R9 focused selector is edited.
+
+Production `fixed-name / RDP-SERVER`, TargetName/TargetInfo/MsvAvTargetName,
+certificate CN/SAN, native Admission, MCS, Share, graphics and clipboard are
+unchanged.
+
+Connector source/transformation and lifecycle-path review: **PASS by
+inspection**. Canonical owner one-`build/` configure/build/focused/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**.
+
 ## Agent 2 NTLM OEM-response differential authoring receipt — 2026-10-27
 
 **Authoring parent:** `f0da16e423f6f8797503c70dfd0bd4ed87348cda`. Mandatory current-main context,

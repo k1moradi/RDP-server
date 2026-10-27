@@ -66,22 +66,31 @@ replace the macOS Windows App same-attempt evidence or Windows Schannel probes;
 it grants no authentication, Admission, MCS, Share, graphics, X11 or clipboard
 authority.
 
-## Agent 6 modern Schannel full-CredSSP TLS-version probe (2026-10-27)
+## Agent 6 modern Schannel full-CredSSP TLS 1.3 qualification (2026-10-27)
 
 The Windows-only CTest
 `security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe`
-uses the existing `test_windows_sspi_credssp_interop` executable. In one
-invocation it first requires the legacy `SCHANNEL_CRED` fixed-name control
-to reach first TSRequest -> unchanged production Type 2 -> next Microsoft
-TSRequest -> independently observed Type 3, then attempts
-`SCH_CREDENTIALS` with system-default TLS parameters.
+uses the existing `test_windows_sspi_credssp_interop` executable and must
+always run the legacy `SCHANNEL_CRED` fixed-name control first. The control
+must reach first TSRequest -> production Type 2 -> next Microsoft TSRequest ->
+independently observed Type 3 before the modern attempt is interpreted.
 
-Always report credential structure, negotiated TLS version, terminal phase,
-symbolic Microsoft status, exact hexadecimal status and Type-3 observation.
-A modern Type-3 result or a typed Microsoft/API rejection is a valid experiment
-result; no-progress, round-limit or otherwise unclassified harness outcomes
-fail. A typed negative result never authorizes a production TLS maximum. The
-existing fixed-name/IP-SPN/bare-IP controls remain unchanged.
+Exact SHA `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`, workflow `40505738277`, Windows job
+`122194521687`: the control negotiated TLS 1.2 /
+`ECDHE-RSA-AES256-GCM-SHA384` and PASSed through Type 3. The modern
+`SCH_CREDENTIALS` system-default profile negotiated TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`; after the first TSRequest the production Type 2 was
+consumed, Microsoft emitted the next client TSRequest, and Type 3 was observed.
+The summary is `modern-result=TLS13_TYPE3_PASS phase=none
+microsoft-status=SEC_I_CONTINUE_NEEDED code=0x00090312 tls=TLS1.3 type3=yes`.
+The same job preserved the fixed-name/IP-SPN/bare-IP matrix PASS/TYPED and full
+Windows CTest PASS at 795/795 in both Debug and Release.
+
+Continue to report credential structure, negotiated TLS version, phase, symbolic
+and hexadecimal Microsoft status, and Type-3 observation. A future typed
+Microsoft/API rejection is evidence, while no-progress/round-limit or otherwise
+unclassified harness outcomes remain test failures. Neither positive nor
+negative oracle evidence directly authorizes a production TLS maximum.
 
 ## macOS Windows App owner evidence must distinguish client policy from peer EOF (2026-10-27)
 

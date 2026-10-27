@@ -91,29 +91,37 @@ connector environment. Exact-publication-SHA hosted CI: **PENDING**. Next gate
 is hosted qualification of the publication SHA; physical qualification remains
 owned by the preserved same-attempt owner-evidence procedure.
 
-## Agent 6 modern Schannel full-CredSSP probe authoring receipt — 2026-10-27
+## Agent 6 modern Schannel full-CredSSP TLS 1.3 qualification receipt — 2026-10-27
 
-**Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Mandatory project context and the
-current Windows full-CREDSSP harness were re-read after concurrent Agent-5/R8
-publications. The shared physical reference remains TLS 1.3 ->
-`TLS_AES_256_GCM_SHA384` -> Direct NTLM Type 1
-`0xe2088235`, VERSION `6.0.6001/0x0f` -> unchanged production Type 2
-`0xe08a8235` fully committed -> Await-Type-3 -> peer EOF. Hosted
-fixed-name/IP-SPN/bare-IP full-CREDSSP reaches Type 3 under TLS 1.2.
-Production remains `fixed-name / RDP-SERVER`.
+**Implementation SHA:** `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`. Workflow
+`40505738277`, Windows protocol job `122194521687`: **PASS**.
 
-The test executable preserves the existing `SCHANNEL_CRED` control and adds
-a test-only `SCH_CREDENTIALS` system-defaults profile through the same opaque
-`CREDSSP_CRED::pSchannelCred` field. One dedicated CTest runs legacy control
-then modern attempt, logs negotiated TLS plus exact Microsoft status/phase,
-accepts a typed modern-provider rejection as experimental evidence, and fails
-unclassified/no-progress outcomes. Windows protocol CI runs it verbosely before
-the unchanged five-row Microsoft target matrix.
+The dedicated CTest
+`security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe`
+PASSed. In the same invocation the required legacy `SCHANNEL_CRED` control
+negotiated TLS 1.2 / `ECDHE-RSA-AES256-GCM-SHA384`, reached the first
+TSRequest, had the production Type 2 consumed and reached the next Microsoft
+TSRequest containing Type 3. The experimental `SCH_CREDENTIALS` profile
+used zero `TLS_PARAMETERS` entries (system defaults), negotiated TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, retained/consumed buffered TLS 1.3 provider input
+correctly, had the production Type 2 consumed, emitted the next client TSRequest
+and independently observed Type 3.
 
-Connector source/transformation review: **PASS**. Canonical owner one-`build/`
-compile/focused/full CTest: **NOT RUN** here. Exact-publication-SHA hosted
-Windows execution: **PENDING**. No production TLS/certificate/Type-2,
-Admission, MCS, graphics or clipboard behavior changed.
+The exact modern summary is
+`control=PASS credential-struct=SCH_CREDENTIALS
+tls-parameters=system-defaults modern-result=TLS13_TYPE3_PASS phase=none
+microsoft-status=SEC_I_CONTINUE_NEEDED code=0x00090312 tls=TLS1.3 type3=yes
+tls13-type3-pass=yes`. The unchanged fixed-name/IP-SPN/bare-IP matrix is
+**PASS/TYPED**. Windows Debug full CTest is **795/795 PASS** and Release full
+CTest is **795/795 PASS**. Compile, certificate-policy, existing CredSSP harness
+and the new probe steps all PASSed on the exact implementation SHA.
+
+Conclusion: hosted Microsoft CREDSSP can use modern Schannel credentials and
+complete the required Type-3 boundary over TLS 1.3. This largely rules out TLS
+1.3 alone as the physical peer-EOF cause, but it is not evidence that the
+physical Windows App/macOS client uses an identical internal provider path.
+Production remains `fixed-name / RDP-SERVER`; no production TLS/certificate/
+Type-2, Admission, MCS, graphics or clipboard behavior changed.
 
 ## Agent 5 macOS Windows App owner-evidence procedure receipt — 2026-10-27
 

@@ -61,22 +61,26 @@ TargetName, TargetInfo, MsvAvTargetName, certificate identity, target-profile
 selection or any downstream authority. Main and Advanced authentication wording
 remain independently owned by the existing typed failure boundary.
 
-## Agent 6 modern Schannel CredSSP oracle is test-only (2026-10-27)
+## Agent 6 Microsoft CredSSP modern-Schannel TLS 1.3 evidence is test-only (2026-10-27)
 
-The Windows full-CredSSP oracle keeps the existing `SCHANNEL_CRED` path as
-its control and may probe `SCH_CREDENTIALS` only inside the Windows test
-executable. `CREDSSP_CRED::pSchannelCred` is an opaque public API field, so
-do not infer that CredSSP accepts the modern structure merely because direct
-Schannel does; call Microsoft CREDSSP and record the result.
+Exact-SHA hosted Windows evidence at `94c4fdab233a59417f1d0f3eaad053e21e2e49ad` (workflow
+`40505738277`, Windows protocol job `122194521687`) demonstrates that
+Microsoft CREDSSP accepts a `SCH_CREDENTIALS` object supplied through the
+opaque `CREDSSP_CRED::pSchannelCred` field in this harness. The mandatory
+legacy `SCHANNEL_CRED` control negotiated TLS 1.2 /
+`ECDHE-RSA-AES256-GCM-SHA384` and reached the next client TSRequest with
+NTLM Type 3. The modern system-default profile negotiated TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, consumed the production Type 2 and independently
+reached the same Type-3 boundary.
 
-The modern profile uses `SCH_CREDENTIALS_VERSION`, the same manual server
-certificate validation / no-default-client-certificate / strong-crypto flags
-as the control, and zero `TLS_PARAMETERS` entries for Schannel system
-defaults. Report the server-observed TLS version and exact Microsoft
-status/phase. TLS 1.3 + Type 3 is interoperability evidence only; a typed
-rejection or TLS 1.2 result is also evidence and never directly authorizes a
-production TLS cap, certificate/target change, Admission, MCS, graphics or
-clipboard change.
+Keep the modern profile test-only: `SCH_CREDENTIALS_VERSION`, the same manual
+server-certificate validation / no-default-client-certificate / strong-crypto
+flags, and zero `TLS_PARAMETERS` entries so Schannel uses system defaults.
+The result largely rules out TLS 1.3 *by itself* as the physical Windows
+App/macOS peer-EOF cause. It does not prove that Windows App uses this exact
+provider/configuration path and does not authorize a production TLS cap,
+certificate/TargetName/TargetInfo/MsvAvTargetName change, native Admission,
+MCS, graphics or clipboard change.
 
 ## R10 retained physical-client environment diagnostics (2026-10-26)
 

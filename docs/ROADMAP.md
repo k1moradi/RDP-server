@@ -124,42 +124,43 @@ physical retry. The next physical success criterion remains
 password, certificate rejection, native admission failure or target-identity
 mismatch.
 
-## Agent 6 P0 — primary Microsoft full-CREDSSP TLS 1.3 Schannel credential oracle (2026-10-27)
+## Agent 6 P0 — Microsoft full-CREDSSP TLS 1.3 oracle PASS (2026-10-27)
 
-**Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Current `main`, AGENTS, VISION,
-ROADMAP, coding/testing/compile/benchmark standards and validation ledger were
-re-read; concurrent Agent-5 owner-evidence and R8 pre-Type-3 clipboard work are
-retained.
+**Implementation SHA:** `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`. **Hosted evidence:** workflow
+`40505738277`, Windows protocol job `122194521687` **PASS**. The change
+is test/qualification-only; concurrent shared-main work is retained.
 
-The latest shared physical path reaches TLS 1.3 /
-`TLS_AES_256_GCM_SHA384`, IP SNI, the current exact-IP-SAN certificate,
-Direct NTLM Type 1 `0xe2088235` with VERSION `6.0.6001/0x0f`, unchanged
-production Type 2 `0xe08a8235` fully committed, then Await-Type-3 -> peer
-EOF. Type 3 and all downstream authority remain **NOT REACHED**. Hosted
-fixed-name/IP-SPN/bare-IP Microsoft full-CREDSSP reaches Type 3 under TLS 1.2.
-Production therefore remains exactly `fixed-name / RDP-SERVER`.
+The dedicated modern-Schannel CTest first ran the unchanged legacy
+`SCHANNEL_CRED` fixed-name control. It negotiated TLS 1.2 /
+`ECDHE-RSA-AES256-GCM-SHA384`, received the first Microsoft TSRequest,
+produced/committed the production Type 2, Microsoft consumed it, emitted the
+next TSRequest, and production independently observed NTLM Type 3.
 
-The existing Windows oracle now has a test-only Schannel credential profile.
-Legacy `SCHANNEL_CRED` is unchanged and remains the mandatory fixed-name
-control. The experimental profile passes `SCH_CREDENTIALS_VERSION` through
-the same opaque `CREDSSP_CRED::pSchannelCred` field with the existing
-manual-validation/no-default-client-certificate/strong-crypto policy and zero
-`TLS_PARAMETERS` entries (system defaults). The dedicated behavior CTest runs
-legacy control first, then the modern attempt, and reports negotiated TLS plus
-the exact Microsoft status/phase. No production TLS, certificate, Type-2,
-Admission, MCS, graphics or clipboard code changes.
+The same invocation then supplied `SCH_CREDENTIALS_VERSION` through
+`CREDSSP_CRED::pSchannelCred` with system-default TLS parameters. Microsoft
+CREDSSP accepted that configuration and negotiated **TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`**. The first TSRequest was received, the production
+Type 2 was consumed, Microsoft generated the next client TSRequest, and Type 3
+was independently observed. Exact summary:
+`modern-result=TLS13_TYPE3_PASS phase=none
+microsoft-status=SEC_I_CONTINUE_NEEDED code=0x00090312 tls=TLS1.3 type3=yes
+tls13-type3-pass=yes`.
 
-**Validation at authoring:** connector source/transformation review **PASS**.
-Canonical owner one-`build/` configure/build/focused/full CTest **NOT RUN**
-in this connector environment. Exact-publication-SHA hosted Windows compile,
-probe and full CTest **PENDING**.
+The unchanged Microsoft target matrix also remains **PASS/TYPED** for fixed
+name, IP-SPN and bare-IP, and the Windows protocol job completed full CTest
+**795/795 PASS** in Debug and **795/795 PASS** in Release. This hosted
+differential therefore largely rules out TLS 1.3 itself as the reason the
+physical Windows App/macOS attempt closes after the committed Type 2. It does
+not prove the exact Windows App provider/policy path and authorizes **no**
+production TLS cap, TargetName/TargetInfo/MsvAvTargetName, certificate,
+Admission, MCS, graphics or clipboard change. Production remains
+`fixed-name / RDP-SERVER`.
 
-**Next gate:** hosted Windows execution. If modern `SCH_CREDENTIALS`
-negotiates TLS 1.3 and reaches Type 3, record full-CredSSP TLS 1.3 **PASS**.
-If it negotiates another version or stops before Type 3, retain the exact
-Microsoft status and phase. Agent 9 decides whether that evidence is sufficient
-for a controlled owner A/B; no result here directly authorizes a production
-TLS cap.
+**Next gate:** Agent 9 decides whether this is sufficient for a controlled
+owner A/B. Any next physical experiment must preserve the exact-SHA owner
+evidence contract and use the client-side same-attempt evidence already
+specified by Agent 5; the success criterion remains
+`direct-ntlm-type3=received`.
 
 ## Agent 5 P0 supporting — macOS Windows App same-attempt owner evidence (2026-10-27)
 

@@ -1,3 +1,48 @@
+## Agent 2 Microsoft credential-semantic differential authoring receipt — 2026-10-27
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled authoring parent:** `2faee11380a897b01742f7cac0f171f7c8f5eb72`.
+All mandatory policy was re-read and concurrent Agent-3/R4/R8 containment plus
+Agent-5 owner-evidence changes were reconciled before publication.
+Owner-reported Linux/X11 full CTest on the assignment parent:
+**998/998 PASS**; that is not modified-tree evidence.
+
+The Windows-native full-CREDSSP harness now has a test-only credential-state
+parameter while retaining the production generated exact-IP certificate,
+production TSRequest reader/writer, production Direct-NTLM acceptor and
+unchanged production Type 2. `security.windows-credssp-credential-semantic-differential`
+runs four fresh Microsoft contexts: correct fixed test credentials; the same
+identity with a fixed wrong test password; an explicit empty SPNEGO identity
+with no username/domain/password; and explicit test username/domain with an
+empty password. The missing row cannot borrow CI account credentials.
+
+Correct and wrong-password contexts must reach Type 3. Missing credentials
+must emit no Type 3 and terminate at a typed Microsoft credential/policy
+boundary; empty password is recorded independently and may reach Type 3 or a
+typed credential result. Harness no-progress/round-limit/server failures do
+not qualify.
+
+| Credential state | Type 1? | Type 2 consumed? | Type 3? | Microsoft status |
+| --- | --- | --- | --- | --- |
+| Correct credential | PENDING | PENDING | PENDING | PENDING |
+| Wrong password | PENDING | PENDING | **must be yes** | PENDING |
+| Missing credential | PENDING | PENDING | **must be no** | PENDING |
+| Empty password | PENDING | PENDING | PENDING | PENDING |
+
+Agent 5's physical runbook separately requires an explicit saved Windows App
+credential intentionally matched to the standalone app credential. That
+owner-private evidence remains independent of this hosted SSPI semantic matrix.
+No password, token, challenge/response, session-key or delegated-credential
+bytes are logged.
+
+Production remains `fixed-name / RDP-SERVER`; Type-2 flags/TargetName/
+TargetInfo/MsvAvTargetName, certificate/TLS policy and every post-auth
+authority boundary are unchanged.
+
+Connector source/transformation and reconciliation review: **PASS by
+inspection**. Canonical modified-tree one-`build/` configure/build/focused/full
+CTest: **NOT RUN** in this connector environment. Native Windows execution and
+exact-publication-SHA hosted CI: **PENDING**.
 ## Agent 5 credential-state Windows App owner-evidence strengthening — 2026-10-27
 
 **Authoring parent / assignment-time remote main:**

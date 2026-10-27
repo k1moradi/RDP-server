@@ -1,3 +1,27 @@
+## Agent 2 Microsoft credential-semantic differential gate (2026-10-27)
+
+Register Windows-only CTest
+`security.windows-credssp-credential-semantic-differential` on the existing
+`test_windows_sspi_credssp_interop` executable. Run four fresh Microsoft
+`CREDSSP` contexts against the same production-backed memory-BIO server path:
+correct credentials, an explicit fixed wrong password, explicit missing SPNEGO
+credentials and an explicit username with an empty password. Never use the CI
+account or default-credential path.
+
+Correct and wrong-password rows PASS only after Type 1, complete production
+Type-2 consumption and a next Microsoft TSRequest containing Type 3. Missing
+credentials must emit no Type 3 and terminate with a typed Microsoft
+credential/policy result, including `SEC_I_INCOMPLETE_CREDENTIALS`. Empty
+password is separate: record Type 3 or a typed Microsoft credential result.
+Server/TLS/DER/no-progress/round-limit failures remain FAIL.
+
+Each row emits only credential-state class, Type-1 observation, Type-2
+consumption, Type-3 observation, symbolic/hex Microsoft status and bounded
+stage. The exact-SHA interop artifact preserves all four rows and the manual
+Agent-9 owner-candidate gate consumes them. This hosted semantic matrix is
+independent of Agent 5's same-attempt Windows App saved-credential evidence.
+Never emit passwords, token bytes, challenge/response data, keys or delegated
+credentials.
 ## R8 long Await-Type-3 clipboard-dormancy gate (2026-10-27)
 
 The existing production-backed

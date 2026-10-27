@@ -60,6 +60,31 @@ enum class SchannelCredentialProfile : std::uint8_t
     ModernSystemDefaults,
 };
 
+enum class CredSspCredentialState : std::uint8_t
+{
+    CorrectPassword,
+    WrongPassword,
+    MissingCredentials,
+    EmptyPassword,
+};
+
+[[nodiscard]] constexpr const char *credentialStateName(
+    CredSspCredentialState state) noexcept
+{
+    switch (state)
+    {
+    case CredSspCredentialState::CorrectPassword:
+        return "correct";
+    case CredSspCredentialState::WrongPassword:
+        return "wrong-password";
+    case CredSspCredentialState::MissingCredentials:
+        return "missing-credentials";
+    case CredSspCredentialState::EmptyPassword:
+        return "empty-password";
+    }
+    return "unknown";
+}
+
 [[nodiscard]] constexpr const char *schannelCredentialProfileName(
     SchannelCredentialProfile profile) noexcept
 {
@@ -214,6 +239,10 @@ constexpr std::size_t kMaximumRawTokenBytes = 256U * 1024U;
     case 0x00090321U: return "SEC_I_RENEGOTIATE";
     case 0x80090303U: return "SEC_E_TARGET_UNKNOWN";
     case 0x80090308U: return "SEC_E_INVALID_TOKEN";
+    case 0x8009030cU: return "SEC_E_LOGON_DENIED";
+    case 0x8009030dU: return "SEC_E_UNKNOWN_CREDENTIALS";
+    case 0x8009030eU: return "SEC_E_NO_CREDENTIALS";
+    case 0x80090311U: return "SEC_E_NO_AUTHENTICATING_AUTHORITY";
     case 0x80090318U: return "SEC_E_INCOMPLETE_MESSAGE";
     case 0x80090322U: return "SEC_E_WRONG_PRINCIPAL";
     case 0x8009035eU: return "SEC_E_DELEGATION_POLICY";
@@ -903,19 +932,51 @@ public:
     using Step = CredSspClientStep;
 
     explicit WindowsCredSspClient(
-        SchannelCredentialProfile schannelCredentialProfile) noexcept
+        SchannelCredentialProfile schannelCredentialProfile,
+        CredSspCredentialState credentialState =
+            CredSspCredentialState::CorrectPassword) noexcept
         : schannelCredentialProfile_(schannelCredentialProfile)
     {
-        identity_.User = username_.data();
-        identity_.UserLength =
-            static_cast<unsigned long>(username_.size());
-        identity_.Domain = domain_.data();
-        identity_.DomainLength =
-            static_cast<unsigned long>(domain_.size());
-        identity_.Password = password_.data();
-        identity_.PasswordLength =
-            static_cast<unsigned long>(password_.size());
         identity_.Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
+        if (credentialState != CredSspCredentialState::MissingCredentials)
+        {
+            identity_.User = username_.data();
+            identity_.UserLength =
+                static_cast<unsigned long>(username_.size());
+            identity_.Domain = domain_.data();
+            identity_.DomainLength =
+                static_cast<unsigned long>(domain_.size());
+        }
+
+        switch (credentialState)
+        {
+        case CredSspCredentialState::CorrectPassword:
+            identity_.Password = correctPassword_.data();
+            identity_.PasswordLength =
+                static_cast<unsigned long>(correctPassword_.size());
+            break;
+        case CredSspCredentialState::WrongPassword:
+            identity_.Password = wrongPassword_.data();
+            identity_.PasswordLength =
+                static_cast<unsigned long>(wrongPassword_.size());
+            break;
+        case CredSspCredentialState::MissingCredentials:
+            // An explicit empty SPNEGO identity prevents this test from
+            // borrowing the CI process account's default credentials.
+            identity_.User = nullptr;
+            identity_.UserLength = 0U;
+            identity_.Domain = nullptr;
+            identity_.DomainLength = 0U;
+            identity_.Password = nullptr;
+            identity_.PasswordLength = 0U;
+            break;
+        case CredSspCredentialState::EmptyPassword:
+            // Keep a non-null password address while declaring zero UTF-16
+            // code units so this remains distinct from missing credentials.
+            identity_.Password = emptyPassword_.data();
+            identity_.PasswordLength = 0U;
+            break;
+        }
 
         schannel_.dwVersion = SCHANNEL_CRED_VERSION;
         schannel_.dwFlags =
@@ -949,7 +1010,11 @@ public:
         if (credentialValid_)
             FreeCredentialsHandle(&credential_);
         SecureZeroMemory(
-            password_.data(), password_.size() * sizeof(password_[0]));
+            correctPassword_.data(),
+            correctPassword_.size() * sizeof(correctPassword_[0]));
+        SecureZeroMemory(
+            wrongPassword_.data(),
+            wrongPassword_.size() * sizeof(wrongPassword_[0]));
     }
 
     WindowsCredSspClient(const WindowsCredSspClient &) = delete;
@@ -1164,7 +1229,7 @@ private:
         static_cast<unsigned short>('R'),
         static_cast<unsigned short>('D'),
         static_cast<unsigned short>('P')};
-    std::array<unsigned short, 8> password_{
+    std::array<unsigned short, 8> correctPassword_{
         static_cast<unsigned short>('P'),
         static_cast<unsigned short>('a'),
         static_cast<unsigned short>('s'),
@@ -1173,6 +1238,21 @@ private:
         static_cast<unsigned short>('o'),
         static_cast<unsigned short>('r'),
         static_cast<unsigned short>('d')};
+    std::array<unsigned short, 13> wrongPassword_{
+        static_cast<unsigned short>('W'),
+        static_cast<unsigned short>('r'),
+        static_cast<unsigned short>('o'),
+        static_cast<unsigned short>('n'),
+        static_cast<unsigned short>('g'),
+        static_cast<unsigned short>('P'),
+        static_cast<unsigned short>('a'),
+        static_cast<unsigned short>('s'),
+        static_cast<unsigned short>('s'),
+        static_cast<unsigned short>('w'),
+        static_cast<unsigned short>('o'),
+        static_cast<unsigned short>('r'),
+        static_cast<unsigned short>('d')};
+    std::array<unsigned short, 1> emptyPassword_{0U};
     SEC_WINNT_AUTH_IDENTITY_W identity_{};
     SCHANNEL_CRED schannel_{};
     SCH_CREDENTIALS modernSchannel_{};
@@ -2055,7 +2135,7 @@ template <typename Client, typename Server>
                 productionReplyCommitted &&
                 pendingClientStep.inputBytes != 0U &&
                 pendingClientStep.status != SEC_E_INCOMPLETE_MESSAGE &&
-                securityStatusSucceeded(pendingClientStep.status);
+                pendingClientStep.retainedServerInputBytes == 0U;
             result.productionTypeTwoConsumed =
                 result.productionTypeTwoConsumed ||
                 productionTypeTwoConsumedThisCall;
@@ -2672,6 +2752,8 @@ struct FullCredSspAttempt final
     BoundedCipherName negotiatedCipherName{'n','o','n','e','\0'};
     SchannelCredentialProfile schannelCredentialProfile{
         SchannelCredentialProfile::LegacySchannelCred};
+    CredSspCredentialState credentialState{
+        CredSspCredentialState::CorrectPassword};
     bool tlsEstablished{};
     bool initialClientTsRequestReceived{};
     bool productionTypeTwoQueued{};
@@ -2819,12 +2901,16 @@ void printClientProfileObservation(
     SchannelCredentialProfile schannelCredentialProfile =
         SchannelCredentialProfile::LegacySchannelCred,
     TlsServerProfile tlsServerProfile =
-        TlsServerProfile::SystemDefault)
+        TlsServerProfile::SystemDefault,
+    CredSspCredentialState credentialState =
+        CredSspCredentialState::CorrectPassword)
 {
     FullCredSspAttempt result{};
     result.schannelCredentialProfile = schannelCredentialProfile;
     result.tlsServerProfile = tlsServerProfile;
-    WindowsCredSspClient client{schannelCredentialProfile};
+    result.credentialState = credentialState;
+    WindowsCredSspClient client{
+        schannelCredentialProfile, credentialState};
     ProductionCredSspServer server{experiment, tlsServerProfile};
     if (!server.valid())
     {
@@ -3040,6 +3126,55 @@ void printStatus(const char *label, SECURITY_STATUS status) noexcept
            attempt.microsoftNextTokenGenerated &&
            attempt.nextClientTsRequestReceived &&
            attempt.productionObservedTypeThree;
+}
+
+[[nodiscard]] SECURITY_STATUS reportedMicrosoftStatus(
+    const FullCredSspAttempt &attempt) noexcept
+{
+    return std::string_view{attempt.stage} == "acquire-credssp"
+        ? attempt.acquireStatus
+        : attempt.lastClientStatus;
+}
+
+[[nodiscard]] bool microsoftCredentialFailureObserved(
+    const FullCredSspAttempt &attempt) noexcept
+{
+    const SECURITY_STATUS status = reportedMicrosoftStatus(attempt);
+    const bool credentialStatus =
+        !securityStatusSucceeded(status) ||
+        static_cast<std::uint32_t>(status) == 0x00090320U;
+    if (!credentialStatus)
+        return false;
+
+    if (std::string_view{attempt.stage} == "acquire-credssp")
+        return true;
+
+    const auto isMicrosoftFailure = [](const CredSspPumpResult &pump) {
+        return pump.stopReason == CredSspPumpStopReason::TypedFailure &&
+               std::string_view{pump.failureStage} ==
+                   "memory-bio-microsoft-credssp";
+    };
+    return isMicrosoftFailure(attempt.initialPump) ||
+           isMicrosoftFailure(attempt.nextPump);
+}
+
+void printCredentialSemanticRow(
+    const FullCredSspAttempt &attempt) noexcept
+{
+    const SECURITY_STATUS status = reportedMicrosoftStatus(attempt);
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-credential-semantics "
+        "credential-state=%s type1=%s type2-consumed=%s type3=%s "
+        "microsoft-status=%s code=0x%08lx stage=%s\n",
+        credentialStateName(attempt.credentialState),
+        attempt.typeOneObserved ? "yes" : "no",
+        attempt.productionTypeTwoConsumed ? "yes" : "no",
+        attempt.productionObservedTypeThree ? "yes" : "no",
+        securityStatusName(status),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(status)),
+        attempt.stage);
 }
 
 void printFailure(
@@ -3262,6 +3397,71 @@ void printFailure(
     return passed || tls13OracleLimitation;
 }
 
+[[nodiscard]] bool runCredentialSemanticDifferential()
+{
+    const TargetProfile target = TargetProfile::PortableServerName;
+    const auto runState = [target](CredSspCredentialState state) {
+        return runFullCredSspAttempt(
+            target,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::LegacySchannelCred,
+            TlsServerProfile::SystemDefault,
+            state);
+    };
+
+    const FullCredSspAttempt correct =
+        runState(CredSspCredentialState::CorrectPassword);
+    const FullCredSspAttempt wrong =
+        runState(CredSspCredentialState::WrongPassword);
+    const FullCredSspAttempt missing =
+        runState(CredSspCredentialState::MissingCredentials);
+    const FullCredSspAttempt empty =
+        runState(CredSspCredentialState::EmptyPassword);
+
+    printCredentialSemanticRow(correct);
+    printCredentialSemanticRow(wrong);
+    printCredentialSemanticRow(missing);
+    printCredentialSemanticRow(empty);
+
+    const bool correctQualified = acceptedNextClientMessage(correct);
+    const bool wrongQualified = acceptedNextClientMessage(wrong);
+    const bool missingQualified =
+        !missing.productionObservedTypeThree &&
+        microsoftCredentialFailureObserved(missing);
+    const bool emptyQualified =
+        acceptedNextClientMessage(empty) ||
+        (!empty.productionObservedTypeThree &&
+         microsoftCredentialFailureObserved(empty));
+
+    if (!correctQualified)
+        printFailure(target, correct);
+    if (!wrongQualified)
+        printFailure(target, wrong);
+    if (!missingQualified)
+        printFailure(target, missing);
+    if (!emptyQualified)
+        printFailure(target, empty);
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-credential-semantics-summary "
+        "correct=%s wrong-password=%s missing-credentials=%s "
+        "empty-password=%s wrong-password-pretype3-eof-match=%s "
+        "production-type2-change-authorized=no\n",
+        correctQualified ? "TYPE3" : "FAIL",
+        wrongQualified ? "TYPE3" : "FAIL",
+        missingQualified ? "TYPED_NO_TYPE3" : "FAIL",
+        acceptedNextClientMessage(empty)
+            ? "TYPE3"
+            : emptyQualified ? "TYPED_NO_TYPE3" : "FAIL",
+        wrongQualified ? "no" : "unresolved");
+
+    return correctQualified &&
+           wrongQualified &&
+           missingQualified &&
+           emptyQualified;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -3285,6 +3485,8 @@ int main(int argc, char **argv)
                    TlsServerProfile::Tls13Only) ? 0 : 1;
     if (mode == "modern-schannel-system-defaults-probe")
         return runModernSchannelSystemDefaultsProbe() ? 0 : 1;
+    if (mode == "credential-semantic-differential")
+        return runCredentialSemanticDifferential() ? 0 : 1;
 
     TargetProfile profile{};
     if (mode == "control-target")

@@ -1,3 +1,30 @@
+## Agent 2 credential-state differentials are test-only and never borrow process credentials (2026-10-27)
+
+The Windows Microsoft full-CREDSSP oracle may vary only its test-supplied SPNEGO
+credential state while reusing the existing production generated certificate,
+TLS/TSRequest path, Direct-NTLM acceptor and unchanged production Type 2. Every
+credential-state row owns a fresh `CREDSSP` credential/context. Correct uses
+the existing fixed test identity; wrong-password changes only that fixed test
+password. Missing credentials supply an explicit `SEC_WINNT_AUTH_IDENTITY_W`
+with no username, domain or password instead of a null authentication-data path
+that could borrow the CI process account. Empty password supplies the explicit
+test username/domain and a non-null password address with zero UTF-16 code units.
+
+Credential semantics are evidence, not authentication authority. A wrong
+password that still causes Microsoft to emit NTLM Type 3 proves only that
+wrong-password handling occurs after the physical client's current pre-Type-3
+boundary; server response verification is later. For missing/empty credentials,
+retain the exact symbolic and hexadecimal Microsoft status.
+`SEC_I_INCOMPLETE_CREDENTIALS` is a typed credential outcome even though it is
+informational. No-progress, round-limit, TLS/server framing and harness
+failures are not credential-policy evidence.
+
+Never log any test password, NTLM challenge/response material, session keys,
+delegated credential bytes or process/account credentials. This differential
+complements the owner-private Windows App credential evidence; neither can
+change Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, certificate
+identity, TLS policy or downstream authority. Production remains
+`fixed-name / RDP-SERVER`.
 ## Agent 5 physical Windows App credential evidence is private and non-authorizing (2026-10-27)
 
 The macOS Windows App owner-evidence path may record only the bounded client facts

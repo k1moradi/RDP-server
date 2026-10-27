@@ -349,19 +349,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target|oem-omission-differential)|credssp-production-(control-target|physical-ip-target|bare-ip-target)-next-token)$'
+          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target|oem-omission-differential)|credssp-(credential-semantic-differential|production-(control-target|physical-ip-target|bare-ip-target)-next-token))$'
           inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required_test in \
             security.windows-sspi-production-type2-interop \
             security.windows-sspi-production-type2-physical-ip-target \
             security.windows-sspi-production-type2-oem-omission-differential \
+            security.windows-credssp-credential-semantic-differential \
             security.windows-credssp-production-control-target-next-token \
             security.windows-credssp-production-physical-ip-target-next-token \
             security.windows-credssp-production-bare-ip-target-next-token; do
             grep -Fq ": $required_test" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 6
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 7
           result_file='build/r9-microsoft-interop-results.txt'
           tls_version_result_file='build/r9-credssp-tls-version-results.txt'
           test -f "$tls_version_result_file"
@@ -441,6 +442,34 @@ jobs:
             printf 'ntlm-oem-%s physical-type1-flags=0xe2088235 physical-type2-flags=0xe08a8235\n' "$oem_line" | tee -a "$result_file"
             printf '%s\n' \
               'physical-flag-oem-differential=TYPED physical-type1-flags=0xe2088235 physical-type2-flags=0xe08a8235 microsoft-oem-omission=PASS oem-response-bit-difference-ruled-out=yes' \
+              | tee -a "$result_file"
+          else
+            overall_status=1
+          fi
+          credential_semantic_output='build/r9-credssp-credential-semantics.txt'
+          if run_case credssp-credential-semantics security.windows-credssp-credential-semantic-differential "$credential_semantic_output"; then
+            for credential_state in correct wrong-password missing-credentials empty-password; do
+              credential_line="$(grep -Eo "microsoft-credssp-credential-semantics credential-state=${credential_state} .*" "$credential_semantic_output" | tail -n 1)"
+              test -n "$credential_line"
+              grep -Eq 'type1=(yes|no) type2-consumed=(yes|no) type3=(yes|no) microsoft-status=[A-Z0-9_]+' <<< "$credential_line"
+              printf 'credential-semantic-%s\n' "$credential_line" | tee -a "$result_file"
+            done
+            correct_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=correct ' "$result_file")"
+            wrong_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=wrong-password ' "$result_file")"
+            missing_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=missing-credentials ' "$result_file")"
+            empty_password_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=empty-password ' "$result_file")"
+            grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$correct_credential_line"
+            grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$wrong_credential_line"
+            grep -Fq 'type3=no' <<< "$missing_credential_line"
+            test -n "$empty_password_line"
+            semantic_summary="$(grep -Eo 'microsoft-credssp-credential-semantics-summary .*' "$credential_semantic_output" | tail -n 1)"
+            test -n "$semantic_summary"
+            grep -Fq 'correct=TYPE3 wrong-password=TYPE3 missing-credentials=TYPED_NO_TYPE3' <<< "$semantic_summary"
+            grep -Eq 'empty-password=(TYPE3|TYPED_NO_TYPE3)' <<< "$semantic_summary"
+            grep -Fq 'wrong-password-pretype3-eof-match=no' <<< "$semantic_summary"
+            printf 'credential-semantic-summary-%s\n' "$semantic_summary" | tee -a "$result_file"
+            printf '%s\n' \
+              'credential-semantic-differential=TYPED wrong-password-type3=yes missing-credentials-type3=no wrong-password-pretype3-eof-match=no production-type2-change-authorized=no' \
               | tee -a "$result_file"
           else
             overall_status=1
@@ -2291,6 +2320,22 @@ jobs:
             next_physical_tls_mode=diagnostic-tls12-only-ab
           fi
 
+          grep -Fxq 'credssp-credential-semantics=PASS test=security.windows-credssp-credential-semantic-differential' "$matrix_file"
+          correct_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=correct ' "$matrix_file")"
+          wrong_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=wrong-password ' "$matrix_file")"
+          missing_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=missing-credentials ' "$matrix_file")"
+          empty_password="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=empty-password ' "$matrix_file")"
+          grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$correct_credential"
+          grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$wrong_credential"
+          grep -Fq 'type3=no' <<< "$missing_credential"
+          grep -Eq 'microsoft-status=(SEC_[EI]_[A-Z0-9_]+|OTHER)' <<< "$missing_credential"
+          test -n "$empty_password"
+          semantic_summary="$(grep '^credential-semantic-summary-microsoft-credssp-credential-semantics-summary ' "$matrix_file")"
+          grep -Fq 'correct=TYPE3 wrong-password=TYPE3 missing-credentials=TYPED_NO_TYPE3' <<< "$semantic_summary"
+          grep -Eq 'empty-password=(TYPE3|TYPED_NO_TYPE3)' <<< "$semantic_summary"
+          grep -Fq 'wrong-password-pretype3-eof-match=no' <<< "$semantic_summary"
+          grep -Fxq 'credential-semantic-differential=TYPED wrong-password-type3=yes missing-credentials-type3=no wrong-password-pretype3-eof-match=no production-type2-change-authorized=no' "$matrix_file"
+
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
@@ -2345,6 +2390,7 @@ jobs:
           grep -Fq 'security.windows-credssp-tls12-only-server' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-tls13-only-server' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-credential-semantic-differential' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-control-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-bare-ip-target-next-token' tests/CMakeLists.txt

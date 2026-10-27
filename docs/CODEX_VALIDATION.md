@@ -1,3 +1,37 @@
+## Agent 8 long Await-Type-3 clipboard-dormancy authoring receipt — 2026-10-27
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled publication parent:**
+`9b8fd0a6490e77e4dc3a268c8f2a0a724bf12168`. The concurrent Agent-3/Agent-4 work is preserved.
+Mandatory policy and the affected production-backed runtime,
+dormant-composition and X11 stale-INCR tests were re-read after reconciliation.
+Owner-supplied Linux/X11 baseline is **998/998 CTest PASS**.
+
+No production source changes. The physical boundary remains unchanged:
+production Type 2 is fully committed, the peer waits for Type 3 and then
+closes; Type 3 and all downstream native/session/clipboard authority are not
+reached. The existing
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` path now
+holds the first accepted peer for a bounded 1500 ms service window after Type 2
+delivery. Throughout the hold it asserts the same accepted-client ID,
+listener generation, owner grant and Session Password generation; exact
+`NtlmChallenge / PreAdmission / Open` state; no peer-EOF elapsed
+observation; no MCS/Share; and existing clipboard/native/graphics dormancy.
+After EOF, the existing same-listener reconnect still requires a distinct
+nonzero accepted-client ID and fresh NTLM challenge with clipboard
+`Unavailable`.
+
+The existing source-contract gate remains the construction proof that
+`PreAdmission` cannot initialize or service CLIPRDR/native clipboard/X11
+state, and `runtime.clipboard-x11-restart-incr-isolation` remains the
+independent stale selection/INCR/generation fence. Production activation stays
+literal false; authentication wire bytes, target identity, native Admission,
+MCS, Share and graphics are unchanged.
+
+Connector transformation/source review: **PASS by inspection**. Canonical
+modified-tree one-root configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. R8 remains
+**P2 / BLOCKED**.
+
 ## Agent 4 measured Await-Type-3 graphics-dormancy receipt — 2026-10-27
 
 **Authoring assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

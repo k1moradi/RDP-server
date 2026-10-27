@@ -1598,6 +1598,61 @@ int main(int argc, char** argv)
         assert(physicalClientEnvironmentDiagnosticsMatch(
             waitingForTypeThree));
 
+        if (typeTwoPeerEofOnly)
+        {
+            // Hold the exact production-backed peer in Await-Type-3 across a
+            // sustained bounded service window. Elapsed wall time grants no
+            // authority: this accepted connection and every clipboard/native
+            // path must remain unchanged until the peer actually closes.
+            constexpr std::chrono::milliseconds
+                kLongPreTypeThreeClipboardDormancyHold{1500};
+            const auto holdUntil =
+                std::chrono::steady_clock::now() +
+                kLongPreTypeThreeClipboardDormancyHold;
+            do
+            {
+                (void)control.serviceOnce();
+                const RuntimeHostStatus stalled = control.status();
+                assert(stalled.listenerAvailable);
+                assert(stalled.listenerGeneration == firstListenerGeneration);
+                assert(stalled.activeClients.size() == 1U);
+                assert(stalled.activeClients.front().opaqueId ==
+                       firstAcceptedClientId);
+                assert(stalled.activeClients.front().authenticating);
+                assert(!stalled.activeClients.front().shareActivated);
+                assert(!stalled.activeClients.front().desktopVisible);
+                assert(stalled.acceptedClientPreauthDiagnostics.available);
+                assert(stalled.acceptedClientPreauthDiagnostics
+                           .authenticationStage ==
+                       RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+                assert(stalled.acceptedClientPreauthDiagnostics.protocolStage ==
+                       RuntimeAcceptedClientProtocolStage::PreAdmission);
+                assert(stalled.acceptedClientPreauthDiagnostics
+                           .directNtlmTypeTwoDelivered);
+                assert(stalled.acceptedClientPreauthDiagnostics.termination ==
+                       RuntimeAcceptedClientTermination::Open);
+                assert(!stalled.acceptedClientPreauthDiagnostics
+                            .preauthElapsedAtPeerEofAvailable);
+                assert(stalled.acceptedClientPreauthDiagnostics
+                           .preType3Termination ==
+                       RuntimeAcceptedClientPreType3Termination::None);
+                assert(!stalled.acceptedClientPreauthDiagnostics
+                            .mcsSessionAdvanced);
+                assert(!stalled.acceptedClientPreauthDiagnostics
+                            .shareActivated);
+                assertPhysicalOwnerGrantActive(stalled);
+                assert(stalled.product.credentialsConfigured);
+                assert(control.standaloneApplicationPasswordObservation()
+                           .generation == credential.generation);
+                assertClipboardDormant(stalled);
+                assertGraphicsDormant(stalled);
+                assertFixedConnectionTargetIdentity(
+                    stalled, recommendation.address, selectedPort,
+                    firstListenerGeneration);
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            } while (std::chrono::steady_clock::now() < holdUntil);
+        }
+
         closeAfterTypeTwo.store(true, std::memory_order_release);
         assert(pumpUntilClientRetired(control));
         peer.join();

@@ -1,3 +1,30 @@
+## R8 long Await-Type-3 clipboard-dormancy gate (2026-10-27)
+
+The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` CTest
+must keep its first accepted peer alive for a bounded 1500 ms service window
+after the production Type 2 is completely delivered and before peer EOF.
+During that window, every observation must retain the same nonzero accepted
+client ID, listener generation, current owner grant and Session Password
+generation; remain `NtlmChallenge / PreAdmission / Open`; retain the exact
+Type-2 delivery receipt; expose no peer-EOF elapsed value; and keep MCS, Share,
+native/graphics readiness and clipboard authority absent.
+
+After the client EOF, the same listener must accept a second peer with a
+different nonzero accepted-client ID and fresh NTLM challenge while clipboard
+remains `Unavailable` with no clipboard permission or native/graphics owner.
+Pair this runtime lifetime gate with
+`runtime.linux-host-control-dormant-unicode-clipboard-composition`, which
+keeps all CLIPRDR/native clipboard construction and service outside
+`PreAdmission`, and
+`runtime.clipboard-x11-restart-incr-isolation`, which independently proves
+stale X11 selection/INCR and generation state cannot survive restart.
+
+The 1500 ms hold is deterministic fixture scheduling, not a latency threshold,
+benchmark, production timeout or authorization signal. It deliberately does
+not mirror the observed ~7.6 second physical stall. Do not add production
+clipboard observability or activate clipboard to satisfy this gate.
+
 ## Agent 4 measured Await-Type-3 graphics-dormancy gate (2026-10-27)
 
 The latest owner physical trace on assignment parent `985709b9f8b4c23c32da7297cb088b1ace2920fb` records

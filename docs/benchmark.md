@@ -7,9 +7,13 @@ one client/TLS version is faster than another. No production timeout, retry,
 authentication or identity decision may depend on them.
 
 Do not publish p50/p95/p99 or optimization claims from these terminal values.
-Any future performance comparison must use the benchmark methodology below,
-fixed workloads and repeated samples; real-client benchmarking remains a
-separately authorized activity.
+The R8 production-backed clipboard-dormancy fixture deliberately holds an
+Await-Type-3 peer for 1500 ms before EOF; that interval is test scheduling,
+not a measured client latency, production timeout or performance target. It
+deliberately does not mirror the observed 7,586,602 us physical peer-EOF
+sample. Any future performance comparison must use the benchmark methodology
+below, fixed workloads and repeated samples; real-client benchmarking remains
+a separately authorized activity.
 
 # Benchmark standards — reliable native RDP-server measurements
 

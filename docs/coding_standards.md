@@ -1,3 +1,21 @@
+## R8 long pre-Type-3 stalls remain clipboard-free (2026-10-27)
+
+Elapsed time while a delivered Direct NTLM Type 2 is waiting for Type 3 does
+not create clipboard authority. The accepted connection remains
+`PreAdmission` for its entire lifetime: service ticks, idle duration,
+diagnostic timing, retained listener state, owner consent and retained Session
+Password must not initialize CLIPRDR, a native clipboard owner, X11 CLIPBOARD
+selection/INCR state or admission/session clipboard generations.
+
+Peer EOF at that boundary retires only the accepted connection. An immediate
+same-listener retry is a fresh accepted-client lifetime and cannot inherit an
+R8/R3 route, pending transfer, X11 selection/INCR state or clipboard
+generation. Prove this without adding production clipboard observability: the
+production-backed lifecycle may hold the live peer for a bounded interval,
+while the existing `PreAdmission` source contract keeps native/R8
+construction unreachable and the independent X11 restart regression fences
+stale INCR/generation state. Production clipboard activation remains false.
+
 ## Agent 4 pre-Type-3 elapsed time cannot create graphics authority (2026-10-27)
 
 Owner physical evidence on assignment parent `985709b9f8b4c23c32da7297cb088b1ace2920fb` remains

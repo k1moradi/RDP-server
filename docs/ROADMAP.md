@@ -1,3 +1,51 @@
+## Agent 8 P2 — long Await-Type-3 stall keeps clipboard lifetime absent (2026-10-27)
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled publication parent:**
+`9b8fd0a6490e77e4dc3a268c8f2a0a724bf12168`. Concurrent Agent-3/Agent-4 publications are preserved;
+they changed diagnosis/policy and the R4 source-contract gate but did not alter
+the Agent-8 production-backed Direct-NTLM lifecycle source. Owner-supplied
+Linux/X11 baseline is **998/998 CTest PASS**.
+
+The latest physical trace remains TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP
+SNI -> exact-IP-SAN generated certificate -> Direct NTLM Type 1
+`0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied domain/workstation ->
+unchanged production Type 2 `0xe08a8235` fully committed -> Await-Type-3 ->
+peer EOF. The measured diagnostic values were
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and
+clipboard remain **NOT REACHED**.
+
+R8 remains **P2 / BLOCKED** and makes no production source or authentication
+wire change. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` fixture
+now holds the first peer for a bounded 1500 ms service interval after complete
+Type-2 delivery. Every service iteration requires the same accepted-client ID,
+listener generation, owner grant and Session Password generation, with
+`NtlmChallenge / PreAdmission / Open`, no EOF observation, no MCS/Share and
+clipboard/native/graphics dormancy. The peer then closes and the existing
+same-listener retry must use a different nonzero accepted-client ID and fresh
+challenge while remaining equally dormant.
+
+No new clipboard production observability is introduced. The paired
+`runtime.linux-host-control-dormant-unicode-clipboard-composition` source
+contract continues to prove no CLIPRDR/native clipboard/X11 path is reachable
+from `PreAdmission`, and
+`runtime.clipboard-x11-restart-incr-isolation` remains the independent stale
+selection/INCR/generation fence. Production remains exactly
+`fixed-name / RDP-SERVER` and
+`kLinuxProductionClipboardActivationApproved = false`.
+
+Authoring validation through connector source/transformation review: **PASS by
+inspection**. Canonical modified-tree one-`build/` configure/build/focused/full
+CTest: **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+CI: **PENDING**.
+
+**Next R8 gate:** remain **P2 / BLOCKED**. Do not activate clipboard until a
+physical client progresses through Type 3 -> pubKeyAuth -> authInfo ->
+`CredentialsVerified` -> native Admission -> MCS -> Share ->
+graphics/native readiness.
+
 ## Agent 4 P2 — measured Await-Type-3 graphics dormancy remains absolute (2026-10-27)
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

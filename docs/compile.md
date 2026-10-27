@@ -1,3 +1,14 @@
+## R8 long pre-Type-3 stall reuses the existing runtime test target (2026-10-27)
+
+The long-stall clipboard-dormancy increment changes only the existing
+`test_linux_runtime_direct_ntlm_lifecycle` source. It adds a bounded service
+hold inside the already-registered
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` mode.
+No executable, library, dependency, compile definition, CTest registration,
+label inventory, production target, install/export surface or build directory
+is added. Configure, build and test commands continue to reuse the single
+checkout-local `build/` root.
+
 ## Agent 4 measured pre-Type-3 graphics dormancy adds no build surface (2026-10-27)
 
 This P2 increment changes only the existing CMake source-contract test and

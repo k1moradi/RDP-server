@@ -1544,6 +1544,9 @@ int main(int argc, char** argv)
             control, typeTwoReceived, peerFinished));
         const auto waitingForTypeThree = control.status();
         assert(waitingForTypeThree.activeClients.size() == 1U);
+        const std::uint64_t firstAcceptedClientId =
+            waitingForTypeThree.activeClients.front().opaqueId;
+        assert(firstAcceptedClientId != 0U);
         assertPhysicalOwnerGrantActive(waitingForTypeThree);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.available);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
@@ -1722,6 +1725,9 @@ int main(int argc, char** argv)
         assert(retryWaitingForTypeThree.listenerGeneration ==
                firstListenerGeneration);
         assert(retryWaitingForTypeThree.activeClients.size() == 1U);
+        assert(retryWaitingForTypeThree.activeClients.front().opaqueId != 0U);
+        assert(retryWaitingForTypeThree.activeClients.front().opaqueId !=
+               firstAcceptedClientId);
         assert(retryWaitingForTypeThree.activeClients.front().authenticating);
         assert(!retryWaitingForTypeThree.activeClients.front().shareActivated);
         assert(!retryWaitingForTypeThree.activeClients.front().desktopVisible);

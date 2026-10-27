@@ -182,7 +182,11 @@ Direct NTLM Type 2 -> peer EOF -> same-listener retry -> freshly delivered
 Type 2 -> peer EOF, and must not continue into synthetic Type 3,
 `CredentialsVerified` or native Admission. Both waiting snapshots remain
 `PreAdmission`, with MCS/Share false, clipboard `Unavailable`, no native or
-graphics readiness, and no active client surviving either EOF.
+graphics readiness, and no active client surviving either EOF. Each waiting
+snapshot must expose a nonzero opaque accepted-client ID, and the retry ID must
+differ from the retired peer's ID. That comparison proves a fresh accepted
+connection lifetime only; it is not clipboard authority or a substitute for
+the admission/session clipboard-generation fences.
 
 Pair that runtime gate with
 `runtime.linux-host-control-dormant-unicode-clipboard-composition`. Its

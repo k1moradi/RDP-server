@@ -463,51 +463,56 @@ and field-count record. Compare the two profiles and their resulting Type 2
 structurally; do not infer incompatibility from a difference. If physical Type 3
 appears, retain the existing exact-transcript MIC/NTLMv2 verification.
 
-## R8 P2 — Type-2/EOF retry keeps clipboard lifetime absent (2026-10-26)
+## R8 P2 — Type-2/EOF retry keeps clipboard lifetime absent (2026-10-27)
 
-**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled parent:** `282268e67b3917f53deab71831882a3953a7fcfe`.
-The current physical Linux/X11 boundary remains TLS established -> Direct NTLM
-Type 1 received -> production Type 2 queued -> Type 2 fully committed through
-TLS -> Await-Type-3 -> peer EOF, with physical flags `Type1=0xe2088235` and
-`Type2=0xe08a8235`. Type 3, pubKeyAuth, authInfo, `CredentialsVerified`,
-native Admission, MCS, Share, graphics/X11 ownership and clipboard remain
-**NOT REACHED**. Hosted Windows now proves the unchanged production Type 2
-through Type 3 for NTLM fixed-name/IP and full CREDSSP fixed-name/IP-SPN/bare-IP,
-so production remains `fixed-name / RDP-SERVER`; R8 has no target-profile work.
+**Assignment-time/reconciled main:** `760157157127e25505c120391725780112d4c3b5`. The current shared
+physical evidence recorded above remains TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> current exact-IP-SAN certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> unchanged production Type 2 `0xe08a8235` fully
+committed -> Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 ownership
+and clipboard remain **NOT REACHED**. The physical attempt SHA is still absent
+from the shared handoff, so this remains differential evidence rather than an
+exact-SHA milestone receipt.
+
+Hosted Microsoft NTLM SSPI and full-CREDSSP fixed-name/IP-SPN/bare-IP evidence
+continues to accept the unchanged production Type 2 through Type 3. The hosted
+TLS 1.2 / Type-1 profile and native certificate-policy controls do not
+authorize an R8 or target-identity change. Production remains exactly
+`fixed-name / RDP-SERVER`; TargetName, TargetInfo, MsvAvTargetName,
+certificate CN/SAN, native Admission, MCS, graphics and clipboard are
+unchanged.
 
 R8 remains **P2 / BLOCKED** and
-`kLinuxProductionClipboardActivationApproved = false`. This increment changes
-tests/documentation only. The existing production-backed
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` path now
-ends at the exact requested boundary: peer 1 receives a fully delivered Type 2
-and closes before Type 3, peer 2 is accepted on the same listener, receives a
-fresh Type 2, remains `PreAdmission` with no MCS/Share/native/graphics or
-clipboard state, then closes before Type 3. That R8 path no longer proceeds to
-the unrelated synthetic CredentialsVerified/native-Admission denial step.
+`kLinuxProductionClipboardActivationApproved = false`. No production source
+changes. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` retains
+the exact sequence: Type 1 -> delivered Type 2 -> Await Type 3 -> peer EOF ->
+same-listener retry -> freshly delivered Type 2 -> Await Type 3 -> peer EOF.
+Its existing `RuntimeHostClient::opaqueId` projection is now asserted nonzero
+for the first peer and nonzero/different for the retry, proving a clean
+accepted-connection lifetime without adding clipboard observability. Both
+peers remain `PreAdmission`, clipboard `Unavailable`, with no MCS/Share or
+native/graphics readiness and no active client surviving either EOF.
 
-The existing behavior-named
+The paired
 `runtime.linux-host-control-dormant-unicode-clipboard-composition` source
-contract now isolates `AcceptedClientPhase::PreAdmission` and rejects any
-native/CLIPRDR initialization, dispatch, queue or TLS-write path there. Its
-existing retirement checks still require X11 disconnect to release selection
-ownership and clear pending/INCR state, zero admission/session clipboard
-generations, retire the R8/R3 route, and allocate a fresh owner only after a
-future genuine `GraphicsReady`. The existing
-`runtime.clipboard-x11-restart-incr-isolation` remains the lower-level stale
-INCR/generation fence. At the present physical boundary no native clipboard
-owner exists, so there is no selection, INCR or previous clipboard generation
-for the retry to inherit.
+contract continues to prove that `PreAdmission` cannot initialize/service
+CLIPRDR or a native clipboard owner. Existing retirement assertions still
+disconnect X11 before bridge retirement, clear selection/pending/INCR state,
+zero admission/session clipboard generations and retire stale route identity.
+`runtime.clipboard-x11-restart-incr-isolation` remains the independent stale
+transfer/generation fence. No new CTest or CI selector/count change is made.
 
-Production C++/wire behavior, Type-2 TargetName/TargetInfo/MsvAvTargetName,
-target-profile selection and CTest inventory are **UNCHANGED**. Connector
-source/test/document transformation review: **PASS by inspection**. Canonical
-one-root configure/build/focused/full CTest: **NOT RUN** in this connector
-environment. Exact-publication-SHA hosted CI: **PENDING**.
+Connector source/test/document reconciliation: **PASS by inspection**.
+Canonical one-root configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**.
 
 **Next R8 gate:** remain **P2 / BLOCKED**. Do not activate clipboard or change
-CLIPRDR/native clipboard behavior until the physical client progresses through
-Type 3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` -> native Admission
--> MCS -> Share -> graphics/native readiness.
+CLIPRDR/native clipboard behavior until new external evidence progresses
+through Type 3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` -> native
+Admission -> MCS -> Share -> graphics/native readiness.
 
 ## R4 P2 — pre-Type-3 graphics state remains dormant (2026-10-26)
 

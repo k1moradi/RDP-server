@@ -346,36 +346,40 @@ Production Type-2 TargetName/TargetInfo/MsvAvTargetName, fixed-name target
 selection and VERSION clearing are **UNCHANGED**. Exact Type1+Type2+Type3
 MIC/NTLMv2 verification is **UNCHANGED**.
 
-## R8 Type-2/EOF retry clipboard-dormancy authoring receipt — 2026-10-26
+## R8 Type-2/EOF retry clipboard-dormancy refresh — 2026-10-27
 
-**Assignment-time main:** `2fa18436287a6d830a9b2a69b4bbabe3d448cde5`. **Reconciled authoring
-parent:** `282268e67b3917f53deab71831882a3953a7fcfe`. Mandatory project context and the affected Linux
-runtime/R8 test sources were re-read from current remote `main`. The physical
-Linux/X11 trace remains fully committed production Type 2 -> Await-Type-3 ->
-peer EOF with Type 3 and every downstream native/session/clipboard boundary not
-reached. Hosted Windows proves the unchanged fixed-name/IP Type-2 target matrix
-through Type 3, so this R8 increment makes no authentication/profile change.
+**Assignment-time/reconciled main:** `760157157127e25505c120391725780112d4c3b5`. Mandatory project
+context and the affected R8/runtime tests were re-read after the concurrent
+Agent-5 owner-evidence publication. That publication already records the shared
+physical TLS 1.3 / `TLS_AES_256_GCM_SHA384`, IP-SNI, exact-IP-SAN,
+Type-1 `0xe2088235` VERSION `6.0.6001/0x0f`, unchanged Type-2
+`0xe08a8235`, Await-Type-3 -> peer-EOF boundary. Type 3 and all downstream
+clipboard/session authority remain not reached; the physical test SHA remains
+unavailable in the handoff.
 
-No production source changes. The production-backed
-`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` test now
-stops after the exact peer-EOF/retry sequence instead of continuing into an
-unrelated synthetic admission-denial peer. The retry is explicitly asserted
-pre-MCS/pre-Share with no desktop visibility/native readiness, and both EOFs
-leave no active client. The existing
+No production source changes. The existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` test is
+strengthened only through its existing read-only accepted-client projection:
+the first waiting peer must expose a nonzero opaque client ID, and the
+same-listener retry must expose a different nonzero opaque client ID. Existing
+assertions continue to require both waits to remain `PreAdmission`, clipboard
+`Unavailable`, no MCS/Share/native/graphics readiness, and no active client
+after either EOF.
+
+The companion
 `runtime.linux-host-control-dormant-unicode-clipboard-composition` source
-contract now forbids every clipboard initialization/service/dispatch/write
-entry from the isolated `PreAdmission` branch; its existing retirement checks
-already clear X11 selection/pending/INCR state, route identity and clipboard
-generations. `runtime.clipboard-x11-restart-incr-isolation` remains the
-independent stale-INCR/generation fence.
+contract remains the proof that `PreAdmission` cannot create/service
+CLIPRDR/native clipboard state; its existing retirement checks clear X11
+selection/pending/INCR state, R8/R3 route identity and admission/session
+clipboard generations. `runtime.clipboard-x11-restart-incr-isolation` remains
+the independent stale-transfer/generation fence. Production clipboard
+activation remains literal false. No new CTest or CI selector/count change is
+introduced.
 
-Production clipboard activation remains literal false. Production C++/wire
-behavior, Type-2 TargetName/TargetInfo/MsvAvTargetName and target-profile
-selection are unchanged. No new CTest is registered, so fixed inventory counts
-and CI selectors are unchanged. Connector transformation/source review:
-**PASS by inspection**. Canonical one-root configure/build/focused/full CTest:
-**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
-**PENDING**. R8 remains **P2 / BLOCKED**.
+Connector source/test/document reconciliation: **PASS by inspection**.
+Canonical one-root configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. R8 remains
+**P2 / BLOCKED**; production remains `fixed-name / RDP-SERVER`.
 
 ## R4 pre-Type-3 graphics-state dormancy authoring receipt — 2026-10-26
 

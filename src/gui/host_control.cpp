@@ -357,7 +357,10 @@ HostStatus HostControl::status() const
     const auto& authenticationDiagnostics =
         runtimeStatus.acceptedClientPreauthDiagnostics;
     if (authenticationDiagnostics.available)
+    {
         view.tlsConnection = authenticationDiagnostics.tlsConnection;
+        view.ntlmTypeOne = authenticationDiagnostics.ntlmTypeOne;
+    }
     const bool localDesktopAuthorizationFailed =
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
         isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);

@@ -1,3 +1,33 @@
+## R7 Advanced physical Type-1 profile authoring receipt — 2026-10-27
+
+**Assignment-time main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.
+**Reconciled authoring parent:** `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`.
+Current main and all mandatory project documents were re-read, preserving
+concurrent modern-Schannel CREDSSP, macOS Windows App same-attempt evidence and
+pre-Type-3 runtime-test updates.
+
+R7 changes presentation only. `HostStatus` now carries the existing
+`RuntimeAcceptedClientNtlmTypeOneDiagnostics` value from R10 and
+`DesktopWindow` renders only its redacted VERSION tuple in Advanced. No NTLM
+parser/cache, raw token, opaque flag, domain/workstation payload, protocol
+identity or authorization state is added. The latest shared physical tuple
+`6.0.6001/0x0f` is therefore visible for client-profile comparison while
+existing TLS version/cipher, endpoint, certificate profile and fingerprint
+remain unchanged.
+
+Main and Advanced authentication wording remain exact, Sharing remains ON
+after the Type-2/Await-Type-3 peer EOF, and the GUI makes no wrong-password,
+bad-certificate, native-admission or target-identity claim. Production remains
+`fixed-name / RDP-SERVER`.
+
+New CTest:
+`gui.offscreen-advanced-runtime-type1-structural-profile`.
+Connector transformation/source review: **PASS by inspection**. Canonical
+owner one-`build/` configure/build/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA hosted CI: **PENDING**. Next gate
+is hosted qualification of the publication SHA; physical qualification remains
+owned by the preserved same-attempt owner-evidence procedure.
+
 ## Agent 6 modern Schannel full-CredSSP probe authoring receipt — 2026-10-27
 
 **Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Mandatory project context and the

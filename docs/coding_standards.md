@@ -1,3 +1,20 @@
+## R7 Advanced Type-1 client profile is structural only (2026-10-27)
+
+R7 may render the already-redacted R10 NTLM Type-1 VERSION observation in
+Advanced diagnostics as a client-profile fact. It must consume
+`RuntimeAcceptedClientNtlmTypeOneDiagnostics` through the existing HostControl
+snapshot and must not parse NTLM, retain token bytes or add a second
+authentication cache. VERSION is descriptive interoperability metadata, not a
+credential, client identity, authentication result or native-admission signal.
+
+Keep opaque negotiate flags and domain/workstation details out of the owner GUI
+unless a later product need makes them both understandable and necessary; never
+reconstruct omitted fields from logs or constants. Missing Type-1/VERSION
+observations stay missing. This presentation cannot change Type-2 flags,
+TargetName, TargetInfo, MsvAvTargetName, certificate identity, target-profile
+selection or any downstream authority. Main and Advanced authentication wording
+remain independently owned by the existing typed failure boundary.
+
 ## Agent 6 modern Schannel CredSSP oracle is test-only (2026-10-27)
 
 The Windows full-CredSSP oracle keeps the existing `SCHANNEL_CRED` path as

@@ -4674,6 +4674,18 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;tls;diagnostics" TIMEOUT 30)
 
+    # R7 may render only the redacted Type-1 VERSION structure already
+    # projected by R10. It must remain Advanced-only and non-authorizing.
+    add_test(NAME gui.offscreen-advanced-runtime-type1-structural-profile
+        COMMAND test_desktop_gui_offline
+            advanced-runtime-type1-structural-profile)
+    set_tests_properties(
+        gui.offscreen-advanced-runtime-type1-structural-profile
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;authentication;diagnostics"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-authentication-incomplete-before-native-admission
         COMMAND test_desktop_gui_offline
             authentication-incomplete-before-native-admission)

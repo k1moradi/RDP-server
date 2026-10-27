@@ -274,6 +274,36 @@ QString tlsIdentityStatusText(const HostStatus& status)
             "\nCertificate profile: Self-signed, exact-IP SAN");
     }
 
+    // This is redacted structural metadata already owned by R10. It is useful
+    // for client-profile comparison, but it is not an authentication result.
+    const auto& ntlmTypeOne = status.ntlmTypeOne;
+    if (ntlmTypeOne.observed)
+    {
+        explanation += QStringLiteral("\nClient profile: NTLM Type 1");
+        if (ntlmTypeOne.versionPresent)
+        {
+            const QString revision =
+                QStringLiteral("%1")
+                    .arg(
+                        static_cast<unsigned int>(ntlmTypeOne.ntlmRevision),
+                        2, 16, QLatin1Char('0'))
+                    .toUpper();
+            explanation +=
+                QStringLiteral("; version %1.%2.%3 (revision 0x%4)")
+                    .arg(
+                        static_cast<unsigned int>(ntlmTypeOne.majorVersion))
+                    .arg(
+                        static_cast<unsigned int>(ntlmTypeOne.minorVersion))
+                    .arg(
+                        static_cast<unsigned int>(ntlmTypeOne.buildNumber))
+                    .arg(revision);
+        }
+        else
+        {
+            explanation += QStringLiteral("; version not supplied");
+        }
+    }
+
     return explanation;
 }
 

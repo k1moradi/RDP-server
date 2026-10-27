@@ -1,3 +1,14 @@
+## R7 Advanced Type-1 profile adds no build surface (2026-10-27)
+
+The GUI consumes the existing R10 redacted Type-1 VERSION diagnostics through
+the current desktop-ui/HostControl types. No executable, library, parser,
+dependency, compile definition, install/export surface, runtime switch or build
+directory is added. The behavior-named
+`gui.offscreen-advanced-runtime-type1-structural-profile` case is another mode
+of the existing `test_desktop_gui_offline` executable and remains in the
+canonical single `build/` root. Concurrent Windows Schannel and macOS owner-
+evidence test work remains unchanged and independent.
+
 ## Agent 6 modern Schannel CredSSP probe reuses the Windows oracle target (2026-10-27)
 
 The Windows-only `test_windows_sspi_credssp_interop` remains the sole

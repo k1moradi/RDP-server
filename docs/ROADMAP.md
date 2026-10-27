@@ -1,3 +1,45 @@
+## R7 P1 — Advanced physical Type-1 client-profile projection (2026-10-27)
+
+**Assignment-time main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.
+**Reconciled authoring parent:** `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`.
+Concurrent modern-Schannel CREDSSP, same-attempt macOS Windows App
+owner-evidence and pre-Type-3 runtime work are preserved. The shared physical
+observation remains TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI ->
+exact-IP-SAN certificate -> Direct NTLM Type 1 `0xe2088235` with VERSION
+`6.0.6001/0x0f` and no supplied domain/workstation -> unchanged production
+Type 2 `0xe08a8235` fully committed -> Await-Type-3 -> peer EOF. Type 3 and
+every downstream authority remain **NOT REACHED**; the physical receipt still
+lacks an exact server SHA, so it is not same-SHA milestone acceptance.
+
+R7 changes presentation only. It projects the already-existing redacted R10
+Type-1 VERSION tuple through `HostStatus` and renders it in Advanced as
+`Client profile: NTLM Type 1; version 6.0.6001 (revision 0x0F)`. Opaque
+negotiate flags, domain/workstation details and raw tokens remain out of the
+owner GUI. Existing TLS version, cipher, selected endpoint, certificate profile
+and fingerprint remain visible. Main remains exactly
+`Remote client authentication did not complete.`; Advanced remains exactly
+`Client disconnected after authentication challenge.`. Sharing stays ON
+after this peer failure.
+
+No production TargetName, TargetInfo, MsvAvTargetName, certificate CN/SAN,
+authentication, native Admission, MCS, graphics or clipboard behavior changes;
+production remains `fixed-name / RDP-SERVER`.
+
+**Authored coverage:** new behavior CTest
+`gui.offscreen-advanced-runtime-type1-structural-profile`, including measured
+VERSION presentation, VERSION-absent fallback, Advanced-only scope, forbidden
+causal claims and Sharing retention. Connector source/transformation review:
+**PASS by inspection**. Canonical owner one-`build/`
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** qualify the publication SHA through ordinary hosted CTest, then
+retain the same-attempt owner-evidence procedure for any separately authorized
+physical retry. The next physical success criterion remains
+`direct-ntlm-type3=received`; current EOF evidence does not demonstrate wrong
+password, certificate rejection, native admission failure or target-identity
+mismatch.
+
 ## Agent 6 P0 — primary Microsoft full-CREDSSP TLS 1.3 Schannel credential oracle (2026-10-27)
 
 **Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Current `main`, AGENTS, VISION,

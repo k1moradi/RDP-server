@@ -1620,6 +1620,126 @@ int main(int argc, char** argv)
         return 0;
     }
 
+
+    if (mode == "advanced-runtime-type1-structural-profile")
+    {
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 73U;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.selectedEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::BoundAndMatched;
+        runtime.snapshot.tlsIdentity.endpointGeneration =
+            runtime.snapshot.listenerGeneration;
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
+        runtime.snapshot.tlsIdentity.certificateSha256.fill(0xcdU);
+        runtime.snapshot.tlsCertificateProfile =
+            RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
+
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::Established;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        diagnostics.directNtlmTypeTwoQueued = true;
+        diagnostics.directNtlmTypeTwoDelivered = true;
+        diagnostics.termination = RuntimeAcceptedClientTermination::PeerEof;
+        diagnostics.tlsConnection.protocolVersion =
+            RuntimeAcceptedClientTlsProtocolVersion::Tls13;
+        constexpr std::string_view cipherName{"TLS_AES_256_GCM_SHA384"};
+        static_assert(cipherName.size() <= kMaximumRuntimeTlsCipherNameBytes);
+        std::copy(
+            cipherName.begin(), cipherName.end(),
+            diagnostics.tlsConnection.cipherName.begin());
+        diagnostics.tlsConnection.cipherNameBytes = cipherName.size();
+        diagnostics.ntlmTypeOne.observed = true;
+        diagnostics.ntlmTypeOne.versionPresent = true;
+        diagnostics.ntlmTypeOne.majorVersion = 6U;
+        diagnostics.ntlmTypeOne.minorVersion = 0U;
+        diagnostics.ntlmTypeOne.buildNumber = 6001U;
+        diagnostics.ntlmTypeOne.ntlmRevision = 0x0fU;
+
+        DesktopWindow window(host);
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
+        auto* tlsIdentity = requiredLabel(window, "tlsIdentityStatus");
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* diagnostic =
+            requiredLabel(window, "hostErrorExplanation");
+        assert(mainTab != nullptr);
+        assert(sharingToggle(window)->isChecked());
+        assert(availability->text() ==
+               QStringLiteral(
+                   "Remote client authentication did not complete."));
+        assert(diagnostic->text() ==
+               QStringLiteral(
+                   "Client disconnected after authentication challenge."));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("TLS version: TLS 1.3")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("Cipher: TLS_AES_256_GCM_SHA384")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("Selected endpoint: 192.168.0.10:3389")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral(
+                "Certificate profile: Self-signed, exact-IP SAN")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral("SHA-256: CD:CD:CD:CD")));
+        assert(tlsIdentity->text().contains(
+            QStringLiteral(
+                "Client profile: NTLM Type 1; "
+                "version 6.0.6001 (revision 0x0F)")));
+
+        for (QLabel* item : mainTab->findChildren<QLabel*>())
+        {
+            assert(!item->text().contains(
+                QStringLiteral("NTLM Type 1"), Qt::CaseInsensitive));
+            assert(!item->text().contains(
+                QStringLiteral("6.0.6001"), Qt::CaseInsensitive));
+        }
+
+        for (const QString& disallowedClaim :
+             {QStringLiteral("wrong password"),
+              QStringLiteral("bad certificate"),
+              QStringLiteral("native admission failed"),
+              QStringLiteral("target identity mismatch")})
+        {
+            assert(!tlsIdentity->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+            assert(!availability->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+            assert(!diagnostic->text().contains(
+                disallowedClaim, Qt::CaseInsensitive));
+        }
+
+        diagnostics.ntlmTypeOne.versionPresent = false;
+        window.refresh();
+        assert(tlsIdentity->text().contains(
+            QStringLiteral(
+                "Client profile: NTLM Type 1; version not supplied")));
+
+        diagnostics.ntlmTypeOne = {};
+        window.refresh();
+        assert(!tlsIdentity->text().contains(
+            QStringLiteral("Client profile:"), Qt::CaseInsensitive));
+        return 0;
+    }
+
     if (mode == "authentication-incomplete-before-native-admission")
     {
         runtime.snapshot.lastError =

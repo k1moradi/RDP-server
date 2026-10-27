@@ -1,3 +1,23 @@
+## R7 Advanced Type-1 structural-profile presentation gate (2026-10-27)
+
+Register `gui.offscreen-advanced-runtime-type1-structural-profile` in the
+existing `test_desktop_gui_offline` executable. Feed only R10's redacted
+Type-1 VERSION tuple and the already-owned TLS/endpoint/certificate facts. The
+Advanced TLS identity text must show the measured `6.0.6001 / 0x0f` profile
+when supplied, while Main contains no Type-1/version detail and continues to
+say `Remote client authentication did not complete.`. The challenge-stage
+Advanced diagnostic remains exactly
+`Client disconnected after authentication challenge.`.
+
+The same regression keeps Sharing ON after the pre-Type-3 peer EOF and rejects
+wrong-password, bad-certificate, native-admission-failure and target-identity
+claims. A Type-1 observation with no VERSION must say only that the version was
+not supplied; clearing the R10 Type-1 observation must remove the client-profile
+line rather than reconstructing it. This is presentation-only and does not
+replace the macOS Windows App same-attempt evidence or Windows Schannel probes;
+it grants no authentication, Admission, MCS, Share, graphics, X11 or clipboard
+authority.
+
 ## Agent 6 modern Schannel full-CredSSP TLS-version probe (2026-10-27)
 
 The Windows-only CTest

@@ -97,6 +97,10 @@ struct HostStatus
         tlsCertificateProfile{
             rdp_server::server::runtime::RuntimeTlsCertificateProfile::Unavailable};
     QString selectedEndpoint;
+    // Advanced-only, read-only redacted NTLM Type-1 structure supplied by
+    // R10. No token bytes or authentication authority cross this UI boundary.
+    rdp_server::server::runtime::RuntimeAcceptedClientNtlmTypeOneDiagnostics
+        ntlmTypeOne{};
 };
 
 struct HostRequest

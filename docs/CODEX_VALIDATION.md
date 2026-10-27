@@ -1,3 +1,41 @@
+## Agent 3 P2 shared-diagnosis containment receipt — 2026-10-27
+
+**Assignment/current main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Owner-reported Linux/X11 full
+CTest: **998/998 PASS**.
+
+The latest physical path is TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI ->
+generated exact-IP-SAN certificate -> Direct NTLM Type 1 `0xe2088235`,
+VERSION `6.0.6001 / 0x0f`, no supplied domain/workstation -> production
+Type 2 `0xe08a8235` fully committed -> Await-Type-3 -> peer EOF. Recorded
+lifecycle diagnostics are `type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and
+clipboard remain **NOT REACHED**.
+
+Current-main source review: **PASS**. HostControl advances from
+`PreAdmission` to the first MCS phase only after `CredentialsVerified` and
+successful `issueAdmission()`; that call requires the standalone CredSSP
+owner at `CredentialsVerified` and obtains a concrete native broker lease.
+The first MCS reader additionally requires the live lease,
+`AwaitVerifiedR2Admission`, R1 `AwaitMcsConnectInitial` and fresh broker
+revalidation. The existing production-backed Type-2/EOF lifecycle already
+asserts no MCS session advancement, no Share activation and dormant
+graphics/clipboard before and after EOF.
+
+Independent Microsoft evidence already rules out the current Type-2 shape and
+identity fields, exact-IP SAN name shape, TLS 1.3 and the OEM-only response-bit
+difference; Microsoft full CREDSSP reaches Type 3 over TLS 1.2/TLS 1.3 and the
+fixed, TERMSRV/IP and bare-IP target variants. Production remains
+`fixed-name / RDP-SERVER`.
+
+**Result:** **BLOCKED / NO CODE CHANGE**. R3 must not speculate on MCS, Share,
+Demand Active or graphics. The unresolved class is physical-client credential
+delegation/withholding after Type 2; a wrong Session Password is not established
+without Type 3. Next gate is Type 3 -> pubKeyAuth -> authInfo ->
+`CredentialsVerified` -> positive native Admission. No modified-tree
+configure/build/CTest was run for this docs-only evidence reconciliation; the
+owner's supplied 998/998 result is recorded as owner-reported evidence.
+
 ## Agent 1 explicit Microsoft CredSSP TLS-version matrix authoring receipt — 2026-10-27
 
 **Reconciled authoring parent:** `114f7298b85a107f0654c021fd13378cdd2763d1`.

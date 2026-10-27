@@ -1,3 +1,54 @@
+## Agent 3 P2 — physical credential-delegation EOF keeps MCS/Share blocked (2026-10-27)
+
+**Assignment/current main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Owner-reported local Linux/X11
+full CTest: **998/998 PASS**.
+
+The latest physical Microsoft Windows App attempt remains entirely pre-R3:
+TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI -> generated exact-IP-SAN
+certificate -> Direct NTLM Type 1 `0xe2088235`, VERSION
+`6.0.6001 / 0x0f`, no supplied domain/workstation -> unchanged production
+Type 2 `0xe08a8235` fully committed through TLS -> Await-Type-3 -> peer EOF.
+Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS,
+Share, graphics/X11 and clipboard are **NOT REACHED**. The connection-local
+diagnostics measured `type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`; these remain lifecycle diagnostics,
+not performance thresholds or benchmark evidence.
+
+Independent Microsoft evidence has already ruled out malformed Type 2,
+fixed-name versus IP target identity, the current Type-2 TargetName/TargetInfo,
+missing MsvAvTargetName, the current exact-IP-SAN certificate name shape,
+TLS 1.3 itself and the physical/hosted OEM response-bit difference. Microsoft
+full CREDSSP reaches Type 3 over TLS 1.2 and TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, and for fixed target, TERMSRV/IP and bare-IP
+targeting. Production therefore remains exactly `fixed-name / RDP-SERVER`;
+R3 must not reopen those hypotheses without new contradictory evidence.
+
+Current-main source review confirms the existing authority fence is already
+correct. HostControl keeps TLS, Type 1 and Type 2/Await-Type-3 in
+`PreAdmission`; only `CredentialsVerified` calls `issueAdmission()`, and
+only a successful native broker lease moves the accepted client to
+`McsConnectInitial`. `issueAdmission()` independently requires the
+standalone CredSSP owner at `CredentialsVerified`. The first MCS reader then
+requires that live, non-revoked lease, `AwaitVerifiedR2Admission`, the R1
+`AwaitMcsConnectInitial` stage and a fresh broker revalidation before it reads
+or authorizes Connect-Initial. The production-backed Type-2/EOF lifecycle
+already asserts `PreAdmission`, no admission reason, no MCS session
+advancement, no Share activation, graphics dormancy and clipboard dormancy
+both while waiting for Type 3 and after peer EOF.
+
+**Decision:** R3 remains **P2 / BLOCKED** and this increment authorizes **no
+production or test change**. The leading unresolved hypothesis class is now
+client-side credential delegation/withholding after Type 2: credential
+selection/material, client delegation policy, Windows App account handling,
+certificate/user policy outside the qualified wire parser, or another typed
+client-side failure. A wrong Session Password alone is not demonstrated because
+the client never sends Type 3.
+
+**Next R3 gate:** resume only after the same physical client advances through
+Type 3 -> pubKeyAuth -> authInfo -> `CredentialsVerified` -> positive native
+Admission. Only then does the first failed MCS Connect-Initial/Connect-Response
+or later Share transition become R3-owned.
+
 ## Agent 1 P0 — explicit Microsoft CredSSP server TLS-version matrix (2026-10-27)
 
 **Reconciled authoring parent:** `114f7298b85a107f0654c021fd13378cdd2763d1`.

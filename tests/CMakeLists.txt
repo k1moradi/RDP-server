@@ -1031,6 +1031,16 @@ endforeach()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+# Agent 5 read-only physical-client evidence helper. The synthetic fixture
+# reads only a temporary .app Info.plist and temporary logs; it never launches
+# Windows App, changes Keychain/trust state, touches preferences or uses network.
+add_test(NAME macos.windows-app-owner-evidence-readonly-manifest
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py")
+set_tests_properties(macos.windows-app-owner-evidence-readonly-manifest PROPERTIES
+    LABELS "macos;offline;project-policy;evidence" TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

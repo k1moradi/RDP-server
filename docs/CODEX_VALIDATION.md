@@ -1,3 +1,35 @@
+## Agent 5 macOS Windows App owner-evidence procedure receipt — 2026-10-27
+
+**Authoring parent:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.
+Current main, AGENTS, VISION, ROADMAP, coding/testing/compile/benchmark
+standards and the validation ledger were re-read before this increment.
+
+Microsoft's supported macOS Windows App diagnostic path is application-owned
+Help -> Troubleshooting -> Logging with explicit Core/UI levels, an
+owner-selected output folder, Start Logging before reproduction and Stop
+Logging afterward. The project therefore does not guess a private Windows App
+log path. The new runbook requires the same-attempt client version/build,
+destination exactly as entered, warning shown/accepted state, exact UI error,
+offset-aware timestamp, supported client logs when available and the correlated
+Linux terminal record. Keychain/trust mutation is prohibited and peer EOF is
+not classified as certificate rejection.
+
+The new `scripts/macos_windows_app_owner_evidence.py` reads only the explicitly
+supplied `.app/Contents/Info.plist` and log directory, rejects symlinks, caps
+the log inventory at 256 files / 512 MiB, hashes bytes in bounded chunks and
+emits metadata JSON to stdout without log contents. It has no subprocess,
+network, Keychain or preference mutation. Synthetic
+`macos.windows-app-owner-evidence-readonly-manifest` coverage pins version/build
+capture, exact attempt metadata, log SHA-256, input no-mutation, explicit
+no-log reason, warning-state consistency, symlink rejection, SHA format and
+offset-aware timestamps.
+
+**Authoring validation:** direct Python unittest of the drafted helper:
+**PASS 5/5**. Canonical owner one-root configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Production protocol/certificate/admission/desktop/clipboard code
+is unchanged.
+
 ## Agent 1/9 owner-candidate TLS sentinel correction receipt — 2026-10-26
 
 **Authoring parent:** `eb927e151d430c16209a05bca27e5fe40465fe96`. Workflow `40348799825` proves all dependencies named by

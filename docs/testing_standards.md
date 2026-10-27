@@ -1,3 +1,30 @@
+## macOS Windows App owner evidence must distinguish client policy from peer EOF (2026-10-27)
+
+Physical Windows App/macOS qualification must use the supported client logging
+workflow documented by Microsoft: Help -> Troubleshooting -> Logging, explicit
+Core/UI levels, an owner-selected output folder, Start Logging before the
+attempt and Stop Logging immediately after it. Do not invent or depend on a
+private client-log path. The reusable runbook is
+[MACOS_WINDOWS_APP_OWNER_EVIDENCE.md](MACOS_WINDOWS_APP_OWNER_EVIDENCE.md).
+
+The same-attempt evidence bundle records the exact server SHA, actual Windows
+App version/build, destination exactly as entered, certificate-warning
+shown/accepted state, exact client-side error text, an offset-aware attempt
+timestamp, the supported client logs when available, and the correlated Linux
+terminal record. A server EOF after fully committed Type 2 / Await-Type-3
+never proves certificate rejection. Missing client logs are recorded as
+unavailable with a reason, not replaced by inference.
+
+`scripts/macos_windows_app_owner_evidence.py` is a read-only manifest helper:
+it reads only the explicitly supplied `.app` Info.plist and owner-selected log
+directory, rejects log-tree symlinks, bounds file count/bytes, hashes log files
+without emitting their content and writes JSON only to stdout. It must never
+modify Keychain/trust settings, Windows App preferences or the captured logs.
+The synthetic CTest
+`macos.windows-app-owner-evidence-readonly-manifest` verifies the bounded
+metadata/hash and no-mutation behavior without launching Windows App or
+touching a real trust store.
+
 ## R10 retained environment projection and pre-Type-3 retry gate (2026-10-26)
 
 Keep the physical-client differential inside the existing production owners.

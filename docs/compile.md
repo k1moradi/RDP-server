@@ -1,3 +1,19 @@
+## macOS Windows App owner-evidence helper adds no production dependency (2026-10-27)
+
+The Agent-5 physical-client evidence increment adds one Python-only read-only
+helper, `scripts/macos_windows_app_owner_evidence.py`, and one synthetic
+offline unittest registered as
+`macos.windows-app-owner-evidence-readonly-manifest`. It reuses the existing
+required Python3 interpreter already found by `tests/CMakeLists.txt`; no
+production target, library, framework, entitlement, app permission, socket,
+Keychain/trust dependency, install/export surface or second build root is
+added.
+
+The test constructs only a synthetic `.app/Contents/Info.plist` and temporary
+log files. It never launches Windows App, changes trust, reads a private
+application directory or performs network I/O. Normal configure/build/full
+CTest remains in the canonical single `build/` root.
+
 ## Agent 9 owner-candidate qualification reuses the one-root native policy targets (2026-10-26)
 
 Agent 9 reuses the existing test-only `test_windows_certificate_policy` and `test_macos_certificate_policy` targets; it adds no production dependency or second build target. The normal `protocol` matrix continues to configure and compile through the single checkout-local `build/` root. After Debug compile, Windows/macOS run their behavior-named native policy CTest verbosely together with the existing exact-IP SAN and certificate purpose/time regressions, then continue to full CTest.

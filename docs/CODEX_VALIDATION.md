@@ -1,3 +1,26 @@
+## Windows CLANG64 credential-oracle compile correction — 2026-10-27
+
+**Reconciled parent:** `cc33ee32c612b523804606a27a51a0c14eb7d81b`.
+Current workflow `40538215121`, job `122310077250`, reaches the
+`r6-windows-clang23` Debug and Release build steps and fails only on
+`tests/test_windows_sspi_credssp_interop.cpp:3608`:
+Clang 23 reports `lambda capture 'target' is not required to be captured for
+this use [-Werror,-Wunused-lambda-capture]`. Configure and the R6 native
+preflights pass before that compile error.
+
+The correction removes only the unnecessary lambda capture/local alias and
+passes `TargetProfile::PortableServerName` directly to the unchanged
+`runFullCredSspAttempt()`. Agent-6's hosted credential-source matrix evidence
+is unchanged, as are all production TLS/certificate/NTLM/NLA/Admission/MCS/
+graphics/clipboard paths.
+
+Source transformation and exact failure-log review: **PASS by inspection**.
+Canonical owner one-`build/` configure/build/full CTest: **NOT RUN** in this
+connector environment. Publication-SHA hosted CI: **PENDING**. Next gate:
+`r6-windows-clang23` PASS, followed by the existing Agent-9 manual
+owner-candidate dispatch and the credential-controlled physical Windows App
+attempt.
+
 ## Agent 1 complete post-Type-2 wire-observation receipt (2026-10-27)
 
 **Assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled authoring parent:**

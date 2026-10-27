@@ -1,3 +1,37 @@
+## Agent 10/R6 critical-path CI unblock — warning-clean credential oracle (2026-10-27)
+
+**Reconciled parent:** `cc33ee32c612b523804606a27a51a0c14eb7d81b`. The round-critical Agent-6 credential-source
+matrix is already hosted-PASS and Agent-1/R10 complete post-Type-2 wire
+observation is landed. Current exact-head CI nevertheless blocks Agent-9
+qualification in Windows CLANG64: workflow `40538215121`, job
+`122310077250`, fails both Debug and Release while compiling
+`tests/test_windows_sspi_credssp_interop.cpp` because Clang 23 diagnoses the
+`target` lambda capture in `runCredentialSemanticDifferential()` as
+`-Wunused-lambda-capture`; project `-Werror` correctly promotes that warning
+to a build failure.
+
+This correction is test-only. The unnecessary capture/local alias is removed
+and the existing immutable `TargetProfile::PortableServerName` value is passed
+directly to the same `runFullCredSspAttempt()` call. Credential-source
+construction, Microsoft SSPI/CredSSP behavior, production Type 2, TLS,
+certificate identity, fixed name, TargetName/TargetInfo/MsvAvTargetName, NLA,
+OS-GSS fallback, Admission, MCS, graphics and clipboard are unchanged. No new
+CTest is added because no production behavior or test behavior changes; this
+only restores the existing test target to the mandatory high-warning build.
+
+**Validation at authoring:** exact failing CI log inspected and source
+transformation reviewed **PASS by inspection**. Canonical owner one-`build/`
+configure/build/full CTest is **NOT RUN** in this connector environment.
+Publication-SHA hosted CI is **PENDING**.
+
+**Next gate:** the publication SHA must make `r6-windows-clang23` green.
+Then Agent-9 still requires explicit
+`workflow_dispatch(r9_credssp_owner_candidate=true)`; after a green manual
+aggregate, the next physical Windows App attempt must use the explicit Saved
+credential matching the server Username and independent Session Password and
+capture the same-attempt client log. The success criterion remains
+`direct-ntlm-type3=received`.
+
 ## Agent 1 P0 supporting — complete post-Type-2 wire-silence owner (2026-10-27)
 
 **Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

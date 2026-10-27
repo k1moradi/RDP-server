@@ -1,3 +1,13 @@
+## Windows Clang warning-clean test lambdas (2026-10-27)
+
+MSYS2 CLANG64 builds run with `-Werror`, including test-only Microsoft
+CredSSP/SSPI fixtures. Do not capture local constants in a lambda when Clang can
+use the constant without an odr-use; `-Wunused-lambda-capture` is a real build
+failure under the project warning policy. Prefer an empty capture and pass the
+stable enum/constant directly at the call site when no runtime capture is
+needed. This is compile hygiene only and must not change the credential-source
+or protocol behavior being tested.
+
 ## Agent 1 post-Type-2 wire observations add no build surface (2026-10-27)
 
 This completion extends existing runtime/transport sources and the existing

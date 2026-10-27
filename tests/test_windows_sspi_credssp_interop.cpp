@@ -3604,12 +3604,11 @@ void printFailure(
 
 [[nodiscard]] bool runCredentialSemanticDifferential()
 {
-    const TargetProfile target = TargetProfile::PortableServerName;
-    const auto runState = [target](CredSspCredentialState state) {
+    const auto runState = [](CredSspCredentialState state) {
         const auto start = std::chrono::steady_clock::now();
         FullCredSspAttempt attempt =
             runFullCredSspAttempt(
-                target,
+                TargetProfile::PortableServerName,
                 ChallengeExperiment::Production,
                 SchannelCredentialProfile::ModernSystemDefaults,
                 TlsServerProfile::SystemDefault,

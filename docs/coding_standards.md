@@ -1,3 +1,18 @@
+## R7 configured Username presentation follows the GUI credential handoff (2026-10-27)
+
+After the production standalone credential owner accepts a GUI handoff, remember
+only the non-secret Username displayed at that handoff for presentation
+consistency. This is not a second credential verifier or an R2/R10 authority.
+Ordinary Sharing OFF preserves the memory-only runtime password, so a later
+Username edit with cleared Password/Confirm must not silently reuse the old
+credential identifier or instruct the remote client to use the changed name.
+Require an explicit new, matching Session Password/Confirm transaction on
+Sharing ON before the changed Username becomes the configured display name.
+Restoring the previous name permits ordinary no-password Stop/Start reuse.
+The Main guidance must reflect a pending change without exposing a secret or
+implying any automatic client synchronization. Never infer the physical
+pre-Type-3 disconnect's cause from this presentation state.
+
 ## Agent 1 completes post-Type-2 wire-silence ownership (2026-10-27)
 
 Extend Agent-10's existing timeline rather than creating a second TLS/CredSSP

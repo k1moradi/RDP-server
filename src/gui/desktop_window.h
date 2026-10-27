@@ -42,6 +42,8 @@ private:
         const HostStatus& snapshot) const noexcept;
     [[nodiscard]] bool standaloneCredentialReady(
         const HostStatus& snapshot) const noexcept;
+    [[nodiscard]] bool configuredUsernameChanged(
+        const HostStatus& snapshot) const;
     [[nodiscard]] HostRequest currentHostRequest() const;
     void requestStart();
     void requestStop();
@@ -97,6 +99,8 @@ private:
     bool manualInterfaceOverride_{false};
     bool quitRequested_{false};
     QString userFacingError_;
+    // Non-authorizing GUI handoff receipt, never a second credential owner.
+    QString configuredStandaloneUsername_;
 };
 
 } // namespace rdp::gui

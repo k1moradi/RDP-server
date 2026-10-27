@@ -1,3 +1,28 @@
+## R7 P1 — configured Username/credential presentation consistency (2026-10-27)
+
+**Reviewed main parent:** `bd99f36da2738a9f306c51e03b716f5b2ddda72c`. The existing Main guidance,
+masked editors and their post-handoff clearing, ordinary OFF -> ON retained
+credential, and exact incomplete-authentication Main/Advanced texts remain
+unchanged for the qualified unchanged-Username path. Source review found one
+GUI-only gap: an editable Username after ordinary Stop could drift away from
+the runtime-owned identifier, while cleared secret fields silently reused the
+earlier credential. The GUI now retains only the non-authorizing Username from
+its successful handoff; changing it requires a newly entered and confirmed
+Session Password before Start, while reverting allows unchanged-credential
+reuse. A pending edit changes only the Main guidance, never client policy or
+authentication state.
+
+**Dedicated CTest:** `gui.offscreen-configured-username-change-requires-password`
+on the existing offscreen executable. Existing guidance, Stop/Start and
+authentication-incomplete tests are preserved. **Authoring validation:**
+source/CMake/registration review PASS by inspection. Local canonical
+configure/build/full CTest **NOT RUN** (no checkout, Qt6 or GitHub DNS access
+in this tool environment); exact publication-SHA hosted CI **PENDING**.
+**Next gate:** exact-SHA hosted GUI Debug/Release CTests; retained-credential
+owner acceptance remains distinct from physical Microsoft Windows App Type-3
+evidence. Production `fixed-name / RDP-SERVER`, TLS, NTLM Type 2, native
+Admission, MCS/Share, graphics, input and clipboard are unchanged.
+
 ## Agent 10/R6 critical-path CI unblock — restore diagnostic target after warning cleanup (2026-10-27)
 
 **Reconciled parent:** `f1616a8c04e26000aa8f965af29be67a5f74bcaa`. The first warning-clean correction removed the

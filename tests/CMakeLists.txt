@@ -4695,6 +4695,18 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;product;credentials;authentication;security"
         TIMEOUT 30)
 
+
+    # With an already-configured memory-only credential, editing the
+    # non-secret Username must require an explicit password replacement,
+    # never silently present a different configured client identifier.
+    add_test(NAME gui.offscreen-configured-username-change-requires-password
+        COMMAND test_desktop_gui_offline configured-username-replacement)
+    set_tests_properties(
+        gui.offscreen-configured-username-change-requires-password PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;authentication;security;lifecycle"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-independent-password-workflow-unavailable
         COMMAND test_desktop_gui_offline unsupported-password)
     set_tests_properties(gui.offscreen-independent-password-workflow-unavailable

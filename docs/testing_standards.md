@@ -1,3 +1,19 @@
+## R7 configured Username drift offscreen gate (2026-10-27)
+
+The existing offscreen GUI binary must register
+`gui.offscreen-configured-username-change-requires-password` for both Debug
+and Release. Configure one non-secret Username with a masked independent Session
+Password, complete ON -> OFF with the retained runtime credential, then edit
+Username without entering another password. Start must be denied, the Main
+guidance must describe the pending replacement instead of falsely treating the
+edited identifier as configured, and the runtime credential owner must not be
+called. Restoring the committed name permits reuse without a new handoff;
+changing the name requires a matching fresh Password/Confirm on explicit ON.
+After replacement, editors are empty, configured Username matches the runtime
+handoff, and labels contain no password. This is GUI presentation assurance,
+not proof of live-client authentication or cryptographic zeroization of Qt's
+internal editor allocations.
+
 ## Agent 1 complete post-Type-2 wire-observation gate (2026-10-27)
 
 The production-backed Linux Direct-NTLM lifecycle fixture independently covers

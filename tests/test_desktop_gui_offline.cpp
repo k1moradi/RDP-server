@@ -1163,6 +1163,93 @@ int main(int argc, char** argv)
         return 0;
     }
 
+
+    if (mode == "configured-username-replacement")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.product.credentialCapabilities.standalonePassword = true;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+        runtime.publishListenerOnSuccessfulStart = true;
+
+        DesktopWindow window(host);
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        auto* guidance =
+            requiredLabel(window, "rdpClientCredentialGuidance");
+        auto* toggle = sharingToggle(window);
+        assert(username && password && confirmation);
+
+        username->setText(QStringLiteral("original-owner"));
+        password->setText(QStringLiteral("original-test-password"));
+        confirmation->setText(password->text());
+        assert(window.canStart());
+        toggle->click();
+        assert(toggle->isChecked());
+        assert(runtime.lastStandaloneUsername == u"original-owner");
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(password->text().isEmpty() && confirmation->text().isEmpty());
+
+        toggle->click();
+        assert(!toggle->isChecked());
+        assert(username->isEnabled() && !username->isReadOnly());
+        assert(host.status().credentialsConfigured);
+        assert(runtime.revokeCalls == 0);
+
+        username->setText(QStringLiteral("different-owner"));
+        assert(!window.canStart());
+        assert(window.blockedReason() ==
+               QStringLiteral(
+                   "Enter and confirm a new Session Password to change Username"));
+        assert(guidance->text() ==
+               QStringLiteral(
+                   "To use the changed Username, enter and confirm a new "
+                   "Session Password, then turn Sharing ON."));
+        assert(!toggle->isEnabled());
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.lastStandaloneUsername == u"original-owner");
+
+        // Restoring the committed identifier reuses the existing credential.
+        username->setText(QStringLiteral("original-owner"));
+        assert(window.canStart());
+        assert(guidance->text() ==
+               QStringLiteral(
+                   "Use this Username and Session Password as the credentials "
+                   "in your RDP client."));
+        assert(runtime.standaloneCredentialCalls == 1);
+
+        // A new identifier takes effect only with a matching replacement.
+        username->setText(QStringLiteral("different-owner"));
+        password->setText(QStringLiteral("replacement-test-password"));
+        confirmation->setText(QStringLiteral("different-confirmation"));
+        assert(!window.canStart());
+        confirmation->setText(password->text());
+        assert(window.canStart());
+        toggle->click();
+        assert(toggle->isChecked());
+        assert(runtime.standaloneCredentialCalls == 2);
+        assert(runtime.lastStandaloneUsername == u"different-owner");
+        assert(password->text().isEmpty() && confirmation->text().isEmpty());
+        assert(guidance->text() ==
+               QStringLiteral(
+                   "Use this Username and Session Password as the credentials "
+                   "in your RDP client."));
+        for (QLabel* item : window.findChildren<QLabel*>())
+            assert(!item->text().contains(
+                QStringLiteral("replacement-test-password")));
+        return 0;
+    }
+
     if (mode == "unsupported-password")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

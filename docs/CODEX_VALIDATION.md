@@ -1,3 +1,33 @@
+## R7 configured Username drift qualification — 2026-10-27
+
+**Reviewed main parent:** `bd99f36da2738a9f306c51e03b716f5b2ddda72c`. Inspection of
+`src/gui/desktop_window.cpp`, `host_control.cpp` and the registered offscreen
+GUI cases confirmed the required Main guidance, masked and cleared secret
+editors, nonauthorizing local Username suggestion, ordinary Stop/Start
+credential reuse, and exact typed pre-Type-3 peer-close Main/Advanced
+diagnostics. An uncovered GUI-only path allowed editing Username after Stop
+while the runtime reused a credential configured for the previous name.
+
+The minimal R7 correction holds only a non-secret GUI handoff Username
+comparison. Without a new matching Session Password/Confirm, the changed name
+blocks Start and the Main hint explicitly marks the change pending; restoring
+the name retains the normal reusable credential path. One dedicated
+`gui.offscreen-configured-username-change-requires-password` regression joins
+the existing executable/CTest registry. No secret copy/reveal, OS password
+lookup, second authentication mode, R10 credential duplication or production
+protocol change was added.
+
+**Verification:** static source/test/CMake review PASS by inspection.
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`;
+`cmake --build build --config Debug --parallel 2`;
+`ctest --test-dir build -C Debug --output-on-failure` **NOT RUN**:
+connector environment lacks the owner checkout, Qt6 and GitHub DNS.
+Exact-publication-SHA hosted CI **PENDING**. Next gate is the unchanged
+GUI/offscreen Debug/Release CI and existing R9 owner-candidate policy
+before another physical Windows App attempt. A Qt editor clear is a
+presentation-lifetime assertion, not a claim of secure erasure of its
+internal allocator buffers.
+
 ## Windows credential-oracle stale diagnostic target correction — 2026-10-27
 
 **Reconciled parent:** `f1616a8c04e26000aa8f965af29be67a5f74bcaa`.

@@ -803,6 +803,11 @@ QString DesktopWindow::blockedReason(const HostStatus& state) const
         // credential", never "the credential disappeared". Any new secret
         // input instead starts an explicit replacement transaction that is
         // committed only by the Sharing action below.
+        // A different visible Username cannot silently reuse the runtime's
+        // previously configured credential identifier with cleared editors.
+        if (configuredUsernameChanged(state) && !replacementPasswordStarted)
+            return QStringLiteral(
+                "Enter and confirm a new Session Password to change Username");
         if (replacementPasswordStarted)
         {
             if (username_->text().isEmpty())
@@ -907,6 +912,16 @@ bool DesktopWindow::standaloneCredentialReady(
            standalonePasswordSurfaceAvailable(snapshot);
 }
 
+bool DesktopWindow::configuredUsernameChanged(
+    const HostStatus& snapshot) const
+{
+    // Compare only the non-secret Username from this GUI's successful
+    // handoff. R10 remains the sole owner of the actual configured credential.
+    return standaloneCredentialReady(snapshot) &&
+           !configuredStandaloneUsername_.isEmpty() &&
+           username_->text() != configuredStandaloneUsername_;
+}
+
 void DesktopWindow::requestStart()
 {
     const HostStatus snapshot = host_.status();
@@ -931,6 +946,8 @@ void DesktopWindow::requestStart()
     {
         const bool credentialConfigured =
             host_.configureStandalonePassword(username_->text(), password);
+        if (credentialConfigured)
+            configuredStandaloneUsername_ = username_->text();
         sessionPassword_->clear();
         sessionPasswordConfirm_->clear();
         if (!credentialConfigured)
@@ -1235,6 +1252,14 @@ void DesktopWindow::refresh()
 
     const bool configuredStandaloneCredential =
         standaloneCredentialReady(snapshot);
+    rdpClientCredentialGuidance_->setText(
+        configuredUsernameChanged(snapshot)
+            ? QStringLiteral(
+                  "To use the changed Username, enter and confirm a new "
+                  "Session Password, then turn Sharing ON.")
+            : QStringLiteral(
+                  "Use this Username and Session Password as the credentials "
+                  "in your RDP client."));
     credentialStatus_->setText(
         configuredStandaloneCredential
             ? QStringLiteral("Session Password configured for this app session")

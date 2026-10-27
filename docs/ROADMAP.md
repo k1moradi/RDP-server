@@ -1,3 +1,39 @@
+## Agent 10/R6 critical-path CI unblock — restore diagnostic target after warning cleanup (2026-10-27)
+
+**Reconciled parent:** `f1616a8c04e26000aa8f965af29be67a5f74bcaa`. The first warning-clean correction removed the
+unused `target` lambda capture from Agent-6's Windows credential-source oracle,
+but exact-SHA workflow `40544640205` exposed the remaining compile boundary:
+Windows MSVC job `122331903669` and Windows CLANG64 job `122331903722` both
+fail in `runCredentialSemanticDifferential()` because two diagnostic
+`printFailure(target, ...)` calls still reference the removed local alias.
+The Windows GUI Round-2/server-preview failures are downstream of that producer
+failure, not a new physical or production-wire result.
+
+This correction is test-only and changes no oracle semantics. Both stale
+diagnostic calls now pass the same immutable
+`TargetProfile::PortableServerName` value already used by
+`runFullCredSspAttempt()`. Credential-state construction, Microsoft
+SSPI/CredSSP behavior, production Type 2, TLS/cipher policy, certificate
+CN/SAN, fixed-name `RDP-SERVER`, TargetName/TargetInfo/MsvAvTargetName, NLA,
+OS-GSS fallback, native Admission, MCS, graphics and clipboard are unchanged.
+No CTest is added because production behavior and test behavior are unchanged;
+this only restores the existing Windows test target to the mandatory warning-
+clean compile graph.
+
+**Validation at authoring:** exact failing CI logs and current source reviewed
+**PASS by inspection**. Canonical owner one-`build/` configure/build/full
+CTest is **NOT RUN** in this connector environment. Publication-SHA hosted CI
+is **PENDING**.
+
+**Next gate:** require both Windows protocol and `r6-windows-clang23` to PASS
+on this publication SHA, then require the remaining exact-SHA producers green.
+Only after that may Agent 9 run the explicit
+`workflow_dispatch(r9_credssp_owner_candidate=true)`. The next physical
+Windows App attempt remains credential-controlled: explicit Saved credential,
+Username and Password matching the server Username and independent Session
+Password, same-attempt client log, and success
+`direct-ntlm-type3=received`.
+
 ## Agent 10/R6 critical-path CI unblock — warning-clean credential oracle (2026-10-27)
 
 **Reconciled parent:** `cc33ee32c612b523804606a27a51a0c14eb7d81b`. The round-critical Agent-6 credential-source

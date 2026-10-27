@@ -1,3 +1,17 @@
+## Windows credential-oracle diagnostics must use stable target constants (2026-10-27)
+
+When warning cleanup removes a test-only local alias/capture, update every
+diagnostic call site in the same function as well. The Windows Microsoft
+CredSSP oracle uses the immutable `TargetProfile::PortableServerName`; pass
+that enum directly to both the provider call and `printFailure()` rather than
+leaving a diagnostic reference to a deleted alias. MSVC and Clang 23 both
+compile the entire test graph with errors fatal, so diagnostic-only dead names
+block the exact-SHA producer set just like production compile errors.
+
+This is compile hygiene only. It must not change credential-source construction,
+Microsoft SSPI/CredSSP outcomes, production TLS/certificate/NTLM/NLA behavior,
+or any downstream authority.
+
 ## Windows Clang warning-clean test lambdas (2026-10-27)
 
 MSYS2 CLANG64 builds run with `-Werror`, including test-only Microsoft

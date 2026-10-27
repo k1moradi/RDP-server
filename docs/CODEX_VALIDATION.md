@@ -1,3 +1,26 @@
+## Windows credential-oracle stale diagnostic target correction — 2026-10-27
+
+**Reconciled parent:** `f1616a8c04e26000aa8f965af29be67a5f74bcaa`.
+Exact-SHA workflow `40544640205` reaches Windows compilation after the first
+unused-capture cleanup, then fails in both toolchains: MSVC job
+`122331903669` reports `C2065: 'target': undeclared identifier` at
+`tests/test_windows_sspi_credssp_interop.cpp:3649` and `:3662`; CLANG64
+job `122331903722` reports the same undeclared identifier in Debug and
+Release. The failing statements are diagnostic-only `printFailure()` calls.
+
+The correction replaces those two stale aliases with
+`TargetProfile::PortableServerName`, matching the already-correct
+`runFullCredSspAttempt()` call in the same function. No credential-source
+state, Microsoft provider call, comparison classification, production
+authentication code or wire bytes change.
+
+Exact failure-log/source review: **PASS by inspection**. Canonical owner
+one-`build/` configure/build/full CTest: **NOT RUN** in this connector
+environment. Publication-SHA hosted CI: **PENDING**. Next gate: Windows MSVC
+protocol and Windows Clang 23 compile/test producers PASS, then the existing
+Agent-9 manual owner-candidate dispatch; physical execution remains blocked
+until that aggregate is green.
+
 ## Windows CLANG64 credential-oracle compile correction — 2026-10-27
 
 **Reconciled parent:** `cc33ee32c612b523804606a27a51a0c14eb7d81b`.

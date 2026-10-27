@@ -3646,7 +3646,7 @@ void printFailure(
             if (!correctControlPassed)
             {
                 harnessValid = false;
-                printFailure(target, timed.attempt);
+                printFailure(TargetProfile::PortableServerName, timed.attempt);
             }
         }
         else if (outcome != CredentialSemanticOutcome::TypeThreeEmitted &&
@@ -3659,7 +3659,7 @@ void printFailure(
         if (outcome == CredentialSemanticOutcome::HarnessFailure)
         {
             harnessValid = false;
-            printFailure(target, timed.attempt);
+            printFailure(TargetProfile::PortableServerName, timed.attempt);
         }
 
         if (outcome ==

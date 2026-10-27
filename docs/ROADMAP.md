@@ -46,17 +46,29 @@ pre-Type-3 timing diagnostics are preserved. Production remains exactly
 MsvAvTargetName, certificate CN/SAN, native Admission, MCS, graphics or
 clipboard behavior changes.
 
-**Authoring validation:** connector/source transformation and reconciliation
-review **PASS by inspection**. Canonical owner one-`build/`
-configure/build/focused/full CTest: **NOT RUN** in this connector environment.
-Exact-publication-SHA hosted matrix/full CI: **PENDING**.
+**Exact-SHA qualification:** implementation
+`35bf7f228c2d8ab7e5c72ed8fb2d9df971ec1632`, workflow
+`40507946461`, Windows protocol job `122204341611`: **PASS**. The
+production-context TLS-1.3 control PASSed. The system/default row PASSed at
+TLS 1.2 / `ECDHE-RSA-AES256-GCM-SHA384`; the TLS-1.2-only row PASSed at
+the same TLS 1.2 cipher; the TLS-1.3-only row PASSed at TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`. Every row reached first TSRequest, Type 1,
+fully committed production Type 2, next TSRequest and observed Type 3.
+Windows full protocol CTest PASSed **799/799** in both Debug and Release.
+The exact-SHA interop artifact is
+`r9-microsoft-interop-35bf7f228c2d8ab7e5c72ed8fb2d9df971ec1632`
+(artifact `12736212738`).
 
-**Next gate:** exact-publication-SHA Windows must run all three matrix rows.
-Given the existing modern TLS-1.3 PASS, the TLS-1.3-only row is expected to
-reach Type 3; an unexpected `ORACLE_LIMITATION` would be recorded as a
-test-profile/provider discrepancy rather than evidence for a production TLS
-change. The physical success criterion remains `direct-ntlm-type3=received`
-under the existing exact-SHA same-attempt owner-evidence contract.
+**Decision:** Agent 1 has no remaining TLS-boundary code blocker. Forced
+server TLS 1.3 independently reaches Type 3 with the physical cipher, so a
+production TLS-1.2 maximum is **NOT JUSTIFIED** by this differential. Agent 9's
+existing exact-SHA/manual owner-candidate gate is now the next dependency.
+Its ordinary-push job is intentionally skipped; the required producer jobs for
+this SHA are green, so the next action is explicit
+`workflow_dispatch` with `r9_credssp_owner_candidate=true`. The next
+physical success criterion remains `direct-ntlm-type3=received`, and the
+same-attempt Windows App client evidence remains required before any server
+wire behavior changes.
 
 ## Agent 2 exact-SHA OEM-response differential PASS — physical flag delta ruled out (2026-10-27)
 

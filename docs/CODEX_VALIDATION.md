@@ -31,11 +31,32 @@ to typed pre-TLS failure with no authentication wire state; no-progress and all
 post-TLS failures remain FAIL. Agent 9 simultaneously requires the existing
 production-context TLS-1.3 CTest PASS and consumes all three row receipts.
 
-Connector transformation/source/reconciliation review: **PASS by inspection**.
-Canonical owner one-`build/` compile/focused/full CTest: **NOT RUN** in this
-connector environment. Exact-publication-SHA Windows compile, the three new
-CTests, independent production TLS-1.3 control, full CTest and manual Agent-9
-aggregate: **PENDING**.
+Exact-SHA hosted qualification at
+`35bf7f228c2d8ab7e5c72ed8fb2d9df971ec1632`: workflow
+`40507946461`, Windows protocol job `122204341611` **PASS**. The
+independent `runtime.generated-tls-context-negotiates-tls13` control PASSed.
+Matrix receipts:
+
+- system/default: **PASS**, TLS 1.2 /
+  `ECDHE-RSA-AES256-GCM-SHA384`, Type 3 observed;
+- TLS-1.2-only: **PASS**, TLS 1.2 /
+  `ECDHE-RSA-AES256-GCM-SHA384`, Type 3 observed;
+- TLS-1.3-only: **PASS**, TLS 1.3 /
+  `TLS_AES_256_GCM_SHA384`, Type 3 observed.
+
+All three rows recorded first TSRequest, Type 1, committed production Type 2,
+next TSRequest and Type 3. Windows full protocol CTest PASSed **799/799** in
+Debug and **799/799** in Release. Artifact
+`r9-microsoft-interop-35bf7f228c2d8ab7e5c72ed8fb2d9df971ec1632`
+is `12736212738`.
+
+Connector/source review remains **PASS by inspection**. Canonical owner
+one-`build/` local compile/full CTest remains **NOT RUN** in this connector
+environment. Agent-1 TLS qualification is **COMPLETE** for the current
+dependency graph. The remaining gate is Agent 9's intentionally manual
+`workflow_dispatch` owner-candidate job; ordinary push correctly skipped it.
+No production TLS, certificate, identity, Type-2, Admission, MCS, graphics or
+clipboard behavior changed.
 
 ## Agent 2 exact-SHA Microsoft OEM differential qualification — 2026-10-27
 

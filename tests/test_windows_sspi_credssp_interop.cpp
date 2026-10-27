@@ -238,13 +238,19 @@ constexpr std::size_t kMaximumRawTokenBytes = 256U * 1024U;
     case 0x00090314U: return "SEC_I_COMPLETE_AND_CONTINUE";
     case 0x00090320U: return "SEC_I_INCOMPLETE_CREDENTIALS";
     case 0x00090321U: return "SEC_I_RENEGOTIATE";
+    case 0x80090300U: return "SEC_E_INSUFFICIENT_MEMORY";
+    case 0x80090301U: return "SEC_E_INVALID_HANDLE";
     case 0x80090303U: return "SEC_E_TARGET_UNKNOWN";
+    case 0x80090304U: return "SEC_E_INTERNAL_ERROR";
+    case 0x80090305U: return "SEC_E_SECPKG_NOT_FOUND";
+    case 0x80090306U: return "SEC_E_NOT_OWNER";
     case 0x80090308U: return "SEC_E_INVALID_TOKEN";
     case 0x8009030cU: return "SEC_E_LOGON_DENIED";
     case 0x8009030dU: return "SEC_E_UNKNOWN_CREDENTIALS";
     case 0x8009030eU: return "SEC_E_NO_CREDENTIALS";
     case 0x80090311U: return "SEC_E_NO_AUTHENTICATING_AUTHORITY";
     case 0x80090318U: return "SEC_E_INCOMPLETE_MESSAGE";
+    case 0x80090320U: return "SEC_E_INCOMPLETE_CREDENTIALS";
     case 0x80090322U: return "SEC_E_WRONG_PRINCIPAL";
     case 0x8009035eU: return "SEC_E_DELEGATION_POLICY";
     case 0x8009035fU: return "SEC_E_POLICY_NLTM_ONLY";
@@ -3148,6 +3154,7 @@ void printStatus(const char *label, SECURITY_STATUS status) noexcept
     switch (static_cast<std::uint32_t>(status))
     {
     case 0x00090320U: // SEC_I_INCOMPLETE_CREDENTIALS
+    case 0x80090320U: // SEC_E_INCOMPLETE_CREDENTIALS
     case 0x8009030cU: // SEC_E_LOGON_DENIED
     case 0x8009030dU: // SEC_E_UNKNOWN_CREDENTIALS
     case 0x8009030eU: // SEC_E_NO_CREDENTIALS
@@ -3190,6 +3197,24 @@ struct SecurityStatusObservation final
     return pump.stopReason == CredSspPumpStopReason::TypedFailure &&
            std::string_view{pump.failureStage} !=
                "memory-bio-microsoft-credssp";
+}
+
+[[nodiscard]] bool microsoftTypedFailureObserved(
+    const FullCredSspAttempt &attempt) noexcept
+{
+    if (std::string_view{attempt.stage} == "acquire-credssp" &&
+        !securityStatusSucceeded(attempt.acquireStatus))
+    {
+        return true;
+    }
+
+    const auto isMicrosoftFailure = [](const CredSspPumpResult &pump) {
+        return pump.stopReason == CredSspPumpStopReason::TypedFailure &&
+               std::string_view{pump.failureStage} ==
+                   "memory-bio-microsoft-credssp";
+    };
+    return isMicrosoftFailure(attempt.initialPump) ||
+           isMicrosoftFailure(attempt.nextPump);
 }
 
 enum class CredentialSemanticOutcome : std::uint8_t
@@ -3240,9 +3265,14 @@ enum class CredentialSemanticOutcome : std::uint8_t
     }
 
     const SECURITY_STATUS status = reportedMicrosoftStatus(attempt);
-    if (!attempt.typeOneObserved && isCredentialStatus(status))
+    const bool typedMicrosoftFailure =
+        microsoftTypedFailureObserved(attempt);
+    if (!attempt.typeOneObserved &&
+        (isCredentialStatus(status) || typedMicrosoftFailure))
+    {
         return CredentialSemanticOutcome::FailedBeforeTypeOne;
-    if (isCredentialStatus(status))
+    }
+    if (isCredentialStatus(status) || typedMicrosoftFailure)
         return CredentialSemanticOutcome::OtherTypedTerminal;
 
     return CredentialSemanticOutcome::HarnessFailure;

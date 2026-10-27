@@ -1,3 +1,18 @@
+## Agent 6 symbolic SSPI status correction — 2026-10-27
+
+Follow-up to `0ebe7eb5f4104019f0147711953d65990f31ca3e`: the credential-source
+oracle now preserves exact symbolic names for additional common
+AcquireCredentialsHandle/InitializeSecurityContext outcomes, including
+`SEC_E_INSUFFICIENT_MEMORY`, `SEC_E_INVALID_HANDLE`,
+`SEC_E_INTERNAL_ERROR`, `SEC_E_SECPKG_NOT_FOUND`, `SEC_E_NOT_OWNER` and
+`SEC_E_INCOMPLETE_CREDENTIALS`. Existing credential/policy status mappings
+remain intact.
+
+Any typed Microsoft-side CREDSSP failure is observational even when it is not
+one of the credential-policy codes; non-Microsoft TLS/server/framing failures,
+no-progress and round-limit remain harness FAIL. Production code, TLS policy,
+certificate identity, target identity and Type-2 bytes are unchanged.
+
 ## Agent 6 primary Microsoft CREDSSP credential-source oracle correction — 2026-10-27
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

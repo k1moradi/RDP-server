@@ -248,6 +248,87 @@ jobs:
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 2
           ctest --test-dir build --build-config Debug --timeout 30 -R "$selector" --verbose
 
+      - name: Microsoft Windows CredSSP TLS-version matrix
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          selector='^security[.]windows-credssp-(tls-system-default|tls12-only-server|tls13-only-server)$'
+          inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          for required_test in \
+            security.windows-credssp-tls-system-default \
+            security.windows-credssp-tls12-only-server \
+            security.windows-credssp-tls13-only-server; do
+            grep -Fq ": $required_test" <<< "$inventory"
+          done
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 3
+
+          result_file='build/r9-credssp-tls-version-results.txt'
+          : > "$result_file"
+          run_tls_profile() {
+            local result_key="$1"
+            local test_name="$2"
+            local profile="$3"
+            local output_file="build/${result_key}.txt"
+            local escaped_test_name="${test_name//./[.]}"
+            if ! ctest --test-dir build --build-config Debug --timeout 45 \
+                -R "^${escaped_test_name}$" --verbose 2>&1 | tee "$output_file"; then
+              printf '%s=FAIL test=%s\n' "$result_key" "$test_name" | tee -a "$result_file"
+              return 1
+            fi
+            local receipt
+            receipt="$(grep -Eo 'microsoft-credssp-tls-version-matrix .*' "$output_file" | tail -n 1)"
+            test -n "$receipt"
+            grep -Fq "profile=${profile}" <<< "$receipt"
+            local receipt_status
+            receipt_status="$(sed -n 's/.* status=\([^ ]*\).*/\1/p' <<< "$receipt")"
+            test "$receipt_status" = PASS || test "$receipt_status" = ORACLE_LIMITATION
+            printf '%s=%s test=%s\n' "$result_key" "$receipt_status" "$test_name" | tee -a "$result_file"
+            printf '%s\n' "$receipt" | tee -a "$result_file"
+          }
+
+          overall_status=0
+          if ctest --test-dir build --build-config Debug --timeout 30 \
+              -R '^runtime[.]generated-tls-context-negotiates-tls13$' --verbose; then
+            printf '%s\n' \
+              'server-production-tls13=PASS test=runtime.generated-tls-context-negotiates-tls13' \
+              | tee -a "$result_file"
+          else
+            printf '%s\n' \
+              'server-production-tls13=FAIL test=runtime.generated-tls-context-negotiates-tls13' \
+              | tee -a "$result_file"
+            overall_status=1
+          fi
+
+          run_tls_profile credssp-tls-system-default \
+            security.windows-credssp-tls-system-default system-default || overall_status=1
+          run_tls_profile credssp-tls12-only-server \
+            security.windows-credssp-tls12-only-server tls12-only || overall_status=1
+          run_tls_profile credssp-tls13-only-server \
+            security.windows-credssp-tls13-only-server tls13-only || overall_status=1
+
+          default_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=system-default ' "$result_file")"
+          tls12_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls12-only ' "$result_file")"
+          tls13_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls13-only ' "$result_file")"
+          grep -Fq 'schannel=SCHANNEL_CRED status=PASS' <<< "$default_receipt"
+          grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$default_receipt"
+          grep -Fq 'schannel=SCHANNEL_CRED status=PASS negotiated-tls=TLS1.2' <<< "$tls12_receipt"
+          grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls12_receipt"
+          grep -Fq 'schannel=SCH_CREDENTIALS-system-defaults' <<< "$tls13_receipt"
+          grep -Eq 'status=(PASS|ORACLE_LIMITATION)' <<< "$tls13_receipt"
+          grep -Fq 'physical-reference-tls=TLS1.3 physical-reference-cipher=TLS_AES_256_GCM_SHA384' <<< "$tls13_receipt"
+          if grep -Fq 'status=PASS' <<< "$tls13_receipt"; then
+            grep -Fq 'negotiated-tls=TLS1.3' <<< "$tls13_receipt"
+            grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls13_receipt"
+          else
+            grep -Fq 'status=ORACLE_LIMITATION negotiated-tls=none' <<< "$tls13_receipt"
+            grep -Fq 'first-tsrequest=no type1=no type2-committed=no next-tsrequest=no type3=no' <<< "$tls13_receipt"
+          fi
+          printf 'Microsoft CredSSP TLS-version matrix:\n' >> "$GITHUB_STEP_SUMMARY"
+          cat "$result_file" >> "$GITHUB_STEP_SUMMARY"
+          exit "$overall_status"
+
       - name: Probe modern Schannel credentials in Microsoft full CredSSP
         if: runner.os == 'Windows'
         shell: bash
@@ -282,12 +363,15 @@ jobs:
           done
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 6
           result_file='build/r9-microsoft-interop-results.txt'
+          tls_version_result_file='build/r9-credssp-tls-version-results.txt'
+          test -f "$tls_version_result_file"
           : > "$result_file"
+          cat "$tls_version_result_file" >> "$result_file"
 
           modern_probe_output='build/r9-modern-schannel-probe.txt'
           test -f "$modern_probe_output"
           modern_probe_line="$(grep -Eo 'microsoft-credssp-modern-schannel-probe .*' "$modern_probe_output" | tail -n 1)"
-          legacy_tls_line="$(grep -Eo 'microsoft-credssp-tls-profile target=TERMSRV/RDP-SERVER schannel=SCHANNEL_CRED negotiated-tls=[^ ]+ .*' "$modern_probe_output" | tail -n 1)"
+          legacy_tls_line="$(grep -Eo 'microsoft-credssp-tls-profile target=TERMSRV/RDP-SERVER schannel=SCHANNEL_CRED server-profile=system-default negotiated-tls=[^ ]+ .*' "$modern_probe_output" | tail -n 1)"
           test -n "$modern_probe_line"
           test -n "$legacy_tls_line"
           grep -Eq 'modern-result=(TLS13_TYPE3_PASS|TYPE3_PASS_NON_TLS13|FAILED_BEFORE_TYPE3)' <<< "$modern_probe_line"
@@ -297,9 +381,12 @@ jobs:
           test -n "$legacy_tls_version"
           test -n "$modern_tls_version"
 
+          tls13_matrix_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls13-only ' "$tls_version_result_file")"
+          test -n "$tls13_matrix_receipt"
           tls13_external_oracle=NOT_QUALIFIED
           tls12_only_physical_ab=JUSTIFIED
-          if [[ "$legacy_tls_version" == TLSv1.3 ]] || \
+          if grep -Fq 'status=PASS negotiated-tls=TLS1.3' <<< "$tls13_matrix_receipt" || \
+             [[ "$legacy_tls_version" == TLSv1.3 ]] || \
              grep -Fq 'tls13-type3-pass=yes' <<< "$modern_probe_line"; then
             tls13_external_oracle=PASS
             tls12_only_physical_ab=NOT_JUSTIFIED
@@ -2208,6 +2295,27 @@ jobs:
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-target-differential=TYPED' "$matrix_file"
+          grep -Fxq 'server-production-tls13=PASS test=runtime.generated-tls-context-negotiates-tls13' "$matrix_file"
+          grep -Fxq 'credssp-tls-system-default=PASS test=security.windows-credssp-tls-system-default' "$matrix_file"
+          grep -Fxq 'credssp-tls12-only-server=PASS test=security.windows-credssp-tls12-only-server' "$matrix_file"
+          grep -Eq '^credssp-tls13-only-server=(PASS|ORACLE_LIMITATION) test=security[.]windows-credssp-tls13-only-server$' "$matrix_file"
+          tls_default_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=system-default ' "$matrix_file")"
+          tls12_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls12-only ' "$matrix_file")"
+          tls13_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls13-only ' "$matrix_file")"
+          grep -Fq 'schannel=SCHANNEL_CRED status=PASS' <<< "$tls_default_receipt"
+          grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls_default_receipt"
+          grep -Fq 'schannel=SCHANNEL_CRED status=PASS negotiated-tls=TLS1.2' <<< "$tls12_receipt"
+          grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls12_receipt"
+          grep -Fq 'schannel=SCH_CREDENTIALS-system-defaults' <<< "$tls13_receipt"
+          grep -Eq 'status=(PASS|ORACLE_LIMITATION)' <<< "$tls13_receipt"
+          grep -Fq 'physical-reference-tls=TLS1.3 physical-reference-cipher=TLS_AES_256_GCM_SHA384' <<< "$tls13_receipt"
+          if grep -Fq 'status=PASS' <<< "$tls13_receipt"; then
+            grep -Fq 'negotiated-tls=TLS1.3' <<< "$tls13_receipt"
+            grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls13_receipt"
+          else
+            grep -Fq 'status=ORACLE_LIMITATION negotiated-tls=none' <<< "$tls13_receipt"
+            grep -Fq 'first-tsrequest=no type1=no type2-committed=no next-tsrequest=no type3=no' <<< "$tls13_receipt"
+          fi
           type1_profile="$(grep '^credssp-fixed-name-microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER ' "$matrix_file")"
           test -n "$type1_profile"
           grep -Fq 'physical-type1-flags=0xe2088235' <<< "$type1_profile"
@@ -2233,6 +2341,9 @@ jobs:
             tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-stream-buffer-retention' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-multi-turn-round-progression' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-tls-system-default' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-tls12-only-server' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-tls13-only-server' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-control-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' tests/CMakeLists.txt

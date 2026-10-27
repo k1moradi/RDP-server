@@ -1,3 +1,30 @@
+## Agent 1 explicit server TLS-version profiles remain test-only (2026-10-27)
+
+Exact-SHA hosted evidence at `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`
+already proves Microsoft full CREDSSP can reach Type 3 over TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` with the existing modern
+`SCH_CREDENTIALS` system-default client profile. The explicit Agent-1 matrix
+therefore does not create a new TLS owner or imply that TLS 1.3 is still the
+leading physical-failure hypothesis. It adds an independent **server-policy**
+control around the same production TLS/CredSSP path: system/default,
+TLS-1.2-only and TLS-1.3-only.
+
+Version restriction belongs only to the test-created per-connection `SSL *`
+after `RuntimeServerTlsContext::createServerTls()`. Keep the production
+generated exact-IP certificate, production TSRequest reader/writer, production
+standalone NTLM/CredSSP acceptor and production context maximum unchanged.
+System/default and TLS-1.2-only retain the legacy `SCHANNEL_CRED` client
+control; TLS-1.3-only reuses the existing modern
+`SCH_CREDENTIALS` system-default client profile.
+
+A TLS-1.3-only `ORACLE_LIMITATION` is valid only before TLS establishment
+and before any TSRequest/NTLM wire state, for a typed Microsoft credential
+rejection or typed TLS negotiation failure. No-progress/round-limit remains
+FAIL, and any failure after TLS 1.3 establishes remains FAIL. Pair any
+limitation with the independent production-context TLS-1.3 CTest. Never cap
+production at TLS 1.2, alter certificate CN/SAN or mutate Type-2 identity to
+make a test profile green.
+
 ## R10 pre-Type-3 timing diagnostics are monotonic and non-authorizing (2026-10-27)
 
 The exact accepted Linux runtime connection owns one `std::chrono::steady_clock`

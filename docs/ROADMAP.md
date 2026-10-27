@@ -1,3 +1,63 @@
+## Agent 1 P0 — explicit Microsoft CredSSP server TLS-version matrix (2026-10-27)
+
+**Reconciled authoring parent:** `114f7298b85a107f0654c021fd13378cdd2763d1`.
+Current main includes two decisive hosted differentials. Agent 6 exact SHA
+`94c4fdab233a59417f1d0f3eaad053e21e2e49ad`, workflow `40505738277`,
+Windows job `122194521687` proves Microsoft full CREDSSP reaches Type 3 over
+TLS 1.3 / `TLS_AES_256_GCM_SHA384` using the test-only modern
+`SCH_CREDENTIALS` system-default profile; Windows full CTest was 795/795 PASS
+in Debug and Release. Agent 2 exact SHA
+`45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`, workflow `40506172065`,
+rules out the hosted/physical OEM-only Type-2 flag delta: Microsoft still emits
+a verified Type 3 for the exact production challenge with only the response OEM
+bit omitted.
+
+The physical Windows App/macOS path still remains TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN certificate -> Direct
+NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> unchanged production Type 2 `0xe08a8235` fully
+committed -> Await-Type-3 -> peer EOF. Physical Type 3 and all downstream
+authority remain **NOT REACHED**. TLS 1.3 itself is therefore largely ruled out
+as the cause, but the user-assigned Agent-1 increment adds an independent
+server-policy matrix so that default, forced TLS 1.2 and forced TLS 1.3 are
+recorded through the same production server path.
+
+The Windows full-CREDSSP memory-BIO test now supports three test-only server
+profiles: system/default, TLS-1.2-only and TLS-1.3-only. Version pinning is
+applied only to the created `SSL *`; production
+`RuntimeServerTlsContext`, certificate generation and TLS maximum are
+unchanged. The server continues using the production exact-IP certificate,
+TSRequest writer/parser and Direct-NTLM acceptor. System/default and TLS-1.2
+use the legacy `SCHANNEL_CRED` client control; TLS-1.3 reuses Agent 6's
+modern system-default client profile.
+
+Each row records TLS version, cipher, first TSRequest, Type 1, committed Type
+2, next TSRequest and Type 3. Default and TLS-1.2 require Type 3; TLS-1.2 also
+requires exact TLS 1.2. TLS-1.3 requires exact TLS 1.3 plus Type 3. The
+future-proof `ORACLE_LIMITATION` path is restricted to typed pre-TLS
+provider/negotiation failure with no authentication wire state; no-progress and
+post-TLS failure remain FAIL. CI merges the three receipts plus
+`runtime.generated-tls-context-negotiates-tls13` into the existing
+Agent-9 artifact and the manual owner-candidate gate consumes them.
+
+Concurrent owner-evidence, GUI Type-1 projection, OEM qualification and
+pre-Type-3 timing diagnostics are preserved. Production remains exactly
+`fixed-name / RDP-SERVER`; no TLS cap, TargetName, TargetInfo,
+MsvAvTargetName, certificate CN/SAN, native Admission, MCS, graphics or
+clipboard behavior changes.
+
+**Authoring validation:** connector/source transformation and reconciliation
+review **PASS by inspection**. Canonical owner one-`build/`
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted matrix/full CI: **PENDING**.
+
+**Next gate:** exact-publication-SHA Windows must run all three matrix rows.
+Given the existing modern TLS-1.3 PASS, the TLS-1.3-only row is expected to
+reach Type 3; an unexpected `ORACLE_LIMITATION` would be recorded as a
+test-profile/provider discrepancy rather than evidence for a production TLS
+change. The physical success criterion remains `direct-ntlm-type3=received`
+under the existing exact-SHA same-attempt owner-evidence contract.
+
 ## Agent 2 exact-SHA OEM-response differential PASS — physical flag delta ruled out (2026-10-27)
 
 **Implementation SHA:** `45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`.

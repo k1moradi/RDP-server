@@ -73,6 +73,52 @@ enum class SchannelCredentialProfile : std::uint8_t
     return "unknown";
 }
 
+enum class TlsServerProfile : std::uint8_t
+{
+    SystemDefault,
+    Tls12Only,
+    Tls13Only,
+};
+
+[[nodiscard]] constexpr const char *tlsServerProfileName(
+    TlsServerProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case TlsServerProfile::SystemDefault:
+        return "system-default";
+    case TlsServerProfile::Tls12Only:
+        return "tls12-only";
+    case TlsServerProfile::Tls13Only:
+        return "tls13-only";
+    }
+    return "unknown";
+}
+
+[[nodiscard]] bool applyTlsServerProfile(
+    SSL *tls, TlsServerProfile profile) noexcept
+{
+    if (tls == nullptr)
+        return false;
+
+    switch (profile)
+    {
+    case TlsServerProfile::SystemDefault:
+        return true;
+    case TlsServerProfile::Tls12Only:
+        return SSL_set_min_proto_version(tls, TLS1_2_VERSION) == 1 &&
+               SSL_set_max_proto_version(tls, TLS1_2_VERSION) == 1;
+    case TlsServerProfile::Tls13Only:
+#if defined(TLS1_3_VERSION)
+        return SSL_set_min_proto_version(tls, TLS1_3_VERSION) == 1 &&
+               SSL_set_max_proto_version(tls, TLS1_3_VERSION) == 1;
+#else
+        return false;
+#endif
+    }
+    return false;
+}
+
 [[nodiscard]] constexpr const char *experimentName(
     ChallengeExperiment experiment) noexcept
 {
@@ -1310,7 +1356,9 @@ class ProductionCredSspServer final
 public:
     explicit ProductionCredSspServer(
         ChallengeExperiment experiment =
-            ChallengeExperiment::Production) noexcept
+            ChallengeExperiment::Production,
+        TlsServerProfile tlsServerProfile =
+            TlsServerProfile::SystemDefault) noexcept
         : experiment_(experiment),
           tls_(nullptr, &SSL_free)
     {
@@ -1325,8 +1373,11 @@ public:
         }
 
         tls_ = tlsContext_.createServerTls();
-        if (!tls_)
+        if (!tls_ ||
+            !applyTlsServerProfile(tls_.get(), tlsServerProfile))
+        {
             return;
+        }
 
         BIO *inputBio = BIO_new(BIO_s_mem());
         BIO *outputBio = BIO_new(BIO_s_mem());
@@ -2582,9 +2633,26 @@ private:
            scriptedServer.complete();
 }
 
+using BoundedCipherName = std::array<char, 64>;
+
+void copyBoundedCipherName(
+    BoundedCipherName &destination,
+    const char *source) noexcept
+{
+    destination.fill('\0');
+    if (source == nullptr)
+        return;
+
+    const std::string_view sourceView{source};
+    const std::size_t bytesToCopy =
+        std::min(sourceView.size(), destination.size() - 1U);
+    std::copy_n(sourceView.begin(), bytesToCopy, destination.begin());
+}
+
 struct FullCredSspAttempt final
 {
     const char *stage{"not-started"};
+    TlsServerProfile tlsServerProfile{TlsServerProfile::SystemDefault};
     SECURITY_STATUS acquireStatus{SEC_E_INTERNAL_ERROR};
     SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
     CredSspPumpResult initialPump{};
@@ -2601,6 +2669,7 @@ struct FullCredSspAttempt final
     int minimumTlsVersion{};
     int maximumTlsVersion{};
     int negotiatedTlsVersion{};
+    BoundedCipherName negotiatedCipherName{'n','o','n','e','\0'};
     SchannelCredentialProfile schannelCredentialProfile{
         SchannelCredentialProfile::LegacySchannelCred};
     bool tlsEstablished{};
@@ -2699,7 +2768,7 @@ void printClientProfileObservation(
         "physical-type1-bytes=%zu hosted-type1-bytes=%zu "
         "type1-bytes-match=%s type1-exact-equality-required=no "
         "physical-type1-flags=0x%08lx hosted-type1-flags=0x%08lx "
-        "type1-flags-xor=0x%08lx physical-version=pending-observer "
+        "type1-flags-xor=0x%08lx physical-version=6.0.6001/0x0f "
         "hosted-version-present=%s hosted-version-structure=%s "
         "hosted-version=%u.%u.%u/0x%02x "
         "physical-type2-flags=0x%08lx hosted-type2-flags=0x%08lx "
@@ -2748,12 +2817,15 @@ void printClientProfileObservation(
     ChallengeExperiment experiment =
         ChallengeExperiment::Production,
     SchannelCredentialProfile schannelCredentialProfile =
-        SchannelCredentialProfile::LegacySchannelCred)
+        SchannelCredentialProfile::LegacySchannelCred,
+    TlsServerProfile tlsServerProfile =
+        TlsServerProfile::SystemDefault)
 {
     FullCredSspAttempt result{};
     result.schannelCredentialProfile = schannelCredentialProfile;
+    result.tlsServerProfile = tlsServerProfile;
     WindowsCredSspClient client{schannelCredentialProfile};
-    ProductionCredSspServer server{experiment};
+    ProductionCredSspServer server{experiment, tlsServerProfile};
     if (!server.valid())
     {
         result.stage = "production-server-setup";
@@ -2777,14 +2849,18 @@ void printClientProfileObservation(
     result.tlsEstablished = result.initialPump.tlsEstablished;
     result.negotiatedTlsVersion =
         result.initialPump.negotiatedTlsVersion;
+    copyBoundedCipherName(
+        result.negotiatedCipherName,
+        server.negotiatedCipherName());
     std::fprintf(
         stderr,
         "microsoft-credssp-tls-profile target=%s schannel=%s "
-        "negotiated-tls=%s cipher=%s target-string=%s "
+        "server-profile=%s negotiated-tls=%s cipher=%s target-string=%s "
         "certificate-profile=generated-cn-rdp-server-ip-san "
         "certificate-endpoint=192.168.1.5\n",
         targetLabel(profile),
         schannelCredentialProfileName(schannelCredentialProfile),
+        tlsServerProfileName(tlsServerProfile),
         server.negotiatedTlsVersionName(),
         server.negotiatedCipherName(),
         targetLabel(profile));
@@ -2972,8 +3048,8 @@ void printFailure(
 {
     std::fprintf(
         stderr,
-        "microsoft-credssp target=%s schannel=%s stage=%s tls=%s "
-        "tls-version=%s tls-min=%s tls-max=%s "
+        "microsoft-credssp target=%s schannel=%s server-profile=%s "
+        "stage=%s tls=%s tls-version=%s cipher=%s tls-min=%s tls-max=%s "
         "initial-tsrequest=%s type2-queued=%s type2-tls-committed=%s "
         "type2-consumed=%s type2-flags=0x%08lx "
         "type2-target-code-units=%zu "
@@ -2981,9 +3057,11 @@ void printFailure(
         "type3-verified=%s pubkeyauth=%s\n",
         targetLabel(profile),
         schannelCredentialProfileName(result.schannelCredentialProfile),
+        tlsServerProfileName(result.tlsServerProfile),
         result.stage,
         result.tlsEstablished ? "established" : "not-established",
         tlsVersionName(result.negotiatedTlsVersion),
+        result.negotiatedCipherName.data(),
         tlsVersionName(result.minimumTlsVersion),
         tlsVersionName(result.maximumTlsVersion),
         result.initialClientTsRequestReceived ? "yes" : "no",
@@ -3085,6 +3163,105 @@ void printFailure(
     return modernAccepted || typedFailure;
 }
 
+[[nodiscard]] bool runTlsVersionQualification(
+    TlsServerProfile tlsServerProfile)
+{
+    const SchannelCredentialProfile clientProfile =
+        tlsServerProfile == TlsServerProfile::Tls13Only
+            ? SchannelCredentialProfile::ModernSystemDefaults
+            : SchannelCredentialProfile::LegacySchannelCred;
+    const FullCredSspAttempt result =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeExperiment::Production,
+            clientProfile,
+            tlsServerProfile);
+
+    const bool reachedTypeThree = acceptedNextClientMessage(result);
+    const bool expectedNegotiatedVersion =
+        tlsServerProfile == TlsServerProfile::SystemDefault
+            ? result.negotiatedTlsVersion != 0
+            : tlsServerProfile == TlsServerProfile::Tls12Only
+                ? result.negotiatedTlsVersion == TLS1_2_VERSION
+#if defined(TLS1_3_VERSION)
+                : result.negotiatedTlsVersion == TLS1_3_VERSION;
+#else
+                : false;
+#endif
+
+    const bool serverPinnedToTls13 =
+#if defined(TLS1_3_VERSION)
+        tlsServerProfile == TlsServerProfile::Tls13Only &&
+        result.minimumTlsVersion == TLS1_3_VERSION &&
+        result.maximumTlsVersion == TLS1_3_VERSION;
+#else
+        false;
+#endif
+    const bool noAuthenticationWireState =
+        !result.tlsEstablished &&
+        !result.initialClientTsRequestReceived &&
+        !result.typeOneObserved &&
+        !result.productionTypeTwoQueued &&
+        !result.productionTypeTwoTlsCommitted &&
+        !result.nextClientTsRequestReceived &&
+        !result.productionObservedTypeThree;
+    const bool providerRejectedBeforeTls =
+        std::string_view{result.stage} == "acquire-credssp" &&
+        !securityStatusSucceeded(result.acquireStatus);
+    const bool providerCouldNotNegotiateTls13 =
+        securityStatusSucceeded(result.acquireStatus) &&
+        noAuthenticationWireState &&
+        result.initialPump.stopReason == CredSspPumpStopReason::TypedFailure;
+    const bool tls13OracleLimitation =
+        serverPinnedToTls13 &&
+        noAuthenticationWireState &&
+        (providerRejectedBeforeTls || providerCouldNotNegotiateTls13);
+
+    const bool passed =
+        reachedTypeThree && expectedNegotiatedVersion;
+    const char *const status =
+        passed ? "PASS"
+               : tls13OracleLimitation ? "ORACLE_LIMITATION"
+                                       : "FAIL";
+    const SECURITY_STATUS reportedStatus =
+        std::string_view{result.stage} == "acquire-credssp"
+            ? result.acquireStatus
+            : result.lastClientStatus;
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-tls-version-matrix "
+        "profile=%s schannel=%s status=%s negotiated-tls=%s cipher=%s "
+        "server-min=%s server-max=%s first-tsrequest=%s type1=%s "
+        "type2-committed=%s next-tsrequest=%s type3=%s "
+        "microsoft-status=%s code=0x%08lx "
+        "physical-reference-tls=TLS1.3 "
+        "physical-reference-cipher=TLS_AES_256_GCM_SHA384 "
+        "stage=%s\n",
+        tlsServerProfileName(tlsServerProfile),
+        schannelCredentialProfileName(clientProfile),
+        status,
+        result.tlsEstablished
+            ? tlsVersionName(result.negotiatedTlsVersion)
+            : "none",
+        result.negotiatedCipherName.data(),
+        tlsVersionName(result.minimumTlsVersion),
+        tlsVersionName(result.maximumTlsVersion),
+        result.initialClientTsRequestReceived ? "yes" : "no",
+        result.typeOneObserved ? "yes" : "no",
+        result.productionTypeTwoTlsCommitted ? "yes" : "no",
+        result.nextClientTsRequestReceived ? "yes" : "no",
+        result.productionObservedTypeThree ? "yes" : "no",
+        securityStatusName(reportedStatus),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(reportedStatus)),
+        result.stage);
+
+    if (!passed && !tls13OracleLimitation)
+        printFailure(TargetProfile::PortableServerName, result);
+    return passed || tls13OracleLimitation;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -3097,6 +3274,15 @@ int main(int argc, char **argv)
         return runHarnessStreamBufferRetention() ? 0 : 1;
     if (mode == "harness-multi-turn-round-progression")
         return runHarnessMultiTurnRoundProgression() ? 0 : 1;
+    if (mode == "tls-system-default")
+        return runTlsVersionQualification(
+                   TlsServerProfile::SystemDefault) ? 0 : 1;
+    if (mode == "tls12-only-server")
+        return runTlsVersionQualification(
+                   TlsServerProfile::Tls12Only) ? 0 : 1;
+    if (mode == "tls13-only-server")
+        return runTlsVersionQualification(
+                   TlsServerProfile::Tls13Only) ? 0 : 1;
     if (mode == "modern-schannel-system-defaults-probe")
         return runModernSchannelSystemDefaultsProbe() ? 0 : 1;
 

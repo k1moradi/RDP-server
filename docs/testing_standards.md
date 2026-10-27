@@ -1,3 +1,37 @@
+## Agent 1 Microsoft CredSSP explicit TLS-version matrix gate (2026-10-27)
+
+Register three Windows-only behavior CTests on the existing
+`test_windows_sspi_credssp_interop` executable:
+`security.windows-credssp-tls-system-default`,
+`security.windows-credssp-tls12-only-server` and
+`security.windows-credssp-tls13-only-server`. Every row uses the production
+generated exact-IP certificate, production CredSSP TSRequest reader/writer and
+production Direct-NTLM acceptor, while only the test connection's server TLS
+minimum/maximum is selected. Record negotiated TLS version, cipher, first
+TSRequest, Type 1, committed Type 2, next TSRequest and observed Type 3.
+
+System/default and TLS-1.2-only use the legacy `SCHANNEL_CRED` control.
+Both PASS only after the unchanged production Type 2 is consumed and a next
+Microsoft TSRequest containing Type 3 is observed; TLS-1.2-only must negotiate
+exactly TLS 1.2. TLS-1.3-only reuses the already-qualified
+`SCH_CREDENTIALS` system-default client profile and PASS requires exactly
+TLS 1.3 plus the same Type-3 boundary.
+
+The known external control is already PASS: implementation
+`94c4fdab233a59417f1d0f3eaad053e21e2e49ad`, workflow `40505738277`,
+Windows job `122194521687` negotiated TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` and observed Type 3. A future TLS-1.3-only row may
+report `ORACLE_LIMITATION` only for a typed failure before TLS/authentication
+wire state; no-progress/round-limit and every post-TLS failure remain FAIL.
+The exact-SHA matrix receipt must also require
+`runtime.generated-tls-context-negotiates-tls13` PASS.
+
+Agent 9 consumes all three row receipts. Preserve the physical comparison as
+TLS 1.3 / `TLS_AES_256_GCM_SHA384`, Type-1 flags `0xe2088235`, 40 bytes,
+VERSION `6.0.6001/0x0f`, no supplied domain/workstation, and Type 2
+`0xe08a8235`. This matrix is qualification evidence only and never permits a
+production TLS cap or identity/Type-2 change.
+
 ## R10 Type-2 delivery and peer-EOF timing gate (2026-10-27)
 
 The production-backed CTest
@@ -261,8 +295,8 @@ TargetInfo byte count, total byte count, target/name presence and AV-ID
 sequence. A profile difference is diagnostic, not an incompatibility finding.
 The known physical baseline remains Type-1 flags `0xe2088235` and Type-2
 `0xe08a8235` / 10 TargetName code units / 50 TargetInfo bytes / 126 total
-bytes / AV IDs `2,1,7,0`; the physical VERSION tuple must be measured by the
-new observer rather than inferred.
+bytes / AV IDs `2,1,7,0`; the current measured physical VERSION tuple is
+`6.0.6001/0x0f`; future changes must still be measured rather than inferred.
 
 Do not enable NTLMSSP_NEGOTIATE_VERSION in production Type 2 from client offer
 alone. If a later physical run reaches Type 3, existing exact Type1+Type2+Type3

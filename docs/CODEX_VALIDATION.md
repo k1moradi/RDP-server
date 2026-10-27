@@ -1,3 +1,42 @@
+## Agent 1 explicit Microsoft CredSSP TLS-version matrix authoring receipt — 2026-10-27
+
+**Reconciled authoring parent:** `114f7298b85a107f0654c021fd13378cdd2763d1`.
+Current main, AGENTS, VISION, ROADMAP, all four mandatory standards and the
+validation ledger were re-read after the exact-SHA Agent-6 TLS-1.3 PASS,
+Agent-2 OEM differential PASS and Agent-10 timing-diagnostic publication.
+
+Existing hosted evidence already proves Microsoft CREDSSP Type 3 over TLS 1.3:
+implementation `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`, workflow
+`40505738277`, Windows job `122194521687`, TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, full Type-3 boundary PASS. This increment adds the
+user-requested explicit **server** policy matrix rather than changing the
+external conclusion.
+
+The existing Windows full-CREDSSP executable gains three test-only server
+profiles by pinning only the created `SSL *`: system/default, TLS-1.2-only
+and TLS-1.3-only. It reuses Agent 6's client credential profiles: legacy
+`SCHANNEL_CRED` for default/TLS-1.2 and modern
+`SCH_CREDENTIALS` system defaults for TLS-1.3. Production
+`RuntimeServerTlsContext`, generated exact-IP certificate, default maximum,
+TSRequest reader/writer, standalone NTLM acceptor and fixed-name
+`RDP-SERVER` target remain unchanged.
+
+New ordinary CTests are
+`security.windows-credssp-tls-system-default`,
+`security.windows-credssp-tls12-only-server` and
+`security.windows-credssp-tls13-only-server`. Their exact-SHA receipt records
+client/server profile, TLS version, cipher, first TSRequest, Type 1, committed
+Type 2, next TSRequest and Type 3. TLS-1.3 `ORACLE_LIMITATION` is restricted
+to typed pre-TLS failure with no authentication wire state; no-progress and all
+post-TLS failures remain FAIL. Agent 9 simultaneously requires the existing
+production-context TLS-1.3 CTest PASS and consumes all three row receipts.
+
+Connector transformation/source/reconciliation review: **PASS by inspection**.
+Canonical owner one-`build/` compile/focused/full CTest: **NOT RUN** in this
+connector environment. Exact-publication-SHA Windows compile, the three new
+CTests, independent production TLS-1.3 control, full CTest and manual Agent-9
+aggregate: **PENDING**.
+
 ## Agent 2 exact-SHA Microsoft OEM differential qualification — 2026-10-27
 
 Implementation `45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`, workflow

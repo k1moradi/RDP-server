@@ -1,3 +1,20 @@
+## Agent 1 explicit TLS-version matrix adds no production build surface (2026-10-27)
+
+The TLS-version matrix reuses the existing Windows-only
+`test_windows_sspi_credssp_interop` executable, Agent 6's legacy/modern
+Schannel credential profiles, and its existing
+`rdp-server-standalone-ntlmv2`, `rdp-server-runtime-tls` and `secur32`
+linkage. The three behavior CTests select system/default, TLS-1.2-only and
+TLS-1.3-only **test connection** profiles by command mode. No production
+library, compile definition, runtime switch, package dependency, socket,
+trust-store mutation or second build root is added.
+
+CI reuses the already-registered
+`runtime.generated-tls-context-negotiates-tls13` production-context test as
+the independent server-side control and writes the three row receipts into the
+existing Agent-9 Microsoft interop artifact. Configure/build/focused/full
+commands continue to use the one checkout-local `build/` root.
+
 ## R10 pre-Type-3 timing diagnostics add no build surface (2026-10-27)
 
 The timing increment changes only the existing Linux runtime connection/

@@ -222,6 +222,20 @@ if(WIN32)
         LABELS "security;credentials;credssp;tls;windows;harness;offline"
         TIMEOUT 15)
 
+    add_test(NAME security.windows-credssp-tls-system-default
+        COMMAND test_windows_sspi_credssp_interop tls-system-default)
+    add_test(NAME security.windows-credssp-tls12-only-server
+        COMMAND test_windows_sspi_credssp_interop tls12-only-server)
+    add_test(NAME security.windows-credssp-tls13-only-server
+        COMMAND test_windows_sspi_credssp_interop tls13-only-server)
+    set_tests_properties(
+        security.windows-credssp-tls-system-default
+        security.windows-credssp-tls12-only-server
+        security.windows-credssp-tls13-only-server
+        PROPERTIES
+        LABELS "security;credentials;credssp;tls;windows;interop;acceptance;offline"
+        TIMEOUT 45)
+
     add_test(
         NAME security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe
         COMMAND test_windows_sspi_credssp_interop

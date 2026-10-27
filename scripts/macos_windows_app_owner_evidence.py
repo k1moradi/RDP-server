@@ -4,7 +4,8 @@
 The helper never changes Keychain, trust settings, Windows App preferences, or
 the supplied log directory. It reads the explicitly supplied .app Info.plist,
 inventories existing files in an explicitly supplied log directory, hashes
-their bytes, and writes one JSON manifest to stdout.
+their bytes, and writes one JSON manifest to stdout. It intentionally has no
+password input: credential evidence records state and matching intent only.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ MAX_TOTAL_LOG_BYTES = 512 * 1024 * 1024
 MAX_TEXT_BYTES = 4096
 _HASH_CHUNK_BYTES = 1024 * 1024
 _SHA40 = re.compile(r"^[0-9a-fA-F]{40}$")
+_NOT_APPLICABLE = "not-applicable"
 
 
 def _bounded_text(value: str, name: str) -> str:
@@ -39,13 +41,13 @@ def _validated_server_sha(value: str) -> str:
     return value.lower()
 
 
-def _validated_attempt_time(value: str) -> tuple[str, str]:
+def _validated_attempt_time(value: str, name: str = "attempt time") -> tuple[str, str]:
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError as exc:
-        raise ValueError("attempt time must be ISO-8601") from exc
+        raise ValueError(f"{name} must be ISO-8601") from exc
     if parsed.tzinfo is None or parsed.utcoffset() is None:
-        raise ValueError("attempt time must include an explicit UTC offset")
+        raise ValueError(f"{name} must include an explicit UTC offset")
     return parsed.isoformat(), parsed.astimezone(timezone.utc).isoformat()
 
 
@@ -117,17 +119,71 @@ def _inventory_log_directory(log_directory: Path) -> tuple[list[dict[str, object
     return entries, total_bytes
 
 
+def _validated_saved_credential(options: argparse.Namespace) -> dict[str, object]:
+    state = options.saved_credential_state
+    username = options.saved_credential_username
+    newly_created = options.saved_credential_newly_created
+    intentionally_matched = options.server_client_credentials_intentionally_matched
+
+    if state == "explicit-saved-selected":
+        if username == _NOT_APPLICABLE:
+            raise ValueError(
+                "saved credential username is required when an explicit saved credential is selected"
+            )
+        if newly_created == _NOT_APPLICABLE:
+            raise ValueError(
+                "saved credential newly-created state must be yes or no for an explicit saved credential"
+            )
+        if intentionally_matched == _NOT_APPLICABLE:
+            raise ValueError(
+                "server/client credential match state must be yes or no for an explicit saved credential"
+            )
+        username_exact: str | None = _bounded_text(
+            username, "saved credential username"
+        )
+    elif state == "ask-when-required-or-none":
+        if username != _NOT_APPLICABLE:
+            raise ValueError(
+                "saved credential username must be not-applicable when no saved credential is selected"
+            )
+        if newly_created != _NOT_APPLICABLE:
+            raise ValueError(
+                "saved credential newly-created state must be not-applicable when no saved credential is selected"
+            )
+        if intentionally_matched != _NOT_APPLICABLE:
+            raise ValueError(
+                "server/client credential match state must be not-applicable when no saved credential is selected"
+            )
+        username_exact = None
+    else:
+        username_exact = (
+            None
+            if username == _NOT_APPLICABLE
+            else _bounded_text(username, "saved credential username")
+        )
+
+    return {
+        "state": state,
+        "username_exact": username_exact,
+        "newly_created_for_attempt": newly_created,
+        "server_client_credentials_intentionally_matched": intentionally_matched,
+    }
+
+
 def build_manifest(options: argparse.Namespace) -> dict[str, object]:
     warning_shown = options.certificate_warning == "yes"
-    if warning_shown and options.certificate_warning_accepted == "not-applicable":
+    if warning_shown and options.certificate_warning_accepted == _NOT_APPLICABLE:
         raise ValueError("warning acceptance must be yes or no when a warning appeared")
-    if not warning_shown and options.certificate_warning_accepted != "not-applicable":
+    if not warning_shown and options.certificate_warning_accepted != _NOT_APPLICABLE:
         raise ValueError("warning acceptance must be not-applicable when no warning appeared")
 
     if (options.logs is None) == (options.logs_unavailable_reason is None):
         raise ValueError("provide exactly one of --logs or --logs-unavailable-reason")
 
     attempt_local, attempt_utc = _validated_attempt_time(options.attempt_time)
+    linux_local, linux_utc = _validated_attempt_time(
+        options.linux_terminal_time, "Linux terminal time"
+    )
     app_metadata = _read_app_metadata(options.app)
 
     logs: dict[str, object]
@@ -148,11 +204,12 @@ def build_manifest(options: argparse.Namespace) -> dict[str, object]:
         }
 
     return {
-        "schema": "rdp-server.macos-windows-app-owner-evidence.v1",
+        "schema": "rdp-server.macos-windows-app-owner-evidence.v2",
         "server_sha": _validated_server_sha(options.server_sha),
         "attempt_time_local": attempt_local,
         "attempt_time_utc": attempt_utc,
         "destination_exact": _bounded_text(options.destination, "destination"),
+        "saved_credential": _validated_saved_credential(options),
         "certificate_warning": {
             "appeared": warning_shown,
             "accepted": options.certificate_warning_accepted,
@@ -164,7 +221,16 @@ def build_manifest(options: argparse.Namespace) -> dict[str, object]:
         "logging": {
             "core_level": _bounded_text(options.core_log_level, "core log level"),
             "ui_level": _bounded_text(options.ui_log_level, "UI log level"),
+            "started_before_attempt": options.logging_started == "yes",
+            "stopped_after_attempt": options.logging_stopped == "yes",
             **logs,
+        },
+        "linux_correlation": {
+            "connection_id": _bounded_text(
+                options.linux_connection_id, "Linux connection ID"
+            ),
+            "terminal_time_local": linux_local,
+            "terminal_time_utc": linux_utc,
         },
         "collector": {
             "mode": "read-only",
@@ -185,15 +251,35 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--server-sha", required=True)
     parser.add_argument("--attempt-time", required=True)
     parser.add_argument("--destination", required=True)
+    parser.add_argument(
+        "--saved-credential-state",
+        choices=("explicit-saved-selected", "ask-when-required-or-none", "other"),
+        required=True,
+    )
+    parser.add_argument("--saved-credential-username", required=True)
+    parser.add_argument(
+        "--saved-credential-newly-created",
+        choices=("yes", "no", _NOT_APPLICABLE),
+        required=True,
+    )
+    parser.add_argument(
+        "--server-client-credentials-intentionally-matched",
+        choices=("yes", "no", _NOT_APPLICABLE),
+        required=True,
+    )
     parser.add_argument("--certificate-warning", choices=("yes", "no"), required=True)
     parser.add_argument(
         "--certificate-warning-accepted",
-        choices=("yes", "no", "not-applicable"),
+        choices=("yes", "no", _NOT_APPLICABLE),
         required=True,
     )
     parser.add_argument("--error-text", required=True)
     parser.add_argument("--core-log-level", required=True)
     parser.add_argument("--ui-log-level", required=True)
+    parser.add_argument("--logging-started", choices=("yes", "no"), required=True)
+    parser.add_argument("--logging-stopped", choices=("yes", "no"), required=True)
+    parser.add_argument("--linux-connection-id", required=True)
+    parser.add_argument("--linux-terminal-time", required=True)
     logs = parser.add_mutually_exclusive_group(required=True)
     logs.add_argument("--logs", type=Path)
     logs.add_argument("--logs-unavailable-reason")

@@ -416,54 +416,79 @@ evidence contract and use the client-side same-attempt evidence already
 specified by Agent 5; the success criterion remains
 `direct-ntlm-type3=received`.
 
-## Agent 5 P0 supporting — macOS Windows App same-attempt owner evidence (2026-10-27)
+## Agent 5 P0 PRIMARY — credential-state macOS Windows App owner evidence (2026-10-27)
 
-**Re-read current main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.
-The latest shared physical Linux/X11 + Windows App/macOS observation reaches
-TLS 1.3 / `TLS_AES_256_GCM_SHA384`, IP SNI, the existing exact-IP-SAN
-certificate, Direct NTLM Type 1 `0xe2088235` with VERSION
-`6.0.6001/0x0f` and no supplied domain/workstation, then unchanged production
-Type 2 `0xe08a8235` fully committed through TLS and Await-Type-3 before peer
-EOF. Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission,
-MCS, Share, graphics/X11 and clipboard are **NOT REACHED**. The shared handoff
-did not include the server SHA for that physical attempt, so it is useful
-differential evidence but is **not** exact-SHA owner qualification.
+**Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `39e01e350dd10dd83ab9ac14cf85389a451fd8b0`.
+The concurrent Agent-3/4/8 containment changes are preserved. The owner reports
+**998/998 CTest PASS** locally. The latest physical Linux/X11 + Windows
+App/macOS trace remains TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI ->
+exact-IP-SAN generated certificate -> Direct NTLM Type 1 `0xe2088235`,
+VERSION `6.0.6001/0x0f`, no supplied domain/workstation -> production Type 2
+`0xe08a8235` -> Type 2 TLS committed -> Await-Type-3 -> peer EOF. Type 3,
+pubKeyAuth, authInfo, `CredentialsVerified`, native Admission, MCS, Share,
+graphics/X11 and clipboard are **NOT REACHED**. The measured same-boundary
+timings are `type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`; these are lifecycle diagnostics, not
+performance benchmarks.
 
-Hosted Microsoft evidence remains independent: native NTLM SSPI accepts the
-production Type 2; full CREDSSP fixed-name, IP-SPN and bare-IP reach Type 3;
-hosted CREDSSP currently negotiates TLS 1.2 with Type 1
-`bytes=40 flags=0xe20882b7 VERSION=10.0.26100/0x0f`; macOS
-Security.framework and Windows CryptoAPI accept the current generated
-exact-IP certificate only under their explicit test-local trust anchors.
-Those controls do not identify the real Windows App policy responsible for
-the physical EOF. Production remains exactly `fixed-name / RDP-SERVER`.
+Independent/external evidence has already ruled out malformed Type 2,
+fixed-name versus IP target identity, the current Type-2 TargetName, current
+TargetInfo, missing MsvAvTargetName, the current exact-IP SAN certificate
+name shape, TLS 1.3 itself and the physical/hosted OEM response-bit
+difference. Do **not** reopen those hypotheses without new evidence. Microsoft
+full CREDSSP independently reaches Type 3 over TLS 1.2 and TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, and reaches Type 3 for fixed target, TERMSRV/IP and
+bare IP. Microsoft NTLM also accepts the isolated OEM-only Type-2
+differential. Production therefore remains exactly `fixed-name / RDP-SERVER`.
 
-Agent 5 adds the reusable
-`docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` procedure and a read-only manifest
-helper. The physical owner must use Windows App's documented
-Help -> Troubleshooting -> Logging workflow and capture, from the same attempt,
-the actual client version/build, exact destination, certificate-warning
-shown/accepted state, exact client error text, owner-selected client logs when
-available, and an offset-aware timestamp correlated with the Linux record. No
-Keychain/trust-store mutation or undocumented log path is permitted. A server
-EOF must not be classified as certificate rejection without client-side
-evidence.
+The primary remaining hypothesis class is client-side credential/delegation
+behavior after Type 2: no selected saved Remote PC credential, missing
+credential material, client credential/delegation policy, Windows App account
+handling, certificate/user policy outside the already-qualified wire parser or
+another typed client-side failure. A wrong Session Password alone is **not**
+demonstrated because the physical client has not sent Type 3.
 
-**Validation at authoring:** synthetic helper unittest **PASS 5/5** in the
-connector Python environment. Canonical owner one-`build/`
-configure/build/full CTest: **NOT RUN** here. Exact-publication-SHA hosted CI:
-**PENDING**. No production source, TargetName, TargetInfo, MsvAvTargetName,
-certificate CN/SAN, native Admission, MCS, graphics or clipboard behavior is
-changed.
+Agent 5 strengthens the existing read-only
+`docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` procedure and
+`scripts/macos_windows_app_owner_evidence.py` rather than changing production
+authentication. Manifest schema v2 now records the actual Windows App
+version/build, exact destination, typed Saved credential state, exact saved
+Username when applicable, whether the credential was newly created, whether
+the Windows App credential and RDP-server standalone credential were
+intentionally matched, certificate-warning state, exact UI error, Core/UI
+logging levels plus Start/Stop state, the owner-selected log inventory and the
+correlated Linux connection ID plus offset-aware terminal timestamp. The
+helper has no password input/output and remains read-only: no Keychain, trust,
+Windows App preference or private-log-path access.
 
-**Next gate:** preserve the existing Agent-9 exact-SHA owner-candidate gate.
-After its publication-SHA prerequisites and explicit manual aggregate pass,
-the next authorized physical receipt must begin with `git rev-parse HEAD` and
-use the new same-attempt macOS procedure. The success criterion remains
-`direct-ntlm-type3=received`; until then, use the client log/error only to
-narrow the external policy boundary, not to authorize a production wire or
-identity change.
+For the **next physical run**, Windows App must have an explicit Saved
+credential selected. Its Username must be the exact Username shown/configured
+by RDP-server and its password must be the exact independent Session Password
+configured in RDP-server. Do not use the Linux account password unless the
+owner intentionally made it identical. Record only whether the two application
+credential ends were intentionally matched; never record the password. An Ask
+when required / none or `other` run can remain diagnostic but does not satisfy
+this credential-controlled gate.
 
+**Authoring validation:** current connector `main` was confirmed at the
+assignment SHA before editing and reconciled to the publication parent above.
+Direct Python execution of the strengthened synthetic helper test is **PASS
+7/7** and `python3 -m py_compile` is **PASS**. The owner's **998/998 CTest
+PASS** is retained as supplied external evidence; the canonical owner
+one-`build/` configure/build/full CTest is **NOT RUN** in this
+connector/container environment. No physical Windows App attempt was run by
+this increment.
+
+**Next gate:** on one owner-authorized attempt, use Windows App
+Help -> Troubleshooting -> Logging, select Core/UI levels and a fresh output
+folder, Start Logging, connect with the required explicit saved credential,
+capture the exact offset-aware attempt timestamp and exact user-visible error,
+then Stop Logging and preserve that same-attempt folder. Correlate it with the
+exact Linux connection ID/timestamp. The protocol success criterion remains
+`direct-ntlm-type3=received`; otherwise use the client-side log/error to
+classify the first typed credential/delegation/policy failure without changing
+production authentication wire bytes.
 ## Agent 1/9 owner-candidate TLS diagnostic sentinel correction — 2026-10-26
 
 **Reconciled parent:** `eb927e151d430c16209a05bca27e5fe40465fe96`. Exact-parent workflow `40348799825` has the

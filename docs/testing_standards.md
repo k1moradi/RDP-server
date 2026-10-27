@@ -180,7 +180,7 @@ Microsoft/API rejection is evidence, while no-progress/round-limit or otherwise
 unclassified harness outcomes remain test failures. Neither positive nor
 negative oracle evidence directly authorizes a production TLS maximum.
 
-## macOS Windows App owner evidence must distinguish client policy from peer EOF (2026-10-27)
+## macOS Windows App owner evidence must distinguish client credential policy from peer EOF (2026-10-27)
 
 Physical Windows App/macOS qualification must use the supported client logging
 workflow documented by Microsoft: Help -> Troubleshooting -> Logging, explicit
@@ -190,23 +190,41 @@ private client-log path. The reusable runbook is
 [MACOS_WINDOWS_APP_OWNER_EVIDENCE.md](MACOS_WINDOWS_APP_OWNER_EVIDENCE.md).
 
 The same-attempt evidence bundle records the exact server SHA, actual Windows
-App version/build, destination exactly as entered, certificate-warning
-shown/accepted state, exact client-side error text, an offset-aware attempt
-timestamp, the supported client logs when available, and the correlated Linux
-terminal record. A server EOF after fully committed Type 2 / Await-Type-3
-never proves certificate rejection. Missing client logs are recorded as
-unavailable with a reason, not replaced by inference.
+App version/build, destination exactly as entered, Remote PC Saved credential
+state (`explicit-saved-selected`, `ask-when-required-or-none`, or `other`),
+exact saved Username when applicable, whether the saved credential was newly
+created for the attempt, and whether the Windows App credential was
+intentionally matched to the RDP-server Username + independent Session
+Password. It records only that matching intent; it never records either
+password. The bundle also records certificate-warning shown/accepted state,
+exact client-side error text, an offset-aware attempt timestamp, exact Core/UI
+log levels plus Start/Stop Logging state, supported client logs when available,
+and the correlated Linux connection ID and offset-aware terminal timestamp.
 
-`scripts/macos_windows_app_owner_evidence.py` is a read-only manifest helper:
-it reads only the explicitly supplied `.app` Info.plist and owner-selected log
-directory, rejects log-tree symlinks, bounds file count/bytes, hashes log files
-without emitting their content and writes JSON only to stdout. It must never
-modify Keychain/trust settings, Windows App preferences or the captured logs.
+The next credential-controlled physical gate requires an explicit Windows App
+Saved credential whose Username equals the exact Username shown/configured by
+RDP-server and whose password equals the exact independent Session Password.
+Do not substitute the Linux account password unless the owner intentionally
+made it identical. A run using Ask when required / none or another credential
+state may be diagnostic but does not satisfy that gate. A server EOF after
+fully committed Type 2 / Await-Type-3 never proves certificate rejection or a
+wrong Session Password; Type 3 has not yet carried proof of a password failure.
+
+`scripts/macos_windows_app_owner_evidence.py` is a read-only manifest helper.
+Schema v2 reads only the explicitly supplied `.app` Info.plist and
+owner-selected log directory, rejects log-tree symlinks, bounds file
+count/bytes, hashes log files without emitting their content, writes JSON only
+to stdout, has no password argument, and validates the typed Saved-credential
+combinations plus both offset-aware correlation timestamps. It must never
+modify Keychain/trust settings, Windows App preferences or captured logs.
+
 The synthetic CTest
-`macos.windows-app-owner-evidence-readonly-manifest` verifies the bounded
-metadata/hash and no-mutation behavior without launching Windows App or
-touching a real trust store.
-
+`macos.windows-app-owner-evidence-readonly-manifest` verifies version/build and
+same-attempt metadata, explicit-saved and ask/none credential typing, absence
+of any password field, logging lifecycle, Linux connection/time correlation,
+hash/no-mutation behavior, warning-state consistency, symlink rejection and
+typed SHA/timestamps without launching Windows App or touching a real trust
+store.
 ## R10 retained environment projection and pre-Type-3 retry gate (2026-10-26)
 
 Keep the physical-client differential inside the existing production owners.

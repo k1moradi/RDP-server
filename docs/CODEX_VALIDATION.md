@@ -1,3 +1,59 @@
+## Agent 5 credential-state Windows App owner-evidence strengthening — 2026-10-27
+
+**Authoring parent / assignment-time remote main:**
+`985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled publication
+parent:** `39e01e350dd10dd83ab9ac14cf85389a451fd8b0`. Concurrent Agent-3/4/8
+containment work is preserved. Current AGENTS, VISION, ROADMAP,
+coding/testing/compile/benchmark standards and this validation ledger were
+re-read before publication.
+
+The supplied physical boundary remains TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN generated certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> production Type 2 `0xe08a8235` fully committed ->
+Await-Type-3 -> peer EOF. Type 3 and every downstream authority remain **NOT
+REACHED**. Supplied timing diagnostics are
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`; they are not benchmark evidence.
+
+The already-qualified wire/certificate/TLS/OEM differentials are not reopened.
+The remaining primary evidence question is whether Windows App withholds or
+aborts credential delegation after Type 2. A wrong Session Password is not
+inferred before Type 3.
+
+The existing macOS runbook and read-only manifest helper are strengthened in
+place. Schema v2 records Saved credential state, exact saved Username when
+applicable, whether it was newly created for the attempt, whether the Windows
+App credential and RDP-server Username + Session Password were intentionally
+matched, certificate warning state, exact UI error, Core/UI logging levels and
+Start/Stop state, plus exact Linux connection ID and offset-aware terminal
+timestamp. The helper intentionally has no password argument or password field,
+never accesses Keychain/trust or Windows App preferences, and continues to
+hash only the owner-selected log directory without emitting log contents.
+
+The runbook now requires the next physical attempt to select an explicit
+Windows App Saved credential whose Username exactly matches the RDP-server
+Username and whose password is the exact independent RDP-server Session
+Password. The Linux account password is not substituted unless the owner
+intentionally made it identical. Only the yes/no intentional-match fact is
+recorded; the password itself is never recorded.
+
+Validation performed for the drafted helper/test pair:
+
+- `python3 tests/test_macos_windows_app_owner_evidence.py --script
+  scripts/macos_windows_app_owner_evidence.py`: **PASS 7/7** in the local
+  isolated validation copy;
+- `python3 -m py_compile` on the helper and test: **PASS**;
+- owner-provided canonical local evidence: **998/998 CTest PASS**;
+- canonical owner one-`build/` configure/build/full CTest in this connector
+  environment: **NOT RUN**;
+- physical Windows App/macOS retry for this increment: **NOT RUN**.
+
+No production TLS, CredSSP/NTLM bytes, certificate identity, target identity,
+Admission, MCS, Share, graphics, input or clipboard behavior changes. The next
+gate is the one-attempt supported Windows App logging receipt with explicit
+Saved credential state and Linux connection/timestamp correlation; success
+remains `direct-ntlm-type3=received`.
 ## Agent 8 long Await-Type-3 clipboard-dormancy authoring receipt — 2026-10-27
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled publication parent:**

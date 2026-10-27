@@ -1,3 +1,30 @@
+## Agent 5 physical Windows App credential evidence is private and non-authorizing (2026-10-27)
+
+The macOS Windows App owner-evidence path may record only the bounded client facts
+needed to classify the pre-Type-3 boundary: Saved credential state, exact saved
+Username when one exists, whether that saved credential was newly created for
+the attempt, whether the Windows App credential and RDP-server standalone
+credential were intentionally matched, Core/UI logging lifecycle, exact
+user-visible error, certificate-warning state and the correlated Linux
+connection ID/timestamp. These are owner-private diagnostics, not authentication
+or native-admission authority.
+
+The helper must have no password input or output. The independent Session
+Password remains owned by the RDP-server standalone credential owner, and the
+Windows App saved password remains entered only through Windows App. Never copy
+either secret into a manifest, command line, repository document or test
+fixture. Do not substitute the Linux account password unless the owner
+intentionally made it identical to the standalone Session Password; record only
+the yes/no fact that the two application credential ends were intentionally
+matched.
+
+Do not access Keychain, mutate trust, change Windows App preferences or invent
+a private client-log path. A committed Type 2 followed by peer EOF before Type
+3 cannot be classified as wrong-password, certificate-rejection or
+credential-rejection without matching client-side evidence. Saved-credential
+state and client logs may narrow the external policy boundary, but they never
+authorize Type-2, TLS, certificate, target-identity, Admission, MCS, Share,
+graphics, input or clipboard changes.
 ## R8 long pre-Type-3 stalls remain clipboard-free (2026-10-27)
 
 Elapsed time while a delivered Direct NTLM Type 2 is waiting for Type 3 does

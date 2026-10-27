@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import plistlib
 import tempfile
@@ -42,11 +43,19 @@ class OwnerEvidenceTests(unittest.TestCase):
             server_sha="a" * 40,
             attempt_time="2026-10-27T05:30:00-07:00",
             destination="192.0.2.10",
+            saved_credential_state="explicit-saved-selected",
+            saved_credential_username="rdp-owner",
+            saved_credential_newly_created="yes",
+            server_client_credentials_intentionally_matched="yes",
             certificate_warning="yes",
             certificate_warning_accepted="yes",
             error_text="Connection failed.",
             core_log_level="Info",
             ui_log_level="Info",
+            logging_started="yes",
+            logging_stopped="yes",
+            linux_connection_id="connection-42",
+            linux_terminal_time="2026-10-27T05:30:07-07:00",
             logs=self.logs,
             logs_unavailable_reason=None,
         )
@@ -68,16 +77,56 @@ class OwnerEvidenceTests(unittest.TestCase):
             log_file.stat().st_size,
         )
         self.assertEqual(before, after)
+        self.assertEqual(manifest["schema"], "rdp-server.macos-windows-app-owner-evidence.v2")
         self.assertEqual(manifest["server_sha"], "a" * 40)
         self.assertEqual(manifest["attempt_time_utc"], "2026-10-27T12:30:00+00:00")
         self.assertEqual(manifest["destination_exact"], "192.0.2.10")
         self.assertEqual(manifest["windows_app"]["version"], "11.4.4")
         self.assertEqual(manifest["windows_app"]["build"], "3132")
+        self.assertEqual(manifest["saved_credential"]["state"], "explicit-saved-selected")
+        self.assertEqual(manifest["saved_credential"]["username_exact"], "rdp-owner")
+        self.assertEqual(manifest["saved_credential"]["newly_created_for_attempt"], "yes")
+        self.assertEqual(
+            manifest["saved_credential"]["server_client_credentials_intentionally_matched"],
+            "yes",
+        )
+        self.assertTrue(manifest["logging"]["started_before_attempt"])
+        self.assertTrue(manifest["logging"]["stopped_after_attempt"])
+        self.assertEqual(manifest["linux_correlation"]["connection_id"], "connection-42")
+        self.assertEqual(
+            manifest["linux_correlation"]["terminal_time_utc"],
+            "2026-10-27T12:30:07+00:00",
+        )
         self.assertEqual(manifest["logging"]["file_count"], 1)
         self.assertEqual(
             manifest["logging"]["files"][0]["sha256"],
             hashlib.sha256(b"same-attempt-log\n").hexdigest(),
         )
+        self.assertNotIn("password", json.dumps(manifest).lower())
+
+    def test_explicit_saved_credential_requires_typed_metadata(self):
+        self.options.saved_credential_username = "not-applicable"
+        with self.assertRaisesRegex(ValueError, "username is required"):
+            evidence.build_manifest(self.options)
+        self.options.saved_credential_username = "rdp-owner"
+        self.options.saved_credential_newly_created = "not-applicable"
+        with self.assertRaisesRegex(ValueError, "newly-created state"):
+            evidence.build_manifest(self.options)
+        self.options.saved_credential_newly_created = "no"
+        self.options.server_client_credentials_intentionally_matched = "not-applicable"
+        with self.assertRaisesRegex(ValueError, "match state"):
+            evidence.build_manifest(self.options)
+
+    def test_ask_when_required_has_no_saved_credential_metadata(self):
+        self.options.saved_credential_state = "ask-when-required-or-none"
+        self.options.saved_credential_username = "not-applicable"
+        self.options.saved_credential_newly_created = "not-applicable"
+        self.options.server_client_credentials_intentionally_matched = "not-applicable"
+        manifest = evidence.build_manifest(self.options)
+        self.assertIsNone(manifest["saved_credential"]["username_exact"])
+        self.options.saved_credential_username = "rdp-owner"
+        with self.assertRaisesRegex(ValueError, "must be not-applicable"):
+            evidence.build_manifest(self.options)
 
     def test_no_warning_requires_not_applicable_acceptance(self):
         self.options.certificate_warning = "no"
@@ -103,13 +152,17 @@ class OwnerEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "symlink"):
             evidence.build_manifest(self.options)
 
-    def test_sha_and_timestamp_are_bounded_and_typed(self):
+    def test_sha_and_timestamps_are_bounded_and_typed(self):
         self.options.server_sha = "short"
         with self.assertRaisesRegex(ValueError, "40 hexadecimal"):
             evidence.build_manifest(self.options)
         self.options.server_sha = "b" * 40
         self.options.attempt_time = "2026-10-27T05:30:00"
         with self.assertRaisesRegex(ValueError, "UTC offset"):
+            evidence.build_manifest(self.options)
+        self.options.attempt_time = "2026-10-27T05:30:00-07:00"
+        self.options.linux_terminal_time = "2026-10-27T05:30:07"
+        with self.assertRaisesRegex(ValueError, "Linux terminal time.*UTC offset"):
             evidence.build_manifest(self.options)
 
 

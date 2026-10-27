@@ -1,15 +1,17 @@
 ## Agent 9 exact-SHA credential-source owner-candidate aggregate (2026-10-27)
 
 The dispatch-only `r9_credssp_owner_candidate` job must consume the existing
-Microsoft credential-semantic artifact and require: correct credential Type 3;
-wrong-password Type 3; missing-credential typed no-Type-3 behavior; recorded
-empty-password Type-3-or-typed behavior; TLS-1.3 server-profile PASS with exact
-TLS 1.3 and Type 3; OEM differential PASS; fixed-name/IP-SPN/bare-IP target
-PASS; native certificate-policy producer PASS; the existing Type-2/peer-EOF
-timing CTest; the post-Type-2 client-data timeline CTest; Start -> Stop ->
-Start; and same-listener failed-peer retry. Exact-SHA protocol, Windows Clang,
-sanitizer, GUI credential-parity and documentation producers must all be green.
-Ordinary-push SKIPPED and queued jobs are not PASS.
+Microsoft credential-source artifact and require the explicit-valid Type-3
+control plus complete observational rows for wrong-password, empty-password
+and unavailable/no-SPNEGO state. It must accept those non-control rows according
+to what Microsoft actually reports, retain the comparison summary and require
+the hosted default/process row to be `NOT_RUN_POLICY`. It also requires the
+TLS-1.3 server-profile PASS with exact TLS 1.3 and Type 3, OEM differential
+PASS, fixed-name/IP-SPN/bare-IP target PASS, certificate-policy producer PASS,
+both Type-2 timing/timeline CTests, Start -> Stop -> Start and same-listener
+failed-peer retry. Exact-SHA protocol, Windows Clang, sanitizer, GUI parity and
+documentation producers must all be green. Ordinary-push SKIPPED and queued
+jobs are not PASS.
 
 The owner-candidate gate must not accept `ORACLE_LIMITATION` for the TLS-1.3
 row and must not nominate the previously conditional TLS-1.2 physical A/B.
@@ -52,30 +54,29 @@ or target-identity failure and must not modify any TLS/CredSSP/NTLM wire state.
 Agent-2's hosted credential-semantic matrix and Agent-10's post-Type-2 timeline
 remain separate qualification gates and are not simulated by this Qt fixture.
 
-## Agent 2 Microsoft credential-semantic differential gate (2026-10-27)
+## Agent 6 primary Microsoft CREDSSP credential-source oracle gate (2026-10-27)
 
-Register Windows-only CTest
+Reuse Windows-only
 `security.windows-credssp-credential-semantic-differential` on the existing
-`test_windows_sspi_credssp_interop` executable. Run four fresh Microsoft
-`CREDSSP` contexts against the same production-backed memory-BIO server path:
-correct credentials, an explicit fixed wrong password, explicit missing SPNEGO
-credentials and an explicit username with an empty password. Never use the CI
-account or default-credential path.
+full-CREDSSP executable. Run fresh contexts for explicit valid username/
+password, explicit wrong password, explicit empty password and explicit
+unavailable/no-SPNEGO. Use the qualified modern Schannel system-default client
+profile; production TLS and Type-2 bytes stay unchanged.
 
-Correct and wrong-password rows PASS only after Type 1, complete production
-Type-2 consumption and a next Microsoft TSRequest containing Type 3. Missing
-credentials must emit no Type 3 and terminate with a typed Microsoft
-credential/policy result, including `SEC_I_INCOMPLETE_CREDENTIALS`. Empty
-password is separate: record Type 3 or a typed Microsoft credential result.
-Server/TLS/DER/no-progress/round-limit failures remain FAIL.
+Each executed row records bounded non-secret AcquireCredentialsHandle status,
+first InitializeSecurityContext status, first TSRequest, Type 1, production
+Type-2 consumption, next client output, Type 3, exact symbolic/hex terminal
+SSPI status and steady-clock elapsed microseconds. Valid must reach Type 3.
+Other rows are observational. No-progress, round-limit or non-Microsoft
+server/TLS/framing failure is FAIL.
 
-Each row emits only credential-state class, Type-1 observation, Type-2
-consumption, Type-3 observation, symbolic/hex Microsoft status and bounded
-stage. The exact-SHA interop artifact preserves all four rows and the manual
-Agent-9 owner-candidate gate consumes them. This hosted semantic matrix is
-independent of Agent 5's same-attempt Windows App saved-credential evidence.
-Never emit passwords, token bytes, challenge/response data, keys or delegated
-credentials.
+Classify a natural Type 1 -> consumed Type 2 -> no Type 3 as
+`POST_TYPE2_NO_TYPE3`; if every non-control row instead emits Type 3 or fails
+before Type 1, publish that negative result. Hosted process/default credentials
+are `NOT_RUN_POLICY` unless an isolated fixture can prove no real runner
+credential access; normal CI must publish
+`hosted-runner-credentials-used=no`.
+
 ## R8 long Await-Type-3 clipboard-dormancy gate (2026-10-27)
 
 The existing production-backed

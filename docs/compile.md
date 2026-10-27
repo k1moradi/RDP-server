@@ -10,18 +10,17 @@ build root. The dedicated
 The canonical owner configure/build/full-CTest command and the single
 `~/rdp-server/build/` contract are unchanged.
 
-## Agent 2 credential-semantic matrix adds no production build surface (2026-10-27)
+## Agent 6 credential-source oracle adds no production build surface (2026-10-27)
 
-The differential reuses Windows-only `test_windows_sspi_credssp_interop`, its
-existing `rdp-server-standalone-ntlmv2`, `rdp-server-runtime-tls`, OpenSSL and
-`secur32` linkage, and the same one-`build/` root. It adds no production source,
-compile definition, package, socket, service, desktop permission, trust-store
-access or install/export surface.
+The matrix reuses Windows-only `test_windows_sspi_credssp_interop`, existing
+OpenSSL/`secur32` linkage, the existing behavior CTest and the one-`build/`
+root. It adds no production source, compile definition, package, socket,
+service, trust-store access or install/export surface.
 
-All four rows use fixed in-memory test identity material. Missing credentials
-use an explicit empty SPNEGO identity rather than process defaults; empty
-password remains an explicit username/domain identity with zero password code
-units. Non-Windows builds do not compile or run this oracle.
+Executed rows use fixed in-memory test material or explicit Schannel-only
+no-SPNEGO configuration. The hosted default/process row is policy-only and
+performs no credential acquisition. Non-Windows builds do not run the oracle.
+
 ## R8 long pre-Type-3 stall reuses the existing runtime test target (2026-10-27)
 
 The long-stall clipboard-dormancy increment changes only the existing

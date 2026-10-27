@@ -448,29 +448,38 @@ jobs:
           fi
           credential_semantic_output='build/r9-credssp-credential-semantics.txt'
           if run_case credssp-credential-semantics security.windows-credssp-credential-semantic-differential "$credential_semantic_output"; then
-            for credential_state in correct wrong-password missing-credentials empty-password; do
+            for credential_state in correct wrong-password empty-password unavailable-no-spnego; do
               credential_line="$(grep -Eo "microsoft-credssp-credential-semantics credential-state=${credential_state} .*" "$credential_semantic_output" | tail -n 1)"
               test -n "$credential_line"
-              grep -Eq 'type1=(yes|no) type2-consumed=(yes|no) type3=(yes|no) microsoft-status=[A-Z0-9_]+' <<< "$credential_line"
+              grep -Eq 'outcome=(TYPE3_EMITTED|FAILED_BEFORE_TYPE1|POST_TYPE2_NO_TYPE3|OTHER_TYPED_TERMINAL)' <<< "$credential_line"
+              grep -Eq 'acquire-status=[A-Z0-9_]+ acquire-code=0x[0-9a-fA-F]{8}' <<< "$credential_line"
+              grep -Eq 'first-isc-called=(yes|no) first-isc-status=[A-Z0-9_]+' <<< "$credential_line"
+              grep -Eq 'first-tsrequest=(yes|no) type1=(yes|no) type2-consumed=(yes|no) next-client-output=(yes|no) type3=(yes|no)' <<< "$credential_line"
+              grep -Eq 'terminal-status=[A-Z0-9_]+ terminal-code=0x[0-9a-fA-F]{8}' <<< "$credential_line"
+              grep -Eq 'elapsed-us=[0-9]+' <<< "$credential_line"
+              grep -Fq 'production-type2-change-authorized=no' <<< "$credential_line"
               printf 'credential-semantic-%s\n' "$credential_line" | tee -a "$result_file"
             done
             correct_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=correct ' "$result_file")"
-            wrong_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=wrong-password ' "$result_file")"
-            missing_credential_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=missing-credentials ' "$result_file")"
-            empty_password_line="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=empty-password ' "$result_file")"
-            grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$correct_credential_line"
-            grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$wrong_credential_line"
-            grep -Fq 'type3=no' <<< "$missing_credential_line"
-            test -n "$empty_password_line"
+            grep -Fq 'outcome=TYPE3_EMITTED' <<< "$correct_credential_line"
+            grep -Fq 'first-tsrequest=yes type1=yes type2-consumed=yes next-client-output=yes type3=yes' <<< "$correct_credential_line"
+
+            default_credential_line="$(grep -Eo 'microsoft-credssp-credential-semantics credential-state=default-credential .*' "$credential_semantic_output" | tail -n 1)"
+            test -n "$default_credential_line"
+            grep -Fq 'outcome=NOT_RUN_POLICY' <<< "$default_credential_line"
+            grep -Fq 'hosted-runner-credentials-used=no' <<< "$default_credential_line"
+            printf 'credential-semantic-%s\n' "$default_credential_line" | tee -a "$result_file"
+
             semantic_summary="$(grep -Eo 'microsoft-credssp-credential-semantics-summary .*' "$credential_semantic_output" | tail -n 1)"
             test -n "$semantic_summary"
-            grep -Fq 'correct=TYPE3 wrong-password=TYPE3 missing-credentials=TYPED_NO_TYPE3' <<< "$semantic_summary"
-            grep -Eq 'empty-password=(TYPE3|TYPED_NO_TYPE3)' <<< "$semantic_summary"
-            grep -Fq 'wrong-password-pretype3-eof-match=no' <<< "$semantic_summary"
+            grep -Fq 'status=PASS correct-control=TYPE3' <<< "$semantic_summary"
+            grep -Eq 'physical-sequence-match=(yes|no)' <<< "$semantic_summary"
+            grep -Eq 'leading-comparison=[^ ]+' <<< "$semantic_summary"
+            grep -Eq 'unavailable-no-spnego-match=(yes|no|inconclusive)' <<< "$semantic_summary"
+            grep -Eq 'all-noncontrol-type3-or-pretype1=(yes|no)' <<< "$semantic_summary"
+            grep -Fq 'default-credential=NOT_RUN_POLICY' <<< "$semantic_summary"
+            grep -Fq 'production-type2-change-authorized=no' <<< "$semantic_summary"
             printf 'credential-semantic-summary-%s\n' "$semantic_summary" | tee -a "$result_file"
-            printf '%s\n' \
-              'credential-semantic-differential=TYPED wrong-password-type3=yes missing-credentials-type3=no wrong-password-pretype3-eof-match=no production-type2-change-authorized=no' \
-              | tee -a "$result_file"
           else
             overall_status=1
           fi
@@ -2316,20 +2325,30 @@ jobs:
           next_physical_tls_mode=production-policy
 
           grep -Fxq 'credssp-credential-semantics=PASS test=security.windows-credssp-credential-semantic-differential' "$matrix_file"
+          for credential_state in correct wrong-password empty-password unavailable-no-spnego; do
+            credential_line="$(grep "^credential-semantic-microsoft-credssp-credential-semantics credential-state=$credential_state " "$matrix_file")"
+            test -n "$credential_line"
+            grep -Eq 'outcome=(TYPE3_EMITTED|FAILED_BEFORE_TYPE1|POST_TYPE2_NO_TYPE3|OTHER_TYPED_TERMINAL)' <<< "$credential_line"
+            grep -Eq 'acquire-status=[A-Z0-9_]+ acquire-code=0x[0-9a-fA-F]{8}' <<< "$credential_line"
+            grep -Eq 'first-isc-called=(yes|no) first-isc-status=[A-Z0-9_]+' <<< "$credential_line"
+            grep -Eq 'first-tsrequest=(yes|no) type1=(yes|no) type2-consumed=(yes|no) next-client-output=(yes|no) type3=(yes|no)' <<< "$credential_line"
+            grep -Eq 'terminal-status=[A-Z0-9_]+ terminal-code=0x[0-9a-fA-F]{8}' <<< "$credential_line"
+            grep -Eq 'elapsed-us=[0-9]+' <<< "$credential_line"
+          done
           correct_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=correct ' "$matrix_file")"
-          wrong_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=wrong-password ' "$matrix_file")"
-          missing_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=missing-credentials ' "$matrix_file")"
-          empty_password="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=empty-password ' "$matrix_file")"
-          grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$correct_credential"
-          grep -Fq 'type1=yes type2-consumed=yes type3=yes' <<< "$wrong_credential"
-          grep -Fq 'type3=no' <<< "$missing_credential"
-          grep -Eq 'microsoft-status=(SEC_[EI]_[A-Z0-9_]+|OTHER)' <<< "$missing_credential"
-          test -n "$empty_password"
+          grep -Fq 'outcome=TYPE3_EMITTED' <<< "$correct_credential"
+          grep -Fq 'first-tsrequest=yes type1=yes type2-consumed=yes next-client-output=yes type3=yes' <<< "$correct_credential"
+          default_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=default-credential ' "$matrix_file")"
+          grep -Fq 'outcome=NOT_RUN_POLICY' <<< "$default_credential"
+          grep -Fq 'hosted-runner-credentials-used=no' <<< "$default_credential"
           semantic_summary="$(grep '^credential-semantic-summary-microsoft-credssp-credential-semantics-summary ' "$matrix_file")"
-          grep -Fq 'correct=TYPE3 wrong-password=TYPE3 missing-credentials=TYPED_NO_TYPE3' <<< "$semantic_summary"
-          grep -Eq 'empty-password=(TYPE3|TYPED_NO_TYPE3)' <<< "$semantic_summary"
-          grep -Fq 'wrong-password-pretype3-eof-match=no' <<< "$semantic_summary"
-          grep -Fxq 'credential-semantic-differential=TYPED wrong-password-type3=yes missing-credentials-type3=no wrong-password-pretype3-eof-match=no production-type2-change-authorized=no' "$matrix_file"
+          grep -Fq 'status=PASS correct-control=TYPE3' <<< "$semantic_summary"
+          grep -Eq 'physical-sequence-match=(yes|no)' <<< "$semantic_summary"
+          grep -Eq 'leading-comparison=[^ ]+' <<< "$semantic_summary"
+          grep -Eq 'unavailable-no-spnego-match=(yes|no|inconclusive)' <<< "$semantic_summary"
+          grep -Eq 'all-noncontrol-type3-or-pretype1=(yes|no)' <<< "$semantic_summary"
+          grep -Fq 'default-credential=NOT_RUN_POLICY' <<< "$semantic_summary"
+          grep -Fq 'production-type2-change-authorized=no' <<< "$semantic_summary"
 
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"

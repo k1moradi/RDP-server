@@ -1,3 +1,27 @@
+## Agent 6 primary Microsoft CREDSSP credential-source oracle correction — 2026-10-27
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `59c0712df4f808bae220ee0721def6b1efccea5e`.
+This correction supersedes fixed wrong/missing outcome expectations in the
+earlier Agent-2 and Agent-9 authoring receipts below while preserving them as
+historical context. Mandatory policy and concurrent work were reconciled first.
+
+The existing full-CREDSSP oracle now uses fresh explicit valid, wrong,
+empty-password and Schannel-only unavailable/no-SPNEGO contexts. Hosted
+default/process credentials are never acquired and are recorded
+`NOT_RUN_POLICY`. Every executed row publishes bounded symbolic/hex
+AcquireCredentialsHandle and first InitializeSecurityContext status, first
+TSRequest, Type 1, production Type-2 consumption, next Microsoft output, Type 3,
+terminal status and elapsed microseconds. Only valid has a prescribed Type-3
+outcome; the other rows are observational.
+
+The exact-SHA artifact and manual owner-candidate gate now consume that
+observational matrix and comparison summary rather than fixed wrong/missing
+results. Connector source/CI review: **PASS by inspection**. Windows-native
+modified-tree build/focused/full CTest: **NOT RUN** here. Exact-publication-SHA
+hosted CI: **PENDING**. Owner assignment baseline remains **998/998 PASS** and
+predates this correction. No production wire or authority change is authorized.
+
 ## Agent 9 credential-source owner-candidate convergence receipt — 2026-10-27
 
 **Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

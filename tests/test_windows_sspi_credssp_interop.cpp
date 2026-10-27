@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -64,7 +65,7 @@ enum class CredSspCredentialState : std::uint8_t
 {
     CorrectPassword,
     WrongPassword,
-    MissingCredentials,
+    UnavailableNoSpnego,
     EmptyPassword,
 };
 
@@ -77,8 +78,8 @@ enum class CredSspCredentialState : std::uint8_t
         return "correct";
     case CredSspCredentialState::WrongPassword:
         return "wrong-password";
-    case CredSspCredentialState::MissingCredentials:
-        return "missing-credentials";
+    case CredSspCredentialState::UnavailableNoSpnego:
+        return "unavailable-no-spnego";
     case CredSspCredentialState::EmptyPassword:
         return "empty-password";
     }
@@ -938,7 +939,7 @@ public:
         : schannelCredentialProfile_(schannelCredentialProfile)
     {
         identity_.Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
-        if (credentialState != CredSspCredentialState::MissingCredentials)
+        if (credentialState != CredSspCredentialState::UnavailableNoSpnego)
         {
             identity_.User = username_.data();
             identity_.UserLength =
@@ -960,9 +961,9 @@ public:
             identity_.PasswordLength =
                 static_cast<unsigned long>(wrongPassword_.size());
             break;
-        case CredSspCredentialState::MissingCredentials:
-            // An explicit empty SPNEGO identity prevents this test from
-            // borrowing the CI process account's default credentials.
+        case CredSspCredentialState::UnavailableNoSpnego:
+            // This row supplies Schannel credentials only. It must never
+            // borrow the hosted process account's default SPNEGO credentials.
             identity_.User = nullptr;
             identity_.UserLength = 0U;
             identity_.Domain = nullptr;
@@ -994,13 +995,19 @@ public:
         modernSchannel_.cTlsParameters = 0U;
         modernSchannel_.pTlsParameters = nullptr;
 
-        credSsp_.Type = CredsspSubmitBufferBoth;
+        credSsp_.Type =
+            credentialState == CredSspCredentialState::UnavailableNoSpnego
+                ? CredsspSchannelCreds
+                : CredsspSubmitBufferBoth;
         credSsp_.pSchannelCred =
             schannelCredentialProfile_ ==
                     SchannelCredentialProfile::ModernSystemDefaults
                 ? static_cast<void *>(&modernSchannel_)
                 : static_cast<void *>(&schannel_);
-        credSsp_.pSpnegoCred = &identity_;
+        credSsp_.pSpnegoCred =
+            credentialState == CredSspCredentialState::UnavailableNoSpnego
+                ? nullptr
+                : static_cast<void *>(&identity_);
     }
 
     ~WindowsCredSspClient()
@@ -3136,45 +3143,213 @@ void printStatus(const char *label, SECURITY_STATUS status) noexcept
         : attempt.lastClientStatus;
 }
 
-[[nodiscard]] bool microsoftCredentialFailureObserved(
-    const FullCredSspAttempt &attempt) noexcept
+[[nodiscard]] bool isCredentialStatus(SECURITY_STATUS status) noexcept
 {
-    const SECURITY_STATUS status = reportedMicrosoftStatus(attempt);
-    const bool credentialStatus =
-        !securityStatusSucceeded(status) ||
-        static_cast<std::uint32_t>(status) == 0x00090320U;
-    if (!credentialStatus)
-        return false;
-
-    if (std::string_view{attempt.stage} == "acquire-credssp")
+    switch (static_cast<std::uint32_t>(status))
+    {
+    case 0x00090320U: // SEC_I_INCOMPLETE_CREDENTIALS
+    case 0x8009030cU: // SEC_E_LOGON_DENIED
+    case 0x8009030dU: // SEC_E_UNKNOWN_CREDENTIALS
+    case 0x8009030eU: // SEC_E_NO_CREDENTIALS
+    case 0x80090311U: // SEC_E_NO_AUTHENTICATING_AUTHORITY
+    case 0x8009035eU: // SEC_E_DELEGATION_POLICY
+    case 0x8009035fU: // SEC_E_POLICY_NLTM_ONLY
         return true;
-
-    const auto isMicrosoftFailure = [](const CredSspPumpResult &pump) {
-        return pump.stopReason == CredSspPumpStopReason::TypedFailure &&
-               std::string_view{pump.failureStage} ==
-                   "memory-bio-microsoft-credssp";
-    };
-    return isMicrosoftFailure(attempt.initialPump) ||
-           isMicrosoftFailure(attempt.nextPump);
+    default:
+        return false;
+    }
 }
 
-void printCredentialSemanticRow(
+struct SecurityStatusObservation final
+{
+    bool observed{};
+    SECURITY_STATUS status{SEC_E_INTERNAL_ERROR};
+};
+
+[[nodiscard]] SecurityStatusObservation firstMicrosoftSspiStatus(
+    const CredSspPumpResult &pump) noexcept
+{
+    for (std::size_t index = 0U; index < pump.iterationCount; ++index)
+    {
+        if (pump.iterations[index].microsoftSspiCalled)
+            return {true, pump.iterations[index].microsoftStatus};
+    }
+    return {};
+}
+
+[[nodiscard]] bool pumpHasHarnessFailure(
+    const CredSspPumpResult &pump) noexcept
+{
+    if (pump.iterationCount == 0U)
+        return false;
+    if (pump.stopReason == CredSspPumpStopReason::NoProgress ||
+        pump.stopReason == CredSspPumpStopReason::RoundLimit)
+    {
+        return true;
+    }
+    return pump.stopReason == CredSspPumpStopReason::TypedFailure &&
+           std::string_view{pump.failureStage} !=
+               "memory-bio-microsoft-credssp";
+}
+
+enum class CredentialSemanticOutcome : std::uint8_t
+{
+    TypeThreeEmitted,
+    FailedBeforeTypeOne,
+    PostTypeTwoNoTypeThree,
+    OtherTypedTerminal,
+    HarnessFailure,
+};
+
+[[nodiscard]] constexpr const char *credentialSemanticOutcomeName(
+    CredentialSemanticOutcome outcome) noexcept
+{
+    switch (outcome)
+    {
+    case CredentialSemanticOutcome::TypeThreeEmitted:
+        return "TYPE3_EMITTED";
+    case CredentialSemanticOutcome::FailedBeforeTypeOne:
+        return "FAILED_BEFORE_TYPE1";
+    case CredentialSemanticOutcome::PostTypeTwoNoTypeThree:
+        return "POST_TYPE2_NO_TYPE3";
+    case CredentialSemanticOutcome::OtherTypedTerminal:
+        return "OTHER_TYPED_TERMINAL";
+    case CredentialSemanticOutcome::HarnessFailure:
+        return "HARNESS_FAILURE";
+    }
+    return "UNKNOWN";
+}
+
+[[nodiscard]] CredentialSemanticOutcome classifyCredentialSemanticOutcome(
     const FullCredSspAttempt &attempt) noexcept
 {
+    if (acceptedNextClientMessage(attempt))
+        return CredentialSemanticOutcome::TypeThreeEmitted;
+
+    if (pumpHasHarnessFailure(attempt.initialPump) ||
+        pumpHasHarnessFailure(attempt.nextPump))
+    {
+        return CredentialSemanticOutcome::HarnessFailure;
+    }
+
+    if (attempt.typeOneObserved &&
+        attempt.productionTypeTwoConsumed &&
+        !attempt.productionObservedTypeThree)
+    {
+        return CredentialSemanticOutcome::PostTypeTwoNoTypeThree;
+    }
+
     const SECURITY_STATUS status = reportedMicrosoftStatus(attempt);
+    if (!attempt.typeOneObserved && isCredentialStatus(status))
+        return CredentialSemanticOutcome::FailedBeforeTypeOne;
+    if (isCredentialStatus(status))
+        return CredentialSemanticOutcome::OtherTypedTerminal;
+
+    return CredentialSemanticOutcome::HarnessFailure;
+}
+
+struct TimedCredentialAttempt final
+{
+    FullCredSspAttempt attempt;
+    std::chrono::microseconds elapsed;
+};
+
+void printCredentialSemanticRow(
+    const TimedCredentialAttempt &timed) noexcept
+{
+    const FullCredSspAttempt &attempt = timed.attempt;
+    const CredentialSemanticOutcome outcome =
+        classifyCredentialSemanticOutcome(attempt);
+    const SECURITY_STATUS terminalStatus =
+        reportedMicrosoftStatus(attempt);
+    const SecurityStatusObservation firstSspi =
+        firstMicrosoftSspiStatus(attempt.initialPump);
+
+    if (firstSspi.observed)
+    {
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-credential-semantics "
+            "credential-state=%s outcome=%s "
+            "acquire-status=%s acquire-code=0x%08lx "
+            "first-isc-called=yes first-isc-status=%s "
+            "first-isc-code=0x%08lx first-tsrequest=%s "
+            "type1=%s type2-consumed=%s next-client-output=%s type3=%s "
+            "microsoft-status=%s code=0x%08lx "
+            "terminal-status=%s terminal-code=0x%08lx "
+            "stage=%s elapsed-us=%lld "
+            "production-type2-change-authorized=no\n",
+            credentialStateName(attempt.credentialState),
+            credentialSemanticOutcomeName(outcome),
+            securityStatusName(attempt.acquireStatus),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(attempt.acquireStatus)),
+            securityStatusName(firstSspi.status),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(firstSspi.status)),
+            attempt.initialClientTsRequestReceived ? "yes" : "no",
+            attempt.typeOneObserved ? "yes" : "no",
+            attempt.productionTypeTwoConsumed ? "yes" : "no",
+            attempt.microsoftNextTokenGenerated ? "yes" : "no",
+            attempt.productionObservedTypeThree ? "yes" : "no",
+            securityStatusName(terminalStatus),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(terminalStatus)),
+            securityStatusName(terminalStatus),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(terminalStatus)),
+            attempt.stage,
+            static_cast<long long>(timed.elapsed.count()));
+        return;
+    }
+
     std::fprintf(
         stderr,
         "microsoft-credssp-credential-semantics "
-        "credential-state=%s type1=%s type2-consumed=%s type3=%s "
-        "microsoft-status=%s code=0x%08lx stage=%s\n",
+        "credential-state=%s outcome=%s "
+        "acquire-status=%s acquire-code=0x%08lx "
+        "first-isc-called=no first-isc-status=NOT_CALLED "
+        "first-isc-code=not-called first-tsrequest=%s "
+        "type1=%s type2-consumed=%s next-client-output=%s type3=%s "
+        "microsoft-status=%s code=0x%08lx "
+        "terminal-status=%s terminal-code=0x%08lx "
+        "stage=%s elapsed-us=%lld "
+        "production-type2-change-authorized=no\n",
         credentialStateName(attempt.credentialState),
+        credentialSemanticOutcomeName(outcome),
+        securityStatusName(attempt.acquireStatus),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(attempt.acquireStatus)),
+        attempt.initialClientTsRequestReceived ? "yes" : "no",
         attempt.typeOneObserved ? "yes" : "no",
         attempt.productionTypeTwoConsumed ? "yes" : "no",
+        attempt.microsoftNextTokenGenerated ? "yes" : "no",
         attempt.productionObservedTypeThree ? "yes" : "no",
-        securityStatusName(status),
+        securityStatusName(terminalStatus),
         static_cast<unsigned long>(
-            static_cast<std::uint32_t>(status)),
-        attempt.stage);
+            static_cast<std::uint32_t>(terminalStatus)),
+        securityStatusName(terminalStatus),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(terminalStatus)),
+        attempt.stage,
+        static_cast<long long>(timed.elapsed.count()));
+}
+
+void printDefaultCredentialPolicyRow() noexcept
+{
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-credential-semantics "
+        "credential-state=default-credential outcome=NOT_RUN_POLICY "
+        "acquire-status=NOT_RUN acquire-code=not-run "
+        "first-isc-called=no first-isc-status=NOT_RUN "
+        "first-isc-code=not-run first-tsrequest=no "
+        "type1=no type2-consumed=no next-client-output=no type3=no "
+        "microsoft-status=NOT_RUN code=not-run "
+        "terminal-status=NOT_RUN terminal-code=not-run "
+        "stage=not-run elapsed-us=not-run "
+        "hosted-runner-credentials-used=no "
+        "production-type2-change-authorized=no\n");
 }
 
 void printFailure(
@@ -3401,65 +3576,107 @@ void printFailure(
 {
     const TargetProfile target = TargetProfile::PortableServerName;
     const auto runState = [target](CredSspCredentialState state) {
-        return runFullCredSspAttempt(
-            target,
-            ChallengeExperiment::Production,
-            SchannelCredentialProfile::LegacySchannelCred,
-            TlsServerProfile::SystemDefault,
-            state);
+        const auto start = std::chrono::steady_clock::now();
+        FullCredSspAttempt attempt =
+            runFullCredSspAttempt(
+                target,
+                ChallengeExperiment::Production,
+                SchannelCredentialProfile::ModernSystemDefaults,
+                TlsServerProfile::SystemDefault,
+                state);
+        const auto elapsed =
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - start);
+        return TimedCredentialAttempt{std::move(attempt), elapsed};
     };
 
-    const FullCredSspAttempt correct =
-        runState(CredSspCredentialState::CorrectPassword);
-    const FullCredSspAttempt wrong =
-        runState(CredSspCredentialState::WrongPassword);
-    const FullCredSspAttempt missing =
-        runState(CredSspCredentialState::MissingCredentials);
-    const FullCredSspAttempt empty =
-        runState(CredSspCredentialState::EmptyPassword);
+    constexpr std::array states{
+        CredSspCredentialState::CorrectPassword,
+        CredSspCredentialState::WrongPassword,
+        CredSspCredentialState::EmptyPassword,
+        CredSspCredentialState::UnavailableNoSpnego};
 
-    printCredentialSemanticRow(correct);
-    printCredentialSemanticRow(wrong);
-    printCredentialSemanticRow(missing);
-    printCredentialSemanticRow(empty);
+    bool harnessValid = true;
+    bool correctControlPassed = false;
+    bool physicalSequenceMatch = false;
+    bool allNonControlTypeThreeOrPreTypeOne = true;
+    const char *leadingComparison = "none";
+    const char *unavailableNoSpnegoMatch = "inconclusive";
 
-    const bool correctQualified = acceptedNextClientMessage(correct);
-    const bool wrongQualified = acceptedNextClientMessage(wrong);
-    const bool missingQualified =
-        !missing.productionObservedTypeThree &&
-        microsoftCredentialFailureObserved(missing);
-    const bool emptyQualified =
-        acceptedNextClientMessage(empty) ||
-        (!empty.productionObservedTypeThree &&
-         microsoftCredentialFailureObserved(empty));
+    for (const CredSspCredentialState state : states)
+    {
+        const TimedCredentialAttempt timed = runState(state);
+        const CredentialSemanticOutcome outcome =
+            classifyCredentialSemanticOutcome(timed.attempt);
+        printCredentialSemanticRow(timed);
 
-    if (!correctQualified)
-        printFailure(target, correct);
-    if (!wrongQualified)
-        printFailure(target, wrong);
-    if (!missingQualified)
-        printFailure(target, missing);
-    if (!emptyQualified)
-        printFailure(target, empty);
+        if (state == CredSspCredentialState::CorrectPassword)
+        {
+            correctControlPassed =
+                outcome == CredentialSemanticOutcome::TypeThreeEmitted;
+            if (!correctControlPassed)
+            {
+                harnessValid = false;
+                printFailure(target, timed.attempt);
+            }
+        }
+        else if (outcome != CredentialSemanticOutcome::TypeThreeEmitted &&
+                 outcome !=
+                     CredentialSemanticOutcome::FailedBeforeTypeOne)
+        {
+            allNonControlTypeThreeOrPreTypeOne = false;
+        }
+
+        if (outcome == CredentialSemanticOutcome::HarnessFailure)
+        {
+            harnessValid = false;
+            printFailure(target, timed.attempt);
+        }
+
+        if (outcome ==
+            CredentialSemanticOutcome::PostTypeTwoNoTypeThree)
+        {
+            if (!physicalSequenceMatch)
+                leadingComparison = credentialStateName(state);
+            physicalSequenceMatch = true;
+        }
+
+        if (state == CredSspCredentialState::UnavailableNoSpnego)
+        {
+            unavailableNoSpnegoMatch =
+                outcome ==
+                        CredentialSemanticOutcome::PostTypeTwoNoTypeThree
+                    ? "yes"
+                    : (outcome ==
+                           CredentialSemanticOutcome::TypeThreeEmitted ||
+                       outcome ==
+                           CredentialSemanticOutcome::FailedBeforeTypeOne)
+                        ? "no"
+                        : "inconclusive";
+        }
+    }
+
+    // Hosted process/default credentials are deliberately not exercised:
+    // doing so could consume the runner account's real credential material.
+    printDefaultCredentialPolicyRow();
 
     std::fprintf(
         stderr,
         "microsoft-credssp-credential-semantics-summary "
-        "correct=%s wrong-password=%s missing-credentials=%s "
-        "empty-password=%s wrong-password-pretype3-eof-match=%s "
+        "status=%s correct-control=%s "
+        "physical-sequence-match=%s leading-comparison=%s "
+        "unavailable-no-spnego-match=%s "
+        "all-noncontrol-type3-or-pretype1=%s "
+        "default-credential=NOT_RUN_POLICY "
         "production-type2-change-authorized=no\n",
-        correctQualified ? "TYPE3" : "FAIL",
-        wrongQualified ? "TYPE3" : "FAIL",
-        missingQualified ? "TYPED_NO_TYPE3" : "FAIL",
-        acceptedNextClientMessage(empty)
-            ? "TYPE3"
-            : emptyQualified ? "TYPED_NO_TYPE3" : "FAIL",
-        wrongQualified ? "no" : "unresolved");
+        harnessValid ? "PASS" : "FAIL",
+        correctControlPassed ? "TYPE3" : "FAIL",
+        physicalSequenceMatch ? "yes" : "no",
+        leadingComparison,
+        unavailableNoSpnegoMatch,
+        allNonControlTypeThreeOrPreTypeOne ? "yes" : "no");
 
-    return correctQualified &&
-           wrongQualified &&
-           missingQualified &&
-           emptyQualified;
+    return harnessValid;
 }
 
 } // namespace

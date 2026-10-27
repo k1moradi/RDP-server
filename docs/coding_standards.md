@@ -8,14 +8,15 @@ test-only `ORACLE_LIMITATION` may remain useful diagnostic evidence, but it is
 not sufficient for this physical candidate and must not reactivate a TLS-1.2
 production cap or physical A/B workaround.
 
-Consume the existing credential-semantic differential, owner-private Windows
+Consume the existing credential-source differential, owner-private Windows
 App evidence and post-Type-2 timeline; do not add a second credential,
-transport or parser owner. Correct/wrong/missing/empty test states remain
-evidence only. In particular, wrong-password Type-3 emission proves that the
-current physical pre-Type-3 EOF is not the same boundary as server rejection of
-a wrong Session Password. Missing/empty outcomes and post-Type-2 byte/timing
-observations may narrow client policy, but none grants authentication,
-Admission, MCS, Share, graphics, input or clipboard authority.
+transport or parser owner. Only the explicit-valid row has a prescribed
+Type-3 outcome. Wrong-password, empty-password and unavailable/no-SPNEGO
+states remain observational. If wrong password emits Type 3 that is useful
+negative evidence; if any state naturally consumes production Type 2 and then
+emits no Type 3, that row becomes a leading physical comparison. No outcome
+grants authentication, Admission, MCS, Share, graphics, input or clipboard
+authority.
 
 The next owner receipt must preserve secrets by recording only Saved-credential
 selection, username, and the yes/no fact that its password matched the server
@@ -56,33 +57,27 @@ data. Do not infer that fact from absence of Type 3 or from the older physical
 receipt. This Agent-7 increment intentionally leaves the optional waiting text
 unchanged.
 
-## Agent 2 credential-state differentials are test-only and never borrow process credentials (2026-10-27)
+## Agent 6 credential-source differentials are test-only, observational and non-secret (2026-10-27)
 
-The Windows Microsoft full-CREDSSP oracle may vary only its test-supplied SPNEGO
-credential state while reusing the existing production generated certificate,
-TLS/TSRequest path, Direct-NTLM acceptor and unchanged production Type 2. Every
-credential-state row owns a fresh `CREDSSP` credential/context. Correct uses
-the existing fixed test identity; wrong-password changes only that fixed test
-password. Missing credentials supply an explicit `SEC_WINNT_AUTH_IDENTITY_W`
-with no username, domain or password instead of a null authentication-data path
-that could borrow the CI process account. Empty password supplies the explicit
-test username/domain and a non-null password address with zero UTF-16 code units.
+Vary only test-supplied outbound Microsoft credential source while reusing the
+production generated certificate, TLS/TSRequest path, Direct-NTLM acceptor and
+unchanged production Type 2. Every executed row owns a fresh Microsoft CREDSSP
+context. Valid, wrong-password and empty-password rows use fixed test material.
+Unavailable/no-SPNEGO uses Schannel-only `CREDSSP_CRED` with
+`pSpnegoCred == nullptr`; it must not silently borrow process credentials.
 
-Credential semantics are evidence, not authentication authority. A wrong
-password that still causes Microsoft to emit NTLM Type 3 proves only that
-wrong-password handling occurs after the physical client's current pre-Type-3
-boundary; server response verification is later. For missing/empty credentials,
-retain the exact symbolic and hexadecimal Microsoft status.
-`SEC_I_INCOMPLETE_CREDENTIALS` is a typed credential outcome even though it is
-informational. No-progress, round-limit, TLS/server framing and harness
-failures are not credential-policy evidence.
+Hosted default/process credentials must not run when doing so could consume the
+runner account's real credential material. Record `NOT_RUN_POLICY` and
+`hosted-runner-credentials-used=no` instead.
 
-Never log any test password, NTLM challenge/response material, session keys,
-delegated credential bytes or process/account credentials. This differential
-complements the owner-private Windows App credential evidence; neither can
-change Type-2 flags, TargetName, TargetInfo, MsvAvTargetName, certificate
-identity, TLS policy or downstream authority. Production remains
+Do not prescribe wrong/empty/unavailable outcomes. Record
+AcquireCredentialsHandle, first InitializeSecurityContext, first TSRequest,
+Type 1, production Type-2 consumption, next client output, Type 3, terminal
+status and monotonic elapsed time. A natural Type-1 -> Type-2-consumed ->
+no-Type-3 outcome is diagnostic evidence, not authority. Never log credential
+bytes, NTLM responses, keys or delegated credentials. Production remains
 `fixed-name / RDP-SERVER`.
+
 ## Agent 5 physical Windows App credential evidence is private and non-authorizing (2026-10-27)
 
 The macOS Windows App owner-evidence path may record only the bounded client facts

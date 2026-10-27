@@ -1,3 +1,11 @@
+## CREDSSP credential-source elapsed time is diagnostic only (2026-10-27)
+
+Per-row `elapsed-us` is a steady-clock duration from fresh test-context
+construction to that row's terminal oracle boundary. It is not a latency
+benchmark, timeout recommendation, client-performance comparison or
+authorization signal. Do not derive percentile or retry policy from these
+single synthetic observations.
+
 ## Pre-Type-3 diagnostic timings are not performance benchmarks (2026-10-27)
 
 The fail-only Type-2 creation-to-delivery age, Type-2-to-peer-EOF age,

@@ -51,19 +51,24 @@ the independent server-side control and writes the three row receipts into the
 existing Agent-9 Microsoft interop artifact. Configure/build/focused/full
 commands continue to use the one checkout-local `build/` root.
 
-## R10 pre-Type-3 timing diagnostics add no build surface (2026-10-27)
+## R10 post-Type-2 timeline diagnostics add no build surface (2026-10-27)
 
-The timing increment changes only the existing Linux runtime connection/
-HostControl sources and shared read-only status structure. It uses the already
-included C++23 `<chrono>` facilities and adds no library, dependency, compile
-definition, production target, install/export surface or runtime switch.
+The timeline increment changes only the existing R1 native TCP/BIO owner,
+Linux runtime connection/HostControl sources and shared read-only status
+structure. R1 exposes one cumulative receive-byte scalar from its already-owned
+native receive path; R10 snapshots/differences it without adding a socket,
+reader, parser, thread or dependency. Existing C++23 `<chrono>` timing and the
+existing CredSSP TSRequest reader provide the remaining observations.
 
 The dedicated
-`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` CTest is another
-mode of the existing `test_linux_runtime_direct_ntlm_lifecycle` executable.
-Configure, build, focused tests and full CTest continue to use the one canonical
-checkout-local `build/` root. No R9 focused-selector count is changed by this
-R10 increment.
+`runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics`
+CTest is another mode of the existing
+`test_linux_runtime_direct_ntlm_lifecycle` executable. The earlier
+`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` remains
+registered. Configure, build, focused tests and full CTest continue to use the
+one canonical checkout-local `build/` root. No production target, install or
+export surface, compile definition, package dependency, runtime switch or R9
+focused-selector count is added.
 
 ## Windows NTLM OEM differential reuses the existing SSPI oracle target (2026-10-27)
 

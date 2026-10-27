@@ -120,7 +120,7 @@ limitation with the independent production-context TLS-1.3 CTest. Never cap
 production at TLS 1.2, alter certificate CN/SAN or mutate Type-2 identity to
 make a test profile green.
 
-## R10 pre-Type-3 timing diagnostics are monotonic and non-authorizing (2026-10-27)
+## R10 post-Type-2 timeline diagnostics are monotonic and non-authorizing (2026-10-27)
 
 The exact accepted Linux runtime connection owns one `std::chrono::steady_clock`
 pre-auth origin. For Direct NTLM, R10 latches the Type-2 creation observation
@@ -130,21 +130,34 @@ reports complete accepted plaintext and releases that reply. The
 creation-to-delivery age is recorded once in microseconds and never recomputed
 from status polling.
 
-On terminal R1 `PeerEof` during pre-auth, the same connection latches elapsed
-time from its own accepted lifetime exactly once. Missing observations and a
-valid sub-microsecond zero are distinguished by explicit availability flags.
-Both timings are diagnostics only: they never alter the pre-auth deadline,
-CredSSP state, authentication result, native Admission, MCS, Share, graphics,
-input or clipboard authority.
+At that exact delivery boundary, R10 snapshots the read-only cumulative native
+receive-byte count exposed by the sole R1 socket/BIO owner. The existing
+CredSSP reader may later compare that monotonically increasing count with the
+snapshot to latch the first post-Type-2 client TLS-byte age once. Do not peek
+the socket, add another recv/BIO/TLS reader, parse TLS records, or retain packet
+contents. The same existing TSRequest reader supplies its already-bounded
+decrypted plaintext byte count and increments a complete-TSRequest scalar only
+when one whole DER frame completes. These observations are diagnostic evidence
+only; raw TLS activity alone does not imply a complete CredSSP request.
 
-The event-loop owner is serialized; do not add atomics, wall-clock timestamps,
-a second timer owner or a parallel authentication state machine for these
-fields. Fail-only output may print only the bounded scalar durations and their
-availability. Never log challenge bytes, passwords, Type-3 response material,
-session keys or delegated data. A peer EOF after delivered Type 2 remains
-`AuthenticationIncompletePeerClosed`, and every immediate retry starts a
-fresh connection-local timing lifetime while retaining only the independently
-owned listener, target tuple, owner grant and Session Password.
+On terminal R1 `PeerEof` during pre-auth, the same connection latches both
+total pre-auth elapsed time and, when Type 2 was delivered, Type-2-delivery to
+peer-EOF elapsed time exactly once. Missing observations and a valid
+sub-microsecond zero are distinguished by explicit availability flags. The
+event-loop owner is serialized; do not add atomics, wall-clock timestamps, a
+second timer owner or a parallel authentication state machine. Bounded counters
+must saturate rather than wrap.
+
+Fail-only output may print only the bounded scalar durations, availability,
+post-Type-2 plaintext-byte count and complete-TSRequest count. Never log TLS
+record contents, TSRequest bytes, challenge bytes, passwords, Type-3 response
+material, session keys or delegated data. A peer EOF after delivered Type 2
+remains `AuthenticationIncompletePeerClosed`, never wrong-password or native
+Admission failure. Every immediate retry starts a fresh connection-local
+timeline while retaining only the independently owned listener, target tuple,
+owner grant and Session Password. Production remains `fixed-name / RDP-SERVER`;
+these diagnostics cannot authorize a TLS, certificate, TargetName, TargetInfo,
+MsvAvTargetName or credential-policy change.
 
 ## Test-only Microsoft NTLM response-bit differentials preserve the exact challenge payload (2026-10-27)
 

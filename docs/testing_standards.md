@@ -110,31 +110,43 @@ VERSION `6.0.6001/0x0f`, no supplied domain/workstation, and Type 2
 `0xe08a8235`. This matrix is qualification evidence only and never permits a
 production TLS cap or identity/Type-2 change.
 
-## R10 Type-2 delivery and peer-EOF timing gate (2026-10-27)
+## R10 post-Type-2 client-data timeline gate (2026-10-27)
 
 The production-backed CTest
-`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` reuses the real
-LAN listener, HYBRID/TLS, Direct-NTLM CredSSP and R1 TLS-write path. While each
-peer is waiting for Type 3, require a latched Type-2 creation-to-delivery age
-and no peer-EOF elapsed value. After peer EOF, require both values to be
-available and the total connection-local pre-auth elapsed time to be at least
-the Type-2 creation-to-delivery age.
+`runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics` continues to
+reuse the real LAN listener, HYBRID/TLS, Direct-NTLM CredSSP and R1 TLS-write
+path. While a quiet peer waits for Type 3, require a latched Type-2
+creation-to-delivery age, no peer-EOF timings, no post-Type-2 client TLS-byte
+observation, zero post-Type-2 plaintext bytes and zero complete TSRequests.
+After peer EOF, require both total pre-auth elapsed and Type-2-to-peer-EOF
+elapsed to be available while the client-data observations remain absent/zero.
 
-Drive two consecutive peers on the same listener. The second accepted client
-must have a distinct opaque connection ID and a fresh EOF timing lifetime
-(unavailable while it remains open), while listener generation, current owner
-grant, Session Password generation and fixed TERMSRV / `RDP-SERVER` target
-tuple remain unchanged. Both peers remain PreAdmission with no Type 3,
-CredentialsVerified, native Admission, MCS, Share, graphics or clipboard
-authority, and terminal peer EOF remains
+Register the additional production-backed CTest
+`runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics` on
+the same `test_linux_runtime_direct_ntlm_lifecycle` executable. Peer 1 is the
+quiet Type-2/EOF control. Peer 2 is accepted immediately on the same listener
+with a fresh connection ID and timeline, then sends one encrypted TLS
+application-data record containing only the first byte of a DER TSRequest
+before closing. Require first post-Type-2 client TLS-byte timing available,
+exactly one post-Type-2 plaintext byte, zero complete post-Type-2 TSRequests,
+and first-client-data age no later than Type-2-to-peer-EOF age. Do not infer
+authentication or parse a second stream from that partial byte.
+
+The existing malformed-Type-3 rejection path separately proves that a complete
+post-Type-2 TSRequest increments the complete-frame scalar and remains a real
+authentication rejection. The quiet peer still remains
 `AuthenticationIncompletePeerClosed`, never `AuthenticationRejected`.
+For both retry cases, Sharing remains ON, listener generation, fixed TERMSRV /
+`RDP-SERVER` target tuple, owner grant and Session Password generation remain
+unchanged, and the second accepted connection starts with fresh EOF/timeline
+state. No terminal credential revocation is permitted for the incomplete peer
+close.
 
-The existing pre-auth projection fixture also pins missing/zero timing defaults
-and exact scalar projection. Do not assert performance thresholds or sleep to
-manufacture a minimum duration; these are diagnostic timestamps, not benchmark
-results. The existing R9 sanitizer execution of the Type-2/EOF production
-fixture continues to exercise the same timing code path; R9 retains ownership
-of focused CI selector cardinalities.
+All rows remain PreAdmission unless their pre-existing test intentionally sends
+Type 3. Do not assert performance thresholds or sleep to manufacture a minimum
+duration; these timestamps are lifecycle diagnostics, not benchmark results.
+No packet/TSRequest contents are logged, and the existing R9 sanitizer selector
+cardinalities remain owned by R9.
 
 ## Microsoft NTLM OEM-omission differential gate (2026-10-27)
 

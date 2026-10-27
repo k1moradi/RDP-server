@@ -308,43 +308,72 @@ Windows App client evidence and pre-Type-3 environment/timing diagnostics.
 step are **PASS**. The remainder of the full exact-SHA hosted workflow was
 still running when this evidence was recorded.
 
-## Agent 10 P0 supporting — pre-Type-3 connection timing diagnostics (2026-10-27)
+## Agent 10 P0 supporting — post-Type-2 client-data timeline diagnostics (2026-10-27)
 
-**Authoring parent:** `936a9a443ceb223f84e82d9e2d18dbfb1a451482`. Current `main` and all mandatory project
-guidance were re-read after the current concurrent diagnostics/qualification
-publications. The shared physical boundary already recorded below remains TLS
-1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN certificate ->
-Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f` -> unchanged
-production Type 2 `0xe08a8235` fully committed -> Await-Type-3 -> peer EOF.
-Type 3 and all downstream authority remain **NOT REACHED**; the physical
-handoff is not promoted to exact-SHA acceptance.
+**Assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`; remote
+`main` matched that SHA at assignment start. Before publication this increment
+was reconciled onto the then-current shared `main`, preserving concurrent
+R3/R4/R8 and credential-semantics diagnosis/assurance work, and all mandatory
+project guidance was re-read. The owner-reported physical Linux/X11 handoff
+remains TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN generated
+certificate -> Direct NTLM Type 1 `0xe2088235`, VERSION
+`6.0.6001/0x0f`, no supplied domain/workstation -> unchanged production
+Type 2 `0xe08a8235` fully committed -> Await-Type-3 -> peer EOF. The reported
+timings are `type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3, pubKeyAuth, authInfo,
+CredentialsVerified, native Admission, MCS, Share, graphics, X11 and clipboard
+remain **NOT REACHED**. The owner also reports the assignment-parent local
+suite at **998/998 CTest PASS**; that is baseline evidence, not validation of
+this new increment.
 
-R10 adds only two connection-local, non-secret monotonic observations: Type-2
-challenge creation-to-R1-delivery age and pre-auth elapsed time latched at real
-peer EOF. The Type-2 start point is R10's first observation of the existing
-R2-created `NegoReplyQueued` challenge; delivery remains the exact R1 TLS
-accepted-byte completion. Values are immutable diagnostic scalars with
-availability flags and are printed only in the existing fail-only terminal
-record. No challenge bytes, password, Type-3 response or session key is stored
-or logged.
+Independent Microsoft evidence already rules out malformed production Type 2,
+fixed-name versus IP target identity, current TargetName/TargetInfo,
+missing MsvAvTargetName, current exact-IP SAN shape, TLS 1.3 by itself and the
+physical/hosted OEM response-bit difference. Microsoft full CredSSP reaches
+Type 3 over TLS 1.2 and TLS 1.3 / `TLS_AES_256_GCM_SHA384`, and for fixed,
+TERMSRV/IP and bare-IP target profiles. Production therefore remains exactly
+`fixed-name / RDP-SERVER`. The current primary hypothesis class is client-side
+withholding or aborting of credential delegation after Type 2; a wrong Session
+Password alone is **not demonstrated** because physical Type 3 was not sent.
 
-Production remains exactly `fixed-name / RDP-SERVER`; TargetName, TargetInfo,
-MsvAvTargetName, generated certificate CN/SAN, native Admission, MCS, Share,
-graphics and clipboard are unchanged. Peer EOF after delivered Type 2 remains
-`AuthenticationIncompletePeerClosed`. The production-backed two-peer timing
-gate requires listener generation, target tuple, owner grant and Session
-Password to survive peer 1 while peer 2 receives a fresh connection/timing
-lifetime immediately.
+R10 extends only the existing connection-local monotonic diagnostic owner. At
+the exact existing Type-2 delivery receipt it snapshots R1's new read-only
+cumulative native receive-byte scalar. The sole existing CredSSP reader later
+uses that delta to latch first post-Type-2 client TLS-byte timing, while its
+ordinary bounded results accumulate post-Type-2 plaintext bytes and complete
+TSRequest count. Real peer EOF additionally latches Type-2-delivery to peer-EOF
+time. There is no socket peek, duplicate recv/BIO/TLS reader, TLS-record parser,
+packet-content retention or second authentication state machine.
+
+The fail-only terminal line reports only
+`type2-to-peer-eof-us`, post-Type-2 client-data availability/first-byte age,
+complete TSRequest count and plaintext-byte count beside the existing timing
+facts. A quiet Type-2/EOF remains
+`AuthenticationIncompletePeerClosed`, not wrong-password or Admission
+failure. Peer 1 does not revoke the credential: Sharing/listener, target tuple,
+owner grant and Session Password generation stay current; peer 2 receives a new
+opaque connection ID and fresh timeline.
+
+**Authored coverage:** new behavior CTest
+`runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics`
+drives a quiet first peer and a second peer that sends one partial DER plaintext
+byte after Type 2, proving TLS/plaintext activity without a complete TSRequest.
+The existing malformed-Type-3 rejection path additionally requires one complete
+post-Type-2 TSRequest. Concurrent R8's bounded Await-Type-3 dormancy hold stays
+unchanged in its existing test mode.
 
 **Validation at authoring:** connector source/transformation and ownership-path
-review **PASS by inspection**. Canonical owner one-`build/`
+review **PASS by inspection**. Changed-code canonical one-`build/`
 configure/build/focused/full CTest: **NOT RUN** in this connector environment.
 Exact-publication-SHA hosted CI: **PENDING**.
 
-**Next gate:** exact-publication-SHA hosted compile/full CTest. A later
-owner-authorized physical receipt may record the two new scalar timings at the
-same Await-Type-3/EOF boundary; timing differences alone do not authorize an
-identity or wire change.
+**Next gate:** exact-publication-SHA hosted compile/full CTest plus the two
+timeline behavior cases. Only after that may an owner-authorized same-attempt
+physical receipt record the new terminal fields alongside the supported Windows
+App client-side evidence. Use those facts to distinguish no post-Type-2 client
+data, partial/decrypted data and a complete TSRequest before considering any
+server-wire change; do not reopen the already-ruled-out server hypotheses
+without new evidence.
 
 ## Agent 2 P0 supporting — exact physical NTLM OEM-response differential (2026-10-27)
 

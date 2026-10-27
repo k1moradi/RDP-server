@@ -1,19 +1,21 @@
 ## Pre-Type-3 diagnostic timings are not performance benchmarks (2026-10-27)
 
-The fail-only Type-2 creation-to-delivery age and connection-local pre-auth
-elapsed-at-peer-EOF values are single-attempt lifecycle diagnostics. They are
-not latency SLAs, throughput measurements, percentile samples or evidence that
-one client/TLS version is faster than another. No production timeout, retry,
-authentication or identity decision may depend on them.
+The fail-only Type-2 creation-to-delivery age, Type-2-to-peer-EOF age,
+first-post-Type-2-client-TLS-byte age, connection-local pre-auth
+elapsed-at-peer-EOF value, post-Type-2 plaintext-byte count and complete
+TSRequest count are single-attempt lifecycle diagnostics. They distinguish
+where one authentication exchange stopped; they are not latency SLAs,
+throughput measurements, percentile samples or evidence that one client/TLS
+version is faster than another. No production timeout, retry, authentication,
+credential or identity decision may depend on them.
 
-Do not publish p50/p95/p99 or optimization claims from these terminal values.
-The R8 production-backed clipboard-dormancy fixture deliberately holds an
-Await-Type-3 peer for 1500 ms before EOF; that interval is test scheduling,
-not a measured client latency, production timeout or performance target. It
-deliberately does not mirror the observed 7,586,602 us physical peer-EOF
-sample. Any future performance comparison must use the benchmark methodology
-below, fixed workloads and repeated samples; real-client benchmarking remains
-a separately authorized activity.
+Do not publish p50/p95/p99, bandwidth or optimization claims from these
+terminal values. A missing first-client-data observation is evidence that the
+existing server receive path consumed no post-Type-2 TLS bytes before the
+terminal boundary, not a network-performance measurement. Any future
+performance comparison must use the benchmark methodology below, fixed
+workloads and repeated samples; real-client benchmarking remains a separately
+authorized activity.
 
 # Benchmark standards — reliable native RDP-server measurements
 

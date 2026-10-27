@@ -880,6 +880,18 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         source.preauthElapsedAtPeerEofAvailable;
     projected.preauthElapsedAtPeerEofMicroseconds =
         source.preauthElapsedAtPeerEofMicroseconds;
+    projected.directNtlmTypeTwoToPeerEofAvailable =
+        source.directNtlmTypeTwoToPeerEofAvailable;
+    projected.directNtlmTypeTwoToPeerEofMicroseconds =
+        source.directNtlmTypeTwoToPeerEofMicroseconds;
+    projected.postTypeTwoFirstClientTlsByteAvailable =
+        source.postTypeTwoFirstClientTlsByteAvailable;
+    projected.postTypeTwoFirstClientTlsByteMicroseconds =
+        source.postTypeTwoFirstClientTlsByteMicroseconds;
+    projected.postTypeTwoCompleteTsRequestCount =
+        source.postTypeTwoCompleteTsRequestCount;
+    projected.postTypeTwoPlaintextBytes =
+        source.postTypeTwoPlaintextBytes;
 
     using SourcePreauth = rdp_server::server::transport::PreauthStage;
     switch (source.preauthStage)
@@ -2899,6 +2911,13 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "pre-type3-termination=%.*s "
                 "preauth-peer-eof-elapsed-us=%llu "
                 "preauth-peer-eof-elapsed-available=%s "
+                "type2-to-peer-eof-us=%llu "
+                "type2-to-peer-eof-available=%s "
+                "post-type2-client-data=%s "
+                "post-type2-first-client-data-us=%llu "
+                "post-type2-first-client-data-available=%s "
+                "post-type2-complete-tsrequest-count=%llu "
+                "post-type2-plaintext-bytes=%llu "
                 "ntlm-type1-flags=0x%08x ntlm-version-present=%s "
                 "ntlm-version=%u.%u.%u ntlm-revision=0x%02x "
                 "ntlm-type2-flags=0x%08x "
@@ -2952,6 +2971,27 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                         .preauthElapsedAtPeerEofMicroseconds),
                 acceptedClientPreauthDiagnostics_.preauthElapsedAtPeerEofAvailable
                     ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .directNtlmTypeTwoToPeerEofMicroseconds),
+                acceptedClientPreauthDiagnostics_
+                        .directNtlmTypeTwoToPeerEofAvailable
+                    ? "yes" : "no",
+                acceptedClientPreauthDiagnostics_
+                        .postTypeTwoFirstClientTlsByteAvailable
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoFirstClientTlsByteMicroseconds),
+                acceptedClientPreauthDiagnostics_
+                        .postTypeTwoFirstClientTlsByteAvailable
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoCompleteTsRequestCount),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoPlaintextBytes),
                 static_cast<unsigned int>(
                     ntlmChallenge.clientNegotiateFlags),
                 acceptedClientPreauthDiagnostics_.ntlmTypeOne.versionPresent

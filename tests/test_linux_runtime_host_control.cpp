@@ -419,6 +419,12 @@ int main(int argc, char** argv)
         assert(projected.directNtlmTypeTwoCreationToDeliveryMicroseconds == 0U);
         assert(!projected.preauthElapsedAtPeerEofAvailable);
         assert(projected.preauthElapsedAtPeerEofMicroseconds == 0U);
+        assert(!projected.directNtlmTypeTwoToPeerEofAvailable);
+        assert(projected.directNtlmTypeTwoToPeerEofMicroseconds == 0U);
+        assert(!projected.postTypeTwoFirstClientTlsByteAvailable);
+        assert(projected.postTypeTwoFirstClientTlsByteMicroseconds == 0U);
+        assert(projected.postTypeTwoCompleteTsRequestCount == 0U);
+        assert(projected.postTypeTwoPlaintextBytes == 0U);
         assert(projected.preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
 
@@ -446,6 +452,12 @@ int main(int argc, char** argv)
         source.directNtlmTypeTwoCreationToDeliveryMicroseconds = 321U;
         source.preauthElapsedAtPeerEofAvailable = true;
         source.preauthElapsedAtPeerEofMicroseconds = 654U;
+        source.directNtlmTypeTwoToPeerEofAvailable = true;
+        source.directNtlmTypeTwoToPeerEofMicroseconds = 333U;
+        source.postTypeTwoFirstClientTlsByteAvailable = true;
+        source.postTypeTwoFirstClientTlsByteMicroseconds = 111U;
+        source.postTypeTwoCompleteTsRequestCount = 2U;
+        source.postTypeTwoPlaintextBytes = 444U;
         source.credSspTransition = SourceCredSsp::Closed;
         source.standaloneAuthenticationFailureStage =
             SourceFailure::NtlmNegotiation;
@@ -494,6 +506,12 @@ int main(int argc, char** argv)
             assert(projected.directNtlmTypeTwoCreationToDeliveryMicroseconds == 321U);
             assert(projected.preauthElapsedAtPeerEofAvailable);
             assert(projected.preauthElapsedAtPeerEofMicroseconds == 654U);
+            assert(projected.directNtlmTypeTwoToPeerEofAvailable);
+            assert(projected.directNtlmTypeTwoToPeerEofMicroseconds == 333U);
+            assert(projected.postTypeTwoFirstClientTlsByteAvailable);
+            assert(projected.postTypeTwoFirstClientTlsByteMicroseconds == 111U);
+            assert(projected.postTypeTwoCompleteTsRequestCount == 2U);
+            assert(projected.postTypeTwoPlaintextBytes == 444U);
             assert(projected.authenticationStage ==
                    RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
             assert(projected.protocolStage ==

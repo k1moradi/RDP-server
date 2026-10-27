@@ -1,3 +1,48 @@
+## Agent 10 post-Type-2 client-data timeline authoring receipt — 2026-10-27
+
+**Assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Remote
+`main` matched exactly at assignment start. This publication was reconciled
+onto the then-current shared `main` without discarding concurrent R3/R4/R8 or
+credential-semantics work, and all mandatory project policy was re-read.
+
+The owner-reported physical boundary is unchanged: production Type 2
+`0xe08a8235` is fully committed, then the client remains Await-Type-3 and
+closes with no Type 3. Reported assignment-handoff timings are
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`; downstream credentials, Admission,
+MCS, Share, graphics, X11 and clipboard are not reached. The reported parent
+suite is **998/998 CTest PASS** and is baseline evidence only.
+
+This increment keeps `LinuxRuntimeConnection` as the sole timeline/CredSSP
+owner and R1 as the sole native socket/BIO/TLS owner. R1 exposes only a
+read-only cumulative native receive-byte scalar. R10 snapshots it at the exact
+existing Type-2 delivery boundary, latches first post-Type-2 client TLS-byte
+age from a later delta, accumulates plaintext bytes returned by the existing
+TSRequest reader, counts only complete DER TSRequests, and latches
+Type-2-delivery to real peer-EOF elapsed time. No TLS record or TSRequest
+content is retained or logged, no second transport/parser/state owner exists,
+and no timeout/authentication/identity behavior depends on these observations.
+
+Dedicated behavior CTest:
+`runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics`.
+It preserves the existing two-peer listener/owner/Session-Password/target
+retry invariant, proves a quiet first peer has no post-Type-2 client-data
+observation, and proves a second peer's one-byte partial DER request produces a
+first-client-data timing and one plaintext byte but zero complete TSRequests.
+The existing malformed-Type-3 rejection path separately pins one complete
+post-Type-2 TSRequest. Peer EOF after Type 2 remains
+`AuthenticationIncompletePeerClosed`; production stays
+`fixed-name / RDP-SERVER`. Concurrent R8's 1500 ms dormancy hold remains in
+its dedicated pre-Type-3 test mode and is not reused as a timing threshold.
+
+Connector source/transformation and ownership review: **PASS by inspection**.
+Canonical owner one-`build/` changed-code configure/build/focused/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. Next gate is hosted compile/full CTest on the publication SHA,
+followed by owner-authorized same-attempt physical/client evidence; the new
+timeline is diagnostic and does not authorize a wire or credential-policy
+change.
+
 ## Agent 2 Microsoft credential-semantic differential authoring receipt — 2026-10-27
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

@@ -126,8 +126,16 @@ public:
         std::span<std::uint8_t> destination) noexcept override;
     [[nodiscard]] TcpIoResult send(
         std::span<const std::uint8_t> source) noexcept override;
+    // Cumulative bytes accepted from the native receive path. This is
+    // transport-owner diagnostic state only; it never grants protocol or
+    // authentication authority and is never reset during the connection.
+    [[nodiscard]] std::uint64_t receivedBytes() const noexcept
+    {
+        return receivedBytes_;
+    }
 private:
     std::uintptr_t socket_{};
+    std::uint64_t receivedBytes_{};
 };
 
 struct TcpAcceptResult;
@@ -471,6 +479,13 @@ private:
      [[nodiscard]] TcpConnectionTermination termination() const noexcept
      {
          return termination_;
+     }
+     // Read-only cumulative native receive count from the sole R1 socket/BIO
+     // owner. Higher layers may snapshot/difference it for diagnostics only;
+     // they must not infer protocol framing or authorization from this scalar.
+     [[nodiscard]] std::uint64_t receivedTransportBytes() const noexcept
+     {
+         return io_.receivedBytes();
      }
      [[nodiscard]] TlsHandshakeDiagnostics tlsHandshakeDiagnostics()
          const noexcept

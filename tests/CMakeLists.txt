@@ -631,6 +631,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # Distinguish a quiet post-Type-2 peer from raw TLS/plaintext progress
+    # without parsing a second transport stream or changing authentication.
+    add_test(
+        NAME runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-client-data-timeline-diagnostics)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # One Start-scoped endpoint/service identity must survive a rejected peer
     # and an immediate second attempt without changing the current fixed Type-2
     # server name or widening retirement to the listener/credential/owner grant.

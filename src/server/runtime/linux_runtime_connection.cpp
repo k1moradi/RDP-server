@@ -40,6 +40,18 @@ namespace
     return elapsed > 0 ? static_cast<std::uint64_t>(elapsed) : 0U;
 }
 
+void addBoundedDiagnosticCount(
+    std::uint64_t& total, std::size_t increment) noexcept
+{
+    const std::uint64_t increment64 =
+        static_cast<std::uint64_t>(increment);
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    total = increment64 > maximum - total
+        ? maximum
+        : total + increment64;
+}
+
 template <std::size_t Size>
 [[nodiscard]] std::size_t copyPrintableDiagnosticText(
     std::array<char, Size> &destination,
@@ -792,6 +804,18 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         preauthElapsedAtPeerEofAvailable_;
     snapshot.preauthElapsedAtPeerEofMicroseconds =
         preauthElapsedAtPeerEofMicroseconds_;
+    snapshot.directNtlmTypeTwoToPeerEofAvailable =
+        directNtlmTypeTwoToPeerEofAvailable_;
+    snapshot.directNtlmTypeTwoToPeerEofMicroseconds =
+        directNtlmTypeTwoToPeerEofMicroseconds_;
+    snapshot.postTypeTwoFirstClientTlsByteAvailable =
+        postTypeTwoFirstClientTlsByteAvailable_;
+    snapshot.postTypeTwoFirstClientTlsByteMicroseconds =
+        postTypeTwoFirstClientTlsByteMicroseconds_;
+    snapshot.postTypeTwoCompleteTsRequestCount =
+        postTypeTwoCompleteTsRequestCount_;
+    snapshot.postTypeTwoPlaintextBytes =
+        postTypeTwoPlaintextBytes_;
 
     if (!connection_.active())
         snapshot.tlsHandshakeStage =
@@ -1546,6 +1570,25 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             standaloneNtlmChallengeObservation_ = challenge;
     };
 
+    const auto observePostTypeTwoClientTlsActivity = [this]() noexcept {
+        if (!directNtlmTypeTwoDelivered_ ||
+            !directNtlmTypeTwoDeliveredAt_.has_value() ||
+            postTypeTwoFirstClientTlsByteAvailable_)
+        {
+            return;
+        }
+        if (connection_.receivedTransportBytes() <=
+            directNtlmTypeTwoTransportBytesAtDelivery_)
+        {
+            return;
+        }
+        postTypeTwoFirstClientTlsByteMicroseconds_ =
+            elapsedMicroseconds(
+                *directNtlmTypeTwoDeliveredAt_,
+                std::chrono::steady_clock::now());
+        postTypeTwoFirstClientTlsByteAvailable_ = true;
+    };
+
     auto fail = [&](Step status, std::size_t bytesRead = 0U,
                     std::size_t bytesWritten = 0U) noexcept {
         using FailureStage = rdp_server::server::security::
@@ -1558,12 +1601,23 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         if (status == Step::Closed && !connection_.active() &&
             connection_.termination() ==
                 rdp_server::server::transport::
-                    TcpConnectionTermination::PeerEof &&
-            !preauthElapsedAtPeerEofAvailable_)
+                    TcpConnectionTermination::PeerEof)
         {
-            preauthElapsedAtPeerEofMicroseconds_ = elapsedMicroseconds(
-                preauthStartedAt_, std::chrono::steady_clock::now());
-            preauthElapsedAtPeerEofAvailable_ = true;
+            const auto peerEofAt = std::chrono::steady_clock::now();
+            if (!preauthElapsedAtPeerEofAvailable_)
+            {
+                preauthElapsedAtPeerEofMicroseconds_ = elapsedMicroseconds(
+                    preauthStartedAt_, peerEofAt);
+                preauthElapsedAtPeerEofAvailable_ = true;
+            }
+            if (directNtlmTypeTwoDeliveredAt_.has_value() &&
+                !directNtlmTypeTwoToPeerEofAvailable_)
+            {
+                directNtlmTypeTwoToPeerEofMicroseconds_ =
+                    elapsedMicroseconds(
+                        *directNtlmTypeTwoDeliveredAt_, peerEofAt);
+                directNtlmTypeTwoToPeerEofAvailable_ = true;
+            }
         }
 
         captureNegotiationEnvelope();
@@ -1632,15 +1686,19 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                 // Complete means the exact R1 TLS write path accepted every
                 // plaintext byte. releaseReply() above also revalidated the
                 // transport generation, SSL identity and selected certificate.
+                const auto deliveredAt =
+                    std::chrono::steady_clock::now();
                 if (directNtlmTypeTwoCreatedAt_.has_value() &&
                     !directNtlmTypeTwoCreationToDeliveryAgeAvailable_)
                 {
                     directNtlmTypeTwoCreationToDeliveryMicroseconds_ =
                         elapsedMicroseconds(
-                            *directNtlmTypeTwoCreatedAt_,
-                            std::chrono::steady_clock::now());
+                            *directNtlmTypeTwoCreatedAt_, deliveredAt);
                     directNtlmTypeTwoCreationToDeliveryAgeAvailable_ = true;
                 }
+                directNtlmTypeTwoTransportBytesAtDelivery_ =
+                    connection_.receivedTransportBytes();
+                directNtlmTypeTwoDeliveredAt_ = deliveredAt;
                 directNtlmTypeTwoDelivered_ = true;
                 authenticationProgress_ =
                     LinuxRuntimeAuthenticationProgress::NtlmChallenge;
@@ -1678,7 +1736,11 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         rdp_server::server::security::TsRequestFrameStatus::NeedMore)
     {
         const auto read = credSspFrameReader_.readOneTlsStep(connection_);
+        observePostTypeTwoClientTlsActivity();
         bytesRead = read.plaintextBytesRead;
+        if (directNtlmTypeTwoDelivered_ && bytesRead > 0U)
+            addBoundedDiagnosticCount(
+                postTypeTwoPlaintextBytes_, bytesRead);
         switch (read.status)
         {
         case ReadStatus::Progress:
@@ -1688,6 +1750,9 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         case ReadStatus::NeedWrite:
             return {0U, 0U, Step::NeedWrite};
         case ReadStatus::Complete:
+            if (directNtlmTypeTwoDelivered_)
+                addBoundedDiagnosticCount(
+                    postTypeTwoCompleteTsRequestCount_, 1U);
             break;
         case ReadStatus::Closed:
             return fail(connection_.active() ? Step::Invalid : Step::Closed,

@@ -894,7 +894,8 @@ struct PeerResult final
     std::string_view address,
     std::uint16_t port,
     std::atomic<bool>& typeTwoReceived,
-    std::atomic<bool>& closeAfterTypeTwo) noexcept
+    std::atomic<bool>& closeAfterTypeTwo,
+    ByteSpan postTypeTwoPlaintext = {}) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -924,6 +925,11 @@ struct PeerResult final
 
     result.directTypeTwoReceived = true;
     result.serverChallenge = challenge->challenge;
+    if (!postTypeTwoPlaintext.empty() &&
+        !client.writeFrame(postTypeTwoPlaintext))
+    {
+        return result;
+    }
     typeTwoReceived.store(true, std::memory_order_release);
     result.passed = waitForRelease(closeAfterTypeTwo);
     return result;
@@ -1333,6 +1339,9 @@ int main(int argc, char** argv)
     const bool typeTwoTimingDiagnosticsOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-timing-diagnostics";
+    const bool postTypeTwoTimelineDiagnosticsOnly =
+        testCase ==
+            "direct-ntlm-post-type2-client-data-timeline-diagnostics";
     const bool typeTwoTimeoutOnly =
         testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
     const bool peerCloseClassificationOnly =
@@ -1342,7 +1351,8 @@ int main(int argc, char** argv)
         testCase ==
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
-        !typeTwoTimingDiagnosticsOnly && !typeTwoTimeoutOnly &&
+        !typeTwoTimingDiagnosticsOnly &&
+        !postTypeTwoTimelineDiagnosticsOnly && !typeTwoTimeoutOnly &&
         !peerCloseClassificationOnly && !targetIdentityRetryOnly)
     {
         return 2;
@@ -1530,6 +1540,7 @@ int main(int argc, char** argv)
     }
 
     if (typeTwoPeerEofOnly || typeTwoTimingDiagnosticsOnly ||
+        postTypeTwoTimelineDiagnosticsOnly ||
         peerCloseClassificationOnly || targetIdentityRetryOnly)
     {
         std::atomic<bool> typeTwoReceived{false};
@@ -1579,6 +1590,14 @@ int main(int argc, char** argv)
                    .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
         assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
                     .preauthElapsedAtPeerEofAvailable);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .directNtlmTypeTwoToPeerEofAvailable);
+        assert(!waitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .postTypeTwoFirstClientTlsByteAvailable);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .postTypeTwoCompleteTsRequestCount == 0U);
+        assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
+                   .postTypeTwoPlaintextBytes == 0U);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
@@ -1680,6 +1699,14 @@ int main(int argc, char** argv)
                    .preauthElapsedAtPeerEofMicroseconds >=
                afterTypeTwoEof.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoCreationToDeliveryMicroseconds);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoToPeerEofAvailable);
+        assert(!afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                    .postTypeTwoFirstClientTlsByteAvailable);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .postTypeTwoCompleteTsRequestCount == 0U);
+        assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .postTypeTwoPlaintextBytes == 0U);
         assert(afterTypeTwoEof.acceptedClientPreauthDiagnostics.protocolStage ==
                RuntimeAcceptedClientProtocolStage::PreAdmission);
         assert(!afterTypeTwoEof.acceptedClientPreauthDiagnostics
@@ -1741,6 +1768,12 @@ int main(int argc, char** argv)
                    RuntimeAcceptedClientAdmissionFailureReason::None);
             assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
                        .directNtlmTypeTwoDelivered);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoFirstClientTlsByteAvailable);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPlaintextBytes > 0U);
+            assert(afterRejectedTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoCompleteTsRequestCount == 1U);
             assert(control.standaloneApplicationPasswordObservation().generation ==
                    credential.generation);
 
@@ -1781,15 +1814,39 @@ int main(int argc, char** argv)
         std::atomic<bool> closeRetryAfterTypeTwo{false};
         std::atomic<bool> retryPeerFinished{false};
         PeerResult retryTypeTwoResult;
+        constexpr std::array<std::uint8_t, 1> kPartialPostTypeTwoRequest{
+            0x30U};
         std::thread retryTypeTwoPeer([&] {
             retryTypeTwoResult = runDirectTypeTwoThenClosePeer(
                 recommendation.address, selectedPort,
-                retryTypeTwoReceived, closeRetryAfterTypeTwo);
+                retryTypeTwoReceived, closeRetryAfterTypeTwo,
+                postTypeTwoTimelineDiagnosticsOnly
+                    ? ByteSpan{kPartialPostTypeTwoRequest}
+                    : ByteSpan{});
             retryPeerFinished.store(true, std::memory_order_release);
         });
 
         assert(pumpUntilPeerSignal(
             control, retryTypeTwoReceived, retryPeerFinished));
+        if (postTypeTwoTimelineDiagnosticsOnly)
+        {
+            const auto deadline =
+                std::chrono::steady_clock::now() + std::chrono::seconds{8};
+            while (std::chrono::steady_clock::now() < deadline)
+            {
+                const auto status = control.status();
+                if (status.acceptedClientPreauthDiagnostics
+                        .postTypeTwoFirstClientTlsByteAvailable &&
+                    status.acceptedClientPreauthDiagnostics
+                        .postTypeTwoPlaintextBytes > 0U)
+                {
+                    break;
+                }
+                assert(!retryPeerFinished.load(std::memory_order_acquire));
+                (void)control.serviceOnce();
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+            }
+        }
         const auto retryWaitingForTypeThree = control.status();
         assert(retryWaitingForTypeThree.listenerAvailable);
         assert(retryWaitingForTypeThree.listenerGeneration ==
@@ -1836,6 +1893,26 @@ int main(int argc, char** argv)
                    .directNtlmTypeTwoCreationToDeliveryAgeAvailable);
         assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                     .preauthElapsedAtPeerEofAvailable);
+        assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                    .directNtlmTypeTwoToPeerEofAvailable);
+        if (postTypeTwoTimelineDiagnosticsOnly)
+        {
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoFirstClientTlsByteAvailable);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPlaintextBytes == 1U);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoCompleteTsRequestCount == 0U);
+        }
+        else
+        {
+            assert(!retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                        .postTypeTwoFirstClientTlsByteAvailable);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPlaintextBytes == 0U);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoCompleteTsRequestCount == 0U);
+        }
         assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                    .preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
@@ -1870,6 +1947,21 @@ int main(int argc, char** argv)
                    .preauthElapsedAtPeerEofMicroseconds >=
                afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoCreationToDeliveryMicroseconds);
+        assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                   .directNtlmTypeTwoToPeerEofAvailable);
+        if (postTypeTwoTimelineDiagnosticsOnly)
+        {
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoFirstClientTlsByteAvailable);
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoFirstClientTlsByteMicroseconds <=
+                   afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .directNtlmTypeTwoToPeerEofMicroseconds);
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPlaintextBytes == 1U);
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoCompleteTsRequestCount == 0U);
+        }
         assert(afterRetryTypeTwoEof.activeClients.empty());
         assert(afterRetryTypeTwoEof.listenerGeneration ==
                firstListenerGeneration);
@@ -1885,7 +1977,8 @@ int main(int argc, char** argv)
             afterRetryTypeTwoEof, recommendation.address, selectedPort,
             firstListenerGeneration);
 
-        if (!typeTwoPeerEofOnly && !typeTwoTimingDiagnosticsOnly)
+        if (!typeTwoPeerEofOnly && !typeTwoTimingDiagnosticsOnly &&
+            !postTypeTwoTimelineDiagnosticsOnly)
         {
             // The target-identity case keeps its existing positive synthetic
             // retry. The dedicated Type-2/EOF dormancy case ends above this

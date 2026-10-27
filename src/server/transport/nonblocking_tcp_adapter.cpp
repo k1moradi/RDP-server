@@ -1236,9 +1236,18 @@ TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept
                                destination.data(), requested, 0);
     if (result < 0) return nativeFailure();
 #endif
-    return result == 0 ? TcpIoResult{TcpIoOutcome::EndOfStream, 0}
-                       : TcpIoResult{TcpIoOutcome::Progress,
-                                     static_cast<std::size_t>(result)};
+    if (result == 0)
+        return {TcpIoOutcome::EndOfStream, 0};
+
+    const auto received = static_cast<std::size_t>(result);
+    const std::uint64_t received64 = static_cast<std::uint64_t>(received);
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    receivedBytes_ =
+        received64 > maximum - receivedBytes_
+            ? maximum
+            : receivedBytes_ + received64;
+    return {TcpIoOutcome::Progress, received};
 }
 
 TcpIoResult NativeTcpIo::send(std::span<const std::uint8_t> source) noexcept

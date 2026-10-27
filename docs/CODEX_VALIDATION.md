@@ -1,3 +1,49 @@
+## Agent 9 credential-source owner-candidate convergence receipt — 2026-10-27
+
+**Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled authoring parent:** `773855d854729f233f129345dec81f1968294879`.
+Mandatory policy was re-read after the concurrent Agent-3/4/8 containment,
+Agent-5 Windows App credential-evidence, Agent-2 Microsoft
+credential-semantic, Agent-10 post-Type-2 timeline and Agent-7 credential
+guidance commits.
+
+Agent 9 adds no production or duplicate credential implementation. The current
+Microsoft oracle already owns correct, wrong-password, explicit missing and
+empty-password test states and the exact-SHA artifact; the owner-evidence helper
+already owns Saved-credential/Core/UI-log capture; the runtime connection
+already owns post-Type-2 byte/timing diagnostics. This increment tightens only
+the manual candidate gate, workflow structure sentinels and canonical evidence
+contract.
+
+The manual gate now requires the TLS-1.3 row to be **PASS** with negotiated TLS
+1.3 and observed Type 3; `ORACLE_LIMITATION` is insufficient for physical
+nomination. It requires the existing credential-semantic rows, both
+Type-2/peer-EOF timing and post-Type-2 client-data timeline CTest
+registrations, and fixes the next physical TLS mode to production policy. The
+receipt contract is expanded to the owner-required 13 fields, including full
+CTest, Saved-credential selection, credential username, password-match yes/no
+without the password, same-attempt Core/UI logs and exact user-visible error.
+
+The assignment SHA's required producer dependencies were inspected green before
+concurrent publication, while its ordinary-push owner-candidate job was
+correctly **SKIPPED**. The available GitHub connector has no workflow-dispatch
+creation action, so no manual PASS is claimed. On reconciled parent
+`773855d854729f233f129345dec81f1968294879`, structure run
+`40535715544` is **PASS** and main CI run `40535715631` was **QUEUED** at
+authoring; that parent was therefore not yet eligible for the manual aggregate.
+
+**Authoring validation:** current source/workflow transformation review
+**PASS by inspection**. Canonical owner one-`build/`
+configure/build/full CTest for this increment: **NOT RUN** here.
+Exact-publication-SHA hosted CI: **PENDING**. Physical Windows App retry:
+**NOT RUN**. Production TLS, certificate, TargetName/TargetInfo/
+MsvAvTargetName, Type-2 bytes, Admission, MCS, Share, graphics, input and
+clipboard remain unchanged.
+
+**Next gate:** require exact-publication-SHA producers green, explicitly
+dispatch `r9_credssp_owner_candidate=true`, and accept no physical retry until
+that manual aggregate passes.
+
 ## Agent 7 remote-client credential guidance authoring receipt — 2026-10-27
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

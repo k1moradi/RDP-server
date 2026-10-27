@@ -1,3 +1,31 @@
+## Agent 9 exact-SHA credential-source owner-candidate aggregate (2026-10-27)
+
+The dispatch-only `r9_credssp_owner_candidate` job must consume the existing
+Microsoft credential-semantic artifact and require: correct credential Type 3;
+wrong-password Type 3; missing-credential typed no-Type-3 behavior; recorded
+empty-password Type-3-or-typed behavior; TLS-1.3 server-profile PASS with exact
+TLS 1.3 and Type 3; OEM differential PASS; fixed-name/IP-SPN/bare-IP target
+PASS; native certificate-policy producer PASS; the existing Type-2/peer-EOF
+timing CTest; the post-Type-2 client-data timeline CTest; Start -> Stop ->
+Start; and same-listener failed-peer retry. Exact-SHA protocol, Windows Clang,
+sanitizer, GUI credential-parity and documentation producers must all be green.
+Ordinary-push SKIPPED and queued jobs are not PASS.
+
+The owner-candidate gate must not accept `ORACLE_LIMITATION` for the TLS-1.3
+row and must not nominate the previously conditional TLS-1.2 physical A/B.
+TLS 1.3 is already independently qualified through Type 3 with the physical
+cipher; the next physical attempt uses production TLS policy.
+
+The physical receipt must begin with `git rev-parse HEAD` before build/test
+and include: the full CTest result; complete Linux server terminal block;
+Windows App version/build; destination exactly as entered; explicit Saved
+credential selected yes/no; credential username;
+password-matched-to-server-Session-Password yes/no without the password;
+certificate warning shown/accepted yes/no; same-attempt Windows App Core/UI
+logs; exact user-visible Windows App error; and an offset-aware attempt
+timestamp. A receipt missing any one of these fields cannot authorize a server
+change.
+
 ## R7 remote-client credential guidance gate (2026-10-27)
 
 Register `gui.offscreen-rdp-client-credential-guidance` on the existing

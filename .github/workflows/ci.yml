@@ -2311,14 +2311,9 @@ jobs:
           test -n "$tls_differential"
           grep -Fq 'physical-tls=TLSv1.3' <<< "$tls_differential"
           grep -Fq 'production-tls-change-authorized=no' <<< "$tls_differential"
+          grep -Fq 'tls13-external-oracle=PASS' <<< "$tls_differential"
+          grep -Fq 'tls12-only-physical-ab=NOT_JUSTIFIED' <<< "$tls_differential"
           next_physical_tls_mode=production-policy
-          if grep -Fq 'tls13-external-oracle=PASS' <<< "$tls_differential"; then
-            grep -Fq 'tls12-only-physical-ab=NOT_JUSTIFIED' <<< "$tls_differential"
-          else
-            grep -Eq 'tls13-external-oracle=(NOT_QUALIFIED|FAIL)' <<< "$tls_differential"
-            grep -Fq 'tls12-only-physical-ab=JUSTIFIED' <<< "$tls_differential"
-            next_physical_tls_mode=diagnostic-tls12-only-ab
-          fi
 
           grep -Fxq 'credssp-credential-semantics=PASS test=security.windows-credssp-credential-semantic-differential' "$matrix_file"
           correct_credential="$(grep '^credential-semantic-microsoft-credssp-credential-semantics credential-state=correct ' "$matrix_file")"
@@ -2343,7 +2338,7 @@ jobs:
           grep -Fxq 'server-production-tls13=PASS test=runtime.generated-tls-context-negotiates-tls13' "$matrix_file"
           grep -Fxq 'credssp-tls-system-default=PASS test=security.windows-credssp-tls-system-default' "$matrix_file"
           grep -Fxq 'credssp-tls12-only-server=PASS test=security.windows-credssp-tls12-only-server' "$matrix_file"
-          grep -Eq '^credssp-tls13-only-server=(PASS|ORACLE_LIMITATION) test=security[.]windows-credssp-tls13-only-server$' "$matrix_file"
+          grep -Fxq 'credssp-tls13-only-server=PASS test=security.windows-credssp-tls13-only-server' "$matrix_file"
           tls_default_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=system-default ' "$matrix_file")"
           tls12_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls12-only ' "$matrix_file")"
           tls13_receipt="$(grep '^microsoft-credssp-tls-version-matrix profile=tls13-only ' "$matrix_file")"
@@ -2352,15 +2347,9 @@ jobs:
           grep -Fq 'schannel=SCHANNEL_CRED status=PASS negotiated-tls=TLS1.2' <<< "$tls12_receipt"
           grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls12_receipt"
           grep -Fq 'schannel=SCH_CREDENTIALS-system-defaults' <<< "$tls13_receipt"
-          grep -Eq 'status=(PASS|ORACLE_LIMITATION)' <<< "$tls13_receipt"
+          grep -Fq 'status=PASS negotiated-tls=TLS1.3' <<< "$tls13_receipt"
           grep -Fq 'physical-reference-tls=TLS1.3 physical-reference-cipher=TLS_AES_256_GCM_SHA384' <<< "$tls13_receipt"
-          if grep -Fq 'status=PASS' <<< "$tls13_receipt"; then
-            grep -Fq 'negotiated-tls=TLS1.3' <<< "$tls13_receipt"
-            grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls13_receipt"
-          else
-            grep -Fq 'status=ORACLE_LIMITATION negotiated-tls=none' <<< "$tls13_receipt"
-            grep -Fq 'first-tsrequest=no type1=no type2-committed=no next-tsrequest=no type3=no' <<< "$tls13_receipt"
-          fi
+          grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls13_receipt"
           type1_profile="$(grep '^credssp-fixed-name-microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER ' "$matrix_file")"
           test -n "$type1_profile"
           grep -Fq 'physical-type1-flags=0xe2088235' <<< "$type1_profile"
@@ -2397,6 +2386,8 @@ jobs:
           grep -Fq 'runtime.start-stop-start-and-tls-interop' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-connection-target-identity-retained-across-peer-retry' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics' tests/CMakeLists.txt
           grep -Fq 'runtime.generated-tls-identity-owner-ipv4-san-der' tests/CMakeLists.txt
           grep -Fq 'runtime.generated-tls-context-negotiates-tls13' tests/CMakeLists.txt
           grep -Fq 'runtime.rejects-tls-credentials-client-only-certificate' tests/CMakeLists.txt
@@ -2423,25 +2414,25 @@ jobs:
           test -f docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md
           printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
           printf 'NEXT PHYSICAL TLS MODE: %s\n' "$next_physical_tls_mode"
-          if [[ "$next_physical_tls_mode" == diagnostic-tls12-only-ab ]]; then
-            printf '%s\n' \
-              'TLS 1.2 A/B IS DIAGNOSTIC ONLY: TLS version is the one deliberately changed property.' \
-              'The experiment must be standards-compliant, reversible and owner-evidence-controlled; it must not create a permanent user setting or a product-acceptance claim.'
-          fi
           printf 'NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:\n'
           printf 'git rev-parse HEAD\n'
           printf 'expected exact SHA: %s\n' "$GITHUB_SHA"
           printf '%s\n' \
             'NEXT PHYSICAL EVIDENCE BUNDLE REQUIRED:' \
-            '1. exact SHA from the initial git rev-parse HEAD' \
-            '2. complete Linux terminal failure block from the same attempt' \
-            '3. Windows App version/build from the same attempt' \
-            '4. Windows App client-side connection log from the same attempt' \
-            '5. whether Windows App showed a certificate warning' \
-            '6. whether that certificate warning was accepted' \
-            '7. destination string exactly as entered in Windows App' \
-            '8. exact Windows App client error text and offset-aware attempt timestamp' \
-            '9. TLS mode used: production-policy or the explicitly qualified diagnostic TLS-1.2-only A/B'
+            '1. exact SHA from the initial git rev-parse HEAD before build/test' \
+            '2. full CTest result' \
+            '3. complete Linux server terminal block from the same attempt' \
+            '4. Windows App version/build from the same attempt' \
+            '5. destination string exactly as entered in Windows App' \
+            '6. explicit Saved credential selected yes/no' \
+            '7. credential username; never record the password' \
+            '8. password matched to the server Session Password yes/no; never record the password' \
+            '9. whether Windows App showed a certificate warning' \
+            '10. whether that certificate warning was accepted' \
+            '11. same-attempt Windows App Core/UI logs' \
+            '12. exact user-visible Windows App error' \
+            '13. offset-aware attempt timestamp' \
+            'TLS mode is fixed by this gate to production-policy.'
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.

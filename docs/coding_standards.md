@@ -1,3 +1,28 @@
+## Agent 9 owner-candidate qualification cannot reopen ruled-out wire hypotheses (2026-10-27)
+
+The manual physical-candidate gate is stricter than an individual diagnostic
+oracle. Because independent Microsoft evidence already reaches Type 3 over TLS
+1.3 / `TLS_AES_256_GCM_SHA384`, Agent 9 requires the TLS-1.3 full-CREDSSP row
+to be PASS with Type 3 before nominating another owner attempt. A future
+test-only `ORACLE_LIMITATION` may remain useful diagnostic evidence, but it is
+not sufficient for this physical candidate and must not reactivate a TLS-1.2
+production cap or physical A/B workaround.
+
+Consume the existing credential-semantic differential, owner-private Windows
+App evidence and post-Type-2 timeline; do not add a second credential,
+transport or parser owner. Correct/wrong/missing/empty test states remain
+evidence only. In particular, wrong-password Type-3 emission proves that the
+current physical pre-Type-3 EOF is not the same boundary as server rejection of
+a wrong Session Password. Missing/empty outcomes and post-Type-2 byte/timing
+observations may narrow client policy, but none grants authentication,
+Admission, MCS, Share, graphics, input or clipboard authority.
+
+The next owner receipt must preserve secrets by recording only Saved-credential
+selection, username, and the yes/no fact that its password matched the server
+Session Password. Never record the password. Require same-attempt Core/UI logs
+and exact client-visible error before interpreting peer EOF. Production remains
+`fixed-name / RDP-SERVER`.
+
 ## R7 remote-client credential guidance is presentation-only (2026-10-27)
 
 The standalone GUI may explain that its Username and Session Password are the

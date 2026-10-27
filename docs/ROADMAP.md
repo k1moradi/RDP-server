@@ -1,3 +1,82 @@
+## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
+
+**Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled authoring parent:** `773855d854729f233f129345dec81f1968294879`.
+Current mandatory policy was re-read after concurrent Agent-3/4/8 containment,
+Agent-5 physical Windows App credential evidence, Agent-2 Microsoft
+credential-semantic qualification, Agent-10 post-Type-2 timeline diagnostics
+and Agent-7 client-credential guidance landed. The owner-reported
+assignment-parent Linux/X11 baseline remains **998/998 CTest PASS**; it is not
+modified-tree evidence.
+
+The physical boundary is unchanged: TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN generated certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> production Type 2 `0xe08a8235` fully committed ->
+Await-Type-3 -> peer EOF. The measured diagnostics remain
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and
+clipboard are **NOT REACHED**.
+
+The ruled-out wire hypotheses stay closed: malformed Type 2, fixed-name versus
+IP target identity, current TargetName/TargetInfo, missing MsvAvTargetName,
+current exact-IP SAN shape, TLS 1.3 itself and the physical/hosted OEM
+response-bit difference. Microsoft independently reaches Type 3 over TLS 1.2
+and TLS 1.3 / `TLS_AES_256_GCM_SHA384`, across fixed-name, TERMSRV/IP and
+bare-IP targets, and with the isolated OEM response bit omitted. Production
+therefore remains exactly `fixed-name / RDP-SERVER`.
+
+Concurrent Agent 2 supplies the hosted credential-source differential in the
+existing Microsoft full-CREDSSP oracle. Correct and wrong-password rows must
+reach Type 3; missing credentials must stop without Type 3 at a typed Microsoft
+credential/policy boundary; empty password records either Type 3 or a typed
+credential result. Concurrent Agent 5 supplies the owner-private Windows App
+Saved-credential/Core/UI-log evidence path. Concurrent Agent 10 supplies the
+production post-Type-2 first-client-data/TSRequest/timing timeline. Agent 9
+consumes these existing owners rather than duplicating any of them.
+
+The dispatch-only `r9_credssp_owner_candidate` gate now requires a positive
+TLS-1.3 Type-3 oracle; `ORACLE_LIMITATION` is no longer sufficient to
+nominate a physical attempt and the older conditional TLS-1.2 physical A/B
+path is superseded. The candidate also requires the credential-semantic
+artifact rows, OEM and target matrices, certificate-policy producers, both
+production Type-2/peer-EOF timing and post-Type-2 client-data timeline CTests,
+Start -> Stop -> Start, same-listener failed-peer retry and all existing
+exact-SHA protocol/Clang/sanitizer/GUI/documentation producers. A skipped
+ordinary-push candidate job remains **NOT PASS**.
+
+The assignment SHA's required producer set was inspected green before the
+concurrent publications, while its ordinary-push owner-candidate job was
+correctly **SKIPPED**. The connected GitHub action surface available to this
+agent does not expose workflow-dispatch creation, so
+`r9_credssp_owner_candidate=true` could not honestly be dispatched. For
+reconciled parent `773855d854729f233f129345dec81f1968294879`, structure
+workflow `40535715544` is **PASS** while main CI workflow `40535715631` was
+still **QUEUED** at authoring, so that SHA was not yet dispatch-eligible.
+Do not substitute a skipped or queued job for the manual aggregate.
+
+The next physical receipt is incomplete unless it begins with
+`git rev-parse HEAD` before build/test and records all of: full CTest result;
+complete Linux server terminal block; Windows App version/build; exact
+destination; explicit Saved credential selected yes/no; credential username;
+password matched to the server Session Password yes/no without recording the
+password; certificate warning shown yes/no; warning accepted yes/no;
+same-attempt Windows App Core/UI logs; exact user-visible Windows App error;
+and offset-aware attempt timestamp. The next physical TLS mode is
+**production-policy**.
+
+**Authoring validation:** current-main reconciliation and CI/source-contract
+review **PASS by inspection**. Canonical one-`build/` modified-tree
+configure/build/full CTest is **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI is **PENDING**.
+
+**Next gate:** exact-publication-SHA producer PASS, then explicit
+`workflow_dispatch` with `r9_credssp_owner_candidate=true` from a GitHub
+Actions surface that supports dispatch. Only a green manual aggregate may
+nominate the credential-controlled physical Windows App attempt; server EOF
+alone authorizes no production wire change.
+
 ## Agent 7 P1 — explicit remote-client credential guidance (2026-10-27)
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

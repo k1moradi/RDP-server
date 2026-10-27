@@ -63,7 +63,8 @@ be diagnostic, but it does not satisfy this credential-controlled next gate.
 
 1. On the Linux server, begin the owner receipt with `git rev-parse HEAD`
    before build/test, as required by the Agent-9 owner-candidate gate. Record
-   that exact 40-character SHA.
+   that exact 40-character SHA, then complete the canonical full CTest run and
+   record its full result before starting the physical connection attempt.
 2. On the Mac, close any active Windows App connection. Record the destination
    exactly as it will be entered; do not normalize an IP address, hostname,
    service prefix or whitespace after the attempt.
@@ -88,9 +89,11 @@ location.
 
 Record all of the following from that one attempt:
 
+- full CTest result for the exact server SHA recorded before the attempt;
 - Windows App version and build;
 - exact destination string entered;
-- Remote PC Saved credential state;
+- whether an explicit Saved credential was selected (`yes`/`no`) and the
+  typed Remote PC Saved credential state;
 - exact Username entered in the saved credential, or `not-applicable` when no
   saved credential was selected;
 - whether that credential was newly created for the attempt;

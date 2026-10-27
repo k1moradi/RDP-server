@@ -212,17 +212,18 @@ jobs:
             native_policy='security.macos-generated-tls-certificate-policy-profiles'
           fi
 
-          generated_identity_selector='^runtime[.](generated-tls-identity-owner-ipv4-san-der|rejects-tls-credentials-client-only-certificate|rejects-tls-credentials-expired-certificate|rejects-tls-credentials-not-yet-valid-certificate)$'
+          generated_identity_selector='^runtime[.](generated-tls-identity-owner-ipv4-san-der|generated-tls-context-negotiates-tls13|rejects-tls-credentials-client-only-certificate|rejects-tls-credentials-expired-certificate|rejects-tls-credentials-not-yet-valid-certificate)$'
           generated_inventory="$(ctest --test-dir build --build-config Debug -N -R "$generated_identity_selector")"
           printf '%s\n' "$generated_inventory"
           for required_test in \
             runtime.generated-tls-identity-owner-ipv4-san-der \
+            runtime.generated-tls-context-negotiates-tls13 \
             runtime.rejects-tls-credentials-client-only-certificate \
             runtime.rejects-tls-credentials-expired-certificate \
             runtime.rejects-tls-credentials-not-yet-valid-certificate; do
             grep -Fq ": $required_test" <<< "$generated_inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$generated_inventory")" -eq 4
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$generated_inventory")" -eq 5
 
           native_selector="^${native_policy//./[.]}$"
           native_inventory="$(ctest --test-dir build --build-config Debug -N -R "$native_selector")"
@@ -258,8 +259,9 @@ jobs:
           printf '%s\n' "$inventory"
           grep -Fq ": $test_name" <<< "$inventory"
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 1
+          probe_output='build/r9-modern-schannel-probe.txt'
           ctest --test-dir build --build-config Debug --timeout 45 \
-            -R "$selector" --verbose
+            -R "$selector" --verbose 2>&1 | tee "$probe_output"
 
       - name: Primary Microsoft Windows NTLM and CredSSP target differential
         if: runner.os == 'Windows'
@@ -281,6 +283,38 @@ jobs:
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 6
           result_file='build/r9-microsoft-interop-results.txt'
           : > "$result_file"
+
+          modern_probe_output='build/r9-modern-schannel-probe.txt'
+          test -f "$modern_probe_output"
+          modern_probe_line="$(grep -Eo 'microsoft-credssp-modern-schannel-probe .*' "$modern_probe_output" | tail -n 1)"
+          legacy_tls_line="$(grep -Eo 'microsoft-credssp-tls-profile target=TERMSRV/RDP-SERVER schannel=SCHANNEL_CRED negotiated-tls=[^ ]+ .*' "$modern_probe_output" | tail -n 1)"
+          test -n "$modern_probe_line"
+          test -n "$legacy_tls_line"
+          grep -Eq 'modern-result=(TLS13_TYPE3_PASS|TYPE3_PASS_NON_TLS13|FAILED_BEFORE_TYPE3)' <<< "$modern_probe_line"
+          grep -Eq 'tls13-type3-pass=(yes|no)' <<< "$modern_probe_line"
+          legacy_tls_version="$(sed -n 's/.* negotiated-tls=\([^ ]*\).*/\1/p' <<< "$legacy_tls_line")"
+          modern_tls_version="$(sed -n 's/.* tls=\([^ ]*\).*/\1/p' <<< "$modern_probe_line")"
+          test -n "$legacy_tls_version"
+          test -n "$modern_tls_version"
+
+          tls13_external_oracle=NOT_QUALIFIED
+          tls12_only_physical_ab=JUSTIFIED
+          if [[ "$legacy_tls_version" == TLSv1.3 ]] || \
+             grep -Fq 'tls13-type3-pass=yes' <<< "$modern_probe_line"; then
+            tls13_external_oracle=PASS
+            tls12_only_physical_ab=NOT_JUSTIFIED
+          elif [[ "$modern_tls_version" == TLSv1.3 ]]; then
+            tls13_external_oracle=FAIL
+          fi
+
+          printf 'credssp-modern-%s\n' "$modern_probe_line" | tee -a "$result_file"
+          printf '%s\n' \
+            "tls-version-differential=TYPED physical-tls=TLSv1.3 hosted-legacy-tls=$legacy_tls_version modern-tls=$modern_tls_version tls13-external-oracle=$tls13_external_oracle tls12-only-physical-ab=$tls12_only_physical_ab production-tls-change-authorized=no" \
+            | tee -a "$result_file"
+          printf '%s\n' \
+            'physical-owner-type1-profile=OBSERVED bytes=40 flags=0xe2088235 version=6.0.6001/0x0f domain-supplied=no workstation-supplied=no' \
+            | tee -a "$result_file"
+
           run_case() {
             local result_key="$1"
             local test_name="$2"
@@ -318,6 +352,9 @@ jobs:
             grep -Fq 'type3=yes' <<< "$oem_line"
             grep -Fq 'qualified=yes' <<< "$oem_line"
             printf 'ntlm-oem-%s physical-type1-flags=0xe2088235 physical-type2-flags=0xe08a8235\n' "$oem_line" | tee -a "$result_file"
+            printf '%s\n' \
+              'physical-flag-oem-differential=TYPED physical-type1-flags=0xe2088235 physical-type2-flags=0xe08a8235 microsoft-oem-omission=PASS oem-response-bit-difference-ruled-out=yes' \
+              | tee -a "$result_file"
           else
             overall_status=1
           fi
@@ -2141,6 +2178,32 @@ jobs:
           grep -Fq 'qualified=yes' <<< "$oem_profile"
           grep -Fq 'physical-type1-flags=0xe2088235' <<< "$oem_profile"
           grep -Fq 'physical-type2-flags=0xe08a8235' <<< "$oem_profile"
+          oem_differential="$(grep '^physical-flag-oem-differential=TYPED ' "$matrix_file")"
+          test -n "$oem_differential"
+          grep -Fq 'microsoft-oem-omission=PASS' <<< "$oem_differential"
+          grep -Fq 'oem-response-bit-difference-ruled-out=yes' <<< "$oem_differential"
+
+          physical_type1_profile="$(grep '^physical-owner-type1-profile=OBSERVED ' "$matrix_file")"
+          test -n "$physical_type1_profile"
+          grep -Fq 'bytes=40' <<< "$physical_type1_profile"
+          grep -Fq 'flags=0xe2088235' <<< "$physical_type1_profile"
+          grep -Fq 'version=6.0.6001/0x0f' <<< "$physical_type1_profile"
+          grep -Fq 'domain-supplied=no' <<< "$physical_type1_profile"
+          grep -Fq 'workstation-supplied=no' <<< "$physical_type1_profile"
+
+          tls_differential="$(grep '^tls-version-differential=TYPED ' "$matrix_file")"
+          test -n "$tls_differential"
+          grep -Fq 'physical-tls=TLSv1.3' <<< "$tls_differential"
+          grep -Fq 'production-tls-change-authorized=no' <<< "$tls_differential"
+          next_physical_tls_mode=production-policy
+          if grep -Fq 'tls13-external-oracle=PASS' <<< "$tls_differential"; then
+            grep -Fq 'tls12-only-physical-ab=NOT_JUSTIFIED' <<< "$tls_differential"
+          else
+            grep -Eq 'tls13-external-oracle=(NOT_QUALIFIED|FAIL)' <<< "$tls_differential"
+            grep -Fq 'tls12-only-physical-ab=JUSTIFIED' <<< "$tls_differential"
+            next_physical_tls_mode=diagnostic-tls12-only-ab
+          fi
+
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
@@ -2170,6 +2233,7 @@ jobs:
             tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-stream-buffer-retention' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-harness-multi-turn-round-progression' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-control-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-bare-ip-target-next-token' tests/CMakeLists.txt
@@ -2177,6 +2241,7 @@ jobs:
           grep -Fq 'runtime.linux-connection-target-identity-retained-across-peer-retry' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics' tests/CMakeLists.txt
           grep -Fq 'runtime.generated-tls-identity-owner-ipv4-san-der' tests/CMakeLists.txt
+          grep -Fq 'runtime.generated-tls-context-negotiates-tls13' tests/CMakeLists.txt
           grep -Fq 'runtime.rejects-tls-credentials-client-only-certificate' tests/CMakeLists.txt
           grep -Fq 'runtime.rejects-tls-credentials-expired-certificate' tests/CMakeLists.txt
           grep -Fq 'runtime.rejects-tls-credentials-not-yet-valid-certificate' tests/CMakeLists.txt
@@ -2197,7 +2262,15 @@ jobs:
             .github/workflows/ci.yml
           grep -Fq 'gui.offscreen-local-username-default-keeps-session-password-empty' \
             .github/workflows/ci.yml
+          grep -Fq 'macos.windows-app-owner-evidence-readonly-manifest' tests/CMakeLists.txt
+          test -f docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md
           printf 'R9 CREDSSP OWNER CANDIDATE PASS: %s\n' "$GITHUB_SHA"
+          printf 'NEXT PHYSICAL TLS MODE: %s\n' "$next_physical_tls_mode"
+          if [[ "$next_physical_tls_mode" == diagnostic-tls12-only-ab ]]; then
+            printf '%s\n' \
+              'TLS 1.2 A/B IS DIAGNOSTIC ONLY: TLS version is the one deliberately changed property.' \
+              'The experiment must be standards-compliant, reversible and owner-evidence-controlled; it must not create a permanent user setting or a product-acceptance claim.'
+          fi
           printf 'NEXT OWNER RECEIPT MUST BEGIN, BEFORE BUILD/TEST, WITH:\n'
           printf 'git rev-parse HEAD\n'
           printf 'expected exact SHA: %s\n' "$GITHUB_SHA"
@@ -2205,10 +2278,13 @@ jobs:
             'NEXT PHYSICAL EVIDENCE BUNDLE REQUIRED:' \
             '1. exact SHA from the initial git rev-parse HEAD' \
             '2. complete Linux terminal failure block from the same attempt' \
-            '3. Windows App client-side connection log from the same attempt' \
-            '4. whether Windows App showed a certificate warning' \
-            '5. whether that certificate warning was accepted' \
-            '6. destination string exactly as entered in Windows App'
+            '3. Windows App version/build from the same attempt' \
+            '4. Windows App client-side connection log from the same attempt' \
+            '5. whether Windows App showed a certificate warning' \
+            '6. whether that certificate warning was accepted' \
+            '7. destination string exactly as entered in Windows App' \
+            '8. exact Windows App client error text and offset-aware attempt timestamp' \
+            '9. TLS mode used: production-policy or the explicitly qualified diagnostic TLS-1.2-only A/B'
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.

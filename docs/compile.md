@@ -47,11 +47,11 @@ log files. It never launches Windows App, changes trust, reads a private
 application directory or performs network I/O. Normal configure/build/full
 CTest remains in the canonical single `build/` root.
 
-## Agent 9 owner-candidate qualification reuses the one-root native policy targets (2026-10-26)
+## Agent 9 owner-candidate qualification reuses existing one-root oracle targets (2026-10-27)
 
-Agent 9 reuses the existing test-only `test_windows_certificate_policy` and `test_macos_certificate_policy` targets; it adds no production dependency or second build target. The normal `protocol` matrix continues to configure and compile through the single checkout-local `build/` root. After Debug compile, Windows/macOS run their behavior-named native policy CTest verbosely together with the existing exact-IP SAN and certificate purpose/time regressions, then continue to full CTest.
+Agent 9 adds no executable, library or production compile definition. It reuses Agent 2's existing Windows NTLM SSPI target, Agent 6's existing Windows full-CREDSSP target, the native certificate-policy targets and the already-registered `runtime.generated-tls-context-negotiates-tls13` case. The normal `protocol` matrix continues to configure, compile and test from the single checkout-local `build/` root.
 
-The Windows full-CREDSSP matrix keeps its existing executable/linkage and only strengthens non-secret evidence capture. Release packaging and the one-build-root policy are unchanged.
+The exact-SHA workflow retains the modern Schannel probe output and adds only bounded non-secret classification lines to the existing Microsoft interop artifact. The TLS-1.2 physical A/B decision adds no production runtime selector, TLS maximum, packaging surface or permanent setting. Release packaging and the one-build-root policy are unchanged.
 
 ## R7 Advanced diagnostics add no build or dependency surface (2026-10-26)
 

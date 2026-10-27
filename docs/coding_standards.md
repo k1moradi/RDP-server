@@ -79,13 +79,15 @@ self-signed exact-IP-SAN profile; its diagnostic generation is obtained from
 the same live TLS-context/listener binding and is zero when that binding is not
 current.
 
-## Agent 9 physical-client candidate observations remain non-authorizing (2026-10-26)
+## Agent 9 physical-client candidate observations remain non-authorizing (2026-10-27)
 
 Native certificate-policy qualification must consume the production-generated leaf or an explicitly test-only comparison profile and must never install, delete or persist trust in a Keychain or user/machine certificate store. macOS custom anchors remain scoped to the individual `SecTrust`; Windows comparison trust remains confined to the existing exclusive in-memory store/chain engine. Endpoint policy, purpose, time and trust observations grant no CredSSP, native Admission, MCS, Share, graphics, input or clipboard authority.
 
-Type-1 comparability is structural evidence only. Report the exact inner NTLM NEGOTIATE_MESSAGE byte count, negotiate flags and VERSION presence/validated structure already produced by the bounded parser. When the TSRequest carries SPNEGO, use the parser's bounded optimistic mechanism-token length rather than the enclosing SPNEGO/GSS token length. Display hosted values beside physical `flags=0xe2088235`, `bytes=40`, but do not make byte/flag equality a candidate requirement without a normative protocol requirement. Never log domain/workstation contents, credentials, challenge/response data, session keys or delegated data.
+Type-1 comparability is structural evidence only. Reuse the bounded production parser for byte count, negotiate flags, VERSION and supplied-field metadata, and pair the measured physical profile with Agent 2's native Microsoft OEM-omission result. Never log domain/workstation contents, credentials, challenge/response material, session keys or delegated data. A Microsoft SSPI PASS for an OEM-only Type-2 delta rules out that isolated response-bit difference; it does not make the whole hosted Type-1 profile equal to the physical profile or authorize a production Type-2 mutation.
 
-Reuse the established Linux TLS diagnostic owner for physical evidence. Negotiated TLS version/cipher and bounded certificate/environment metadata are fail-only observations. Do not add a parallel TLS owner or change production Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, certificate identity or TLS policy to force a hosted/physical match.
+Reuse the established Linux TLS diagnostic owner for physical evidence and Agent 6's existing full-CREDSSP oracle for the external TLS-version comparison. A physical TLS 1.3 versus hosted TLS 1.2 difference is evidence, not permission to change production TLS. If Microsoft full CredSSP reaches Type 3 over TLS 1.3, keep production TLS unchanged and do not run a TLS-1.2 A/B merely to force a match. If TLS 1.3 remains unqualified or fails before Type 3, a TLS-1.2-only physical A/B may be selected only by the owner-candidate evidence gate as a one-property, standards-compliant, reversible diagnostic. Never expose that experiment as a permanent user setting, silently cap production TLS, or treat it as product acceptance.
+
+Do not add a parallel TLS owner or change production Type-2 TargetName, TargetInfo, MsvAvTargetName, target-profile selection, certificate identity, native Admission, MCS, graphics or clipboard to force a hosted/physical match.
 
 ## R7 Advanced TLS/environment presentation is evidence-only (2026-10-26)
 

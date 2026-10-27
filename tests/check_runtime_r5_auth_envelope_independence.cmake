@@ -107,15 +107,31 @@ endif()
 
 # PreAdmission must not enter any native or graphics state owner. The
 # production-backed Type-2/EOF lifecycle separately proves the observable
-# framebuffer/codec/write/ACK trace remains zero before and after retirement.
+# framebuffer/ClearCodec/write/ACK trace remains zero while awaiting Type 3 and
+# after peer retirement. Hidden surface, frame-scheduler, AVC and FRAME_ACK
+# state is pinned here by forbidding every production seam that could create or
+# advance it from this isolated branch.
 foreach(forbidden_text IN ITEMS
         "selectCurrentPhysicalX11Desktop("
         "initializeNativeDesktop("
+        "serviceNativeDesktopOnce("
         "constructHostAuthorizedX11Desktop("
         "visitNativeDesktopSelection("
         "registerNativeChange("
         "X11DesktopResources"
         "X11AuthorizedInputRoute"
+        "LinuxHostNativeDesktopState"
+        "RdpGraphicsSurfaceReconfiguration"
+        "RdpGraphicsFramePublicationReadiness"
+        "nextFrameId"
+        "graphicsWritePending"
+        "framePublicationPending"
+        "nextCapture"
+        "Avc420"
+        "AVC420"
+        "X264"
+        "RdpGraphicsFrameAcknowledge"
+        "consumeR3PersonalDesktopGraphicsFrameAcknowledge("
         "startPersonalDesktopGraphicsDynamicVirtualChannel("
         "advancePersonalDesktopGraphicsDynamicVirtualChannel("
         "beginPersonalDesktopGraphicsSurfaceReconfiguration("
@@ -195,4 +211,4 @@ foreach(forbidden_term IN LISTS envelope_terms)
 endforeach()
 
 message(STATUS
-    "R5 native owner is envelope-agnostic: auth failure has no X11 owner; live R2 lease + GraphicsReady gate construction")
+    "R5/R4 pre-admission dormancy: no X11 owner or surface/scheduler/codec/ACK path; live R2 lease + GraphicsReady gate construction")

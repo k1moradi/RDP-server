@@ -1,3 +1,26 @@
+## Agent 4 pre-Type-3 elapsed time cannot create graphics authority (2026-10-27)
+
+Owner physical evidence on assignment parent `985709b9f8b4c23c32da7297cb088b1ace2920fb` remains
+PreAdmission for approximately 7.6 seconds after the production Type 2 is fully
+committed, then ends in peer EOF without Type 3. The measured
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602` are diagnostics only. Elapsed time,
+TLS readiness and a delivered challenge never create native or graphics
+authority.
+
+While Type 3, pubKeyAuth, authInfo, `CredentialsVerified`, native Admission,
+MCS and Share are absent, the serialized HostControl path must not construct
+the X11/native desktop owner or enter its post-Share service loop. Consequently
+it must not create or advance framebuffer, surface-remap, frame-scheduler,
+ClearCodec, AVC/x264 or FRAME_ACK state. Keep the existing production
+`fixed-name / RDP-SERVER` authentication behavior unchanged; this P2 rule is
+an assurance boundary, not a compatibility workaround.
+
+Do not add production observability just to prove hidden graphics state is
+absent. Runtime status may continue exposing the existing bounded first-live
+frame trace; source-contract tests pin the otherwise hidden surface/scheduler/
+AVC/ACK entry points behind GraphicsReady.
+
 ## Agent 1 explicit server TLS-version profiles remain test-only (2026-10-27)
 
 Exact-SHA hosted evidence at `94c4fdab233a59417f1d0f3eaad053e21e2e49ad`

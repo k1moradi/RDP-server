@@ -1,3 +1,52 @@
+## Agent 4 P2 — measured Await-Type-3 graphics dormancy remains absolute (2026-10-27)
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `827ab8cdd9aba9720437902be71e5fc3988ada32`.
+**Owner-reported baseline on the assignment parent:** Linux/X11 full CTest
+**998/998 PASS**.
+
+The latest physical Linux/X11 trace reaches TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> exact-IP-SAN generated certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> unchanged production Type 2 `0xe08a8235` fully
+committed -> Await-Type-3 -> peer EOF. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and
+clipboard remain **NOT REACHED**. The measured diagnostics are
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`.
+
+Independent Microsoft evidence already reaches Type 3 over TLS 1.2 and TLS
+1.3, for fixed target, TERMSRV/IP and bare IP, and accepts the OEM-only
+Type-2 response-bit differential. R4 therefore does not reopen Type-2,
+target-identity, TargetInfo, MsvAvTargetName, certificate-name, TLS-version or
+OEM hypotheses. Production remains exactly `fixed-name / RDP-SERVER`.
+The current primary hypothesis is client-side credential/delegation policy or
+missing credential material before Type 3, which is upstream of graphics.
+
+R4 makes **no production codec/frame change**. The existing production-backed
+Type-2/EOF runtime gate already proves the visible graphics trace remains
+dormant while awaiting Type 3, after peer EOF and on the fresh retry:
+no native/GraphicsReady owner, framebuffer, ClearCodec preparation, committed
+graphics TLS write, outstanding FRAME_ACK state or matching ACK. The existing
+source-contract CTest is strengthened for hidden state by forbidding the
+PreAdmission branch from entering native-desktop service, surface
+reconfiguration, frame scheduler/credit, AVC/x264 or direct FRAME_ACK
+consumption seams.
+
+**Validation:** source/test/document reconciliation **PASS by inspection**.
+Focused
+`ctest --test-dir build -C Debug -R '^runtime[.]linux-auth-envelope-independent-native-owner$' --output-on-failure`:
+**NOT RUN** in this connector environment. Canonical
+`cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure`:
+**NOT RUN** by this agent; the owner-reported assignment-parent baseline remains
+**998/998 PASS**. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next R4 gate:** remain **P2 / BLOCKED**. Do not change framebuffer, surface,
+frame scheduling, ClearCodec, AVC or FRAME_ACK production behavior until a
+physical client first sends Type 3 and subsequently reaches pubKeyAuth ->
+authInfo -> `CredentialsVerified` -> native Admission -> MCS -> Share ->
+RDPGFX `GraphicsReady`.
+
 ## Agent 3 P2 — physical credential-delegation EOF keeps MCS/Share blocked (2026-10-27)
 
 **Assignment/current main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Owner-reported local Linux/X11

@@ -1,3 +1,30 @@
+## Agent 4 measured Await-Type-3 graphics-dormancy gate (2026-10-27)
+
+The latest owner physical trace on assignment parent `985709b9f8b4c23c32da7297cb088b1ace2920fb` records
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`, then peer EOF before Type 3. Treat
+those values as single-attempt diagnostics, not a test duration target: do not
+sleep for 7.6 seconds, add a minimum-duration assertion or turn the observation
+into a timeout/performance policy.
+
+Keep the existing production-backed
+`runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics` case as
+the runtime half of the gate. While each peer waits for Type 3, after each EOF
+and on the fresh retry, require PreAdmission, no MCS/Share/native/graphics
+readiness, no framebuffer observation, no ClearCodec preparation, no committed
+graphics write, zero outstanding frame acknowledgements and no genuine
+matching FRAME_ACK.
+
+Pair it with the existing
+`runtime.linux-auth-envelope-independent-native-owner` source contract for
+state that intentionally has no production diagnostic surface. Its isolated
+`AcceptedClientPhase::PreAdmission` branch must reject native-desktop service
+entry and every surface-reconfiguration, frame-publication scheduler,
+AVC/x264 and FRAME_ACK-consumption seam in addition to the existing
+framebuffer/ClearCodec/DVC prohibitions. These are absence assertions only;
+they must not create synthetic authority, run codec/frame work or modify
+production authentication bytes.
+
 ## Agent 1 Microsoft CredSSP explicit TLS-version matrix gate (2026-10-27)
 
 Register three Windows-only behavior CTests on the existing

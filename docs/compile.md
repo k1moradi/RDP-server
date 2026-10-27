@@ -1,3 +1,16 @@
+## Agent 4 measured pre-Type-3 graphics dormancy adds no build surface (2026-10-27)
+
+This P2 increment changes only the existing CMake source-contract test and
+canonical documentation. It adds no production source, executable, library,
+dependency, compile definition, runtime switch, codec target, CTest
+registration or build directory. The existing
+`runtime.linux-auth-envelope-independent-native-owner` CTest continues to
+read the production HostControl/connection sources as data, and the existing
+production-backed Type-2/EOF lifecycle remains unchanged.
+
+All configure/build/focused/full commands continue to reuse the one canonical
+checkout-local `build/` root.
+
 ## Agent 1 explicit TLS-version matrix adds no production build surface (2026-10-27)
 
 The TLS-version matrix reuses the existing Windows-only

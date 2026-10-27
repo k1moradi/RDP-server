@@ -1,3 +1,30 @@
+## Agent 4 measured Await-Type-3 graphics-dormancy receipt — 2026-10-27
+
+**Authoring assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `827ab8cdd9aba9720437902be71e5fc3988ada32`.
+Owner-reported Linux/X11 full CTest on the assignment parent:
+**998/998 PASS**. Physical evidence remains production Type 2 fully committed
+-> Await-Type-3 -> peer EOF, with `type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3 and every downstream authority
+boundary remain **NOT REACHED**.
+
+No production source or authentication/graphics wire behavior changes. The
+existing production-backed Type-2/EOF lifecycle continues to assert no
+GraphicsReady/native desktop, framebuffer, ClearCodec preparation, graphics
+TLS write, outstanding FRAME_ACK or matching ACK at the waiting, retired and
+fresh-retry checkpoints. The existing
+`runtime.linux-auth-envelope-independent-native-owner` source contract is
+strengthened so the isolated PreAdmission branch also cannot enter the native
+desktop service loop or touch hidden surface-remap, frame-scheduler/credit,
+AVC/x264 or direct FRAME_ACK-consumption seams.
+
+Connector transformation/source review: **PASS by inspection**. Focused
+source-contract CTest and modified-tree canonical configure/build/full CTest:
+**NOT RUN** in this connector environment. Exact-publication-SHA hosted CI:
+**PENDING**. R4 remains **P2 / BLOCKED**; the next legitimate dependency is a
+physical Type 3 followed by pubKeyAuth, authInfo, CredentialsVerified, native
+Admission, MCS, Share and RDPGFX GraphicsReady.
+
 ## Agent 3 P2 shared-diagnosis containment receipt — 2026-10-27
 
 **Assignment/current main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Owner-reported Linux/X11 full

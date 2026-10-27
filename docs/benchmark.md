@@ -1,3 +1,9 @@
+## Post-Type-2 wire counters remain diagnostics, not benchmarks (2026-10-27)
+
+Encrypted/plaintext byte counts, TSRequest counts, alert/FIN/reset facts and
+Type-2-to-first-byte / Type-2-to-EOF timings diagnose interoperability. They
+are not performance targets and cannot justify timeout or throughput tuning.
+
 ## CREDSSP credential-source elapsed time is diagnostic only (2026-10-27)
 
 Per-row `elapsed-us` is a steady-clock duration from fresh test-context

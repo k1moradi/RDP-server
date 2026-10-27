@@ -643,6 +643,37 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # Agent 1 post-Type-2 wire observations reuse the exact production
+    # listener, R1 TLS owner and CredSSP reader. No case changes wire policy.
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-silence
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-silence)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-partial-tls-record
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-partial-tls-record)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-non-type3-tsrequest)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-tls-close-notify
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-tls-close-notify)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-orderly-fin
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-orderly-fin)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-immediate-retry
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-immediate-retry)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-post-type2-silence
+        runtime.linux-direct-ntlm-post-type2-partial-tls-record
+        runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest
+        runtime.linux-direct-ntlm-post-type2-tls-close-notify
+        runtime.linux-direct-ntlm-post-type2-orderly-fin
+        runtime.linux-direct-ntlm-post-type2-immediate-retry
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # One Start-scoped endpoint/service identity must survive a rejected peer
     # and an immediate second attempt without changing the current fixed Type-2
     # server name or widening retirement to the listener/credential/owner grant.

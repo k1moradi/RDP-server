@@ -661,6 +661,37 @@ public:
         return offset == bytes.size();
     }
 
+    [[nodiscard]] bool writeRawTransportBytes(ByteSpan bytes) noexcept
+    {
+        if (descriptor_ < 0 || bytes.empty())
+            return false;
+        std::size_t offset = 0U;
+        while (offset < bytes.size())
+        {
+            const ssize_t written = ::send(
+                descriptor_, bytes.data() + offset,
+                bytes.size() - offset, MSG_NOSIGNAL);
+            if (written <= 0)
+                return false;
+            offset += static_cast<std::size_t>(written);
+        }
+        return true;
+    }
+
+    [[nodiscard]] bool sendCloseNotify() noexcept
+    {
+        if (!tls_)
+            return false;
+        const int result = SSL_shutdown(tls_.get());
+        return result >= 0 ||
+               (SSL_get_shutdown(tls_.get()) & SSL_SENT_SHUTDOWN) != 0;
+    }
+
+    [[nodiscard]] bool sendOrderlyFin() noexcept
+    {
+        return descriptor_ >= 0 && ::shutdown(descriptor_, SHUT_WR) == 0;
+    }
+
     [[nodiscard]] std::optional<Bytes> readFrame() noexcept
     {
         if (!tls_)
@@ -890,6 +921,41 @@ struct PeerResult final
     return result;
 }
 
+[[nodiscard]] bool receiveDirectTypeTwo(
+    NetworkTlsClient& client,
+    std::string_view address,
+    std::uint16_t port,
+    PeerResult& result) noexcept
+{
+    if (!client.connectHybrid(address, port))
+        return false;
+
+    const auto negotiate = directTypeOne();
+    const auto initialRequest = initialTokenRequest(negotiate);
+    if (!client.writeFrame(initialRequest))
+        return false;
+
+    const auto challengeFrame = client.readFrame();
+    if (!challengeFrame)
+        return false;
+    const auto parsedChallengeFrame =
+        parseCredSspTsRequest(*challengeFrame);
+    if (!parsedChallengeFrame ||
+        parsedChallengeFrame.value.tokenCount != 1U)
+    {
+        return false;
+    }
+
+    const auto challenge =
+        parseDirectTypeTwo(parsedChallengeFrame.value.tokens[0]);
+    if (!challenge)
+        return false;
+
+    result.directTypeTwoReceived = true;
+    result.serverChallenge = challenge->challenge;
+    return true;
+}
+
 [[nodiscard]] PeerResult runDirectTypeTwoThenClosePeer(
     std::string_view address,
     std::uint16_t port,
@@ -899,39 +965,77 @@ struct PeerResult final
 {
     PeerResult result;
     NetworkTlsClient client;
-    if (!client.connectHybrid(address, port))
+    if (!receiveDirectTypeTwo(client, address, port, result))
         return result;
 
-    const auto negotiate = directTypeOne();
-    const auto initialRequest = initialTokenRequest(negotiate);
-    if (!client.writeFrame(initialRequest))
-        return result;
-
-    const auto challengeFrame = client.readFrame();
-    if (!challengeFrame)
-        return result;
-    const auto parsedChallengeFrame =
-        parseCredSspTsRequest(*challengeFrame);
-    if (!parsedChallengeFrame ||
-        parsedChallengeFrame.value.tokenCount != 1U)
-    {
-        return result;
-    }
-
-    const auto challenge =
-        parseDirectTypeTwo(parsedChallengeFrame.value.tokens[0]);
-    if (!challenge)
-        return result;
-
-    result.directTypeTwoReceived = true;
-    result.serverChallenge = challenge->challenge;
     if (!postTypeTwoPlaintext.empty() &&
         !client.writeFrame(postTypeTwoPlaintext))
     {
         return result;
     }
+
     typeTwoReceived.store(true, std::memory_order_release);
     result.passed = waitForRelease(closeAfterTypeTwo);
+    return result;
+}
+
+enum class PostTypeTwoPeerAction : std::uint8_t
+{
+    Silence,
+    PartialTlsRecord,
+    CompleteNonTypeThreeTsRequest,
+    TlsCloseNotify,
+    OrderlyFin,
+};
+
+[[nodiscard]] PeerResult runPostTypeTwoObservationPeer(
+    std::string_view address,
+    std::uint16_t port,
+    PostTypeTwoPeerAction action,
+    std::atomic<bool>& typeTwoReceived,
+    std::atomic<bool>& performAction,
+    std::atomic<bool>& actionApplied,
+    std::atomic<bool>& releasePeer) noexcept
+{
+    PeerResult result;
+    NetworkTlsClient client;
+    if (!receiveDirectTypeTwo(client, address, port, result))
+        return result;
+
+    typeTwoReceived.store(true, std::memory_order_release);
+    if (!waitForRelease(performAction))
+        return result;
+
+    bool applied = false;
+    switch (action)
+    {
+    case PostTypeTwoPeerAction::Silence:
+        applied = true;
+        break;
+    case PostTypeTwoPeerAction::PartialTlsRecord:
+    {
+        // Incomplete TLS application-data record: R1 observes encrypted bytes
+        // while OpenSSL correctly withholds application plaintext.
+        constexpr std::array<std::uint8_t, 6> partialRecord{
+            0x17U, 0x03U, 0x03U, 0x00U, 0x10U, 0x00U};
+        applied = client.writeRawTransportBytes(partialRecord);
+        break;
+    }
+    case PostTypeTwoPeerAction::CompleteNonTypeThreeTsRequest:
+        applied = client.writeFrame(initialTokenRequest(directTypeOne()));
+        break;
+    case PostTypeTwoPeerAction::TlsCloseNotify:
+        applied = client.sendCloseNotify();
+        break;
+    case PostTypeTwoPeerAction::OrderlyFin:
+        applied = client.sendOrderlyFin();
+        break;
+    }
+
+    if (!applied)
+        return result;
+    actionApplied.store(true, std::memory_order_release);
+    result.passed = waitForRelease(releasePeer);
     return result;
 }
 
@@ -1107,6 +1211,33 @@ void assertFixedConnectionTargetIdentity(
                status.listenerGeneration &&
            status.tlsCertificateProfile ==
                RuntimeTlsCertificateProfile::SelfSignedExactIpSan;
+}
+
+void assertPostTypeTwoSilence(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    assert(diagnostics.available);
+    assert(diagnostics.directNtlmTypeTwoDelivered);
+    assert(diagnostics.postTypeTwoClientTlsBytes == 0U);
+    assert(!diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+    assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+    assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+    assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+    assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+    assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);
+    assert(!diagnostics.postTypeTwoTcpFinReceived);
+    assert(!diagnostics.postTypeTwoTcpResetReceived);
+}
+
+[[nodiscard]] bool postTypeTwoEncryptedBytesObserved(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    return diagnostics.available &&
+           diagnostics.directNtlmTypeTwoDelivered &&
+           diagnostics.postTypeTwoClientTlsBytes != 0U &&
+           diagnostics.postTypeTwoFirstClientTlsByteAvailable;
 }
 
 [[nodiscard]] bool directTypeTwoPeerEofRemainsPreAdmission(
@@ -1342,6 +1473,23 @@ int main(int argc, char** argv)
     const bool postTypeTwoTimelineDiagnosticsOnly =
         testCase ==
             "direct-ntlm-post-type2-client-data-timeline-diagnostics";
+    const bool postTypeTwoSilenceOnly =
+        testCase == "direct-ntlm-post-type2-silence";
+    const bool postTypeTwoPartialTlsRecordOnly =
+        testCase == "direct-ntlm-post-type2-partial-tls-record";
+    const bool postTypeTwoNonTypeThreeTsRequestOnly =
+        testCase == "direct-ntlm-post-type2-non-type3-tsrequest";
+    const bool postTypeTwoCloseNotifyOnly =
+        testCase == "direct-ntlm-post-type2-tls-close-notify";
+    const bool postTypeTwoOrderlyFinOnly =
+        testCase == "direct-ntlm-post-type2-orderly-fin";
+    const bool postTypeTwoImmediateRetryOnly =
+        testCase == "direct-ntlm-post-type2-immediate-retry";
+    const bool postTypeTwoObservationOnly =
+        postTypeTwoSilenceOnly || postTypeTwoPartialTlsRecordOnly ||
+        postTypeTwoNonTypeThreeTsRequestOnly ||
+        postTypeTwoCloseNotifyOnly || postTypeTwoOrderlyFinOnly ||
+        postTypeTwoImmediateRetryOnly;
     const bool typeTwoTimeoutOnly =
         testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
     const bool peerCloseClassificationOnly =
@@ -1352,8 +1500,9 @@ int main(int argc, char** argv)
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
         !typeTwoTimingDiagnosticsOnly &&
-        !postTypeTwoTimelineDiagnosticsOnly && !typeTwoTimeoutOnly &&
-        !peerCloseClassificationOnly && !targetIdentityRetryOnly)
+        !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
+        !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
+        !targetIdentityRetryOnly)
     {
         return 2;
     }
@@ -1432,6 +1581,182 @@ int main(int argc, char** argv)
     assertFixedConnectionTargetIdentity(
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
+
+    if (postTypeTwoObservationOnly)
+    {
+        PostTypeTwoPeerAction action = PostTypeTwoPeerAction::Silence;
+        if (postTypeTwoPartialTlsRecordOnly)
+            action = PostTypeTwoPeerAction::PartialTlsRecord;
+        else if (postTypeTwoNonTypeThreeTsRequestOnly)
+            action = PostTypeTwoPeerAction::CompleteNonTypeThreeTsRequest;
+        else if (postTypeTwoCloseNotifyOnly)
+            action = PostTypeTwoPeerAction::TlsCloseNotify;
+        else if (postTypeTwoOrderlyFinOnly || postTypeTwoImmediateRetryOnly)
+            action = PostTypeTwoPeerAction::OrderlyFin;
+
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> performAction{false};
+        std::atomic<bool> actionApplied{false};
+        std::atomic<bool> releasePeer{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runPostTypeTwoObservationPeer(
+                recommendation.address, selectedPort, action,
+                typeTwoReceived, performAction, actionApplied, releasePeer);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(control, typeTwoReceived, peerFinished));
+        auto waiting = control.status();
+        assert(waiting.activeClients.size() == 1U);
+        const std::uint64_t firstClientId =
+            waiting.activeClients.front().opaqueId;
+        assert(firstClientId != 0U);
+        assertPostTypeTwoSilence(waiting);
+        assertClipboardDormant(waiting);
+        assertGraphicsDormant(waiting);
+
+        performAction.store(true, std::memory_order_release);
+        assert(pumpUntilPeerSignal(control, actionApplied, peerFinished));
+
+        if (postTypeTwoSilenceOnly)
+        {
+            const auto holdUntil =
+                std::chrono::steady_clock::now() +
+                std::chrono::milliseconds{150};
+            while (std::chrono::steady_clock::now() < holdUntil)
+            {
+                (void)control.serviceOnce();
+                waiting = control.status();
+                assert(waiting.activeClients.size() == 1U);
+                assertPostTypeTwoSilence(waiting);
+            }
+        }
+        else if (postTypeTwoPartialTlsRecordOnly)
+        {
+            assert(pumpUntil(
+                control, peerFinished, &postTypeTwoEncryptedBytesObserved));
+            waiting = control.status();
+            const auto& live = waiting.acceptedClientPreauthDiagnostics;
+            assert(live.postTypeTwoClientTlsBytes >= 6U);
+            assert(live.postTypeTwoPlaintextBytes == 0U);
+            assert(live.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(live.postTypeTwoPartialTsRequestBytes == 0U);
+            assert(live.postTypeTwoTlsAlertsReceived == 0U);
+        }
+
+        if (postTypeTwoSilenceOnly || postTypeTwoPartialTlsRecordOnly)
+            releasePeer.store(true, std::memory_order_release);
+
+        assert(pumpUntilClientRetired(control));
+        releasePeer.store(true, std::memory_order_release);
+        peer.join();
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+
+        const auto terminal = control.status();
+        const auto& diagnostics = terminal.acceptedClientPreauthDiagnostics;
+        assert(terminal.listenerAvailable);
+        assert(terminal.listenerGeneration == firstListenerGeneration);
+        assert(terminal.activeClients.empty());
+        assert(diagnostics.directNtlmTypeTwoDelivered);
+        assert(!diagnostics.mcsSessionAdvanced);
+        assert(!diagnostics.shareActivated);
+        assertClipboardDormant(terminal);
+        assertGraphicsDormant(terminal);
+
+        if (postTypeTwoSilenceOnly || postTypeTwoOrderlyFinOnly ||
+            postTypeTwoImmediateRetryOnly)
+        {
+            assert(diagnostics.postTypeTwoClientTlsBytes == 0U);
+            assert(!diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);
+            assert(diagnostics.postTypeTwoTcpFinReceived);
+            assert(!diagnostics.postTypeTwoTcpResetReceived);
+            assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+        }
+        else if (postTypeTwoPartialTlsRecordOnly)
+        {
+            assert(diagnostics.postTypeTwoClientTlsBytes >= 6U);
+            assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(diagnostics.postTypeTwoTcpFinReceived);
+            assert(!diagnostics.postTypeTwoTcpResetReceived);
+            assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+        }
+        else if (postTypeTwoNonTypeThreeTsRequestOnly)
+        {
+            assert(diagnostics.postTypeTwoClientTlsBytes != 0U);
+            assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes != 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 1U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+        }
+        else if (postTypeTwoCloseNotifyOnly)
+        {
+            assert(diagnostics.postTypeTwoClientTlsBytes != 0U);
+            assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived != 0U);
+            assert(diagnostics.postTypeTwoTlsCloseNotifyReceived);
+            assert(!diagnostics.postTypeTwoTcpFinReceived);
+            assert(!diagnostics.postTypeTwoTcpResetReceived);
+            assert(diagnostics.termination ==
+                   RuntimeAcceptedClientTermination::OrderlyTlsClose);
+        }
+
+        if (postTypeTwoImmediateRetryOnly)
+        {
+            std::atomic<bool> retryTypeTwoReceived{false};
+            std::atomic<bool> retryPerformAction{false};
+            std::atomic<bool> retryActionApplied{false};
+            std::atomic<bool> releaseRetry{false};
+            std::atomic<bool> retryFinished{false};
+            PeerResult retryResult;
+            std::thread retry([&] {
+                retryResult = runPostTypeTwoObservationPeer(
+                    recommendation.address, selectedPort,
+                    PostTypeTwoPeerAction::Silence,
+                    retryTypeTwoReceived, retryPerformAction,
+                    retryActionApplied, releaseRetry);
+                retryFinished.store(true, std::memory_order_release);
+            });
+
+            assert(pumpUntilPeerSignal(
+                control, retryTypeTwoReceived, retryFinished));
+            const auto retryWaiting = control.status();
+            assert(retryWaiting.listenerGeneration == firstListenerGeneration);
+            assert(retryWaiting.activeClients.size() == 1U);
+            assert(retryWaiting.activeClients.front().opaqueId != firstClientId);
+            assertPostTypeTwoSilence(retryWaiting);
+            assertPhysicalOwnerGrantActive(retryWaiting);
+            assert(retryWaiting.product.credentialsConfigured);
+
+            retryPerformAction.store(true, std::memory_order_release);
+            assert(pumpUntilPeerSignal(
+                control, retryActionApplied, retryFinished));
+            releaseRetry.store(true, std::memory_order_release);
+            assert(pumpUntilClientRetired(control));
+            retry.join();
+            assert(retryResult.passed);
+            assert(retryResult.directTypeTwoReceived);
+        }
+
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     if (typeTwoTimeoutOnly)
     {
@@ -1903,6 +2228,10 @@ int main(int argc, char** argv)
                        .postTypeTwoPlaintextBytes == 1U);
             assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
                        .postTypeTwoCompleteTsRequestCount == 0U);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPartialTsRequestBytes == 1U);
+            assert(retryWaitingForTypeThree.acceptedClientPreauthDiagnostics
+                       .postTypeTwoClientTlsBytes != 0U);
         }
         else
         {
@@ -1961,6 +2290,10 @@ int main(int argc, char** argv)
                        .postTypeTwoPlaintextBytes == 1U);
             assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
                        .postTypeTwoCompleteTsRequestCount == 0U);
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoPartialTsRequestBytes == 1U);
+            assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
+                       .postTypeTwoClientTlsBytes != 0U);
         }
         assert(afterRetryTypeTwoEof.activeClients.empty());
         assert(afterRetryTypeTwoEof.listenerGeneration ==

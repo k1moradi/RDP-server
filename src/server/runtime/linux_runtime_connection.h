@@ -547,8 +547,14 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     std::uint64_t directNtlmTypeTwoToPeerEofMicroseconds{};
     bool postTypeTwoFirstClientTlsByteAvailable{};
     std::uint64_t postTypeTwoFirstClientTlsByteMicroseconds{};
+    std::uint64_t postTypeTwoClientTlsBytes{};
     std::uint64_t postTypeTwoCompleteTsRequestCount{};
     std::uint64_t postTypeTwoPlaintextBytes{};
+    std::size_t postTypeTwoPartialTsRequestBytes{};
+    std::uint64_t postTypeTwoTlsAlertsReceived{};
+    bool postTypeTwoTlsCloseNotifyReceived{};
+    bool postTypeTwoTcpFinReceived{};
+    bool postTypeTwoTcpResetReceived{};
 };
 
 namespace detail
@@ -1284,6 +1290,7 @@ private:
     std::optional<std::chrono::steady_clock::time_point>
         directNtlmTypeTwoDeliveredAt_{};
     std::uint64_t directNtlmTypeTwoTransportBytesAtDelivery_{};
+    std::uint64_t directNtlmTypeTwoTlsAlertsAtDelivery_{};
     bool preauthElapsedAtPeerEofAvailable_{};
     std::uint64_t preauthElapsedAtPeerEofMicroseconds_{};
     bool directNtlmTypeTwoToPeerEofAvailable_{};
@@ -1292,6 +1299,7 @@ private:
     std::uint64_t postTypeTwoFirstClientTlsByteMicroseconds_{};
     std::uint64_t postTypeTwoCompleteTsRequestCount_{};
     std::uint64_t postTypeTwoPlaintextBytes_{};
+    std::size_t postTypeTwoPartialTsRequestBytes_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionBroker>
         broker_{};
     std::optional<rdp_server::server::security::LinuxConsoleAdmissionLease>

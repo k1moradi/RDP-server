@@ -1,3 +1,22 @@
+## Agent 1 completes post-Type-2 wire-silence ownership (2026-10-27)
+
+Extend Agent-10's existing timeline rather than creating a second TLS/CredSSP
+observer. R1's sole native receive path owns cumulative encrypted bytes;
+snapshot that count at exact Type-2 TLS-write completion and report only its
+delta. The existing TSRequest reader owns decrypted bytes, complete-frame count
+and its bounded current partial-frame byte count. R1's typed terminal path
+remains authoritative for TLS close_notify/peer alert and TCP EOF/reset.
+
+Count only TLS alerts surfaced by that existing R1 terminal path; do not add a
+record parser or message callback. All fields are connection-local,
+non-authorizing scalars. Zero encrypted bytes plus zero plaintext, frame and
+alert activity is an explicit wire-silence observation.
+
+Never log packet contents, TLS records, TSRequest bytes, NTLM response material,
+passwords, keys or delegated data. These observations cannot change TLS or
+certificate policy, Type-2 bytes, the pre-auth timeout, authentication,
+Admission, MCS, Share, graphics, input or clipboard.
+
 ## Agent 9 owner-candidate qualification cannot reopen ruled-out wire hypotheses (2026-10-27)
 
 The manual physical-candidate gate is stricter than an individual diagnostic

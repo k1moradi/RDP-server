@@ -1,3 +1,11 @@
+## Agent 1 post-Type-2 wire observations add no build surface (2026-10-27)
+
+This completion extends existing runtime/transport sources and the existing
+`test_linux_runtime_direct_ntlm_lifecycle` target. It adds no library,
+dependency, build option or alternate build root. Six behavior-named CTests are
+registered in the shared registry. Canonical connector configure/build/CTest:
+**NOT RUN**.
+
 ## R7 remote-client credential guidance adds no build surface (2026-10-27)
 
 The Main-page credential guidance uses only the existing Qt Widgets `QLabel`

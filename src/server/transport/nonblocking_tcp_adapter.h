@@ -487,6 +487,10 @@ private:
      {
          return io_.receivedBytes();
      }
+     [[nodiscard]] std::uint64_t tlsAlertsReceived() const noexcept
+     {
+         return tlsAlertsReceived_;
+     }
      [[nodiscard]] TlsHandshakeDiagnostics tlsHandshakeDiagnostics()
          const noexcept
      {
@@ -606,6 +610,7 @@ private:
          TcpConnectionIoInterest::Read};
      // Size only: caller memory is never borrowed beyond a method call.
      std::size_t pendingApplicationBytes_{};
+     std::uint64_t tlsAlertsReceived_{};
      TcpConnectionTermination termination_{TcpConnectionTermination::Open};
  };
 

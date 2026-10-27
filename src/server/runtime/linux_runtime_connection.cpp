@@ -812,10 +812,37 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         postTypeTwoFirstClientTlsByteAvailable_;
     snapshot.postTypeTwoFirstClientTlsByteMicroseconds =
         postTypeTwoFirstClientTlsByteMicroseconds_;
+    if (directNtlmTypeTwoDelivered_)
+    {
+        const std::uint64_t receivedTransportBytes =
+            connection_.receivedTransportBytes();
+        snapshot.postTypeTwoClientTlsBytes =
+            receivedTransportBytes >= directNtlmTypeTwoTransportBytesAtDelivery_
+                ? receivedTransportBytes -
+                      directNtlmTypeTwoTransportBytesAtDelivery_
+                : 0U;
+        const std::uint64_t tlsAlerts = connection_.tlsAlertsReceived();
+        snapshot.postTypeTwoTlsAlertsReceived =
+            tlsAlerts >= directNtlmTypeTwoTlsAlertsAtDelivery_
+                ? tlsAlerts - directNtlmTypeTwoTlsAlertsAtDelivery_
+                : 0U;
+        snapshot.postTypeTwoTlsCloseNotifyReceived =
+            snapshot.termination ==
+            rdp_server::server::transport::
+                TcpConnectionTermination::OrderlyTlsClose;
+        snapshot.postTypeTwoTcpFinReceived =
+            snapshot.termination ==
+            rdp_server::server::transport::TcpConnectionTermination::PeerEof;
+        snapshot.postTypeTwoTcpResetReceived =
+            snapshot.termination ==
+            rdp_server::server::transport::TcpConnectionTermination::PeerReset;
+    }
     snapshot.postTypeTwoCompleteTsRequestCount =
         postTypeTwoCompleteTsRequestCount_;
     snapshot.postTypeTwoPlaintextBytes =
         postTypeTwoPlaintextBytes_;
+    snapshot.postTypeTwoPartialTsRequestBytes =
+        postTypeTwoPartialTsRequestBytes_;
 
     if (!connection_.active())
         snapshot.tlsHandshakeStage =
@@ -1698,6 +1725,8 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                 }
                 directNtlmTypeTwoTransportBytesAtDelivery_ =
                     connection_.receivedTransportBytes();
+                directNtlmTypeTwoTlsAlertsAtDelivery_ =
+                    connection_.tlsAlertsReceived();
                 directNtlmTypeTwoDeliveredAt_ = deliveredAt;
                 directNtlmTypeTwoDelivered_ = true;
                 authenticationProgress_ =
@@ -1735,12 +1764,33 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
     if (credSspFrameReader_.status() ==
         rdp_server::server::security::TsRequestFrameStatus::NeedMore)
     {
+        const std::size_t bufferedBeforeRead =
+            credSspFrameReader_.bufferedBytes();
         const auto read = credSspFrameReader_.readOneTlsStep(connection_);
         observePostTypeTwoClientTlsActivity();
         bytesRead = read.plaintextBytesRead;
         if (directNtlmTypeTwoDelivered_ && bytesRead > 0U)
             addBoundedDiagnosticCount(
                 postTypeTwoPlaintextBytes_, bytesRead);
+        if (directNtlmTypeTwoDelivered_)
+        {
+            if (read.status == ReadStatus::Complete)
+            {
+                postTypeTwoPartialTsRequestBytes_ = 0U;
+            }
+            else if (read.status == ReadStatus::Closed ||
+                     read.status == ReadStatus::Invalid)
+            {
+                postTypeTwoPartialTsRequestBytes_ =
+                    (std::max)(postTypeTwoPartialTsRequestBytes_,
+                               bufferedBeforeRead);
+            }
+            else
+            {
+                postTypeTwoPartialTsRequestBytes_ =
+                    credSspFrameReader_.bufferedBytes();
+            }
+        }
         switch (read.status)
         {
         case ReadStatus::Progress:

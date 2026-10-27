@@ -924,8 +924,14 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t directNtlmTypeTwoToPeerEofMicroseconds{};
     bool postTypeTwoFirstClientTlsByteAvailable{};
     std::uint64_t postTypeTwoFirstClientTlsByteMicroseconds{};
+    std::uint64_t postTypeTwoClientTlsBytes{};
     std::uint64_t postTypeTwoCompleteTsRequestCount{};
     std::uint64_t postTypeTwoPlaintextBytes{};
+    std::size_t postTypeTwoPartialTsRequestBytes{};
+    std::uint64_t postTypeTwoTlsAlertsReceived{};
+    bool postTypeTwoTlsCloseNotifyReceived{};
+    bool postTypeTwoTcpFinReceived{};
+    bool postTypeTwoTcpResetReceived{};
 };
 
 struct RuntimeHostPermissionRequest final

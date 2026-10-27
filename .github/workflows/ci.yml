@@ -2407,6 +2407,13 @@ jobs:
           grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-pre-admission-diagnostics' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-direct-ntlm-type2-peer-eof-timing-diagnostics' tests/CMakeLists.txt
           grep -Fq 'runtime.linux-direct-ntlm-post-type2-client-data-timeline-diagnostics' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-silence' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-partial-tls-record' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-tls-close-notify' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-orderly-fin' tests/CMakeLists.txt
+          grep -Fq 'runtime.linux-direct-ntlm-post-type2-immediate-retry' tests/CMakeLists.txt
+          grep -Fq 'post-type2-client-tls-bytes=%llu' src/server/runtime/linux_runtime_host_control.cpp
           grep -Fq 'runtime.generated-tls-identity-owner-ipv4-san-der' tests/CMakeLists.txt
           grep -Fq 'runtime.generated-tls-context-negotiates-tls13' tests/CMakeLists.txt
           grep -Fq 'runtime.rejects-tls-credentials-client-only-certificate' tests/CMakeLists.txt
@@ -2451,6 +2458,7 @@ jobs:
             '11. same-attempt Windows App Core/UI logs' \
             '12. exact user-visible Windows App error' \
             '13. offset-aware attempt timestamp' \
+            '14. post-Type-2 scalars: encrypted/plaintext bytes, complete/partial TSRequests, TLS alerts/close_notify, TCP FIN/reset, first-byte and EOF timings' \
             'TLS mode is fixed by this gate to production-policy.'
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.

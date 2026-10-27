@@ -1,3 +1,35 @@
+## Agent 1 P0 supporting — complete post-Type-2 wire-silence owner (2026-10-27)
+
+**Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled authoring parent:** `a52c840368f044a34375db67a17e33dce8575a5f`. Agent-9's credential-source
+owner-candidate convergence, Agent-6's observational credential-source oracle
+and all concurrent containment/client-evidence work are preserved.
+
+The physical boundary remains production Type 2 committed -> Await-Type-3 ->
+peer EOF with Type 3 **NOT RECEIVED**. This increment completes Agent-10's
+bounded post-Type-2 timeline without changing production wire bytes: encrypted
+client bytes, decrypted bytes, complete/partial TSRequest counts, surfaced TLS
+alerts/close_notify, typed TCP FIN/reset, first subsequent-client-byte timing
+and Type-2-to-peer-EOF timing.
+
+Six production-backed cases cover silence, partial raw TLS record, complete
+non-Type-3 TSRequest, TLS close_notify, orderly FIN and immediate same-listener
+retry. The existing one-byte partial TSRequest case additionally pins the
+partial byte count. Production remains exactly `fixed-name / RDP-SERVER`;
+TLS/certificate policy, Type-2 identity/bytes, authentication timeout,
+Admission, MCS, Share, graphics and clipboard are unchanged.
+
+**Authoring validation:** current-main/policy/source reconciliation **PASS by
+inspection**. Canonical owner one-`build/` configure/build/focused/full CTest
+**NOT RUN** here. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** exact-publication-SHA producers PASS, then Agent-9's explicit
+manual owner-candidate dispatch. The next authorized physical receipt must add
+the complete post-Type-2 scalar line to Agent-9's credential/log evidence.
+True zero-byte silence narrows toward client credential/delegation policy;
+observed bytes select the corresponding parser/termination boundary. Neither
+outcome authorizes a production wire mutation by itself.
+
 ## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
 
 **Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

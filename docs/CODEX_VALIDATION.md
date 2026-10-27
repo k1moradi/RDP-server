@@ -1,3 +1,21 @@
+## Agent 1 complete post-Type-2 wire-observation receipt (2026-10-27)
+
+**Assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. **Reconciled authoring parent:**
+`a52c840368f044a34375db67a17e33dce8575a5f`.
+
+Agent-10's existing timeline is extended in place. R1 supplies cumulative
+encrypted receive bytes and terminal TLS-alert receipts; the one CredSSP reader
+supplies plaintext, complete-frame and bounded partial-frame counts; typed
+termination distinguishes close_notify, FIN and reset. No packet/token contents
+are retained. Six production-backed lifecycle CTests exercise silence, partial
+TLS record, complete non-Type-3 TSRequest, close_notify, orderly FIN and
+same-listener retry.
+
+**Authoring evidence:** source/ownership transformation review **PASS by
+inspection**. Canonical configure/build/focused/full CTest **NOT RUN** here.
+Exact-publication-SHA hosted CI **PENDING**. The assignment owner's reported
+`998/998` PASS remains baseline evidence only.
+
 ## Agent 6 symbolic SSPI status correction — 2026-10-27
 
 Follow-up to `0ebe7eb5f4104019f0147711953d65990f31ca3e`: the credential-source

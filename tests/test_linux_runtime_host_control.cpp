@@ -423,8 +423,14 @@ int main(int argc, char** argv)
         assert(projected.directNtlmTypeTwoToPeerEofMicroseconds == 0U);
         assert(!projected.postTypeTwoFirstClientTlsByteAvailable);
         assert(projected.postTypeTwoFirstClientTlsByteMicroseconds == 0U);
+        assert(projected.postTypeTwoClientTlsBytes == 0U);
         assert(projected.postTypeTwoCompleteTsRequestCount == 0U);
         assert(projected.postTypeTwoPlaintextBytes == 0U);
+        assert(projected.postTypeTwoPartialTsRequestBytes == 0U);
+        assert(projected.postTypeTwoTlsAlertsReceived == 0U);
+        assert(!projected.postTypeTwoTlsCloseNotifyReceived);
+        assert(!projected.postTypeTwoTcpFinReceived);
+        assert(!projected.postTypeTwoTcpResetReceived);
         assert(projected.preType3Termination ==
                RuntimeAcceptedClientPreType3Termination::None);
 
@@ -456,8 +462,14 @@ int main(int argc, char** argv)
         source.directNtlmTypeTwoToPeerEofMicroseconds = 333U;
         source.postTypeTwoFirstClientTlsByteAvailable = true;
         source.postTypeTwoFirstClientTlsByteMicroseconds = 111U;
+        source.postTypeTwoClientTlsBytes = 555U;
         source.postTypeTwoCompleteTsRequestCount = 2U;
         source.postTypeTwoPlaintextBytes = 444U;
+        source.postTypeTwoPartialTsRequestBytes = 7U;
+        source.postTypeTwoTlsAlertsReceived = 1U;
+        source.postTypeTwoTlsCloseNotifyReceived = true;
+        source.postTypeTwoTcpFinReceived = true;
+        source.postTypeTwoTcpResetReceived = true;
         source.credSspTransition = SourceCredSsp::Closed;
         source.standaloneAuthenticationFailureStage =
             SourceFailure::NtlmNegotiation;
@@ -510,8 +522,14 @@ int main(int argc, char** argv)
             assert(projected.directNtlmTypeTwoToPeerEofMicroseconds == 333U);
             assert(projected.postTypeTwoFirstClientTlsByteAvailable);
             assert(projected.postTypeTwoFirstClientTlsByteMicroseconds == 111U);
+            assert(projected.postTypeTwoClientTlsBytes == 555U);
             assert(projected.postTypeTwoCompleteTsRequestCount == 2U);
             assert(projected.postTypeTwoPlaintextBytes == 444U);
+            assert(projected.postTypeTwoPartialTsRequestBytes == 7U);
+            assert(projected.postTypeTwoTlsAlertsReceived == 1U);
+            assert(projected.postTypeTwoTlsCloseNotifyReceived);
+            assert(projected.postTypeTwoTcpFinReceived);
+            assert(projected.postTypeTwoTcpResetReceived);
             assert(projected.authenticationStage ==
                    RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
             assert(projected.protocolStage ==

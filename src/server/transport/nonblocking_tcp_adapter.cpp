@@ -951,6 +951,11 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
     case SSL_ERROR_ZERO_RETURN:
         // A successful close_notify is an orderly TLS close, not a fatal
         // alert and not a raw TCP EOF/reset.
+        if (tlsAlertsReceived_ !=
+            (std::numeric_limits<std::uint64_t>::max)())
+        {
+            ++tlsAlertsReceived_;
+        }
         termination_ = TcpConnectionTermination::OrderlyTlsClose;
         cancel();
         return {Outcome::TlsClosed, 0};
@@ -971,6 +976,11 @@ TlsApplicationIoResult OwnedPreauthTcpConnection::finishTlsApplicationStep(
         }
         if (isPeerTlsAlert())
         {
+            if (tlsAlertsReceived_ !=
+                (std::numeric_limits<std::uint64_t>::max)())
+            {
+                ++tlsAlertsReceived_;
+            }
             termination_ = TcpConnectionTermination::PeerTlsAlert;
             cancel();
             return {Outcome::TlsClosed, 0};

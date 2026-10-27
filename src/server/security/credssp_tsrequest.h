@@ -225,6 +225,11 @@ public:
     {
         return status_;
     }
+    // Scalar-only diagnostic view of the sole bounded frame owner.
+    [[nodiscard]] std::size_t bufferedBytes() const noexcept
+    {
+        return buffered_;
+    }
     // Borrowed TLS identity, available ONLY for a complete frame read
     // directly from the established server SSL. Null for manual inputs,
     // partial frames, released frames and closed readers. This is proof

@@ -888,10 +888,22 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         source.postTypeTwoFirstClientTlsByteAvailable;
     projected.postTypeTwoFirstClientTlsByteMicroseconds =
         source.postTypeTwoFirstClientTlsByteMicroseconds;
+    projected.postTypeTwoClientTlsBytes =
+        source.postTypeTwoClientTlsBytes;
     projected.postTypeTwoCompleteTsRequestCount =
         source.postTypeTwoCompleteTsRequestCount;
     projected.postTypeTwoPlaintextBytes =
         source.postTypeTwoPlaintextBytes;
+    projected.postTypeTwoPartialTsRequestBytes =
+        source.postTypeTwoPartialTsRequestBytes;
+    projected.postTypeTwoTlsAlertsReceived =
+        source.postTypeTwoTlsAlertsReceived;
+    projected.postTypeTwoTlsCloseNotifyReceived =
+        source.postTypeTwoTlsCloseNotifyReceived;
+    projected.postTypeTwoTcpFinReceived =
+        source.postTypeTwoTcpFinReceived;
+    projected.postTypeTwoTcpResetReceived =
+        source.postTypeTwoTcpResetReceived;
 
     using SourcePreauth = rdp_server::server::transport::PreauthStage;
     switch (source.preauthStage)
@@ -2918,6 +2930,14 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "post-type2-first-client-data-available=%s "
                 "post-type2-complete-tsrequest-count=%llu "
                 "post-type2-plaintext-bytes=%llu "
+                "post-type2-client-tls-bytes=%llu "
+                "post-type2-tsrequests=%llu "
+                "post-type2-partial-tsrequest-bytes=%zu "
+                "post-type2-tls-alerts=%llu "
+                "post-type2-close-notify=%s post-type2-tcp-fin=%s "
+                "post-type2-tcp-reset=%s "
+                "type2-to-first-client-byte-us=%llu "
+                "type2-to-eof-us=%llu "
                 "ntlm-type1-flags=0x%08x ntlm-version-present=%s "
                 "ntlm-version=%u.%u.%u ntlm-revision=0x%02x "
                 "ntlm-type2-flags=0x%08x "
@@ -2992,6 +3012,29 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .postTypeTwoPlaintextBytes),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoClientTlsBytes),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoCompleteTsRequestCount),
+                acceptedClientPreauthDiagnostics_
+                    .postTypeTwoPartialTsRequestBytes,
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoTlsAlertsReceived),
+                acceptedClientPreauthDiagnostics_.postTypeTwoTlsCloseNotifyReceived
+                    ? "yes" : "no",
+                acceptedClientPreauthDiagnostics_.postTypeTwoTcpFinReceived
+                    ? "yes" : "no",
+                acceptedClientPreauthDiagnostics_.postTypeTwoTcpResetReceived
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .postTypeTwoFirstClientTlsByteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .directNtlmTypeTwoToPeerEofMicroseconds),
                 static_cast<unsigned int>(
                     ntlmChallenge.clientNegotiateFlags),
                 acceptedClientPreauthDiagnostics_.ntlmTypeOne.versionPresent

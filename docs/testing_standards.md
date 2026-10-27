@@ -1,3 +1,21 @@
+## Agent 1 complete post-Type-2 wire-observation gate (2026-10-27)
+
+The production-backed Linux Direct-NTLM lifecycle fixture independently covers
+post-Type-2 silence, an incomplete raw TLS record, a complete non-Type-3
+TSRequest, TLS close_notify, orderly TCP FIN and immediate same-listener retry.
+Every case first proves a committed production Type 2 and a zero post-Type-2
+snapshot before releasing its deliberate client action.
+
+The partial TLS-record case increases encrypted bytes without plaintext or
+TSRequest progress. Agent-10's one-byte partial-TSRequest case now pins one
+retained partial byte. A complete non-Type-3 TSRequest increments the complete
+frame count before normal rejection. close_notify remains distinct from FIN and
+reset. Orderly FIN/silent raw close retain zero data bytes and latch
+Type-2-to-peer-EOF. Retry starts fresh diagnostics on the same listener.
+
+Do not alter production timeouts, insert production sleeps, weaken TLS/CredSSP
+validation or convert these diagnostics into authentication authority.
+
 ## Agent 9 exact-SHA credential-source owner-candidate aggregate (2026-10-27)
 
 The dispatch-only `r9_credssp_owner_candidate` job must consume the existing

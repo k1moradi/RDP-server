@@ -631,6 +631,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # R10 validates the new connection-local pre-Type-2 timing stages over
+    # two accepted-client lifetimes without a second transport/auth owner.
+    add_test(
+        NAME runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-preauth-stage-timeline-lifecycle)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Distinguish a quiet post-Type-2 peer from raw TLS/plaintext progress
     # without parsing a second transport stream or changing authentication.
     add_test(

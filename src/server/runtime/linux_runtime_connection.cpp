@@ -796,6 +796,18 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         selectedCertificateMatchesRuntimeIdentity_;
     snapshot.directNtlmTypeTwoQueued = directNtlmTypeTwoQueued_;
     snapshot.directNtlmTypeTwoDelivered = directNtlmTypeTwoDelivered_;
+    snapshot.acceptedToTlsEstablishedAvailable =
+        acceptedToTlsEstablishedAvailable_;
+    snapshot.acceptedToTlsEstablishedMicroseconds =
+        acceptedToTlsEstablishedMicroseconds_;
+    snapshot.tlsEstablishedToTypeOneAvailable =
+        tlsEstablishedToTypeOneAvailable_;
+    snapshot.tlsEstablishedToTypeOneMicroseconds =
+        tlsEstablishedToTypeOneMicroseconds_;
+    snapshot.typeOneToTypeTwoQueuedAvailable =
+        typeOneToTypeTwoQueuedAvailable_;
+    snapshot.typeOneToTypeTwoQueuedMicroseconds =
+        typeOneToTypeTwoQueuedMicroseconds_;
     snapshot.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         directNtlmTypeTwoCreationToDeliveryAgeAvailable_;
     snapshot.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -865,6 +877,14 @@ void LinuxRuntimeConnection::captureEstablishedTlsDiagnostics() noexcept
     if (tls == nullptr)
         return;
 
+    // R1 alone establishes TLS. Sample the first observed transition once.
+    if (!tlsEstablishedAt_.has_value())
+    {
+        tlsEstablishedAt_ = std::chrono::steady_clock::now();
+        acceptedToTlsEstablishedMicroseconds_ =
+            elapsedMicroseconds(preauthStartedAt_, *tlsEstablishedAt_);
+        acceptedToTlsEstablishedAvailable_ = true;
+    }
     tlsEverEstablished_ = true;
     negotiatedTlsProtocolVersion_ = ::SSL_version(tls);
     negotiatedTlsCipherSuiteBytes_ = 0U;
@@ -1590,6 +1610,17 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             standaloneNtlmTypeOneObserved_ = true;
             standaloneNtlmTypeOneObservation_ =
                 initial.spnego.ntlmTypeOne;
+            // R2's complete Type-1 parser is authoritative; this samples
+            // its first post-processing observation, not a wire timestamp.
+            if (!directNtlmTypeOneObservedAt_.has_value() &&
+                tlsEstablishedAt_.has_value())
+            {
+                directNtlmTypeOneObservedAt_ =
+                    std::chrono::steady_clock::now();
+                tlsEstablishedToTypeOneMicroseconds_ = elapsedMicroseconds(
+                    *tlsEstablishedAt_, *directNtlmTypeOneObservedAt_);
+                tlsEstablishedToTypeOneAvailable_ = true;
+            }
         }
         const auto challenge =
             standaloneCredSspAcceptor_.challengeObservation();
@@ -1911,8 +1942,19 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
             // observation of the R2-created Direct-NTLM challenge; only R1
             // accepted-byte completion may advance to NtlmChallenge.
             if (!directNtlmTypeTwoCreatedAt_.has_value())
+            {
+                // Type 2 belongs to the existing R2 writer. Queueing is
+                // neither local TLS completion nor remote client receipt.
                 directNtlmTypeTwoCreatedAt_ =
                     std::chrono::steady_clock::now();
+                if (directNtlmTypeOneObservedAt_.has_value())
+                {
+                    typeOneToTypeTwoQueuedMicroseconds_ =
+                        elapsedMicroseconds(*directNtlmTypeOneObservedAt_,
+                                            *directNtlmTypeTwoCreatedAt_);
+                    typeOneToTypeTwoQueuedAvailable_ = true;
+                }
+            }
             directNtlmTypeTwoQueued_ = true;
             authenticationProgress_ =
                 LinuxRuntimeAuthenticationProgress::CredSspDirectNtlm;

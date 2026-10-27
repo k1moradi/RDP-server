@@ -555,6 +555,14 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     bool postTypeTwoTlsCloseNotifyReceived{};
     bool postTypeTwoTcpFinReceived{};
     bool postTypeTwoTcpResetReceived{};
+    // These cached stages are connection-local steady-clock observations,
+    // never R1/R2 authority or remote client-receipt evidence.
+    bool acceptedToTlsEstablishedAvailable{};
+    std::uint64_t acceptedToTlsEstablishedMicroseconds{};
+    bool tlsEstablishedToTypeOneAvailable{};
+    std::uint64_t tlsEstablishedToTypeOneMicroseconds{};
+    bool typeOneToTypeTwoQueuedAvailable{};
+    std::uint64_t typeOneToTypeTwoQueuedMicroseconds{};
 };
 
 namespace detail
@@ -1265,6 +1273,15 @@ private:
     // It is diagnostic-only and never drives timeout or authorization policy.
     const std::chrono::steady_clock::time_point preauthStartedAt_{
         std::chrono::steady_clock::now()};
+    std::optional<std::chrono::steady_clock::time_point> tlsEstablishedAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        directNtlmTypeOneObservedAt_{};
+    bool acceptedToTlsEstablishedAvailable_{};
+    std::uint64_t acceptedToTlsEstablishedMicroseconds_{};
+    bool tlsEstablishedToTypeOneAvailable_{};
+    std::uint64_t tlsEstablishedToTypeOneMicroseconds_{};
+    bool typeOneToTypeTwoQueuedAvailable_{};
+    std::uint64_t typeOneToTypeTwoQueuedMicroseconds_{};
     rdp_server::server::security::GssapiSpnegoAcceptor acceptor_{};
     rdp_server::server::security::StandaloneCredSspNtlmAcceptor
         standaloneCredSspAcceptor_{};

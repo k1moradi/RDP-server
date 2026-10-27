@@ -932,6 +932,14 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     bool postTypeTwoTlsCloseNotifyReceived{};
     bool postTypeTwoTcpFinReceived{};
     bool postTypeTwoTcpResetReceived{};
+    // These cached stages are connection-local steady-clock observations,
+    // never R1/R2 authority or remote client-receipt evidence.
+    bool acceptedToTlsEstablishedAvailable{};
+    std::uint64_t acceptedToTlsEstablishedMicroseconds{};
+    bool tlsEstablishedToTypeOneAvailable{};
+    std::uint64_t tlsEstablishedToTypeOneMicroseconds{};
+    bool typeOneToTypeTwoQueuedAvailable{};
+    std::uint64_t typeOneToTypeTwoQueuedMicroseconds{};
 };
 
 struct RuntimeHostPermissionRequest final

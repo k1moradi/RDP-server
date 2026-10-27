@@ -1450,6 +1450,35 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     return peerResult;
 }
 
+// All stage observations share one connection-local monotonic clock.
+// Test ordering only; do not equate a local TLS write with remote receipt.
+void assertConnectionLocalStageTimeline(
+    const RuntimeAcceptedClientPreauthDiagnostics& diagnostics,
+    bool peerEofObserved)
+{
+    assert(diagnostics.acceptedToTlsEstablishedAvailable);
+    assert(diagnostics.tlsEstablishedToTypeOneAvailable);
+    assert(diagnostics.typeOneToTypeTwoQueuedAvailable);
+    assert(diagnostics.directNtlmTypeTwoCreationToDeliveryAgeAvailable);
+    if (!peerEofObserved)
+    {
+        assert(!diagnostics.preauthElapsedAtPeerEofAvailable);
+        assert(!diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+        return;
+    }
+    assert(diagnostics.preauthElapsedAtPeerEofAvailable);
+    assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+    // The fixture is time-bounded; the sum cannot overflow uint64_t.
+    const std::uint64_t consecutiveStageMicroseconds =
+        diagnostics.acceptedToTlsEstablishedMicroseconds +
+        diagnostics.tlsEstablishedToTypeOneMicroseconds +
+        diagnostics.typeOneToTypeTwoQueuedMicroseconds +
+        diagnostics.directNtlmTypeTwoCreationToDeliveryMicroseconds +
+        diagnostics.directNtlmTypeTwoToPeerEofMicroseconds;
+    assert(diagnostics.preauthElapsedAtPeerEofMicroseconds >=
+           consecutiveStageMicroseconds);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1467,9 +1496,11 @@ int main(int argc, char** argv)
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
+    const bool stageTimelineDiagnosticsOnly =
+        testCase == "direct-ntlm-preauth-stage-timeline-lifecycle";
     const bool typeTwoTimingDiagnosticsOnly =
-        testCase ==
-            "direct-ntlm-type2-peer-eof-timing-diagnostics";
+        testCase == "direct-ntlm-type2-peer-eof-timing-diagnostics" ||
+        stageTimelineDiagnosticsOnly;
     const bool postTypeTwoTimelineDiagnosticsOnly =
         testCase ==
             "direct-ntlm-post-type2-client-data-timeline-diagnostics";
@@ -1887,6 +1918,9 @@ int main(int argc, char** argv)
             waitingForTypeThree.activeClients.front().opaqueId;
         assert(firstAcceptedClientId != 0U);
         assertPhysicalOwnerGrantActive(waitingForTypeThree);
+        if (stageTimelineDiagnosticsOnly)
+            assertConnectionLocalStageTimeline(
+                waitingForTypeThree.acceptedClientPreauthDiagnostics, false);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.available);
         assert(waitingForTypeThree.acceptedClientPreauthDiagnostics.ntlmEnvelope ==
                RuntimeAcceptedClientNtlmEnvelope::DirectNtlm);
@@ -2005,6 +2039,9 @@ int main(int argc, char** argv)
         assert(peerResult.directTypeTwoReceived);
         assert(!peerResult.authInfoSent);
         const auto afterTypeTwoEof = control.status();
+        if (stageTimelineDiagnosticsOnly)
+            assertConnectionLocalStageTimeline(
+                afterTypeTwoEof.acceptedClientPreauthDiagnostics, true);
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterTypeTwoEof));
         assert(afterTypeTwoEof.activeClients.empty());
         assert(afterTypeTwoEof.listenerGeneration == firstListenerGeneration);
@@ -2173,6 +2210,10 @@ int main(int argc, char** argv)
             }
         }
         const auto retryWaitingForTypeThree = control.status();
+        if (stageTimelineDiagnosticsOnly)
+            assertConnectionLocalStageTimeline(
+                retryWaitingForTypeThree.acceptedClientPreauthDiagnostics,
+                false);
         assert(retryWaitingForTypeThree.listenerAvailable);
         assert(retryWaitingForTypeThree.listenerGeneration ==
                firstListenerGeneration);
@@ -2267,6 +2308,9 @@ int main(int argc, char** argv)
         assert(!retryTypeTwoResult.authInfoSent);
 
         const auto afterRetryTypeTwoEof = control.status();
+        if (stageTimelineDiagnosticsOnly)
+            assertConnectionLocalStageTimeline(
+                afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics, true);
         assert(directTypeTwoPeerEofRemainsPreAdmission(afterRetryTypeTwoEof));
         assert(afterRetryTypeTwoEof.acceptedClientPreauthDiagnostics
                    .directNtlmTypeTwoCreationToDeliveryAgeAvailable);

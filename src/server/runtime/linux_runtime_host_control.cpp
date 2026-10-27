@@ -872,6 +872,18 @@ projectLinuxAcceptedClientPreauthDiagnostics(
     projected.available = true;
     projected.directNtlmTypeTwoQueued = source.directNtlmTypeTwoQueued;
     projected.directNtlmTypeTwoDelivered = source.directNtlmTypeTwoDelivered;
+    projected.acceptedToTlsEstablishedAvailable =
+        source.acceptedToTlsEstablishedAvailable;
+    projected.acceptedToTlsEstablishedMicroseconds =
+        source.acceptedToTlsEstablishedMicroseconds;
+    projected.tlsEstablishedToTypeOneAvailable =
+        source.tlsEstablishedToTypeOneAvailable;
+    projected.tlsEstablishedToTypeOneMicroseconds =
+        source.tlsEstablishedToTypeOneMicroseconds;
+    projected.typeOneToTypeTwoQueuedAvailable =
+        source.typeOneToTypeTwoQueuedAvailable;
+    projected.typeOneToTypeTwoQueuedMicroseconds =
+        source.typeOneToTypeTwoQueuedMicroseconds;
     projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         source.directNtlmTypeTwoCreationToDeliveryAgeAvailable;
     projected.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -2917,6 +2929,12 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "service-identity-profile=%.*s target-start-generation=%llu "
                 "direct-ntlm-type1=%s direct-ntlm-type2-queued=%s "
                 "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
+                "accepted-to-tls-established-us=%llu "
+                "accepted-to-tls-established-available=%s "
+                "tls-established-to-type1-us=%llu "
+                "tls-established-to-type1-available=%s "
+                "type1-to-type2-queued-us=%llu "
+                "type1-to-type2-queued-available=%s "
                 "type2-creation-to-delivery-us=%llu "
                 "type2-creation-to-delivery-available=%s "
                 "direct-ntlm-await-type3=%s direct-ntlm-type3=%s "
@@ -2976,6 +2994,21 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 directNtlmTypeTwoState,
                 acceptedClientPreauthDiagnostics_.directNtlmTypeTwoDelivered
                     ? "committed" : "not-committed",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .acceptedToTlsEstablishedMicroseconds),
+                acceptedClientPreauthDiagnostics_.acceptedToTlsEstablishedAvailable
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsEstablishedToTypeOneMicroseconds),
+                acceptedClientPreauthDiagnostics_.tlsEstablishedToTypeOneAvailable
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .typeOneToTypeTwoQueuedMicroseconds),
+                acceptedClientPreauthDiagnostics_.typeOneToTypeTwoQueuedAvailable
+                    ? "yes" : "no",
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .directNtlmTypeTwoCreationToDeliveryMicroseconds),

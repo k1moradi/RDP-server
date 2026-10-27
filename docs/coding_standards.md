@@ -1,3 +1,14 @@
+## R10 pre-authentication stage-clock ownership (2026-10-27)
+
+R10 borrows only R1's established-TLS fact and R2's parsed Type-1 and queued
+Type-2 facts. The sole accepted-connection owner latches each first transition
+using `std::chrono::steady_clock`, caching bounded microsecond durations
+with explicit availability flags. Existing Type-2 delivery and peer-EOF
+clocks remain in that owner. Neither a new transport reader, an independent
+authentication parser, remote-receipt assumptions, timeout policy nor
+admission capability is created. The fail-only terminal scalar snapshot
+survives the accepted connection's revocation, and a fresh peer resets it.
+
 ## R7 configured Username presentation follows the GUI credential handoff (2026-10-27)
 
 After the production standalone credential owner accepts a GUI handoff, remember

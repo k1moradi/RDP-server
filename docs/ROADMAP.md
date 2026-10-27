@@ -1,3 +1,45 @@
+## R10 P0 supporting — reconciled pre-authentication stage timeline (2026-10-27)
+
+**Reconciled current-main parent:** `98639ebdba7e48070ab958f1d8a435d4f8df1fac`; runtime source originally inspected at `bd99f36da2738a9f306c51e03b716f5b2ddda72c`.
+The new owner-supplied physical facts are: full accepted-owner-to-handled-EOF
+5,625,175 us; Type-2-queue-to-local-TLS-commit 23,063 us;
+commit-to-handled-peer-EOF 50,418 us; zero post-Type-2 encrypted client
+bytes; R1 terminal TCP FIN. Therefore approximately 5,551,694 us elapsed
+before Type 2 was queued. These ages are consistent; local TLS completion
+does not prove remote application receipt.
+
+**One authoritative connection timeline:** accepted native socket -> R10
+connection owner constructed (existing steady-clock origin) -> first R1
+confirmed TLS establishment -> first R2 parsed complete Direct-NTLM Type 1
+-> Type-2-bearing existing reply queued -> complete reply accepted by the
+same R1 TLS writer -> R1 peer FIN classified and observed by R10.
+Three new cached, availability-tagged pre-Type-2 intervals are measured from
+the first observed stage transition, complementing the existing Type-2
+queue-to-commit, commit-to-EOF and total preauth-to-EOF ages. All share
+one accepted-connection `std::chrono::steady_clock`; observation points
+are not packet timestamps. The existing single fail-only terminal record
+projects the new scalar ages without a second parser/transport owner.
+
+**Lifecycle source inspection: PASS.** R10 preserves the last accepted-client
+snapshot before revoking its transport and authentication owner. This
+pre-Type-3 peer FIN yields `AuthenticationIncompletePeerClosed`, never
+`AuthenticationRejected` or an `AdmissionFailed` inference. Only the
+accepted client retires: listener, owner sharing permission, standalone
+Session Password generation and Start-scoped target tuple persist.
+Immediate second acceptance has a new connection ID, fresh R1/R2/parser,
+new NTLM challenge and independent clock. Existing tests pin Stop->Start
+retained credentials and fresh owner consent.
+
+**Execution:** one new focused production-backed CTest,
+`runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle`, added for the
+previously unmeasured stage invariant. Canonical owner configure/build/full
+CTest **NOT RUN** in this connector environment; publication-SHA hosted CI
+**PENDING**. The implemented stage ordering is **PASS by source inspection**;
+executed end-to-end lifecycle **BLOCKED** pending exact-SHA test evidence.
+R9's separate credential-controlled physical-client qualification remains
+required. No changes to timeout, certificate, TLS/NTLM/NLA wire behavior,
+native Admission, MCS, graphics, input or clipboard are authorized.
+
 ## R7 P1 — configured Username/credential presentation consistency (2026-10-27)
 
 **Reviewed main parent:** `bd99f36da2738a9f306c51e03b716f5b2ddda72c`. The existing Main guidance,

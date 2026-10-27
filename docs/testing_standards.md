@@ -1,3 +1,16 @@
+## R10 stage-timeline lifecycle gate (2026-10-27)
+
+The new dedicated production-backed CTest
+`runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle` reuses the
+existing two-peer Direct-NTLM Type-2/FIN fixture. For each accepted connection
+all three pre-Type-2 stages must be available when Type 2 is fully committed;
+EOF ages remain unavailable before peer close. After EOF, the sum of five
+adjacent monotonic stage ages cannot exceed the overall preauth age.
+Existing CTests continue to own peer-FIN classification, zero post-Type-2
+activity, same-listener retry, owner permission and Session Password/target
+generation continuity, and retained Stop->Start credentials/fresh consent.
+The test asserts no equivalence between local TLS acceptance and remote receipt.
+
 ## R7 configured Username drift offscreen gate (2026-10-27)
 
 The existing offscreen GUI binary must register

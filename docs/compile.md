@@ -1,3 +1,14 @@
+## Agent 6 modern Schannel CredSSP probe reuses the Windows oracle target (2026-10-27)
+
+The Windows-only `test_windows_sspi_credssp_interop` remains the sole
+full-CredSSP oracle executable and keeps its existing
+`rdp-server-standalone-ntlmv2`, `rdp-server-runtime-tls` and `secur32`
+linkage. Its source opts into the current SDK `SCH_CREDENTIALS` /
+`TLS_PARAMETERS` declarations and includes the required Windows native
+string declarations; no shipped dependency or production compile definition
+is added. The new probe is another ordinary Windows CTest in the same
+checkout-local `build/` root.
+
 ## macOS Windows App owner-evidence helper adds no production dependency (2026-10-27)
 
 The Agent-5 physical-client evidence increment adds one Python-only read-only

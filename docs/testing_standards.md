@@ -1,3 +1,20 @@
+## Agent 6 modern Schannel full-CredSSP TLS-version probe (2026-10-27)
+
+The Windows-only CTest
+`security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe`
+uses the existing `test_windows_sspi_credssp_interop` executable. In one
+invocation it first requires the legacy `SCHANNEL_CRED` fixed-name control
+to reach first TSRequest -> unchanged production Type 2 -> next Microsoft
+TSRequest -> independently observed Type 3, then attempts
+`SCH_CREDENTIALS` with system-default TLS parameters.
+
+Always report credential structure, negotiated TLS version, terminal phase,
+symbolic Microsoft status, exact hexadecimal status and Type-3 observation.
+A modern Type-3 result or a typed Microsoft/API rejection is a valid experiment
+result; no-progress, round-limit or otherwise unclassified harness outcomes
+fail. A typed negative result never authorizes a production TLS maximum. The
+existing fixed-name/IP-SPN/bare-IP controls remain unchanged.
+
 ## macOS Windows App owner evidence must distinguish client policy from peer EOF (2026-10-27)
 
 Physical Windows App/macOS qualification must use the supported client logging

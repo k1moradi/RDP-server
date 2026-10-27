@@ -2,7 +2,9 @@
 #define SECURITY_WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#define SCHANNEL_USE_BLACKLISTS
 #include <windows.h>
+#include <winternl.h>
 #include <credssp.h>
 #include <schannel.h>
 #include <sspi.h>
@@ -51,6 +53,25 @@ enum class ChallengeExperiment : std::uint8_t
     EndpointMsvAvTargetName,
     EndpointTypeTwoAndMsvAvTargetName,
 };
+
+enum class SchannelCredentialProfile : std::uint8_t
+{
+    LegacySchannelCred,
+    ModernSystemDefaults,
+};
+
+[[nodiscard]] constexpr const char *schannelCredentialProfileName(
+    SchannelCredentialProfile profile) noexcept
+{
+    switch (profile)
+    {
+    case SchannelCredentialProfile::LegacySchannelCred:
+        return "SCHANNEL_CRED";
+    case SchannelCredentialProfile::ModernSystemDefaults:
+        return "SCH_CREDENTIALS-system-defaults";
+    }
+    return "unknown";
+}
 
 [[nodiscard]] constexpr const char *experimentName(
     ChallengeExperiment experiment) noexcept
@@ -144,6 +165,7 @@ constexpr std::size_t kMaximumRawTokenBytes = 256U * 1024U;
     case 0x00090313U: return "SEC_I_COMPLETE_NEEDED";
     case 0x00090314U: return "SEC_I_COMPLETE_AND_CONTINUE";
     case 0x00090320U: return "SEC_I_INCOMPLETE_CREDENTIALS";
+    case 0x00090321U: return "SEC_I_RENEGOTIATE";
     case 0x80090303U: return "SEC_E_TARGET_UNKNOWN";
     case 0x80090308U: return "SEC_E_INVALID_TOKEN";
     case 0x80090318U: return "SEC_E_INCOMPLETE_MESSAGE";
@@ -834,7 +856,9 @@ class WindowsCredSspClient final
 public:
     using Step = CredSspClientStep;
 
-    WindowsCredSspClient() noexcept
+    explicit WindowsCredSspClient(
+        SchannelCredentialProfile schannelCredentialProfile) noexcept
+        : schannelCredentialProfile_(schannelCredentialProfile)
     {
         identity_.User = username_.data();
         identity_.UserLength =
@@ -853,8 +877,22 @@ public:
             SCH_CRED_NO_DEFAULT_CREDS |
             SCH_USE_STRONG_CRYPTO;
 
+        modernSchannel_.dwVersion = SCH_CREDENTIALS_VERSION;
+        modernSchannel_.dwFlags =
+            SCH_CRED_MANUAL_CRED_VALIDATION |
+            SCH_CRED_NO_DEFAULT_CREDS |
+            SCH_USE_STRONG_CRYPTO;
+        // Zero TLS_PARAMETERS entries deliberately select Schannel system
+        // defaults instead of imposing a test-only protocol cap.
+        modernSchannel_.cTlsParameters = 0U;
+        modernSchannel_.pTlsParameters = nullptr;
+
         credSsp_.Type = CredsspSubmitBufferBoth;
-        credSsp_.pSchannelCred = &schannel_;
+        credSsp_.pSchannelCred =
+            schannelCredentialProfile_ ==
+                    SchannelCredentialProfile::ModernSystemDefaults
+                ? static_cast<void *>(&modernSchannel_)
+                : static_cast<void *>(&schannel_);
         credSsp_.pSpnegoCred = &identity_;
     }
 
@@ -1091,7 +1129,10 @@ private:
         static_cast<unsigned short>('d')};
     SEC_WINNT_AUTH_IDENTITY_W identity_{};
     SCHANNEL_CRED schannel_{};
+    SCH_CREDENTIALS modernSchannel_{};
     CREDSSP_CRED credSsp_{};
+    SchannelCredentialProfile schannelCredentialProfile_{
+        SchannelCredentialProfile::LegacySchannelCred};
     CredHandle credential_{};
     CtxtHandle context_{};
     SspiServerInputBuffer pendingServerInput_{};
@@ -2560,6 +2601,8 @@ struct FullCredSspAttempt final
     int minimumTlsVersion{};
     int maximumTlsVersion{};
     int negotiatedTlsVersion{};
+    SchannelCredentialProfile schannelCredentialProfile{
+        SchannelCredentialProfile::LegacySchannelCred};
     bool tlsEstablished{};
     bool initialClientTsRequestReceived{};
     bool productionTypeTwoQueued{};
@@ -2703,10 +2746,13 @@ void printClientProfileObservation(
 [[nodiscard]] FullCredSspAttempt runFullCredSspAttempt(
     TargetProfile profile,
     ChallengeExperiment experiment =
-        ChallengeExperiment::Production)
+        ChallengeExperiment::Production,
+    SchannelCredentialProfile schannelCredentialProfile =
+        SchannelCredentialProfile::LegacySchannelCred)
 {
     FullCredSspAttempt result{};
-    WindowsCredSspClient client;
+    result.schannelCredentialProfile = schannelCredentialProfile;
+    WindowsCredSspClient client{schannelCredentialProfile};
     ProductionCredSspServer server{experiment};
     if (!server.valid())
     {
@@ -2733,11 +2779,12 @@ void printClientProfileObservation(
         result.initialPump.negotiatedTlsVersion;
     std::fprintf(
         stderr,
-        "microsoft-credssp-tls-profile target=%s negotiated-tls=%s "
-        "cipher=%s target-string=%s "
+        "microsoft-credssp-tls-profile target=%s schannel=%s "
+        "negotiated-tls=%s cipher=%s target-string=%s "
         "certificate-profile=generated-cn-rdp-server-ip-san "
         "certificate-endpoint=192.168.1.5\n",
         targetLabel(profile),
+        schannelCredentialProfileName(schannelCredentialProfile),
         server.negotiatedTlsVersionName(),
         server.negotiatedCipherName(),
         targetLabel(profile));
@@ -2905,13 +2952,27 @@ void printStatus(const char *label, SECURITY_STATUS status) noexcept
             static_cast<std::uint32_t>(status)));
 }
 
+[[nodiscard]] bool acceptedNextClientMessage(
+    const FullCredSspAttempt &attempt) noexcept
+{
+    return std::string_view{attempt.stage} == "none" &&
+           attempt.tlsEstablished &&
+           attempt.initialClientTsRequestReceived &&
+           attempt.productionTypeTwoQueued &&
+           attempt.productionTypeTwoTlsCommitted &&
+           attempt.productionTypeTwoConsumed &&
+           attempt.microsoftNextTokenGenerated &&
+           attempt.nextClientTsRequestReceived &&
+           attempt.productionObservedTypeThree;
+}
+
 void printFailure(
     TargetProfile profile,
     const FullCredSspAttempt &result) noexcept
 {
     std::fprintf(
         stderr,
-        "microsoft-credssp target=%s stage=%s tls=%s "
+        "microsoft-credssp target=%s schannel=%s stage=%s tls=%s "
         "tls-version=%s tls-min=%s tls-max=%s "
         "initial-tsrequest=%s type2-queued=%s type2-tls-committed=%s "
         "type2-consumed=%s type2-flags=0x%08lx "
@@ -2919,6 +2980,7 @@ void printFailure(
         "next-token=%s next-tsrequest=%s type3=%s "
         "type3-verified=%s pubkeyauth=%s\n",
         targetLabel(profile),
+        schannelCredentialProfileName(result.schannelCredentialProfile),
         result.stage,
         result.tlsEstablished ? "established" : "not-established",
         tlsVersionName(result.negotiatedTlsVersion),
@@ -2947,6 +3009,82 @@ void printFailure(
         printPumpTrace("after-production-type2", result.nextPump);
 }
 
+[[nodiscard]] bool runModernSchannelSystemDefaultsProbe()
+{
+    const TargetProfile profile = TargetProfile::PortableServerName;
+    const FullCredSspAttempt legacyControl =
+        runFullCredSspAttempt(
+            profile,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::LegacySchannelCred);
+    if (!acceptedNextClientMessage(legacyControl))
+    {
+        printFailure(profile, legacyControl);
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-modern-schannel-probe control=FAIL "
+            "modern=NOT_RUN\n");
+        return false;
+    }
+
+    const FullCredSspAttempt modern =
+        runFullCredSspAttempt(
+            profile,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::ModernSystemDefaults);
+    const bool modernAccepted = acceptedNextClientMessage(modern);
+    const bool tls13TypeThreePass =
+#if defined(TLS1_3_VERSION)
+        modernAccepted &&
+        modern.negotiatedTlsVersion == TLS1_3_VERSION;
+#else
+        false;
+#endif
+
+    const bool typedFailure =
+        !modernAccepted &&
+        ((!securityStatusSucceeded(modern.acquireStatus) &&
+          std::string_view{modern.stage} == "acquire-credssp") ||
+         modern.initialPump.stopReason ==
+             CredSspPumpStopReason::TypedFailure ||
+         modern.nextPump.stopReason ==
+             CredSspPumpStopReason::TypedFailure ||
+         std::string_view{modern.stage} ==
+             "next-client-tsrequest-without-type3");
+
+    if (!modernAccepted)
+        printFailure(profile, modern);
+
+    const SECURITY_STATUS reportedStatus =
+        std::string_view{modern.stage} == "acquire-credssp"
+            ? modern.acquireStatus
+            : modern.lastClientStatus;
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-modern-schannel-probe control=PASS "
+        "credential-struct=SCH_CREDENTIALS tls-parameters=system-defaults "
+        "modern-result=%s phase=%s microsoft-status=%s code=0x%08lx "
+        "tls=%s type3=%s tls13-type3-pass=%s\n",
+        tls13TypeThreePass
+            ? "TLS13_TYPE3_PASS"
+            : modernAccepted
+                ? "TYPE3_PASS_NON_TLS13"
+                : typedFailure
+                    ? "FAILED_BEFORE_TYPE3"
+                    : "HARNESS_UNCLASSIFIED",
+        modern.stage,
+        securityStatusName(reportedStatus),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(reportedStatus)),
+        tlsVersionName(modern.negotiatedTlsVersion),
+        modern.productionObservedTypeThree ? "yes" : "no",
+        tls13TypeThreePass ? "yes" : "no");
+
+    // A typed modern-provider rejection is a useful experiment result, not
+    // permission to weaken production TLS. No-progress remains a test failure.
+    return modernAccepted || typedFailure;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -2959,6 +3097,8 @@ int main(int argc, char **argv)
         return runHarnessStreamBufferRetention() ? 0 : 1;
     if (mode == "harness-multi-turn-round-progression")
         return runHarnessMultiTurnRoundProgression() ? 0 : 1;
+    if (mode == "modern-schannel-system-defaults-probe")
+        return runModernSchannelSystemDefaultsProbe() ? 0 : 1;
 
     TargetProfile profile{};
     if (mode == "control-target")
@@ -2969,20 +3109,6 @@ int main(int argc, char **argv)
         profile = TargetProfile::BarePhysicalIpv4;
     else
         return 2;
-
-    const auto acceptedNextClientMessage =
-        [](const FullCredSspAttempt &attempt) noexcept
-    {
-        return std::string_view{attempt.stage} == "none" &&
-               attempt.tlsEstablished &&
-               attempt.initialClientTsRequestReceived &&
-               attempt.productionTypeTwoQueued &&
-               attempt.productionTypeTwoTlsCommitted &&
-               attempt.productionTypeTwoConsumed &&
-               attempt.microsoftNextTokenGenerated &&
-               attempt.nextClientTsRequestReceived &&
-               attempt.productionObservedTypeThree;
-    };
 
     if (profile != TargetProfile::PortableServerName)
     {
@@ -3014,10 +3140,13 @@ int main(int argc, char **argv)
     {
         std::fprintf(
             stderr,
-            "microsoft-credssp target=%s production-type2=accepted "
-            "tls=%s type2-consumed=yes next-client-tsrequest=yes "
-            "type3=%s type3-verified=%s pubkeyauth=%s\n",
+            "microsoft-credssp target=%s schannel=%s "
+            "production-type2=accepted tls=%s type2-consumed=yes "
+            "next-client-tsrequest=yes type3=%s "
+            "type3-verified=%s pubkeyauth=%s\n",
             targetLabel(profile),
+            schannelCredentialProfileName(
+                result.schannelCredentialProfile),
             tlsVersionName(result.negotiatedTlsVersion),
             result.productionObservedTypeThree ? "yes" : "no",
             result.productionVerifiedTypeThree ? "yes" : "no",

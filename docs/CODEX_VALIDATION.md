@@ -1,3 +1,27 @@
+## Agent 6 modern Schannel full-CredSSP probe authoring receipt — 2026-10-27
+
+**Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Mandatory project context and the
+current Windows full-CREDSSP harness were re-read after concurrent Agent-5/R8
+publications. The shared physical reference remains TLS 1.3 ->
+`TLS_AES_256_GCM_SHA384` -> Direct NTLM Type 1
+`0xe2088235`, VERSION `6.0.6001/0x0f` -> unchanged production Type 2
+`0xe08a8235` fully committed -> Await-Type-3 -> peer EOF. Hosted
+fixed-name/IP-SPN/bare-IP full-CREDSSP reaches Type 3 under TLS 1.2.
+Production remains `fixed-name / RDP-SERVER`.
+
+The test executable preserves the existing `SCHANNEL_CRED` control and adds
+a test-only `SCH_CREDENTIALS` system-defaults profile through the same opaque
+`CREDSSP_CRED::pSchannelCred` field. One dedicated CTest runs legacy control
+then modern attempt, logs negotiated TLS plus exact Microsoft status/phase,
+accepts a typed modern-provider rejection as experimental evidence, and fails
+unclassified/no-progress outcomes. Windows protocol CI runs it verbosely before
+the unchanged five-row Microsoft target matrix.
+
+Connector source/transformation review: **PASS**. Canonical owner one-`build/`
+compile/focused/full CTest: **NOT RUN** here. Exact-publication-SHA hosted
+Windows execution: **PENDING**. No production TLS/certificate/Type-2,
+Admission, MCS, graphics or clipboard behavior changed.
+
 ## Agent 5 macOS Windows App owner-evidence procedure receipt — 2026-10-27
 
 **Authoring parent:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.

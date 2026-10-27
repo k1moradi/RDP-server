@@ -219,6 +219,16 @@ if(WIN32)
         LABELS "security;credentials;credssp;tls;windows;harness;offline"
         TIMEOUT 15)
 
+    add_test(
+        NAME security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe
+        COMMAND test_windows_sspi_credssp_interop
+            modern-schannel-system-defaults-probe)
+    set_tests_properties(
+        security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe
+        PROPERTIES
+        LABELS "security;credentials;credssp;tls;windows;interop;offline"
+        TIMEOUT 45)
+
     add_test(NAME security.windows-credssp-production-control-target-next-token
         COMMAND test_windows_sspi_credssp_interop control-target)
     add_test(NAME security.windows-credssp-production-physical-ip-target-next-token

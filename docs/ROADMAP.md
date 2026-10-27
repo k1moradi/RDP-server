@@ -1,3 +1,40 @@
+## Agent 6 P0 — primary Microsoft full-CREDSSP TLS 1.3 Schannel credential oracle (2026-10-27)
+
+**Authoring parent:** `8a8ee8d8be94b657f52360e18156c01b4931a8c1`. Current `main`, AGENTS, VISION,
+ROADMAP, coding/testing/compile/benchmark standards and validation ledger were
+re-read; concurrent Agent-5 owner-evidence and R8 pre-Type-3 clipboard work are
+retained.
+
+The latest shared physical path reaches TLS 1.3 /
+`TLS_AES_256_GCM_SHA384`, IP SNI, the current exact-IP-SAN certificate,
+Direct NTLM Type 1 `0xe2088235` with VERSION `6.0.6001/0x0f`, unchanged
+production Type 2 `0xe08a8235` fully committed, then Await-Type-3 -> peer
+EOF. Type 3 and all downstream authority remain **NOT REACHED**. Hosted
+fixed-name/IP-SPN/bare-IP Microsoft full-CREDSSP reaches Type 3 under TLS 1.2.
+Production therefore remains exactly `fixed-name / RDP-SERVER`.
+
+The existing Windows oracle now has a test-only Schannel credential profile.
+Legacy `SCHANNEL_CRED` is unchanged and remains the mandatory fixed-name
+control. The experimental profile passes `SCH_CREDENTIALS_VERSION` through
+the same opaque `CREDSSP_CRED::pSchannelCred` field with the existing
+manual-validation/no-default-client-certificate/strong-crypto policy and zero
+`TLS_PARAMETERS` entries (system defaults). The dedicated behavior CTest runs
+legacy control first, then the modern attempt, and reports negotiated TLS plus
+the exact Microsoft status/phase. No production TLS, certificate, Type-2,
+Admission, MCS, graphics or clipboard code changes.
+
+**Validation at authoring:** connector source/transformation review **PASS**.
+Canonical owner one-`build/` configure/build/focused/full CTest **NOT RUN**
+in this connector environment. Exact-publication-SHA hosted Windows compile,
+probe and full CTest **PENDING**.
+
+**Next gate:** hosted Windows execution. If modern `SCH_CREDENTIALS`
+negotiates TLS 1.3 and reaches Type 3, record full-CredSSP TLS 1.3 **PASS**.
+If it negotiates another version or stops before Type 3, retain the exact
+Microsoft status and phase. Agent 9 decides whether that evidence is sufficient
+for a controlled owner A/B; no result here directly authorizes a production
+TLS cap.
+
 ## Agent 5 P0 supporting — macOS Windows App same-attempt owner evidence (2026-10-27)
 
 **Re-read current main:** `b4678206c99c16002904e1ac9a461bf2fed460b4`.

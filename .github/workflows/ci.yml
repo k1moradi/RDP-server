@@ -247,6 +247,20 @@ jobs:
           test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 2
           ctest --test-dir build --build-config Debug --timeout 30 -R "$selector" --verbose
 
+      - name: Probe modern Schannel credentials in Microsoft full CredSSP
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_name='security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe'
+          selector="^${test_name//./[.]}$"
+          inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
+          printf '%s\n' "$inventory"
+          grep -Fq ": $test_name" <<< "$inventory"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 1
+          ctest --test-dir build --build-config Debug --timeout 45 \
+            -R "$selector" --verbose
+
       - name: Primary Microsoft Windows NTLM and CredSSP target differential
         if: runner.os == 'Windows'
         shell: bash

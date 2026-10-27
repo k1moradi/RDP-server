@@ -1,3 +1,20 @@
+## Agent 6 modern Schannel CredSSP oracle is test-only (2026-10-27)
+
+The Windows full-CredSSP oracle keeps the existing `SCHANNEL_CRED` path as
+its control and may probe `SCH_CREDENTIALS` only inside the Windows test
+executable. `CREDSSP_CRED::pSchannelCred` is an opaque public API field, so
+do not infer that CredSSP accepts the modern structure merely because direct
+Schannel does; call Microsoft CREDSSP and record the result.
+
+The modern profile uses `SCH_CREDENTIALS_VERSION`, the same manual server
+certificate validation / no-default-client-certificate / strong-crypto flags
+as the control, and zero `TLS_PARAMETERS` entries for Schannel system
+defaults. Report the server-observed TLS version and exact Microsoft
+status/phase. TLS 1.3 + Type 3 is interoperability evidence only; a typed
+rejection or TLS 1.2 result is also evidence and never directly authorizes a
+production TLS cap, certificate/target change, Admission, MCS, graphics or
+clipboard change.
+
 ## R10 retained physical-client environment diagnostics (2026-10-26)
 
 R10 consumes the existing R1 established-TLS observer and R2 Type-1 parser; it

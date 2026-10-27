@@ -1,3 +1,37 @@
+## Agent 2 exact-SHA OEM-response differential PASS — physical flag delta ruled out (2026-10-27)
+
+**Implementation SHA:** `45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`.
+**Hosted evidence:** workflow `40506172065`, Windows protocol job
+`122196553843`; the primary Microsoft Windows NTLM/CREDSSP differential step
+**PASS**. Exact artifact
+`r9-microsoft-interop-45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`
+(artifact `12734878586`) contains the native Microsoft result.
+
+Microsoft generated hosted Type 1 `0xe20882b7`. The first-party production
+encoder generated Type 2 `0xe08a8237`; the test-only candidate changed only
+the OEM response bit, producing `0xe08a8235`. The oracle reports:
+`client-offered-oem=yes`, `only-oem-response-bit-removed=yes`,
+`version-omitted=yes`, `target-name-unchanged=yes`,
+`target-info-unchanged=yes`, `timestamp-unchanged=yes`,
+`timestamp-age-ms=0`, `type3=yes`, `complete=yes`,
+`attributes=yes`, `local-verify=yes`, `qualified=yes`.
+
+**Decision:** the physical/hosted Type-2 flag difference
+`0xe08a8237 -> 0xe08a8235` (OEM only) is **RULED OUT** as the cause of the
+physical Windows App/macOS pre-Type-3 EOF. Microsoft native NTLM still emits a
+verified Type 3 when OEM is omitted from the Type 2 after Microsoft offered it.
+This is hosted mechanism evidence, not physical-client acceptance.
+
+Production remains exactly `fixed-name / RDP-SERVER`. Do not change Type-2
+flags, TargetName, TargetInfo, MsvAvTargetName, certificate CN/SAN, native
+Admission, MCS, graphics or clipboard from this result. The physical client
+still has not produced Type 3; continue with the already-defined same-attempt
+Windows App client evidence and pre-Type-3 environment/timing diagnostics.
+
+**Exact-SHA status:** source compile and the focused Microsoft differential
+step are **PASS**. The remainder of the full exact-SHA hosted workflow was
+still running when this evidence was recorded.
+
 ## Agent 10 P0 supporting — pre-Type-3 connection timing diagnostics (2026-10-27)
 
 **Authoring parent:** `936a9a443ceb223f84e82d9e2d18dbfb1a451482`. Current `main` and all mandatory project

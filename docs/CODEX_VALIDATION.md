@@ -1,3 +1,37 @@
+## Agent 2 exact-SHA Microsoft OEM differential qualification — 2026-10-27
+
+Implementation `45e5fc4a2e1ab6ddf4c634b3831101c9c473ce78`, workflow
+`40506172065`, Windows protocol job `122196553843`: Debug configure/compile,
+certificate-policy qualification, CredSSP harness qualification, modern
+Schannel probe and the primary Microsoft NTLM/CREDSSP differential step all
+**PASS** at the time of this receipt.
+
+The uploaded exact-SHA matrix artifact `12734878586` records:
+`type1-flags=0xe20882b7`,
+`production-type2-flags=0xe08a8237`,
+`oem-omitted-type2-flags=0xe08a8235`,
+`client-offered-oem=yes`,
+`only-oem-response-bit-removed=yes`,
+`version-omitted=yes`,
+`target-name-unchanged=yes`,
+`target-info-unchanged=yes`,
+`timestamp-unchanged=yes`,
+`timestamp-age-recorded=yes`,
+`timestamp-age-ms=0`,
+`type3=yes`, `complete=yes`, `attributes=yes`,
+`local-verify=yes`, `qualified=yes`.
+
+Therefore the OEM-only Type-2 difference between hosted
+`0xe08a8237` and physical `0xe08a8235` is **RULED OUT** as the mechanism
+reason the physical Windows App/macOS peer closes before Type 3. No Microsoft
+Type-1 state was modified; the candidate was derived from the exact production
+Type 2 and changed only the response OEM flag. The result is not a physical
+client PASS and grants no authentication, Admission or downstream authority.
+
+Production source/wire identity remains unchanged. Full hosted workflow
+completion remained **PENDING** at the moment this focused evidence was
+recorded.
+
 ## Agent 10 pre-Type-3 timing diagnostics authoring receipt — 2026-10-27
 
 **Authoring parent:** `936a9a443ceb223f84e82d9e2d18dbfb1a451482`. Current main and all mandatory project

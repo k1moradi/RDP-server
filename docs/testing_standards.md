@@ -1,3 +1,29 @@
+## R7 remote-client credential guidance gate (2026-10-27)
+
+Register `gui.offscreen-rdp-client-credential-guidance` on the existing
+`test_desktop_gui_offline` executable. Force only the already-supported
+standalone-password product capability in the fake runtime so the behavior is
+covered in Debug and Release without relying on the owner-acceptance build
+gate.
+
+The regression requires the exact plain-text Main guidance
+`Use this Username and Session Password as the credentials in your RDP
+client.`, keeps Password and Confirm masked, performs the existing one-shot
+runtime credential handoff, then requires both secret editors to be empty while
+the non-secret Username and guidance remain. No QLabel may contain the test
+password after handoff and no `Copy Password` button may exist. This is the
+product-side counterpart to Agent-5's separate owner-evidence test; it does not
+read or write a Windows App saved password.
+
+Keep the existing
+`gui.offscreen-authentication-incomplete-before-native-admission` and
+`gui.offscreen-authentication-challenge-disconnect-product-language` gates
+unchanged for the Type-2-delivered/peer-EOF diagnosis. The new guidance test
+must not infer a wrong password, certificate failure, native-admission failure
+or target-identity failure and must not modify any TLS/CredSSP/NTLM wire state.
+Agent-2's hosted credential-semantic matrix and Agent-10's post-Type-2 timeline
+remain separate qualification gates and are not simulated by this Qt fixture.
+
 ## Agent 2 Microsoft credential-semantic differential gate (2026-10-27)
 
 Register Windows-only CTest

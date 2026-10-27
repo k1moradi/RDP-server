@@ -1092,6 +1092,77 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "rdp-client-credential-guidance")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.product.credentialCapabilities.standalonePassword =
+            true;
+        runtime.interfaces = {
+            RuntimeHostInterface{
+                "ethernet-1", "Private Ethernet",
+                {"192.168.0.10"}, false, true}};
+        runtime.standaloneCredentialSucceeds = true;
+        runtime.permissionSetupSucceeds = true;
+        runtime.configurePreparesTlsIdentity = true;
+        runtime.startSucceeds = true;
+
+        DesktopWindow window(host);
+        auto* mainTab = window.findChild<QWidget*>("mainTab");
+        auto* advancedTab = window.findChild<QWidget*>("advancedTab");
+        auto* guidance =
+            requiredLabel(window, "rdpClientCredentialGuidance");
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(mainTab && advancedTab && username && password && confirmation);
+        assert(mainTab->isAncestorOf(guidance));
+        assert(!advancedTab->isAncestorOf(guidance));
+        assert(!guidance->isHidden());
+        assert(guidance->textFormat() == Qt::PlainText);
+        assert(guidance->text() ==
+               QStringLiteral(
+                   "Use this Username and Session Password as the credentials "
+                   "in your RDP client."));
+        assert(!guidance->text().contains(
+            QStringLiteral("automatically"), Qt::CaseInsensitive));
+        assert(password->echoMode() == QLineEdit::Password);
+        assert(confirmation->echoMode() == QLineEdit::Password);
+
+        username->setText(QStringLiteral("owner"));
+        password->setText(QStringLiteral("owner-test-password"));
+        confirmation->setText(password->text());
+        assert(window.canStart());
+
+        sharingToggle(window)->click();
+        assert(runtime.standaloneCredentialCalls == 1);
+        assert(runtime.lastStandaloneUsername == u"owner");
+        assert(runtime.lastStandalonePassword == u"owner-test-password");
+        assert(username->text() == QStringLiteral("owner"));
+        assert(password->text().isEmpty());
+        assert(confirmation->text().isEmpty());
+        assert(!guidance->isHidden());
+        assert(guidance->text() ==
+               QStringLiteral(
+                   "Use this Username and Session Password as the credentials "
+                   "in your RDP client."));
+
+        for (QLabel* item : window.findChildren<QLabel*>())
+        {
+            assert(!item->text().contains(
+                QStringLiteral("owner-test-password")));
+        }
+        for (QAbstractButton* button :
+             window.findChildren<QAbstractButton*>())
+        {
+            assert(button->text() != QStringLiteral("Copy Password"));
+        }
+        assertNoRoadLabelsInUserText(window);
+        return 0;
+    }
+
     if (mode == "unsupported-password")
     {
         runtime.snapshot.lastError = RuntimeHostError::None;

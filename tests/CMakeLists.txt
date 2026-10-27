@@ -4654,6 +4654,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;security;runtime;status" TIMEOUT 30)
     # Public Release capability remains false, while Debug/explicit owner
     # acceptance builds expose the exact production standalone path.
+    # The standalone credential relationship must be explicit on Main without
+    # retaining or exposing the Session Password after runtime handoff.
+    add_test(NAME gui.offscreen-rdp-client-credential-guidance
+        COMMAND test_desktop_gui_offline rdp-client-credential-guidance)
+    set_tests_properties(gui.offscreen-rdp-client-credential-guidance
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;product;credentials;authentication;security"
+        TIMEOUT 30)
+
     add_test(NAME gui.offscreen-independent-password-workflow-unavailable
         COMMAND test_desktop_gui_offline unsupported-password)
     set_tests_properties(gui.offscreen-independent-password-workflow-unavailable

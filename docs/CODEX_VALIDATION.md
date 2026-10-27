@@ -1,3 +1,46 @@
+## Agent 7 remote-client credential guidance authoring receipt — 2026-10-27
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `fa503a097f07d6df7bc425e89b585c79e9f6a2af`.
+Current `main` and AGENTS, VISION, ROADMAP, coding/testing/compile/benchmark
+standards and this validation ledger were re-read before editing and after the
+concurrent Agent-3/4/8/5/2/10 publications. The owner-reported assignment
+baseline is **998/998 CTest PASS**; that result is parent evidence and is not
+claimed for this publication.
+
+R7 adds one presentation-only plain-text label to the existing standalone
+credential surface:
+`Use this Username and Session Password as the credentials in your RDP
+client.` It reuses the existing Qt label helper and visibility gate. The label
+complements Agent-5's explicit Windows App Saved-credential evidence procedure;
+neither path records, retrieves or synchronizes the password. No credential
+owner/cache, password copy/reveal, client-account integration, operating-system
+password lookup or authentication wire behavior is added. The existing runtime
+handoff still clears Password and Confirm immediately.
+
+New behavior CTest:
+`gui.offscreen-rdp-client-credential-guidance`. The existing offscreen test
+binary forces the product standalone-password capability, verifies Main-only
+plain-text guidance, masked fields, the one runtime handoff, cleared secret
+editors, no post-handoff secret in QLabel text and no `Copy Password`
+button. Existing Type-2/EOF product-language tests retain the exact
+`Remote client authentication did not complete.` and
+`Client disconnected after authentication challenge.` expectations.
+
+Agent-2's hosted credential-semantic differential is preserved as a separate
+Windows-native gate; its execution is still pending, so R7 makes no claim about
+which credential state matches the physical client. Agent-10 now provides typed
+post-Type-2 client-data timeline observations, but the supplied physical receipt
+predates them. The optional waiting-for-authentication-response sentence is
+therefore intentionally not added in this increment. No wrong-password,
+certificate, native-admission or target-identity claim is made, and production
+remains `fixed-name / RDP-SERVER`.
+
+Connector/source transformation and concurrent-change reconciliation:
+**PASS by inspection**. Canonical owner one-`build/`
+configure/build/focused/full CTest: **NOT RUN** in this connector environment.
+Exact-publication-SHA hosted CI: **PENDING**.
+
 ## Agent 10 post-Type-2 client-data timeline authoring receipt — 2026-10-27
 
 **Assignment parent:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`. Remote

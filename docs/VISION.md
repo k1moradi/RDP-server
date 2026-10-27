@@ -1,3 +1,18 @@
+## Remote RDP client credential guidance (2026-10-27)
+
+The standalone Main credential surface must tell the owner that the displayed
+Username and the owner-entered Session Password are the credentials to enter in
+the remote RDP client. This is manual product guidance only: the server does not
+send, synchronize or otherwise teach the Session Password to Windows App or
+another client.
+
+The Username remains a non-authorizing convenience value. Never retrieve or
+auto-fill an operating-system password. After the Session Password has been
+transferred into the runtime credential owner, keep the secret out of the GUI
+editors and do not add a password-copy or password-reveal action. This guidance
+does not diagnose a pre-Type-3 peer close as a bad password or grant native
+Admission, MCS, Share, graphics, input or clipboard authority.
+
 ## Local Username convenience and credential separation (2026-10-24)
 
 When a safe current interactive local account name is available, the desktop GUI

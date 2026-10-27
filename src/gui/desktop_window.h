@@ -65,6 +65,7 @@ private:
     QLabel* usernameLabel_;
     QLabel* sessionPasswordLabel_;
     QLabel* sessionPasswordConfirmLabel_;
+    QLabel* rdpClientCredentialGuidance_;
     QPushButton* configureOsAccount_;
     QPushButton* requestHostPermission_;
     QPushButton* disconnect_;

@@ -1,3 +1,15 @@
+## R7 remote-client credential guidance adds no build surface (2026-10-27)
+
+The Main-page credential guidance uses only the existing Qt Widgets `QLabel`
+helper and the existing `test_desktop_gui_offline` executable. There is no new
+Qt module, native library, runtime service, credential provider, build option or
+build root. The dedicated
+`gui.offscreen-rdp-client-credential-guidance` CTest uses
+`QT_QPA_PLATFORM=offscreen` and the ordinary strict-warning GUI target.
+
+The canonical owner configure/build/full-CTest command and the single
+`~/rdp-server/build/` contract are unchanged.
+
 ## Agent 2 credential-semantic matrix adds no production build surface (2026-10-27)
 
 The differential reuses Windows-only `test_windows_sspi_credssp_interop`, its

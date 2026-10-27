@@ -395,6 +395,11 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       usernameLabel_(label(QStringLiteral("Username"), mainTab_)),
       sessionPasswordLabel_(label(QStringLiteral("Session Password"), mainTab_)),
       sessionPasswordConfirmLabel_(label(QStringLiteral("Confirm"), mainTab_)),
+      rdpClientCredentialGuidance_(label(
+          QStringLiteral(
+              "Use this Username and Session Password as the credentials in "
+              "your RDP client."),
+          mainTab_)),
       configureOsAccount_(new QPushButton(
           QStringLiteral("Use Existing OS Account"), mainTab_)),
       requestHostPermission_(new QPushButton(
@@ -431,6 +436,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     platformStatus_->setObjectName("platformSupportStatus");
     addressStatus_->setObjectName("connectionAddress");
     credentialStatus_->setObjectName("credentialStatus");
+    rdpClientCredentialGuidance_->setObjectName("rdpClientCredentialGuidance");
     sharingAvailabilityStatus_->setObjectName("sharingAvailabilityStatus");
     permissionStatus_->setObjectName("permissionStatus");
     selectedInterfaceStatus_->setObjectName("selectedLanInterfaceStatus");
@@ -526,6 +532,7 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     QWidget::setTabOrder(sessionPassword_, sessionPasswordConfirm_);
     QWidget::setTabOrder(sessionPasswordConfirm_, sharingToggle_);
     mainLayout->addLayout(accessForm);
+    mainLayout->addWidget(rdpClientCredentialGuidance_);
     mainLayout->addWidget(credentialStatus_);
     configureOsAccount_->setParent(advancedTab_);
 
@@ -1211,6 +1218,7 @@ void DesktopWindow::refresh()
     usernameLabel_->setVisible(standaloneVisible);
     sessionPasswordLabel_->setVisible(standaloneVisible);
     sessionPasswordConfirmLabel_->setVisible(standaloneVisible);
+    rdpClientCredentialGuidance_->setVisible(standaloneVisible);
 
     // R10 owns credential mutation authority. The acceptance surface may
     // expose the production credential owner before public Release

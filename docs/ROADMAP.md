@@ -1,3 +1,79 @@
+## Agent 7 P1 — explicit remote-client credential guidance (2026-10-27)
+
+**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
+**Reconciled publication parent:** `fa503a097f07d6df7bc425e89b585c79e9f6a2af`.
+Concurrent Agent-3 MCS/Share containment, Agent-4 graphics dormancy, Agent-8
+long-stall clipboard dormancy, Agent-5 Windows App credential evidence,
+Agent-2 hosted credential semantics and Agent-10 post-Type-2 timeline work are
+preserved. The owner-reported assignment baseline is **998/998 CTest PASS**.
+
+The supplied physical Linux/X11 attempt remains TLS 1.3 /
+`TLS_AES_256_GCM_SHA384` -> IP SNI -> current exact-IP-SAN certificate ->
+Direct NTLM Type 1 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied
+domain/workstation -> unchanged production Type 2 `0xe08a8235` fully
+committed -> Await-Type-3 -> peer EOF. The reported timings are
+`type2-creation-to-delivery-us=23619` and
+`preauth-peer-eof-elapsed-us=7586602`. Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified`, native Admission, MCS, Share, graphics/X11 and
+clipboard remain **NOT REACHED**.
+
+Independent Microsoft evidence already rules out malformed/current Type-2
+shape, fixed-name versus IP target identity, current TargetName/TargetInfo,
+missing MsvAvTargetName, the exact-IP-SAN certificate name shape, TLS 1.3 by
+itself and the physical/hosted OEM response-bit difference. Production
+therefore remains exactly `fixed-name / RDP-SERVER`; this increment changes
+no authentication wire bytes.
+
+R7 now places one concise Main-page instruction directly below the standalone
+credential form: `Use this Username and Session Password as the credentials in
+your RDP client.` The label follows the existing standalone-password surface
+and creates no credential state. It complements Agent-5's same-attempt evidence
+procedure, which requires an explicit Windows App Saved credential whose
+Username exactly matches this server Username and whose password is the same
+independent Session Password. Neither path records or retrieves the password.
+
+Username remains the existing editable non-authorizing convenience value.
+Password and confirmation remain masked and are still cleared immediately after
+the one existing runtime credential handoff. No password-copy/reveal action is
+added, and no operating-system password is queried or filled.
+
+Agent-2's hosted credential-semantic CTest is independently authored to
+distinguish correct, wrong-password, missing-credential and empty-password
+states. Its Windows execution is still **PENDING**; R7 does not pre-interpret
+those rows. In particular, the physical pre-Type-3 EOF still does not prove a
+wrong Session Password.
+
+Agent-10 now exposes typed post-Type-2 timeline facts that can prove a quiet
+connection in a new production-backed test. The supplied physical receipt
+predates those fields and contains no same-attempt post-Type-2 client-data
+timeline. R7 therefore leaves the optional waiting sentence out of this
+increment and preserves the requested exact terminal wording:
+`Remote client authentication did not complete.` on Main and
+`Client disconnected after authentication challenge.` in Advanced. No
+wrong-password, certificate, native-admission or target-identity diagnosis is
+introduced.
+
+New deterministic behavior CTest:
+`gui.offscreen-rdp-client-credential-guidance`. It pins Main-only placement,
+plain-text wording, password masking, one runtime credential handoff, cleared
+secret editors after handoff, absence of the test secret from labels and no
+`Copy Password` action. Existing challenge-disconnect tests continue to own
+the typed authentication wording.
+
+**Authoring validation:** connector/source transformation and concurrent-change
+reconciliation **PASS by inspection**. The owner's **998/998** result belongs
+to the assignment parent and is not promoted to this publication. Canonical
+one-`build/` configure/build/focused/full CTest: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**.
+
+**Next gate:** qualify the publication SHA through ordinary hosted CTest. The
+next authorized physical attempt should preserve the same wire profile, use
+Agent-5's same-attempt Windows App Saved-credential/logging procedure and record
+Agent-10's new post-Type-2 timeline. Agent-2's credential-semantic matrix must
+be interpreted only after native Windows execution. Physical success remains
+`direct-ntlm-type3=received`; pre-Type-3 EOF alone is not a wrong-password
+result.
+
 ## Agent 2 P0 — Microsoft credential semantic differential (2026-10-27)
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.

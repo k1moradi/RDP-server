@@ -1,3 +1,36 @@
+## R7 remote-client credential guidance is presentation-only (2026-10-27)
+
+The standalone GUI may explain that its Username and Session Password are the
+credentials the owner must enter in the remote RDP client. Keep that instruction
+as plain presentation text beside the existing credential editors; it must not
+become a second credential cache, a client-account selector or authentication
+authority. Do not imply that Windows App automatically receives or discovers
+the Session Password.
+
+Preserve the existing secret lifetime: the operating-system password is never
+retrieved or auto-filled, Session Password and confirmation remain masked, and
+both GUI secret editors are cleared immediately after the existing runtime
+credential handoff. Never add a post-handoff Copy Password or reveal action.
+The non-secret Username may remain visible through its existing presentation
+lifetime. Agent-5's owner-evidence procedure may require that same Username in
+Windows App, but the two password ends remain manually entered and independently
+owned.
+
+A delivered Direct-NTLM Type 2 followed by peer EOF remains
+`AuthenticationIncompletePeerClosed`. Main continues to say
+`Remote client authentication did not complete.` and Advanced continues to
+say `Client disconnected after authentication challenge.`. Do not render
+wrong-password, certificate, native-admission or target-identity conclusions
+from that boundary. Agent-2's credential-semantic oracle remains independent
+test evidence and cannot be inferred from GUI state before its native result is
+available.
+
+Agent-10's typed post-Type-2 timeline may support a separate waiting
+presentation when the exact accepted connection proves no post-Type-2 client
+data. Do not infer that fact from absence of Type 3 or from the older physical
+receipt. This Agent-7 increment intentionally leaves the optional waiting text
+unchanged.
+
 ## Agent 2 credential-state differentials are test-only and never borrow process credentials (2026-10-27)
 
 The Windows Microsoft full-CREDSSP oracle may vary only its test-supplied SPNEGO

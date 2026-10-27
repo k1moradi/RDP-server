@@ -190,49 +190,76 @@ result.
 ## Agent 6 P0 — primary Microsoft CREDSSP credential-source oracle (2026-10-27)
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
-**Reconciled publication parent:** `59c0712df4f808bae220ee0721def6b1efccea5e`.
-The current Agent-9 owner-candidate aggregate is preserved but corrected to
-consume observational credential-source evidence rather than prescribe
-wrong/missing outcomes.
+**Observational implementation SHA:**
+`0ebe7eb5f4104019f0147711953d65990f31ca3e`.
+**Native evidence:** workflow `40536481721`, Windows protocol job
+`122303574293`, exact-SHA artifact
+`r9-microsoft-interop-0ebe7eb5f4104019f0147711953d65990f31ca3e`
+(artifact `12749695261`, SHA-256
+`d21c7062668ab91b952bc88e2ca608e8a4095f875e43a7eb614651e240fd7b3c`).
+The later `a52c840368f044a34375db67a17e33dce8575a5f` follow-up only expands
+symbolic status-name preservation and does not change the credential-source
+construction or the statuses observed below.
 
 The physical boundary remains TLS 1.3 / `TLS_AES_256_GCM_SHA384` -> IP SNI
 -> exact-IP-SAN generated certificate -> Direct NTLM Type 1
 `0xe2088235`, VERSION `6.0.6001/0x0f`, no supplied domain/workstation ->
 unchanged production Type 2 `0xe08a8235` committed -> Await-Type-3 -> peer
-EOF. The supplied timings remain
-`type2-creation-to-delivery-us=23619` and
-`preauth-peer-eof-elapsed-us=7586602`. Type 3 and downstream authority
-remain **NOT REACHED**. Owner-supplied assignment baseline: **998/998 PASS**.
+EOF. Type 3 and downstream authority remain **NOT REACHED** physically.
+Owner-supplied assignment baseline remains **998/998 PASS**.
 
-The existing Windows full-CREDSSP differential now runs fresh contexts for
-explicit valid, wrong and empty-password credentials plus an explicit
-unavailable/no-SPNEGO source. The unavailable row uses Schannel-only
-`CREDSSP_CRED` and never borrows process credentials. The matrix uses the
-already-qualified modern Schannel system-default client profile, while
-production TLS/certificate/target/Type-2 bytes remain unchanged.
+The existing Windows full-CREDSSP differential runs fresh contexts for
+explicit valid, wrong-password and empty-password credentials plus an explicit
+Schannel-only unavailable/no-SPNEGO source. The unavailable row uses
+`CREDSSP_CRED::Type = CredsspSchannelCreds` with
+`pSpnegoCred == nullptr`; hosted process/default credentials are not acquired
+and are separately recorded `NOT_RUN_POLICY` with
+`hosted-runner-credentials-used=no`.
 
-Every executed row records bounded non-secret AcquireCredentialsHandle and
-first InitializeSecurityContext symbolic/hex status, first TSRequest, Type 1,
-production Type-2 consumption, next client output, Type 3, terminal status and
-monotonic elapsed microseconds. Only the valid row must reach Type 3. Other
-rows are classified from observed Microsoft behavior. No-progress, round-limit
-or non-Microsoft harness failures remain FAIL.
+Exact Windows results:
 
-Default/process credentials are deliberately `NOT_RUN_POLICY` on hosted CI,
-with `hosted-runner-credentials-used=no`, because using them could consume
-the runner's real personal/domain credentials.
+| Credential state | Type 1? | Production Type 2 consumed? | Type 3? | Microsoft terminal status |
+| --- | --- | --- | --- | --- |
+| Correct credential | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Wrong password | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Empty password | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Unavailable / no SPNEGO credential | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Hosted default/process credential | no | no | no | `NOT_RUN_POLICY` |
 
-**Authoring validation:** current-main source/CI transformation review
-**PASS by inspection**. Windows-native modified-tree build/focused/full CTest
-is **NOT RUN** in this connector environment; exact-publication-SHA hosted CI
-is **PENDING**. No production wire change is authorized.
+All four executed rows acquired their fresh CredSSP credential handle with
+`SEC_E_OK`, reached first TSRequest/Type 1, consumed the unchanged production
+Type 2 and emitted a next client TSRequest containing NTLM Type 3. The focused
+CTest `security.windows-credssp-credential-semantic-differential` is **PASS**.
+Its comparison summary is
+`physical-sequence-match=no leading-comparison=none unavailable-no-spnego-match=no`.
 
-**Next gate:** use `POST_TYPE2_NO_TYPE3` plus its exact symbolic/hex SSPI
-status as the leading physical comparison if any row produces it. If every
-exercised non-control row instead emits Type 3 or fails before Type 1, missing
-credential material alone does not match the physical Windows App sequence.
-Combine this result with the same-attempt Saved-credential/Core/UI-log and
-post-Type-2 timeline evidence before reopening any server wire hypothesis.
+**Decision:** wrong password is independently ruled out as an explanation for
+the physical **pre-Type-3** close. Explicit empty password and the strongest
+safe hosted missing-credential construction (Schannel-only, no SPNEGO
+credential, no process/default credential access) also do not reproduce the
+physical sequence because Microsoft still emits Type 3. Therefore **none of
+the tested Microsoft-native credential-source states matches** the physical
+Type-2-committed -> no-Type-3 -> peer-EOF boundary.
+
+This narrows the primary hypothesis from simple credential contents to a
+Windows App/client-side decision that withholds or aborts the credential
+response: Saved-credential selection, account handling, delegation policy or
+another typed client policy remain candidates. It does not identify which one.
+Combine the semantic result with Agent-5 same-attempt Saved-credential/Core/UI
+evidence and the completed post-Type-2 wire-silence diagnostics before
+attributing cause.
+
+Production remains exactly `fixed-name / RDP-SERVER`. No Type-2 flag,
+TargetName, TargetInfo, MsvAvTargetName, certificate/TLS, Admission, MCS,
+Share, graphics, input or clipboard change is authorized.
+
+**Qualification status:** exact-SHA focused Windows credential-source
+differential and its prerequisite certificate/CredSSP-pump/TLS/modern-Schannel
+steps are **PASS** at `0ebe7eb5...`; the artifact above is preserved.
+Canonical owner one-`build/` modified-tree full CTest for current shared main
+is not claimed here. The next physical gate is the Agent-9 exact-SHA manual
+owner-candidate aggregate followed by the credential-controlled Windows App
+attempt with same-attempt client evidence.
 
 ## Agent 8 P2 — long Await-Type-3 stall keeps clipboard lifetime absent (2026-10-27)
 

@@ -34,26 +34,67 @@ certificate identity, target identity and Type-2 bytes are unchanged.
 ## Agent 6 primary Microsoft CREDSSP credential-source oracle correction — 2026-10-27
 
 **Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
-**Reconciled publication parent:** `59c0712df4f808bae220ee0721def6b1efccea5e`.
-This correction supersedes fixed wrong/missing outcome expectations in the
-earlier Agent-2 and Agent-9 authoring receipts below while preserving them as
-historical context. Mandatory policy and concurrent work were reconciled first.
+**Observational implementation SHA:**
+`0ebe7eb5f4104019f0147711953d65990f31ca3e`.
+**Workflow/job:** `40536481721` / Windows protocol `122303574293`.
+**Artifact:** `r9-microsoft-interop-0ebe7eb5f4104019f0147711953d65990f31ca3e`,
+artifact `12749695261`, SHA-256
+`d21c7062668ab91b952bc88e2ca608e8a4095f875e43a7eb614651e240fd7b3c`.
+The later `a52c840368f044a34375db67a17e33dce8575a5f` follow-up adds symbolic
+names for additional SSPI statuses but leaves this matrix construction and the
+statuses below unchanged.
 
-The existing full-CREDSSP oracle now uses fresh explicit valid, wrong,
-empty-password and Schannel-only unavailable/no-SPNEGO contexts. Hosted
-default/process credentials are never acquired and are recorded
-`NOT_RUN_POLICY`. Every executed row publishes bounded symbolic/hex
-AcquireCredentialsHandle and first InitializeSecurityContext status, first
-TSRequest, Type 1, production Type-2 consumption, next Microsoft output, Type 3,
-terminal status and elapsed microseconds. Only valid has a prescribed Type-3
-outcome; the other rows are observational.
+The exact implementation compiled successfully. Production certificate
+qualification, shared CredSSP memory-BIO round progression, explicit server
+TLS-version matrix and modern-Schannel full-CredSSP probe all **PASSed** before
+the primary Microsoft differential. The credential-source CTest itself is
+**PASS**.
 
-The exact-SHA artifact and manual owner-candidate gate now consume that
-observational matrix and comparison summary rather than fixed wrong/missing
-results. Connector source/CI review: **PASS by inspection**. Windows-native
-modified-tree build/focused/full CTest: **NOT RUN** here. Exact-publication-SHA
-hosted CI: **PENDING**. Owner assignment baseline remains **998/998 PASS** and
-predates this correction. No production wire or authority change is authorized.
+The fresh executed rows and the policy-skipped default row are:
+
+| Credential state | Type 1? | Type 2 consumed? | Type 3? | Microsoft status |
+| --- | --- | --- | --- | --- |
+| Correct credential | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Wrong password | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Empty password | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Unavailable / no SPNEGO credential | yes | yes | yes | `SEC_I_CONTINUE_NEEDED (0x00090312)` |
+| Hosted default/process credential | no | no | no | `NOT_RUN_POLICY` |
+
+Every executed row reports `AcquireCredentialsHandle = SEC_E_OK` and first
+`InitializeSecurityContext = SEC_I_CONTINUE_NEEDED`. Correct, wrong,
+empty-password and unavailable/no-SPNEGO all reach the same decisive P0
+boundary: first TSRequest -> Type 1 -> unchanged production Type 2 consumed ->
+next Microsoft client output -> NTLM Type 3. The unavailable row uses
+Schannel-only `CREDSSP_CRED` with `pSpnegoCred == nullptr`; it does not
+exercise hosted default/process credentials. The explicit default row is
+`NOT_RUN_POLICY` and records `hosted-runner-credentials-used=no`.
+
+Artifact comparison summary:
+`status=PASS correct-control=TYPE3 physical-sequence-match=no
+leading-comparison=none unavailable-no-spnego-match=no
+all-noncontrol-type3-or-pretype1=yes default-credential=NOT_RUN_POLICY
+production-type2-change-authorized=no`.
+
+**Diagnosis:** fixed wrong password is not equivalent to physical peer EOF
+before Type 3. Explicit empty password is not equivalent either. The strongest
+safe hosted missing-credential case also does not match: Microsoft still emits
+Type 3 with no supplied SPNEGO credential source. By the observed wire
+boundary, **none of the tested credential states is the closest match**; every
+executed state progresses farther than the physical client. This supports the
+remaining class of Windows App-side Saved-credential/account/delegation policy
+or another client decision that aborts credential-response emission, but does
+not prove a specific policy cause.
+
+The P0 oracle observes Type-3 emission only; it does not promote later
+server-side credential verification, pubKeyAuth, authInfo, native Admission,
+MCS, Share, graphics, input or clipboard to acceptance. No password, token,
+challenge/response, session-key or delegated-credential bytes are logged.
+Production remains `fixed-name / RDP-SERVER` and no authentication wire
+change is authorized.
+
+This exact native result supersedes the fixed wrong/missing expectations in the
+older Agent-2/Agent-9 authoring receipts retained below as historical context.
+Current standards intentionally keep non-control outcomes observational.
 
 ## Agent 9 credential-source owner-candidate convergence receipt — 2026-10-27
 
@@ -191,49 +232,19 @@ change.
 
 ## Agent 2 Microsoft credential-semantic differential authoring receipt — 2026-10-27
 
-**Assignment-time main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
-**Reconciled authoring parent:** `2faee11380a897b01742f7cac0f171f7c8f5eb72`.
-All mandatory policy was re-read and concurrent Agent-3/R4/R8 containment plus
-Agent-5 owner-evidence changes were reconciled before publication.
-Owner-reported Linux/X11 full CTest on the assignment parent:
-**998/998 PASS**; that is not modified-tree evidence.
+**SUPERSEDED EVIDENCE CONTRACT.** This section records the original authoring
+expectation from implementation `3e30d2e71dca6cc7d63da104f1593b98185bd240`.
+Its requirement that a missing-credential row must stop before Type 3 was
+disproved by native Microsoft execution and replaced by the observational
+Agent-6 credential-source oracle recorded above.
 
-The Windows-native full-CREDSSP harness now has a test-only credential-state
-parameter while retaining the production generated exact-IP certificate,
-production TSRequest reader/writer, production Direct-NTLM acceptor and
-unchanged production Type 2. `security.windows-credssp-credential-semantic-differential`
-runs four fresh Microsoft contexts: correct fixed test credentials; the same
-identity with a fixed wrong test password; an explicit empty SPNEGO identity
-with no username/domain/password; and explicit test username/domain with an
-empty password. The missing row cannot borrow CI account credentials.
+The retained facts remain: assignment parent
+`985709b9f8b4c23c32da7297cb088b1ace2920fb`; owner-reported parent baseline
+**998/998 PASS**; production stayed `fixed-name / RDP-SERVER`; and no CI
+account credential, secret token, response material or post-auth authority was
+permitted. Use the exact-SHA table above—not this historical expectation—for
+current diagnosis and owner-candidate decisions.
 
-Correct and wrong-password contexts must reach Type 3. Missing credentials
-must emit no Type 3 and terminate at a typed Microsoft credential/policy
-boundary; empty password is recorded independently and may reach Type 3 or a
-typed credential result. Harness no-progress/round-limit/server failures do
-not qualify.
-
-| Credential state | Type 1? | Type 2 consumed? | Type 3? | Microsoft status |
-| --- | --- | --- | --- | --- |
-| Correct credential | PENDING | PENDING | PENDING | PENDING |
-| Wrong password | PENDING | PENDING | **must be yes** | PENDING |
-| Missing credential | PENDING | PENDING | **must be no** | PENDING |
-| Empty password | PENDING | PENDING | PENDING | PENDING |
-
-Agent 5's physical runbook separately requires an explicit saved Windows App
-credential intentionally matched to the standalone app credential. That
-owner-private evidence remains independent of this hosted SSPI semantic matrix.
-No password, token, challenge/response, session-key or delegated-credential
-bytes are logged.
-
-Production remains `fixed-name / RDP-SERVER`; Type-2 flags/TargetName/
-TargetInfo/MsvAvTargetName, certificate/TLS policy and every post-auth
-authority boundary are unchanged.
-
-Connector source/transformation and reconciliation review: **PASS by
-inspection**. Canonical modified-tree one-`build/` configure/build/focused/full
-CTest: **NOT RUN** in this connector environment. Native Windows execution and
-exact-publication-SHA hosted CI: **PENDING**.
 ## Agent 5 credential-state Windows App owner-evidence strengthening — 2026-10-27
 
 **Authoring parent / assignment-time remote main:**

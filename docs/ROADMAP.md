@@ -215,6 +215,30 @@ outcome authorizes a production wire mutation by itself.
 
 ## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
 
+**R9 P0 Windows extracted-GUI firewall-smoke unblock (2026-10-28):**
+Parent 5099744ca29c6043315cd1b35ca16c4573fdf045, Actions
+40753865293, r6-windows-clang23 job 123047482903: Debug and Release
+849/849 CTests plus 60/60 native sanitizer CTests PASS; extracted Windows
+GUI offline firewall snapshot comparison FAIL. No raw before/after records
+were captured, so GUI mutation, runner interference or harmless netsh rule
+reordering remain UNDETERMINED. R7 GUI-side source review requested:
+the Windows launcher constructs UnavailableRuntimeHostControl, and inspected
+GUI/HostControl paths contain no firewall writer. R7 should independently
+confirm that no GUI-side mutation path exists; no R7 product change assumed.
+
+R9 updates only the offline smoke and its existing synthetic CTest to compare
+complete, ordinally sorted firewall-rule records with all advertised fields
+and duplicates preserved; semantic changes still FAIL with record-level
+differences, and raw-only differences produce bounded order evidence.
+Idle and between-GUI-phase snapshots help localize external interference.
+Authoring source inspection PASS; canonical local build/CTest NOT RUN in the
+connector environment; exact-publication-SHA hosted r6-windows-clang23 and
+dependent r9-gui-round2-acceptance PENDING. Next: both hosted jobs PASS
+on the same SHA, then explicitly dispatch r9_credssp_owner_candidate=true.
+Never nominate an owner build before that manual gate PASS.
+
+
+
 **Assignment-time remote main:** `985709b9f8b4c23c32da7297cb088b1ace2920fb`.
 **Reconciled authoring parent:** `773855d854729f233f129345dec81f1968294879`.
 Current mandatory policy was re-read after concurrent Agent-3/4/8 containment,

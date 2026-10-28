@@ -1,3 +1,25 @@
+## R9 Windows extracted-GUI firewall smoke qualification (2026-10-28)
+
+At parent 5099744ca29c6043315cd1b35ca16c4573fdf045, workflow 40753865293,
+Windows CLANG64 job 123047482903, completed Debug and Release 849/849 CTests
+and 60/60 native sanitizers, but extracted GUI offline smoke failed comparing
+the entire raw netsh firewall-rule output. No before/after records were logged,
+so this alone does not attribute mutation to the GUI or runner.
+
+The smoke must fail closed on unreadable/malformed enumeration, changed rule
+identity, additions, removals, duplicates and any changed advertised property,
+as well as existing firewall-profile, TermService, RDP policy and no-socket
+gates. Reordered output alone is not mutation. Preserve complete Rule Name
+records, sort with ordinal comparison, retain duplicates and compare the
+complete multiset without dropping fields. Log the actual before/after records
+on semantic failure; record first differing native order on raw-only drift.
+Re-check at an idle control and after every existing GUI phase; never write
+native system settings. The existing Windows synthetic CTest covers
+order-invariant equivalence, property changes, identity, count and malformed
+output. Even if another runner process caused semantic mutation, the gate
+must FAIL. A manual R9 candidate dispatch remains necessary after exact-SHA
+Windows and GUI Round 2 producer PASS.
+
 ## R6 physical macOS Windows App vs Windows 11 mstsc A/B gate (2026-10-28)
 
 Do not add another synthetic CredSSP oracle for this comparison. The existing

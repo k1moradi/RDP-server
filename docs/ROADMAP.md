@@ -7580,6 +7580,24 @@ remains a separate release-evidence track. Canonical owner-local
 configure/build/full CTest: **NOT RUN** in this connector environment.
 Exact-publication-SHA hosted Round 2 qualification: **PENDING**.
 
+**R5/R9 2026-10-28 infrastructure-only repair (parent `4c999600176e00b68262a8f4c1af321268f92cad`):**
+Run `40749489599`, `r5-linux-gui-zip` job `123032100260`, failed in
+`sudo apt-get update` on a GitHub-hosted Ubuntu 26.04 image: the
+image-provided Microsoft `packages.microsoft.com/ubuntu/26.04/prod` source
+returned HTTP 403 before dependencies, compilation, or CTests. The GUI
+producer needs only Ubuntu Qt6/XCB/Xvfb, OpenSSL, PAM/Kerberos/systemd
+and ZIP tools, not this Microsoft feed. Pin **only** `r5-linux-gui-zip`
+to supported `ubuntu-24.04`; keep signed APT update, package validation,
+Qt/XCB closure, existing R5/R9 tests, and artifact publication unchanged.
+Workflow source/required-needs checks: **PASS by inspection**; owner-local
+build/CTest: **NOT RUN**; exact publication-SHA `r5-linux-gui-zip` and
+`r9-gui-round2-acceptance`: **PENDING**. Next: require both jobs **PASS**
+on the same resulting SHA; a new `main` SHA independently requires full
+R9 CredSSP owner-candidate requalification. This infrastructure fix does
+not constitute physical-client, authentication, native Admission or Share
+evidence and does not waive any existing acceptance gates.
+
+
 ## R2 P1 Linux sharing-permission product projection (2026-10-22)
 
 Starting exact-main parent: `e8527f660b832edfede2f2f901db6c6c15804c36`.

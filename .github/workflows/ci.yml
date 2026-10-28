@@ -3017,7 +3017,7 @@ jobs:
   # Xvfb proves Qt/XCB startup only, never authenticates a physical seat0.
   r5-linux-gui-zip:
     needs: ci-workflow-structure
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt6 XCB and offline ZIP validation tools

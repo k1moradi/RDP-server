@@ -1,3 +1,25 @@
+## R5/R9 Linux GUI ZIP APT infrastructure receipt — 2026-10-28
+
+**Baseline main parent:** `4c999600176e00b68262a8f4c1af321268f92cad`. Failed Actions run `40749489599`,
+job `123032100260` (`r5-linux-gui-zip`) ran on Ubuntu 26.04.1 and
+stopped at `sudo apt-get update` with HTTP 403 from the image's
+`packages.microsoft.com/ubuntu/26.04/prod` InRelease endpoint. Its build,
+CTest, packaging and artifact upload steps were **SKIPPED**. On the same
+SHA, macOS GUI, Windows CLANG23 and documentation dependencies were
+**PASS**, but the dependent `r9-gui-round2-acceptance` was **FAIL**
+because Linux was not success. The independent Linux portable bootstrap
+job used Ubuntu 26.04 and passed, confirming this feed failure can vary
+between runners.
+
+**Minimal change:** pin only the Linux GUI ZIP producer from
+`ubuntu-latest` to supported `ubuntu-24.04`, leaving standard APT
+signature validation, package list, build and GUI/ZIP checks intact.
+Static job-scope/aggregate-needs review: **PASS by inspection**.
+Owner-local compile/full CTest: **NOT RUN**. New exact-SHA GUI ZIP and
+Round-2 aggregate hosted evidence: **PENDING**. Do not conflate this
+with the R9 physical CredSSP acceptance candidate; any new `main` SHA
+requires fresh qualification before an owner attempt.
+
 ## R6 physical Windows App/mstsc differential authoring receipt — 2026-10-28
 
 **Authoring base:** `a570cba96c48e62ecccfe5f339869a24d008c17d`.

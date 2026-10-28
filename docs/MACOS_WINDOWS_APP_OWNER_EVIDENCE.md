@@ -120,6 +120,37 @@ Interpretation is deliberately narrow:
 
 No result in this table authorizes a production wire change by itself.
 
+### R2 handoff — first client-side typed failure
+
+Only after an exact-SHA R9 manual candidate **PASS** and owner authorization,
+review each physical client attempt's original, same-attempt evidence in its
+native order. For macOS, use the R5 Core/UI logs and exact UI error; for
+Windows 11, use the exact `mstsc.exe` UI result and any owner-approved native
+diagnostics actually available. Identify the **earliest explicit client-side
+typed failure** (provider category/error code and redacted exact message),
+its source, original event timestamp when available and the matching client
+attempt. A Linux Type-2-commit/FIN record is not a client-side failure code.
+
+Send R2 a **private, redacted** evidence handoff for each comparable row:
+client OS/app versions, exact server SHA and destination, certificate identity
+and warning decision, explicit credential-control/match yes-no facts, earliest
+client-side typed failure with source and timestamp, and the correlated Linux
+connection ID, offset-aware terminal time and independently observed protocol
+stage matrix. Preserve raw logs and the R5 manifest in the owner-controlled
+evidence bundle; never commit usernames, raw client logs, passwords, NTLM
+material or delegated credentials.
+
+When no client-side typed failure is present, report `NOT_OBSERVED` and the
+exact UI result; when log order across sources cannot be established, report
+`ORDER_UNDETERMINED` and retain the separate first events instead of
+inventing an overall earliest failure. Do not order client and server events
+by comparing clocks with unverified synchronization. R2 owns subsequent
+credential/delegation/account-policy investigation **only when supported by
+that client evidence**; otherwise route the first independently demonstrated
+failure to its actual stage owner. This handoff is diagnostic, never R2
+authentication authority or permission to change TLS, NTLM Type 2,
+certificate identity, server policy or downstream Admission/Share.
+
 ## Non-negotiable safety boundary
 
 - Do **not** add, remove, import, persist or otherwise change any macOS

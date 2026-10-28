@@ -1,3 +1,75 @@
+## R6 physical macOS Windows App vs Windows 11 mstsc A/B gate (2026-10-28)
+
+Do not add another synthetic CredSSP oracle for this comparison. The existing
+Microsoft-native full-CredSSP harness is the prerequisite control. On exact SHA
+`a570cba96c48e62ecccfe5f339869a24d008c17d`, Windows protocol job
+`122377366378` in workflow `40557478704` produced exact-SHA artifact
+`r9-microsoft-interop-a570cba96c48e62ecccfe5f339869a24d008c17d`
+(artifact `12756693736`). Its TLS-1.3-only row negotiated
+`TLS1.3 / TLS_AES_256_GCM_SHA384`, consumed the unchanged production Type 2
+and emitted Type 3; the modern Schannel probe also reported
+`TLS13_TYPE3_PASS`. Hosted process/default credentials remain
+`NOT_RUN_POLICY` with `hosted-runner-credentials-used=no`. This is
+Microsoft mechanism evidence, not a physical-client acceptance result.
+
+The external differential is **physical-only and owner-authorized**. Never run
+Windows App or `mstsc.exe` in hosted CI and never use a runner or host
+OS-account credential as the standalone application credential. Use one
+R9-nominated exact server SHA and, unless the first accepted connection forces
+terminal server replacement, keep the same running server/listener, generated
+certificate identity, destination IP, configured standalone Username and
+independent Session Password for both client rows. A server restart, credential
+replacement, certificate rotation, destination change or different SHA
+invalidates the pair and requires both rows to be repeated.
+
+R5's typed macOS Windows App evidence is the **first external evidence row**,
+not a server-side afterthought. Before interpreting the Linux peer-close
+record, retain the same-attempt
+`rdp-server.macos-windows-app-owner-evidence.v2` manifest, original supported
+Core/UI logs when available, exact UI error, certificate-warning decision,
+Linux connection ID/timestamp and complete Linux terminal record. If that
+bundle is unavailable or does not match the nominated SHA/destination/
+credential-controlled attempt, mark the macOS row `INCOMPLETE`; do not infer
+a client-specific cause from server EOF alone.
+
+For the Windows 11 `mstsc.exe` row, record the Windows OS build and
+`mstsc.exe` file version, enter the **same exact destination IP**, explicitly
+enter the same standalone Username and independent Session Password through the
+client UI, and record the client-visible error/result. Do not place passwords
+on a command line or in the acceptance record. Existing automatic/saved OS
+credentials are not an acceptable substitute: if the operator cannot prove the
+standalone credential was the one supplied, mark the row
+`INVALID_CREDENTIAL_CONTROL`.
+
+Certificate decisions must be comparable. Record the exact server certificate
+SHA-256 fingerprint for the pair and, for each client, whether a warning was
+shown and whether the owner accepted it. Do not mutate Keychain, Windows
+certificate stores or client security policy to force parity. A pair is
+comparable when both clients see the same certificate identity and either both
+show a warning with the same owner decision or both proceed without a warning.
+Otherwise record `CERTIFICATE_DECISION_NOT_COMPARABLE` and do not attribute a
+later difference to client-specific CredSSP behavior.
+
+For each physical row record these server-observed boundaries independently:
+TLS established; Direct-NTLM Type 1 received; production Type 2 fully committed
+by the existing R1 TLS writer; any post-Type-2 client bytes/TSRequest; Type 3
+received; pubKeyAuth reached; authInfo reached; CredentialsVerified reached;
+typed terminal outcome. Record PASS/FAIL/NOT_REACHED for every stage rather
+than inferring a later stage from an earlier one.
+
+Interpret only a valid, same-SHA comparable pair:
+
+| macOS Windows App | Windows 11 mstsc | Interpretation / next owner |
+| --- | --- | --- |
+| Type 2 committed, no Type 3 | Type 3 received | Prioritize macOS Windows App credential/delegation/settings/policy evidence. Keep production wire unchanged. |
+| Type 2 committed, no Type 3 | Type 2 committed, no Type 3 | Investigate a common live-client/server interoperability requirement at or after the production Type 2 boundary. Do not change wire behavior without a narrower external failure fact. |
+| Type 3 received | Type 3 received | Advance both rows into Type-3 proof verification, pubKeyAuth, authInfo and later authentication/native-admission boundaries. |
+| Any pre-Type-2 asymmetry, credential-control failure, SHA/destination mismatch, or non-comparable certificate decision | any | Comparison is inconclusive/invalid. Fix the evidence controls and repeat both rows before assigning protocol ownership. |
+
+This A/B procedure adds no production behavior and no synthetic CTest. It
+reuses the existing Microsoft oracles and R5 evidence path and produces a
+physical acceptance record for R9.
+
 ## R10 stage-timeline lifecycle gate (2026-10-27)
 
 The new dedicated production-backed CTest

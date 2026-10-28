@@ -17,6 +17,109 @@ Reference:
 The current Windows App release history is published at:
 <https://learn.microsoft.com/windows-app/whats-new>
 
+## R6 paired physical-client A/B with Windows 11 mstsc
+
+This macOS evidence bundle is row A of the R6 physical-client comparison. It
+must be reviewed **before** interpreting the Linux peer-close record or the
+Windows row. The comparison is owner-authorized physical evidence only; it is
+never a hosted-CI test.
+
+### Pair invariants
+
+Use one R9-nominated exact server SHA for both rows and record it before either
+attempt. Keep the same running RDP-server instance/listener when possible so
+the generated certificate identity, configured standalone Username, independent
+Session Password and destination IP remain unchanged. Do not Stop/Start,
+replace credentials, rotate TLS identity, change destination spelling or modify
+production TLS/NTLM/CredSSP policy between rows. If any of those change, the
+pair is invalid and both rows must be repeated.
+
+The destination is the same **exact IP string** in Windows App and
+`mstsc.exe`. Both clients must receive the same standalone application
+credential: exact configured Username plus the same independent Session
+Password, entered through each client UI. Never place the password in a shell,
+command line, manifest, GitHub artifact or acceptance record.
+
+Record the exact server certificate SHA-256 fingerprint once for the pair. For
+each client record whether a certificate warning appeared and, if so, whether
+the owner accepted it. Do not alter Keychain, Windows certificate stores or
+client security policy to manufacture parity. If warning/trust decisions are
+not comparable, mark the A/B result
+`CERTIFICATE_DECISION_NOT_COMPARABLE` and stop interpretation at that fact.
+
+### Row A — macOS Windows App first external evidence
+
+Run the existing R5 procedure above and retain its typed
+`rdp-server.macos-windows-app-owner-evidence.v2` manifest, original supported
+Core/UI logs when available, exact client-visible error, Windows App
+version/build, certificate-warning decision, Linux connection ID/timestamp and
+complete Linux terminal record. Review the same-attempt Core/UI log before
+assigning meaning to the server-side Type-2/EOF sequence.
+
+A macOS row without this R5 evidence bundle is `INCOMPLETE` for the R6
+comparison even when the server terminal record is available.
+
+### Row B — physical Windows 11 mstsc
+
+Only after row A has been captured, use an owner-authorized physical Windows 11
+machine if one is available. Record the Windows OS build and the
+`mstsc.exe` file version. Connect to the same exact destination IP and
+explicitly supply the same standalone Username and independent Session Password
+through the Remote Desktop client UI.
+
+Do not use a CI runner, a hosted VM's account credential, implicit current-user
+credentials or a password supplied on a command line. If the client uses an
+existing saved/default credential and the operator cannot prove it is the
+standalone credential for this pair, record
+`INVALID_CREDENTIAL_CONTROL` and do not interpret the row.
+
+Record the client-visible result/error and the same server-side correlation
+fields as row A: connection ID, offset-aware terminal timestamp and complete
+terminal record. No new client-side logging mechanism is required merely to
+make the rows symmetric; use owner-approved Windows diagnostics if already
+available, but do not invent a private `mstsc.exe` log path.
+
+### R9 comparison record
+
+For both rows, fill every stage explicitly rather than carrying success
+forward:
+
+| Field | macOS Windows App | Windows 11 mstsc |
+| --- | --- | --- |
+| Server SHA | exact 40-char SHA | same SHA required |
+| Server certificate SHA-256 | exact fingerprint | same fingerprint required |
+| Destination | exact IP string | same exact IP string |
+| Standalone Username | exact configured value | same value required |
+| Session Password matched | yes/no only | yes/no only |
+| Client version | Windows App version/build | Windows build + mstsc file version |
+| Certificate warning shown | yes/no | yes/no |
+| Certificate warning accepted | yes/no/not-applicable | yes/no/not-applicable |
+| R5 typed Core/UI log | available/unavailable + manifest/log references | not-applicable |
+| Exact client-visible error/result | exact text or none shown | exact text or none shown |
+| TLS established | PASS/FAIL | PASS/FAIL |
+| Type 1 received | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| Production Type 2 fully committed | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| Post-Type-2 client data | bytes/frame facts from existing diagnostics | bytes/frame facts from existing diagnostics |
+| Type 3 received | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| pubKeyAuth reached | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| authInfo reached | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| CredentialsVerified reached | PASS/FAIL/NOT_REACHED | PASS/FAIL/NOT_REACHED |
+| Typed terminal outcome | exact server category | exact server category |
+| Linux connection ID / terminal time | exact / offset-aware | exact / offset-aware |
+
+Interpretation is deliberately narrow:
+
+- macOS stops after Type 2 while `mstsc.exe` sends Type 3: investigate
+  macOS Windows App credential/delegation/settings/policy first.
+- both clients stop after the same production Type 2 without Type 3:
+  investigate a common live-client/server interoperability requirement.
+- both send Type 3: move the comparison boundary forward into proof
+  verification, pubKeyAuth, authInfo and later authentication stages.
+- any mismatch in SHA, destination, explicit credential control or certificate
+  comparability makes the pair inconclusive; repeat under controlled inputs.
+
+No result in this table authorizes a production wire change by itself.
+
 ## Non-negotiable safety boundary
 
 - Do **not** add, remove, import, persist or otherwise change any macOS

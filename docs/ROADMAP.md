@@ -1,3 +1,49 @@
+## R6 P0 — macOS Windows App versus Windows 11 mstsc physical differential (2026-10-28)
+
+**Current-main oracle anchor:** `a570cba96c48e62ecccfe5f339869a24d008c17d`.
+Windows protocol workflow `40557478704`, job `122377366378`, produced
+exact-SHA artifact
+`r9-microsoft-interop-a570cba96c48e62ecccfe5f339869a24d008c17d`
+(artifact `12756693736`). The existing Microsoft full-CREDSSP
+TLS-1.3-only row is **PASS** at exact
+`TLS1.3 / TLS_AES_256_GCM_SHA384`: first TSRequest yes, Type 1 yes,
+unchanged production Type 2 fully committed/consumed, next TSRequest yes and
+Type 3 yes. The modern Schannel probe is
+`TLS13_TYPE3_PASS`. Default/process credentials remain
+`NOT_RUN_POLICY` and `hosted-runner-credentials-used=no`. No new
+synthetic oracle is justified.
+
+**Current exact-SHA qualification caveat:** the overall workflow is **FAIL**,
+not an R9 physical-candidate PASS. The separate `r6-windows-clang23` job
+`122377365924` hit a Debug
+`security.windows-credssp-credential-semantic-differential` segfault even
+though the Windows protocol oracle artifact above was produced successfully.
+Do not use this SHA as a physical acceptance nomination until the existing
+exact-SHA producer requirements are green and the manual R9 owner-candidate
+gate permits the attempt.
+
+**Physical strategy authored; NOT RUN.** The next owner-authorized external
+comparison uses one nominated server SHA, the same running listener/TLS
+identity where possible, exact destination IP, explicit standalone Username,
+independent Session Password and comparable certificate decisions. R5's typed
+macOS Windows App manifest + supported Core/UI logs are row A and must be
+reviewed first; a physical Windows 11 `mstsc.exe` attempt is row B if an
+owner machine is available. Both rows record TLS, Type 1, production Type 2
+commit, post-Type-2 data, Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified` and typed terminal outcome independently.
+
+**Decision gate:** macOS no-Type-3 + mstsc Type-3 prioritizes macOS
+Windows App settings/credential/delegation policy; both no-Type-3 after Type 2
+prioritize a common live-client/server requirement; both Type-3 advance the
+failure boundary into proof/pubKeyAuth/authInfo. Any SHA/destination/credential
+or certificate-decision mismatch makes the pair inconclusive. Production
+remains `fixed-name / RDP-SERVER`; this strategy authorizes no TLS, NTLM,
+certificate or CredSSP wire change.
+
+**Next:** repair/qualify the existing exact-SHA producer set, run the existing
+manual R9 owner-candidate gate, then capture the controlled two-client physical
+record. Do not run either real client in hosted CI.
+
 ## R10 P0 supporting — reconciled pre-authentication stage timeline (2026-10-27)
 
 **Reconciled current-main parent:** `98639ebdba7e48070ab958f1d8a435d4f8df1fac`; runtime source originally inspected at `bd99f36da2738a9f306c51e03b716f5b2ddda72c`.

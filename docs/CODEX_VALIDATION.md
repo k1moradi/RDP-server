@@ -1,3 +1,53 @@
+## R6 physical Windows App/mstsc differential authoring receipt — 2026-10-28
+
+**Authoring base:** `a570cba96c48e62ecccfe5f339869a24d008c17d`.
+Mandatory policy, the current Windows SSPI/NTLM/full-CREDSSP oracle, current R5
+macOS Windows App owner-evidence procedure and exact-SHA hosted artifacts were
+re-read before defining the physical A/B.
+
+**Reconfirmed Microsoft control:** workflow `40557478704`, Windows protocol
+job `122377366378`, exact-SHA artifact
+`r9-microsoft-interop-a570cba96c48e62ecccfe5f339869a24d008c17d`
+(artifact `12756693736`) records the existing TLS-1.3-only full-CREDSSP
+row **PASS** with `TLS1.3 / TLS_AES_256_GCM_SHA384`,
+`first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes
+type3=yes`. The modern Schannel row is `TLS13_TYPE3_PASS`. The artifact
+also records the credential-source control rows and keeps
+`default-credential=NOT_RUN_POLICY`,
+`hosted-runner-credentials-used=no`. This directly satisfies the requested
+server-side reconfirmation without adding a duplicate synthetic test.
+
+The overall exact-SHA workflow is not fully green:
+`r6-windows-clang23` job `122377365924` failed its Debug full CTest at
+`security.windows-credssp-credential-semantic-differential` with a segfault.
+That does not erase the separately captured Microsoft interop artifact, but it
+does prevent treating this SHA as an R9 physical-candidate qualification.
+
+**Delivered procedure:** the existing
+`docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` now defines row A as R5's typed
+manifest + supported Core/UI logs and adds a controlled physical Windows 11
+`mstsc.exe` row B. The pair requires one nominated server SHA, unchanged
+listener/certificate identity where possible, the same exact destination IP,
+explicit standalone Username, the same independent Session Password and
+comparable certificate-warning decisions. Each row records TLS, Type 1,
+production Type 2 commit, post-Type-2 data, Type 3, pubKeyAuth, authInfo,
+`CredentialsVerified` and terminal outcome independently.
+
+**Decision matrix:** macOS no-Type-3 / mstsc Type-3 selects macOS-client
+settings/credential/delegation policy for investigation; both no-Type-3 after
+Type 2 selects a common live-client/server interoperability requirement; both
+Type-3 advance diagnosis into proof/pubKeyAuth/authInfo. Pre-Type-2 asymmetry,
+credential-control mismatch, different SHA/destination or non-comparable
+certificate decisions are explicitly inconclusive.
+
+**Execution:** no physical client was run and no hosted runner OS-account
+credential was used. No production source, wire behavior, test binary or CTest
+was added. Documentation/procedure review: **PASS by inspection**. Owner-local
+build/CTest: **NOT RUN** because this is a documentation-only external
+acceptance procedure. Post-publication documentation-policy/structure CI:
+**PENDING** at authoring. Physical macOS/mstsc comparison: **NOT RUN** pending
+a green exact-SHA R9 nomination and owner-authorized Windows 11 client.
+
 ## R7 configured Username drift qualification — 2026-10-27
 
 **Reviewed main parent:** `bd99f36da2738a9f306c51e03b716f5b2ddda72c`. Inspection of

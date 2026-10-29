@@ -1286,6 +1286,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-domain-merge
                 mcs-domain-rejections
                 mcs-response-wire
+                mcs-gcc-first-exchange-conformance
                 mcs-response-security-replay
                 mcs-response-session-allocation-plan
                 mcs-static-channel-role-binding

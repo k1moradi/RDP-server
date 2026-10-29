@@ -1,3 +1,44 @@
+## R3 P1 — independently qualified post-authentication MCS/GCC boundary (2026-10-29)
+
+**Authoring parent:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.
+Normative review of MS-RDPBCGR 2.2.1.3, 3.3.5.3.3 and the current R1/R2/R3
+ownership confirms the next Basic Settings client packet after completed
+HYBRID CredSSP and genuine native admission is a TLS-protected MCS
+Connect-Initial carrying the GCC Conference Create Request. The project keeps a
+stricter positive handoff than syntax alone: only the concrete R2 broker may
+enter R3 with the exact R1 owner and live revocable admission generations.
+Pre-Type-3 or unadmitted Connect-Initial remains denial-only.
+
+**Independent protocol qualification:** the existing Microsoft 416-byte
+fixture now has a dedicated
+`transport.mcs-gcc-first-exchange-conformance` path covering BER/PER decode,
+domain merge, GCC block reordering, HYBRID selected-protocol replay, positional
+node/I/O/static-channel allocation and Connect-Response construction. The
+existing envelope mutation case now exhausts every truncated prefix and rejects
+a coalesced duplicate as one parser input; the production TPKT frame-reader
+tests remain the sole fragmented/coalesced stream owner. Existing R3 tests
+already cover duplicate/malformed GCC blocks, Erect/Attach/Join ordering,
+unadmitted/reconnect cleanup, partial/stale write cancellation, personal
+licensing and Share activation/revocation.
+
+**Defect found and fixed:** `parseGccConferenceCreate` previously accepted
+`CS_SECURITY` when both encryption-method fields contained no recognized
+MS-RDPBCGR flag. Section 3.3.5.3.3 requires the connection to close in that
+case. Production now requires at least one of 40-bit, 128-bit, 56-bit or FIPS
+flags across the normal/French-locale fields, while accepting recognized flags
+alongside unknown bits. The dedicated conformance case proves zero,
+unknown-only and duplicate Security rejection through production parsing and
+the public denial-only R3 intake; no synthetic admission is introduced.
+
+**Validation:** source/spec review **PASS** at the authoring parent. Canonical
+configure/build/full CTest **NOT RUN** in this connector environment because no
+approved local checkout/build root is available. Exact publication-SHA hosted
+CI is **PENDING**. No real client, listener, native session, HostControl,
+authentication bypass or Share activation was exercised. **Next gate:** hosted
+exact-SHA full CTest/cross-platform producers, then only after physical
+CredSSP/native admission succeeds, observe the real client's first
+Connect-Initial and compare it with this independently qualified boundary.
+
 ## R6 P0 — macOS Windows App versus Windows 11 mstsc physical differential (2026-10-28)
 
 **Current-main oracle anchor:** `a570cba96c48e62ecccfe5f339869a24d008c17d`.

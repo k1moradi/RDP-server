@@ -1,3 +1,31 @@
+## R3 first MCS/GCC exchange conformance gate (2026-10-29)
+
+The dedicated production-backed
+`transport.mcs-gcc-first-exchange-conformance` CTest reuses the checked-in
+416-byte Microsoft MS-RDPBCGR 4.1.3 Connect-Initial fixture and remains
+protocol-only. It independently decodes BER MCS and PER GCC, checks the merged
+domain, exact node/I/O/static-channel allocation order, accepts reordered
+type-tagged GCC Client Data Blocks, derives a HYBRID security-selection replay
+variant, and verifies that the existing Connect-Response writer can serialize
+that validated state. It never fabricates an R2/native admission lease.
+
+The same gate rejects zero and unknown-only Client Security encryption-method
+masks and duplicate Security blocks while accepting a recognized flag in the
+French-locale extension field and a recognized flag combined with unknown
+future bits. The production R3 denial-only entry must report malformed Security
+Data as `InvalidGccUserData` and close. The existing sanitizer-selected
+`transport.mcs-response-security-replay` case invokes this same focused
+routine, so the new parser branch receives sanitizer coverage without adding a
+second CI selector owner.
+
+`transport.mcs-envelope-mutations` also checks every proper prefix of the
+Microsoft packet as incomplete and rejects two coalesced complete packets as
+one parser input. Cross-read fragmentation and exact coalesced-boundary
+consumption remain owned by the existing production
+`LinuxRuntimeMcsTpktFrameReader` tests; do not add a second MCS framer.
+Existing unadmitted ordering, reconnect, cancellation/write-receipt, licensing
+and Share tests remain the authority for cleanup and stale-state denial.
+
 ## R9 Windows extracted-GUI firewall smoke qualification (2026-10-28)
 
 At parent 5099744ca29c6043315cd1b35ca16c4573fdf045, workflow 40753865293,

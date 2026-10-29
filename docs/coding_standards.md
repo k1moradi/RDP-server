@@ -1,3 +1,34 @@
+## R3 post-authentication MCS/GCC handoff contract (2026-10-29)
+
+For the HYBRID/NLA product path, R1 owns X.224 negotiation, TLS and the complete
+CredSSP transport. The first Basic Settings packet eligible for R3 after
+successful credential verification **and** the project's independent revocable
+R2 native-session admission is one complete TLS-protected TPKT/X.224 Data TPDU
+containing the BER MCS Connect-Initial and PER GCC Conference Create Request.
+A pre-Type-3 packet, a syntactically valid Connect-Initial, a caller Boolean or
+a copied generation can never create this authority. R10 may assemble exactly
+one TPKT boundary; R3 alone parses MCS/GCC after the concrete R2 broker
+reauthorizes the exact R1 owner.
+
+MS-RDPBCGR 3.3.5.3.3 requires the GCC Client Security Data
+`encryptionMethods` and `extEncryptionMethods` fields, taken together, to
+contain at least one recognized encryption-method flag. Reject zero or
+unknown-only masks even though Standard RDP Security is not selected; accepting
+the fields is protocol validation, not permission to downgrade from Enhanced
+Security. French-locale placement in `extEncryptionMethods` remains valid.
+Client Data Blocks are type-tagged and may be reordered; duplicate known blocks,
+inconsistent lengths, invalid H.221 keys, over-limit GCC data, invalid channel
+counts/arrays and security-selection replay mismatches fail closed before
+Connect-Response publication.
+
+A successful protocol-only decode may merge T.125 domain parameters and plan
+the positional server channel IDs, but these values are still non-authorizing.
+The server response preserves requested static-channel order, and no
+Erect/Attach/Join, licensing, Share, graphics, input or clipboard transition
+may occur until the same revocable R2 lease is freshly revalidated. Personal
+desktop mode changes only the later licensing branch; it does not weaken the
+CredSSP/native-admission or MCS/Share gates.
+
 ## R10 pre-authentication stage-clock ownership (2026-10-27)
 
 R10 borrows only R1's established-TLS fact and R2's parsed Type-1 and queued

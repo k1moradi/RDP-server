@@ -624,8 +624,192 @@ void testMcsResponseWire()
 }
 
 
+void testMcsGccFirstExchangeConformance()
+{
+    // Protocol-only qualification of the first Basic Settings exchange.
+    // This fixture never creates R2/native admission and never enters a live
+    // MCS session; positive R3 progression remains broker-only.
+    constexpr std::array<std::uint8_t, 4> coreHeader{
+        0x01, 0xc0, 0xd8, 0x00};
+    constexpr std::array<std::uint8_t, 4> clusterHeader{
+        0x04, 0xc0, 0x0c, 0x00};
+    constexpr std::array<std::uint8_t, 4> securityHeader{
+        0x02, 0xc0, 0x0c, 0x00};
+    constexpr std::array<std::uint8_t, 4> networkHeader{
+        0x03, 0xc0, 0x2c, 0x00};
+
+    const auto published = publishedFixture();
+    const auto connectInitial = parseMcsConnectInitial(published);
+    assert(connectInitial);
+    const auto domain = mergeMcsDomainParameters(connectInitial.value);
+    assert(domain);
+    const std::array<std::uint32_t, 8> expectedDomain{
+        34U, 3U, 0U, 1U, 0U, 1U, 65528U, 2U};
+    assert(domain.value.values == expectedDomain);
+
+    std::vector<std::uint8_t> gccBytes(
+        connectInitial.value.gccUserData.begin(),
+        connectInitial.value.gccUserData.end());
+    const auto locateBlock =
+        [&gccBytes](const std::array<std::uint8_t, 4> &header)
+        {
+            const auto found = std::search(
+                gccBytes.begin(), gccBytes.end(),
+                header.begin(), header.end());
+            assert(found != gccBytes.end());
+            return static_cast<std::size_t>(found - gccBytes.begin());
+        };
+    const auto blockLengthAt =
+        [&gccBytes](std::size_t offset)
+        {
+            assert(offset + 4U <= gccBytes.size());
+            return static_cast<std::size_t>(gccBytes[offset + 2U]) |
+                   (static_cast<std::size_t>(gccBytes[offset + 3U]) << 8U);
+        };
+
+    const std::size_t coreOffset = locateBlock(coreHeader);
+    const std::size_t clusterOffset = locateBlock(clusterHeader);
+    const std::size_t securityOffset = locateBlock(securityHeader);
+    const std::size_t networkOffset = locateBlock(networkHeader);
+    assert(coreOffset < clusterOffset);
+    assert(clusterOffset < securityOffset);
+    assert(securityOffset < networkOffset);
+    assert(blockLengthAt(coreOffset) == 216U);
+    assert(blockLengthAt(clusterOffset) == 12U);
+    assert(blockLengthAt(securityOffset) == 12U);
+    assert(blockLengthAt(networkOffset) == 44U);
+    assert(networkOffset + blockLengthAt(networkOffset) == gccBytes.size());
+
+    const auto gcc = parseGccConferenceCreate(gccBytes);
+    assert(gcc);
+    assert(gcc.settings.channelCount == 3U);
+    assert(std::string_view(gcc.settings.channels[0].name.data()) == "rdpdr");
+    assert(std::string_view(gcc.settings.channels[1].name.data()) == "cliprdr");
+    assert(std::string_view(gcc.settings.channels[2].name.data()) == "rdpsnd");
+
+    const auto allocation =
+        planMcsConnectResponseAllocation(domain.value, gcc.settings);
+    assert(allocation && *allocation);
+    assert(allocation->gccNodeId == 1001U);
+    assert(allocation->ioChannelId == 1003U);
+    constexpr std::array<std::uint16_t, 3> expectedChannelIds{
+        1004U, 1005U, 1006U};
+    assert(std::equal(
+        allocation->staticChannels().begin(),
+        allocation->staticChannels().end(),
+        expectedChannelIds.begin(), expectedChannelIds.end()));
+
+    // GCC Client Data Blocks are type-tagged and may arrive in a different
+    // order. Reorder all four blocks without changing any encoded length.
+    std::vector<std::uint8_t> reordered;
+    reordered.reserve(gccBytes.size());
+    reordered.insert(
+        reordered.end(), gccBytes.begin(), gccBytes.begin() + coreOffset);
+    const auto appendBlock =
+        [&gccBytes, &reordered, &blockLengthAt](std::size_t offset)
+        {
+            const std::size_t length = blockLengthAt(offset);
+            assert(offset + length <= gccBytes.size());
+            reordered.insert(
+                reordered.end(), gccBytes.begin() + offset,
+                gccBytes.begin() + offset + length);
+        };
+    appendBlock(securityOffset);
+    appendBlock(networkOffset);
+    appendBlock(coreOffset);
+    appendBlock(clusterOffset);
+    assert(reordered.size() == gccBytes.size());
+    const auto reorderedGcc = parseGccConferenceCreate(reordered);
+    assert(reorderedGcc);
+    assert(reorderedGcc.settings.channelCount == gcc.settings.channelCount);
+    for (std::size_t index = 0U; index < gcc.settings.channelCount; ++index)
+    {
+        assert(reorderedGcc.settings.channels[index].name ==
+               gcc.settings.channels[index].name);
+        assert(reorderedGcc.settings.channels[index].options ==
+               gcc.settings.channels[index].options);
+    }
+
+    // Independently derive an Enhanced-Security representative from the
+    // published fixture by replaying the HYBRID selection in Client Core.
+    auto hybridPacket = published;
+    const std::size_t gccPacketOffset = static_cast<std::size_t>(
+        connectInitial.value.gccUserData.data() - published.data());
+    const std::size_t selectedProtocolOffset =
+        gccPacketOffset + coreOffset + 4U + 208U;
+    assert(selectedProtocolOffset + 4U <= hybridPacket.size());
+    hybridPacket[selectedProtocolOffset] =
+        static_cast<std::uint8_t>(kRdpProtocolHybrid);
+    hybridPacket[selectedProtocolOffset + 1U] = 0U;
+    hybridPacket[selectedProtocolOffset + 2U] = 0U;
+    hybridPacket[selectedProtocolOffset + 3U] = 0U;
+    const auto hybridConnectInitial = parseMcsConnectInitial(hybridPacket);
+    assert(hybridConnectInitial);
+    const auto hybridGcc =
+        parseGccConferenceCreate(hybridConnectInitial.value.gccUserData);
+    assert(hybridGcc);
+    const SecurityNegotiationProvenance provenance{
+        kRdpProtocolSsl | kRdpProtocolHybrid,
+        kRdpProtocolHybrid};
+    assert(matchesMcsSecurityNegotiationReplay(
+        hybridGcc.settings, provenance));
+    const auto response = encodeMcsConnectResponse(
+        hybridConnectInitial.value, allocation->staticChannels(),
+        allocation->gccNodeId, provenance.clientRequestedProtocols);
+    assert(response);
+
+    // Client Security Data must contain at least one recognized encryption
+    // method across the ordinary/French-locale fields. Unknown-only input is
+    // not a capability. A valid flag may coexist with unknown future bits.
+    auto zeroSecurity = gccBytes;
+    std::fill(
+        zeroSecurity.begin() + securityOffset + 4U,
+        zeroSecurity.begin() + securityOffset + 12U, 0U);
+    assert(parseGccConferenceCreate(zeroSecurity).error ==
+           GccError::InvalidSecurity);
+
+    auto unknownOnly = zeroSecurity;
+    unknownOnly[securityOffset + 4U] = 0x04U;
+    assert(parseGccConferenceCreate(unknownOnly).error ==
+           GccError::InvalidSecurity);
+
+    auto frenchLocale = zeroSecurity;
+    frenchLocale[securityOffset + 8U] = 0x02U;
+    assert(parseGccConferenceCreate(frenchLocale));
+
+    auto validPlusUnknown = zeroSecurity;
+    validPlusUnknown[securityOffset + 4U] = 0x05U;
+    assert(parseGccConferenceCreate(validPlusUnknown));
+
+    // Same-length CS_CLUSTER -> CS_SECURITY mutation creates a duplicate
+    // Security block and must be rejected transactionally.
+    auto duplicateSecurity = gccBytes;
+    duplicateSecurity[clusterOffset] = 0x02U;
+    duplicateSecurity[clusterOffset + 1U] = 0xc0U;
+    assert(parseGccConferenceCreate(duplicateSecurity).error ==
+           GccError::InvalidSecurity);
+
+    // The complete production R3 validation path must surface the malformed
+    // security block while remaining denial-only: no synthetic admission.
+    auto invalidPacket = published;
+    std::fill(
+        invalidPacket.begin() + gccPacketOffset + securityOffset + 4U,
+        invalidPacket.begin() + gccPacketOffset + securityOffset + 12U,
+        0U);
+    McsSessionLifecycle denied;
+    assert(denied.onConnectInitial(invalidPacket) ==
+           McsSessionIntake::InvalidGccUserData);
+    assert(denied.phase() == McsSessionPhase::Closed);
+}
+
+
 void testMcsResponseSecurityReplay()
 {
+    // This case is already in the hosted R3 sanitizer selection. Reuse the
+    // focused conformance routine so the new parser rejection is sanitized
+    // without adding a second CI selector owner.
+    testMcsGccFirstExchangeConformance();
+
     constexpr std::array<std::uint16_t, 3> ids{1004, 1005, 1006};
     constexpr std::array<std::uint8_t, 4> coreHeader{
         0x01, 0xc0, 0xd8, 0x00};
@@ -7515,6 +7699,22 @@ void testMcsSessionDomainFailureBoundaries()
 void testInputMutationsRemainBounded()
 {
     const auto baseline = publishedFixture();
+
+    // The parser contract is one complete TPKT. Every fragmented/truncated
+    // prefix must remain incomplete; R10's fixed-capacity frame reader owns
+    // cross-read assembly before this R3 parser is invoked.
+    for (std::size_t length = 0U; length < baseline.size(); ++length)
+    {
+        assert(!parseMcsConnectInitial(std::span(baseline).first(length)));
+    }
+
+    // A coalesced duplicate packet is not one complete TPKT and must not be
+    // silently consumed as the first packet. The frame reader is responsible
+    // for splitting coalesced TLS plaintext at exact TPKT boundaries.
+    auto coalesced = baseline;
+    coalesced.insert(coalesced.end(), baseline.begin(), baseline.end());
+    assert(!parseMcsConnectInitial(coalesced));
+
     for (std::size_t position = 0; position < baseline.size(); ++position)
     {
         auto mutated = baseline;
@@ -12385,7 +12585,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 166> kMcsTestCases{{
+constexpr std::array<McsTestCase, 167> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -12393,6 +12593,7 @@ constexpr std::array<McsTestCase, 166> kMcsTestCases{{
     {"mcs-domain-merge", &testMicrosoftDomainNegotiation},
     {"mcs-domain-rejections", &testMcsDomainNegotiationRejections},
     {"mcs-response-wire", &testMcsResponseWire},
+    {"mcs-gcc-first-exchange-conformance", &testMcsGccFirstExchangeConformance},
     {"mcs-response-security-replay", &testMcsResponseSecurityReplay},
     {"mcs-response-session-allocation-plan", &testMcsResponseSessionAllocationPlan},
     {"mcs-static-channel-role-binding", &testMcsStaticChannelRoleBinding},

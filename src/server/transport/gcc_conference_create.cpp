@@ -98,6 +98,13 @@ namespace
     return true;
 }
 
+// MS-RDPBCGR 3.3.5.3.3 requires at least one recognized Client Security
+// Data encryption-method flag before the GCC settings may be retained. This
+// remains a syntax/interop check under Enhanced RDP Security; it grants no
+// Standard Security mode or authorization.
+inline constexpr std::uint32_t kValidClientEncryptionMethodFlags =
+    0x00000001U | 0x00000002U | 0x00000008U | 0x00000010U;
+
 [[nodiscard]] bool parseNetwork(
     std::span<const std::uint8_t> block,
     GccClientSettings &settings) noexcept
@@ -262,6 +269,12 @@ GccParseResult parseGccConferenceCreate(
                 }
                 settings.encryptionMethods = readLe32(body.first(4));
                 settings.extEncryptionMethods = readLe32(body.subspan(4, 4));
+                if (((settings.encryptionMethods |
+                      settings.extEncryptionMethods) &
+                     kValidClientEncryptionMethodFlags) == 0U)
+                {
+                    return fail(GccError::InvalidSecurity);
+                }
                 hasSecurity = true;
                 break;
 

@@ -1,3 +1,26 @@
+## R6 P0 corrective — preserve Windows stack budget in the full-CredSSP oracle (2026-10-29)
+
+First publication `fc3ccea61c9da0d046810ad6694a05c35821fa38`
+compiled on MSVC and CLANG64, and its isolated CLANG64 credential-source
+diagnostic PASSed.  The MSVC protocol job `123367591533` then regressed all
+three pre-existing CredSSP TLS-version tests with SEGFAULT before the new
+`AcquireCredentialsHandleW` begin marker.  The immediate parent
+`e4a6275bbc7a3b72e8c88a67dda944c29233b46d`, job `123367218888`,
+PASSed the same TLS-version matrix and Microsoft interop gate, localizing the
+regression to the R6 harness delta rather than Schannel/provider drift.
+
+The first delta had added a third complete `CredSspPumpResult` to
+`FullCredSspAttempt`; each result owns a fixed 128-round trace array and the
+attempt is stack-resident beside the production memory-BIO fixture.  The
+correction does not weaken any oracle condition: after copying the Type-2
+commit/consume facts, the completion-only path reuses the existing
+`nextPump` trace slot for the server-binding/authInfo phase.  Stop-at-Type-3
+legacy controls retain their original trace semantics.  Production code,
+wire bytes, credentials, TLS policy and native admission remain unchanged.
+
+Authoring parent: `468cbeaa90a8362415a95f9ca7a323210d137d1d`.  Source/docs review: PASS by inspection.
+Corrective exact-SHA MSVC Microsoft matrix and CLANG64 Debug/Release: PENDING.
+
 ## R9 qualification follow-up — R3 MCS borrowed-view fixture lifetime (2026-10-29)
 
 Exact SHA `b93e8110f44558f07c096132977856dd54db97a4`, workflow

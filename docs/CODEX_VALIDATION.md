@@ -1,3 +1,27 @@
+## R6 first-publication regression and stack-budget correction — 2026-10-29
+
+- First publication SHA: `fc3ccea61c9da0d046810ad6694a05c35821fa38`.
+- Structure guard `40850215722`: **PASS**.
+- Protocol Windows job `123367591533`: Debug compile, certificate policy and
+  CredSSP harness-round tests **PASS**; the pre-existing system-default,
+  TLS-1.2-only and TLS-1.3-only CredSSP tests each **SEGFAULT** before the new
+  provider-call begin marker, so the later Microsoft matrix was correctly
+  blocked.
+- Immediate parent control `e4a6275bbc7a3b72e8c88a67dda944c29233b46d`,
+  Windows protocol job `123367218888`: the same TLS-version matrix, modern
+  Schannel probe and primary Microsoft NTLM/CredSSP differential **PASS**.
+- CLANG64 first-publication job `123367591161`: Debug build and isolated
+  credential-source diagnostic **PASS** before the full Debug suite.
+- Root cause in the R6 delta: `FullCredSspAttempt` was enlarged by an
+  additional fixed 128-round `CredSspPumpResult` trace even though the
+  post-Type-2 trace is no longer needed after its commit/consume facts are
+  copied.  This changed the stack-resident Windows harness footprint and
+  reproduced as an immediate MSVC-only crash before SSPI acquisition.
+- Correction: reuse `nextPump` for the later binding/authInfo phase only in
+  completion/negative modes; the legacy stop-at-Type-3 path is unchanged.
+  No production source or security assertion changed.
+- Corrective exact-SHA hosted validation: **PENDING**.
+
 ## R9/R3 macOS MCS borrowed-view fixture blocker — 2026-10-29
 
 - Failing source SHA: `b93e8110f44558f07c096132977856dd54db97a4`.

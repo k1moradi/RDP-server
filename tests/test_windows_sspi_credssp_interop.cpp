@@ -2999,7 +2999,6 @@ struct FullCredSspAttempt final
     SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
     CredSspPumpResult initialPump{};
     CredSspPumpResult nextPump{};
-    CredSspPumpResult bindingPump{};
     bool typeOneObserved{};
     bool directNtlmTypeOneAccepted{};
     const char *rawTokenType{"not-observed"};
@@ -3328,33 +3327,36 @@ void printClientProfileObservation(
     }
 
     result.stage = "memory-bio-after-server-binding";
-    result.bindingPump = pumpCredSspMemoryBio(
+    // The Type-2 facts needed below were copied out above. Reuse this fixed
+    // trace slot for the later server-binding/authInfo phase rather than
+    // growing the stack-resident attempt by another 128-round trace array.
+    result.nextPump = pumpCredSspMemoryBio(
         profile, client, server,
         CredSspPumpBoundary::FinalAuthInfoTsRequest, true);
-    result.lastClientStatus = result.bindingPump.lastClientStatus;
+    result.lastClientStatus = result.nextPump.lastClientStatus;
     result.productionBindingReplyTlsCommitted =
-        result.bindingPump.productionReplyCommitted;
+        result.nextPump.productionReplyCommitted;
     result.microsoftAuthInfoGenerated =
-        result.bindingPump.microsoftOutputGenerated;
+        result.nextPump.microsoftOutputGenerated;
 
     if (postTypeThreeExperiment ==
         PostTypeThreeExperiment::InvalidServerBinding)
     {
         result.invalidServerBindingRejected =
-            result.bindingPump.stopReason ==
+            result.nextPump.stopReason ==
                 CredSspPumpStopReason::TypedFailure &&
-            std::string_view{result.bindingPump.failureStage} ==
+            std::string_view{result.nextPump.failureStage} ==
                 "memory-bio-microsoft-credssp";
         result.stage = result.invalidServerBindingRejected
             ? "invalid-server-binding-detected"
-            : result.bindingPump.failureStage;
+            : result.nextPump.failureStage;
         return result;
     }
 
-    if (result.bindingPump.stopReason !=
+    if (result.nextPump.stopReason !=
         CredSspPumpStopReason::BoundaryComplete)
     {
-        result.stage = result.bindingPump.failureStage;
+        result.stage = result.nextPump.failureStage;
         return result;
     }
     result.authInfoTsRequestReceived = true;
@@ -3551,8 +3553,7 @@ struct SecurityStatusObservation final
                    "memory-bio-microsoft-credssp";
     };
     return isMicrosoftFailure(attempt.initialPump) ||
-           isMicrosoftFailure(attempt.nextPump) ||
-           isMicrosoftFailure(attempt.bindingPump);
+           isMicrosoftFailure(attempt.nextPump);
 }
 
 enum class CredentialSemanticOutcome : std::uint8_t

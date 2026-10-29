@@ -1,3 +1,72 @@
+## R5 P0 — actionable Windows App evidence + pre-auth native isolation (2026-10-29)
+
+**Initial authoring base:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.
+**Reconciled publication parent:** `56df83fef6d98e03fb7fa14058ff909b3fe5317d`.
+Concurrent R3/R8/R9 main changes are preserved. No physical client, Keychain,
+trust-store or Windows App preference mutation was performed.
+
+**Client evidence audit.** The existing schema-v2 collector already preserved
+the owner-selected Core/UI files by hash plus app version/build, exact
+destination, saved-credential state, certificate-warning decision, UI text and
+Linux connection/time correlation, but it did not pin the server certificate
+fingerprint, complete R6 stage matrix, first typed client event, clock-correlation
+quality or A/B comparability. The current physical `0x204` remains untyped:
+the Linux side reaches TLS -> Type 1 -> production Type 2 committed ->
+Await-Type-3 -> peer EOF, while Type 3/pubKeyAuth/authInfo/
+`CredentialsVerified`/Admission/MCS/Share/native remain not reached. Server EOF
+alone still authorizes no credential/trust/negotiation diagnosis or wire change.
+
+**Pipeline authored.** `scripts/macos_windows_app_owner_evidence.py` keeps
+schema-v2 private evidence and adds certificate SHA-256, full server-stage
+matrix and an explicit first-client-error contract. Its `validate` mode emits
+a redacted v1 diagnostic summary for R2/R6: no Username, raw log lines,
+log paths/hashes, exact UI text, Linux connection ID or exact destination. It
+fails closed on missing logs, incomplete logging lifecycle, invalid credential
+control, missing fingerprint/stages/correlation, >120-second attempt-time
+delta, inconsistent certificate decisions, and invalid A/B SHA/endpoint/
+fingerprint/credential controls. Bare `0x204` is reported as a limitation
+until a private Core/UI provider category/code supports a narrower normalized
+category.
+
+**Supported logging recheck.** Microsoft Learn documents the macOS flow as
+Windows App -> Help -> Troubleshooting -> Logging -> choose Core/UI levels and
+output folder -> Start Logging -> reproduce -> Stop Logging. The public page
+does not publish stable internal provider/event-category names, so R5 does not
+invent them. Private raw provider category/code/time are retained when observed
+and mapped only to the project tokens `credential`, `trust`, `negotiation`,
+`cancellation`, `transport`, `unknown` or `not-observed`.
+
+**Independent Linux isolation audit.** `LinuxRuntimeHostControl::serviceOnce()`
+refreshes the standalone credential's seat0/session binding and current owner
+authorization before accepting/advancing the peer. X11 desktop construction is
+only reachable from `AcceptedClientPhase::GraphicsReady`, after genuine R2
+Admission, MCS/licensing/Share and Graphics control; clipboard preparation is
+inside that construction and the native logind/X11/socket poll set exists only
+afterward. Therefore existing X11 capture/input/clipboard event handling cannot
+consume pre-auth service-loop time. The only native pre-auth cost is synchronous
+read-only session/lock evidence refresh; notably `LockedHint` uses a system
+login1 D-Bus property call, so OS/login1 latency could delay one service tick,
+but there is no X11/native-desktop initialization or poll work before
+authentication.
+
+**Negative coverage authored.** Four behavior CTests hold a real
+production-backed Direct-NTLM peer after Type 2 and then independently lock,
+remove the session, replace the session generation, or invoke owner revoke.
+Every path must retire the peer/listener before native construction and keep
+MCS/Share/framebuffer/Graphics/native desktop/clipboard dormant. Owner input
+consent remains explicitly non-authorizing until that native aggregate exists.
+
+**Authoring validation:** isolated `py_compile` and direct evidence-helper
+unittest **13/13 PASS**. C++ configure/build/focused/full CTest **NOT RUN** in
+the connector environment; exact-publication-SHA hosted CI **PENDING**.
+
+**Next gate:** require exact-publication-SHA hosted producers green, then only
+through R9's owner-authorized gate collect one same-attempt private Windows App
+bundle with explicit saved Username/Session Password match, certificate
+fingerprint/decision, Core+UI logs, `0x204`, the first typed client event if
+present, and the complete Linux stage line. R6 may compare a Windows 11
+`mstsc.exe` row only after the validator reports a comparable pair.
+
 ## R8 P1 — strengthen clipboard protocol interoperability offline (2026-10-29)
 
 **Source parent inspected:** `79ed26a8ff082b7ec8a506b47aae00e77a1e79bf`. Microsoft MS-RDPECLIP was rechecked

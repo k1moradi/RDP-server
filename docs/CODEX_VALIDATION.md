@@ -1,3 +1,30 @@
+## R5 P0 macOS evidence + pre-auth native isolation first round (2026-10-29)
+
+- Initial authoring base: `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.
+- Reconciled publication parent: `56df83fef6d98e03fb7fa14058ff909b3fe5317d`; concurrent R3/R8/R9 changes
+  preserved.
+- Read-only evidence helper authoring copy: `python3 -m py_compile`
+  **PASS** and direct unittest **13/13 PASS**.
+- Evidence coverage: certificate SHA-256, client version/build, explicit
+  credential selection/match, offset-aware attempt/Linux timestamps, complete
+  pre-auth stage matrix, first-client-error contract, private raw-log retention,
+  redacted R2/R6 projection and fail-closed A/B comparability.
+- Linux native-order source audit: **PASS by inspection**. X11 capture/input/
+  clipboard construction is reachable only after genuine R2 Admission, Share
+  activation and GraphicsReady. Pre-auth performs only current read-only
+  owner/session/lock evidence refresh plus R1/R2 service work.
+- New production-backed Direct-NTLM owner-loss CTests: authored for lock,
+  logout, session-generation replacement and explicit owner revoke while the
+  peer is held after Type 2 and before Type 3.
+- Canonical `~/rdp-server/build/` configure/build/focused/full CTest:
+  **NOT RUN** because this connector environment has no approved checkout/build
+  root.
+- Physical macOS Windows App / Windows 11 client execution: **NOT RUN**; no
+  Keychain or trust-store access/modification performed.
+- Exact publication-SHA hosted CI/sanitizers: **PENDING**.
+- Next gate: exact-SHA hosted producers green, then only R9-authorized physical
+  evidence collection and R6 pair validation.
+
 ## R8 P1 offline CLIPRDR conformance first round (2026-10-29)
 
 - Source parent: `79ed26a8ff082b7ec8a506b47aae00e77a1e79bf`.

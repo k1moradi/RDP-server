@@ -1,5 +1,61 @@
 # macOS Windows App physical owner-evidence procedure
 
+## R5 P0 evidence validator and first-client-error contract (2026-10-29)
+
+The current physical symptom is the Windows App UI error code `0x204` while
+the correlated Linux attempt reaches TLS, Direct NTLM Type 1, fully commits the
+unchanged production Type 2, waits for Type 3 and then observes peer EOF. A bare
+`0x204` is **not** a credential, trust, CredSSP-negotiation or cancellation
+classification. Keep it as the UI code and report the first more-specific
+client-side event only when the same-attempt Core/UI log carries an explicit
+provider category/code. Otherwise use `unknown` or `not-observed`; do not
+promote the server's peer EOF into a client cause.
+
+Microsoft's supported macOS collection surface exposes **Core log level** and
+**UI log level**, but its public collection documentation does not define a
+stable internal provider/event-category vocabulary. Therefore the project owns
+only this normalized diagnostic taxonomy:
+
+- category: `credential`, `trust`, `negotiation`, `cancellation`,
+  `transport`, `unknown`, or `not-observed`;
+- source: `core`, `ui`, `ui-error`, `core-and-ui`, or
+  `not-observed`.
+
+For a specific category other than `unknown`, retain the **exact** observed
+provider category/code and event timestamp in the private manifest. Never put
+those raw provider fields, the exact UI message, Username, log paths/hashes or
+Linux connection identifier in the R2/R6 summary.
+
+The schema-v2 collector now also records the exact server certificate SHA-256
+fingerprint and the server-observed stage matrix: TLS established, Type 1,
+Type 2 fully committed, post-Type-2 client-byte count, Type 3, pubKeyAuth,
+authInfo, `CredentialsVerified` and typed terminal outcome. Existing schema-v2
+consumers remain valid; the additional fields are evidence, never authority.
+
+Run the new read-only validator on the private manifest:
+
+```sh
+python3 scripts/macos_windows_app_owner_evidence.py validate owner-evidence.json
+```
+
+It emits `rdp-server.macos-windows-app-redacted-diagnostic.v1`. The exact
+destination is represented only by SHA-256, the Username and Linux connection
+ID are presence/redaction facts, and raw logs remain outside the summary.
+Validation fails explicitly for missing supported logs, incomplete logging
+lifecycle, missing/invalid certificate fingerprint, invalid credential control,
+missing/inconsistent server-stage fields, missing Linux correlation, malformed
+timestamps, or an absolute client/server timestamp delta greater than 120
+seconds. That 120-second bound is only a same-attempt correlation ceiling, not
+an authentication timeout or performance target. Passing it never establishes
+cross-source event order; the summary remains `ORDER_UNDETERMINED`.
+
+For an R6 A/B pair, the validator may additionally receive the Windows-row
+server SHA, destination, certificate fingerprint, explicitly entered Username,
+Session-Password-match state and certificate-warning decision. Any mismatch is
+an explicit `AB_*` failure; non-comparable warning decisions are
+`CERTIFICATE_DECISION_NOT_COMPARABLE`. The comparison reports only booleans
+and never emits the peer Username or exact destination.
+
 This is the reusable client-side evidence procedure for an owner-authorized
 Windows App for macOS attempt against the Linux/X11 RDP-server host. It is
 diagnostic only. It does not authorize a production protocol, certificate,

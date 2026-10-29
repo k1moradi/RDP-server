@@ -41,6 +41,7 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.options = argparse.Namespace(
             app=self.app,
             server_sha="a" * 40,
+            server_certificate_sha256="b" * 64,
             attempt_time="2026-10-27T05:30:00-07:00",
             destination="192.0.2.10",
             saved_credential_state="explicit-saved-selected",
@@ -49,13 +50,28 @@ class OwnerEvidenceTests(unittest.TestCase):
             server_client_credentials_intentionally_matched="yes",
             certificate_warning="yes",
             certificate_warning_accepted="yes",
-            error_text="Connection failed.",
+            error_text="We couldn't connect. Error code: 0x204",
+            client_error_code="0x204",
+            first_client_error_category="unknown",
+            first_client_error_source="ui-error",
+            first_client_provider_category=None,
+            first_client_provider_code=None,
+            first_client_error_time=None,
             core_log_level="Info",
             ui_log_level="Info",
             logging_started="yes",
             logging_stopped="yes",
             linux_connection_id="connection-42",
             linux_terminal_time="2026-10-27T05:30:07-07:00",
+            stage_tls_established="PASS",
+            stage_type1_received="PASS",
+            stage_type2_committed="PASS",
+            post_type2_client_bytes=0,
+            stage_type3_received="NOT_REACHED",
+            stage_pubkeyauth_reached="NOT_REACHED",
+            stage_authinfo_reached="NOT_REACHED",
+            stage_credentials_verified="NOT_REACHED",
+            typed_terminal_outcome="peer-eof-await-type3",
             logs=self.logs,
             logs_unavailable_reason=None,
         )
@@ -79,6 +95,7 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(before, after)
         self.assertEqual(manifest["schema"], "rdp-server.macos-windows-app-owner-evidence.v2")
         self.assertEqual(manifest["server_sha"], "a" * 40)
+        self.assertEqual(manifest["server_certificate_sha256"], "b" * 64)
         self.assertEqual(manifest["attempt_time_utc"], "2026-10-27T12:30:00+00:00")
         self.assertEqual(manifest["destination_exact"], "192.0.2.10")
         self.assertEqual(manifest["windows_app"]["version"], "11.4.4")
@@ -101,6 +118,9 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(
             manifest["logging"]["files"][0]["sha256"],
             hashlib.sha256(b"same-attempt-log\n").hexdigest(),
+        )
+        self.assertEqual(
+            manifest["server_stage_matrix"]["type2_fully_committed"], "PASS"
         )
         self.assertNotIn("password", json.dumps(manifest).lower())
 
@@ -144,6 +164,9 @@ class OwnerEvidenceTests(unittest.TestCase):
         manifest = evidence.build_manifest(self.options)
         self.assertFalse(manifest["logging"]["available"])
         self.assertIn("unavailable", manifest["logging"]["reason"])
+        summary = evidence.build_redacted_summary(manifest)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("CLIENT_LOGS_MISSING", summary["evidence_failures"])
 
     def test_symlinked_log_input_is_rejected(self):
         target = self.root / "outside.log"
@@ -157,6 +180,10 @@ class OwnerEvidenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "40 hexadecimal"):
             evidence.build_manifest(self.options)
         self.options.server_sha = "b" * 40
+        self.options.server_certificate_sha256 = "not-a-fingerprint"
+        with self.assertRaisesRegex(ValueError, "64 hexadecimal"):
+            evidence.build_manifest(self.options)
+        self.options.server_certificate_sha256 = "c" * 64
         self.options.attempt_time = "2026-10-27T05:30:00"
         with self.assertRaisesRegex(ValueError, "UTC offset"):
             evidence.build_manifest(self.options)
@@ -164,6 +191,109 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.options.linux_terminal_time = "2026-10-27T05:30:07"
         with self.assertRaisesRegex(ValueError, "Linux terminal time.*UTC offset"):
             evidence.build_manifest(self.options)
+
+
+    def test_redacted_summary_preserves_actionable_facts_without_private_text(self):
+        manifest = evidence.build_manifest(self.options)
+        summary = evidence.build_redacted_summary(manifest)
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertEqual(summary["server_sha"], "a" * 40)
+        self.assertEqual(summary["server_certificate_sha256"], "b" * 64)
+        self.assertEqual(summary["client_error"]["ui_code"], "0x204")
+        self.assertEqual(summary["client_error"]["first_typed_category"], "unknown")
+        self.assertIn("BARE_0X204_NOT_TYPED", summary["diagnostic_limitations"])
+        self.assertEqual(
+            summary["linux_correlation"]["absolute_timestamp_delta_seconds"], 7.0
+        )
+        serialized = json.dumps(summary)
+        self.assertNotIn("rdp-owner", serialized)
+        self.assertNotIn("We couldn't connect", serialized)
+        self.assertNotIn("connection-42", serialized)
+        self.assertNotIn("client.log", serialized)
+        self.assertNotIn(
+            hashlib.sha256(b"same-attempt-log\n").hexdigest(), serialized
+        )
+
+    def test_clock_skew_is_an_explicit_evidence_failure(self):
+        self.options.linux_terminal_time = "2026-10-27T05:40:07-07:00"
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "CLOCK_SKEW_OR_ATTEMPT_MISMATCH", summary["evidence_failures"]
+        )
+
+    def test_specific_client_error_requires_private_provider_category(self):
+        self.options.first_client_error_category = "credential"
+        self.options.first_client_error_source = "core"
+        with self.assertRaisesRegex(
+            ValueError, "requires the exact private provider category"
+        ):
+            evidence.build_manifest(self.options)
+
+        self.options.first_client_provider_category = "CredentialProvider"
+        self.options.first_client_provider_code = "example-status"
+        self.options.first_client_error_time = "2026-10-27T05:30:05-07:00"
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(
+            summary["client_error"]["first_typed_category"], "credential"
+        )
+        self.assertTrue(summary["client_error"]["provider_category_present"])
+        self.assertNotIn("CredentialProvider", json.dumps(summary))
+
+    def test_inconsistent_server_stage_matrix_fails_validation(self):
+        self.options.stage_type3_received = "NOT_REACHED"
+        self.options.stage_pubkeyauth_reached = "PASS"
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "SERVER_STAGE_MATRIX_INCONSISTENT", summary["evidence_failures"]
+        )
+
+    def test_pair_comparison_rejects_invalid_ab_attempt(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = argparse.Namespace(
+            peer_server_sha="a" * 40,
+            peer_destination="192.0.2.11",
+            peer_certificate_sha256="c" * 64,
+            peer_username="rdp-owner",
+            peer_session_password_matched="yes",
+            peer_certificate_warning="no",
+            peer_certificate_warning_accepted="not-applicable",
+        )
+        summary = evidence.build_redacted_summary(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("AB_DESTINATION_MISMATCH", summary["evidence_failures"])
+        self.assertIn(
+            "AB_CERTIFICATE_FINGERPRINT_MISMATCH",
+            summary["evidence_failures"],
+        )
+        self.assertIn(
+            "CERTIFICATE_DECISION_NOT_COMPARABLE",
+            summary["evidence_failures"],
+        )
+
+    def test_complete_pair_comparison_is_redacted_and_valid(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = argparse.Namespace(
+            peer_server_sha="a" * 40,
+            peer_destination="192.0.2.10",
+            peer_certificate_sha256="b" * 64,
+            peer_username="rdp-owner",
+            peer_session_password_matched="yes",
+            peer_certificate_warning="yes",
+            peer_certificate_warning_accepted="yes",
+        )
+        summary = evidence.build_redacted_summary(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertTrue(summary["pair_comparison"]["valid"])
+        self.assertNotIn("rdp-owner", json.dumps(summary))
+        self.assertNotIn("192.0.2.10", json.dumps(summary))
 
 
 if __name__ == "__main__":

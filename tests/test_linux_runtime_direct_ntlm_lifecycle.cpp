@@ -767,6 +767,22 @@ public:
         return uid_ != 0U && !account_.empty();
     }
 
+    void lockDesktop() noexcept
+    {
+        lockState_ = ConsoleDesktopLockState::Locked;
+    }
+
+    void logoutDesktop() noexcept
+    {
+        sessionAvailable_ = false;
+    }
+
+    void switchDesktopSession() noexcept
+    {
+        switchedSession_ = true;
+        ++sessionGeneration_;
+    }
+
     ConsoleAccountObservation readUnixAccount(
         std::string_view account) noexcept override
     {
@@ -777,20 +793,23 @@ public:
 
     ConsoleSessionObservation readActiveConsole() noexcept override
     {
-        if (!valid())
+        if (!valid() || !sessionAvailable_)
             return {};
+        const std::string_view sessionId = switchedSession_
+            ? "direct-ntlm-lifecycle-switched"
+            : "direct-ntlm-lifecycle";
         return {
             ConsoleEvidenceReadStatus::Observed,
-            "direct-ntlm-lifecycle",
+            sessionId,
             "seat0",
             ":42",
             uid_,
-            501U,
+            sessionGeneration_,
             now_,
             true,
             true,
             uid_,
-            ConsoleDesktopLockState::Unlocked,
+            lockState_,
             false};
     }
 
@@ -803,7 +822,11 @@ public:
 private:
     std::uint32_t uid_{};
     std::string account_;
+    std::uint64_t sessionGeneration_{501U};
     std::uint64_t now_{10'000U};
+    ConsoleDesktopLockState lockState_{ConsoleDesktopLockState::Unlocked};
+    bool sessionAvailable_{true};
+    bool switchedSession_{};
 };
 
 struct PeerResult final
@@ -1365,6 +1388,29 @@ void assertGraphicsDormant(const RuntimeHostStatus& status) noexcept
     assert(!status.firstLiveGraphicsTrace.firstGenuineMatchingFrameAcknowledge);
 }
 
+void assertPreAdmissionNativeIsolation(
+    const RuntimeHostStatus& status) noexcept
+{
+    const auto& diagnostics = status.acceptedClientPreauthDiagnostics;
+    assert(status.stage == RuntimeHostStage::ClientAuthenticating);
+    assert(status.activeClients.size() == 1U);
+    assert(diagnostics.available);
+    assert(diagnostics.authenticationStage ==
+           RuntimeAcceptedClientAuthenticationStage::NtlmChallenge);
+    assert(diagnostics.protocolStage ==
+           RuntimeAcceptedClientProtocolStage::PreAdmission);
+    assert(diagnostics.directNtlmTypeTwoDelivered);
+    assert(!diagnostics.mcsSessionAdvanced);
+    assert(!diagnostics.shareActivated);
+
+    // Input, capture and clipboard adapters are children of the native desktop
+    // aggregate, which R10 cannot construct before genuine R2 admission,
+    // Share activation and GraphicsReady. Owner consent alone is not native
+    // input authority.
+    assertClipboardDormant(status);
+    assertGraphicsDormant(status);
+}
+
 void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
 {
     assert(status.hostOwnerAuthorized);
@@ -1526,6 +1572,18 @@ int main(int argc, char** argv)
     const bool peerCloseClassificationOnly =
         testCase ==
             "type2-peer-close-distinct-from-authentication-rejection";
+    const bool preauthOwnerLockIsolationOnly =
+        testCase == "direct-ntlm-preauth-owner-lock-isolation";
+    const bool preauthOwnerLogoutIsolationOnly =
+        testCase == "direct-ntlm-preauth-owner-logout-isolation";
+    const bool preauthOwnerSessionSwitchIsolationOnly =
+        testCase == "direct-ntlm-preauth-owner-session-switch-isolation";
+    const bool preauthOwnerPermissionRevokeIsolationOnly =
+        testCase == "direct-ntlm-preauth-owner-permission-revoke-isolation";
+    const bool preauthOwnerIsolationOnly =
+        preauthOwnerLockIsolationOnly || preauthOwnerLogoutIsolationOnly ||
+        preauthOwnerSessionSwitchIsolationOnly ||
+        preauthOwnerPermissionRevokeIsolationOnly;
     const bool targetIdentityRetryOnly =
         testCase ==
             "connection-target-identity-retained-across-peer-retry";
@@ -1533,7 +1591,7 @@ int main(int argc, char** argv)
         !typeTwoTimingDiagnosticsOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
         !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
-        !targetIdentityRetryOnly)
+        !preauthOwnerIsolationOnly && !targetIdentityRetryOnly)
     {
         return 2;
     }
@@ -1612,6 +1670,76 @@ int main(int argc, char** argv)
     assertFixedConnectionTargetIdentity(
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
+
+    if (preauthOwnerIsolationOnly)
+    {
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> releasePeer{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                typeTwoReceived, releasePeer);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilPeerSignal(control, typeTwoReceived, peerFinished));
+        const auto waiting = control.status();
+        assertPreAdmissionNativeIsolation(waiting);
+
+        if (preauthOwnerLockIsolationOnly)
+        {
+            evidence.lockDesktop();
+            const auto transition = control.serviceOnce();
+            assert(
+                transition.error == RuntimeHostError::CredentialNotConfigured);
+        }
+        else if (preauthOwnerLogoutIsolationOnly)
+        {
+            evidence.logoutDesktop();
+            const auto transition = control.serviceOnce();
+            assert(
+                transition.error == RuntimeHostError::CredentialNotConfigured);
+        }
+        else if (preauthOwnerSessionSwitchIsolationOnly)
+        {
+            evidence.switchDesktopSession();
+            const auto transition = control.serviceOnce();
+            assert(
+                transition.error == RuntimeHostError::CredentialNotConfigured);
+        }
+        else
+        {
+            assert(preauthOwnerPermissionRevokeIsolationOnly);
+            assert(control.revokeSharing().succeeded());
+        }
+
+        const auto retired = control.status();
+        assert(retired.activeClients.empty());
+        assert(!retired.listenerAvailable);
+        assertClipboardDormant(retired);
+        assertGraphicsDormant(retired);
+        if (preauthOwnerPermissionRevokeIsolationOnly)
+        {
+            assert(retired.stage == RuntimeHostStage::Revoked);
+            assert(retired.lastError == RuntimeHostError::AccessRevoked);
+        }
+        else
+        {
+            assert(retired.stage == RuntimeHostStage::Stopped);
+            assert(
+                retired.lastError == RuntimeHostError::CredentialNotConfigured);
+            assert(!retired.credentialsConfigured);
+        }
+
+        releasePeer.store(true, std::memory_order_release);
+        peer.join();
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+        return 0;
+    }
 
     if (postTypeTwoObservationOnly)
     {

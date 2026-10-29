@@ -656,6 +656,26 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # R5 independently proves that native owner/session loss during a real
+    # production-backed Direct-NTLM Await-Type-3 lifetime retires the peer
+    # before X11 capture/input/clipboard construction can become reachable.
+    foreach(r5_preauth_owner_loss_case IN ITEMS
+            owner-lock
+            owner-logout
+            owner-session-switch
+            owner-permission-revoke)
+        add_test(
+            NAME "runtime.linux-direct-ntlm-preauth-${r5_preauth_owner_loss_case}-isolation"
+            COMMAND test_linux_runtime_direct_ntlm_lifecycle
+                "direct-ntlm-preauth-${r5_preauth_owner_loss_case}-isolation")
+        set_tests_properties(
+            "runtime.linux-direct-ntlm-preauth-${r5_preauth_owner_loss_case}-isolation"
+            PROPERTIES
+                LABELS "runtime;security;transport;tls;credssp;authentication;admission;lifecycle;linux;native-environment;native-isolation"
+                SKIP_RETURN_CODE 77
+                TIMEOUT 20)
+    endforeach()
+
     # Agent 1 post-Type-2 wire observations reuse the exact production
     # listener, R1 TLS owner and CredSSP reader. No case changes wire policy.
     add_test(NAME runtime.linux-direct-ntlm-post-type2-silence

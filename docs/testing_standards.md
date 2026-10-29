@@ -1,3 +1,34 @@
+## R5 P0 client-evidence validation and pre-auth native isolation (2026-10-29)
+
+The macOS Windows App evidence fixture now validates the private schema-v2
+manifest and the redacted R2/R6 projection in the existing
+`macos.windows-app-owner-evidence-readonly-manifest` CTest. Coverage includes
+certificate fingerprint, exact stage matrix, bare-`0x204` handling, redaction,
+missing logs, timestamp-correlation failure, grounded first-client-error
+classification and invalid/comparable A/B certificate/endpoint controls. The
+validator is read-only; it never launches Windows App, reads Keychain, changes
+trust, discovers a private log path or emits usernames/raw logs/exact UI text.
+
+Four production-backed cases extend the existing real-listener/OpenSSL
+`test_linux_runtime_direct_ntlm_lifecycle` fixture:
+
+- `runtime.linux-direct-ntlm-preauth-owner-lock-isolation`
+- `runtime.linux-direct-ntlm-preauth-owner-logout-isolation`
+- `runtime.linux-direct-ntlm-preauth-owner-session-switch-isolation`
+- `runtime.linux-direct-ntlm-preauth-owner-permission-revoke-isolation`
+
+Each reaches production Type 2 with the peer deliberately held before Type 3,
+then changes one owner/native fact. The runtime must retire the peer/listener
+and remain `PreAdmission` with no MCS/Share, framebuffer, Graphics, native
+desktop or clipboard lifetime. Because R5 input dispatch is a child of the
+post-Graphics native desktop aggregate, absence of that aggregate also pins no
+native input authority despite an earlier owner consent bit.
+
+Authoring-copy direct Python execution: **13/13 PASS** plus `py_compile`
+**PASS**. Canonical C++ configure/build/focused/full CTest and exact-publication
+hosted CI: **NOT RUN / PENDING** until the atomic main publication. No physical
+client was executed.
+
 ## R8 P1 offline Microsoft CLIPRDR interoperability gates (2026-10-29)
 
 Keep three independent behavior gates in the ordinary centralized CTest graph.

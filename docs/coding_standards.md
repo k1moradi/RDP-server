@@ -1,3 +1,27 @@
+## R5 physical-client evidence is private; redacted summaries are typed (2026-10-29)
+
+Keep the owner-selected Windows App Core/UI files and exact client text in the
+private evidence bundle. A reusable validator may read that bundle but must
+emit only bounded non-secret facts: exact server SHA/certificate identity,
+client version/build, redacted endpoint correlation, credential-control state,
+typed server stages and normalized first-client-error category/source. Do not
+copy raw log lines, usernames, exact UI messages, log paths/hashes or connection
+identifiers into shared diagnostics. A bare UI code such as `0x204` remains
+`unknown` until the same-attempt private Core/UI evidence provides an explicit
+provider category/code. Missing logs, excessive timestamp delta, inconsistent
+certificate decisions and invalid A/B controls are evidence failures, never
+inputs to a guessed protocol diagnosis.
+
+The Linux runtime must remain native-dormant while an accepted peer is still
+pre-admission. R10 may refresh the read-only seat0/session/owner evidence and
+current owner-consent generation before advancing R1/R2, but X11 desktop
+construction, capture, XTEST input dispatch, clipboard preparation and native
+event polling are unreachable until the same peer has genuine R2 Admission,
+Share activation and Graphics readiness. Lock/logout/session replacement or
+owner revocation during Await-Type-3 retires the accepted connection/listener
+before any native aggregate can be created. Consent bits are not native input
+authority.
+
 ## R8 offline CLIPRDR conformance and X11 INCR abort cleanup (2026-10-29)
 
 MS-RDPECLIP capability negotiation remains feature-bit driven: General

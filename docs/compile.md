@@ -1,3 +1,18 @@
+## R5 evidence validation and pre-auth isolation add no production dependency (2026-10-29)
+
+The expanded macOS evidence collector/validator remains Python standard-library
+only and reuses the existing `Python3::Interpreter` test dependency. Its
+validation mode reads only an explicitly named private manifest and writes one
+redacted JSON summary to stdout. No production target, socket, Keychain/trust
+API, Windows App framework, package dependency, install/export surface or
+second build root is added.
+
+The Linux isolation increment changes only the existing
+`test_linux_runtime_direct_ntlm_lifecycle` production-backed fixture and the
+shared CTest registry. It adds no runtime source, compile definition, library or
+native dependency. Canonical C++ build/full CTest is **NOT RUN** in this
+connector environment; exact-publication CI is **PENDING**.
+
 ## Windows credential-oracle diagnostics must use stable target constants (2026-10-27)
 
 When warning cleanup removes a test-only local alias/capture, update every

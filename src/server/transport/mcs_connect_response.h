@@ -133,7 +133,7 @@ private:
 // contain PROTOCOL_SSL, PROTOCOL_HYBRID, or both; unsupported protocol bits
 // fail closed. The caller still must correlate serverSelectedProtocol using
 // matchesMcsSecurityNegotiationReplay before any bytes can be published.
-// gccNodeId is T.124 UserID [1001, 65536] inclusive.
+// gccNodeId is T.124 UserID [1001, 65535] inclusive.
 [[nodiscard]] McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,
     std::span<const std::uint16_t> staticChannelIds,

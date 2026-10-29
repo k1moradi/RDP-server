@@ -1,3 +1,21 @@
+## R3 MCS UserId upper-bound conformance gate (2026-10-29)
+
+`transport.mcs-user-id-range-conformance` is the dedicated production-backed
+gate for the T.125/T.124 dynamic UserId range. It requires 65535 / PER offset
+`0xFC16` to succeed and 65536 / offset `0xFC17` to fail across ChannelJoin
+and SendData request parsing, AttachUserConfirm and ChannelJoinConfirm writing,
+the join-membership gate, SendDataIndication writing, GCC Connect-Response
+nodeID encoding, and the RDPGFX MCS-user handoff. This remains protocol-only;
+it creates no authentication, admission lease, Share authority or native
+desktop.
+
+The existing sanitizer-selected
+`transport.mcs-send-data-joined-denials` invokes the same focused conformance
+routine so the corrected branches run under ASan/UBSan without changing the
+shared sanitizer selector/count. Ordinary full CTest also runs the dedicated
+behavior name independently. Boundary tests must keep ChannelId 0..65535
+separate from DynamicChannelId/UserId 1001..65535.
+
 ## R7 authoritative Username and typed-classification regression (2026-10-29)
 
 `gui.offscreen-configured-username-runtime-projection` constructs the desktop

@@ -1,3 +1,31 @@
+## R3 P1 follow-up — correct T.125/GCC UserId upper bound (2026-10-29)
+
+**Authoring parent:** `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`. The earlier MCS/GCC qualification remains
+intact and current R1/R2 work has removed the previous offline shared-main
+blocker. Independent T.125/T.124 review found a separate R3 parser/writer
+defect: several production paths treated 65536 as a legal MCS/GCC UserId
+because the two-octet PER offset was allowed through `0xFC17`. T.125 defines
+DynamicChannelId/UserId as 1001..65535; GCC UserID uses the same range, making
+`0xFC16` the final legal offset.
+
+Production now rejects the one-past value in ChannelJoin and SendData request
+parsing, Attach/Join confirmation writing, join configuration,
+SendDataIndication, GCC Connect-Response nodeID encoding and the downstream
+RDPGFX MCS-user boundary. The dedicated
+`transport.mcs-user-id-range-conformance` CTest covers the common boundary,
+and the existing sanitizer-selected MCS SendData denial case reuses it.
+No native admission, live MCS processing, listener, client or Share activation
+is fabricated.
+
+**Validation:** normative T.125/T.124 review and source audit **PASS**.
+Canonical owner one-build configure/build/full CTest **NOT RUN** in this
+connector environment. Exact publication-SHA hosted CI/sanitizers **PENDING**.
+The live dependency remains unchanged: physical CredSSP Type 3 / pubKeyAuth /
+authInfo / CredentialsVerified and a genuine revocable R2 native admission
+must precede any real R3 MCS processing. **Next:** qualify the exact SHA, then
+continue offline Channel Connection/Share conformance while the physical
+client-authentication gate remains owned by R2/R6/R9/R10.
+
 ## R7 P1 completion — runtime-owned Username and typed-only first failure (2026-10-29)
 
 **Authoring parent:** `56a411b79595a7f9425c383edabd43229845f987`. R9 has resolved the stale Main/Advanced

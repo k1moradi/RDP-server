@@ -1,3 +1,18 @@
+## R3 T.125/GCC UserId range contract (2026-10-29)
+
+T.125 defines `ChannelId ::= INTEGER(0..65535)`,
+`DynamicChannelId ::= ChannelId(1001..65535)`, and `UserId ::=
+DynamicChannelId`. T.124 GCC uses the same 1001..65535 dynamic UserID range.
+The aligned-PER ChannelJoin/SendData initiator is encoded as an offset from
+1001; therefore `0xFC16` maps to the maximum legal UserId 65535 and
+`0xFC17` is invalid even though it fits in the two-octet wire field.
+
+Validate the ASN.1 semantic range before adding the 1001 offset, serializing
+Attach/Join confirms, generating SendDataIndication, configuring membership,
+or handing the ID to post-MCS channel lifecycles. Never infer a legal 65536
+value merely from a 16-bit encoded offset. Keep `ChannelId`'s independent
+0..65535 syntax range distinct from the narrower dynamic UserId range.
+
 ## R7 configured Username and first-failure wording are runtime-authoritative (2026-10-29)
 
 The configured standalone Username is non-secret but still belongs to R10's

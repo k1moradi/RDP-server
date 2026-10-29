@@ -327,7 +327,7 @@ public:
         std::span<const std::uint16_t> assignedChannels) noexcept
     {
         if (configured_ || closed_ || assignedUserId < 1001U ||
-            assignedUserId > 65536U || assignedChannels.empty() ||
+            assignedUserId > 65535U || assignedChannels.empty() ||
             assignedChannels.size() > assignedChannelIds_.size())
         {
             close();

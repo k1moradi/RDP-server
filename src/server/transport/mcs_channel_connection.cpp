@@ -31,6 +31,12 @@ std::atomic<std::uint64_t> nextClipboardRouteGeneration{1U};
 std::atomic<std::uint64_t>
     nextFirstClientAcceptanceReconnectGeneration{1U};
 
+// T.125 fundamental MCS type bounds: DynamicChannelId/UserId is
+// INTEGER(1001..65535). The two-octet PER value is an offset from 1001;
+// 0xFC17 would decode numerically to 65536 and is therefore out of range.
+inline constexpr std::uint32_t kFirstMcsUserId = 1001U;
+inline constexpr std::uint32_t kLastMcsUserId = 65535U;
+
 [[nodiscard]] std::optional<std::uint64_t>
 allocateClipboardRouteGeneration() noexcept
 {
@@ -380,13 +386,11 @@ McsChannelParseResult parseMcsChannelRequest(
             return {{}, McsChannelParseError::InvalidDomainPdu};
         const auto encodedInitiator =
             (static_cast<std::uint32_t>(payload[1]) << 8U) | payload[2];
-        constexpr std::uint32_t kFirstUserId = 1001;
-        constexpr std::uint32_t kMaxUserId = 65536;
-        if (encodedInitiator > kMaxUserId - kFirstUserId)
+        if (encodedInitiator > kLastMcsUserId - kFirstMcsUserId)
             return {{}, McsChannelParseError::InvalidPerValue};
         McsChannelRequest request{};
         request.kind = McsChannelRequestKind::ChannelJoin;
-        request.initiator = encodedInitiator + kFirstUserId;
+        request.initiator = encodedInitiator + kFirstMcsUserId;
         request.channelId = static_cast<std::uint16_t>(
             (static_cast<std::uint16_t>(payload[3]) << 8U) | payload[4]);
         return {request, McsChannelParseError::None};
@@ -400,15 +404,13 @@ McsChannelParseResult parseMcsChannelRequest(
         // aligned PER OCTET STRING length[1..2], then userData.
         // No channel state or OS identity is inferred from syntax.
         constexpr std::size_t fixedHeaderBytes = 6;
-        constexpr std::uint32_t firstUserId = 1001;
-        constexpr std::uint32_t lastUserId = 65536;
         if (payload.size() <= fixedHeaderBytes ||
             (payload[5] & 0x0fU) != 0)
             return {{}, McsChannelParseError::InvalidDomainPdu};
 
         const auto encodedInitiator =
             (static_cast<std::uint32_t>(payload[1]) << 8U) | payload[2];
-        if (encodedInitiator > lastUserId - firstUserId)
+        if (encodedInitiator > kLastMcsUserId - kFirstMcsUserId)
             return {{}, McsChannelParseError::InvalidPerValue};
 
         // RFC 1006 bounds the entire TPKT; T.125 aligned PER
@@ -435,7 +437,7 @@ McsChannelParseResult parseMcsChannelRequest(
 
         McsChannelRequest request{};
         request.kind = McsChannelRequestKind::SendDataRequest;
-        request.initiator = encodedInitiator + firstUserId;
+        request.initiator = encodedInitiator + kFirstMcsUserId;
         request.channelId = static_cast<std::uint16_t>(
             (static_cast<std::uint16_t>(payload[3]) << 8U) | payload[4]);
         request.dataPriority = static_cast<std::uint8_t>(
@@ -466,9 +468,6 @@ McsChannelParseResult parseMcsChannelRequest(
 
 namespace
 {
-constexpr std::uint32_t kFirstMcsUserId = 1001;
-constexpr std::uint32_t kLastMcsUserId = 65536;
-
 [[nodiscard]] bool validMcsUser(std::uint32_t value) noexcept
 {
     return value >= kFirstMcsUserId && value <= kLastMcsUserId;
@@ -516,7 +515,7 @@ std::optional<std::uint16_t> resolveMcsStaticChannelRole(
     if (!settings.hasNetworkData || !allocation ||
         settings.channelCount > settings.channels.size() ||
         allocation.staticChannelCount != settings.channelCount ||
-        allocation.gccNodeId < 1001U || allocation.gccNodeId > 65536U ||
+        allocation.gccNodeId < 1001U || allocation.gccNodeId > kLastMcsUserId ||
         allocation.ioChannelId == 0U ||
         allocation.ioChannelId == allocation.gccNodeId)
         return std::nullopt;
@@ -1134,7 +1133,7 @@ McsSessionLifecycle::allocateAttachUserId() const noexcept
         connectResponseAllocation_.ioChannelId ==
             connectResponseAllocation_.gccNodeId ||
         connectResponseAllocation_.gccNodeId < 1001U ||
-        connectResponseAllocation_.gccNodeId > 65536U ||
+        connectResponseAllocation_.gccNodeId > kLastMcsUserId ||
         connectResponseAllocation_.ioChannelId == 0U)
         return std::nullopt;
 
@@ -3945,7 +3944,7 @@ bool RdpGraphicsDynamicVirtualChannelLifecycle::begin(
     ::PixelSize desktopGeometry) noexcept
 {
     if (phase_ != RdpGraphicsDvcPhase::NotStarted ||
-        clientUserId < 1001U || clientUserId > 65536U ||
+        clientUserId < 1001U || clientUserId > kLastMcsUserId ||
         staticChannelId == 0U || !allocation ||
         desktopGeometry.widthPixels == 0U ||
         desktopGeometry.heightPixels == 0U ||

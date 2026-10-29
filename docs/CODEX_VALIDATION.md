@@ -1,3 +1,20 @@
+## R3 T.125/GCC UserId range correction — 2026-10-29
+
+- Authoring parent: `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`.
+- Normative finding: T.125 `DynamicChannelId` / `UserId` is 1001..65535;
+  T.124 GCC UserID has the same dynamic range. The former production upper
+  bound 65536 was one past the ASN.1 constraint.
+- Corrected production boundaries: ChannelJoin and SendData request parsers,
+  Attach/Join confirm encoders, join gate, SendDataIndication, GCC
+  Connect-Response nodeID and RDPGFX MCS-user handoff.
+- Dedicated gate: `transport.mcs-user-id-range-conformance`; the existing
+  sanitizer-selected `transport.mcs-send-data-joined-denials` also invokes
+  the shared routine.
+- Security boundary: protocol-only; no synthetic R2 admission, HostControl
+  progression, live MCS, licensing/Share activation or native desktop.
+- Local canonical build/full CTest: **NOT RUN** in this connector environment.
+- Exact publication-SHA hosted CI/sanitizers: **PENDING**.
+
 ## R5 timing-attribution evidence follow-up — 2026-10-29
 
 - Initial authoring parent: `cde24568f8bcb60a69559dae19ac40ba96fbf092`.

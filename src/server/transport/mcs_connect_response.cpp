@@ -225,7 +225,7 @@ McsConnectResponse encodeMcsConnectResponseFromNegotiatedState(
     std::uint32_t requested) noexcept
 {
     if (!validNegotiatedDomainForAllocation(domain) ||
-        nodeId<1001U || nodeId>65536U ||
+        nodeId<1001U || nodeId>65535U ||
         !supportedEnhancedSecurityRequest(requested) ||
         channels.size()!=expectedCount ||
         channels.size()>kMaximumStaticChannelCount ||

@@ -1785,6 +1785,7 @@ function(add_rdp_test source_file suite behavior)
                 short-format-list-negotiation
                 format-list-response-native-acceptance
                 capabilities-negotiation-format-gating
+                capability-format-request-interoperability-matrix
                 format-list-response-joined-mcs-envelope
                 joined-static-channel-inbound-gates
                 r3-channel-retirement-revokes-state
@@ -2130,6 +2131,10 @@ add_test(NAME clipboard.chunk-reassembly-reset-bounds
     COMMAND test_clipboard_protocol chunk-reassembly-reset-bounds)
 set_tests_properties(clipboard.chunk-reassembly-reset-bounds PROPERTIES
     LABELS "protocol;clipboard;security")
+add_test(NAME clipboard.ms-rdpeclip-wire-conformance
+    COMMAND test_clipboard_protocol ms-rdpeclip-wire-conformance)
+set_tests_properties(clipboard.ms-rdpeclip-wire-conformance PROPERTIES
+    LABELS "protocol;clipboard;offline")
 add_test(NAME clipboard.wire-codec-mutated-boundaries
     COMMAND test_clipboard_protocol wire-codec-mutated-boundaries)
 set_tests_properties(clipboard.wire-codec-mutated-boundaries PROPERTIES
@@ -4276,6 +4281,7 @@ if(TARGET rdp-server-linux-x11-clipboard)
             x11-incr-large-text-progression
             x11-incr-png-progression
             x11-incr-cancellation
+            x11-incr-error-property-cleanup
             x11-r3-retirement-stale-incr-fence)
         rdp_functional_ctest_name(functional_clipboard_test_name "clipboard.${case_name}")
         add_test(NAME "${functional_clipboard_test_name}"

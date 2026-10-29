@@ -1310,14 +1310,17 @@ jobs:
           grep -Fq 'clipboard.windows-clipboard-retirement-source-epoch' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-clipboard-publication-midcallback-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-retirement-stale-incr-fence' <<< "$selected_tests"
+          grep -Fq 'clipboard.x11-incr-error-property-cleanup' <<< "$selected_tests"
           grep -Fq 'clipboard.x11-unicode-text-only-presentation' <<< "$selected_tests"
+          grep -Fq 'clipboard.ms-rdpeclip-wire-conformance' <<< "$selected_tests"
+          grep -Fq 'clipboard.capability-format-request-interoperability-matrix' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-source-request-receipt' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-missing-activated-route-denial' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-old-route-generation-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-filecontents-request-receipt' <<< "$selected_tests"
           grep -Fq 'runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=97
+          readonly clipboard_expected_test_count=100
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
             printf 'Clipboard registry mismatch: expected %s tests, found %s\n' \

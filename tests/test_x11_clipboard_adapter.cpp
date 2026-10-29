@@ -954,6 +954,7 @@ void incrLargeTextProgression()
     assert(native.currentEventMask ==
            static_cast<std::uint32_t>(XCB_EVENT_MASK_ENTER_WINDOW));
     assert(native.notifications.size() == 1);
+    assert(native.deletePropertyCalls == 0);
 }
 
 void incrPngProgression()
@@ -999,6 +1000,7 @@ void incrPngProgression()
     assert(native.propertyWrites.back().type == kPngAtom);
     assert(native.notifications.size() == 1);
     assert(native.restoreEventMaskCalls == 1);
+    assert(native.deletePropertyCalls == 0);
 }
 
 void incrCancellation()
@@ -1053,6 +1055,81 @@ void incrCancellation()
     const std::size_t restoresBeforeDestroy = native.restoreEventMaskCalls;
     dispatchDestroy(adapter, kRequestorWindow, start);
     assert(!adapter.incrTransferActive());
+    assert(native.restoreEventMaskCalls == restoresBeforeDestroy);
+}
+
+
+void incrErrorPropertyCleanup()
+{
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    const Clock::time_point start{std::chrono::seconds{9}};
+    assert(adapter.publishCurrentRemoteOffer(start));
+    const std::string largeText(
+        X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'z');
+    storeText(transfer, largeText);
+
+    // Timeout after the INCR handshake must remove the stale requestor
+    // property and restore only the event mask that this transfer borrowed.
+    dispatchRequest(adapter, requestFor(kUtf8Atom, 847, 47), start);
+    assert(adapter.incrTransferActive());
+    const std::size_t deletesBeforeTimeout = native.deletePropertyCalls;
+    const std::size_t restoresBeforeTimeout = native.restoreEventMaskCalls;
+    assert(adapter.servicePendingPaste(
+        start + X11ClipboardAdapter::kIncrTimeout));
+    assert(!adapter.incrTransferActive());
+    assert(native.deletePropertyCalls == deletesBeforeTimeout + 1U);
+    assert(native.restoreEventMaskCalls == restoresBeforeTimeout + 1U);
+
+    // A failed chunk write follows the same cleanup path. The failed write
+    // itself is not recorded by FakeNative, so no partial payload can appear
+    // after the terminal property deletion.
+    dispatchRequest(
+        adapter, requestFor(kUtf8Atom, 848, 48),
+        start + std::chrono::milliseconds{1});
+    assert(adapter.incrTransferActive());
+    native.failPropertyWrite = true;
+    const std::size_t deletesBeforeWriteFailure = native.deletePropertyCalls;
+    const std::size_t restoresBeforeWriteFailure = native.restoreEventMaskCalls;
+    dispatchPropertyDelete(
+        adapter, 848, start + std::chrono::milliseconds{2});
+    assert(!adapter.incrTransferActive());
+    assert(native.deletePropertyCalls == deletesBeforeWriteFailure + 1U);
+    assert(native.restoreEventMaskCalls == restoresBeforeWriteFailure + 1U);
+    native.failPropertyWrite = false;
+
+    // Native owner loss is terminal for the borrowed INCR lifetime and must
+    // also clean the transfer property. A destroyed requestor is different:
+    // neither its property nor event mask can be touched after destruction.
+    dispatchRequest(
+        adapter, requestFor(kUtf8Atom, 849, 49),
+        start + std::chrono::milliseconds{3});
+    assert(adapter.incrTransferActive());
+    const std::size_t deletesBeforeOwnerLoss = native.deletePropertyCalls;
+    adapter.observeClipboardOwner(999);
+    assert(!adapter.incrTransferActive());
+    assert(native.deletePropertyCalls == deletesBeforeOwnerLoss + 1U);
+
+    assert(transfer.receiveFormatList(
+        std::array<std::uint32_t, 1>{
+            rdp_server::clipboard::kFormatUnicodeText}));
+    assert(adapter.publishCurrentRemoteOffer(
+        start + std::chrono::milliseconds{4}));
+    storeText(transfer, largeText);
+    dispatchRequest(
+        adapter, requestFor(kUtf8Atom, 850, 50),
+        start + std::chrono::milliseconds{5});
+    assert(adapter.incrTransferActive());
+    const std::size_t deletesBeforeDestroy = native.deletePropertyCalls;
+    const std::size_t restoresBeforeDestroy = native.restoreEventMaskCalls;
+    dispatchDestroy(
+        adapter, kRequestorWindow, start + std::chrono::milliseconds{6});
+    assert(!adapter.incrTransferActive());
+    assert(native.deletePropertyCalls == deletesBeforeDestroy);
     assert(native.restoreEventMaskCalls == restoresBeforeDestroy);
 }
 
@@ -1462,6 +1539,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-incr-cancellation")
     {
         incrCancellation();
+        return 0;
+    }
+    if (behavior == "x11-incr-error-property-cleanup")
+    {
+        incrErrorPropertyCleanup();
         return 0;
     }
     if (behavior == "x11-r3-retirement-stale-incr-fence")

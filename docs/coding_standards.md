@@ -1,3 +1,23 @@
+## R8 offline CLIPRDR conformance and X11 INCR abort cleanup (2026-10-29)
+
+MS-RDPECLIP capability negotiation remains feature-bit driven: General
+Capability `version` is informational, missing General capabilities mean zero
+flags, long Format List names require mutual `CB_USE_LONG_FORMAT_NAMES`, and
+streamed file requests require mutual `CB_STREAM_FILECLIP_ENABLED`. Standard
+text/Unicode/DIB IDs and registered `PNG`/`FileGroupDescriptorW` names remain
+format-list state, never capability or native-admission authority. Format Data
+requests stay single-flight because their responses have no wire request ID;
+FileContents uses its own monotonic `streamId` and exact response correlation.
+
+An X11 INCR transfer that has already announced its requestor property must not
+leave the INCR marker or a partial chunk behind when timeout, publication
+replacement, native owner loss, or a property-write failure aborts the transfer.
+Retire the in-memory INCR state first, restore the borrowed requestor event mask,
+and delete the transfer property on abort. Preserve the zero-length property on
+a successful INCR completion, and touch neither property nor event mask after a
+requestor DestroyNotify. This cleanup is native presentation only; it creates no
+CLIPRDR, R2, R3, Share, or production activation authority.
+
 ## R3 post-authentication MCS/GCC handoff contract (2026-10-29)
 
 For the HYBRID/NLA product path, R1 owns X.224 negotiation, TLS and the complete

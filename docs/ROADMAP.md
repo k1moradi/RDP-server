@@ -1,3 +1,38 @@
+## R8 P1 — strengthen clipboard protocol interoperability offline (2026-10-29)
+
+**Source parent inspected:** `79ed26a8ff082b7ec8a506b47aae00e77a1e79bf`. Microsoft MS-RDPECLIP was rechecked
+for General capability negotiation, Format List layouts, Format Data request/
+response framing, and FileContents request/response correlation. Existing R8
+already had broad production-backed format/generation/file-stream coverage and
+keeps the Linux production owner text-only and activation-disabled. This round
+adds a protocol-only Microsoft wire corpus and a production `RemoteTransfer`
+capability/format/request matrix instead of introducing a second clipboard
+parser or state machine.
+
+**Defect fixed by source/test inspection:** an aborted X11 INCR transfer restored
+the borrowed requestor event mask but left the requestor transfer property
+containing the INCR marker or a partial chunk. Timeout, chunk-write failure and
+native owner loss now delete that property after retiring the in-memory INCR
+state; successful completion preserves the required zero-length terminator, and
+DestroyNotify performs no requestor access. The dedicated injected-native test
+uses no DISPLAY/Xvfb or owner clipboard.
+
+**Security boundary unchanged:** `kLinuxProductionClipboardActivationApproved = false`.
+The dormant runtime remains `PresentationScope::UnicodeTextOnly`, forbids PNG
+and file request APIs, and can only route through the protected R2/R3 clipboard
+channel after the existing native/GraphicsReady composition. No client
+capability, Format List, generation, INCR state or offline test can activate
+CLIPRDR before verified authentication, native Admission and Share authority.
+
+**Validation:** source/spec review **PASS by inspection**. Canonical owner
+`~/rdp-server/build/` configure/build/full CTest **NOT RUN** in this connector
+environment because no repository checkout is available and direct GitHub DNS
+checkout is unavailable. Publication-SHA hosted CI/sanitizers **PENDING**.
+**Next R8:** require exact-SHA ordinary + sanitizer PASS, then continue offline
+server-to-client Format List/capability conformance only where a real production
+serializer exists; live Microsoft client/native clipboard acceptance remains
+owner-authorized and BLOCKED by the existing authenticated Admission/Share gate.
+
 ## R3 P1 — independently qualified post-authentication MCS/GCC boundary (2026-10-29)
 
 **Authoring parent:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.

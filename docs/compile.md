@@ -484,14 +484,16 @@ structure-validator count synchronized. If workflow authoring duplicates job
 bodies, reconstruct from a known-valid parent rather than deleting arbitrary
 fragments from malformed YAML.
 
-## R9 Linux sanitizer clipboard inventory reconciliation (2026-10-20)
+## R9 Linux sanitizer clipboard inventory reconciliation (2026-10-29)
 
-The Linux ASan/UBSan job pins 88 `clipboard`-labelled tests after R8 added
-`clipboard.x11-unicode-text-only-presentation`. Keep the explicit name check
-and fixed count synchronized with reviewed behavior-test additions/removals.
+The Linux ASan/UBSan job now pins 100 `clipboard`-labelled tests. The R8 P1
+interop round adds exactly three reviewed cases to the prior 97-case inventory:
+`clipboard.ms-rdpeclip-wire-conformance`,
+`clipboard.capability-format-request-interoperability-matrix`, and
+`clipboard.x11-incr-error-property-cleanup`. Keep their explicit name checks
+and the fixed count synchronized with reviewed behavior-test additions/removals.
 Do not hide registry drift by dropping the count assertion or by deleting an
 unrelated test.
-
 ## R9 Qt macro-safe transitive headers (2026-10-20)
 
 A header reachable from a Qt translation unit must remain valid when Qt

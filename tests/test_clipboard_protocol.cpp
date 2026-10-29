@@ -498,10 +498,195 @@ void test_wire_codec_mutated_boundaries()
     assert(!decodePdu(hugeLength, ignored));
 }
 
+
+void test_ms_rdpeclip_wire_conformance()
+{
+    using namespace rdp_server::clipboard;
+    const auto read16 = [](std::span<const std::uint8_t> bytes,
+                           std::size_t offset) {
+        assert(offset + 2U <= bytes.size());
+        return static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(bytes[offset]) |
+            static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U);
+    };
+    const auto read32 = [](std::span<const std::uint8_t> bytes,
+                           std::size_t offset) {
+        assert(offset + 4U <= bytes.size());
+        return static_cast<std::uint32_t>(bytes[offset]) |
+               static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U |
+               static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U |
+               static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U;
+    };
+    const auto put32 = [](std::span<std::uint8_t> bytes,
+                          std::size_t offset, std::uint32_t value) {
+        assert(offset + 4U <= bytes.size());
+        bytes[offset] = static_cast<std::uint8_t>(value);
+        bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+        bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+        bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+    };
+
+    // MS-RDPECLIP 4.1.3 client capability example: one General set,
+    // length 12, version 2 and long-name/file-stream/no-path flags.
+    constexpr std::array<std::uint8_t, 24> capabilities{
+        0x07, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x0c, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x00, 0x00};
+    PduView view{};
+    assert(decodePdu(capabilities, view));
+    assert(view.type == kClipCaps && view.flags == 0);
+    assert(view.payload.size() == 16U);
+    assert(read16(view.payload, 0) == 1U);
+    assert(read16(view.payload, 4) == 1U);
+    assert(read16(view.payload, 6) == 12U);
+    assert(read32(view.payload, 8) == 2U);
+    assert(read32(view.payload, 12) ==
+           (kUseLongFormatNames | kStreamFileclipEnabled |
+            kFileclipNoFilePaths));
+
+    const auto appendLongFormat =
+        [](std::vector<std::uint8_t> &payload, std::uint32_t formatId,
+           std::string_view name) {
+            const std::size_t start = payload.size();
+            payload.resize(start + 4U + (name.size() + 1U) * 2U, 0);
+            payload[start] = static_cast<std::uint8_t>(formatId);
+            payload[start + 1U] = static_cast<std::uint8_t>(formatId >> 8U);
+            payload[start + 2U] = static_cast<std::uint8_t>(formatId >> 16U);
+            payload[start + 3U] = static_cast<std::uint8_t>(formatId >> 24U);
+            for (std::size_t index = 0; index < name.size(); ++index)
+                payload[start + 4U + index * 2U] =
+                    static_cast<std::uint8_t>(name[index]);
+        };
+
+    constexpr std::array<std::uint32_t, 6> formatIds{
+        kFormatText, kFormatUnicodeText, 8U, 17U, 0xc001U, 0xc002U};
+    constexpr std::array<std::string_view, 6> formatNames{
+        "", "", "", "", "PNG", "FileGroupDescriptorW"};
+    std::vector<std::uint8_t> formatPayload;
+    for (std::size_t index = 0; index < formatIds.size(); ++index)
+        appendLongFormat(formatPayload, formatIds[index], formatNames[index]);
+
+    std::vector<std::uint8_t> formatList;
+    assert(encodePdu(kFormatList, 0, formatPayload, formatList));
+    assert(decodePdu(formatList, view));
+    assert(view.type == kFormatList && view.flags == 0);
+    std::size_t offset = 0;
+    for (std::size_t index = 0; index < formatIds.size(); ++index)
+    {
+        assert(read32(view.payload, offset) == formatIds[index]);
+        offset += 4U;
+        for (char character : formatNames[index])
+        {
+            assert(read16(view.payload, offset) ==
+                   static_cast<std::uint8_t>(character));
+            offset += 2U;
+        }
+        assert(read16(view.payload, offset) == 0U);
+        offset += 2U;
+    }
+    assert(offset == view.payload.size());
+
+    for (const std::uint32_t formatId : formatIds)
+    {
+        std::array<std::uint8_t, 4> payload{};
+        put32(payload, 0, formatId);
+        std::vector<std::uint8_t> request;
+        assert(encodePdu(kFormatDataRequest, 0, payload, request));
+        assert(request.size() == 12U);
+        assert(decodePdu(request, view));
+        assert(view.type == kFormatDataRequest && view.flags == 0);
+        assert(view.payload.size() == 4U);
+        assert(read32(view.payload, 0) == formatId);
+    }
+
+    // MS-RDPECLIP 4.4.2 Unicode "hello world" response.
+    constexpr std::array<std::uint8_t, 32> unicodeResponse{
+        0x05,0x00,0x01,0x00,0x18,0x00,0x00,0x00,
+        0x68,0x00,0x65,0x00,0x6c,0x00,0x6c,0x00,
+        0x6f,0x00,0x20,0x00,0x77,0x00,0x6f,0x00,
+        0x72,0x00,0x6c,0x00,0x64,0x00,0x00,0x00};
+    assert(decodePdu(unicodeResponse, view));
+    assert(view.type == kFormatDataResponse &&
+           view.flags == kResponseOk && view.payload.size() == 24U);
+
+    std::vector<std::uint8_t> failureResponse;
+    assert(encodePdu(kFormatDataResponse, kResponseFail,
+                     std::span<const std::uint8_t>{}, failureResponse));
+    assert(failureResponse.size() == 8U);
+    assert(decodePdu(failureResponse, view));
+    assert(view.payload.empty());
+
+    constexpr std::uint32_t streamId = 0x11223344U;
+    std::array<std::uint8_t, 24> sizePayload{};
+    put32(sizePayload, 0, streamId);
+    put32(sizePayload, 4, 3U);
+    put32(sizePayload, 8, kFileContentsSize);
+    put32(sizePayload, 20, 8U);
+    std::vector<std::uint8_t> sizeRequest;
+    assert(encodePdu(kFileContentsRequest, 0, sizePayload, sizeRequest));
+    assert(sizeRequest.size() == 32U);
+    assert(decodePdu(sizeRequest, view));
+    assert(view.type == kFileContentsRequest && view.flags == 0);
+    assert(read32(view.payload, 0) == streamId);
+    assert(read32(view.payload, 8) == kFileContentsSize);
+    assert(read32(view.payload, 12) == 0U);
+    assert(read32(view.payload, 16) == 0U);
+    assert(read32(view.payload, 20) == 8U);
+
+    std::array<std::uint8_t, 28> rangePayload{};
+    put32(rangePayload, 0, streamId + 1U);
+    put32(rangePayload, 4, 3U);
+    put32(rangePayload, 8, kFileContentsRange);
+    put32(rangePayload, 12, 0x55667788U);
+    put32(rangePayload, 16, 1U);
+    put32(rangePayload, 20, 4096U);
+    put32(rangePayload, 24, 0xaabbccddU);
+    std::vector<std::uint8_t> rangeRequest;
+    assert(encodePdu(kFileContentsRequest, 0, rangePayload, rangeRequest));
+    assert(rangeRequest.size() == 36U);
+    assert(decodePdu(rangeRequest, view));
+    assert(read32(view.payload, 0) == streamId + 1U);
+    assert(read32(view.payload, 8) == kFileContentsRange);
+    assert(read32(view.payload, 12) == 0x55667788U);
+    assert(read32(view.payload, 16) == 1U);
+    assert(read32(view.payload, 20) == 4096U);
+    assert(read32(view.payload, 24) == 0xaabbccddU);
+
+    std::array<std::uint8_t, 12> sizeResponsePayload{};
+    put32(sizeResponsePayload, 0, streamId);
+    put32(sizeResponsePayload, 4, 0x89abcdefU);
+    put32(sizeResponsePayload, 8, 1U);
+    std::vector<std::uint8_t> sizeResponse;
+    assert(encodePdu(kFileContentsResponse, kResponseOk,
+                     sizeResponsePayload, sizeResponse));
+    assert(decodePdu(sizeResponse, view));
+    assert(view.type == kFileContentsResponse &&
+           view.flags == kResponseOk);
+    assert(read32(view.payload, 0) == streamId);
+    assert(read32(view.payload, 4) == 0x89abcdefU);
+    assert(read32(view.payload, 8) == 1U);
+
+    auto malformed = rangeRequest;
+    malformed.pop_back();
+    assert(!decodePdu(malformed, view));
+    malformed = rangeRequest;
+    malformed.push_back(0);
+    assert(!decodePdu(malformed, view));
+    malformed = rangeRequest;
+    ++malformed[4];
+    assert(!decodePdu(malformed, view));
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
 {
+    if (argumentCount == 2 &&
+        std::string_view(arguments[1]) == "ms-rdpeclip-wire-conformance")
+    {
+        test_ms_rdpeclip_wire_conformance();
+        return 0;
+    }
     if (argumentCount == 2 &&
         std::string_view(arguments[1]) == "wire-codec-mutated-boundaries")
     {

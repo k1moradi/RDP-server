@@ -1100,7 +1100,7 @@ X11ClipboardAdapter::serviceIncrTransfer(
         incr_.publicationSourceEpoch != publicationSourceEpoch_ ||
         incr_.ownershipEpoch != ownershipEpoch_)
     {
-        cancelIncrTransfer(false);
+        cancelIncrTransfer(false, true);
     }
     return true;
 }
@@ -1132,7 +1132,7 @@ X11ClipboardAdapter::handlePropertyNotify(
                 nativeOperations_.context, incr_.request.requestor,
                 incr_.property, incr_.propertyType, 8, chunk))
         {
-            cancelIncrTransfer(false);
+            cancelIncrTransfer(false, true);
             return;
         }
         incr_.offset += chunkBytes;
@@ -1144,10 +1144,10 @@ X11ClipboardAdapter::handlePropertyNotify(
             nativeOperations_.context, incr_.request.requestor,
             incr_.property, incr_.propertyType, 8, {}))
     {
-        cancelIncrTransfer(false);
+        cancelIncrTransfer(false, true);
         return;
     }
-    cancelIncrTransfer(false);
+    cancelIncrTransfer(false, false);
 }
 
 void
@@ -1156,12 +1156,13 @@ X11ClipboardAdapter::handleDestroyNotify(
 {
     if (incr_.active && destroy.window == incr_.request.requestor)
     {
-        cancelIncrTransfer(true);
+        cancelIncrTransfer(true, false);
     }
 }
 
 void
-X11ClipboardAdapter::cancelIncrTransfer(bool requestorDestroyed) noexcept
+X11ClipboardAdapter::cancelIncrTransfer(
+    bool requestorDestroyed, bool deleteTransferProperty) noexcept
 {
     if (!incr_.active)
     {
@@ -1175,6 +1176,15 @@ X11ClipboardAdapter::cancelIncrTransfer(bool requestorDestroyed) noexcept
         (void)nativeOperations_.restoreEventMask(
             nativeOperations_.context, cancelled.request.requestor,
             cancelled.previousEventMask);
+        // An aborted INCR transfer must not leave the requestor's property
+        // containing the INCR marker or a partial chunk. Preserve the normal
+        // zero-length terminator on successful completion.
+        if (deleteTransferProperty)
+        {
+            (void)nativeOperations_.deleteProperty(
+                nativeOperations_.context, cancelled.request.requestor,
+                cancelled.property);
+        }
     }
 }
 
@@ -1326,7 +1336,7 @@ X11ClipboardAdapter::yieldToLocalOwner() noexcept
         return;
     }
     cancelPendingForOwnerLoss();
-    cancelIncrTransfer(false);
+    cancelIncrTransfer(false, true);
     yieldedGeneration_ = publicationGeneration_;
     yieldedSourceEpoch_ = publicationSourceEpoch_;
     ownsClipboard_ = false;
@@ -1376,7 +1386,7 @@ X11ClipboardAdapter::releaseNativeOwnership() noexcept
     {
         cancelPendingForOwnerLoss();
     }
-    cancelIncrTransfer(false);
+    cancelIncrTransfer(false, true);
 
     if (ownsClipboard_)
     {

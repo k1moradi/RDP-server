@@ -1,3 +1,16 @@
+## R8 P1 offline CLIPRDR conformance first round (2026-10-29)
+
+- Source parent: `79ed26a8ff082b7ec8a506b47aae00e77a1e79bf`.
+- MS-RDPECLIP conformance review: **PASS by inspection** for capability flags,
+  Format List layouts, Format Data request/response framing and FileContents
+  stream correlation.
+- Canonical local `~/rdp-server/build/` configure/build/full CTest: **NOT RUN**
+  because this connector environment has no checkout and direct GitHub DNS
+  checkout is unavailable.
+- Live desktop/clipboard/Microsoft-client testing: **NOT RUN** (not authorized
+  by this offline assignment and production activation remains false).
+- Publication-SHA hosted CI/ASan/UBSan: **PENDING**.
+
 # Validation evidence
 
 ## R9 exact-SHA qualification ledger — 2026-10-29

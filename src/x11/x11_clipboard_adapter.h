@@ -281,7 +281,8 @@ private:
     void handlePropertyNotify(const xcb_property_notify_event_t &property,
                               PasteClock::time_point now) noexcept;
     void handleDestroyNotify(const xcb_destroy_notify_event_t &destroy) noexcept;
-    void cancelIncrTransfer(bool requestorDestroyed) noexcept;
+    void cancelIncrTransfer(bool requestorDestroyed,
+                            bool deleteTransferProperty) noexcept;
     [[nodiscard]] bool publishPropertyAndNotify(
         const xcb_selection_request_event_t &request,
         xcb_atom_t property, xcb_atom_t propertyType, std::uint8_t format,

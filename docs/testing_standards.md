@@ -1,3 +1,25 @@
+## R8 P1 offline Microsoft CLIPRDR interoperability gates (2026-10-29)
+
+Keep three independent behavior gates in the ordinary centralized CTest graph.
+`clipboard.ms-rdpeclip-wire-conformance` is protocol-only and pins Microsoft's
+General-capability example, long Format List field order, Format Data Request
+IDs for CF_TEXT/CF_UNICODETEXT/DIB/DIBV5/PNG/FileGroupDescriptorW, the published
+Unicode Format Data Response, FileContents SIZE/RANGE field ordering, optional
+`clipDataId`, response `streamId`, and exact CLIPRDR header lengths.
+`clipboard.capability-format-request-interoperability-matrix` exercises the
+production `RemoteTransfer`: default/no-capability short names, one-sided versus
+mutual file-stream capability, supported image requests, file-list gating,
+single-flight/repeated requests, replacement draining, R3 retirement and
+monotonic restart provenance. `clipboard.x11-incr-error-property-cleanup` uses
+the injected native operation seam only; it proves timeout/write-failure/owner-
+loss cleanup and destroyed-requestor no-touch behavior without accessing the
+owner's real X11 clipboard.
+
+These tests are offline evidence only. They do not enable the dormant Linux R8
+owner, fabricate authentication/admission/Share, or substitute for Microsoft
+client acceptance. Keep `kLinuxProductionClipboardActivationApproved = false`
+until the live acceptance gates authorize activation.
+
 ## R9 exact-SHA Microsoft credential-source process isolation and candidate qualification (2026-10-29)
 
 The Windows `security.windows-credssp-credential-semantic-differential` CTest

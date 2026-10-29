@@ -995,6 +995,126 @@ void testCapabilitiesNegotiationAndFormatListGating()
 }
 
 
+
+void testCapabilityFormatRequestInteroperabilityMatrix()
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t kPngFormatId = 0xc301U;
+    constexpr std::uint32_t kFileListFormatId = 0xc302U;
+    constexpr std::uint32_t kFullFileFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    const auto drainFailure = [](RemoteTransfer &owner) {
+        const auto result = owner.receiveResponse(responsePdu(kResponseFail));
+        assert(result.status == RemoteTransfer::ResponseStatus::RemoteFailure);
+    };
+
+    std::vector<std::uint8_t> shortPayload;
+    appendShortFormat(shortPayload, kFormatText, "", true);
+    appendShortFormat(shortPayload, kFormatUnicodeText, "", true);
+    appendShortFormat(shortPayload, 8U, "", true);
+    appendShortFormat(shortPayload, 17U, "", true);
+    appendShortFormat(shortPayload, kPngFormatId, "PNG", true);
+    appendShortFormat(
+        shortPayload, kFileListFormatId, "FileGroupDescriptorW", true);
+
+    RemoteTransfer defaults;
+    std::array<std::uint8_t, 8> acknowledgment{};
+    assert(defaults.receiveNegotiatedFormatListWithResponse(
+        shortFormatPdu(shortPayload, true), true, acknowledgment));
+    assert(acknowledgment[2] == kResponseOk);
+    assert(defaults.negotiatedGeneralFlags() == 0U);
+    assert(defaults.namedFormatId("PNG") == kPngFormatId);
+    assert(defaults.namedFormatId("FileGroupDescriptorW") ==
+           kFileListFormatId);
+    assert(!defaults.fileStreamingAvailable());
+
+    std::vector<std::uint8_t> request;
+    PduView requestView{};
+    for (const std::uint32_t formatId :
+         std::array<std::uint32_t, 5>{
+             kFormatText, kFormatUnicodeText, 8U, 17U, kPngFormatId})
+    {
+        assert(defaults.beginRequest(formatId, request));
+        assert(decodePdu(request, requestView));
+        assert(requestView.type == kFormatDataRequest &&
+               requestView.flags == 0 &&
+               requestView.payload.size() == 4U);
+        assert(requestView.payload[0] ==
+               static_cast<std::uint8_t>(formatId));
+        assert(requestView.payload[1] ==
+               static_cast<std::uint8_t>(formatId >> 8U));
+        drainFailure(defaults);
+    }
+    assert(!defaults.beginFileGroupDescriptorRequest(request));
+    assert(request.empty());
+
+    RemoteTransfer oneSided;
+    assert(oneSided.receiveCapabilitiesPdu(
+        capabilitiesPdu(kFullFileFlags), kUseLongFormatNames));
+    assert(oneSided.negotiatedGeneralFlags() == kUseLongFormatNames);
+    std::vector<std::uint8_t> longPayload;
+    appendLongFormat(longPayload, kFormatUnicodeText, "");
+    appendLongFormat(longPayload, 8U, "");
+    appendLongFormat(longPayload, 17U, "");
+    appendLongFormat(longPayload, kPngFormatId, "PNG");
+    appendLongFormat(
+        longPayload, kFileListFormatId, "FileGroupDescriptorW");
+    assert(oneSided.receiveNegotiatedFormatListWithResponse(
+        longFormatPdu(longPayload), true, acknowledgment));
+    assert(!oneSided.fileStreamingAvailable());
+    assert(!oneSided.beginFileGroupDescriptorRequest(request));
+
+    RemoteTransfer full;
+    assert(full.receiveCapabilitiesPdu(
+        capabilitiesPdu(kFullFileFlags), kFullFileFlags));
+    assert(full.negotiatedGeneralFlags() == kFullFileFlags);
+    assert(full.receiveNegotiatedFormatListWithResponse(
+        longFormatPdu(longPayload), true, acknowledgment));
+    assert(full.fileStreamingAvailable());
+    assert(full.beginFileGroupDescriptorRequest(request));
+    assert(decodePdu(request, requestView));
+    assert(requestView.type == kFormatDataRequest);
+    assert(requestView.payload.size() == 4U);
+    assert(requestView.payload[0] ==
+           static_cast<std::uint8_t>(kFileListFormatId));
+    std::vector<std::uint8_t> overlapping;
+    assert(!full.beginRequest(kFormatUnicodeText, overlapping));
+    assert(overlapping.empty());
+    drainFailure(full);
+    assert(full.beginFileGroupDescriptorRequest(request));
+    drainFailure(full);
+
+    assert(full.beginRequest(kFormatUnicodeText, request));
+    const std::uint64_t previousGeneration = full.generation();
+    std::vector<std::uint8_t> replacementPayload;
+    appendLongFormat(replacementPayload, 8U, "");
+    assert(full.receiveLongFormatListPdu(longFormatPdu(replacementPayload)));
+    assert(full.generation() == previousGeneration + 1U);
+    assert(full.waitingForObsoleteResponse());
+    assert(!full.beginRequest(8U, overlapping));
+    const std::array<std::uint8_t, 1> obsoletePayload{0x5a};
+    const auto obsolete = full.receiveResponse(
+        responsePdu(kResponseOk, obsoletePayload));
+    assert(obsolete.status ==
+           RemoteTransfer::ResponseStatus::DiscardedPreviousGeneration);
+    assert(full.beginRequest(8U, request));
+    drainFailure(full);
+
+    const std::uint64_t previousSourceEpoch = full.sourceEpoch();
+    full.retireR3ChannelState();
+    assert(full.synchronized());
+    assert(full.generation() == 0U);
+    assert(full.negotiatedGeneralFlags() == 0U);
+    assert(!full.advertises(8U));
+    assert(!full.fileStreamingAvailable());
+    assert(full.namedFormatId("PNG") == 0U);
+    assert(full.namedFormatId("FileGroupDescriptorW") == 0U);
+    assert(full.receiveFormatList(
+        std::array<std::uint32_t, 1>{kFormatUnicodeText}));
+    assert(full.sourceEpoch() > previousSourceEpoch);
+}
+
 // Cross-road OFFLINE fixture: the joined-channel gate is a necessary
 // membership prerequisite, NOT R2 TLS/OS authorization or an R3 router.
 // Only a complete parsed MCS request from the confirmed channel can be
@@ -4212,6 +4332,11 @@ int main(int argumentCount, char **arguments)
     if (argumentCount == 2)
     {
         const std::string_view caseName{arguments[1]};
+        if (caseName == "capability-format-request-interoperability-matrix")
+        {
+            testCapabilityFormatRequestInteroperabilityMatrix();
+            return 0;
+        }
         if (caseName == "mcs-cliprdr-length-mutation-denials")
         {
             testMcsCliprdrLengthMutationDenials();

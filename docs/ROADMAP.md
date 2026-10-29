@@ -1,3 +1,25 @@
+## R9 P0 CI repair — CLANG64 Release clipboard fixture assertion activation (2026-10-29)
+
+Exact SHA `1942cb4ecf08056c6d636a57acfcd6ae40be4773`, workflow
+`40844853414`, Windows `r6-windows-clang23` job `123349778099` passed
+the isolated Debug credential-source oracle, full Debug CTest, Windows
+PORTABLE-GUI packaging/firewall/no-socket smoke and native sanitizer inventory,
+but full Release CTest failed exactly one of 859 cases:
+`clipboard.file-contents-joined-mcs-envelope` segfaulted while the same test
+passed in Debug. The job therefore remained FAIL and GUI Round 2 failed closed;
+no candidate was nominated.
+
+Source inspection found the clipboard test attempted to re-enable `assert`
+only after including project headers. The fixture contains intentional
+state-changing calls inside assertions; if a project/transitive header has
+already included the disabled assert definition under Release `NDEBUG`, those
+calls disappear and later optional state is invalid. R9 moves Release assertion
+activation ahead of every project header and adds an always-live startup
+sentinel so any future assertion-disable regression fails with a typed
+diagnostic instead of a secondary segfault. Production clipboard, transport,
+TLS/NTLM/CredSSP and authorization code are unchanged. Corrective exact-SHA
+hosted qualification is **PENDING**.
+
 ## R10 exact-SHA qualification correction — 2026-10-29
 
 Initial publication 28eeb66ab3e6eab3c23ec3ed52fe113cd54dab3d compiled on Ubuntu

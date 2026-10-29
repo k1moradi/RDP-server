@@ -1,4 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+// Release builds set NDEBUG. Clear it before any project header can
+// transitively include <cassert>; state-changing test assertions must remain
+// live under -O3 on every supported standard-library implementation.
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <cassert>
+
 #include "clipboard/clipboard_protocol.h"
 #include "transport/mcs_channel_connection.h"
 #include "clipboard/remote_directory_capability.h"
@@ -6,12 +15,8 @@
 
 #include <algorithm>
 #include <array>
-// Release builds set NDEBUG. Keep all correctness checks live under -O3.
-#ifdef NDEBUG
-#undef NDEBUG
-#endif
-#include <cassert>
 #include <chrono>
+#include <cstdio>
 #include <cstdint>
 #include <limits>
 #include <span>
@@ -4329,6 +4334,20 @@ void testNonblockingPasteReadiness()
 
 int main(int argumentCount, char **arguments)
 {
+    // Keep this always-live sentinel outside assert itself. If a future header
+    // ordering regression disables assert, fail with a typed diagnostic before
+    // any fixture relies on state-changing expressions inside assertions.
+    bool assertionExpressionEvaluated = false;
+    assert((assertionExpressionEvaluated = true));
+    if (!assertionExpressionEvaluated)
+    {
+        std::fputs(
+            "test_owned_remote_transfer: assertions disabled; "
+            "Release fixture state would be invalid\n",
+            stderr);
+        return 3;
+    }
+
     if (argumentCount == 2)
     {
         const std::string_view caseName{arguments[1]};

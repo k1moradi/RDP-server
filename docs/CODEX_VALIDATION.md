@@ -1,3 +1,23 @@
+## R9 Windows CLANG64 Release clipboard-fixture crash — 2026-10-29
+
+- Exact source SHA: `1942cb4ecf08056c6d636a57acfcd6ae40be4773`.
+- Primary workflow: `40844853414`; Windows CLANG64 job:
+  `123349778099`.
+- Debug: isolated credential-source oracle **PASS**; full Debug CTest **PASS**.
+- Release: 858/859 executed tests passed; first and only failure was
+  `clipboard.file-contents-joined-mcs-envelope` with **SEGFAULT**.
+- The same clipboard test passed in Debug on the same SHA. The extracted
+  Windows GUI firewall/no-socket smoke and native sanitizer inventory also
+  passed after the Release failure.
+- Root cause by source inspection: `tests/test_owned_remote_transfer.cpp`
+  cleared `NDEBUG` only after project headers. Its assert-driven fixture has
+  state-changing expressions, so a transitive disabled `<cassert>` definition
+  can remove setup calls in Release and leave later optional state invalid.
+- Correction: activate assertions before all project headers and add an
+  always-live assertion-expression sentinel with bounded diagnostic.
+- Production clipboard/authentication/wire code: **UNCHANGED**.
+- Corrective exact-SHA hosted qualification: **PENDING**.
+
 ## R10 qualification follow-up — 2026-10-29
 
 - Initial exact-SHA run 40846283148: Ubuntu Debug compile PASS; structure guard

@@ -1,3 +1,19 @@
+## R9/R8 Release fixtures must activate assertions before project headers (2026-10-29)
+
+A C++ test executable that deliberately uses `assert(...)` for state-changing
+fixture calls must clear `NDEBUG` and include `<cassert>` **before any
+project header**. Re-including `<cassert>` after project headers is not a
+portable way to reactivate assertions if a transitive header already cached the
+disabled definition. Such a test can appear correct in Debug and then skip
+fixture construction in Release, producing an unrelated-looking null-state
+crash later.
+
+Production code must never depend on test assertions. For an existing
+assert-driven fixture that must stay live in Release, add an always-live startup
+sentinel which proves the assert expression was evaluated and emits a bounded
+fail-only diagnostic before executing stateful cases. Do not weaken or skip the
+affected Release CTest to obtain a green candidate.
+
 ## R10 no-starvation pre-auth service contract (2026-10-29)
 
 The production-backed runtime.linux-direct-ntlm-preauth-service-no-starvation

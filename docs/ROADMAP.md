@@ -1,3 +1,60 @@
+## R4 P1 dependency reconciliation — first-frame blockers resolved in source (2026-10-29)
+
+**Reconciled parent:** `cd117cb374042fec463bf64c231e22625bd8bd99`. The older R4 handoff/row text that still
+lists ACK-credit deferral, resize reconciliation, pending-write poll pacing or a
+deny-only Linux GUI HostControl as future dependencies is stale relative to
+current source.
+
+The three concrete R3/R10 dependencies from R4 handoff issue #21 are now
+implemented without changing authentication or R4 codec ownership:
+
+- **ACK credit:** R10 calls the R2-revalidated
+  `preflightPersonalDesktopGraphicsFramePublication` before XShm capture.
+  `DeferredForFrameAcknowledge` schedules the existing bounded capture retry
+  and returns to the sole R1 read/poll owner; it does not reserve a frame,
+  consume an ID or disconnect the session.
+- **Geometry/resize:** the persistent X11 owner observes typed native geometry
+  and capture/session generations before publication. R3 owns receipt-ordered
+  DELETE_SURFACE -> CREATE_SURFACE -> MAP_SURFACE_TO_OUTPUT reconfiguration;
+  R10 applies the existing six-second elapsed bound and R4 remains the sole
+  frame/ACK owner.
+- **Pending Graphics writes:** while a Graphics/clipboard TLS write owns
+  WANT_READ/WANT_WRITE, capture is ineligible and its expired deadline cannot
+  force a zero-timeout spin. The serialized poll remains bounded by the
+  25-millisecond post-Share quantum while still servicing socket, X11 and
+  native-session revocation readiness.
+
+The prior Linux-GUI HostControl dependency is also resolved in source:
+zero-argument Linux GUI startup constructs `LinuxPortableDesktopRuntime` and
+its real `LinuxRuntimeHostControl`; `serviceOnce()` owns listener accept,
+pre-admission servicing and admitted-client advancement on the same serialized
+owner. This is runtime composition evidence, not physical client acceptance.
+
+**Hosted evidence already available on descendant
+`cde24568f8bcb60a69559dae19ac40ba96fbf092`:** workflow
+`40847067020`, macOS protocol job `123357097770` PASS **760/760**, including
+`transport.rdpgfx-client-core-capability-gate` and
+`graphics.first-frame-compatibility-contract`. R9 sanitizer job
+`123357097494` PASSes the portable R4 selector **43/43** and the dedicated
+ClearCodec selector **4/4**. These remain offline/hosted results. The current
+publication head's complete producer set is **PENDING**.
+
+**Remaining R4 blocker:** no code-level first-frame incompatibility is presently
+demonstrated. The next gate is physical and authorization-bound: an
+owner-consented Microsoft client must complete real authentication plus genuine
+R2 native admission, then reach MCS/Share/RDPGFX on the same connection.
+R6's Microsoft-native memory-BIO CredSSP oracle can now reach
+`CredentialsVerified`, but by design it cannot mint native admission and
+therefore cannot substitute for this gate. The physical Windows App evidence
+still ends after server Type 2 with peer FIN/no Type 3.
+
+**Next R4 action:** make no speculative ClearCodec/AVC/FRAME_ACK/authentication
+change. On the first owner-authorized physical client that genuinely reaches
+graphics, record the exact Client Core 0x0100 bit, selected RDPGFX capability,
+CREATE/MAP sequence, first ClearCodec DATA receipt, matching
+FRAME_ACKNOWLEDGE, resize/recovery and revoke/reconnect result at one SHA. Fix
+only the first independently demonstrated protocol boundary.
+
 ## R6 P0 corrective — preserve Windows stack budget in the full-CredSSP oracle (2026-10-29)
 
 First publication `fc3ccea61c9da0d046810ad6694a05c35821fa38`

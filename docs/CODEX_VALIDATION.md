@@ -1,3 +1,40 @@
+## R4 dependency-graph reconciliation — 2026-10-29
+
+- Reconciled source parent: `cd117cb374042fec463bf64c231e22625bd8bd99`.
+- Source audit: **PASS** for the three former R4 handoff blockers. ACK-window
+  exhaustion defers before XShm capture; typed X11 geometry is reconciled
+  through R3-owned DELETE/CREATE/MAP with generation fencing; pending outbound
+  Graphics writes cannot turn an expired capture deadline into a zero-timeout
+  busy poll.
+- Linux GUI/runtime dependency: **RESOLVED IN SOURCE**. Normal Linux GUI startup
+  owns `LinuxPortableDesktopRuntime` / `LinuxRuntimeHostControl`, and
+  `serviceOnce()` performs serialized accept/pre-auth/admitted-client
+  advancement. Old roadmap text describing an unavailable/deny-only Linux
+  HostControl is stale.
+- Descendant executable evidence at
+  `cde24568f8bcb60a69559dae19ac40ba96fbf092`, workflow
+  `40847067020`: macOS protocol job `123357097770` **760/760 PASS**,
+  including `transport.rdpgfx-client-core-capability-gate` and
+  `graphics.first-frame-compatibility-contract`; sanitizer job
+  `123357097494` portable R4 **43/43 PASS** and ClearCodec **4/4 PASS**.
+- R6 dependency improvement: the Microsoft-native protocol-only CredSSP oracle
+  now extends through Type 3, pubKeyAuth, authInfo and
+  `CredentialsVerified`. It intentionally has no owned connection/native
+  admission capability, so it does not authorize MCS/Share/RDPGFX progression.
+- Physical Microsoft-client first-frame acceptance: **BLOCKED / NOT RUN**.
+  Current physical Windows App evidence still terminates after server Type 2
+  with FIN/no Type 3. Genuine owner-consented R2 native admission on a physical
+  X11 seat remains required before R4 may claim visible Microsoft-client pixels
+  or a matching live FRAME_ACK.
+- Local canonical `~/rdp-server/build/` configure/build/full CTest:
+  **NOT RUN** in this connector environment. This reconciliation is
+  documentation-only; current-head hosted producers are **PENDING**.
+- Benchmark: **NOT RUN / not applicable**; no hot path, encoder or scheduler
+  behavior changed.
+- Next gate: preserve current ClearCodec/AVC/ACK/authentication behavior until a
+  real admitted Microsoft client reaches graphics; then capture the first
+  failing wire/lifecycle boundary and fix only evidence-backed behavior.
+
 ## R6 first-publication regression and stack-budget correction — 2026-10-29
 
 - First publication SHA: `fc3ccea61c9da0d046810ad6694a05c35821fa38`.

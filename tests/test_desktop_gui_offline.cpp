@@ -2365,9 +2365,11 @@ int main(int argc, char** argv)
         assert(untypedAdmission.remoteAuthenticationFailed);
         assert(!untypedAdmission.remoteAuthenticationIncomplete);
         assert(!untypedAdmission.remoteAuthenticationInvalidCredentials);
+        assert(untypedAdmission.authenticationDiagnostic.isEmpty());
         assert(availability->text() ==
                QStringLiteral("Remote client authentication failed."));
-        assert(diagnostic->text().isEmpty());
+        assert(diagnostic->text() ==
+               QStringLiteral("Diagnostics: Client authentication rejected"));
         assert(authenticationDiagnostics->text().contains(
             QStringLiteral(
                 "First failure: Remote client authentication failed.")));

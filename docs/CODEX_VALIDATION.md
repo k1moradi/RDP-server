@@ -1,3 +1,20 @@
+## R9 current-main GUI parity blocker — typed diagnostic vs visible fallback (2026-10-29)
+
+- Exact source SHA: `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`.
+- Primary workflow: `40848699217`.
+- Ubuntu GUI parity job `123362528262`: **FAIL**, 5/6 selected tests PASS.
+- First failing boundary:
+  `gui.offscreen-authentication-incomplete-before-native-admission` at
+  `tests/test_desktop_gui_offline.cpp:2370`.
+- Runtime projection is correct: `AuthenticationRejected` without a typed
+  credential/admission reason remains generic remote authentication failure and
+  `HostStatus::authenticationDiagnostic` is empty.
+- Desktop presentation is also correct: an empty typed diagnostic falls back to
+  the bounded runtime error as
+  `Diagnostics: Client authentication rejected`.
+- Correction is test/docs only and preserves concurrent R3 UserId-range work.
+- Corrective exact-SHA hosted qualification: **PENDING**.
+
 ## R3 T.125/GCC UserId range correction — 2026-10-29
 
 - Authoring parent: `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`.

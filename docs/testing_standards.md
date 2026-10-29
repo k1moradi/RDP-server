@@ -1,3 +1,17 @@
+## R9/R7 GUI parity distinguishes typed authentication diagnostics from Main fallback text (2026-10-29)
+
+When R7 intentionally leaves `HostStatus::authenticationDiagnostic` empty for
+an untyped `AuthenticationRejected` result, the Main
+`hostErrorExplanation` label is still not empty: the desktop surface falls
+back to the bounded runtime error string and presents
+`Diagnostics: Client authentication rejected`. Tests must assert the empty
+typed diagnostic on `HostStatus` itself and assert the exact Main fallback
+separately. Do not require an empty visible diagnostics label and do not invent
+a more specific credential, peer-close or native-admission diagnosis.
+
+This is test ownership only; production classification, runtime error text,
+TLS/CredSSP/NTLM wire behavior, credentials and Admission are unchanged.
+
 ## R3 MCS UserId upper-bound conformance gate (2026-10-29)
 
 `transport.mcs-user-id-range-conformance` is the dedicated production-backed

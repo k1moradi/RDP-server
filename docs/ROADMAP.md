@@ -1,3 +1,22 @@
+## R9 P0 CI repair — R7 typed-diagnostic/Main-fallback parity (2026-10-29)
+
+Current-main R7 publication `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`,
+workflow `40848699217`, Ubuntu `r9-owner-gui-credential-parity` job
+`123362528262` built successfully and ran five of six selected parity tests
+PASS. The remaining
+`gui.offscreen-authentication-incomplete-before-native-admission` branch
+correctly projected an untyped `AuthenticationRejected` as generic remote
+authentication failure, but its new assertion incorrectly required the visible
+`hostErrorExplanation` label to be empty.
+
+The product surface intentionally falls back to
+`Diagnostics: Client authentication rejected` when the typed
+`HostStatus::authenticationDiagnostic` is empty. R9 corrects only the test:
+it now pins the empty typed field separately and the exact bounded Main fallback
+text. No R7/R10 production source, authentication wire, credential, listener,
+Admission or native behavior changes. Corrective exact-SHA hosted qualification
+is **PENDING**.
+
 ## R3 P1 follow-up — correct T.125/GCC UserId upper bound (2026-10-29)
 
 **Authoring parent:** `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`. The earlier MCS/GCC qualification remains

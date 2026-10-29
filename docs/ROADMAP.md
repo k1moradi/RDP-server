@@ -578,6 +578,23 @@ outcome authorizes a production wire mutation by itself.
 
 ## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
 
+**R9 qualification follow-up — R1 accounting fixture cross-platform readiness (2026-10-29):**
+`3fdde5748e1c88d2684e13632778d9775eddc36f` failed the ordinary protocol
+matrix at the new R1 `transport.tcp-owned-pre-tls-transport-byte-accounting`
+fixture. Linux/Windows initially reached the TLS part with an unconsumed
+X.224 Confirm; R1 corrected that protocol-order fixture error in
+`d671a572292ab68253c62121e3873bf7a81dd992`. The corrected SHA still failed
+macOS before TLS because the fixture invoked a synthetic readable callback
+immediately after a three-byte loopback send and required immediate progress.
+That timing is not guaranteed by nonblocking loopback transport.
+
+R9's qualification repair is test-only: retry the same existing one-step
+read callback under a bounded fixture deadline until exactly three bytes are
+accounted, then reuse `waitForOwnedTcpReply` for the remaining X.224 request.
+No R1 production transport/TLS code, byte-count semantics or authentication
+wire behavior changes. Current-parent hosted protocol qualification is
+**FAIL** at this fixture; corrective publication exact-SHA CI is **PENDING**.
+
 **R9 P0 exact-SHA failure ledger and credential-oracle containment (2026-10-29):**
 Current reviewed SHA `d9b255bef6ae54952b50ffbca24f4b17ce969d72`, primary workflow
 `40761365568`. Linux GUI ZIP, Linux/macOS/Windows protocol, R9 protocol

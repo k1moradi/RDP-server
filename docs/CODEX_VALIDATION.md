@@ -1,3 +1,18 @@
+## R9 current-main qualification blocker — pre-TLS byte-accounting fixture (2026-10-29)
+
+- `3fdde5748e1c88d2684e13632778d9775eddc36f`: Linux/macOS/Windows protocol
+  jobs failed `transport.tcp-owned-pre-tls-transport-byte-accounting`; other
+  R9 qualification producers remained green.
+- `d671a572292ab68253c62121e3873bf7a81dd992`: R1 consumed the plaintext X.224
+  Confirm before TLS, removing the Linux/Windows protocol-order assertion,
+  but macOS still failed at `owner.receivedTransportBytes() == 3U` immediately
+  after a three-byte client send.
+- Root cause: the test asserted immediate loopback readability without a real
+  readiness observation. The existing production callback is nonblocking and
+  may correctly return no progress at that instant.
+- R9 corrective scope: bounded test-fixture retry only; no production R1 or
+  authentication wire change. Exact corrective-SHA hosted result: **PENDING**.
+
 ## R2 P0 authentication challenge — exact-SHA Microsoft qualification (2026-10-29)
 
 - Publication SHA: `2e423e4dbb9cdbf506b11a1b5a44132b58f88180`.

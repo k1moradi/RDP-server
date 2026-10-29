@@ -2316,6 +2316,27 @@ void testOwnedTcpConnectionCancellation()
     return owner.ioInterest();
 }
 
+void waitForOwnedTcpReceivedBytes(
+    OwnedPreauthTcpConnection &owner,
+    std::uint64_t expectedReceivedBytes)
+{
+    // A completed client send does not guarantee immediate readability on
+    // every loopback implementation. Retry the existing one-step callback
+    // under the same bounded fixture policy without inventing byte progress.
+    for (int attempt = 0; attempt < 2048; ++attempt)
+    {
+        assert(owner.onSocketReady(true, false) ==
+               TcpConnectionIoInterest::Read);
+        const std::uint64_t receivedBytes =
+            owner.receivedTransportBytes();
+        if (receivedBytes == expectedReceivedBytes)
+            return;
+        assert(receivedBytes < expectedReceivedBytes);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    assert(false && "TCP fragment did not reach the expected byte count");
+}
+
 
 
 void testOwnedSecurityNegotiationProvenance()
@@ -6082,12 +6103,12 @@ void testOwnedPreTlsTransportByteAccounting()
     assert(expectedReply.selectedProtocol == kRdpProtocolHybrid);
 
     nativeSendAll(clientIo, std::span(request).first(3U));
-    assert(owner.onSocketReady(true, false) == Interest::Read);
+    waitForOwnedTcpReceivedBytes(owner, 3U);
     assert(owner.receivedTransportBytes() == 3U);
     assert(owner.sentTransportBytes() == 0U);
 
     nativeSendAll(clientIo, std::span(request).subspan(3U));
-    assert(owner.onSocketReady(true, false) == Interest::Write);
+    assert(waitForOwnedTcpReply(owner) == Interest::Write);
     assert(owner.receivedTransportBytes() == request.size());
     assert(owner.sentTransportBytes() == 0U);
 

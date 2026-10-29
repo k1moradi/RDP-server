@@ -1,3 +1,15 @@
+## R9 exact-SHA transport-accounting fixture readiness repair (2026-10-29)
+
+The R1 `transport.tcp-owned-pre-tls-transport-byte-accounting` fixture must
+not assume that a successful client-side loopback `send` makes the accepted
+nonblocking socket immediately readable on every OS. macOS exact-SHA evidence
+showed the first synthetic readable callback may legitimately make zero
+progress. The fixture therefore reuses the existing bounded one-step retry
+pattern until the exact three-byte fragment has been received, rejecting any
+overshoot, and uses the existing bounded reply helper for the remaining X.224
+request. This is test timing only: production socket readiness, transport
+counters, TLS ordering and authentication behavior are unchanged.
+
 ## R7 bounded authentication diagnostics and export gate (2026-10-29)
 
 The existing offscreen GUI executable owns three first-round behavior gates:

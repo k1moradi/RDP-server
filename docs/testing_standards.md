@@ -1,3 +1,17 @@
+## R9/R3 borrowed MCS views require live backing frames (2026-10-29)
+
+`parseMcsChannelRequest` intentionally returns `request.userData` as a
+zero-copy `std::span` into the caller-owned complete TPKT. Any test that
+inspects that span after parsing must retain the framed byte container for the
+entire inspection. Passing a temporary `frameDomainPdu(...)` and then reading
+`userData` is a dangling-view fixture defect even when scalar fields in the
+same parse result remain valid.
+
+Boundary tests may use temporaries when they inspect only owned scalar/error
+state. They must name and retain the backing frame whenever a borrowed span is
+read. This lifetime rule does not alter the MS-RDPBCGR User Channel ID profile
+or authorize copying borrowed production wire data into a second owner.
+
 ## R6 Microsoft-native full CredSSP completion oracle (2026-10-29)
 
 The Windows Microsoft-CredSSP interoperability fixture must not stop at an

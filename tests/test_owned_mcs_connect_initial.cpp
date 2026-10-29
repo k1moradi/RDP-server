@@ -1700,8 +1700,10 @@ void testMcsRdpUserIdRangeConformance()
         0x64, 0xfc, 0x17, 0x03, 0xeb, 0x70, 0x01, 0x42};
     constexpr std::array<std::uint8_t, 8> onePastSendPayload{
         0x64, 0xfc, 0x18, 0x03, 0xeb, 0x70, 0x01, 0x42};
-    const auto maxSend =
-        parseMcsChannelRequest(frameDomainPdu(maxSendPayload));
+    // McsChannelRequest::userData is a borrowed span into the complete TPKT.
+    // Keep the backing frame alive until every borrowed byte is inspected.
+    const auto maxSendFrame = frameDomainPdu(maxSendPayload);
+    const auto maxSend = parseMcsChannelRequest(maxSendFrame);
     assert(maxSend);
     assert(maxSend.request.initiator == maxUserId);
     assert(maxSend.request.userData.size() == 1U &&

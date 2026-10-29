@@ -1,3 +1,23 @@
+## R9 qualification follow-up — R3 MCS borrowed-view fixture lifetime (2026-10-29)
+
+Exact SHA `b93e8110f44558f07c096132977856dd54db97a4`, workflow
+`40849704993`, macOS protocol job `123365876850` failed the newly added
+R3 UserId conformance routine in both its dedicated test and the sanitizer-
+selected SendData denial wrapper. The first assertion failure was the payload
+byte read from `maxSend.request.userData`.
+
+R3 subsequently resolved the separate specification question in
+`e4a6275bbc7a3b72e8c88a67dda944c29233b46d`: MS-RDPBCGR's RDP User Channel
+ID/GCC nodeID range remains 1001..65536 inclusive. That correction is preserved.
+
+The residual failure is test lifetime only. `parseMcsChannelRequest` documents
+`userData` as a borrowed span into the caller-owned TPKT, while the new
+conformance case parsed a temporary `frameDomainPdu(...)` and dereferenced the
+span after the temporary vector had been destroyed. R9 retains that frame in a
+stack variable through the borrowed-view assertions. No MCS parser/writer,
+authentication, credential, Admission, Share or native code changes.
+Corrective exact-SHA hosted qualification is **PENDING**.
+
 ## R6 P0 PRIMARY — Microsoft SSPI crash containment and full-CredSSP oracle (2026-10-29)
 
 Current-main dependency review found the original Windows Debug crash blocker

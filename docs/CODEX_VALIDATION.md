@@ -1,3 +1,22 @@
+## R9/R3 macOS MCS borrowed-view fixture blocker — 2026-10-29
+
+- Failing source SHA: `b93e8110f44558f07c096132977856dd54db97a4`.
+- Workflow: `40849704993`; macOS protocol job: `123365876850`.
+- Debug full CTest first failure:
+  `transport.mcs-user-id-range-conformance`; the same routine also failed
+  through `transport.mcs-send-data-joined-denials`.
+- First boundary: `test_owned_mcs_connect_initial.cpp:1706`, reading the
+  one-byte SendData payload from `McsChannelRequest::userData`.
+- R3's newer `e4a6275bbc7a3b72e8c88a67dda944c29233b46d` correctly restores
+  the MS-RDPBCGR 1001..65536 User Channel ID profile and remains preserved.
+- Residual root cause: the test parsed a temporary framed vector even though
+  `userData` is documented as a borrowed span into that vector. The
+  temporary was destroyed before the span was dereferenced.
+- Correction: keep the framed SendData vector alive through all borrowed-span
+  assertions. Production MCS and authentication behavior are unchanged.
+- Canonical local build/full CTest: **NOT RUN** in this connector environment.
+- Corrective exact-SHA hosted qualification: **PENDING**.
+
 ## R6 Microsoft-native CredSSP crash containment and completion oracle — 2026-10-29
 
 - Historical failing source: `d9b255bef6ae54952b50ffbca24f4b17ce969d72`,

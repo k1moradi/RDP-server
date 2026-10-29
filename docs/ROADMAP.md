@@ -1,3 +1,18 @@
+## R10 exact-SHA qualification correction — 2026-10-29
+
+Initial publication 28eeb66ab3e6eab3c23ec3ed52fe113cd54dab3d compiled on Ubuntu
+and passed the scheduler source guard plus all existing Await-Type-3 owner-loss
+cases, but full Debug CTest exposed two local assertions in run 40846283148.
+The retained-credential lock test showed serviceOnce had returned before the
+existing pre-listener standalone session refresh; the correction routes the
+no-listener path through validateRuntimeOwnerOnce, which refreshes credential
+session binding and then exits before interface/owner probes. The new
+no-starvation test also let one eight-call burst cross the measured Type-1
+boundary and legitimately enter post-Type-2 owner maintenance before checking
+its injected evidence counter. The fixture now inspects each production
+service step through Type 1, then exercises the bounded burst for later
+progress. Production scheduling semantics are unchanged by this test repair.
+
 ## R10 P0 — eliminate pre-auth service starvation and attribute scheduler delay (2026-10-29)
 
 Authoring parent: 1942cb4ecf08056c6d636a57acfcd6ae40be4773. Concurrent R1/R2/R4/R5/R7/R8/R9

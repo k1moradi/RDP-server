@@ -1790,14 +1790,15 @@ int main(int argc, char** argv)
                !peerFinished.load(std::memory_order_acquire) &&
                std::chrono::steady_clock::now() < typeOneDeadline)
         {
-            const auto burst = serviceLinuxRuntimeBoundedBurst(
-                [&control] { return control.serviceOnce(); });
-            assert(burst.serviceCalls > 0U);
-            assert(burst.serviceCalls <= kLinuxRuntimeServiceBurstLimit);
-            assert(burst.lastResult.succeeded());
+            // Inspect after every bounded production service step so this
+            // early-stage assertion cannot accidentally cross Type 1, deliver
+            // Type 2, and then observe legitimate Await-Type-3 owner maintenance
+            // inside the same GUI burst.
+            const RuntimeHostResult step = control.serviceOnce();
+            assert(step.succeeded());
             stageStatus = control.status();
             assert(evidence.activeConsoleReadCount() == ownerReadsBeforePreauth);
-            if (!burst.immediateReschedule)
+            if (step.retryable)
                 std::this_thread::sleep_for(std::chrono::milliseconds{1});
         }
         assert(stageStatus.acceptedClientPreauthDiagnostics

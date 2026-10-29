@@ -4138,7 +4138,7 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept
     return {RuntimeHostError::CredentialProviderUnavailable, false};
 #else
     if (!listener_.valid())
-        return {RuntimeHostError::None, true};
+        return validateRuntimeOwnerOnce();
 
     if (acceptedClient_ != nullptr &&
         acceptedClientPhase_ == AcceptedClientPhase::PreAdmission)

@@ -1,3 +1,17 @@
+## R10 qualification follow-up — 2026-10-29
+
+- Initial exact-SHA run 40846283148: Ubuntu Debug compile PASS; structure guard
+  PASS; production Linux security with and without systemd PASS.
+- Full Debug CTest found two R10-local assertions: the new no-starvation fixture
+  crossed Type 1 within a burst before sampling its counter, and the refactor
+  bypassed the historical pre-listener standalone credential-session refresh.
+- Follow-up restores that pre-listener refresh through validateRuntimeOwnerOnce
+  without adding interface/logind authorization work when no listener exists.
+  The fixture now samples after each bounded service step until Type 1 and uses
+  the burst helper after that boundary. No timeout, wire byte, admission gate
+  or owner-loss Await-Type-3 contract changed.
+- Exact follow-up SHA hosted CI: PENDING.
+
 ## R10 P0 pre-auth no-starvation service correction — 2026-10-29
 
 - Authoring parent: 1942cb4ecf08056c6d636a57acfcd6ae40be4773; concurrent work preserved.

@@ -1,3 +1,27 @@
+## R2 P0 authentication challenge — exact-SHA Microsoft qualification (2026-10-29)
+
+- Publication SHA: `2e423e4dbb9cdbf506b11a1b5a44132b58f88180`.
+- Workflow: `40841093750`; Windows protocol job: `123337434778`.
+- Exact-SHA artifact: `r9-microsoft-interop-2e423e4dbb9cdbf506b11a1b5a44132b58f88180`, artifact
+  `12883051440`, digest
+  `sha256:4740f131d6f406d460aef189798a82ffed9a63652eeabd43a184469a65df5575`.
+- CI structure guard: **PASS**.
+- Production fixed-name Microsoft CREDSSP control: **PASS**, Type 2 consumed and
+  Type 3 emitted.
+- Required-AV negative control `MsvAvNbComputerName` removed: **PASS** as an
+  oracle control; challenge committed/consumed, no next client output, no Type
+  3, Microsoft terminal `SEC_E_INVALID_TOKEN (0x80090308)`.
+- Required-AV negative control `MsvAvNbDomainName` removed: **PASS** with the
+  same independently observed Microsoft terminal boundary.
+- Negative-control summary:
+  `control=TYPE3 invalid-controls=DETECTED status=PASS process-isolation=per-challenge production-type2-change-authorized=no`.
+- Interop artifact final status: `interop-matrix-final=COMPLETE_PASS`.
+- Canonical owner local one-`build/` configure/build/full CTest: **NOT RUN**
+  in this connector environment.
+- Conclusion: **no production challenge defect demonstrated; no production wire
+  change authorized**. Continue with the controlled R6 physical-client
+  differential rather than modifying Type-2 fields.
+
 ## R5 P0 macOS evidence + pre-auth native isolation first round (2026-10-29)
 
 - Initial authoring base: `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.

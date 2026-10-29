@@ -130,7 +130,7 @@ owner-candidate gate consume all three receipts.
 | Production target tuple fixed name / TERMSRV-IP / bare IP | Type 3 **PASS** in the existing Microsoft target matrix | Current TargetName/target-principal shape is not a demonstrated pre-Type-3 blocker. |
 | Physical/hosted OEM response-bit differential at `45e5fc4a...` | Type 3 **PASS** with OEM omitted | The physical `0xe08a8235` OEM omission is ruled out. |
 | Physical macOS Windows App | Type 2 committed -> zero post-Type-2 client bytes -> peer FIN | Still unresolved client-specific credential/delegation/policy evidence; not proof of a malformed challenge. |
-| Missing NbComputerName / missing NbDomainName test-only challenges | **PENDING** publication-SHA Windows execution | Must be consumed and rejected by Microsoft with no Type 3 before this new oracle is qualified. |
+| Missing NbComputerName / missing NbDomainName test-only challenges | **PASS** at `2e423e4dbb9c...` | Microsoft consumed each invalid challenge and returned `SEC_E_INVALID_TOKEN (0x80090308)` with no Type 3; the unmodified control emitted Type 3. |
 
 **Certificate/channel/target hypotheses remain independent:** generated
 exact-IP-SAN TLS, TLS 1.3, fixed/IP target profiles and the current Type-2
@@ -140,18 +140,26 @@ cannot explain a peer that sends zero bytes after Type 2. NTLM channel binding
 and target-name verification remain strict later-response checks; neither is
 manufactured by changing the server challenge.
 
-**Authoring validation:** source/spec/CI-structure inspection **PASS**.
-Canonical owner one-`build/` configure/build/focused/full CTest **NOT RUN**
-in this connector environment. New Windows native negative-control execution
-and exact-publication-SHA hosted CI **PENDING**. No production Type-2,
-TargetName, AV pair, TLS, NLA, credential fallback, Admission, MCS, graphics,
-input or clipboard change is authorized.
+**Executed exact-SHA R2 gate: PASS.** Publication SHA
+`2e423e4dbb9cdbf506b11a1b5a44132b58f88180`, workflow `40841093750`, Windows protocol job
+`123337434778`, artifact `r9-microsoft-interop-2e423e4dbb9cdbf506b11a1b5a44132b58f88180`
+(id `12883051440`) records `interop-matrix-final=COMPLETE_PASS`.
+The production control emits Type 3. Both deliberately invalid challenges are
+fully committed and consumed, emit no next client token/Type 3, and terminate
+inside Microsoft CREDSSP with `SEC_E_INVALID_TOKEN (0x80090308)`; the artifact
+records `invalid-controls=DETECTED status=PASS process-isolation=per-challenge`.
+The separate CI structure guard for this SHA is **PASS**. This focused R2 gate
+does not by itself claim full multi-platform/M1 acceptance.
 
-**Next:** qualify the publication SHA. If the unmodified production control
-still emits Type 3 and both deliberate AV violations are independently
-rejected, keep production Type 2 unchanged and proceed with R6's controlled
+Canonical owner one-`build/` configure/build/focused/full CTest remains
+**NOT RUN** in this connector environment. No production Type-2, TargetName,
+AV pair, TLS, NLA, credential fallback, Admission, MCS, graphics, input or
+clipboard change is authorized.
+
+**Next:** keep production Type 2 unchanged and proceed with R6's controlled
 macOS Windows App versus Windows 11 `mstsc.exe` physical differential using
-the same R1 post-Type-2 wire receipt.
+the same R1 post-Type-2 wire receipt. The challenge hypothesis is closed unless
+new external evidence contradicts this exact-SHA Microsoft control.
 
 ## R1 P0 — accepted-to-TLS transport attribution (2026-10-29)
 

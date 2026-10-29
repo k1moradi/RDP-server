@@ -9,7 +9,12 @@
   checkout is unavailable.
 - Live desktop/clipboard/Microsoft-client testing: **NOT RUN** (not authorized
   by this offline assignment and production activation remains false).
-- Publication-SHA hosted CI/ASan/UBSan: **PENDING**.
+- First publication `6a9b3b34c3eca18a406d62bdea6833d3ebe1bbf4`:
+  structure Actions `40839945517` **FAIL** before build because the source
+  validator still required `clipboard_expected_test_count=97`; primary
+  Actions `40839945545` was queued at diagnosis.
+- Corrective source-validator update: expected clipboard count 100 plus exact
+  sentinels for the three new R8 cases; correction-SHA CI/ASan/UBSan **PENDING**.
 
 # Validation evidence
 

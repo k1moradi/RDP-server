@@ -27,7 +27,12 @@ CLIPRDR before verified authentication, native Admission and Share authority.
 **Validation:** source/spec review **PASS by inspection**. Canonical owner
 `~/rdp-server/build/` configure/build/full CTest **NOT RUN** in this connector
 environment because no repository checkout is available and direct GitHub DNS
-checkout is unavailable. Publication-SHA hosted CI/sanitizers **PENDING**.
+checkout is unavailable. First publication `6a9b3b34c3eca18a406d62bdea6833d3ebe1bbf4`
+started primary Actions `40839945545` but structure run `40839945517`
+**FAILED** before build because `scripts/validate_ci_workflow.py` still required
+the previous `clipboard_expected_test_count=97` token. This correction advances
+that source validator to 100 and pins all three new clipboard test names;
+correction-SHA hosted CI/sanitizers are **PENDING**.
 **Next R8:** require exact-SHA ordinary + sanitizer PASS, then continue offline
 server-to-client Format List/capability conformance only where a real production
 serializer exists; live Microsoft client/native clipboard acceptance remains

@@ -32,6 +32,23 @@ Type 2 fully committed, post-Type-2 client-byte count, Type 3, pubKeyAuth,
 authInfo, `CredentialsVerified` and typed terminal outcome. Existing schema-v2
 consumers remain valid; the additional fields are evidence, never authority.
 
+For the next physical row, also record the R1/R10 timing-attribution scalars
+from the **same Linux connection**: Accepted-to-TLS, TLS-to-Type-1,
+Type-1-to-Type-2 queue, Type-2 creation-to-delivery, Type-2-to-peer-EOF,
+pre-auth elapsed-at-peer-EOF, optional first post-Type-2 client TLS-byte age,
+the pre-TLS Read/Write/active-work/TLS-work/unattributed/socket-poll/
+ready-to-service fields, and both R10 stage-local app-wait/peer-wait-upper/
+service-work/native-maintenance/service-call/max-app-gap groups. These values
+are single-attempt diagnostics, not latency benchmarks.
+
+The validator requires that timing set for a current R5/R6 physical row. Missing
+or internally contradictory timing is an evidence failure. If either early R10
+native-maintenance counter is nonzero, the evidence itself remains valid but the
+redacted summary reports `EARLY_NATIVE_MAINTENANCE_OBSERVED` and marks
+pre-auth native isolation unqualified. Do not convert that observation into a
+credential, trust, transport, or client diagnosis; it is a server-side
+scheduling/isolation finding only.
+
 Run the new read-only validator on the private manifest:
 
 ```sh

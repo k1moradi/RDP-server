@@ -1,3 +1,19 @@
+## R5 physical evidence timing-attribution validation (2026-10-29)
+
+The existing `macos.windows-app-owner-evidence-readonly-manifest` CTest must
+cover the R1/R10 timing fields required by the next physical row. A complete
+synthetic row includes all stage durations, the pre-TLS attribution group and
+both R10 service-timing groups. Missing timing and a first-client-byte timestamp
+with zero post-Type-2 bytes are explicit validation failures.
+
+A nonzero Accepted-to-TLS or TLS-to-Type-1 native-maintenance value is different:
+the manifest remains valid evidence, but the redacted summary must report
+`EARLY_NATIVE_MAINTENANCE_OBSERVED` and
+`server_pre_auth_native_isolation.qualified=false`. Tests must not invent a
+credential/client cause from this finding. Raw usernames, exact UI text, client
+log paths/hashes and Linux connection identifiers remain absent from the shared
+summary.
+
 ## R9/R8 Release fixtures must activate assertions before project headers (2026-10-29)
 
 A C++ test executable that deliberately uses `assert(...)` for state-changing

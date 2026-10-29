@@ -149,6 +149,16 @@ graphics, input or clipboard changes.
 
 ## R5 physical-client evidence is private; redacted summaries are typed (2026-10-29)
 
+The R5 private manifest may carry the bounded R1/R10 timing-attribution scalars
+that already exist in the production diagnostic owner. Preserve their exact
+measurement semantics: socket-poll and ready-to-service values are non-additive
+subsets, R10 peer-wait is an upper bound, and app-reschedule/service/native
+maintenance fields are scheduler observations rather than authentication
+authority. Never infer a client cause from those numbers. Missing/contradictory
+timing invalidates a current physical evidence row; nonzero early native
+maintenance is a separate qualification finding, not a reason to relabel valid
+evidence as malformed.
+
 Keep the owner-selected Windows App Core/UI files and exact client text in the
 private evidence bundle. A reusable validator may read that bundle but must
 emit only bounded non-secret facts: exact server SHA/certificate identity,

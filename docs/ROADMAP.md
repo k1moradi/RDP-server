@@ -1,3 +1,50 @@
+## R5 P0 follow-up — consume R1/R10 pre-auth timing attribution (2026-10-29)
+
+**Initial authoring parent:** `cde24568f8bcb60a69559dae19ac40ba96fbf092`.
+**Reconciled publication parent:** `92be9706e2b60ff46fd3f0b0fb8c38e23b6d97d0`. Concurrent R9 Release-fixture
+qualification work is preserved.
+
+The prior R5 blocker is materially resolved: R9 stabilized the cross-platform
+pre-TLS accounting fixture, R2 exact-SHA Microsoft CREDSSP evidence closes the
+production Type-2 challenge hypothesis, and R10 demonstrated then corrected a
+real early-service starvation mechanism. R10 now exposes the bounded stage-local
+timing needed to separate owner-thread scheduling from R1 peer/readiness work.
+
+**R5 continuation:** extend the existing private schema-v2 Windows App evidence
+manifest with the same-attempt R1/R10 timing attribution: Accepted-to-TLS,
+TLS-to-Type-1, Type-1-to-Type-2 queue, Type-2 creation-to-delivery,
+Type-2-to-peer-EOF, pre-auth elapsed-at-peer-EOF, optional first post-Type-2
+client TLS-byte age, the full pre-TLS Read/Write/active/TLS-work/unattributed/
+socket-poll/ready-to-service group, and both R10 stage-local app-wait,
+peer-wait-upper, service-work, native-maintenance, service-call and max-app-gap
+groups.
+
+The redacted R2/R6 summary preserves these bounded scalar diagnostics while
+continuing to exclude Username, exact destination, exact UI text, raw provider
+fields, log paths/hashes and Linux connection ID. Missing or contradictory
+timing is an explicit evidence failure. Nonzero native-maintenance in either
+early R10 stage is **not** reclassified as malformed evidence or a guessed
+client cause; it yields `EARLY_NATIVE_MAINTENANCE_OBSERVED` and
+`server_pre_auth_native_isolation.qualified=false`.
+
+This makes the next owner-authorized row able to test R10's correction directly:
+compare R1 Read/Write ready-to-service/residual observations with R10
+application-reschedule, peer-wait and service-work buckets before considering
+another runtime or wire change.
+
+**Validation at authoring:** source/test/docs transformation **PASS by
+inspection**. Local command
+`python3 tests/test_macos_windows_app_owner_evidence.py --script scripts/macos_windows_app_owner_evidence.py`:
+**NOT RUN** in this connector environment. Canonical C++ build/full CTest:
+**NOT RUN**; no production C++ source changed. Exact publication-SHA hosted
+CTest: **PENDING**.
+
+**Next gate:** exact publication-SHA ordinary CI must pass the existing
+`macos.windows-app-owner-evidence-readonly-manifest` CTest and the current R10
+no-starvation/sanitizer gates. Then R9's dispatch-only owner-candidate gate and
+the separately owner-authorized physical Windows App/R6 A/B remain required.
+No live client, Keychain, trust-store or system mutation is authorized here.
+
 ## R9 P0 CI repair — CLANG64 Release clipboard fixture assertion activation (2026-10-29)
 
 Exact SHA `1942cb4ecf08056c6d636a57acfcd6ae40be4773`, workflow

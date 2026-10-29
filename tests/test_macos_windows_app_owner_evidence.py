@@ -72,6 +72,33 @@ class OwnerEvidenceTests(unittest.TestCase):
             stage_authinfo_reached="NOT_REACHED",
             stage_credentials_verified="NOT_REACHED",
             typed_terminal_outcome="peer-eof-await-type3",
+            accepted_to_tls_us=4_825_323,
+            tls_to_type1_us=1_176_476,
+            type1_to_type2_queued_us=4,
+            type2_creation_to_delivery_us=25_324,
+            type2_to_peer_eof_us=48_702,
+            preauth_elapsed_at_peer_eof_us=7_586_602,
+            post_type2_first_client_tls_byte_us=None,
+            pre_tls_read_wait_us=4_500_000,
+            pre_tls_write_wait_us=5_000,
+            pre_tls_active_work_us=40_000,
+            tls_handshake_active_work_us=120_000,
+            pre_tls_unattributed_us=160_323,
+            pre_tls_socket_poll_us=500,
+            pre_tls_read_ready_to_service_us=2_400_000,
+            pre_tls_write_ready_to_service_us=0,
+            accepted_to_tls_app_wait_us=2_300_000,
+            accepted_to_tls_peer_wait_upper_us=2_200_000,
+            accepted_to_tls_service_work_us=100_000,
+            accepted_to_tls_native_maintenance_us=0,
+            accepted_to_tls_service_calls=12,
+            accepted_to_tls_max_app_gap_us=75_000,
+            tls_to_type1_app_wait_us=500_000,
+            tls_to_type1_peer_wait_upper_us=500_000,
+            tls_to_type1_service_work_us=150_000,
+            tls_to_type1_native_maintenance_us=0,
+            tls_to_type1_service_calls=8,
+            tls_to_type1_max_app_gap_us=70_000,
             logs=self.logs,
             logs_unavailable_reason=None,
         )
@@ -121,6 +148,17 @@ class OwnerEvidenceTests(unittest.TestCase):
         )
         self.assertEqual(
             manifest["server_stage_matrix"]["type2_fully_committed"], "PASS"
+        )
+        timing = manifest["server_timing_attribution"]
+        self.assertEqual(timing["accepted_to_tls_microseconds"], 4_825_323)
+        self.assertEqual(timing["tls_to_type1_microseconds"], 1_176_476)
+        self.assertEqual(
+            timing["accepted_to_tls_service"]["native_maintenance_microseconds"],
+            0,
+        )
+        self.assertEqual(
+            timing["tls_to_type1_service"]["native_maintenance_microseconds"],
+            0,
         )
         self.assertNotIn("password", json.dumps(manifest).lower())
 
@@ -205,6 +243,13 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(
             summary["linux_correlation"]["absolute_timestamp_delta_seconds"], 7.0
         )
+        self.assertTrue(summary["server_pre_auth_native_isolation"]["qualified"])
+        self.assertEqual(
+            summary["server_timing_attribution"]["accepted_to_tls_service"][
+                "maximum_application_reschedule_wait_microseconds"
+            ],
+            75_000,
+        )
         serialized = json.dumps(summary)
         self.assertNotIn("rdp-owner", serialized)
         self.assertNotIn("We couldn't connect", serialized)
@@ -276,6 +321,40 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertIn(
             "CERTIFICATE_DECISION_NOT_COMPARABLE",
             summary["evidence_failures"],
+        )
+
+    def test_missing_server_timing_is_an_explicit_evidence_failure(self):
+        self.options.accepted_to_tls_us = None
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "SERVER_TIMING_ATTRIBUTION_INCOMPLETE",
+            summary["evidence_failures"],
+        )
+
+    def test_post_type2_first_byte_must_match_server_byte_count(self):
+        self.options.post_type2_first_client_tls_byte_us = 123
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn(
+            "SERVER_TIMING_ATTRIBUTION_INCONSISTENT",
+            summary["evidence_failures"],
+        )
+
+    def test_early_native_maintenance_is_reported_without_guessing_cause(self):
+        self.options.accepted_to_tls_native_maintenance_us = 9
+        summary = evidence.build_redacted_summary(
+            evidence.build_manifest(self.options)
+        )
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertFalse(summary["server_pre_auth_native_isolation"]["qualified"])
+        self.assertIn(
+            "EARLY_NATIVE_MAINTENANCE_OBSERVED",
+            summary["diagnostic_findings"],
         )
 
     def test_complete_pair_comparison_is_redacted_and_valid(self):

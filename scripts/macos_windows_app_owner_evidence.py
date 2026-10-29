@@ -252,6 +252,111 @@ def _validated_first_client_error(options: argparse.Namespace) -> dict[str, obje
     }
 
 
+def _validated_u64(value: int | None, name: str) -> int | None:
+    if value is None:
+        return None
+    if value < 0 or value > ((1 << 64) - 1):
+        raise ValueError(f"{name} must be in 0..18446744073709551615")
+    return value
+
+
+def _validated_service_timing(
+    options: argparse.Namespace, prefix: str, display_name: str
+) -> dict[str, int | None]:
+    return {
+        "application_reschedule_wait_microseconds": _validated_u64(
+            getattr(options, f"{prefix}_app_wait_us"),
+            f"{display_name} application-reschedule wait",
+        ),
+        "peer_readiness_wait_upper_bound_microseconds": _validated_u64(
+            getattr(options, f"{prefix}_peer_wait_upper_us"),
+            f"{display_name} peer-readiness wait upper bound",
+        ),
+        "service_execution_microseconds": _validated_u64(
+            getattr(options, f"{prefix}_service_work_us"),
+            f"{display_name} service work",
+        ),
+        "native_maintenance_microseconds": _validated_u64(
+            getattr(options, f"{prefix}_native_maintenance_us"),
+            f"{display_name} native maintenance",
+        ),
+        "service_invocations": _validated_u64(
+            getattr(options, f"{prefix}_service_calls"),
+            f"{display_name} service calls",
+        ),
+        "maximum_application_reschedule_wait_microseconds": _validated_u64(
+            getattr(options, f"{prefix}_max_app_gap_us"),
+            f"{display_name} maximum application gap",
+        ),
+    }
+
+
+def _validated_server_timing_attribution(
+    options: argparse.Namespace,
+) -> dict[str, object]:
+    return {
+        "accepted_to_tls_microseconds": _validated_u64(
+            options.accepted_to_tls_us, "accepted-to-TLS duration"
+        ),
+        "tls_to_type1_microseconds": _validated_u64(
+            options.tls_to_type1_us, "TLS-to-Type-1 duration"
+        ),
+        "type1_to_type2_queued_microseconds": _validated_u64(
+            options.type1_to_type2_queued_us, "Type-1-to-Type-2 queue duration"
+        ),
+        "type2_creation_to_delivery_microseconds": _validated_u64(
+            options.type2_creation_to_delivery_us,
+            "Type-2 creation-to-delivery duration",
+        ),
+        "type2_to_peer_eof_microseconds": _validated_u64(
+            options.type2_to_peer_eof_us, "Type-2-to-peer-EOF duration"
+        ),
+        "preauth_elapsed_at_peer_eof_microseconds": _validated_u64(
+            options.preauth_elapsed_at_peer_eof_us,
+            "pre-auth elapsed-at-peer-EOF duration",
+        ),
+        "post_type2_first_client_tls_byte_microseconds": _validated_u64(
+            options.post_type2_first_client_tls_byte_us,
+            "post-Type-2 first client TLS byte duration",
+        ),
+        "pre_tls": {
+            "read_wait_microseconds": _validated_u64(
+                options.pre_tls_read_wait_us, "pre-TLS read wait"
+            ),
+            "write_wait_microseconds": _validated_u64(
+                options.pre_tls_write_wait_us, "pre-TLS write wait"
+            ),
+            "active_work_microseconds": _validated_u64(
+                options.pre_tls_active_work_us, "pre-TLS active work"
+            ),
+            "tls_handshake_active_work_microseconds": _validated_u64(
+                options.tls_handshake_active_work_us,
+                "TLS handshake active work",
+            ),
+            "unattributed_microseconds": _validated_u64(
+                options.pre_tls_unattributed_us, "pre-TLS unattributed time"
+            ),
+            "socket_poll_microseconds": _validated_u64(
+                options.pre_tls_socket_poll_us, "pre-TLS socket poll"
+            ),
+            "read_ready_to_service_microseconds": _validated_u64(
+                options.pre_tls_read_ready_to_service_us,
+                "pre-TLS read ready-to-service time",
+            ),
+            "write_ready_to_service_microseconds": _validated_u64(
+                options.pre_tls_write_ready_to_service_us,
+                "pre-TLS write ready-to-service time",
+            ),
+        },
+        "accepted_to_tls_service": _validated_service_timing(
+            options, "accepted_to_tls", "accepted-to-TLS"
+        ),
+        "tls_to_type1_service": _validated_service_timing(
+            options, "tls_to_type1", "TLS-to-Type-1"
+        ),
+    }
+
+
 def _validated_server_stage_matrix(options: argparse.Namespace) -> dict[str, object]:
     post_type_two_bytes = options.post_type2_client_bytes
     if post_type_two_bytes is not None and not 0 <= post_type_two_bytes <= (1 << 30):
@@ -350,6 +455,7 @@ def build_manifest(options: argparse.Namespace) -> dict[str, object]:
             "terminal_time_utc": linux_utc,
         },
         "server_stage_matrix": _validated_server_stage_matrix(options),
+        "server_timing_attribution": _validated_server_timing_attribution(options),
         "collector": {
             "mode": "read-only",
             "platform": platform.system(),
@@ -425,6 +531,90 @@ def _stage_matrix_failures(stage_matrix: object) -> list[str]:
     ) not in (None, 0):
         return ["SERVER_STAGE_MATRIX_INCONSISTENT"]
     return []
+
+
+def _timing_attribution_failures(
+    timing: object, post_type2_client_bytes: object
+) -> tuple[list[str], list[str], dict[str, object]]:
+    if not isinstance(timing, dict):
+        return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], {}
+
+    required_top = (
+        "accepted_to_tls_microseconds",
+        "tls_to_type1_microseconds",
+        "type1_to_type2_queued_microseconds",
+        "type2_creation_to_delivery_microseconds",
+        "type2_to_peer_eof_microseconds",
+        "preauth_elapsed_at_peer_eof_microseconds",
+    )
+    pre_tls_names = (
+        "read_wait_microseconds",
+        "write_wait_microseconds",
+        "active_work_microseconds",
+        "tls_handshake_active_work_microseconds",
+        "unattributed_microseconds",
+        "socket_poll_microseconds",
+        "read_ready_to_service_microseconds",
+        "write_ready_to_service_microseconds",
+    )
+    service_names = (
+        "application_reschedule_wait_microseconds",
+        "peer_readiness_wait_upper_bound_microseconds",
+        "service_execution_microseconds",
+        "native_maintenance_microseconds",
+        "service_invocations",
+        "maximum_application_reschedule_wait_microseconds",
+    )
+
+    if any(not isinstance(timing.get(name), int) for name in required_top):
+        return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], timing
+
+    pre_tls = timing.get("pre_tls")
+    accepted_service = timing.get("accepted_to_tls_service")
+    type1_service = timing.get("tls_to_type1_service")
+    if (
+        not isinstance(pre_tls, dict)
+        or not isinstance(accepted_service, dict)
+        or not isinstance(type1_service, dict)
+        or any(not isinstance(pre_tls.get(name), int) for name in pre_tls_names)
+        or any(
+            not isinstance(accepted_service.get(name), int) for name in service_names
+        )
+        or any(not isinstance(type1_service.get(name), int) for name in service_names)
+    ):
+        return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], timing
+
+    failures: list[str] = []
+    findings: list[str] = []
+    first_client_byte = timing.get(
+        "post_type2_first_client_tls_byte_microseconds"
+    )
+    if first_client_byte is not None and not isinstance(first_client_byte, int):
+        failures.append("SERVER_TIMING_ATTRIBUTION_INCOMPLETE")
+    if post_type2_client_bytes == 0 and first_client_byte is not None:
+        failures.append("SERVER_TIMING_ATTRIBUTION_INCONSISTENT")
+    if isinstance(post_type2_client_bytes, int) and post_type2_client_bytes > 0:
+        if first_client_byte is None:
+            failures.append("SERVER_TIMING_ATTRIBUTION_INCOMPLETE")
+
+    peer_eof = timing["preauth_elapsed_at_peer_eof_microseconds"]
+    if (
+        timing["type2_creation_to_delivery_microseconds"] > peer_eof
+        or timing["type2_to_peer_eof_microseconds"] > peer_eof
+    ):
+        failures.append("SERVER_TIMING_ATTRIBUTION_INCONSISTENT")
+
+    accepted_native = accepted_service["native_maintenance_microseconds"]
+    type1_native = type1_service["native_maintenance_microseconds"]
+    if accepted_native != 0 or type1_native != 0:
+        findings.append("EARLY_NATIVE_MAINTENANCE_OBSERVED")
+
+    isolation = {
+        "accepted_to_tls_native_maintenance_zero": accepted_native == 0,
+        "tls_to_type1_native_maintenance_zero": type1_native == 0,
+        "qualified": accepted_native == 0 and type1_native == 0,
+    }
+    return list(dict.fromkeys(failures)), findings, isolation
 
 
 def _pair_failures(
@@ -617,7 +807,20 @@ def build_redacted_summary(
     except ValueError:
         failures.append("CORRELATION_TIMESTAMP_INVALID")
 
-    failures.extend(_stage_matrix_failures(manifest.get("server_stage_matrix")))
+    stage_matrix_value = manifest.get("server_stage_matrix")
+    failures.extend(_stage_matrix_failures(stage_matrix_value))
+    post_type2_client_bytes = (
+        stage_matrix_value.get("post_type2_client_bytes")
+        if isinstance(stage_matrix_value, dict)
+        else None
+    )
+    timing_failures, timing_findings, native_isolation = (
+        _timing_attribution_failures(
+            manifest.get("server_timing_attribution"),
+            post_type2_client_bytes,
+        )
+    )
+    failures.extend(timing_failures)
 
     ui_error_code = manifest.get("client_error_code")
     first_error = manifest.get("first_client_error")
@@ -653,6 +856,7 @@ def build_redacted_summary(
 
     failures = list(dict.fromkeys(failures))
     limitations = list(dict.fromkeys(limitations))
+    timing_findings = list(dict.fromkeys(timing_findings))
     stage_matrix = manifest.get("server_stage_matrix")
     redacted_stages = stage_matrix if isinstance(stage_matrix, dict) else {}
 
@@ -661,6 +865,7 @@ def build_redacted_summary(
         "evidence_status": "FAIL" if failures else "PASS",
         "evidence_failures": failures,
         "diagnostic_limitations": limitations,
+        "diagnostic_findings": timing_findings,
         "server_sha": server_sha,
         "server_certificate_sha256": fingerprint,
         "attempt_time_utc": manifest.get("attempt_time_utc"),
@@ -715,6 +920,8 @@ def build_redacted_summary(
             "maximum_allowed_delta_seconds": MAX_CORRELATION_DELTA_SECONDS,
         },
         "server_stage_matrix": redacted_stages,
+        "server_timing_attribution": manifest.get("server_timing_attribution"),
+        "server_pre_auth_native_isolation": native_isolation,
         "pair_comparison": pair_summary,
     }
 
@@ -813,6 +1020,33 @@ def parse_collect_args(argv: list[str]) -> argparse.Namespace:
         "--stage-credentials-verified", choices=_STAGE_VALUES, default="NOT_RECORDED"
     )
     parser.add_argument("--typed-terminal-outcome", default=_NOT_RECORDED)
+    parser.add_argument("--accepted-to-tls-us", type=int)
+    parser.add_argument("--tls-to-type1-us", type=int)
+    parser.add_argument("--type1-to-type2-queued-us", type=int)
+    parser.add_argument("--type2-creation-to-delivery-us", type=int)
+    parser.add_argument("--type2-to-peer-eof-us", type=int)
+    parser.add_argument("--preauth-elapsed-at-peer-eof-us", type=int)
+    parser.add_argument("--post-type2-first-client-tls-byte-us", type=int)
+    parser.add_argument("--pre-tls-read-wait-us", type=int)
+    parser.add_argument("--pre-tls-write-wait-us", type=int)
+    parser.add_argument("--pre-tls-active-work-us", type=int)
+    parser.add_argument("--tls-handshake-active-work-us", type=int)
+    parser.add_argument("--pre-tls-unattributed-us", type=int)
+    parser.add_argument("--pre-tls-socket-poll-us", type=int)
+    parser.add_argument("--pre-tls-read-ready-to-service-us", type=int)
+    parser.add_argument("--pre-tls-write-ready-to-service-us", type=int)
+    parser.add_argument("--accepted-to-tls-app-wait-us", type=int)
+    parser.add_argument("--accepted-to-tls-peer-wait-upper-us", type=int)
+    parser.add_argument("--accepted-to-tls-service-work-us", type=int)
+    parser.add_argument("--accepted-to-tls-native-maintenance-us", type=int)
+    parser.add_argument("--accepted-to-tls-service-calls", type=int)
+    parser.add_argument("--accepted-to-tls-max-app-gap-us", type=int)
+    parser.add_argument("--tls-to-type1-app-wait-us", type=int)
+    parser.add_argument("--tls-to-type1-peer-wait-upper-us", type=int)
+    parser.add_argument("--tls-to-type1-service-work-us", type=int)
+    parser.add_argument("--tls-to-type1-native-maintenance-us", type=int)
+    parser.add_argument("--tls-to-type1-service-calls", type=int)
+    parser.add_argument("--tls-to-type1-max-app-gap-us", type=int)
     logs = parser.add_mutually_exclusive_group(required=True)
     logs.add_argument("--logs", type=Path)
     logs.add_argument("--logs-unavailable-reason")

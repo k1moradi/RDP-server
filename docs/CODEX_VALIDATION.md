@@ -1,3 +1,32 @@
+## R5 timing-attribution evidence follow-up — 2026-10-29
+
+- Initial authoring parent: `cde24568f8bcb60a69559dae19ac40ba96fbf092`.
+- Reconciled publication parent: `92be9706e2b60ff46fd3f0b0fb8c38e23b6d97d0`; concurrent R9 Release-fixture work
+  preserved.
+- Dependency review: prior pre-TLS fixture blocker resolved by R9; R2 Microsoft
+  production Type-2 control/negative controls qualified; R10 corrected measured
+  pre-auth service starvation and published R1/R10 timing buckets.
+- Change: private schema-v2 owner evidence now carries the same-attempt R1/R10
+  timing attribution; redacted R2/R6 output carries only bounded scalar timing.
+- Validation semantics: missing/contradictory timing is evidence **FAIL**;
+  nonzero early native maintenance remains valid evidence but reports
+  `EARLY_NATIVE_MAINTENANCE_OBSERVED` and native-isolation qualification
+  **FAIL** without assigning a client-side cause.
+- Existing evidence unittest gains missing-timing, zero-byte/first-byte
+  inconsistency and early-native-maintenance cases.
+- Authoring source/test/docs review: **PASS by inspection**.
+- Local Python command:
+  `python3 tests/test_macos_windows_app_owner_evidence.py --script scripts/macos_windows_app_owner_evidence.py`:
+  **NOT RUN** in this connector environment.
+- Canonical C++ configure/build/full CTest: **NOT RUN**; no production C++ source
+  changed in this R5 follow-up.
+- Exact publication-SHA hosted CI: **PENDING**.
+- Physical Windows App/mstsc execution, Keychain and trust-store mutation:
+  **NOT RUN / NOT AUTHORIZED**.
+- Next gate: hosted evidence CTest + current R10 qualification green, then the
+  existing dispatch-only R9 owner-candidate and owner-authorized R6 physical
+  differential.
+
 ## R9 Windows CLANG64 Release clipboard-fixture crash — 2026-10-29
 
 - Exact source SHA: `1942cb4ecf08056c6d636a57acfcd6ae40be4773`.

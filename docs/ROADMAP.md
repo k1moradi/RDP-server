@@ -1,3 +1,94 @@
+## R2 P0 — production authentication-challenge audit and Microsoft negative controls (2026-10-29)
+
+**Authoring parent:** `3fdde5748e1c88d2684e13632778d9775eddc36f`. **Production conclusion: NO CHALLENGE DEFECT
+DEMONSTRATED.** The current first-party writer remains unchanged. An independent
+MS-NLMP/MS-CSSP audit of the physical `0xe2088235` Type 1 -> production
+`0xe08a8235` Type 2 path found no field, flag, envelope or session-security
+mismatch that justifies changing production bytes.
+
+**126-byte field audit:** signature `NTLMSSP\0`, MessageType 2; TargetName
+length/max 20 with offset 56 and UTF-16LE `RDP-SERVER`; flags
+`0xe08a8235`; eight-byte server nonce; eight zero reserved bytes; TargetInfo
+length/max 50 with offset 76; all-zero Version because VERSION is not selected;
+then AV pairs `MsvAvNbDomainName=RDP`, `MsvAvNbComputerName=RDP-SERVER`,
+`MsvAvTimestamp=<fresh FILETIME>`, terminal `MsvAvEOL`. The independent
+fixture now checks every one of those header fields, offsets, lengths, values,
+the timestamp and the 126-byte final extent instead of relying on the
+production validator.
+
+**Flag relationship:** the exact delta is input-only VERSION
+`0x02000000` removed, plus server-only TARGET_TYPE_SERVER
+`0x00020000` and TARGET_INFO `0x00800000` added. UNICODE,
+REQUEST_TARGET, SIGN, SEAL, NTLM, ALWAYS_SIGN, EXTENDED_SESSIONSECURITY, 128,
+KEY_EXCH and 56 remain selected. That preserves the negotiated integrity,
+confidentiality and key-exchange properties required by the standalone
+CredSSP/NTLMv2 message-security path. Clearing VERSION while sending eight zero
+Version bytes is standards-compliant and does not affect NTLM processing.
+
+**Envelope/sequencing and R1 byte-path audit:** the first accepted `TSRequest`
+is version 6 and carries exactly one raw Direct-NTLM Type 1 in `negoTokens`;
+the server returns exactly one version-6 `TSRequest` `negoTokens` item
+containing the raw Type 2. The independent real-TLS R1 lifecycle peer reads
+that exact DER frame, requires one token, then independently validates the
+Type-2 before it can report delivery. The connection pins the negotiation
+envelope. The final raw Type 3 is accepted only in the same final negotiation
+request with `pubKeyAuth`/nonce; the server binding reply omits
+`negoTokens`, and `authInfo` is accepted only after binding succeeds. This
+matches the existing MS-CSSP final-token/binding ordering and does not weaken
+MIC, sign/seal or credential verification.
+
+**Reference-fixture correction:** the prior physical Type-1 fixture preserved
+only the flags and normalized every other field to zero, even though the owner
+receipt also retained VERSION `6.0.6001/0x0f`. The fixture now marks bytes
+0..15 and 32..39 as captured, encodes that known Version, and marks the
+uncaptured DomainName/Workstation SECURITY_BUFFER descriptors at bytes 16..31
+as explicitly unknown. Their normalized zeros are test input only, not claimed
+wire evidence.
+
+**Independent negative controls:** the cross-platform conformance parser now
+rejects a challenge with negotiated SIGN removed and challenges missing either
+required NetBIOS AV pair. A new Windows-native CREDSSP CTest derives two
+test-only challenges from the production output, removes exactly
+`MsvAvNbComputerName` or `MsvAvNbDomainName`, and requires Microsoft SSPI
+to terminate after consuming the challenge without Type 3 while the unmodified
+production control reaches Type 3. Control and each invalid challenge execute
+in fresh child processes. The invalid mutations bypass the production Type-2
+validator intentionally, so the oracle cannot pass merely because it agrees
+with its own writer. The exact-SHA Microsoft interop artifact and R9
+owner-candidate gate consume all three receipts.
+
+**Compatibility matrix from already-recorded evidence:**
+
+| Challenge/client evidence | Result | Interpretation |
+| --- | --- | --- |
+| Production fixed-name Type 2, Microsoft full CREDSSP TLS 1.3 at `a570cba9...` | Type 3 **PASS** | Production challenge is accepted by Microsoft CREDSSP; overall SHA still had a separate Windows job failure. |
+| Production challenge, forced TLS 1.2 and forced TLS 1.3 at `35bf7f22...` | Type 3 **PASS** in every row | TLS version/cipher is not a Type-2 compatibility blocker. |
+| Production target tuple fixed name / TERMSRV-IP / bare IP | Type 3 **PASS** in the existing Microsoft target matrix | Current TargetName/target-principal shape is not a demonstrated pre-Type-3 blocker. |
+| Physical/hosted OEM response-bit differential at `45e5fc4a...` | Type 3 **PASS** with OEM omitted | The physical `0xe08a8235` OEM omission is ruled out. |
+| Physical macOS Windows App | Type 2 committed -> zero post-Type-2 client bytes -> peer FIN | Still unresolved client-specific credential/delegation/policy evidence; not proof of a malformed challenge. |
+| Missing NbComputerName / missing NbDomainName test-only challenges | **PENDING** publication-SHA Windows execution | Must be consumed and rejected by Microsoft with no Type 3 before this new oracle is qualified. |
+
+**Certificate/channel/target hypotheses remain independent:** generated
+exact-IP-SAN TLS, TLS 1.3, fixed/IP target profiles and the current Type-2
+target fields already reach Type 3 in Microsoft-native controls. CredSSP
+certificate binding is evaluated with the final Type-3 request and therefore
+cannot explain a peer that sends zero bytes after Type 2. NTLM channel binding
+and target-name verification remain strict later-response checks; neither is
+manufactured by changing the server challenge.
+
+**Authoring validation:** source/spec/CI-structure inspection **PASS**.
+Canonical owner one-`build/` configure/build/focused/full CTest **NOT RUN**
+in this connector environment. New Windows native negative-control execution
+and exact-publication-SHA hosted CI **PENDING**. No production Type-2,
+TargetName, AV pair, TLS, NLA, credential fallback, Admission, MCS, graphics,
+input or clipboard change is authorized.
+
+**Next:** qualify the publication SHA. If the unmodified production control
+still emits Type 3 and both deliberate AV violations are independently
+rejected, keep production Type 2 unchanged and proceed with R6's controlled
+macOS Windows App versus Windows 11 `mstsc.exe` physical differential using
+the same R1 post-Type-2 wire receipt.
+
 ## R1 P0 — accepted-to-TLS transport attribution (2026-10-29)
 
 **Assignment-time main:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.

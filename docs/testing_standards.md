@@ -1,3 +1,27 @@
+## R2 independent Type-2 conformance and Microsoft negative-control gate (2026-10-29)
+
+Challenge qualification has two independent layers. First, a test parser that
+does not call the production writer/validator must check the complete
+CHALLENGE_MESSAGE layout, negotiated-flag relationship, security-buffer
+offsets/extents, target strings, required AV pairs, timestamp, EOL and VERSION
+behavior. Physical Type-1 fixtures must carry a byte-level known/unknown mask;
+normalized bytes are never silently promoted to captured evidence.
+
+Second, the Windows-native CREDSSP oracle runs an unmodified production control
+and each deliberate single-field negative control in a fresh process. The
+production control must reach a next TSRequest containing Type 3. Each
+required-AV negative control is derived from that production Type 2, removes
+exactly one of MsvAvNbComputerName or MsvAvNbDomainName, must be consumed by
+Microsoft SSPI, and must produce a typed Microsoft failure without Type 3. A
+harness failure, no-progress result or failure before challenge commit is not a
+successful negative control.
+
+Record the negative rows in the same exact-SHA Microsoft interop artifact and
+R9 owner-candidate gate as the production control. These invalid challenges
+are test-only and cannot be used by production, nor can their rejection alone
+justify changing target names, adding optional AV pairs, downgrading TLS/NLA or
+enabling an OS/default credential fallback.
+
 ## R1 accepted-to-TLS attribution and wire-accounting gate (2026-10-29)
 
 The focused cross-platform CTest

@@ -256,6 +256,16 @@ if(WIN32)
         LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
         TIMEOUT 45)
 
+    add_test(NAME security.windows-credssp-type2-required-av-negative-controls
+        COMMAND "${CMAKE_COMMAND}"
+            "-DTEST_EXECUTABLE=$<TARGET_FILE:test_windows_sspi_credssp_interop>"
+            -P "${PROJECT_SOURCE_DIR}/tests/run_windows_credssp_type2_negative_controls.cmake")
+    set_tests_properties(
+        security.windows-credssp-type2-required-av-negative-controls
+        PROPERTIES
+        LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
+        TIMEOUT 45)
+
     add_test(NAME security.windows-credssp-production-control-target-next-token
         COMMAND test_windows_sspi_credssp_interop control-target)
     add_test(NAME security.windows-credssp-production-physical-ip-target-next-token

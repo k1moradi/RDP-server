@@ -53,6 +53,8 @@ enum class ChallengeExperiment : std::uint8_t
     EndpointTypeTwoTargetName,
     EndpointMsvAvTargetName,
     EndpointTypeTwoAndMsvAvTargetName,
+    MissingNbComputerName,
+    MissingNbDomainName,
 };
 
 enum class SchannelCredentialProfile : std::uint8_t
@@ -158,6 +160,10 @@ enum class TlsServerProfile : std::uint8_t
         return "endpoint-msv-av-target-name";
     case ChallengeExperiment::EndpointTypeTwoAndMsvAvTargetName:
         return "endpoint-type2-and-msv-av-target-name";
+    case ChallengeExperiment::MissingNbComputerName:
+        return "missing-msv-av-nb-computer-name";
+    case ChallengeExperiment::MissingNbDomainName:
+        return "missing-msv-av-nb-domain-name";
     }
     return "unknown";
 }
@@ -461,6 +467,60 @@ struct TypeTwoLocation final
     return true;
 }
 
+[[nodiscard]] bool removeTargetInfoAvPair(
+    std::vector<std::uint8_t> &targetInfo,
+    std::uint16_t removedId)
+{
+    std::vector<std::uint8_t> rebuilt;
+    rebuilt.reserve(targetInfo.size());
+    bool removed = false;
+    std::size_t offset = 0U;
+    while (offset < targetInfo.size())
+    {
+        if (targetInfo.size() - offset < 4U)
+            return false;
+        const std::uint16_t avId =
+            loadLe16(targetInfo.data() + offset);
+        const std::size_t avLength =
+            loadLe16(targetInfo.data() + offset + 2U);
+        const std::size_t valueOffset = offset + 4U;
+        if (avLength > targetInfo.size() - valueOffset)
+            return false;
+        const std::size_t pairBytes = 4U + avLength;
+
+        if (avId == 0U)
+        {
+            if (avLength != 0U || valueOffset != targetInfo.size())
+                return false;
+            rebuilt.insert(
+                rebuilt.end(),
+                targetInfo.begin() + static_cast<std::ptrdiff_t>(offset),
+                targetInfo.end());
+            if (!removed)
+                return false;
+            targetInfo = std::move(rebuilt);
+            return true;
+        }
+
+        if (avId == removedId)
+        {
+            if (removed)
+                return false;
+            removed = true;
+        }
+        else
+        {
+            rebuilt.insert(
+                rebuilt.end(),
+                targetInfo.begin() + static_cast<std::ptrdiff_t>(offset),
+                targetInfo.begin() +
+                    static_cast<std::ptrdiff_t>(offset + pairBytes));
+        }
+        offset += pairBytes;
+    }
+    return false;
+}
+
 [[nodiscard]] std::vector<std::uint8_t> makeTypeTwoExperiment(
     std::span<const std::uint8_t> production,
     std::uint32_t clientFlags,
@@ -514,6 +574,16 @@ struct TypeTwoLocation final
         if (!appendTargetNameAvPair(targetInfo))
             return {};
     }
+    if (experiment == ChallengeExperiment::MissingNbComputerName)
+    {
+        if (!removeTargetInfoAvPair(targetInfo, 1U))
+            return {};
+    }
+    if (experiment == ChallengeExperiment::MissingNbDomainName)
+    {
+        if (!removeTargetInfoAvPair(targetInfo, 2U))
+            return {};
+    }
 
     if (targetName.empty() || targetInfo.empty() ||
         targetName.size() >
@@ -546,6 +616,16 @@ struct TypeTwoLocation final
         static_cast<std::uint32_t>(56U + targetName.size()));
     output.insert(output.end(), targetName.begin(), targetName.end());
     output.insert(output.end(), targetInfo.begin(), targetInfo.end());
+
+    // These controls deliberately violate the MS-NLMP NTLMv2 requirement
+    // that both NetBIOS AV pairs be present when integrity/confidentiality
+    // are active. They bypass the production validator on purpose so the
+    // Microsoft oracle cannot merely agree with the project's own validator.
+    if (experiment == ChallengeExperiment::MissingNbComputerName ||
+        experiment == ChallengeExperiment::MissingNbDomainName)
+    {
+        return output;
+    }
 
     NtlmChallengeMessageObservation observation;
     if (validateNtlmChallengeMessage(
@@ -3744,6 +3824,56 @@ void printFailure(
     return harnessValid;
 }
 
+[[nodiscard]] bool runTypeTwoNegativeControl(
+    ChallengeExperiment experiment)
+{
+    if (experiment != ChallengeExperiment::MissingNbComputerName &&
+        experiment != ChallengeExperiment::MissingNbDomainName)
+    {
+        return false;
+    }
+
+    const FullCredSspAttempt result =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName, experiment);
+    const bool challengeCommitted =
+        result.tlsEstablished &&
+        result.initialClientTsRequestReceived &&
+        result.productionTypeTwoQueued &&
+        result.productionTypeTwoTlsCommitted;
+    const bool microsoftDetected =
+        challengeCommitted &&
+        result.productionTypeTwoConsumed &&
+        !result.productionObservedTypeThree &&
+        microsoftTypedFailureObserved(result) &&
+        !pumpHasHarnessFailure(result.initialPump) &&
+        !pumpHasHarnessFailure(result.nextPump);
+    const SECURITY_STATUS status = reportedMicrosoftStatus(result);
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-type2-negative-control "
+        "experiment=%s challenge-committed=%s type2-consumed=%s "
+        "next-client-output=%s type3=%s microsoft-status=%s "
+        "code=0x%08lx stage=%s oracle-detected=%s "
+        "production-type2-change-authorized=no\n",
+        experimentName(experiment),
+        challengeCommitted ? "yes" : "no",
+        result.productionTypeTwoConsumed ? "yes" : "no",
+        result.microsoftNextTokenGenerated ? "yes" : "no",
+        result.productionObservedTypeThree ? "yes" : "no",
+        securityStatusName(status),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(status)),
+        result.stage,
+        microsoftDetected ? "yes" : "no");
+    std::fflush(stderr);
+
+    if (!microsoftDetected)
+        printFailure(TargetProfile::PortableServerName, result);
+    return microsoftDetected;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -3786,6 +3916,12 @@ int main(int argc, char **argv)
         printDefaultCredentialPolicyRow();
         return 0;
     }
+    if (mode == "type2-negative-missing-nb-computer")
+        return runTypeTwoNegativeControl(
+                   ChallengeExperiment::MissingNbComputerName) ? 0 : 1;
+    if (mode == "type2-negative-missing-nb-domain")
+        return runTypeTwoNegativeControl(
+                   ChallengeExperiment::MissingNbDomainName) ? 0 : 1;
 
     TargetProfile profile{};
     if (mode == "control-target")

@@ -1,3 +1,31 @@
+## R2 challenge evidence and mutation ownership (2026-10-29)
+
+A physical NTLM reference fixture must distinguish captured bytes from
+normalized test bytes. Never turn an uncaptured SECURITY_BUFFER offset,
+descriptor or payload byte into asserted wire evidence merely because a
+zero-filled synthetic message parses. When the physical receipt retains a
+VERSION structure, preserve that known structure in the reference while
+marking genuinely uncaptured fields explicitly unknown.
+
+For a standalone CredSSP NTLMv2 challenge with negotiated integrity and
+confidentiality, keep the Type-2 flag relation explicit: return negotiated
+SIGN/SEAL/EXTENDED_SESSIONSECURITY/128 and any selected KEY_EXCH/56 properties;
+server-only target-type/TargetInfo flags may be added, and VERSION may be
+omitted only with an all-zero Version field. The selected TargetInfo must keep
+the required NetBIOS domain and computer AV pairs and a terminal EOL; the
+production writer's timestamp remains bounded wire state, not authentication
+authority.
+
+Compatibility experiments that deliberately remove a required flag or AV pair
+are test-only protocol mutations. Derive them from the actual production
+challenge, label them as invalid controls, and do not pass them back through a
+production writer/validator in a way that makes the oracle self-confirming.
+Run independent Microsoft-provider controls in fresh processes when practical
+so provider state from one invalid case cannot classify another. No such
+experiment authorizes production wire changes unless a supported external
+Microsoft client first demonstrates the corresponding failure on the
+unmodified production path.
+
 ## R1 pre-TLS transport attribution stays inside the existing owners (2026-10-29)
 
 The accepted-to-established-TLS diagnostic may be decomposed only by reusing

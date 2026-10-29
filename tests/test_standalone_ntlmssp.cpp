@@ -593,6 +593,39 @@ int main(int argc, char **argv)
                    parameters.clientNegotiateFlags, observation) ==
                NtlmMessageParseResult::InvalidInput);
 
+        // Independent conformance controls: the production writer is not the
+        // oracle. MS-NLMP requires SIGN to be returned when offered, and NTLMv2
+        // with integrity/confidentiality requires both NetBIOS AV pairs.
+        auto missingNegotiatedSign = output;
+        storeLe32(
+            missingNegotiatedSign.data() + 20U,
+            encoded.negotiateFlags & ~kNtlmNegotiateSign);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{missingNegotiatedSign}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        auto missingNbDomainName = output;
+        storeLe16(
+            missingNbDomainName.data() + targetInfoOffset,
+            3U);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{missingNbDomainName}.first(
+                encoded.bytesWritten),
+            parsed));
+
+        const std::size_t nbComputerPairOffset =
+            targetInfoOffset + 4U +
+            kStandaloneNtlmPortableDomainName.size() * 2U;
+        auto missingNbComputerName = output;
+        storeLe16(
+            missingNbComputerName.data() + nbComputerPairOffset,
+            3U);
+        assert(!parseConformantChallenge(
+            std::span<const std::uint8_t>{missingNbComputerName}.first(
+                encoded.bytesWritten),
+            parsed));
+
         NtlmChallengeMessageParameters requiredOnly{
             kServerChallenge,
             kStandaloneNtlmPortableDomainName,

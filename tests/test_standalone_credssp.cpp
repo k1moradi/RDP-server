@@ -71,10 +71,15 @@ constexpr NtlmV2Key kEncryptedRandomSessionKey{
     0xc5,0xda,0xd2,0x54,0x4f,0xc9,0x79,0x90,
     0x94,0xce,0x1c,0xe9,0x0b,0xc9,0xd0,0x3e};
 constexpr std::uint32_t kMicrosoftAuthenticateFlags = 0xe2888235U;
-// Owner-observed Microsoft-client Type-1 flags from the physical Linux/X11
-// trace. Only the captured flags are pinned here; unobserved workstation
-// and Version bytes are deliberately left zero rather than invented.
+// Owner-observed Microsoft-client Type-1 facts from the physical Linux/X11
+// trace. The flags and Version were retained; the 16 bytes of DomainName and
+// Workstation SECURITY_BUFFER descriptors were not captured and stay explicitly
+// unknown in the reference fixture below rather than being presented as wire
+// evidence. The normalized zero descriptors are used only to exercise the
+// production parser; neither supplied-name flag is set.
 constexpr std::uint32_t kPhysicalMicrosoftTypeOneFlags = 0xe2088235U;
+constexpr std::array<std::uint8_t, 8> kPhysicalMicrosoftTypeOneVersion{
+    0x06U,0x00U,0x71U,0x17U,0x00U,0x00U,0x00U,0x0fU};
 constexpr std::uint32_t kPhysicalExpectedTypeTwoFlags = 0xe08a8235U;
 constexpr std::array<std::uint8_t, 10> kNtlmOid{
     0x2b,0x06,0x01,0x04,0x01,0x82,0x37,0x02,0x02,0x0a};
@@ -438,24 +443,47 @@ private:
     return message;
 }
 
-[[nodiscard]] std::array<std::uint8_t, 40>
-physicalMicrosoftTypeOneMessage()
+struct PhysicalMicrosoftTypeOneReference final
 {
-    std::array<std::uint8_t, 40> message{};
+    std::array<std::uint8_t, 40> normalizedMessage{};
+    std::array<bool, 40> capturedByte{};
+};
+
+[[nodiscard]] constexpr PhysicalMicrosoftTypeOneReference
+physicalMicrosoftTypeOneReference() noexcept
+{
+    PhysicalMicrosoftTypeOneReference reference{};
     constexpr std::array<std::uint8_t, 8> signature{
         'N','T','L','M','S','S','P',0};
-    std::copy(
-        signature.begin(), signature.end(), message.begin());
-    message[8U] = 1U;
-    message[12U] =
+    for (std::size_t index = 0U; index < signature.size(); ++index)
+    {
+        reference.normalizedMessage[index] = signature[index];
+        reference.capturedByte[index] = true;
+    }
+    reference.normalizedMessage[8U] = 1U;
+    for (std::size_t index = 8U; index < 16U; ++index)
+        reference.capturedByte[index] = true;
+
+    reference.normalizedMessage[12U] =
         static_cast<std::uint8_t>(kPhysicalMicrosoftTypeOneFlags);
-    message[13U] = static_cast<std::uint8_t>(
+    reference.normalizedMessage[13U] = static_cast<std::uint8_t>(
         kPhysicalMicrosoftTypeOneFlags >> 8U);
-    message[14U] = static_cast<std::uint8_t>(
+    reference.normalizedMessage[14U] = static_cast<std::uint8_t>(
         kPhysicalMicrosoftTypeOneFlags >> 16U);
-    message[15U] = static_cast<std::uint8_t>(
+    reference.normalizedMessage[15U] = static_cast<std::uint8_t>(
         kPhysicalMicrosoftTypeOneFlags >> 24U);
-    return message;
+
+    // Bytes 16..31 are uncaptured DomainName/Workstation descriptors. Leave
+    // their normalized values zero but keep capturedByte=false.
+    for (std::size_t index = 0U;
+         index < kPhysicalMicrosoftTypeOneVersion.size();
+         ++index)
+    {
+        reference.normalizedMessage[32U + index] =
+            kPhysicalMicrosoftTypeOneVersion[index];
+        reference.capturedByte[32U + index] = true;
+    }
+    return reference;
 }
 
 [[nodiscard]] std::array<char16_t, 8> password()
@@ -1417,8 +1445,17 @@ void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
          kStandaloneNtlmPortableServerName,
          kTimestamp}));
 
-    const auto typeOneArray = physicalMicrosoftTypeOneMessage();
-    const Bytes typeOne{typeOneArray.begin(), typeOneArray.end()};
+    const auto typeOneReference = physicalMicrosoftTypeOneReference();
+    for (std::size_t index = 0U; index < 16U; ++index)
+        assert(typeOneReference.capturedByte[index]);
+    for (std::size_t index = 16U; index < 32U; ++index)
+        assert(!typeOneReference.capturedByte[index]);
+    for (std::size_t index = 32U; index < 40U; ++index)
+        assert(typeOneReference.capturedByte[index]);
+
+    const Bytes typeOne{
+        typeOneReference.normalizedMessage.begin(),
+        typeOneReference.normalizedMessage.end()};
     const auto request =
         wrap(0x30U, append(version(6U), tokens(typeOne)));
 
@@ -1430,6 +1467,21 @@ void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
     assert(acceptor.stage() ==
            StandaloneCredSspStage::NegoContinue);
     assert(acceptor.lastNtlmMessageType() == 1U);
+    const auto initialObservation = acceptor.initialNegoObservation();
+    assert(initialObservation.observed);
+    assert(initialObservation.tsRequestVersion == 6U);
+    assert(initialObservation.tokenCount == 1U);
+    assert(initialObservation.spnego.directNtlmType1Accepted);
+    assert(initialObservation.spnego.ntlmTypeOneObserved);
+    assert(initialObservation.spnego.ntlmTypeOne.negotiateFlags ==
+           kPhysicalMicrosoftTypeOneFlags);
+    assert(initialObservation.spnego.ntlmTypeOne.versionPresent);
+    assert(initialObservation.spnego.ntlmTypeOne.majorVersion == 6U);
+    assert(initialObservation.spnego.ntlmTypeOne.minorVersion == 0U);
+    assert(initialObservation.spnego.ntlmTypeOne.buildNumber == 6001U);
+    assert(initialObservation.spnego.ntlmTypeOne.ntlmRevision == 0x0fU);
+    assert(!initialObservation.spnego.ntlmTypeOne.domainSupplied);
+    assert(!initialObservation.spnego.ntlmTypeOne.workstationSupplied);
 
     const auto reply = tls.flushServerReplyRaw(writer);
     std::span<const std::uint8_t> typeTwo;
@@ -1439,8 +1491,32 @@ void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
     using namespace rdp_server::tests::ntlm_type2_conformance;
     ParsedChallenge parsed{};
     assert(parseConformantChallenge(typeTwo, parsed));
-    assert(parsed.flags == kPhysicalExpectedTypeTwoFlags);
+    constexpr std::array<std::uint8_t, 8> ntlmSignature{
+        'N','T','L','M','S','S','P',0};
     assert(typeTwo.size() == 126U);
+    assert(std::equal(
+        ntlmSignature.begin(), ntlmSignature.end(), typeTwo.begin()));
+    assert(loadLe32(typeTwo.data() + 8U) == 2U);
+    assert(loadLe16(typeTwo.data() + 12U) == 20U);
+    assert(loadLe16(typeTwo.data() + 14U) == 20U);
+    assert(loadLe32(typeTwo.data() + 16U) == 56U);
+    assert(parsed.flags == kPhysicalExpectedTypeTwoFlags);
+    assert(loadLe32(typeTwo.data() + 20U) ==
+           kPhysicalExpectedTypeTwoFlags);
+    assert(std::equal(
+        kServerChallenge.begin(), kServerChallenge.end(),
+        typeTwo.begin() + 24));
+    assert(std::ranges::all_of(
+        typeTwo.subspan(32U, 8U),
+        [](std::uint8_t byte) { return byte == 0U; }));
+    assert(loadLe16(typeTwo.data() + 40U) == 50U);
+    assert(loadLe16(typeTwo.data() + 42U) == 50U);
+    assert(loadLe32(typeTwo.data() + 44U) == 76U);
+    assert(std::ranges::all_of(
+        typeTwo.subspan(48U, 8U),
+        [](std::uint8_t byte) { return byte == 0U; }));
+    assert(parsed.targetNameOffset == 56U);
+    assert(parsed.targetInfoOffset == 76U);
     assert(parsed.targetName.size() ==
            kStandaloneNtlmPortableServerName.size() * 2U);
     assert(utf16LittleEndianEquals(
@@ -1452,8 +1528,12 @@ void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
         kMsvAvNbComputerName,
         kMsvAvTimestamp,
         kMsvAvEol};
+    constexpr std::array<std::size_t, 4> expectedAvLengths{
+        6U, 20U, 8U, 0U};
     std::size_t targetInfoOffset = 0U;
-    for (const std::uint16_t expectedAvId : expectedAvIds)
+    for (std::size_t avIndex = 0U;
+         avIndex < expectedAvIds.size();
+         ++avIndex)
     {
         assert(parsed.targetInfo.size() - targetInfoOffset >= 4U);
         const std::uint16_t avId =
@@ -1462,9 +1542,35 @@ void testPhysicalTypeOneIndependentTypeTwoTsRequestOracle()
             loadLe16(parsed.targetInfo.data() +
                      targetInfoOffset + 2U);
         targetInfoOffset += 4U;
-        assert(avId == expectedAvId);
+        assert(avId == expectedAvIds[avIndex]);
+        assert(avLength == expectedAvLengths[avIndex]);
         assert(avLength <=
                parsed.targetInfo.size() - targetInfoOffset);
+        const auto avValue =
+            parsed.targetInfo.subspan(targetInfoOffset, avLength);
+        if (avId == kMsvAvNbDomainName)
+        {
+            assert(utf16LittleEndianEquals(
+                avValue, kStandaloneNtlmPortableDomainName));
+        }
+        else if (avId == kMsvAvNbComputerName)
+        {
+            assert(utf16LittleEndianEquals(
+                avValue, kStandaloneNtlmPortableServerName));
+        }
+        else if (avId == kMsvAvTimestamp)
+        {
+            std::uint64_t timestamp = 0U;
+            for (std::size_t byteIndex = 0U;
+                 byteIndex < avValue.size();
+                 ++byteIndex)
+            {
+                timestamp |=
+                    static_cast<std::uint64_t>(avValue[byteIndex])
+                    << (byteIndex * 8U);
+            }
+            assert(timestamp == kTimestamp);
+        }
         targetInfoOffset += avLength;
     }
     assert(targetInfoOffset == parsed.targetInfo.size());

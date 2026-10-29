@@ -349,7 +349,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target|oem-omission-differential)|credssp-(credential-semantic-differential|production-(control-target|physical-ip-target|bare-ip-target)-next-token))$'
+          selector='^security[.]windows-(sspi-production-type2-(interop|physical-ip-target|oem-omission-differential)|credssp-(credential-semantic-differential|type2-required-av-negative-controls|production-(control-target|physical-ip-target|bare-ip-target)-next-token))$'
           inventory="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
           printf '%s\n' "$inventory"
           for required_test in \
@@ -357,12 +357,13 @@ jobs:
             security.windows-sspi-production-type2-physical-ip-target \
             security.windows-sspi-production-type2-oem-omission-differential \
             security.windows-credssp-credential-semantic-differential \
+            security.windows-credssp-type2-required-av-negative-controls \
             security.windows-credssp-production-control-target-next-token \
             security.windows-credssp-production-physical-ip-target-next-token \
             security.windows-credssp-production-bare-ip-target-next-token; do
             grep -Fq ": $required_test" <<< "$inventory"
           done
-          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 7
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$inventory")" -eq 8
           result_file='build/r9-microsoft-interop-results.txt'
           tls_version_result_file='build/r9-credssp-tls-version-results.txt'
           test -f "$tls_version_result_file"
@@ -485,6 +486,30 @@ jobs:
           else
             overall_status=1
           fi
+
+          type2_negative_output='build/r2-credssp-type2-negative-controls.txt'
+          if run_case credssp-type2-required-av-negative-controls security.windows-credssp-type2-required-av-negative-controls "$type2_negative_output"; then
+            for experiment in missing-msv-av-nb-computer-name missing-msv-av-nb-domain-name; do
+              negative_line="$(grep -Eo "microsoft-credssp-type2-negative-control experiment=${experiment} .*" "$type2_negative_output" | tail -n 1)"
+              test -n "$negative_line"
+              grep -Fq 'challenge-committed=yes' <<< "$negative_line"
+              grep -Fq 'type2-consumed=yes' <<< "$negative_line"
+              grep -Fq 'type3=no' <<< "$negative_line"
+              grep -Fq 'oracle-detected=yes' <<< "$negative_line"
+              printf 'type2-negative-%s\n' "$negative_line" | tee -a "$result_file"
+            done
+            negative_summary="$(grep -Eo 'microsoft-credssp-type2-negative-controls .*' "$type2_negative_output" | tail -n 1)"
+            test -n "$negative_summary"
+            grep -Fq 'control=TYPE3' <<< "$negative_summary"
+            grep -Fq 'invalid-controls=DETECTED' <<< "$negative_summary"
+            grep -Fq 'status=PASS' <<< "$negative_summary"
+            grep -Fq 'process-isolation=per-challenge' <<< "$negative_summary"
+            grep -Fq 'production-type2-change-authorized=no' <<< "$negative_summary"
+            printf 'type2-negative-summary-%s\n' "$negative_summary" | tee -a "$result_file"
+          else
+            overall_status=1
+          fi
+
           control_output='build/r9-credssp-fixed-name-control.txt'
           if run_case credssp-fixed-name-control security.windows-credssp-production-control-target-next-token "$control_output"; then
             profile_line="$(grep -Eo 'microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER .*' "$control_output" | tail -n 1)"
@@ -2423,6 +2448,22 @@ jobs:
           grep -Fq 'default-credential=NOT_RUN_POLICY' <<< "$semantic_summary"
           grep -Fq 'production-type2-change-authorized=no' <<< "$semantic_summary"
 
+          grep -Fxq 'credssp-type2-required-av-negative-controls=PASS test=security.windows-credssp-type2-required-av-negative-controls' "$matrix_file"
+          for experiment in missing-msv-av-nb-computer-name missing-msv-av-nb-domain-name; do
+            negative_line="$(grep "^type2-negative-microsoft-credssp-type2-negative-control experiment=$experiment " "$matrix_file")"
+            test -n "$negative_line"
+            grep -Fq 'challenge-committed=yes' <<< "$negative_line"
+            grep -Fq 'type2-consumed=yes' <<< "$negative_line"
+            grep -Fq 'type3=no' <<< "$negative_line"
+            grep -Fq 'oracle-detected=yes' <<< "$negative_line"
+          done
+          negative_summary="$(grep '^type2-negative-summary-microsoft-credssp-type2-negative-controls ' "$matrix_file")"
+          grep -Fq 'control=TYPE3' <<< "$negative_summary"
+          grep -Fq 'invalid-controls=DETECTED' <<< "$negative_summary"
+          grep -Fq 'status=PASS' <<< "$negative_summary"
+          grep -Fq 'process-isolation=per-challenge' <<< "$negative_summary"
+          grep -Fq 'production-type2-change-authorized=no' <<< "$negative_summary"
+
           grep -Fxq 'credssp-fixed-name-control=PASS test=security.windows-credssp-production-control-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-ip-spn-target=PASS test=security.windows-credssp-production-physical-ip-target-next-token' "$matrix_file"
           grep -Fxq 'credssp-bare-ip-target=PASS test=security.windows-credssp-production-bare-ip-target-next-token' "$matrix_file"
@@ -2482,6 +2523,8 @@ jobs:
           grep -Fq 'security.windows-credssp-tls13-only-server' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-modern-schannel-system-defaults-full-boundary-probe' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-credential-semantic-differential' tests/CMakeLists.txt
+          grep -Fq 'security.windows-credssp-type2-required-av-negative-controls' tests/CMakeLists.txt
+          grep -Fq 'run_windows_credssp_type2_negative_controls.cmake' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-control-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-physical-ip-target-next-token' tests/CMakeLists.txt
           grep -Fq 'security.windows-credssp-production-bare-ip-target-next-token' tests/CMakeLists.txt

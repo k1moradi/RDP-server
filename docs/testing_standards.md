@@ -1,3 +1,11 @@
+## R7 precise failure wording must be consistent across Main and activity (2026-10-29)
+
+When R7 changes the typed first-failure product wording, every offscreen surface
+that projects the same HostStatus classification must assert the same precise
+message. A stale expectation for the former generic
+`Remote client authentication did not complete.` text is a test-fixture
+failure, not evidence that authentication semantics changed.
+
 ## R4 offline first-frame compatibility contract (2026-10-29)
 
 `transport.rdpgfx-client-core-capability-gate` is a protocol-only regression

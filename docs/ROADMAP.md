@@ -1,3 +1,21 @@
+## R7 CI correction — align existing activity assertion with precise failure text (2026-10-29)
+
+R7 publication `e278524064138bfea61f8e29363121db92615906`, workflow
+`40842086123`, Ubuntu `r9-owner-gui-credential-parity` job
+`123340669692`, compiled the desktop GUI and runtime successfully but failed
+one existing offscreen assertion in
+`gui.offscreen-authentication-incomplete-before-native-admission`. The Main
+surface already showed the intended
+`Client disconnected before completing authentication.`; the test's activity
+assertion still expected the superseded generic wording. This correction
+changes only that stale expectation and records the consistency rule. Runtime
+classification, credential handling, diagnostic export, TLS/CredSSP wire state,
+Admission and system-side-effect behavior are unchanged.
+
+**Next gate:** exact correction-SHA hosted GUI parity plus the remaining
+protocol/Clang/sanitizer/GUI lanes. The failed R7 publication is not acceptance
+evidence.
+
 ## R7 P1 — bounded desktop first-failure diagnostics and secure export (2026-10-29)
 
 **Authoring parent:** `d671a572292ab68253c62121e3873bf7a81dd992`. R7 consumes the existing R1/R2/R10

@@ -2257,7 +2257,7 @@ int main(int argc, char** argv)
                    "Client disconnected before completing authentication."));
         assert(activity->text().contains(
             QStringLiteral(
-                "Remote client authentication did not complete.")));
+                "Client disconnected before completing authentication.")));
         assert(diagnostic->text() ==
                QStringLiteral(
                    "Client disconnected before completing authentication. "

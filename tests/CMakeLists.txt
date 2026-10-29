@@ -654,6 +654,18 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # R1 zero-timeout scheduler attribution: reuse the same production-backed
+    # two-peer lifecycle but pin Read/Write dwell versus poll/service subsets.
+    add_test(
+        NAME runtime.linux-direct-ntlm-preauth-zero-timeout-readiness-attribution
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-preauth-zero-timeout-readiness-attribution)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-preauth-zero-timeout-readiness-attribution
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Distinguish a quiet post-Type-2 peer from raw TLS/plaintext progress
     # without parsing a second transport stream or changing authentication.
     add_test(

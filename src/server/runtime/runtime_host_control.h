@@ -953,6 +953,9 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t preTlsActiveWorkMicroseconds{};
     std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
     std::uint64_t preTlsUnattributedMicroseconds{};
+    std::uint64_t preTlsSocketPollMicroseconds{};
+    std::uint64_t preTlsReadReadyToServiceMicroseconds{};
+    std::uint64_t preTlsWriteReadyToServiceMicroseconds{};
     // Opaque accepted-client lifetime identifier owned by R10. This is only
     // diagnostic correlation state and cannot recreate connection authority.
     std::uint64_t acceptedClientId{};

@@ -1,3 +1,36 @@
+## R1 P0 follow-up — zero-timeout readiness dwell attribution (2026-10-29)
+
+**Parent:** `12af8f1e5946250138f222721e91497543e50889`. Current source
+inspection found one diagnostic attribution gap, not a transport-wire defect:
+the GUI HostControl intentionally checks socket readiness with a zero timeout,
+so time spent *inside* `poll()` cannot represent the full interval for which
+R1 remains in `NeedRead` or `NeedWrite`. A multi-second peer/readiness wait
+could therefore be folded into the old residual bucket.
+
+The same accepted-connection `steady_clock` now accounts wall-clock dwell by
+the authoritative R1 Read/Write interest between bounded service calls. Actual
+native-poll duration is retained as a non-additive subset, and the existing
+poller latches readiness-observed -> next matching service delay without
+reading the socket. No second reader, packet clock, TLS parser, timer, timeout
+or authority is added.
+
+For the next physical receipt: dominant Read dwell with a small
+read-ready-to-service age means R1 remained on the client/read side; dominant
+Write dwell means local socket/TLS backpressure; dominant R1/TLS active work
+means server/OpenSSL work; a large ready-to-service age identifies runtime
+scheduling after readiness was already observed. Residual time is limited to
+non-Read/Write phases such as explicit TLS configuration/observation gaps and
+must not be labeled peer delay.
+
+Production TLS security level, certificate verification, timeout policy,
+X.224/TLS/CredSSP bytes and Type-2 output remain unchanged. Existing
+fragmentation/coalescing/backpressure and independent outer-DER tests remain
+authoritative. The dedicated
+`runtime.linux-direct-ntlm-preauth-zero-timeout-readiness-attribution` CTest
+reuses the existing two-peer production-backed lifecycle and pins the new
+subset invariants. Canonical local build/full CTest: **NOT RUN** in this
+connector environment; exact publication-SHA hosted CI: **PENDING**.
+
 ## R7 CI correction — align existing activity assertion with precise failure text (2026-10-29)
 
 R7 publication `e278524064138bfea61f8e29363121db92615906`, workflow
@@ -206,11 +239,13 @@ complete outer TSRequest DER and rejects trailing bytes.
 count beside its existing receive count. R10's existing accepted-connection
 steady clock latches first client X.224 byte, complete X.224 request, first
 server X.224 byte, complete Confirm, first client TLS byte, first server TLS
-byte and established TLS. It also accumulates pre-TLS Read-poll wait,
-Write-poll wait, bounded R1 active work and the subset spent in an advancing
-TLS handshake step; the remainder is reported as unattributed runtime/scheduler
-time. No packet timestamp, second reader, record parser, timeout or authority is
-created.
+byte and established TLS. Read/Write wait is wall-clock dwell while that
+existing R1 readiness direction remains authoritative between bounded service
+calls. Native-poll duration and readiness-observed -> service age are reported
+as non-additive subsets; bounded R1 active work and the subset spent in an
+advancing TLS handshake step remain separate. The residual contains only
+non-Read/Write gaps such as explicit TLS configuration/observation time. No
+packet timestamp, second reader, record parser, timeout or authority is created.
 
 **Correction decision:** no server-induced stall or incomplete write is
 demonstrated by current source/tests, so this round makes **no TLS, certificate,
@@ -223,11 +258,12 @@ decomposition for cold and immediate repeated connections on one listener.
 **Validation:** connector source/policy audit **PASS**. Local canonical
 configure/build/full CTest **NOT RUN** because this environment cannot resolve
 GitHub for a checkout; exact publication-SHA hosted CI **PENDING**. Next owner
-receipt must compare the new stage fields. A dominant Read wait points to peer
-input timing; dominant Write wait points to local socket backpressure; dominant
-active work points to R1/OpenSSL CPU work; dominant unattributed time points to
-runtime servicing/scheduling. Do not infer cause before that exact-SHA physical
-receipt.
+receipt must compare the new stage fields. Dominant Read dwell identifies the
+read/client side; compare its ready-to-service subset before attributing the
+remainder to peer/readiness delay. Dominant Write dwell identifies socket/TLS
+backpressure; dominant active work identifies R1/OpenSSL CPU work. A large
+ready-to-service subset identifies runtime scheduling after readiness was
+already observed. Do not infer cause before that exact-SHA physical receipt.
 
 ## R5 P0 — actionable Windows App evidence + pre-auth native isolation (2026-10-29)
 

@@ -1,3 +1,11 @@
+## R1 readiness-dwell refinement adds no build surface (2026-10-29)
+
+The follow-up changes only existing Linux runtime diagnostic fields, projection,
+terminal logging and the existing Direct-NTLM lifecycle executable. The new
+behavior-named CTest is another command mode of that existing executable. It
+adds no library, dependency, compile definition, thread, timer, socket owner,
+parser or build root. Canonical build and CTest commands remain unchanged.
+
 ## R7 authentication diagnostics add no build or privilege surface (2026-10-29)
 
 The Advanced diagnostic view reuses the existing Qt Widgets desktop target and

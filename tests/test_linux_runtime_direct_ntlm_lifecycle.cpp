@@ -1558,6 +1558,13 @@ void assertConnectionLocalStageTimeline(
         diagnostics.preTlsUnattributedMicroseconds;
     assert(diagnostics.acceptedToTlsEstablishedMicroseconds ==
            preTlsWorkMicroseconds);
+    assert(diagnostics.preTlsSocketPollMicroseconds <=
+           diagnostics.preTlsReadWaitMicroseconds +
+               diagnostics.preTlsWriteWaitMicroseconds);
+    assert(diagnostics.preTlsReadReadyToServiceMicroseconds <=
+           diagnostics.preTlsReadWaitMicroseconds);
+    assert(diagnostics.preTlsWriteReadyToServiceMicroseconds <=
+           diagnostics.preTlsWriteWaitMicroseconds);
 
     const std::uint64_t consecutiveStageMicroseconds =
         diagnostics.acceptedToTlsEstablishedMicroseconds +
@@ -1587,7 +1594,9 @@ int main(int argc, char** argv)
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
     const bool stageTimelineDiagnosticsOnly =
-        testCase == "direct-ntlm-preauth-stage-timeline-lifecycle";
+        testCase == "direct-ntlm-preauth-stage-timeline-lifecycle" ||
+        testCase ==
+            "direct-ntlm-preauth-zero-timeout-readiness-attribution";
     const bool typeTwoTimingDiagnosticsOnly =
         testCase == "direct-ntlm-type2-peer-eof-timing-diagnostics" ||
         stageTimelineDiagnosticsOnly;

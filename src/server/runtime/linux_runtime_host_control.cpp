@@ -912,6 +912,12 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         source.tlsHandshakeActiveWorkMicroseconds;
     projected.preTlsUnattributedMicroseconds =
         source.preTlsUnattributedMicroseconds;
+    projected.preTlsSocketPollMicroseconds =
+        source.preTlsSocketPollMicroseconds;
+    projected.preTlsReadReadyToServiceMicroseconds =
+        source.preTlsReadReadyToServiceMicroseconds;
+    projected.preTlsWriteReadyToServiceMicroseconds =
+        source.preTlsWriteReadyToServiceMicroseconds;
     projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         source.directNtlmTypeTwoCreationToDeliveryAgeAvailable;
     projected.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -2973,7 +2979,9 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "first-tls-server-byte-to-established-us=%llu "
                 "pre-tls-read-wait-us=%llu pre-tls-write-wait-us=%llu "
                 "pre-tls-active-work-us=%llu tls-handshake-active-work-us=%llu "
-                "pre-tls-unattributed-us=%llu "
+                "pre-tls-unattributed-us=%llu pre-tls-socket-poll-us=%llu "
+                "pre-tls-read-ready-to-service-us=%llu "
+                "pre-tls-write-ready-to-service-us=%llu "
                 "tls-established-to-type1-us=%llu "
                 "tls-established-to-type1-available=%s "
                 "type1-to-type2-queued-us=%llu "
@@ -3080,6 +3088,15 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .preTlsUnattributedMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsSocketPollMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsReadReadyToServiceMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsWriteReadyToServiceMicroseconds),
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .tlsEstablishedToTypeOneMicroseconds),

@@ -1,3 +1,11 @@
+## Pre-TLS readiness dwell is diagnostic attribution, not a benchmark (2026-10-29)
+
+Accepted-to-TLS Read/Write dwell describes how long the existing R1 owner
+required a readiness direction. Native-poll duration and
+readiness-observed-to-service age are non-additive subsets. These values
+localize one interoperability stall; they are not latency targets, scheduler
+benchmarks or evidence for changing timeout/TLS policy.
+
 ## Post-Type-2 wire counters remain diagnostics, not benchmarks (2026-10-27)
 
 Encrypted/plaintext byte counts, TSRequest counts, alert/FIN/reset facts and

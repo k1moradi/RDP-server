@@ -580,6 +580,12 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     std::uint64_t preTlsActiveWorkMicroseconds{};
     std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
     std::uint64_t preTlsUnattributedMicroseconds{};
+    // Read/Write wait is wall time for which that R1 readiness direction
+    // remained authoritative. Socket-poll and ready-to-service ages are
+    // non-additive subsets used to separate kernel wait from runtime service.
+    std::uint64_t preTlsSocketPollMicroseconds{};
+    std::uint64_t preTlsReadReadyToServiceMicroseconds{};
+    std::uint64_t preTlsWriteReadyToServiceMicroseconds{};
     bool standaloneCredentialsRejected{};
 };
 
@@ -1328,6 +1334,22 @@ private:
     std::uint64_t preTlsActiveWorkMicroseconds_{};
     std::uint64_t tlsHandshakeActiveWorkMicroseconds_{};
     std::uint64_t preTlsUnattributedMicroseconds_{};
+    std::uint64_t preTlsSocketPollMicroseconds_{};
+    std::uint64_t preTlsReadReadyToServiceMicroseconds_{};
+    std::uint64_t preTlsWriteReadyToServiceMicroseconds_{};
+    // One connection-local interest timeline. It records only which existing
+    // R1 readiness direction was required between bounded service calls.
+    std::optional<std::chrono::steady_clock::time_point>
+        preTlsInterestAccountedAt_{};
+    rdp_server::server::transport::TcpConnectionIoInterest preTlsInterest_{
+        rdp_server::server::transport::TcpConnectionIoInterest::Read};
+    // Latched by the existing poller when readiness is observed, then consumed
+    // by the next matching advancePreAdmission call. No descriptor is read.
+    std::optional<std::chrono::steady_clock::time_point>
+        preTlsReadinessObservedAt_{};
+    rdp_server::server::transport::TcpConnectionIoInterest
+        preTlsReadinessObservedInterest_{
+            rdp_server::server::transport::TcpConnectionIoInterest::Closed};
 
     rdp_server::server::security::GssapiSpnegoAcceptor acceptor_{};
     rdp_server::server::security::StandaloneCredSspNtlmAcceptor

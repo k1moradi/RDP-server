@@ -669,6 +669,10 @@ LinuxRuntimeConnection::LinuxRuntimeConnection(
           rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla),
       authenticationMode_(authenticationSelection.mode)
 {
+    preTlsInterestAccountedAt_ = preauthStartedAt_;
+    preTlsInterest_ =
+        rdp_server::server::transport::TcpConnectionIoInterest::Read;
+
     const auto *const policy = securityConfiguration_.policy();
     if (!connection_.active() || policy == nullptr)
     {
@@ -854,6 +858,12 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         tlsHandshakeActiveWorkMicroseconds_;
     snapshot.preTlsUnattributedMicroseconds =
         preTlsUnattributedMicroseconds_;
+    snapshot.preTlsSocketPollMicroseconds =
+        preTlsSocketPollMicroseconds_;
+    snapshot.preTlsReadReadyToServiceMicroseconds =
+        preTlsReadReadyToServiceMicroseconds_;
+    snapshot.preTlsWriteReadyToServiceMicroseconds =
+        preTlsWriteReadyToServiceMicroseconds_;
     snapshot.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         directNtlmTypeTwoCreationToDeliveryAgeAvailable_;
     snapshot.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -1232,14 +1242,9 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
     const auto pollCompletedAt = Clock::now();
     if (!tlsEverEstablished_)
     {
-        if (requested == Interest::Read)
-            addBoundedDiagnosticElapsed(
-                preTlsReadWaitMicroseconds_,
-                pollStartedAt, pollCompletedAt);
-        else if (requested == Interest::Write)
-            addBoundedDiagnosticElapsed(
-                preTlsWriteWaitMicroseconds_,
-                pollStartedAt, pollCompletedAt);
+        addBoundedDiagnosticElapsed(
+            preTlsSocketPollMicroseconds_,
+            pollStartedAt, pollCompletedAt);
     }
     if (count < 0)
     {
@@ -1282,6 +1287,12 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
         return {false, false, Status::NoEvent};
     }
 
+    if (!tlsEverEstablished_ &&
+        !preTlsReadinessObservedAt_.has_value())
+    {
+        preTlsReadinessObservedAt_ = pollCompletedAt;
+        preTlsReadinessObservedInterest_ = requested;
+    }
     return {readable, writable, Status::Ready};
 }
 
@@ -1300,6 +1311,53 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
     }
 
     const auto required = ioInterest();
+    const auto dispatchStartedAt = std::chrono::steady_clock::now();
+    if (!tlsEverEstablished_ &&
+        preTlsInterestAccountedAt_.has_value())
+    {
+        switch (preTlsInterest_)
+        {
+        case Interest::Read:
+            addBoundedDiagnosticElapsed(
+                preTlsReadWaitMicroseconds_,
+                *preTlsInterestAccountedAt_, dispatchStartedAt);
+            break;
+        case Interest::Write:
+            addBoundedDiagnosticElapsed(
+                preTlsWriteWaitMicroseconds_,
+                *preTlsInterestAccountedAt_, dispatchStartedAt);
+            break;
+        case Interest::ConfigureTls:
+        case Interest::Closed:
+            break;
+        }
+        preTlsInterestAccountedAt_ = dispatchStartedAt;
+        preTlsInterest_ = required;
+
+        if (preTlsReadinessObservedAt_.has_value())
+        {
+            if (preTlsReadinessObservedInterest_ != required)
+            {
+                preTlsReadinessObservedAt_.reset();
+                preTlsReadinessObservedInterest_ = Interest::Closed;
+            }
+            else if ((required == Interest::Read && readable) ||
+                     (required == Interest::Write && writable))
+            {
+                if (required == Interest::Read)
+                    addBoundedDiagnosticElapsed(
+                        preTlsReadReadyToServiceMicroseconds_,
+                        *preTlsReadinessObservedAt_, dispatchStartedAt);
+                else
+                    addBoundedDiagnosticElapsed(
+                        preTlsWriteReadyToServiceMicroseconds_,
+                        *preTlsReadinessObservedAt_, dispatchStartedAt);
+                preTlsReadinessObservedAt_.reset();
+                preTlsReadinessObservedInterest_ = Interest::Closed;
+            }
+        }
+    }
+
     if (required == Interest::Closed)
     {
         revoke();
@@ -1314,6 +1372,12 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
             !attachServerTls(tlsContext))
         {
             return {0, 0, Step::Invalid};
+        }
+        if (!tlsEverEstablished_)
+        {
+            preTlsInterestAccountedAt_ =
+                std::chrono::steady_clock::now();
+            preTlsInterest_ = connection_.ioInterest();
         }
         return {0, 0, Step::Progress};
     }
@@ -1355,6 +1419,11 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
         addBoundedDiagnosticElapsed(
             preTlsActiveWorkMicroseconds_,
             activeStartedAt, activeCompletedAt);
+        if (!tlsEverEstablished_)
+        {
+            preTlsInterestAccountedAt_ = activeCompletedAt;
+            preTlsInterest_ = next;
+        }
 
         const std::uint64_t receivedAfter =
             connection_.receivedTransportBytes();

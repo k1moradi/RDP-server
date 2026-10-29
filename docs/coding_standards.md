@@ -96,12 +96,21 @@ scalars; R10 may latch first observed X.224/TLS byte progress and existing
 stage transitions. These are observation points, not packet timestamps or
 peer-receipt claims.
 
-Separate cumulative time spent inside the existing socket-readiness poll from
-time spent in the existing bounded R1 readiness callback. Preserve Read versus
-Write wait direction, and report the residual accepted-to-TLS time as
-unattributed scheduler/runtime time rather than guessing its cause. TLS
-handshake active work is a subset of R1 active work and may be identified only
-when the existing handshake-step counter advances.
+Do not equate time spent inside the existing socket-readiness poll with the
+full time a nonblocking connection waits for readiness: GUI/service schedulers
+may intentionally issue zero-timeout polls. Preserve Read versus Write
+direction by accounting wall-clock dwell while that existing R1 interest is
+authoritative between bounded service calls. Keep actual native-poll duration
+as a separate non-additive subset.
+
+When the existing poller observes matching readiness, it may latch that
+connection-local steady-clock observation until the next matching
+`advancePreAdmission` call. The readiness-to-service age is a subset of the
+corresponding Read/Write dwell and diagnoses runtime scheduling after readiness
+was already observed. TLS handshake active work is a subset of R1 active work
+and may be identified only when the existing handshake-step counter advances.
+Residual accepted-to-TLS time is reserved for non-Read/Write phases rather
+than guessed as peer or scheduler delay.
 
 Do not add a socket reader, TLS record parser, timer thread, timeout, flush
 loop or repeated `SSL_do_handshake` spin. X.224 still drains before TLS;

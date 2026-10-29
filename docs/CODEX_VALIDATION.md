@@ -1,3 +1,24 @@
+## R1 zero-timeout readiness-dwell attribution follow-up — 2026-10-29
+
+- Parent: `12af8f1e5946250138f222721e91497543e50889`.
+- Source finding: GUI HostControl uses zero-timeout socket polls, so the prior
+  Read/Write counters measured only time spent inside `poll()` and could leave
+  a multi-second authoritative `NeedRead` / `NeedWrite` interval in the
+  residual bucket.
+- Diagnostic correction: the same R10 accepted-connection steady clock now
+  accounts wall time by R1 Read/Write interest; native poll duration and
+  readiness-observed-to-next-service ages are separate non-additive subsets.
+- Dedicated behavior gate:
+  `runtime.linux-direct-ntlm-preauth-zero-timeout-readiness-attribution`,
+  reusing the existing production-backed two-peer lifecycle executable.
+- Production R1 transport/TLS/CredSSP bytes, TLS security levels, certificate
+  verification and timeout policy: **UNCHANGED**.
+- Existing memory-BIO fragmentation/coalescing/backpressure coverage and the
+  independent production Type-2 outer-TSRequest DER oracle: **UNCHANGED**.
+- Canonical local configure/build/full CTest: **NOT RUN** in this connector
+  environment.
+- Exact publication-SHA hosted CI: **PENDING**.
+
 ## R4 P1 offline first-frame graphics qualification — 2026-10-29
 
 - Reconciled publication parent: `cd839fe4b18d29943df921294ef67c1289542b92`; concurrent road work preserved.

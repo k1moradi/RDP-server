@@ -123,11 +123,17 @@ ClientHello advances neither count, and the same counters then observe genuine
 client/server TLS handshake traffic without adding a reader.
 
 The existing `runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle`
-gate now requires the accepted-to-TLS decomposition on both consecutive peers
-using the same listener. Its seven adjacent observed stage ages cannot exceed
-the original accepted-to-TLS age; Read wait + Write wait + active R1 work +
-unattributed time must equal that age, and TLS-handshake active work cannot
-exceed total R1 active work.
+gate and dedicated
+`runtime.linux-direct-ntlm-preauth-zero-timeout-readiness-attribution` gate
+reuse the same production-backed two-peer lifecycle. Both require the
+accepted-to-TLS decomposition on consecutive peers using one listener. The
+seven adjacent observed stage ages cannot exceed the original accepted-to-TLS
+age; Read dwell + Write dwell + active R1 work + unattributed non-Read/Write
+time must equal that age, and TLS-handshake active work cannot exceed total R1
+active work. Native-poll duration must not exceed combined Read/Write dwell,
+and Read/Write readiness-observed-to-service ages must not exceed their
+corresponding dwell. This specifically covers the zero-timeout GUI HostControl
+poll path.
 
 Do not duplicate the existing deterministic memory-BIO coverage:
 `tls-nonblocking-handshake`, `credssp-tls-fragments`,

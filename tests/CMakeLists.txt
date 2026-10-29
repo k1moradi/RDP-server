@@ -1368,7 +1368,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-erect-request
                 mcs-attach-request
                 mcs-channel-join-request
-                mcs-user-id-range-conformance
+                mcs-rdp-user-id-range-conformance
                 mcs-attach-confirm-wire
                 mcs-session-attach-confirm-write-receipts
                 mcs-session-attach-confirm-denials

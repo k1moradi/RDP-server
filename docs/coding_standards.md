@@ -1,17 +1,20 @@
-## R3 T.125/GCC UserId range contract (2026-10-29)
+## R3 Microsoft RDP User Channel ID profile (2026-10-29)
 
-T.125 defines `ChannelId ::= INTEGER(0..65535)`,
-`DynamicChannelId ::= ChannelId(1001..65535)`, and `UserId ::=
-DynamicChannelId`. T.124 GCC uses the same 1001..65535 dynamic UserID range.
-The aligned-PER ChannelJoin/SendData initiator is encoded as an offset from
-1001; therefore `0xFC16` maps to the maximum legal UserId 65535 and
-`0xFC17` is invalid even though it fits in the two-octet wire field.
+For RDP interoperability, follow **MS-RDPBCGR** as the project-primary wire
+authority when it conflicts with the referenced generic MCS/GCC ASN.1 text.
+MS-RDPBCGR explicitly defines both the RDP User Channel ID store and GCC
+Conference Create Response nodeID as **1001..65536 inclusive**. The generic
+T.124/T.125 formal modules instead define DynamicChannelID/UserId as
+1001..65535. Do not silently tighten the RDP implementation to the generic
+upper bound.
 
-Validate the ASN.1 semantic range before adding the 1001 offset, serializing
-Attach/Join confirms, generating SendDataIndication, configuring membership,
-or handing the ID to post-MCS channel lifecycles. Never infer a legal 65536
-value merely from a 16-bit encoded offset. Keep `ChannelId`'s independent
-0..65535 syntax range distinct from the narrower dynamic UserId range.
+In the RDP profile, the aligned-PER initiator remains encoded as an offset from
+1001, so `0xFC17` represents RDP User Channel ID 65536 and is accepted;
+`0xFC18` represents 65537 and is rejected. Keep this RDP-profile UserId rule
+separate from ordinary 16-bit ChannelId fields and from Share Control fields
+that have their own encodings and bounds. Any future change to this exception
+requires direct Microsoft-client evidence plus an explicit MS-RDPBCGR
+reconciliation; lower-level ASN.1 alone is insufficient.
 
 ## R7 configured Username and first-failure wording are runtime-authoritative (2026-10-29)
 

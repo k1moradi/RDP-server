@@ -133,7 +133,9 @@ private:
 // contain PROTOCOL_SSL, PROTOCOL_HYBRID, or both; unsupported protocol bits
 // fail closed. The caller still must correlate serverSelectedProtocol using
 // matchesMcsSecurityNegotiationReplay before any bytes can be published.
-// gccNodeId is T.124 UserID [1001, 65535] inclusive.
+// MS-RDPBCGR defines the RDP GCC nodeID/User Channel ID range as
+// [1001, 65536] inclusive; follow that RDP-profile rule even though the
+// referenced generic T.124/T.125 ASN.1 DynamicChannelID ends at 65535.
 [[nodiscard]] McsConnectResponse encodeMcsConnectResponse(
     const McsConnectInitial &client,
     std::span<const std::uint16_t> staticChannelIds,

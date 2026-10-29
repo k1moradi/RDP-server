@@ -17,33 +17,32 @@ text. No R7/R10 production source, authentication wire, credential, listener,
 Admission or native behavior changes. Corrective exact-SHA hosted qualification
 is **PENDING**.
 
-## R3 P1 follow-up — correct T.125/GCC UserId upper bound (2026-10-29)
+## R3 P1 correction — preserve the MS-RDPBCGR User Channel ID range (2026-10-29)
 
-**Authoring parent:** `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`. The earlier MCS/GCC qualification remains
-intact and current R1/R2 work has removed the previous offline shared-main
-blocker. Independent T.125/T.124 review found a separate R3 parser/writer
-defect: several production paths treated 65536 as a legal MCS/GCC UserId
-because the two-octet PER offset was allowed through `0xFC17`. T.125 defines
-DynamicChannelId/UserId as 1001..65535; GCC UserID uses the same range, making
-`0xFC16` the final legal offset.
+**Correction parent:** `b93e8110f44558f07c096132977856dd54db97a4`. The immediately preceding R3 publication
+tightened MCS/GCC UserId handling to 65535 after reading the generic T.124/T.125
+ASN.1 definitions. That change is superseded here because it conflicts with
+the project's primary RDP authority: MS-RDPBCGR explicitly requires the User
+Channel ID store and GCC nodeID to allow **1001..65536 inclusive**. The lower-
+level ITU formal modules do say 1001..65535, so this is a real specification
+discrepancy, but it is not evidence that Microsoft's RDP profile should be
+narrowed.
 
-Production now rejects the one-past value in ChannelJoin and SendData request
-parsing, Attach/Join confirmation writing, join configuration,
-SendDataIndication, GCC Connect-Response nodeID encoding and the downstream
-RDPGFX MCS-user boundary. The dedicated
-`transport.mcs-user-id-range-conformance` CTest covers the common boundary,
-and the existing sanitizer-selected MCS SendData denial case reuses it.
-No native admission, live MCS processing, listener, client or Share activation
-is fabricated.
+Production therefore retains the established RDP behavior: PER offset
+`0xFC17` maps to User Channel ID 65536 and remains valid; `0xFC18` / 65537
+is rejected. The focused gate is renamed
+`transport.mcs-rdp-user-id-range-conformance` and exercises ChannelJoin,
+SendData, Attach/Join confirms, membership, SendDataIndication, GCC nodeID and
+RDPGFX against that Microsoft-profile boundary. No live authentication,
+admission, MCS progression or Share activation is fabricated.
 
-**Validation:** normative T.125/T.124 review and source audit **PASS**.
-Canonical owner one-build configure/build/full CTest **NOT RUN** in this
-connector environment. Exact publication-SHA hosted CI/sanitizers **PENDING**.
-The live dependency remains unchanged: physical CredSSP Type 3 / pubKeyAuth /
-authInfo / CredentialsVerified and a genuine revocable R2 native admission
-must precede any real R3 MCS processing. **Next:** qualify the exact SHA, then
-continue offline Channel Connection/Share conformance while the physical
-client-authentication gate remains owned by R2/R6/R9/R10.
+**Validation:** MS-RDPBCGR/T.124/T.125 discrepancy review **PASS**; the
+corrective behavior follows the project-mandated Microsoft RDP source.
+Canonical local configure/build/full CTest **NOT RUN** in this connector
+environment. Exact corrective-SHA hosted CI/sanitizers **PENDING**. The live
+dependency is unchanged: physical CredSSP Type 3 / pubKeyAuth / authInfo /
+CredentialsVerified plus a genuine revocable R2 native admission are still
+required before any real R3 MCS processing.
 
 ## R7 P1 completion — runtime-owned Username and typed-only first failure (2026-10-29)
 

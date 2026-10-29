@@ -603,12 +603,13 @@ void testMcsResponseWire()
     assert(parseDataTpdu(encoded.bytes(), mcsPayload));
     assert(mcsPayload[0] == 0x7f && mcsPayload[1] == 0x66);
 
+    // MS-RDPBCGR's RDP nodeID profile permits 65536 (PER offset 0xFC17).
     const auto upperNode =
-        encodeMcsConnectResponse(parsed.value, ids, 65535, 1);
+        encodeMcsConnectResponse(parsed.value, ids, 65536, 1);
     assert(upperNode);
     assert(upperNode.bytes()[55] == 0xfc);
-    assert(upperNode.bytes()[56] == 0x16);
-    assert(!encodeMcsConnectResponse(parsed.value, ids, 65536, 1));
+    assert(upperNode.bytes()[56] == 0x17);
+    assert(!encodeMcsConnectResponse(parsed.value, ids, 65537, 1));
 
     // Positive BER integer >= 2^31 MUST include a leading sign octet.
     auto modified = parsed.value;
@@ -1634,12 +1635,12 @@ void testMcsChannelJoinRequest()
     assert(sound && sound.request.channelId == 1006);
     assert(sound.request.initiator == 1007);
 
-    // T.125 DynamicChannelId/UserId is 1001..65535, so the largest
-    // valid PER offset from 1001 is 64534 (0xFC16).
+    // MS-RDPBCGR's RDP User Channel ID profile permits 65536, encoded
+    // as offset 64535 (0xFC17) from the T.125 first UserId 1001.
     constexpr std::array<std::uint8_t, 5> topUser{
-        0x38, 0xfc, 0x16, 0x03, 0xeb};
+        0x38, 0xfc, 0x17, 0x03, 0xeb};
     const auto maximum = parseMcsChannelRequest(frameDomainPdu(topUser));
-    assert(maximum && maximum.request.initiator == 65535);
+    assert(maximum && maximum.request.initiator == 65536);
 
     // This is syntax only. A wire request to join channel 0 can be
     // decoded, but is NOT proof the channel is allocated or joinable.
@@ -1652,7 +1653,7 @@ void testMcsChannelJoinRequest()
     for (std::size_t size = 0; size < golden.size(); ++size)
         assert(!parseMcsChannelRequest(std::span(golden).first(size)));
     constexpr std::array<std::uint8_t, 5> onePastUser{
-        0x38, 0xfc, 0x17, 0x03, 0xeb};
+        0x38, 0xfc, 0x18, 0x03, 0xeb};
     constexpr std::array<std::uint8_t, 5> overflowInitiator{
         0x38, 0xff, 0xff, 0x03, 0xeb};
     for (const auto &invalid : {onePastUser, overflowInitiator})
@@ -1675,17 +1676,18 @@ void testMcsChannelJoinRequest()
 
 
 
-void testMcsUserIdRangeConformance()
+void testMcsRdpUserIdRangeConformance()
 {
-    // ITU-T T.125: DynamicChannelId/UserId is INTEGER(1001..65535).
-    // The aligned-PER wire value is offset by 1001, so 0xFC16 is the
-    // largest legal offset and 0xFC17 is one past the ASN.1 constraint.
-    constexpr std::uint32_t maxUserId = 65535U;
-    constexpr std::uint32_t onePastUserId = 65536U;
+    // The generic T.124/T.125 ASN.1 text ends DynamicChannelId/UserId at
+    // 65535, but MS-RDPBCGR explicitly profiles the RDP User Channel ID and
+    // GCC nodeID as 1001..65536 inclusive. Follow the RDP specification:
+    // offset 0xFC17 is valid and 0xFC18 is the first rejected value.
+    constexpr std::uint32_t maxUserId = 65536U;
+    constexpr std::uint32_t onePastUserId = 65537U;
     constexpr std::array<std::uint8_t, 5> maxJoinPayload{
-        0x38, 0xfc, 0x16, 0x03, 0xeb};
-    constexpr std::array<std::uint8_t, 5> onePastJoinPayload{
         0x38, 0xfc, 0x17, 0x03, 0xeb};
+    constexpr std::array<std::uint8_t, 5> onePastJoinPayload{
+        0x38, 0xfc, 0x18, 0x03, 0xeb};
 
     const auto maxJoin =
         parseMcsChannelRequest(frameDomainPdu(maxJoinPayload));
@@ -1695,9 +1697,9 @@ void testMcsUserIdRangeConformance()
            McsChannelParseError::InvalidPerValue);
 
     constexpr std::array<std::uint8_t, 8> maxSendPayload{
-        0x64, 0xfc, 0x16, 0x03, 0xeb, 0x70, 0x01, 0x42};
-    constexpr std::array<std::uint8_t, 8> onePastSendPayload{
         0x64, 0xfc, 0x17, 0x03, 0xeb, 0x70, 0x01, 0x42};
+    constexpr std::array<std::uint8_t, 8> onePastSendPayload{
+        0x64, 0xfc, 0x18, 0x03, 0xeb, 0x70, 0x01, 0x42};
     const auto maxSend =
         parseMcsChannelRequest(frameDomainPdu(maxSendPayload));
     assert(maxSend);
@@ -1709,14 +1711,14 @@ void testMcsUserIdRangeConformance()
 
     const auto attach = encodeMcsAttachUserConfirm(maxUserId);
     assert(attach && attach.bytes()[9] == 0xfcU &&
-           attach.bytes()[10] == 0x16U);
+           attach.bytes()[10] == 0x17U);
     assert(!encodeMcsAttachUserConfirm(onePastUserId));
 
     constexpr std::array<std::uint16_t, 1> joinedChannel{1003U};
     const auto joinConfirm = encodeMcsChannelJoinConfirm(
         maxJoin.request, maxUserId, joinedChannel);
     assert(joinConfirm && joinConfirm.bytes()[9] == 0xfcU &&
-           joinConfirm.bytes()[10] == 0x16U);
+           joinConfirm.bytes()[10] == 0x17U);
     assert(!encodeMcsChannelJoinConfirm(
         maxJoin.request, onePastUserId, joinedChannel));
 
@@ -1731,7 +1733,7 @@ void testMcsUserIdRangeConformance()
     const auto indicationBytes = encodeMcsSendDataIndication(
         maxUserId, 1003U, 1U, 3U, {}, indication);
     assert(indicationBytes && *indicationBytes == indication.size());
-    assert(indication[8] == 0xfcU && indication[9] == 0x16U);
+    assert(indication[8] == 0xfcU && indication[9] == 0x17U);
     assert(!encodeMcsSendDataIndication(
         onePastUserId, 1003U, 1U, 3U, {}, indication));
 
@@ -1742,12 +1744,16 @@ void testMcsUserIdRangeConformance()
     const auto response = encodeMcsConnectResponse(
         connectInitial.value, ids, maxUserId, kRdpProtocolSsl);
     assert(response && response.bytes()[55] == 0xfcU &&
-           response.bytes()[56] == 0x16U);
+           response.bytes()[56] == 0x17U);
     assert(!encodeMcsConnectResponse(
         connectInitial.value, ids, onePastUserId, kRdpProtocolSsl));
 
     RdpGraphicsDynamicVirtualChannelLifecycle graphics;
-    assert(!graphics.begin(
+    assert(graphics.begin(
+        maxUserId, 1005U,
+        RdpDynamicVirtualChannelAllocation{1U, 1U}, {64U, 64U}));
+    RdpGraphicsDynamicVirtualChannelLifecycle rejectedGraphics;
+    assert(!rejectedGraphics.begin(
         onePastUserId, 1005U,
         RdpDynamicVirtualChannelAllocation{1U, 1U}, {64U, 64U}));
 }
@@ -1771,9 +1777,9 @@ void testMcsAttachConfirmWire()
 
     const auto min = encodeMcsAttachUserConfirm(1001);
     assert(min && min.bytes()[9] == 0 && min.bytes()[10] == 0);
-    const auto max = encodeMcsAttachUserConfirm(65535);
-    assert(max && max.bytes()[9] == 0xfc && max.bytes()[10] == 0x16);
-    for (const auto id : {0U, 1U, 1000U, 65536U, 65537U, 0xffffffffU})
+    const auto max = encodeMcsAttachUserConfirm(65536);
+    assert(max && max.bytes()[9] == 0xfc && max.bytes()[10] == 0x17);
+    for (const auto id : {0U, 1U, 1000U, 65537U, 0xffffffffU})
     {
         const auto invalid = encodeMcsAttachUserConfirm(id);
         assert(!invalid && invalid.bytes().empty() &&
@@ -1921,12 +1927,12 @@ void testMcsChannelJoinConfirmWireAndRejections()
     const auto rdpdr = encodeMcsChannelJoinConfirm(different, 1007, permitted);
     assert(rdpdr && rdpdr.bytes()[12] == 0xec &&
            rdpdr.bytes()[14] == 0xec);
-    // The maximum T.125 UserId is 65535 (PER offset 0xFC16).
-    different.initiator = 65535;
-    const auto maximum = encodeMcsChannelJoinConfirm(different, 65535,
+    // MS-RDPBCGR's maximum RDP User Channel ID is 65536 (offset 0xFC17).
+    different.initiator = 65536;
+    const auto maximum = encodeMcsChannelJoinConfirm(different, 65536,
                                                       permitted);
     assert(maximum && maximum.bytes()[9] == 0xfc &&
-           maximum.bytes()[10] == 0x16);
+           maximum.bytes()[10] == 0x17);
 
     const auto reject = [](const McsChannelConfirm &response)
     {
@@ -1935,7 +1941,6 @@ void testMcsChannelJoinConfirmWireAndRejections()
     };
     reject(encodeMcsChannelJoinConfirm(request.request, 1006, permitted));
     reject(encodeMcsChannelJoinConfirm(request.request, 1000, permitted));
-    reject(encodeMcsChannelJoinConfirm(request.request, 65536, permitted));
     reject(encodeMcsChannelJoinConfirm(request.request, 65537, permitted));
     reject(encodeMcsChannelJoinConfirm(
         request.request, 1007, std::span(permitted).first(1)));
@@ -2294,13 +2299,13 @@ void testMcsSendDataIndicationWire()
         {
             std::array<std::uint8_t, 14> wire{};
             const auto count = encodeMcsSendDataIndication(
-                65535, 65535,
+                65536, 65535,
                 static_cast<std::uint8_t>(priority),
                 static_cast<std::uint8_t>(segment),
                 {}, wire);
             assert(count && *count == wire.size());
             assert(wire[7] == 0x68 &&
-                   wire[8] == 0xfc && wire[9] == 0x16 &&
+                   wire[8] == 0xfc && wire[9] == 0x17 &&
                    wire[10] == 0xff && wire[11] == 0xff);
             assert(wire[12] == ((priority << 6U) | (segment << 4U)));
             assert(wire[13] == 0);
@@ -3926,7 +3931,7 @@ void testRdpServerFinalizationEncodeRejections()
     std::uint16_t ioChannelId,
     std::span<const std::uint8_t> sharePdu)
 {
-    assert(clientUserId >= 1001U && clientUserId <= 65535U);
+    assert(clientUserId >= 1001U && clientUserId <= 65536U);
     assert(ioChannelId != 0U);
     assert(sharePdu.size() <= 16383U);
     const bool longLength = sharePdu.size() >= 128U;
@@ -6975,7 +6980,7 @@ void testMcsJoinWriteDenials()
     join.kind = McsChannelRequestKind::ChannelJoin;
     join.initiator = 1007;
     join.channelId = 1003;
-    for (const auto invalid : {0U, 1000U, 65536U, 65537U, 0xffffffffU})
+    for (const auto invalid : {0U, 1000U, 65537U, 0xffffffffU})
     {
         McsChannelJoinWriteGate gate;
         assert(!gate.configure(invalid, channels));
@@ -6984,8 +6989,8 @@ void testMcsJoinWriteDenials()
     {
         McsChannelJoinWriteGate gate;
         auto finalUserJoin = join;
-        finalUserJoin.initiator = 65535U;
-        assert(gate.configure(65535U, channels));
+        finalUserJoin.initiator = 65536U;
+        assert(gate.configure(65536U, channels));
         assert(gate.beginJoin(finalUserJoin) ==
                McsJoinStartOutcome::ReplyPending);
         assert(gate.onReplyBytesWritten(
@@ -7237,7 +7242,7 @@ void testMcsJoinedSendDataDenials()
     // This behavior is selected by the sanitizer lane. Reuse the focused
     // UserId-range conformance routine so every corrected production branch
     // receives ASan/UBSan coverage without adding another CI selector owner.
-    testMcsUserIdRangeConformance();
+    testMcsRdpUserIdRangeConformance();
 
     constexpr std::array<std::uint16_t, 3> channels{1007, 1003, 1005};
     McsChannelJoinWriteGate gate;
@@ -12729,7 +12734,7 @@ constexpr std::array<McsTestCase, 169> kMcsTestCases{{
     {"mcs-erect-request", &testMcsErectDomainRequest},
     {"mcs-attach-request", &testMcsAttachUserRequest},
     {"mcs-channel-join-request", &testMcsChannelJoinRequest},
-    {"mcs-user-id-range-conformance", &testMcsUserIdRangeConformance},
+    {"mcs-rdp-user-id-range-conformance", &testMcsRdpUserIdRangeConformance},
     {"mcs-attach-confirm-wire", &testMcsAttachConfirmWire},
     {"mcs-session-attach-confirm-write-receipts", &testMcsSessionAttachConfirmWriteReceipts},
     {"mcs-session-attach-confirm-denials", &testMcsSessionAttachConfirmDenials},

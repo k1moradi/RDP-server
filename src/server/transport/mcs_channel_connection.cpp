@@ -31,11 +31,12 @@ std::atomic<std::uint64_t> nextClipboardRouteGeneration{1U};
 std::atomic<std::uint64_t>
     nextFirstClientAcceptanceReconnectGeneration{1U};
 
-// T.125 fundamental MCS type bounds: DynamicChannelId/UserId is
-// INTEGER(1001..65535). The two-octet PER value is an offset from 1001;
-// 0xFC17 would decode numerically to 65536 and is therefore out of range.
+// MS-RDPBCGR's RDP profile explicitly permits User Channel IDs through
+// 65536 inclusive, even though the referenced generic T.124/T.125 ASN.1
+// DynamicChannelId/UserId definitions end at 65535. Microsoft RDP is the
+// project authority here: aligned PER offset 0xFC17 maps to RDP UserId 65536.
 inline constexpr std::uint32_t kFirstMcsUserId = 1001U;
-inline constexpr std::uint32_t kLastMcsUserId = 65535U;
+inline constexpr std::uint32_t kLastMcsUserId = 65536U;
 
 [[nodiscard]] std::optional<std::uint64_t>
 allocateClipboardRouteGeneration() noexcept

@@ -12,23 +12,23 @@ a more specific credential, peer-close or native-admission diagnosis.
 This is test ownership only; production classification, runtime error text,
 TLS/CredSSP/NTLM wire behavior, credentials and Admission are unchanged.
 
-## R3 MCS UserId upper-bound conformance gate (2026-10-29)
+## R3 Microsoft-profile User Channel ID conformance gate (2026-10-29)
 
-`transport.mcs-user-id-range-conformance` is the dedicated production-backed
-gate for the T.125/T.124 dynamic UserId range. It requires 65535 / PER offset
-`0xFC16` to succeed and 65536 / offset `0xFC17` to fail across ChannelJoin
-and SendData request parsing, AttachUserConfirm and ChannelJoinConfirm writing,
-the join-membership gate, SendDataIndication writing, GCC Connect-Response
-nodeID encoding, and the RDPGFX MCS-user handoff. This remains protocol-only;
-it creates no authentication, admission lease, Share authority or native
-desktop.
+`transport.mcs-rdp-user-id-range-conformance` pins the Microsoft RDP profile,
+not the generic T.125 upper bound. It requires User Channel ID / GCC nodeID
+65536 (PER offset `0xFC17`) to remain accepted and 65537 (offset `0xFC18`)
+to fail across ChannelJoin and SendData parsing, AttachUserConfirm and
+ChannelJoinConfirm writing, the join-membership gate, SendDataIndication, GCC
+Connect-Response nodeID encoding and the RDPGFX MCS-user handoff.
 
-The existing sanitizer-selected
-`transport.mcs-send-data-joined-denials` invokes the same focused conformance
-routine so the corrected branches run under ASan/UBSan without changing the
-shared sanitizer selector/count. Ordinary full CTest also runs the dedicated
-behavior name independently. Boundary tests must keep ChannelId 0..65535
-separate from DynamicChannelId/UserId 1001..65535.
+This gate exists specifically because MS-RDPBCGR's explicit 1001..65536 RDP
+range differs from the generic T.124/T.125 ASN.1 1001..65535 range. Tests and
+reviews must not treat that discrepancy as permission to narrow production.
+The existing sanitizer-selected `transport.mcs-send-data-joined-denials`
+invokes the same focused routine so these boundaries receive ASan/UBSan
+coverage without a second sanitizer selector owner. The fixture remains
+protocol-only and grants no authentication, native admission, licensing,
+Share, graphics or desktop authority.
 
 ## R7 authoritative Username and typed-classification regression (2026-10-29)
 

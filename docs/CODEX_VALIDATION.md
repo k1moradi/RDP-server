@@ -15,22 +15,22 @@
 - Correction is test/docs only and preserves concurrent R3 UserId-range work.
 - Corrective exact-SHA hosted qualification: **PENDING**.
 
-## R3 T.125/GCC UserId range correction — 2026-10-29
+## R3 Microsoft-profile User Channel ID correction — 2026-10-29
 
-- Authoring parent: `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`.
-- Normative finding: T.125 `DynamicChannelId` / `UserId` is 1001..65535;
-  T.124 GCC UserID has the same dynamic range. The former production upper
-  bound 65536 was one past the ASN.1 constraint.
-- Corrected production boundaries: ChannelJoin and SendData request parsers,
-  Attach/Join confirm encoders, join gate, SendDataIndication, GCC
-  Connect-Response nodeID and RDPGFX MCS-user handoff.
-- Dedicated gate: `transport.mcs-user-id-range-conformance`; the existing
-  sanitizer-selected `transport.mcs-send-data-joined-denials` also invokes
-  the shared routine.
-- Security boundary: protocol-only; no synthetic R2 admission, HostControl
-  progression, live MCS, licensing/Share activation or native desktop.
+- Correction parent: `b93e8110f44558f07c096132977856dd54db97a4`.
+- The preceding 65535 tightening was rejected during qualification because
+  MS-RDPBCGR explicitly specifies RDP User Channel ID and GCC nodeID
+  1001..65536 inclusive, while generic T.124/T.125 ASN.1 says 1001..65535.
+- Project policy makes Microsoft's published RDP definitions primary for this
+  wire boundary. Production therefore accepts 65536 / PER offset `0xFC17`
+  and rejects 65537 / `0xFC18`.
+- Dedicated gate:
+  `transport.mcs-rdp-user-id-range-conformance`; the sanitizer-selected
+  `transport.mcs-send-data-joined-denials` reuses the same routine.
+- No synthetic admission, HostControl progression, live MCS, licensing/Share
+  activation or native desktop is introduced.
 - Local canonical build/full CTest: **NOT RUN** in this connector environment.
-- Exact publication-SHA hosted CI/sanitizers: **PENDING**.
+- Exact corrective-SHA hosted CI/sanitizers: **PENDING**.
 
 ## R5 timing-attribution evidence follow-up — 2026-10-29
 

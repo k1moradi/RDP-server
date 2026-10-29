@@ -6215,6 +6215,37 @@ void testGraphicsDynamicVirtualChannelCapabilitiesUnsupportedDenial()
     }
 }
 
+void testRdpGraphicsClientCoreCapabilityGate()
+{
+    GccClientSettings settings{};
+    assert(!gccClientSupportsDynamicVirtualChannelGraphics(settings));
+
+    settings.hasEarlyCapabilityFlags = true;
+    assert(!gccClientSupportsDynamicVirtualChannelGraphics(settings));
+    settings.earlyCapabilityFlags = 0x0018U;
+    assert(!gccClientSupportsDynamicVirtualChannelGraphics(settings));
+    settings.earlyCapabilityFlags =
+        kGccClientCoreSupportsDynamicVirtualChannelGraphics;
+    assert(gccClientSupportsDynamicVirtualChannelGraphics(settings));
+    settings.earlyCapabilityFlags |= 0x0018U;
+    assert(gccClientSupportsDynamicVirtualChannelGraphics(settings));
+    settings.hasEarlyCapabilityFlags = false;
+    assert(!gccClientSupportsDynamicVirtualChannelGraphics(settings));
+
+    // Microsoft's checked-in 4.1.3 Basic Settings fixture predates the
+    // Graphics Pipeline bit. It remains valid MCS/GCC evidence, but it must
+    // not be promoted into RDPGFX capability evidence.
+    const auto published = publishedFixture();
+    const auto connectInitial = parseMcsConnectInitial(published);
+    assert(connectInitial);
+    const auto gcc =
+        parseGccConferenceCreate(connectInitial.value.gccUserData);
+    assert(gcc);
+    assert(gcc.settings.hasEarlyCapabilityFlags);
+    assert(gcc.settings.earlyCapabilityFlags == 0x0018U);
+    assert(!gccClientSupportsDynamicVirtualChannelGraphics(gcc.settings));
+}
+
 void testGraphicsDynamicVirtualChannelCreateSuccess()
 {
     constexpr std::uint32_t clientUserId = 1007U;
@@ -12585,7 +12616,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 167> kMcsTestCases{{
+constexpr std::array<McsTestCase, 168> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -12721,6 +12752,7 @@ constexpr std::array<McsTestCase, 167> kMcsTestCases{{
     {"share-confirm-active-client-capability-store", &testPersonalDesktopConfirmActiveCapabilityStore},
     {"share-finalization-early-input-ignore", &testPersonalDesktopShareEarlyInputIgnored},
     {"share-personal-activation-denials", &testPersonalDesktopShareActivationDenials},
+    {"rdpgfx-client-core-capability-gate", &testRdpGraphicsClientCoreCapabilityGate},
     {"dvc-graphics-create-success", &testGraphicsDynamicVirtualChannelCreateSuccess},
     {"dvc-graphics-caps-selection", &testGraphicsDynamicVirtualChannelCapabilitiesSelection},
     {"dvc-graphics-caps-unsupported-denial", &testGraphicsDynamicVirtualChannelCapabilitiesUnsupportedDenial},

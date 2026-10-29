@@ -40,6 +40,22 @@ foreach(required_build_text IN ITEMS
     endif()
 endforeach()
 
+# Native construction is permitted only after the production Graphics path
+# is ready and the exact R2 lease/application authority has been revalidated.
+string(FIND "${runtime_source}"
+    "if (!graphicsControlReady || !connection.hasAdmissionLease()" authority_gate)
+string(FIND "${runtime_source}"
+    "LinuxAuthorizedX11DesktopOwner nativeOwner{}" native_owner_construct)
+string(FIND "${runtime_source}"
+    "visitNativeDesktopSelection(" native_owner_visit)
+if(authority_gate EQUAL -1 OR native_owner_construct EQUAL -1 OR
+   native_owner_visit EQUAL -1 OR
+   NOT authority_gate LESS native_owner_construct OR
+   NOT native_owner_construct LESS native_owner_visit)
+    message(FATAL_ERROR
+        "R4/R5 native framebuffer owner must remain downstream of Graphics readiness and R2 authority")
+endif()
+
 # The native poll may be wrapped across lines; both the syscall and its
 # exact existing pollfd array are mandatory (no second hidden poll owner).
 string(FIND "${runtime_source}" "::poll(" system_poll)

@@ -1,3 +1,30 @@
+## R4 offline first-frame compatibility contract (2026-10-29)
+
+`transport.rdpgfx-client-core-capability-gate` is a protocol-only regression
+for the Client Core 0x0100 Graphics Pipeline bit. It proves missing/zero/legacy
+flags are not RDPGFX support, explicit 0x0100 is, and Microsoft's checked-in
+4.1.3 MCS/GCC fixture (0x0018) remains valid Basic Settings evidence without
+being promoted into Graphics capability evidence. It never fabricates R2
+admission or Share authority.
+
+`graphics.first-frame-compatibility-contract` independently drives the existing
+R4 owner through VERSION81 ClearCodec-only selection, bounded surface setup,
+one START_FRAME/WIRE_TO_SURFACE_1(ClearCodec)/END_FRAME publication, exact
+accepted-byte completion, malformed ACK denial and the first genuine matching
+FRAME_ACKNOWLEDGE. Existing behavior cases remain authoritative for unsupported
+capability sets, AVC420 gating, zero/oversized dimensions, duplicate frame IDs,
+stale generations, zero-write cancellation, partial-send terminal abort and the
+64-frame credit window.
+
+Production source guards additionally require the live native X11 owner to be
+constructed only after Graphics readiness plus fresh R2 authority, and require
+`DeferredForFrameAcknowledge` to schedule a bounded future capture and continue
+the sole poll/read loop before any XShm frame borrow. These guards inspect
+production composition without minting credentials, an admission lease or a
+native desktop. The portable R4 sanitizer inventory is now **43** behaviors;
+the dedicated ClearCodec inventory remains exactly **4**. Offline PASS does not
+prove Microsoft-client visible pixels or desktop performance.
+
 ## R9 exact-SHA transport-accounting fixture readiness repair (2026-10-29)
 
 The R1 `transport.tcp-owned-pre-tls-transport-byte-accounting` fixture must
@@ -9220,7 +9247,7 @@ display-change delivery remain owner-macOS acceptance, not hosted CTest.
 
 The shared Linux/Clang ASan+UBSan job must build and execute the complete
 portable R4 wire/lifecycle boundary independently from codec and capability
-groups. The bounded selection contains **42** production-backed CTests
+groups. The bounded selection contains **43** production-backed CTests
 from exactly these executables: `test_gfx_surface_lifecycle`,
 `test_gfx_frame_acknowledge`, `test_gfx_presentation_lifecycle`,
 `test_gfx_avc420_picture`, `test_gfx_segmented_data`, and
@@ -9228,7 +9255,7 @@ from exactly these executables: `test_gfx_surface_lifecycle`,
 
 The sanitizer selector must enumerate the central CTest registry before
 execution and assert one representative behavior from every family is present:
-zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
+the first-frame compatibility contract, zero-valued surface IDs, stale-generation ACK handling, terminal frame-delivery
 abort, zero-valued frame IDs, segmented-data denial/in-place safety plus the
 u32 envelope boundary, and segmented AVC420 delivery/ACK, exact unsent-frame
 cancellation and retained

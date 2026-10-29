@@ -1,3 +1,32 @@
+## R4 P1 offline first-frame graphics qualification — 2026-10-29
+
+- Reconciled publication parent: `cd839fe4b18d29943df921294ef67c1289542b92`; concurrent road work preserved.
+- Microsoft protocol review: Client Core 0x0100 is required to claim RDPGFX;
+  codec choice is controlled only by the selected RDPGFX capability set;
+  ClearCodec is mandatory; VERSION10+ requires QoE frame-ACK processing; and
+  FRAME_ACKNOWLEDGE suspension clears outstanding frames and forbids ACK waits.
+- Independently demonstrated defect: production could allocate/start the
+  Graphics DVC after admitted Share without checking the parsed Client Core
+  Graphics Pipeline bit. R3 now refuses allocation when that bit is absent;
+  authentication, R2 admission, Share and joined-channel gates are unchanged.
+- New protocol-only CTests: `transport.rdpgfx-client-core-capability-gate` and
+  `graphics.first-frame-compatibility-contract`. Existing cases retain
+  unsupported-capability, AVC420, malformed-dimension, stale/duplicate ID,
+  generation, 64-credit, zero-write and partial-write coverage.
+- Live scheduler source guards pin native framebuffer construction after
+  Graphics readiness/fresh R2 authority and ACK-credit defer before XShm
+  capture with a bounded next-capture time. Runtime has no pre-admission x264
+  encoder publication path.
+- Canonical local configure/build/full CTest: **NOT RUN** because this connector
+  environment has no approved checkout/build root. Exact publication-SHA hosted
+  CI/sanitizers: **PENDING**.
+- Benchmark: **NOT RUN / not applicable**; no encoder algorithm or hot path was
+  changed and no desktop-performance claim is made.
+- Remaining Microsoft-client acceptance: genuine owner-authorized physical
+  X11 seat0 admission, observed Client Core 0x0100, DRDYNVC/RDPGFX CAPS exchange,
+  first visible ClearCodec frame, matching FRAME_ACKNOWLEDGE, resize/recovery,
+  revocation/reconnect, and same-SHA evidence from Windows App/mstsc.exe.
+
 ## R9 current-main qualification blocker — pre-TLS byte-accounting fixture (2026-10-29)
 
 - `3fdde5748e1c88d2684e13632778d9775eddc36f`: Linux/macOS/Windows protocol

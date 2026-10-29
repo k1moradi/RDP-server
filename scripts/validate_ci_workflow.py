@@ -315,6 +315,7 @@ REQUIRED_TOKENS = (
     "r6_sanitizer_selection='^windows\\.(geometry|capture|cursor|input)-'",
     "steps.r6_windows_sanitizer_configure.outcome == 'success'",
     "steps.r6_windows_sanitizer_build.outcome == 'success'",
+    "graphics.first-frame-compatibility-contract",
     "graphics.frame-delivery-unsent-cancellation",
     "graphics.avc420-segmented-frame-unsent-cancellation",
     "graphics.avc420-segmented-frame-owned-output-reuse-denials",

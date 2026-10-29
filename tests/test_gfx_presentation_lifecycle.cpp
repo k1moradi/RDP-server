@@ -78,6 +78,95 @@ void delivered(GfxPresentationLifecycle &lifecycle, std::uint64_t gen,
     assert(lifecycle.completeFrameDelivery(ticket, 128));
 }
 
+void firstFrameCompatibilityContract()
+{
+    constexpr std::uint64_t generation = 2501U;
+    GfxPresentationLifecycle lifecycle;
+
+    // VERSION81 without AVC420 selects the mandatory ClearCodec fallback.
+    assert(lifecycle.open(generation));
+    assert(lifecycle.acceptCapabilities(
+        generation, advertisement(std::byte{0})));
+    assert(!lifecycle.avc420Enabled());
+    assert(lifecycle.completeCommand(
+        emit(lifecycle, generation, std::byte{0x13}, 20U), 20U));
+
+    for (const PixelSize malformed : {
+             PixelSize{0U, 1U}, PixelSize{1U, 0U},
+             PixelSize{65536U, 1U}, PixelSize{1U, 65536U}})
+    {
+        assert(!lifecycle.configureSurface(generation, 7U, malformed));
+    }
+    assert(lifecycle.configureSurface(generation, 7U, {1U, 1U}));
+    assert(lifecycle.completeCommand(
+        emit(lifecycle, generation, std::byte{0x09}, 15U), 15U));
+    assert(lifecycle.completeCommand(
+        emit(lifecycle, generation, std::byte{0x0F}, 20U), 20U));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+
+    const std::array<std::byte, 4U> pixels{
+        std::byte{0x11}, std::byte{0x22},
+        std::byte{0x33}, std::byte{0xFF}};
+    const GfxClearCodecFrameRequest request{
+        7U, 1U, FramebufferView{pixels, 1U, 1U, 4U}};
+    assert(lifecycle.framePublicationReadiness(generation, request.frameId) ==
+           GfxFramePublicationReadiness::Ready);
+    assert(lifecycle.framePublicationReadiness(
+               generation - 1U, request.frameId) ==
+           GfxFramePublicationReadiness::Rejected);
+
+    std::array<std::byte, 96U> wire{};
+    wire.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt receipt{};
+    assert(lifecycle.prepareClearCodecFrame(
+        generation, request, wire, receipt));
+    assert(receipt.generation == generation);
+    assert(receipt.frameId == request.frameId);
+    assert(receipt.serial != 0U);
+    assert(receipt.bytes == 71U);
+    assert(wire[0] == std::byte{0x0B});
+    assert(wire[16] == std::byte{0x01});
+    assert(wire[26] == std::byte{0x08});
+    assert(wire[receipt.bytes - 12U] == std::byte{0x0C});
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstClearCodecFramePrepared);
+        assert(!status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(!status.firstGenuineFrameAcknowledge);
+    }
+
+    assert(lifecycle.completeFrameDelivery(receipt, receipt.bytes));
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.framePublicationReadiness(generation, request.frameId) ==
+           GfxFramePublicationReadiness::Rejected);
+
+    GfxFrameAckWindowResult result = GfxFrameAckWindowResult::Suspended;
+    auto malformedAck = ack(request.frameId, 0U, 1U);
+    malformedAck[2] = std::byte{1};
+    assert(!lifecycle.onFrameAcknowledge(
+        generation, malformedAck, result));
+    assert(result == GfxFrameAckWindowResult::Suspended);
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    assert(lifecycle.onFrameAcknowledge(
+        generation, ack(request.frameId, 0U, 1U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+    {
+        const auto status = lifecycle.acceptanceStatus();
+        assert(status.firstExactFrameWriteCommitted);
+        assert(status.outstandingFrameAcknowledgements == 0U);
+        assert(status.firstGenuineFrameAcknowledge);
+    }
+
+    lifecycle.disconnect();
+    assert(lifecycle.framePublicationReadiness(generation, 2U) ==
+           GfxFramePublicationReadiness::Rejected);
+    assert(!lifecycle.onFrameAcknowledge(
+        generation, ack(request.frameId), result));
+}
+
 void ordering()
 {
     GfxPresentationLifecycle lifecycle;
@@ -734,6 +823,7 @@ int main(int argc, char **argv)
 {
     if (argc != 2) return 2;
     const std::string_view mode{argv[1]};
+    if (mode == "first-frame-compatibility-contract") { firstFrameCompatibilityContract(); return 0; }
     if (mode == "channel-lifecycle-ordering") { ordering(); return 0; }
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }

@@ -1,3 +1,32 @@
+## R4 first-frame graphics capability ownership (2026-10-29)
+
+RDPGFX may be opened only after the parsed Client Core Data explicitly advertises
+`RNS_UD_CS_SUPPORT_DYNVC_GFX_PROTOCOL` (0x0100), in addition to the existing
+R2 admission, Share and joined-`drdynvc` gates. The Client Core bit is structural
+capability evidence only; it never creates authentication, native admission,
+Share, a DVC or a graphics surface. If it is absent, the current PersonalDesktop
+runtime fails graphics startup closed because no legacy bitmap-update publication
+path is implemented.
+
+RDPGFX codec choice belongs exclusively to the selected RDPGFX capability set.
+The current server supports only VERSION8 and VERSION81, always retains
+ClearCodec as the implemented fallback, and permits AVC420 only when the
+selected VERSION81 set carries AVC420_ENABLED. Do not infer RDPGFX codec support
+from the MS-RDPBCGR Bitmap Codecs capability and do not confirm VERSION10+
+until their additional protocol requirements, including QoE frame ACK intake,
+are implemented.
+
+The first-frame lifecycle stays single-owner and bounded: CREATE_SURFACE and
+MAP_SURFACE_TO_OUTPUT must complete for the current generation before a frame;
+framebuffer geometry must equal the mapped surface; exact delivery creates one
+ACK-window entry; duplicate/stale IDs and generations are rejected. The ACK
+window is capped at 64 frames. Credit exhaustion is a side-effect-free defer,
+not a reason to capture more pixels or spin: R10 schedules a bounded later
+capture and keeps servicing the sole R1 read path for FRAME_ACKNOWLEDGE. A
+suspend ACK clears outstanding credit and must never cause the server to wait
+for further ACKs. Session revocation retires the generation before later frame
+or ACK callbacks can publish state.
+
 ## R7 first-failure desktop diagnostics remain projection-only (2026-10-29)
 
 The desktop GUI may present and export only the bounded read-only facts already

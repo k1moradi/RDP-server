@@ -14,6 +14,13 @@ namespace rdp_server::server::transport
 inline constexpr std::size_t kMaximumBasicGccBytes = 1024;
 inline constexpr std::size_t kMaximumStaticChannelCount = 31;
 
+// MS-RDPBCGR 2.2.1.3.2 and MS-RDPEGFX 1.5.1: a client that supports the
+// Graphics Pipeline Extension advertises RNS_UD_CS_SUPPORT_DYNVC_GFX_PROTOCOL
+// in Client Core earlyCapabilityFlags. This is structural capability evidence
+// only; it never grants R2 admission, Share or dynamic-channel authority.
+inline constexpr std::uint16_t
+    kGccClientCoreSupportsDynamicVirtualChannelGraphics = 0x0100U;
+
 enum class GccError : std::uint8_t
 {
     None,
@@ -52,6 +59,14 @@ struct GccClientSettings
     bool hasNetworkData{};
     bool hasClusterData{};
 };
+
+[[nodiscard]] constexpr bool gccClientSupportsDynamicVirtualChannelGraphics(
+    const GccClientSettings &settings) noexcept
+{
+    return settings.hasEarlyCapabilityFlags &&
+           (settings.earlyCapabilityFlags &
+            kGccClientCoreSupportsDynamicVirtualChannelGraphics) != 0U;
+}
 
 struct GccParseResult
 {

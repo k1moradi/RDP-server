@@ -170,6 +170,33 @@ if(RDP_R5_PERSISTENT_FRAME_GATE)
         message(FATAL_ERROR
             "R5 live resize must borrow through typed geometry/session freshness")
     endif()
+    # ACK-window saturation is ordinary scheduler backpressure. The exact
+    # read-only R3/R4 preflight must happen before XShm capture, and Deferred
+    # must schedule a bounded future attempt then continue the sole poll loop.
+    string(FIND "${owner_handoff}"
+        "preflightPersonalDesktopGraphicsFramePublication(" frame_credit_preflight)
+    string(FIND "${owner_handoff}"
+        "Readiness::DeferredForFrameAcknowledge" frame_credit_deferred)
+    if(frame_credit_preflight EQUAL -1 OR frame_credit_deferred EQUAL -1 OR
+       NOT frame_credit_preflight LESS frame_credit_deferred OR
+       NOT frame_credit_deferred LESS frame_borrow)
+        message(FATAL_ERROR
+            "R4 frame-credit defer must precede native frame capture")
+    endif()
+    math(EXPR frame_credit_span "${frame_borrow} - ${frame_credit_deferred}")
+    string(SUBSTRING "${owner_handoff}" ${frame_credit_deferred}
+        ${frame_credit_span} frame_credit_defer_body)
+    foreach(required_credit_behavior IN ITEMS
+            "Clock::now() + kLinuxPostShareCaptureInterval"
+            "continue; // Keep reading FRAME_ACK through the sole R1 owner.")
+        string(FIND "${frame_credit_defer_body}"
+            "${required_credit_behavior}" credit_behavior_position)
+        if(credit_behavior_position EQUAL -1)
+            message(FATAL_ERROR
+                "R4 deferred frame credit must remain bounded and non-busy: ${required_credit_behavior}")
+        endif()
+    endforeach()
+
     # R10's native-resize scheduler also sets frameWritePending before capture
     # while it drains DELETE -> CREATE -> MAP. Anchor the publication-pending
     # assertion to the tail beginning at the actual synchronous R4 borrow so

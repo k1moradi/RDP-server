@@ -2640,6 +2640,15 @@ McsSessionLifecycle::beginVerifiedR2GraphicsDynamicVirtualChannel(
         return std::nullopt;
     }
 
+    // The current PersonalDesktop product publishes through RDPGFX only.
+    // Refuse Graphics DVC allocation when Client Core omitted the protocol
+    // capability rather than inventing support or weakening admission gates.
+    if (!gccClientSupportsDynamicVirtualChannelGraphics(
+            connectResponseClientSettings_))
+    {
+        return std::nullopt;
+    }
+
     const auto staticChannelId =
         resolveVerifiedR2ActivatedDynamicVirtualChannel(provenance);
     if (!staticChannelId)

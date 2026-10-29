@@ -1458,6 +1458,7 @@ function(add_rdp_test source_file suite behavior)
                 share-confirm-active-client-capability-store
                 share-finalization-early-input-ignore
                 share-personal-activation-denials
+                rdpgfx-client-core-capability-gate
                 dvc-graphics-create-success
                 dvc-graphics-caps-selection
                 dvc-graphics-caps-unsupported-denial
@@ -1772,6 +1773,7 @@ function(add_rdp_test source_file suite behavior)
         endforeach()
     elseif(test_target STREQUAL "test_gfx_presentation_lifecycle")
         foreach(case_name IN ITEMS
+                first-frame-compatibility-contract
                 channel-lifecycle-ordering
                 channel-lifecycle-denials
                 surface-resize-revocation

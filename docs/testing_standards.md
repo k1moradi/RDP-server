@@ -1,3 +1,29 @@
+## R1 accepted-to-TLS attribution and wire-accounting gate (2026-10-29)
+
+The focused cross-platform CTest
+`transport.tcp-owned-pre-tls-transport-byte-accounting` uses the real
+nonblocking R1 socket/BIO owner. It proves fragmented X.224 client input
+advances only the cumulative receive count, the complete 19-byte X.224
+response advances only the cumulative send count, stale TLS readiness with no
+ClientHello advances neither count, and the same counters then observe genuine
+client/server TLS handshake traffic without adding a reader.
+
+The existing `runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle`
+gate now requires the accepted-to-TLS decomposition on both consecutive peers
+using the same listener. Its seven adjacent observed stage ages cannot exceed
+the original accepted-to-TLS age; Read wait + Write wait + active R1 work +
+unattributed time must equal that age, and TLS-handshake active work cannot
+exceed total R1 active work.
+
+Do not duplicate the existing deterministic memory-BIO coverage:
+`tls-nonblocking-handshake`, `credssp-tls-fragments`,
+`credssp-tls-coalesced`, `credssp-tls-reply-backpressure` and the
+Type-2 delivery-receipt tests already cover fast progression, fragmented and
+coalesced records, stale/no-input WANT, bounded backpressure and exact
+plaintext accounting. The independent Direct-NTLM Type-2 TSRequest oracle
+continues to validate complete outer DER framing separately from the
+production parser.
+
 ## R5 P0 client-evidence validation and pre-auth native isolation (2026-10-29)
 
 The macOS Windows App evidence fixture now validates the private schema-v2

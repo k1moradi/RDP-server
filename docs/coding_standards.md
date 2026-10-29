@@ -1,3 +1,26 @@
+## R1 pre-TLS transport attribution stays inside the existing owners (2026-10-29)
+
+The accepted-to-established-TLS diagnostic may be decomposed only by reusing
+R10's existing accepted-connection `std::chrono::steady_clock` and R1's sole
+native socket/BIO owner. R1 may expose cumulative received and sent byte
+scalars; R10 may latch first observed X.224/TLS byte progress and existing
+stage transitions. These are observation points, not packet timestamps or
+peer-receipt claims.
+
+Separate cumulative time spent inside the existing socket-readiness poll from
+time spent in the existing bounded R1 readiness callback. Preserve Read versus
+Write wait direction, and report the residual accepted-to-TLS time as
+unattributed scheduler/runtime time rather than guessing its cause. TLS
+handshake active work is a subset of R1 active work and may be identified only
+when the existing handshake-step counter advances.
+
+Do not add a socket reader, TLS record parser, timer thread, timeout, flush
+loop or repeated `SSL_do_handshake` spin. X.224 still drains before TLS;
+`SSL_ERROR_WANT_READ` / `SSL_ERROR_WANT_WRITE` remain authoritative.
+Cumulative send progress proves only that the local kernel accepted bytes.
+It cannot prove peer receipt or authorize TLS/CredSSP, Admission, MCS, Share,
+graphics, input or clipboard changes.
+
 ## R5 physical-client evidence is private; redacted summaries are typed (2026-10-29)
 
 Keep the owner-selected Windows App Core/UI files and exact client text in the

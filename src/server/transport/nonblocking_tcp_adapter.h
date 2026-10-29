@@ -133,9 +133,14 @@ public:
     {
         return receivedBytes_;
     }
+    [[nodiscard]] std::uint64_t sentBytes() const noexcept
+    {
+        return sentBytes_;
+    }
 private:
     std::uintptr_t socket_{};
     std::uint64_t receivedBytes_{};
+    std::uint64_t sentBytes_{};
 };
 
 struct TcpAcceptResult;
@@ -486,6 +491,13 @@ private:
      [[nodiscard]] std::uint64_t receivedTransportBytes() const noexcept
      {
          return io_.receivedBytes();
+     }
+     // Read-only cumulative native send count from the same sole R1 socket/BIO
+     // owner. It identifies local response progress only; it is not peer-receipt
+     // evidence and never grants protocol or authentication authority.
+     [[nodiscard]] std::uint64_t sentTransportBytes() const noexcept
+     {
+         return io_.sentBytes();
      }
      [[nodiscard]] std::uint64_t tlsAlertsReceived() const noexcept
      {

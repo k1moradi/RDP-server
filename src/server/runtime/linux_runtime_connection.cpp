@@ -40,6 +40,27 @@ namespace
     return elapsed > 0 ? static_cast<std::uint64_t>(elapsed) : 0U;
 }
 
+void addBoundedDiagnosticElapsed(
+    std::uint64_t &total,
+    std::chrono::steady_clock::time_point started,
+    std::chrono::steady_clock::time_point ended) noexcept
+{
+    const std::uint64_t increment = elapsedMicroseconds(started, ended);
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    total = increment > maximum - total
+        ? maximum
+        : total + increment;
+}
+
+[[nodiscard]] std::uint64_t saturatedDiagnosticSum(
+    std::uint64_t left, std::uint64_t right) noexcept
+{
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    return right > maximum - left ? maximum : left + right;
+}
+
 void addBoundedDiagnosticCount(
     std::uint64_t& total, std::size_t increment) noexcept
 {
@@ -808,6 +829,29 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         typeOneToTypeTwoQueuedAvailable_;
     snapshot.typeOneToTypeTwoQueuedMicroseconds =
         typeOneToTypeTwoQueuedMicroseconds_;
+    snapshot.preTlsTransportAttributionAvailable =
+        preTlsTransportAttributionAvailable_;
+    snapshot.acceptedToFirstClientTransportByteMicroseconds =
+        acceptedToFirstClientTransportByteMicroseconds_;
+    snapshot.firstClientTransportByteToX224CompleteMicroseconds =
+        firstClientTransportByteToX224CompleteMicroseconds_;
+    snapshot.x224CompleteToFirstServerTransportByteMicroseconds =
+        x224CompleteToFirstServerTransportByteMicroseconds_;
+    snapshot.firstServerTransportByteToX224ConfirmCompleteMicroseconds =
+        firstServerTransportByteToX224ConfirmCompleteMicroseconds_;
+    snapshot.x224ConfirmCompleteToFirstTlsClientByteMicroseconds =
+        x224ConfirmCompleteToFirstTlsClientByteMicroseconds_;
+    snapshot.firstTlsClientByteToFirstTlsServerByteMicroseconds =
+        firstTlsClientByteToFirstTlsServerByteMicroseconds_;
+    snapshot.firstTlsServerByteToTlsEstablishedMicroseconds =
+        firstTlsServerByteToTlsEstablishedMicroseconds_;
+    snapshot.preTlsReadWaitMicroseconds = preTlsReadWaitMicroseconds_;
+    snapshot.preTlsWriteWaitMicroseconds = preTlsWriteWaitMicroseconds_;
+    snapshot.preTlsActiveWorkMicroseconds = preTlsActiveWorkMicroseconds_;
+    snapshot.tlsHandshakeActiveWorkMicroseconds =
+        tlsHandshakeActiveWorkMicroseconds_;
+    snapshot.preTlsUnattributedMicroseconds =
+        preTlsUnattributedMicroseconds_;
     snapshot.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         directNtlmTypeTwoCreationToDeliveryAgeAvailable_;
     snapshot.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -884,6 +928,53 @@ void LinuxRuntimeConnection::captureEstablishedTlsDiagnostics() noexcept
         acceptedToTlsEstablishedMicroseconds_ =
             elapsedMicroseconds(preauthStartedAt_, *tlsEstablishedAt_);
         acceptedToTlsEstablishedAvailable_ = true;
+
+        if (firstClientTransportByteAt_.has_value() &&
+            x224RequestCompletedAt_.has_value() &&
+            firstX224ServerTransportByteAt_.has_value() &&
+            x224ConfirmDeliveredAt_.has_value() &&
+            firstTlsClientTransportByteAt_.has_value() &&
+            firstTlsServerTransportByteAt_.has_value())
+        {
+            acceptedToFirstClientTransportByteMicroseconds_ =
+                elapsedMicroseconds(
+                    preauthStartedAt_, *firstClientTransportByteAt_);
+            firstClientTransportByteToX224CompleteMicroseconds_ =
+                elapsedMicroseconds(
+                    *firstClientTransportByteAt_, *x224RequestCompletedAt_);
+            x224CompleteToFirstServerTransportByteMicroseconds_ =
+                elapsedMicroseconds(
+                    *x224RequestCompletedAt_,
+                    *firstX224ServerTransportByteAt_);
+            firstServerTransportByteToX224ConfirmCompleteMicroseconds_ =
+                elapsedMicroseconds(
+                    *firstX224ServerTransportByteAt_,
+                    *x224ConfirmDeliveredAt_);
+            x224ConfirmCompleteToFirstTlsClientByteMicroseconds_ =
+                elapsedMicroseconds(
+                    *x224ConfirmDeliveredAt_,
+                    *firstTlsClientTransportByteAt_);
+            firstTlsClientByteToFirstTlsServerByteMicroseconds_ =
+                elapsedMicroseconds(
+                    *firstTlsClientTransportByteAt_,
+                    *firstTlsServerTransportByteAt_);
+            firstTlsServerByteToTlsEstablishedMicroseconds_ =
+                elapsedMicroseconds(
+                    *firstTlsServerTransportByteAt_, *tlsEstablishedAt_);
+            const std::uint64_t waitMicroseconds =
+                saturatedDiagnosticSum(
+                    preTlsReadWaitMicroseconds_,
+                    preTlsWriteWaitMicroseconds_);
+            const std::uint64_t accountedMicroseconds =
+                saturatedDiagnosticSum(
+                    waitMicroseconds, preTlsActiveWorkMicroseconds_);
+            preTlsUnattributedMicroseconds_ =
+                acceptedToTlsEstablishedMicroseconds_ > accountedMicroseconds
+                    ? acceptedToTlsEstablishedMicroseconds_ -
+                          accountedMicroseconds
+                    : 0U;
+            preTlsTransportAttributionAvailable_ = true;
+        }
     }
     tlsEverEstablished_ = true;
     negotiatedTlsProtocolVersion_ = ::SSL_version(tls);
@@ -1133,8 +1224,21 @@ LinuxRuntimeConnection::pollSocketReadinessOnce(
     pollfd ready{};
     ready.fd = static_cast<int>(nativeSocket);
     ready.events = requested == Interest::Read ? POLLIN : POLLOUT;
+    const auto pollStartedAt = Clock::now();
     const int count =
         ::poll(&ready, static_cast<nfds_t>(1), static_cast<int>(wait.count()));
+    const auto pollCompletedAt = Clock::now();
+    if (!tlsEverEstablished_)
+    {
+        if (requested == Interest::Read)
+            addBoundedDiagnosticElapsed(
+                preTlsReadWaitMicroseconds_,
+                pollStartedAt, pollCompletedAt);
+        else if (requested == Interest::Write)
+            addBoundedDiagnosticElapsed(
+                preTlsWriteWaitMicroseconds_,
+                pollStartedAt, pollCompletedAt);
+    }
     if (count < 0)
     {
         if (errno == EINTR)
@@ -1234,7 +1338,59 @@ LinuxPreAdmissionStepResult LinuxRuntimeConnection::advancePreAdmission(
         // R1 owns pending X.224 reply bytes and TLS network records. Its
         // bounded readiness dispatcher knows whether an AwaitTls write is
         // still the X.224 Confirm or an OpenSSL WANT_WRITE.
+        const std::uint64_t receivedBefore =
+            connection_.receivedTransportBytes();
+        const std::uint64_t sentBefore =
+            connection_.sentTransportBytes();
+        const std::uint64_t handshakeStepBefore =
+            connection_.tlsHandshakeDiagnostics().step;
+        const bool tlsWirePhase =
+            stageBefore == Stage::AwaitTls &&
+            x224ConfirmDeliveredAt_.has_value();
+        const auto activeStartedAt = std::chrono::steady_clock::now();
         const auto next = connection_.onSocketReady(readable, writable);
+        const auto activeCompletedAt = std::chrono::steady_clock::now();
+        addBoundedDiagnosticElapsed(
+            preTlsActiveWorkMicroseconds_,
+            activeStartedAt, activeCompletedAt);
+
+        const std::uint64_t receivedAfter =
+            connection_.receivedTransportBytes();
+        const std::uint64_t sentAfter =
+            connection_.sentTransportBytes();
+        const std::uint64_t handshakeStepAfter =
+            connection_.tlsHandshakeDiagnostics().step;
+        if (tlsWirePhase && handshakeStepAfter != handshakeStepBefore)
+        {
+            addBoundedDiagnosticElapsed(
+                tlsHandshakeActiveWorkMicroseconds_,
+                activeStartedAt, activeCompletedAt);
+        }
+
+        if (!firstClientTransportByteAt_.has_value() &&
+            receivedAfter > receivedBefore)
+            firstClientTransportByteAt_ = activeCompletedAt;
+        if (stageBefore == Stage::AwaitConnectionRequest &&
+            connection_.stage() == Stage::AwaitTls &&
+            !x224RequestCompletedAt_.has_value())
+            x224RequestCompletedAt_ = activeCompletedAt;
+        if (stageBefore == Stage::AwaitTls &&
+            !x224ConfirmDeliveredAt_.has_value() &&
+            sentAfter > sentBefore &&
+            !firstX224ServerTransportByteAt_.has_value())
+            firstX224ServerTransportByteAt_ = activeCompletedAt;
+        if (tlsWirePhase &&
+            receivedAfter > receivedBefore &&
+            !firstTlsClientTransportByteAt_.has_value())
+            firstTlsClientTransportByteAt_ = activeCompletedAt;
+        if (tlsWirePhase &&
+            sentAfter > sentBefore &&
+            !firstTlsServerTransportByteAt_.has_value())
+            firstTlsServerTransportByteAt_ = activeCompletedAt;
+        if (next == Interest::ConfigureTls &&
+            !x224ConfirmDeliveredAt_.has_value())
+            x224ConfirmDeliveredAt_ = activeCompletedAt;
+
         if (!connection_.active() || next == Interest::Closed)
         {
             revoke();

@@ -1,3 +1,53 @@
+## R1 P0 — accepted-to-TLS transport attribution (2026-10-29)
+
+**Assignment-time main:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.
+**Reconciled publication parent:** `675cf908d0e67018157b309ee1585e703f9068a9`. Concurrent R3 MCS/GCC,
+R9 exact-SHA qualification, R8 clipboard and R5 client-evidence publications
+are preserved. Physical reference for this round: accepted -> TLS established
+**4,825,323 us**; TLS -> Direct-NTLM Type 1 **1,176,476 us**; Type-2 creation
+-> complete local TLS write **25,324 us**; Type-2 write -> client FIN
+**48,702 us**. The dominant unexplained interval is therefore before TLS, not
+in Type-2 output.
+
+**R1 audit:** the accepted socket remains one nonblocking owner. X.224 reads
+only the exact TPKT bytes still needed; its fixed 19-byte Confirm is drained
+before TLS configuration. The socket BIO has no internal plaintext/flush
+queue. One `SSL_do_handshake` runs per matching readiness callback, and
+`SSL_ERROR_WANT_READ` / `SSL_ERROR_WANT_WRITE` select the next poll
+direction. The Linux serialized owner polls at most 25 ms per step and drains
+already-decrypted application bytes before sleeping. Existing tests already
+cover fragmented/coalesced TLS records, stale readiness, partial application
+writes, real memory-BIO WANT_WRITE backpressure and exact Type-2 plaintext
+delivery. The independent production-Type-2 oracle separately decodes the
+complete outer TSRequest DER and rejects trailing bytes.
+
+**Attribution increment:** R1 now exposes a saturating cumulative native send
+count beside its existing receive count. R10's existing accepted-connection
+steady clock latches first client X.224 byte, complete X.224 request, first
+server X.224 byte, complete Confirm, first client TLS byte, first server TLS
+byte and established TLS. It also accumulates pre-TLS Read-poll wait,
+Write-poll wait, bounded R1 active work and the subset spent in an advancing
+TLS handshake step; the remainder is reported as unattributed runtime/scheduler
+time. No packet timestamp, second reader, record parser, timeout or authority is
+created.
+
+**Correction decision:** no server-induced stall or incomplete write is
+demonstrated by current source/tests, so this round makes **no TLS, certificate,
+timeout or wire-policy correction**. The new focused CTest
+`transport.tcp-owned-pre-tls-transport-byte-accounting` pins local byte
+accounting; the existing
+`runtime.linux-direct-ntlm-preauth-stage-timeline-lifecycle` now verifies the
+decomposition for cold and immediate repeated connections on one listener.
+
+**Validation:** connector source/policy audit **PASS**. Local canonical
+configure/build/full CTest **NOT RUN** because this environment cannot resolve
+GitHub for a checkout; exact publication-SHA hosted CI **PENDING**. Next owner
+receipt must compare the new stage fields. A dominant Read wait points to peer
+input timing; dominant Write wait points to local socket backpressure; dominant
+active work points to R1/OpenSSL CPU work; dominant unattributed time points to
+runtime servicing/scheduling. Do not infer cause before that exact-SHA physical
+receipt.
+
 ## R5 P0 — actionable Windows App evidence + pre-auth native isolation (2026-10-29)
 
 **Initial authoring base:** `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.

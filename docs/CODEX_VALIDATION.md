@@ -45,6 +45,23 @@
 
 # Validation evidence
 
+## R1 accepted-to-TLS transport attribution — 2026-10-29
+
+- Reconciled source parent: `675cf908d0e67018157b309ee1585e703f9068a9`; assignment-time main:
+  `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.
+- Required policy/vision/roadmap/coding/testing/compile/benchmark context:
+  re-read from current `main` after concurrent publication.
+- R1 socket/X.224/HYBRID/TLS/BIO and R10 serialized pre-auth service audit:
+  **PASS by source inspection**.
+- Existing independent Type-2 outer-TSRequest DER oracle and exact
+  partial-write/backpressure tests: **PASS by source inspection**.
+- Local canonical configure/build/full CTest: **NOT RUN** — this connector
+  environment cannot resolve GitHub to create the approved checkout.
+- Exact publication-SHA hosted CI: **PENDING**.
+- Physical Windows App attribution with the new fields: **NOT RUN**.
+- Production TLS security level, timeout policy and certificate verification:
+  **UNCHANGED**.
+
 ## R9 exact-SHA qualification ledger — 2026-10-29
 
 Source SHA under review: `d9b255bef6ae54952b50ffbca24f4b17ce969d72`.

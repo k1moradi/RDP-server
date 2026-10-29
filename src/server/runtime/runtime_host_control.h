@@ -940,6 +940,19 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t tlsEstablishedToTypeOneMicroseconds{};
     bool typeOneToTypeTwoQueuedAvailable{};
     std::uint64_t typeOneToTypeTwoQueuedMicroseconds{};
+    bool preTlsTransportAttributionAvailable{};
+    std::uint64_t acceptedToFirstClientTransportByteMicroseconds{};
+    std::uint64_t firstClientTransportByteToX224CompleteMicroseconds{};
+    std::uint64_t x224CompleteToFirstServerTransportByteMicroseconds{};
+    std::uint64_t firstServerTransportByteToX224ConfirmCompleteMicroseconds{};
+    std::uint64_t x224ConfirmCompleteToFirstTlsClientByteMicroseconds{};
+    std::uint64_t firstTlsClientByteToFirstTlsServerByteMicroseconds{};
+    std::uint64_t firstTlsServerByteToTlsEstablishedMicroseconds{};
+    std::uint64_t preTlsReadWaitMicroseconds{};
+    std::uint64_t preTlsWriteWaitMicroseconds{};
+    std::uint64_t preTlsActiveWorkMicroseconds{};
+    std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
+    std::uint64_t preTlsUnattributedMicroseconds{};
 };
 
 struct RuntimeHostPermissionRequest final

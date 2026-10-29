@@ -884,6 +884,32 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         source.typeOneToTypeTwoQueuedAvailable;
     projected.typeOneToTypeTwoQueuedMicroseconds =
         source.typeOneToTypeTwoQueuedMicroseconds;
+    projected.preTlsTransportAttributionAvailable =
+        source.preTlsTransportAttributionAvailable;
+    projected.acceptedToFirstClientTransportByteMicroseconds =
+        source.acceptedToFirstClientTransportByteMicroseconds;
+    projected.firstClientTransportByteToX224CompleteMicroseconds =
+        source.firstClientTransportByteToX224CompleteMicroseconds;
+    projected.x224CompleteToFirstServerTransportByteMicroseconds =
+        source.x224CompleteToFirstServerTransportByteMicroseconds;
+    projected.firstServerTransportByteToX224ConfirmCompleteMicroseconds =
+        source.firstServerTransportByteToX224ConfirmCompleteMicroseconds;
+    projected.x224ConfirmCompleteToFirstTlsClientByteMicroseconds =
+        source.x224ConfirmCompleteToFirstTlsClientByteMicroseconds;
+    projected.firstTlsClientByteToFirstTlsServerByteMicroseconds =
+        source.firstTlsClientByteToFirstTlsServerByteMicroseconds;
+    projected.firstTlsServerByteToTlsEstablishedMicroseconds =
+        source.firstTlsServerByteToTlsEstablishedMicroseconds;
+    projected.preTlsReadWaitMicroseconds =
+        source.preTlsReadWaitMicroseconds;
+    projected.preTlsWriteWaitMicroseconds =
+        source.preTlsWriteWaitMicroseconds;
+    projected.preTlsActiveWorkMicroseconds =
+        source.preTlsActiveWorkMicroseconds;
+    projected.tlsHandshakeActiveWorkMicroseconds =
+        source.tlsHandshakeActiveWorkMicroseconds;
+    projected.preTlsUnattributedMicroseconds =
+        source.preTlsUnattributedMicroseconds;
     projected.directNtlmTypeTwoCreationToDeliveryAgeAvailable =
         source.directNtlmTypeTwoCreationToDeliveryAgeAvailable;
     projected.directNtlmTypeTwoCreationToDeliveryMicroseconds =
@@ -2931,6 +2957,17 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "direct-ntlm-type2=%s direct-ntlm-type2-tls=%s "
                 "accepted-to-tls-established-us=%llu "
                 "accepted-to-tls-established-available=%s "
+                "pre-tls-attribution=%s "
+                "accepted-to-first-client-byte-us=%llu "
+                "first-client-byte-to-x224-complete-us=%llu "
+                "x224-complete-to-first-server-byte-us=%llu "
+                "first-server-byte-to-x224-confirm-complete-us=%llu "
+                "x224-confirm-complete-to-first-tls-client-byte-us=%llu "
+                "first-tls-client-byte-to-first-tls-server-byte-us=%llu "
+                "first-tls-server-byte-to-established-us=%llu "
+                "pre-tls-read-wait-us=%llu pre-tls-write-wait-us=%llu "
+                "pre-tls-active-work-us=%llu tls-handshake-active-work-us=%llu "
+                "pre-tls-unattributed-us=%llu "
                 "tls-established-to-type1-us=%llu "
                 "tls-established-to-type1-available=%s "
                 "type1-to-type2-queued-us=%llu "
@@ -2999,6 +3036,44 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                         .acceptedToTlsEstablishedMicroseconds),
                 acceptedClientPreauthDiagnostics_.acceptedToTlsEstablishedAvailable
                     ? "yes" : "no",
+                acceptedClientPreauthDiagnostics_.preTlsTransportAttributionAvailable
+                    ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .acceptedToFirstClientTransportByteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .firstClientTransportByteToX224CompleteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .x224CompleteToFirstServerTransportByteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .firstServerTransportByteToX224ConfirmCompleteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .x224ConfirmCompleteToFirstTlsClientByteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .firstTlsClientByteToFirstTlsServerByteMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .firstTlsServerByteToTlsEstablishedMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsReadWaitMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsWriteWaitMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsActiveWorkMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .tlsHandshakeActiveWorkMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedClientPreauthDiagnostics_
+                        .preTlsUnattributedMicroseconds),
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .tlsEstablishedToTypeOneMicroseconds),

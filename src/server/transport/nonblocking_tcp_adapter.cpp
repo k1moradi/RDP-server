@@ -127,6 +127,18 @@ namespace
 #endif
 }
 
+void addTransportByteCount(
+    std::uint64_t &total, std::size_t increment) noexcept
+{
+    const std::uint64_t increment64 =
+        static_cast<std::uint64_t>(increment);
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    total = increment64 > maximum - total
+        ? maximum
+        : total + increment64;
+}
+
 [[nodiscard]] bool nativePeerResetObserved() noexcept
 {
 #ifdef _WIN32
@@ -1250,13 +1262,7 @@ TcpIoResult NativeTcpIo::receive(std::span<std::uint8_t> destination) noexcept
         return {TcpIoOutcome::EndOfStream, 0};
 
     const auto received = static_cast<std::size_t>(result);
-    const std::uint64_t received64 = static_cast<std::uint64_t>(received);
-    const std::uint64_t maximum =
-        (std::numeric_limits<std::uint64_t>::max)();
-    receivedBytes_ =
-        received64 > maximum - receivedBytes_
-            ? maximum
-            : receivedBytes_ + received64;
+    addTransportByteCount(receivedBytes_, received);
     return {TcpIoOutcome::Progress, received};
 }
 
@@ -1283,9 +1289,11 @@ TcpIoResult NativeTcpIo::send(std::span<const std::uint8_t> source) noexcept
                                requested, flags);
     if (result < 0) return nativeFailure();
 #endif
-    return result == 0 ? TcpIoResult{TcpIoOutcome::WouldBlock, 0}
-                       : TcpIoResult{TcpIoOutcome::Progress,
-                                     static_cast<std::size_t>(result)};
+    if (result == 0)
+        return {TcpIoOutcome::WouldBlock, 0};
+    const auto sent = static_cast<std::size_t>(result);
+    addTransportByteCount(sentBytes_, sent);
+    return {TcpIoOutcome::Progress, sent};
 }
 
 TcpPreauthEvent PreauthTcpAdapter::idleStatus() const noexcept

@@ -1560,6 +1560,16 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("${functional_transport_test_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+        # R1 pre-TLS byte accounting is a focused diagnostic regression.
+        # Keep it outside R9's fixed-count generic transport sanitizer
+        # inventory until that lane explicitly enrolls this behavior.
+        add_test(NAME transport.tcp-owned-pre-tls-transport-byte-accounting
+            COMMAND "${test_target}" "tcp-owned-pre-tls-transport-byte-accounting")
+        set_tests_properties(
+            transport.tcp-owned-pre-tls-transport-byte-accounting
+            PROPERTIES LABELS "transport;tls;security;diagnostics;offline"
+                       TIMEOUT 20)
+
         # Dedicated real TLS reader→writer interleaving regression; keep
         # outside R9's fixed-count generic transport sanitizer inventory.
         add_test(NAME transport.tcp-owned-tls-read-want-interleaved-frame-write

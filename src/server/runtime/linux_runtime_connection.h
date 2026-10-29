@@ -563,6 +563,23 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     std::uint64_t tlsEstablishedToTypeOneMicroseconds{};
     bool typeOneToTypeTwoQueuedAvailable{};
     std::uint64_t typeOneToTypeTwoQueuedMicroseconds{};
+
+    // One-clock R1/R10 attribution of the accepted -> established-TLS span.
+    // Stage timestamps are first observations by the existing owner, not
+    // packet timestamps. Zero-valued intervals are valid when available.
+    bool preTlsTransportAttributionAvailable{};
+    std::uint64_t acceptedToFirstClientTransportByteMicroseconds{};
+    std::uint64_t firstClientTransportByteToX224CompleteMicroseconds{};
+    std::uint64_t x224CompleteToFirstServerTransportByteMicroseconds{};
+    std::uint64_t firstServerTransportByteToX224ConfirmCompleteMicroseconds{};
+    std::uint64_t x224ConfirmCompleteToFirstTlsClientByteMicroseconds{};
+    std::uint64_t firstTlsClientByteToFirstTlsServerByteMicroseconds{};
+    std::uint64_t firstTlsServerByteToTlsEstablishedMicroseconds{};
+    std::uint64_t preTlsReadWaitMicroseconds{};
+    std::uint64_t preTlsWriteWaitMicroseconds{};
+    std::uint64_t preTlsActiveWorkMicroseconds{};
+    std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
+    std::uint64_t preTlsUnattributedMicroseconds{};
 };
 
 namespace detail
@@ -1282,6 +1299,35 @@ private:
     std::uint64_t tlsEstablishedToTypeOneMicroseconds_{};
     bool typeOneToTypeTwoQueuedAvailable_{};
     std::uint64_t typeOneToTypeTwoQueuedMicroseconds_{};
+
+    // These timestamps extend the existing accepted-connection steady-clock
+    // timeline. They consume only R1 cumulative byte counts and stage changes.
+    std::optional<std::chrono::steady_clock::time_point>
+        firstClientTransportByteAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        x224RequestCompletedAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        firstX224ServerTransportByteAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        x224ConfirmDeliveredAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        firstTlsClientTransportByteAt_{};
+    std::optional<std::chrono::steady_clock::time_point>
+        firstTlsServerTransportByteAt_{};
+    bool preTlsTransportAttributionAvailable_{};
+    std::uint64_t acceptedToFirstClientTransportByteMicroseconds_{};
+    std::uint64_t firstClientTransportByteToX224CompleteMicroseconds_{};
+    std::uint64_t x224CompleteToFirstServerTransportByteMicroseconds_{};
+    std::uint64_t firstServerTransportByteToX224ConfirmCompleteMicroseconds_{};
+    std::uint64_t x224ConfirmCompleteToFirstTlsClientByteMicroseconds_{};
+    std::uint64_t firstTlsClientByteToFirstTlsServerByteMicroseconds_{};
+    std::uint64_t firstTlsServerByteToTlsEstablishedMicroseconds_{};
+    std::uint64_t preTlsReadWaitMicroseconds_{};
+    std::uint64_t preTlsWriteWaitMicroseconds_{};
+    std::uint64_t preTlsActiveWorkMicroseconds_{};
+    std::uint64_t tlsHandshakeActiveWorkMicroseconds_{};
+    std::uint64_t preTlsUnattributedMicroseconds_{};
+
     rdp_server::server::security::GssapiSpnegoAcceptor acceptor_{};
     rdp_server::server::security::StandaloneCredSspNtlmAcceptor
         standaloneCredSspAcceptor_{};

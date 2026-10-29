@@ -6056,6 +6056,102 @@ void testOwnedTcpPendingReplyInterestPriority()
     }
 }
 
+void testOwnedPreTlsTransportByteAccounting()
+{
+    using Interest = TcpConnectionIoInterest;
+
+    LoopbackSocketPair pair{false};
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    OwnedPreauthTcpConnection owner{
+        std::move(accepted.connection),
+        SecurityNegotiationPolicy::HybridNla};
+    NativeTcpIo clientIo{
+        static_cast<std::uintptr_t>(pair.client.value)};
+
+    assert(owner.receivedTransportBytes() == 0U);
+    assert(owner.sentTransportBytes() == 0U);
+
+    const auto request = tlsAndHybridRequestWire();
+    nativeSendAll(clientIo, std::span(request).first(3U));
+    assert(owner.onSocketReady(true, false) == Interest::Read);
+    assert(owner.receivedTransportBytes() == 3U);
+    assert(owner.sentTransportBytes() == 0U);
+
+    nativeSendAll(clientIo, std::span(request).subspan(3U));
+    assert(owner.onSocketReady(true, false) == Interest::Write);
+    assert(owner.receivedTransportBytes() == request.size());
+    assert(owner.sentTransportBytes() == 0U);
+
+    assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
+    assert(owner.receivedTransportBytes() == request.size());
+    assert(owner.sentTransportBytes() == 19U);
+
+    TlsHandshakeFixture tls{false, false};
+    OwnedPreauthTcpConnection::ServerTls server{
+        tls.server.release(), SSL_free};
+    assert(owner.attachServerTls(std::move(server)));
+    assert(attachNonblockingTcpBio(tls.client.get(), clientIo));
+
+    // Stale readable readiness before ClientHello performs one bounded
+    // provider step but cannot manufacture transport progress.
+    assert(owner.onTlsIoReady() == TlsHandshakeStatus::NeedRead);
+    assert(owner.receivedTransportBytes() == request.size());
+    assert(owner.sentTransportBytes() == 19U);
+
+    bool clientEstablished = false;
+    bool serverEstablished = false;
+    bool observedTlsClientBytes = false;
+    bool observedTlsServerBytes = false;
+    for (std::size_t attempt = 0U;
+         attempt < 256U && (!clientEstablished || !serverEstablished);
+         ++attempt)
+    {
+        if (!clientEstablished)
+        {
+            const int result = SSL_do_handshake(tls.client.get());
+            if (result == 1)
+                clientEstablished = true;
+            else
+            {
+                const int error = SSL_get_error(tls.client.get(), result);
+                assert(error == SSL_ERROR_WANT_READ ||
+                       error == SSL_ERROR_WANT_WRITE);
+            }
+        }
+
+        if (!serverEstablished)
+        {
+            const std::uint64_t receivedBefore =
+                owner.receivedTransportBytes();
+            const std::uint64_t sentBefore =
+                owner.sentTransportBytes();
+            const auto status = owner.onTlsIoReady();
+            observedTlsClientBytes =
+                observedTlsClientBytes ||
+                owner.receivedTransportBytes() > receivedBefore;
+            observedTlsServerBytes =
+                observedTlsServerBytes ||
+                owner.sentTransportBytes() > sentBefore;
+            assert(status == TlsHandshakeStatus::NeedRead ||
+                   status == TlsHandshakeStatus::NeedWrite ||
+                   status == TlsHandshakeStatus::Established);
+            serverEstablished =
+                status == TlsHandshakeStatus::Established;
+        }
+    }
+
+    assert(clientEstablished);
+    assert(serverEstablished);
+    assert(observedTlsClientBytes);
+    assert(observedTlsServerBytes);
+    assert(owner.receivedTransportBytes() > request.size());
+    assert(owner.sentTransportBytes() > 19U);
+    assert(owner.stage() == PreauthStage::AwaitCredSsp);
+    owner.cancel();
+}
+
 void testOwnedTcpDeadlineCancellation()
 {
     using Interest = TcpConnectionIoInterest;
@@ -11733,6 +11829,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"tcp-owned-connection-cancellation", &testOwnedTcpConnectionCancellation},
     {"tcp-owned-readiness-dispatch", &testOwnedTcpReadinessDispatch},
     {"tcp-owned-reply-interest-priority", &testOwnedTcpPendingReplyInterestPriority},
+    {"tcp-owned-pre-tls-transport-byte-accounting",
+     &testOwnedPreTlsTransportByteAccounting},
     {"tcp-owned-deadline-cancellation", &testOwnedTcpDeadlineCancellation},
     {"tcp-owned-bounded-poll-loopback-tls", &testOwnedTcpBoundedPollLoopbackTls},
     {"tcp-owned-bounded-poll-timeout-eof", &testOwnedTcpBoundedPollTimeoutAndDisconnect},

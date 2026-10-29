@@ -1,3 +1,15 @@
+## R1 pre-TLS transport attribution adds no build surface (2026-10-29)
+
+The timing audit extends the existing R1 native TCP/BIO owner, Linux runtime
+diagnostic projection and existing test executables only. It adds no library,
+dependency, compile definition, TLS provider, service, package, install/export
+surface or build root. The focused transport CTest and the existing Linux
+stage-timeline CTest continue to use the canonical checkout-local `build/`.
+
+Connector-backed source review: PASS. A network checkout is unavailable in
+this execution environment, so local configure/build/CTest is NOT RUN;
+publication-SHA hosted CI is the required executable verification.
+
 ## R5 evidence validation and pre-auth isolation add no production dependency (2026-10-29)
 
 The expanded macOS evidence collector/validator remains Python standard-library

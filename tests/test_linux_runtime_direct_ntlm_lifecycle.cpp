@@ -1503,6 +1503,7 @@ void assertConnectionLocalStageTimeline(
     bool peerEofObserved)
 {
     assert(diagnostics.acceptedToTlsEstablishedAvailable);
+    assert(diagnostics.preTlsTransportAttributionAvailable);
     assert(diagnostics.tlsEstablishedToTypeOneAvailable);
     assert(diagnostics.typeOneToTypeTwoQueuedAvailable);
     assert(diagnostics.directNtlmTypeTwoCreationToDeliveryAgeAvailable);
@@ -1514,7 +1515,27 @@ void assertConnectionLocalStageTimeline(
     }
     assert(diagnostics.preauthElapsedAtPeerEofAvailable);
     assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
-    // The fixture is time-bounded; the sum cannot overflow uint64_t.
+    // The fixture is time-bounded; these sums cannot overflow uint64_t.
+    const std::uint64_t preTlsStageMicroseconds =
+        diagnostics.acceptedToFirstClientTransportByteMicroseconds +
+        diagnostics.firstClientTransportByteToX224CompleteMicroseconds +
+        diagnostics.x224CompleteToFirstServerTransportByteMicroseconds +
+        diagnostics.firstServerTransportByteToX224ConfirmCompleteMicroseconds +
+        diagnostics.x224ConfirmCompleteToFirstTlsClientByteMicroseconds +
+        diagnostics.firstTlsClientByteToFirstTlsServerByteMicroseconds +
+        diagnostics.firstTlsServerByteToTlsEstablishedMicroseconds;
+    assert(diagnostics.acceptedToTlsEstablishedMicroseconds >=
+           preTlsStageMicroseconds);
+    assert(diagnostics.tlsHandshakeActiveWorkMicroseconds <=
+           diagnostics.preTlsActiveWorkMicroseconds);
+    const std::uint64_t preTlsWorkMicroseconds =
+        diagnostics.preTlsReadWaitMicroseconds +
+        diagnostics.preTlsWriteWaitMicroseconds +
+        diagnostics.preTlsActiveWorkMicroseconds +
+        diagnostics.preTlsUnattributedMicroseconds;
+    assert(diagnostics.acceptedToTlsEstablishedMicroseconds ==
+           preTlsWorkMicroseconds);
+
     const std::uint64_t consecutiveStageMicroseconds =
         diagnostics.acceptedToTlsEstablishedMicroseconds +
         diagnostics.tlsEstablishedToTypeOneMicroseconds +

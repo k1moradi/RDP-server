@@ -1,3 +1,33 @@
+## R10 P0 pre-auth no-starvation service correction — 2026-10-29
+
+- Authoring parent: 1942cb4ecf08056c6d636a57acfcd6ae40be4773; concurrent work preserved.
+- Source audit demonstrated fixed-25-ms pacing of immediate work and blocking
+  pre-auth GUI/service native probes on the same Qt owner thread.
+- Correction keeps one owner: finite eight-call immediate burst, zero-delay
+  yield/reschedule, 25 ms only for no-event wait, accept-before-native ordering,
+  no full native probe in Accepted-to-TLS/TLS-to-Type-1, Await-Type-3 owner-loss
+  maintenance after no-event plus R1 re-poll, and non-probing PreAdmission status.
+- R10 timing buckets add app-reschedule wait, peer-wait upper bound, service work,
+  native-maintenance work, call count and max gap. They compose with R1's newly
+  published socket-poll and Read/Write ready-to-service dwell fields.
+- Production-backed no-starvation CTest injects a 75 ms application gap and a
+  deliberately slow owner-evidence source, requires zero native reads through
+  Type 1, and reaches unchanged Type 2 with no MCS/Share/native authority.
+- Sanitizer selection also executes interleaved TLS WANT_READ/WANT_WRITE and
+  the production-peer partial TLS-record case; existing timeout/silence and
+  partial-write/backpressure cases remain the stalled-peer/cancellation gates.
+- Integrated evidence: physical Accepted-to-TLS 4,825,323 us and TLS-to-Type-1
+  1,176,476 us are anomalous early spans; Type-1-to-Type-2 queue is about 4 us.
+  R2 Microsoft exact-SHA consumes unchanged Type 2 and emits Type 3, with
+  required-AV negative controls rejected. R6 independently reaches Type 3 on
+  TLS 1.3 / TLS_AES_256_GCM_SHA384. Physical Windows App's roughly 48,702 us
+  Type-2-to-FIN/no-Type-3 boundary remains separate and client-specific.
+- TLS/certificate/NTLM/CredSSP bytes, 30 s timeout, owner-consent/native
+  Admission and CredentialsVerified-to-MCS authority are unchanged.
+- Canonical owner one-build configure/build/full CTest: NOT RUN here.
+  Exact publication-SHA hosted CI/sanitizers: PENDING. No live client, desktop
+  or system mutation was performed.
+
 ## R9 GUI parity legacy-branch stale assertion — 2026-10-29
 
 - Exact source SHA: `88b9aedbfa3202110fde4a24daee5d3f1c7f08e3`.

@@ -1239,6 +1239,12 @@ jobs:
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-type2-peer-eof-pre-admission-diagnostics
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-preauth-service-no-starvation
+          build/tests/test_owned_preauth_session \
+            tcp-owned-tls-read-want-interleaved-frame-write
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-post-type2-partial-tls-record
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             connection-target-identity-retained-across-peer-retry
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             admission-denial-exposes-bounded-reason-and-retries

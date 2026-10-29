@@ -791,6 +791,18 @@ public:
         ++sessionGeneration_;
     }
 
+    void setActiveConsoleReadDelay(
+        std::chrono::milliseconds delay) noexcept
+    {
+        activeConsoleReadDelay_ =
+            (std::max)(delay, std::chrono::milliseconds{0});
+    }
+
+    [[nodiscard]] std::uint64_t activeConsoleReadCount() const noexcept
+    {
+        return activeConsoleReadCount_;
+    }
+
     ConsoleAccountObservation readUnixAccount(
         std::string_view account) noexcept override
     {
@@ -801,6 +813,9 @@ public:
 
     ConsoleSessionObservation readActiveConsole() noexcept override
     {
+        ++activeConsoleReadCount_;
+        if (activeConsoleReadDelay_.count() > 0)
+            std::this_thread::sleep_for(activeConsoleReadDelay_);
         if (!valid() || !sessionAvailable_)
             return {};
         const std::string_view sessionId = switchedSession_
@@ -835,6 +850,8 @@ private:
     ConsoleDesktopLockState lockState_{ConsoleDesktopLockState::Unlocked};
     bool sessionAvailable_{true};
     bool switchedSession_{};
+    std::chrono::milliseconds activeConsoleReadDelay_{};
+    std::uint64_t activeConsoleReadCount_{};
 };
 
 struct PeerResult final
@@ -1597,6 +1614,8 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-preauth-stage-timeline-lifecycle" ||
         testCase ==
             "direct-ntlm-preauth-zero-timeout-readiness-attribution";
+    const bool serviceNoStarvationOnly =
+        testCase == "direct-ntlm-preauth-service-no-starvation";
     const bool typeTwoTimingDiagnosticsOnly =
         testCase == "direct-ntlm-type2-peer-eof-timing-diagnostics" ||
         stageTimelineDiagnosticsOnly;
@@ -1643,7 +1662,7 @@ int main(int argc, char** argv)
         testCase ==
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
-        !typeTwoTimingDiagnosticsOnly &&
+        !typeTwoTimingDiagnosticsOnly && !serviceNoStarvationOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
         !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
         !invalidCredentialDiagnosticOnly &&
@@ -1726,6 +1745,119 @@ int main(int argc, char** argv)
     assertFixedConnectionTargetIdentity(
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
+
+    if (serviceNoStarvationOnly)
+    {
+        std::atomic<bool> typeTwoReceived{false};
+        std::atomic<bool> releasePeer{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                typeTwoReceived, releasePeer);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        RuntimeHostResult acceptedResult{RuntimeHostError::None, true};
+        const auto acceptDeadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{8};
+        while (std::chrono::steady_clock::now() < acceptDeadline)
+        {
+            acceptedResult = control.serviceOnce();
+            if (!control.status().activeClients.empty())
+                break;
+            if (peerFinished.load(std::memory_order_acquire))
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        assert(acceptedResult.succeeded());
+        assert(!acceptedResult.retryable);
+        assert(!control.status().activeClients.empty());
+
+        const std::uint64_t ownerReadsBeforePreauth =
+            evidence.activeConsoleReadCount();
+        evidence.setActiveConsoleReadDelay(std::chrono::milliseconds{250});
+        (void)control.status();
+        assert(evidence.activeConsoleReadCount() == ownerReadsBeforePreauth);
+        std::this_thread::sleep_for(std::chrono::milliseconds{75});
+
+        RuntimeHostStatus stageStatus = control.status();
+        const auto typeOneDeadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{8};
+        while (!stageStatus.acceptedClientPreauthDiagnostics
+                    .tlsEstablishedToTypeOneAvailable &&
+               !peerFinished.load(std::memory_order_acquire) &&
+               std::chrono::steady_clock::now() < typeOneDeadline)
+        {
+            const auto burst = serviceLinuxRuntimeBoundedBurst(
+                [&control] { return control.serviceOnce(); });
+            assert(burst.serviceCalls > 0U);
+            assert(burst.serviceCalls <= kLinuxRuntimeServiceBurstLimit);
+            assert(burst.lastResult.succeeded());
+            stageStatus = control.status();
+            assert(evidence.activeConsoleReadCount() == ownerReadsBeforePreauth);
+            if (!burst.immediateReschedule)
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        assert(stageStatus.acceptedClientPreauthDiagnostics
+                   .tlsEstablishedToTypeOneAvailable);
+        evidence.setActiveConsoleReadDelay(std::chrono::milliseconds{0});
+
+        const auto typeTwoDeadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{8};
+        while (!typeTwoReceived.load(std::memory_order_acquire) &&
+               !peerFinished.load(std::memory_order_acquire) &&
+               std::chrono::steady_clock::now() < typeTwoDeadline)
+        {
+            const auto burst = serviceLinuxRuntimeBoundedBurst(
+                [&control] { return control.serviceOnce(); });
+            assert(burst.serviceCalls > 0U);
+            assert(burst.serviceCalls <= kLinuxRuntimeServiceBurstLimit);
+            assert(burst.lastResult.succeeded());
+            if (!burst.immediateReschedule)
+                std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        assert(typeTwoReceived.load(std::memory_order_acquire));
+
+        const auto waiting = control.status();
+        assertPreAdmissionNativeIsolation(waiting);
+        const auto& diagnostics = waiting.acceptedClientPreauthDiagnostics;
+        assert(diagnostics.acceptedToTlsServiceTiming.available);
+        assert(diagnostics.tlsEstablishedToTypeOneServiceTiming.available);
+        assert(diagnostics.acceptedToTlsServiceTiming.serviceInvocations > 0U);
+        assert(diagnostics.tlsEstablishedToTypeOneServiceTiming
+                   .serviceInvocations > 0U);
+        assert(diagnostics.acceptedToTlsServiceTiming
+                   .nativeMaintenanceMicroseconds == 0U);
+        assert(diagnostics.tlsEstablishedToTypeOneServiceTiming
+                   .nativeMaintenanceMicroseconds == 0U);
+        constexpr std::uint64_t kMinimumInjectedGapMicroseconds{50'000U};
+        assert(diagnostics.acceptedToTlsServiceTiming
+                   .applicationRescheduleWaitMicroseconds >=
+               kMinimumInjectedGapMicroseconds);
+        assert(diagnostics.acceptedToTlsServiceTiming
+                   .maximumApplicationRescheduleWaitMicroseconds >=
+               kMinimumInjectedGapMicroseconds);
+
+        releasePeer.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        peer.join();
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+
+        const auto retired = control.status();
+        assert(retired.listenerAvailable);
+        assert(retired.activeClients.empty());
+        assert(!retired.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!retired.acceptedClientPreauthDiagnostics.shareActivated);
+        assertClipboardDormant(retired);
+        assertGraphicsDormant(retired);
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     if (preauthOwnerIsolationOnly)
     {

@@ -72,6 +72,27 @@ namespace
 inline constexpr std::uint64_t kWindowsFileTimeUnixEpochOffset{
     116444736000000000ULL};
 
+void addBoundedDiagnosticValue(
+    std::uint64_t& destination, std::uint64_t value) noexcept
+{
+    const std::uint64_t maximum =
+        (std::numeric_limits<std::uint64_t>::max)();
+    destination =
+        value > maximum - destination ? maximum : destination + value;
+}
+
+[[nodiscard]] std::uint64_t elapsedDiagnosticMicroseconds(
+    std::chrono::steady_clock::time_point begin,
+    std::chrono::steady_clock::time_point end) noexcept
+{
+    if (end <= begin)
+        return 0U;
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(end - begin)
+            .count();
+    return elapsed > 0 ? static_cast<std::uint64_t>(elapsed) : 0U;
+}
+
 [[nodiscard]] bool validateStandaloneCredentialVisit(
     const rdp_server::server::security::EphemeralNtlmV2Credential& credential,
     void* rawContext) noexcept
@@ -1874,8 +1895,16 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         return snapshot;
     snapshot.stage = stage_;
     snapshot.lastError = lastError_;
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    const bool preAdmissionTransportActive =
+        acceptedClient_ != nullptr &&
+        acceptedClientPhase_ == AcceptedClientPhase::PreAdmission;
+#else
+    constexpr bool preAdmissionTransportActive = false;
+#endif
     const bool listenerCurrent =
-        listener_.valid() && listener_.interfaceStillMatches();
+        listener_.valid() &&
+        (preAdmissionTransportActive || listener_.interfaceStillMatches());
     snapshot.listenerAvailable = listenerCurrent;
     snapshot.listenerGeneration =
         listenerCurrent ? listener_.generation() : 0U;
@@ -1884,9 +1913,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
             endpointText(selection_.localAddress, selection_.port);
     if (listenerCurrent)
         snapshot.boundEndpoint = boundEndpointText(listener_.boundEndpoint());
-    // Status observes the same R2 owner used by admission. The grant snapshot
-    // is intentionally descriptive; only the fresh authorizes() check below
-    // can report current protected-operation authority.
+    // Live PreAdmission status is projection-only. Fresh native evidence stays
+    // in the serialized service/admission path, never the GUI refresh path.
     const auto ownerGrant = ownerSharingAuthority_.grantObservation();
     using rdp_server::server::security::OwnerSharingGrantExpiryState;
     switch (ownerGrant.expiryState)
@@ -1904,19 +1932,47 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     case OwnerSharingGrantExpiryState::Unavailable:
         break;
     }
-    snapshot.hostOwnerAuthorized =
-        ownerSharingAuthority_.authorizes(
-            rdp_server::server::security::kConsoleViewPermission);
-    const auto ownerPermission =
-        ownerSharingAuthority_.permissionObservation();
-    const auto currentDesktop =
-        rdp_server::server::security::selectCurrentPhysicalX11Desktop(
-            *ownerEvidenceSource_);
-    snapshot.product.nativeDesktopTargetAvailable =
-        currentDesktop.eligible();
-    if (currentDesktop.eligible())
-        snapshot.product.nativeDesktopTarget =
-            std::string(currentDesktop.display());
+    rdp_server::server::security::OwnerSharingPermissionObservation
+        ownerPermission{};
+    if (preAdmissionTransportActive)
+    {
+        const bool activeViewGrant =
+            ownerGrant.expiryState == OwnerSharingGrantExpiryState::Active &&
+            (ownerGrant.effectivePermissionMask &
+             rdp_server::server::security::kConsoleViewPermission) != 0U;
+        snapshot.hostOwnerAuthorized = activeViewGrant;
+        ownerPermission.activeGrant = activeViewGrant;
+        ownerPermission.effectivePermissionMask =
+            activeViewGrant ? ownerGrant.effectivePermissionMask : 0U;
+        ownerPermission.remainingMilliseconds =
+            activeViewGrant ? ownerGrant.remainingMilliseconds : 0U;
+        if (activeViewGrant)
+            ownerPermission.denial =
+                rdp_server::server::security::OwnerSharingReadOnlyDenial::None;
+        else if (ownerGrant.expiryState == OwnerSharingGrantExpiryState::Expired)
+            ownerPermission.denial =
+                rdp_server::server::security::
+                    OwnerSharingReadOnlyDenial::PermissionExpired;
+        else
+            ownerPermission.denial =
+                rdp_server::server::security::
+                    OwnerSharingReadOnlyDenial::EvidenceUnavailable;
+    }
+    else
+    {
+        snapshot.hostOwnerAuthorized =
+            ownerSharingAuthority_.authorizes(
+                rdp_server::server::security::kConsoleViewPermission);
+        ownerPermission = ownerSharingAuthority_.permissionObservation();
+        const auto currentDesktop =
+            rdp_server::server::security::selectCurrentPhysicalX11Desktop(
+                *ownerEvidenceSource_);
+        snapshot.product.nativeDesktopTargetAvailable =
+            currentDesktop.eligible();
+        if (currentDesktop.eligible())
+            snapshot.product.nativeDesktopTarget =
+                std::string(currentDesktop.display());
+    }
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     snapshot.credentialsConfigured = selectedCredentialConfigured();
     if (listenerCurrent &&
@@ -1933,6 +1989,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
                 acceptedClient_->acceptanceDiagnostics());
         snapshot.acceptedClientPreauthDiagnostics.acceptedClientId =
             acceptedClientId_;
+        applyAcceptedClientServiceTimingDiagnostics(
+            snapshot.acceptedClientPreauthDiagnostics);
     }
     applyConnectionTargetDiagnostics(
         snapshot.acceptedClientPreauthDiagnostics);
@@ -2885,6 +2943,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
             projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
         acceptedClientPreauthDiagnostics_.acceptedClientId =
             acceptedClientId_;
+        applyAcceptedClientServiceTimingDiagnostics(
+            acceptedClientPreauthDiagnostics_);
         applyConnectionTargetDiagnostics(
             acceptedClientPreauthDiagnostics_);
         applyConnectionCertificateDiagnostics(
@@ -2956,6 +3016,11 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                             LinuxRuntimeTlsCertificateCommonNameClass::Redacted
                         ? "redacted"
                         : "unavailable");
+            const auto& acceptedToTlsService =
+                acceptedClientPreauthDiagnostics_.acceptedToTlsServiceTiming;
+            const auto& tlsToTypeOneService =
+                acceptedClientPreauthDiagnostics_
+                    .tlsEstablishedToTypeOneServiceTiming;
 
             // One bounded fail-only record. Never add credentials, hashes,
             // NTLM/TSRequest bytes, TLS secrets or certificate private data.
@@ -2982,7 +3047,21 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 "pre-tls-unattributed-us=%llu pre-tls-socket-poll-us=%llu "
                 "pre-tls-read-ready-to-service-us=%llu "
                 "pre-tls-write-ready-to-service-us=%llu "
-                "tls-established-to-type1-us=%llu "
+                "accepted-to-tls-service-attribution=%s "
+                "accepted-to-tls-app-wait-us=%llu "
+                "accepted-to-tls-peer-wait-upper-us=%llu "
+                "accepted-to-tls-service-work-us=%llu "
+                "accepted-to-tls-native-maintenance-us=%llu "
+                "accepted-to-tls-service-calls=%llu "
+                "accepted-to-tls-max-app-gap-us=%llu "
+                "tls-to-type1-service-attribution=%s "
+                "tls-to-type1-app-wait-us=%llu "
+                "tls-to-type1-peer-wait-upper-us=%llu "
+                "tls-to-type1-service-work-us=%llu "
+                "tls-to-type1-native-maintenance-us=%llu "
+                "tls-to-type1-service-calls=%llu "
+                "tls-to-type1-max-app-gap-us=%llu "
+                "tls-established-to-type1-us=%llu " 
                 "tls-established-to-type1-available=%s "
                 "type1-to-type2-queued-us=%llu "
                 "type1-to-type2-queued-available=%s "
@@ -3097,6 +3176,32 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .preTlsWriteReadyToServiceMicroseconds),
+                acceptedToTlsService.available ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.applicationRescheduleWaitMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.peerReadinessWaitUpperBoundMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.serviceExecutionMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.nativeMaintenanceMicroseconds),
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.serviceInvocations),
+                static_cast<unsigned long long>(
+                    acceptedToTlsService.maximumApplicationRescheduleWaitMicroseconds),
+                tlsToTypeOneService.available ? "yes" : "no",
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.applicationRescheduleWaitMicroseconds),
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.peerReadinessWaitUpperBoundMicroseconds),
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.serviceExecutionMicroseconds),
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.nativeMaintenanceMicroseconds),
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.serviceInvocations),
+                static_cast<unsigned long long>(
+                    tlsToTypeOneService.maximumApplicationRescheduleWaitMicroseconds),
                 static_cast<unsigned long long>(
                     acceptedClientPreauthDiagnostics_
                         .tlsEstablishedToTypeOneMicroseconds),
@@ -3365,10 +3470,203 @@ RuntimeHostResult LinuxRuntimeHostControl::acceptClientOnce(
     acceptedClientPeer_ = boundEndpointText(peer);
     acceptedClientReadable_ = false;
     acceptedClientWritable_ = false;
+    acceptedClientServiceTiming_ = {};
+    acceptedClientServiceTiming_.lastServiceCompletedAt =
+        std::chrono::steady_clock::now();
+    acceptedClientServiceTiming_.wait =
+        AcceptedClientServiceWait::ApplicationReschedule;
     clientDisconnected_ = false;
     stage_ = RuntimeHostStage::ClientAuthenticating;
     lastError_ = RuntimeHostError::None;
     return {RuntimeHostError::None, false};
+}
+
+void LinuxRuntimeHostControl::applyAcceptedClientServiceTimingDiagnostics(
+    RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept
+{
+    diagnostics.acceptedToTlsServiceTiming =
+        acceptedClientServiceTiming_.acceptedToTls;
+    diagnostics.tlsEstablishedToTypeOneServiceTiming =
+        acceptedClientServiceTiming_.tlsEstablishedToTypeOne;
+}
+
+bool LinuxRuntimeHostControl::preAdmissionNativeMaintenanceRequired()
+    const noexcept
+{
+    if (acceptedClient_ == nullptr ||
+        acceptedClientPhase_ != AcceptedClientPhase::PreAdmission)
+        return false;
+
+    using Progress = LinuxRuntimeAuthenticationProgress;
+    switch (acceptedClient_->acceptanceDiagnostics().authenticationProgress)
+    {
+    case Progress::NtlmChallenge:
+    case Progress::NtlmAuthenticate:
+    case Progress::CredSspBinding:
+    case Progress::CredentialDelegation:
+    case Progress::Authenticated:
+        return true;
+    case Progress::Transport:
+    case Progress::Tls:
+    case Progress::CredSsp:
+    case Progress::CredSspSpnego:
+    case Progress::CredSspDirectNtlm:
+    case Progress::Mcs:
+        return false;
+    }
+    return false;
+}
+
+RuntimeHostResult LinuxRuntimeHostControl::validateRuntimeOwnerOnce() noexcept
+{
+    if (authenticationMode_ ==
+            ConfiguredAuthenticationMode::StandalonePassword &&
+        selectedStandaloneCredentialReady())
+    {
+        using State =
+            rdp_server::server::security::StandaloneCredentialSessionState;
+        const auto sessionState =
+            rdp_server::server::security::refreshStandaloneCredentialSessionBinding(
+                standaloneCredentialSessionBinding_, *ownerEvidenceSource_, true);
+        if (sessionState != State::Matches)
+        {
+            retireStoppedRuntime(
+                sessionState == State::LockOrUnknown
+                    ? rdp_server::server::security::
+                          OwnerConsentRevocationReason::LockOrUnknown
+                    : rdp_server::server::security::
+                          OwnerConsentRevocationReason::SessionReplacement);
+            stage_ = RuntimeHostStage::Stopped;
+            lastError_ = RuntimeHostError::CredentialNotConfigured;
+            return {lastError_, false};
+        }
+    }
+    if (!listener_.valid())
+        return {RuntimeHostError::None, true};
+    if (!listener_.interfaceStillMatches())
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::InterfaceUnavailable;
+        return {lastError_, false};
+    }
+    if (!ownerSharingAuthority_.authorizes(
+            rdp_server::server::security::kConsoleViewPermission))
+    {
+        retireStoppedRuntime(
+            rdp_server::server::security::OwnerConsentRevocationReason::
+                NativeAuthorizationLost);
+        stage_ = RuntimeHostStage::Revoked;
+        lastError_ = RuntimeHostError::HostSessionStale;
+        return {lastError_, false};
+    }
+    return {RuntimeHostError::None, true};
+}
+
+RuntimeHostResult
+LinuxRuntimeHostControl::serviceAcceptedClientPreAdmissionOnce() noexcept
+{
+    using Clock = std::chrono::steady_clock;
+    if (acceptedClient_ == nullptr ||
+        acceptedClientPhase_ != AcceptedClientPhase::PreAdmission)
+        return deny(RuntimeHostError::ClientNotFound);
+
+    const auto serviceStartedAt = Clock::now();
+    auto& timing = acceptedClientServiceTiming_;
+    auto& currentStage = timing.currentStage;
+    if (timing.lastServiceCompletedAt.has_value())
+    {
+        const std::uint64_t waitMicroseconds =
+            elapsedDiagnosticMicroseconds(
+                *timing.lastServiceCompletedAt, serviceStartedAt);
+        switch (timing.wait)
+        {
+        case AcceptedClientServiceWait::ApplicationReschedule:
+            addBoundedDiagnosticValue(
+                currentStage.applicationRescheduleWaitMicroseconds,
+                waitMicroseconds);
+            currentStage.maximumApplicationRescheduleWaitMicroseconds =
+                (std::max)(
+                    currentStage.maximumApplicationRescheduleWaitMicroseconds,
+                    waitMicroseconds);
+            break;
+        case AcceptedClientServiceWait::PeerReadiness:
+            addBoundedDiagnosticValue(
+                currentStage.peerReadinessWaitUpperBoundMicroseconds,
+                waitMicroseconds);
+            break;
+        case AcceptedClientServiceWait::None:
+            break;
+        }
+    }
+    addBoundedDiagnosticValue(currentStage.serviceInvocations, 1U);
+
+    RuntimeHostResult result = advanceAcceptedClientOnce();
+    if (result.succeeded() && result.retryable &&
+        acceptedClient_ != nullptr &&
+        acceptedClientPhase_ == AcceptedClientPhase::PreAdmission &&
+        preAdmissionNativeMaintenanceRequired())
+    {
+        const auto nativeMaintenanceStartedAt = Clock::now();
+        const RuntimeHostResult owner = validateRuntimeOwnerOnce();
+        const auto nativeMaintenanceCompletedAt = Clock::now();
+        addBoundedDiagnosticValue(
+            currentStage.nativeMaintenanceMicroseconds,
+            elapsedDiagnosticMicroseconds(
+                nativeMaintenanceStartedAt, nativeMaintenanceCompletedAt));
+        if (!owner.succeeded())
+            result = owner;
+        else if (acceptedClient_ != nullptr &&
+                 acceptedClientPhase_ == AcceptedClientPhase::PreAdmission)
+            result = pollAcceptedClientReadiness();
+    }
+
+    const auto serviceCompletedAt = Clock::now();
+    addBoundedDiagnosticValue(
+        currentStage.serviceExecutionMicroseconds,
+        elapsedDiagnosticMicroseconds(serviceStartedAt, serviceCompletedAt));
+
+    RuntimeAcceptedClientPreauthDiagnostics stageDiagnostics =
+        acceptedClientPreauthDiagnostics_;
+    if (acceptedClient_ != nullptr)
+        stageDiagnostics = projectLinuxAcceptedClientPreauthDiagnostics(
+            acceptedClient_->acceptanceDiagnostics());
+
+    const auto latchStage =
+        [](RuntimeAcceptedClientPreauthServiceTiming& destination,
+           RuntimeAcceptedClientPreauthServiceTiming& current) noexcept {
+            destination = current;
+            destination.available = true;
+            current = {};
+        };
+    if (stageDiagnostics.acceptedToTlsEstablishedAvailable &&
+        !timing.acceptedToTls.available)
+        latchStage(timing.acceptedToTls, currentStage);
+    if (stageDiagnostics.tlsEstablishedToTypeOneAvailable &&
+        !timing.tlsEstablishedToTypeOne.available)
+        latchStage(timing.tlsEstablishedToTypeOne, currentStage);
+
+    if (acceptedClient_ != nullptr &&
+        acceptedClientPhase_ == AcceptedClientPhase::PreAdmission)
+    {
+        timing.lastServiceCompletedAt = serviceCompletedAt;
+        timing.wait =
+            result.succeeded()
+                ? (result.retryable
+                       ? AcceptedClientServiceWait::PeerReadiness
+                       : AcceptedClientServiceWait::ApplicationReschedule)
+                : AcceptedClientServiceWait::None;
+    }
+    else
+    {
+        timing.lastServiceCompletedAt.reset();
+        timing.wait = AcceptedClientServiceWait::None;
+        applyAcceptedClientServiceTimingDiagnostics(
+            acceptedClientPreauthDiagnostics_);
+    }
+    return result;
 }
 
 RuntimeHostResult LinuxRuntimeHostControl::advanceAcceptedClientOnce() noexcept
@@ -3839,56 +4137,28 @@ RuntimeHostResult LinuxRuntimeHostControl::serviceOnce() noexcept
 #if !defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     return {RuntimeHostError::CredentialProviderUnavailable, false};
 #else
-    if (authenticationMode_ ==
-            ConfiguredAuthenticationMode::StandalonePassword &&
-        selectedStandaloneCredentialReady())
-    {
-        using StandaloneCredentialSessionState =
-            rdp_server::server::security::StandaloneCredentialSessionState;
-        const auto sessionState =
-            rdp_server::server::security::
-                refreshStandaloneCredentialSessionBinding(
-                    standaloneCredentialSessionBinding_,
-                    *ownerEvidenceSource_, true);
-        if (sessionState != StandaloneCredentialSessionState::Matches)
-        {
-            retireStoppedRuntime(
-                sessionState ==
-                        StandaloneCredentialSessionState::LockOrUnknown
-                    ? rdp_server::server::security::
-                          OwnerConsentRevocationReason::LockOrUnknown
-                    : rdp_server::server::security::
-                          OwnerConsentRevocationReason::SessionReplacement);
-            stage_ = RuntimeHostStage::Stopped;
-            lastError_ = RuntimeHostError::CredentialNotConfigured;
-            return {lastError_, false};
-        }
-    }
-
     if (!listener_.valid())
         return {RuntimeHostError::None, true};
-    if (!listener_.interfaceStillMatches())
-    {
-        retireStoppedRuntime(
-            rdp_server::server::security::OwnerConsentRevocationReason::
-                NativeAuthorizationLost);
-        stage_ = RuntimeHostStage::Revoked;
-        lastError_ = RuntimeHostError::InterfaceUnavailable;
-        return {lastError_, false};
-    }
-    if (!ownerSharingAuthority_.authorizes(
-            rdp_server::server::security::kConsoleViewPermission))
-    {
-        retireStoppedRuntime(
-            rdp_server::server::security::OwnerConsentRevocationReason::
-                NativeAuthorizationLost);
-        stage_ = RuntimeHostStage::Revoked;
-        lastError_ = RuntimeHostError::HostSessionStale;
-        return {lastError_, false};
-    }
+
+    if (acceptedClient_ != nullptr &&
+        acceptedClientPhase_ == AcceptedClientPhase::PreAdmission)
+        return serviceAcceptedClientPreAdmissionOnce();
 
     if (acceptedClient_ == nullptr)
+    {
+        RuntimeHostResult accepted =
+            acceptClientOnce(std::chrono::steady_clock::now());
+        if (!accepted.succeeded() || !accepted.retryable)
+            return accepted;
+        const RuntimeHostResult owner = validateRuntimeOwnerOnce();
+        if (!owner.succeeded())
+            return owner;
         return acceptClientOnce(std::chrono::steady_clock::now());
+    }
+
+    const RuntimeHostResult owner = validateRuntimeOwnerOnce();
+    if (!owner.succeeded())
+        return owner;
     return advanceAcceptedClientOnce();
 #endif
 }
@@ -3923,6 +4193,8 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
         acceptedClientPreauthDiagnostics_ =
             projectLinuxAcceptedClientPreauthDiagnostics(
                 acceptedClient_->acceptanceDiagnostics());
+        applyAcceptedClientServiceTimingDiagnostics(
+            acceptedClientPreauthDiagnostics_);
         applyConnectionTargetDiagnostics(
             acceptedClientPreauthDiagnostics_);
         applyConnectionCertificateDiagnostics(

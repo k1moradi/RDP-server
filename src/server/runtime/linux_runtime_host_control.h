@@ -10,6 +10,7 @@
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -68,6 +69,34 @@ projectLinuxAcceptedClientPreauthDiagnostics(
 
 inline constexpr std::chrono::milliseconds
     kRuntimeAcceptedClientPreauthTimeout{30000};
+
+inline constexpr std::size_t kLinuxRuntimeServiceBurstLimit{8U};
+inline constexpr int kLinuxRuntimeServiceWaitMilliseconds{25};
+
+struct LinuxRuntimeServiceBurstResult final
+{
+    RuntimeHostResult lastResult{RuntimeHostError::None, true};
+    std::size_t serviceCalls{};
+    bool immediateReschedule{};
+};
+
+template <typename Service>
+[[nodiscard]] LinuxRuntimeServiceBurstResult
+serviceLinuxRuntimeBoundedBurst(Service&& service)
+    noexcept(noexcept(service()))
+{
+    LinuxRuntimeServiceBurstResult burst;
+    for (; burst.serviceCalls < kLinuxRuntimeServiceBurstLimit;)
+    {
+        burst.lastResult = service();
+        ++burst.serviceCalls;
+        if (!burst.lastResult.succeeded() || burst.lastResult.retryable)
+            return burst;
+    }
+    burst.immediateReschedule =
+        burst.lastResult.succeeded() && !burst.lastResult.retryable;
+    return burst;
+}
 
 // One serialized R10 Linux GUI facade. No owned socket may be opened before
 // independent R2 host-owner consent and R1 certificate-identity verification.
@@ -188,7 +217,13 @@ private:
     [[nodiscard]] RuntimeHostResult acceptClientOnce(
         std::chrono::steady_clock::time_point now) noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientOnce() noexcept;
+    [[nodiscard]] RuntimeHostResult serviceAcceptedClientPreAdmissionOnce()
+        noexcept;
+    [[nodiscard]] RuntimeHostResult validateRuntimeOwnerOnce() noexcept;
+    [[nodiscard]] bool preAdmissionNativeMaintenanceRequired() const noexcept;
     [[nodiscard]] RuntimeHostResult pollAcceptedClientReadiness() noexcept;
+    void applyAcceptedClientServiceTimingDiagnostics(
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) const noexcept;
 #if defined(RDP_SERVER_HAVE_LINUX_X11_DESKTOP)
     [[nodiscard]] RuntimeHostResult initializeNativeDesktop() noexcept;
     [[nodiscard]] RuntimeHostResult serviceNativeDesktopOnce() noexcept;
@@ -253,6 +288,23 @@ private:
     bool acceptedClientReadable_{};
     bool acceptedClientWritable_{};
     bool clientDisconnected_{};
+
+    enum class AcceptedClientServiceWait : std::uint8_t
+    {
+        None,
+        ApplicationReschedule,
+        PeerReadiness,
+    };
+    struct AcceptedClientServiceTimingState final
+    {
+        std::optional<std::chrono::steady_clock::time_point>
+            lastServiceCompletedAt{};
+        AcceptedClientServiceWait wait{AcceptedClientServiceWait::None};
+        RuntimeAcceptedClientPreauthServiceTiming currentStage{};
+        RuntimeAcceptedClientPreauthServiceTiming acceptedToTls{};
+        RuntimeAcceptedClientPreauthServiceTiming tlsEstablishedToTypeOne{};
+    };
+    AcceptedClientServiceTimingState acceptedClientServiceTiming_{};
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientPreauthDiagnostics_{};
     RuntimeConnectionTargetIdentity connectionTargetIdentity_{};
     ConfiguredAuthenticationMode authenticationMode_{

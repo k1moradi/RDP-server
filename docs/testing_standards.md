@@ -1,3 +1,26 @@
+## R10 no-starvation pre-auth service contract (2026-10-29)
+
+The production-backed runtime.linux-direct-ntlm-preauth-service-no-starvation
+case uses the existing real LAN listener, owned OpenSSL TLS path and Direct-NTLM
+CredSSP peer. It injects a test-only 75 ms application-service gap and requires
+that gap to appear in Accepted-to-TLS application-reschedule attribution.
+It also makes owner evidence artificially slow and proves GUI status plus the
+entire Accepted-to-TLS/TLS-to-Type-1 span perform zero native evidence reads;
+both early service buckets must report zero native-maintenance time.
+
+The structural scheduler gate pins R1-first ordering, the finite eight-call
+burst, zero-delay yield/reschedule, the 25 ms no-event cadence, and the later
+Await-Type-3 native-maintenance/re-poll order. R1's existing
+direct-ntlm-preauth-zero-timeout-readiness-attribution remains authoritative
+for socket-poll versus readiness-to-service dwell and must compose with, not be
+replaced by, the R10 stage buckets.
+
+Keep the existing edge regressions: tcp-owned-tls-read-want-interleaved-frame-write
+for repeated WANT_READ/WANT_WRITE, existing partial-write/backpressure cases,
+the production-peer partial TLS record, and silence/timeout cancellation tests.
+Sanitizer CI executes the new no-starvation case together with interleaved WANT
+and partial-record paths. No fake authenticated desktop may satisfy this gate.
+
 ## R9 legacy incomplete-authentication GUI parity uses the same surface ownership (2026-10-29)
 
 The compatibility path that recognizes an older retained peer-EOF snapshot

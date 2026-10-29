@@ -866,6 +866,20 @@ struct RuntimeAcceptedClientNtlmTypeOneDiagnostics final
     std::uint8_t ntlmRevision{};
 };
 
+// R10 owner-thread scheduling attribution for one connection-local stage.
+// Peer wait is an upper bound between a zero-wait poll that found no event and
+// the next service invocation; the peer may become ready within that gap.
+struct RuntimeAcceptedClientPreauthServiceTiming final
+{
+    bool available{};
+    std::uint64_t serviceInvocations{};
+    std::uint64_t applicationRescheduleWaitMicroseconds{};
+    std::uint64_t peerReadinessWaitUpperBoundMicroseconds{};
+    std::uint64_t serviceExecutionMicroseconds{};
+    std::uint64_t nativeMaintenanceMicroseconds{};
+    std::uint64_t maximumApplicationRescheduleWaitMicroseconds{};
+};
+
 struct RuntimeAcceptedClientPreauthDiagnostics final
 {
     bool available{};
@@ -962,6 +976,11 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     // True only when the existing standalone NTLM verifier reports a typed
     // credential rejection. No password, response, challenge or key is kept.
     bool standaloneCredentialsRejected{};
+
+    // Appended diagnostics only; never consulted by timeout or authority.
+    RuntimeAcceptedClientPreauthServiceTiming acceptedToTlsServiceTiming{};
+    RuntimeAcceptedClientPreauthServiceTiming
+        tlsEstablishedToTypeOneServiceTiming{};
 };
 
 struct RuntimeHostPermissionRequest final

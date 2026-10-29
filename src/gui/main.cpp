@@ -141,14 +141,24 @@ int main(int argc, char** argv)
         rdp::gui::HostControl control(runtime);
         rdp::gui::DesktopWindow window(control);
 
-        // R10 remains on the Qt owner thread. Each tick performs at most one
-        // bounded protocol operation and a zero-wait readiness observation;
-        // there is no worker thread, blocking poll or second socket owner.
+        // Drain only a finite burst of already-actionable owner work.
         QTimer runtimeServiceTimer;
-        runtimeServiceTimer.setInterval(25);
+        runtimeServiceTimer.setInterval(
+            rdp_server::server::runtime::kLinuxRuntimeServiceWaitMilliseconds);
+        runtimeServiceTimer.setSingleShot(true);
         QObject::connect(
             &runtimeServiceTimer, &QTimer::timeout, &window,
-            [&runtime] { (void)runtime.serviceOnce(); });
+            [&runtime, &runtimeServiceTimer] {
+                const auto burst =
+                    rdp_server::server::runtime::
+                        serviceLinuxRuntimeBoundedBurst(
+                            [&runtime] { return runtime.serviceOnce(); });
+                runtimeServiceTimer.start(
+                    burst.immediateReschedule
+                        ? 0
+                        : rdp_server::server::runtime::
+                              kLinuxRuntimeServiceWaitMilliseconds);
+            });
         runtimeServiceTimer.start();
 
         // Status projection is deliberately slower than protocol servicing so
@@ -187,14 +197,32 @@ int main(int argc, char** argv)
     rdp::gui::HostControl control(runtime);
     rdp::gui::DesktopWindow window(control);
 #if defined(__linux__) || defined(__APPLE__)
-    // The canonical no-argument product path owns the same bounded R10 service
-    // loop as the expert --config path. Construction/provisioning alone never
-    // opens a listener; only the user's explicit Sharing action can do that.
     QTimer runtimeServiceTimer;
+#if defined(__linux__)
+    runtimeServiceTimer.setInterval(
+        rdp_server::server::runtime::kLinuxRuntimeServiceWaitMilliseconds);
+    runtimeServiceTimer.setSingleShot(true);
+    QObject::connect(
+        &runtimeServiceTimer, &QTimer::timeout, &window,
+        [&applicationRuntime, &runtimeServiceTimer] {
+            const auto burst =
+                rdp_server::server::runtime::
+                    serviceLinuxRuntimeBoundedBurst(
+                        [&applicationRuntime] {
+                            return applicationRuntime.serviceOnce();
+                        });
+            runtimeServiceTimer.start(
+                burst.immediateReschedule
+                    ? 0
+                    : rdp_server::server::runtime::
+                          kLinuxRuntimeServiceWaitMilliseconds);
+        });
+#else
     runtimeServiceTimer.setInterval(25);
     QObject::connect(
         &runtimeServiceTimer, &QTimer::timeout, &window,
         [&applicationRuntime] { (void)applicationRuntime.serviceOnce(); });
+#endif
     runtimeServiceTimer.start();
 
     QTimer statusRefreshTimer;

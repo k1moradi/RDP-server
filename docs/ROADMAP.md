@@ -1,3 +1,51 @@
+## R10 P0 — eliminate pre-auth service starvation and attribute scheduler delay (2026-10-29)
+
+Authoring parent: 1942cb4ecf08056c6d636a57acfcd6ae40be4773. Concurrent R1/R2/R4/R5/R7/R8/R9
+work is preserved. Physical timing remains Accepted-to-TLS 4,825,323 us;
+TLS-to-Direct-NTLM-Type-1 1,176,476 us; Type-1-to-Type-2 queue about 4 us;
+and complete Type-2 delivery-to-peer-FIN about 48,702 us.
+
+Demonstrated runtime defects: Linux GUI servicing executed exactly one bounded
+serviceOnce per 25 ms timer firing even when retryable=false meant immediate
+work remained. The same Qt thread's 250 ms status refresh synchronously ran
+listener-interface and multiple logind/X11 owner probes; serviceOnce also put
+those probes in front of every accepted-client step. That is a real server-side
+scheduling mechanism capable of inflating the two anomalous early spans.
+
+Correction: R10 remains the sole owner. Qt drains at most eight immediate calls,
+yields, and uses a zero-delay reschedule if more immediate work remains; 25 ms
+is reserved for a no-event wait. A queued TCP accept is tried before native
+maintenance and retried afterward. Accepted-to-TLS and TLS-to-Type-1 perform no
+synchronous logind/X11/interface sampling. At Direct-NTLM Await-Type-3/later,
+the existing owner-loss check remains, runs only after R1 has no event, and is
+followed by one R1 re-poll. PreAdmission status is non-probing. No timeout,
+sleep, TLS/certificate setting, NTLM/CredSSP wire byte or admission boundary
+changes.
+
+Attribution: R1 now reports pre-TLS socket-poll dwell and Read/Write
+ready-to-service dwell in addition to its stage, wait, active-work and residual
+fields. R10 adds Accepted-to-TLS and TLS-to-Type-1 application-reschedule wait,
+peer-wait upper bound, service work, native-maintenance subset, service-call
+count and maximum application gap. The next physical run can therefore separate
+peer/kernel wait from owner-thread scheduling instead of guessing.
+
+Integrated first-failure report: R1 found no incomplete X.224/TLS write or
+competing reader. R2 independently validated the exact 126-byte production
+Type 2; its exact-SHA Microsoft control consumed the unchanged challenge and
+emitted Type 3, while required-AV negative controls correctly returned
+SEC_E_INVALID_TOKEN. R6 independently reaches Type 3 over TLS 1.3 /
+TLS_AES_256_GCM_SHA384 with the same Type 2. The demonstrated server anomaly
+is therefore before TLS and then TLS-to-Type-1; Type-2 generation is not the
+bottleneck. The physical Windows App still closes about 48.7 ms after Type-2
+delivery without Type 3, a separate client-specific post-challenge boundary.
+
+New behavior CTest: runtime.linux-direct-ntlm-preauth-service-no-starvation.
+The scheduler source gate and sanitizer owner-candidate job are strengthened.
+Canonical owner one-build configure/build/full CTest: NOT RUN in this connector
+environment. Exact publication-SHA hosted CI/sanitizers: PENDING. Next physical
+receipt must compare the R1 ready-to-service/residual fields with R10 app-wait,
+peer-wait and service-work buckets before any further runtime or wire change.
+
 ## R9 P0 CI correction follow-up — legacy incomplete-authentication parity (2026-10-29)
 
 R9 publication `88b9aedbfa3202110fde4a24daee5d3f1c7f08e3`, workflow

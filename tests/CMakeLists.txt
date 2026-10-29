@@ -654,6 +654,17 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    add_test(
+        NAME runtime.linux-direct-ntlm-preauth-service-no-starvation
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-preauth-service-no-starvation)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-preauth-service-no-starvation
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;timing;scheduling;linux;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 20)
+
     # R1 zero-timeout scheduler attribution: reuse the same production-backed
     # two-peer lifecycle but pin Read/Write dwell versus poll/service subsets.
     add_test(

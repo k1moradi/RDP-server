@@ -1,3 +1,31 @@
+## R10 pre-auth service fairness stays serialized and readiness-led (2026-10-29)
+
+The Linux GUI may drain a bounded burst of already-actionable R10 work, but it
+must retain exactly one socket/TLS/CredSSP owner and one Qt owner thread. A
+successful service result with retryable=false is immediately actionable; Qt
+may run at most eight such calls before yielding through a zero-delay timer.
+The existing 25 ms cadence is reserved for retryable=true. Never add a second
+transport reader, authentication controller, worker socket loop, sleep, larger
+timeout or repeated TLS handshake spin.
+
+Accepted TCP and early X.224/TLS/CredSSP progress must not sit behind blocking
+native evidence. Try nonblocking accept before owner/interface maintenance and
+retry once afterward. For a live PreAdmission peer, R1 always advances first.
+Full logind/X11/interface owner maintenance is absent from Accepted-to-TLS and
+TLS-to-Type-1. It resumes at Direct-NTLM Await-Type-3/later when R1 is waiting,
+then R1 is polled once more. Existing lock/logout/session-replacement tests at
+Await-Type-3 remain mandatory; fresh R2 admission still gates every MCS entry.
+
+GUI status is projection, not reauthorization. While a peer is PreAdmission it
+may use only the existing non-authorizing owner-grant projection and must not
+synchronously sample logind/X11 owner state or listener interface identity.
+
+R1's new pre-TLS socket-poll and ready-to-service fields remain the transport
+owner's precise subsets. R10 complements them with stage-local service-call
+count, application-reschedule wait, peer-readiness wait upper bound, total
+service execution, native-maintenance execution and maximum application gap.
+These observations never change readiness, timeout or authority.
+
 ## R4 first-frame graphics capability ownership (2026-10-29)
 
 RDPGFX may be opened only after the parsed Client Core Data explicitly advertises

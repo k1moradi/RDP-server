@@ -247,8 +247,9 @@ if(WIN32)
         TIMEOUT 45)
 
     add_test(NAME security.windows-credssp-credential-semantic-differential
-        COMMAND test_windows_sspi_credssp_interop
-            credential-semantic-differential)
+        COMMAND "${CMAKE_COMMAND}"
+            "-DTEST_EXECUTABLE=$<TARGET_FILE:test_windows_sspi_credssp_interop>"
+            -P "${PROJECT_SOURCE_DIR}/tests/run_windows_credssp_credential_semantics.cmake")
     set_tests_properties(
         security.windows-credssp-credential-semantic-differential
         PROPERTIES

@@ -1,3 +1,37 @@
+## R9 exact-SHA Microsoft credential-source process isolation and candidate qualification (2026-10-29)
+
+The Windows `security.windows-credssp-credential-semantic-differential` CTest
+keeps one behavior name but executes each explicit credential-source row in a
+fresh child process. Correct, wrong-password, empty-password and
+unavailable/no-SPNEGO therefore cannot inherit Microsoft SSPI/CredSSP process
+state from a preceding row. The unavailable row remains the same Schannel-only
+`CREDSSP_CRED` construction with `pSpnegoCred == nullptr`; this is test-harness
+isolation only and changes no production TLS, NTLM or CredSSP bytes.
+
+Each child prints a non-secret begin marker before entering SSPI and a complete
+end marker only after its row is classified. A crash, nonzero child result,
+missing row or missing end marker is a hard test failure identifying the
+credential state; there is no retry and no crash-to-PASS fallback. The valid
+control must still emit Type 3. Other explicit rows remain observational, and
+hosted default/process credentials remain `NOT_RUN_POLICY` with
+`hosted-runner-credentials-used=no`.
+
+R9's Windows CLANG64 producer must run the isolated credential CTest
+verbosely before full Debug CTest and retain that diagnostic as an exact-SHA
+artifact. Candidate qualification additionally requires full Debug and Release
+CTest, the unsupported-password GUI CTest, packaged-GUI PE closure/offline
+smoke and the fixed 60-test native sanitizer selection all to report
+`success`; `failure`, `cancelled` or `skipped` is not acceptable.
+
+The Microsoft interoperability artifact starts as `PARTIAL` and becomes
+`COMPLETE_PASS` only after every required matrix case and structural receipt
+has completed. It records the exact source SHA plus the hosted Type-1/Type-2
+profile and TLS profile. The manual owner-candidate gate accepts only an exact
+`COMPLETE_PASS` artifact from the same SHA and requires GUI Round 2, the Linux
+owner-acceptance package, protocol matrix, CLANG64, sanitizers, GUI parity and
+documentation producers to be green. A skipped ordinary-push manual job is
+never candidate PASS.
+
 ## R3 first MCS/GCC exchange conformance gate (2026-10-29)
 
 The dedicated production-backed

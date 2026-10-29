@@ -367,6 +367,8 @@ jobs:
           tls_version_result_file='build/r9-credssp-tls-version-results.txt'
           test -f "$tls_version_result_file"
           : > "$result_file"
+          printf 'interop-matrix-begin=PARTIAL source-sha=%s workflow-run=%s\n' \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" >> "$result_file"
           cat "$tls_version_result_file" >> "$result_file"
 
           modern_probe_output='build/r9-modern-schannel-probe.txt'
@@ -493,6 +495,7 @@ jobs:
             grep -Eq 'hosted-type1-bytes=[1-9][0-9]*' <<< "$profile_line"
             grep -Eq 'hosted-version-structure=(valid|absent)' <<< "$profile_line"
             printf 'credssp-fixed-name-%s\n' "$profile_line" | tee -a "$result_file"
+            printf 'interop-type1-type2-profile=%s\n' "$profile_line" | tee -a "$result_file"
             run_case credssp-ip-spn-target security.windows-credssp-production-physical-ip-target-next-token || overall_status=1
             run_case credssp-bare-ip-target security.windows-credssp-production-bare-ip-target-next-token || overall_status=1
             printf 'credssp-target-differential=TYPED\n' | tee -a "$result_file"
@@ -502,6 +505,13 @@ jobs:
               'credssp-ip-spn-target=BLOCKED_CONTROL test=security.windows-credssp-production-physical-ip-target-next-token' \
               'credssp-bare-ip-target=BLOCKED_CONTROL test=security.windows-credssp-production-bare-ip-target-next-token' \
               'credssp-target-differential=BLOCKED_CONTROL' | tee -a "$result_file"
+          fi
+          if [ "$overall_status" -eq 0 ]; then
+            printf 'interop-matrix-final=COMPLETE_PASS source-sha=%s\n' "$GITHUB_SHA" \
+              | tee -a "$result_file"
+          else
+            printf 'interop-matrix-final=INCOMPLETE_FAIL source-sha=%s\n' "$GITHUB_SHA" \
+              | tee -a "$result_file"
           fi
           printf 'Microsoft NTLM/CredSSP candidate matrix:\n' >> "$GITHUB_STEP_SUMMARY"
           cat "$result_file" >> "$GITHUB_STEP_SUMMARY"
@@ -849,7 +859,29 @@ jobs:
             <<< "$windows_security_tests")" -eq 5
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$windows_security_regression" --output-on-failure
+      - name: R9 isolate Debug credential-source oracle diagnostics
+        id: r9_clang_debug_credssp_semantics
+        if: ${{ always() && steps.r9_clang_debug_build.outcome == 'success' }}
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          selector='^security[.]windows-credssp-credential-semantic-differential$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': security.windows-credssp-credential-semantic-differential' <<< "$selected_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")" -eq 1
+          ctest --test-dir build --build-config Debug --timeout 45 \
+            -R "$selector" --verbose 2>&1 \
+            | tee build/r9-windows-clang23-credential-semantics-debug.txt
+      - name: Upload Debug credential-source oracle diagnostics
+        if: ${{ always() && steps.r9_clang_debug_build.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-windows-clang23-credential-semantics-${{ github.sha }}
+          path: build/r9-windows-clang23-credential-semantics-debug.txt
+          if-no-files-found: error
       - name: Run full Debug CTest under CLANG64
+        id: r9_clang_debug_ctest
         if: ${{ always() && steps.r9_clang_debug_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure
@@ -928,11 +960,14 @@ jobs:
           ctest --test-dir build --build-config Release --timeout 60 \
             -R "$windows_security_regression" --output-on-failure
       - name: Run full Release CTest under CLANG64
+        id: r9_clang_release_ctest
         if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: ctest --test-dir build --build-config Release --timeout 60 --output-on-failure
       # R7/R6 non-collecting credential UI must remain registered on Windows.
       - name: R9 pin Windows unsupported-password GUI CTest
+        id: r9_windows_unsupported_password_gui
+        if: ${{ always() && steps.r9_clang_release_build.outcome == 'success' }}
         shell: msys2 {0}
         run: |
           set -euo pipefail
@@ -1029,6 +1064,7 @@ jobs:
           cmake --build build --config Debug \
             --target test_windows_desktop_geometry --parallel 2
       - name: Run R6 Windows native lifetime CTests with sanitizers
+        id: r6_windows_sanitizer_ctest
         if: ${{ always() && steps.r6_windows_sanitizer_build.outcome == 'success' }}
         shell: msys2 {0}
         env:
@@ -1056,6 +1092,30 @@ jobs:
             <<< "$r6_sanitizer_tests")" -eq 60
           ctest --test-dir build --build-config Debug --timeout 20 \
             -R "$r6_sanitizer_selection" --output-on-failure
+      - name: R9 require Windows CLANG64 exact-SHA qualification
+        if: ${{ always() }}
+        shell: msys2 {0}
+        env:
+          CREDENTIAL_DIAGNOSTIC: ${{ steps.r9_clang_debug_credssp_semantics.outcome }}
+          DEBUG_CTEST: ${{ steps.r9_clang_debug_ctest.outcome }}
+          RELEASE_CTEST: ${{ steps.r9_clang_release_ctest.outcome }}
+          UNSUPPORTED_PASSWORD_GUI: ${{ steps.r9_windows_unsupported_password_gui.outcome }}
+          GUI_PACKAGE: ${{ steps.r9_windows_gui_package.outcome }}
+          GUI_SMOKE: ${{ steps.r9_windows_gui_smoke.outcome }}
+          NATIVE_SANITIZERS: ${{ steps.r6_windows_sanitizer_ctest.outcome }}
+        run: |
+          set -euo pipefail
+          for result in \
+            "$CREDENTIAL_DIAGNOSTIC" \
+            "$DEBUG_CTEST" \
+            "$RELEASE_CTEST" \
+            "$UNSUPPORTED_PASSWORD_GUI" \
+            "$GUI_PACKAGE" \
+            "$GUI_SMOKE" \
+            "$NATIVE_SANITIZERS"; do
+            test "$result" = success
+          done
+          printf 'R9 WINDOWS CLANG64 QUALIFICATION PASS: %s\n' "$GITHUB_SHA"
 
   # R9: one bounded sanitizer job across existing first-party CLIPRDR/X11,
   # MCS/CredSSP, native R2->R3 admission/revocation and R3 licensing contracts.
@@ -2262,16 +2322,22 @@ jobs:
       - r6-windows-clang23
       - r9-security-protocol-sanitizers
       - r9-owner-gui-credential-parity
+      - r9-gui-round2-acceptance
+      - r9-portable-gui-bootstrap-acceptance
       - documentation-policy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Download exact-SHA Microsoft interop result matrix
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: r9-microsoft-interop-${{ github.sha }}
           path: build/r9-microsoft-interop
+      - name: Download exact-SHA Linux owner acceptance package
+        uses: actions/download-artifact@v4
+        with:
+          name: rdp-server-owner-acceptance-linux
+          path: build/r9-owner-package
       - name: Require exact-SHA CredSSP owner-candidate prerequisites
         env:
           STRUCTURE_RESULT: ${{ needs.ci-workflow-structure.result }}
@@ -2279,6 +2345,8 @@ jobs:
           WINDOWS_CLANG_RESULT: ${{ needs.r6-windows-clang23.result }}
           R9_RESULT: ${{ needs.r9-security-protocol-sanitizers.result }}
           GUI_PARITY_RESULT: ${{ needs.r9-owner-gui-credential-parity.result }}
+          GUI_ROUND2_RESULT: ${{ needs.r9-gui-round2-acceptance.result }}
+          OWNER_PACKAGE_RESULT: ${{ needs.r9-portable-gui-bootstrap-acceptance.result }}
           DOCUMENTATION_RESULT: ${{ needs.documentation-policy.result }}
         shell: bash
         run: |
@@ -2286,6 +2354,8 @@ jobs:
           matrix_file='build/r9-microsoft-interop/r9-microsoft-interop-results.txt'
           test -f "$matrix_file"
           cat "$matrix_file"
+          grep -Fxq "interop-matrix-begin=PARTIAL source-sha=$GITHUB_SHA workflow-run=$GITHUB_RUN_ID" "$matrix_file"
+          grep -Fxq "interop-matrix-final=COMPLETE_PASS source-sha=$GITHUB_SHA" "$matrix_file"
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
           grep -Fxq 'ntlm-oem-omission=PASS test=security.windows-sspi-production-type2-oem-omission-differential' "$matrix_file"
@@ -2371,6 +2441,14 @@ jobs:
           grep -Fq 'first-tsrequest=yes type1=yes type2-committed=yes next-tsrequest=yes type3=yes' <<< "$tls13_receipt"
           type1_profile="$(grep '^credssp-fixed-name-microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER ' "$matrix_file")"
           test -n "$type1_profile"
+          interop_profile="$(grep '^interop-type1-type2-profile=microsoft-credssp-client-profile-differential target=TERMSRV/RDP-SERVER ' "$matrix_file")"
+          test -n "$interop_profile"
+          grep -Eq 'hosted-type1-flags=0x[0-9a-fA-F]{8}' <<< "$interop_profile"
+          grep -Eq 'hosted-type2-flags=0x[0-9a-fA-F]{8}' <<< "$interop_profile"
+          grep -Eq 'hosted-type1-bytes=[1-9][0-9]*' <<< "$interop_profile"
+          grep -Eq 'hosted-type2-bytes=[1-9][0-9]*' <<< "$interop_profile"
+          grep -Eq 'hosted-target-name-code-units=[1-9][0-9]*' <<< "$interop_profile"
+          grep -Eq 'hosted-target-info-bytes=[1-9][0-9]*' <<< "$interop_profile"
           grep -Fq 'physical-type1-flags=0xe2088235' <<< "$type1_profile"
           grep -Fq 'physical-type1-bytes=40' <<< "$type1_profile"
           grep -Fq 'hosted-type1-flags=0x' <<< "$type1_profile"
@@ -2383,6 +2461,8 @@ jobs:
             "$WINDOWS_CLANG_RESULT" \
             "$R9_RESULT" \
             "$GUI_PARITY_RESULT" \
+            "$GUI_ROUND2_RESULT" \
+            "$OWNER_PACKAGE_RESULT" \
             "$DOCUMENTATION_RESULT"; do
             test "$result" = success
           done
@@ -2460,11 +2540,64 @@ jobs:
             '13. offset-aware attempt timestamp' \
             '14. post-Type-2 scalars: encrypted/plaintext bytes, complete/partial TSRequests, TLS alerts/close_notify, TCP FIN/reset, first-byte and EOF timings' \
             'TLS mode is fixed by this gate to production-policy.'
+      - name: Create actionable exact-SHA owner acceptance manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t owner_archives < <(find build/r9-owner-package -maxdepth 1 -type f \
+            -name 'rdp-server-owner-acceptance-*.zip' | sort)
+          test "${#owner_archives[@]}" -eq 1
+          checksum_file='build/r9-owner-package/rdp-server-owner-acceptance-SHA256SUMS.txt'
+          test -f "$checksum_file"
+          expected_package_sha="$(awk 'NR == 1 { print $1 }' "$checksum_file")"
+          test "$expected_package_sha" != ""
+          actual_package_sha="$(sha256sum "${owner_archives[0]}" | awk '{ print $1 }')"
+          test "$actual_package_sha" = "$expected_package_sha"
+          cat > build/r9-owner-acceptance-manifest.txt <<EOF
+          rdp-server-r9-owner-acceptance-manifest-v1
+          candidate-gate=PASS
+          source-sha=$GITHUB_SHA
+          workflow-run-id=$GITHUB_RUN_ID
+          workflow-url=https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+          workflow-event=$GITHUB_EVENT_NAME
+          manual-input-r9_credssp_owner_candidate=true
+          tls-mode=production-policy
+          interop-artifact=r9-microsoft-interop-$GITHUB_SHA
+          interop-matrix=COMPLETE_PASS
+          owner-package-artifact=rdp-server-owner-acceptance-linux
+          owner-package-sha256=$actual_package_sha
+
+          OWNER BUILD/TEST COMMAND:
+          cd ~/rdp-server && git switch main && git pull --ff-only origin main && git rev-parse HEAD && cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON && cmake --build build --config Debug --parallel 2 && ctest --test-dir build -C Debug --output-on-failure
+
+          FULL CTEST RECEIPT REQUIRED:
+          exact source SHA; native OS/toolchain identity; configure/build result; complete CTest total/pass/fail/skipped/not-run counts; first failing test if any. Any mismatch, crash, skip of a required gate or nonzero failure count invalidates the candidate.
+
+          SERVER LOG REQUIRED FROM THE SAME PHYSICAL ATTEMPT:
+          complete bounded Linux terminal record including connection ID/timestamp; TLS version/cipher; Type-1 observation; production Type-2 queue/commit; post-Type-2 encrypted/plaintext byte and TSRequest counters; TLS alert/close_notify; TCP FIN/reset; Type-3/pubKeyAuth/authInfo/CredentialsVerified reachability. Never record passwords, NTLM response bytes, keys or delegated credentials.
+
+          CLIENT-SIDE EVIDENCE REQUIRED FROM THE SAME PHYSICAL ATTEMPT:
+          Windows App version/build; exact destination string; explicit Saved credential selected yes/no; credential username; password matched to server Session Password yes/no without recording the password; certificate warning shown yes/no; warning accepted yes/no; supported same-attempt Windows App Core/UI logs; exact user-visible error/result; offset-aware attempt timestamp.
+
+          Candidate-gate PASS qualifies the owner-authorized physical test. It is not authentication, native Admission, Share or desktop acceptance.
+          EOF
+          grep -Fxq "source-sha=$GITHUB_SHA" build/r9-owner-acceptance-manifest.txt
+          grep -Fxq 'candidate-gate=PASS' build/r9-owner-acceptance-manifest.txt
+      - name: Upload actionable exact-SHA owner acceptance manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: r9-owner-acceptance-manifest-${{ github.sha }}
+          path: |
+            build/r9-owner-acceptance-manifest.txt
+            build/r9-microsoft-interop/r9-microsoft-interop-results.txt
+            build/r9-owner-package/rdp-server-owner-acceptance-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
 
   # R9 GUI Round 2 qualification uses ordinary exact-SHA hosted evidence.
   # CLEAN Windows is intentionally a separate release-evidence track.
   r9-gui-round2-acceptance:
-    if: ${{ always() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    if: ${{ always() && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     needs:
       - r5-linux-gui-zip
       - r7-macos-portable-gui

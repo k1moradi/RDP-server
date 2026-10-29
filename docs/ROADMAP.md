@@ -256,6 +256,48 @@ outcome authorizes a production wire mutation by itself.
 
 ## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
 
+**R9 P0 exact-SHA failure ledger and credential-oracle containment (2026-10-29):**
+Current reviewed SHA `d9b255bef6ae54952b50ffbca24f4b17ce969d72`, primary workflow
+`40761365568`. Linux GUI ZIP, Linux/macOS/Windows protocol, R9 protocol
+sanitizers, Linux/macOS GUI credential parity, macOS portable GUI and
+documentation are **PASS**. Windows CLANG64 Release full CTest is **849/849
+PASS**, native Windows sanitizers are **60/60 PASS**, the synthetic firewall
+snapshot CTest passes in Debug and Release, and the extracted Windows GUI
+no-socket/registry/TermService/firewall smoke is **PASS**. Therefore the newer
+complete-record firewall canonicalization is hosted-qualified independently:
+rule order may drift, while semantic rule changes remain fail-closed.
+
+The one primary producer failure is Windows CLANG64 Debug CTest #37,
+`security.windows-credssp-credential-semantic-differential`, which segfaulted
+after complete Type-3 rows for correct, wrong-password and empty-password and
+before the unavailable/no-SPNEGO row emitted its first SSPI status. GUI Round 2
+then correctly failed closed because that Windows producer was red. The
+immediate parent `c542f861ff8bc35300445ae7c1d91325470708e7` ran the same
+credential differential successfully in both Debug and Release; `d9b255b`
+changes only the firewall smoke and testing/roadmap documentation. This is
+therefore a harness-reliability blocker, not evidence authorizing an
+authentication-wire change.
+
+R9 isolates the four credential-source rows into fresh child processes behind
+the same behavior-named CTest. Every child emits a state marker before SSPI; a
+child crash/nonzero result or missing complete row is an explicit hard failure
+with no retry. Windows CLANG64 also runs and uploads that verbose diagnostic
+before the full Debug suite, then requires Debug, Release, the
+unsupported-password GUI gate, packaged offline GUI smoke and native sanitizer
+steps all to have succeeded. The interoperability artifact is `PARTIAL` until
+its complete matrix closes with an exact-SHA `COMPLETE_PASS`; it now carries
+explicit Type-1/Type-2 profile evidence. The manual candidate aggregate also
+requires GUI Round 2 and the exact Linux owner package and emits an actionable
+owner-acceptance manifest only on an explicit dispatch PASS.
+
+Authoring/source validation: **PASS by inspection**. Canonical local
+configure/build/full CTest: **NOT RUN** in this connector environment.
+Publication-SHA hosted qualification: **PENDING** until this corrective
+descendant runs. The connected GitHub action surface still exposes reruns but
+not workflow-dispatch creation, so the required
+`r9_credssp_owner_candidate=true` manual aggregate cannot be represented as
+PASS until an actual dispatch is recorded.
+
 **R9 P0 Windows extracted-GUI firewall-smoke unblock (2026-10-28):**
 Parent 5099744ca29c6043315cd1b35ca16c4573fdf045, Actions
 40753865293, r6-windows-clang23 job 123047482903: Debug and Release

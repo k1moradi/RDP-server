@@ -3602,23 +3602,58 @@ void printFailure(
     return passed || tls13OracleLimitation;
 }
 
+[[nodiscard]] TimedCredentialAttempt runTimedCredentialSemanticAttempt(
+    CredSspCredentialState state)
+{
+    // Emit the row boundary before entering SSPI so a provider crash remains
+    // attributable to one credential source without exposing credential data.
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-credential-semantics-begin "
+        "credential-state=%s process-isolated=yes\n",
+        credentialStateName(state));
+    std::fflush(stderr);
+
+    const auto start = std::chrono::steady_clock::now();
+    FullCredSspAttempt attempt =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::ModernSystemDefaults,
+            TlsServerProfile::SystemDefault,
+            state);
+    const auto elapsed =
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now() - start);
+    return TimedCredentialAttempt{std::move(attempt), elapsed};
+}
+
+[[nodiscard]] bool runCredentialSemanticState(CredSspCredentialState state)
+{
+    const TimedCredentialAttempt timed =
+        runTimedCredentialSemanticAttempt(state);
+    const CredentialSemanticOutcome outcome =
+        classifyCredentialSemanticOutcome(timed.attempt);
+    printCredentialSemanticRow(timed);
+
+    const bool passed =
+        state == CredSspCredentialState::CorrectPassword
+            ? outcome == CredentialSemanticOutcome::TypeThreeEmitted
+            : outcome != CredentialSemanticOutcome::HarnessFailure;
+    if (!passed)
+        printFailure(TargetProfile::PortableServerName, timed.attempt);
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-credential-semantics-end "
+        "credential-state=%s status=%s process-isolated=yes\n",
+        credentialStateName(state), passed ? "PASS" : "FAIL");
+    std::fflush(stderr);
+    return passed;
+}
+
 [[nodiscard]] bool runCredentialSemanticDifferential()
 {
-    const auto runState = [](CredSspCredentialState state) {
-        const auto start = std::chrono::steady_clock::now();
-        FullCredSspAttempt attempt =
-            runFullCredSspAttempt(
-                TargetProfile::PortableServerName,
-                ChallengeExperiment::Production,
-                SchannelCredentialProfile::ModernSystemDefaults,
-                TlsServerProfile::SystemDefault,
-                state);
-        const auto elapsed =
-            std::chrono::duration_cast<std::chrono::microseconds>(
-                std::chrono::steady_clock::now() - start);
-        return TimedCredentialAttempt{std::move(attempt), elapsed};
-    };
-
     constexpr std::array states{
         CredSspCredentialState::CorrectPassword,
         CredSspCredentialState::WrongPassword,
@@ -3634,7 +3669,8 @@ void printFailure(
 
     for (const CredSspCredentialState state : states)
     {
-        const TimedCredentialAttempt timed = runState(state);
+        const TimedCredentialAttempt timed =
+            runTimedCredentialSemanticAttempt(state);
         const CredentialSemanticOutcome outcome =
             classifyCredentialSemanticOutcome(timed.attempt);
         printCredentialSemanticRow(timed);
@@ -3733,6 +3769,23 @@ int main(int argc, char **argv)
         return runModernSchannelSystemDefaultsProbe() ? 0 : 1;
     if (mode == "credential-semantic-differential")
         return runCredentialSemanticDifferential() ? 0 : 1;
+    if (mode == "credential-semantic-correct")
+        return runCredentialSemanticState(
+                   CredSspCredentialState::CorrectPassword) ? 0 : 1;
+    if (mode == "credential-semantic-wrong-password")
+        return runCredentialSemanticState(
+                   CredSspCredentialState::WrongPassword) ? 0 : 1;
+    if (mode == "credential-semantic-empty-password")
+        return runCredentialSemanticState(
+                   CredSspCredentialState::EmptyPassword) ? 0 : 1;
+    if (mode == "credential-semantic-unavailable-no-spnego")
+        return runCredentialSemanticState(
+                   CredSspCredentialState::UnavailableNoSpnego) ? 0 : 1;
+    if (mode == "credential-semantic-default-policy")
+    {
+        printDefaultCredentialPolicyRow();
+        return 0;
+    }
 
     TargetProfile profile{};
     if (mode == "control-target")

@@ -1,3 +1,21 @@
+## R9 GUI parity stale structural-label assertion — 2026-10-29
+
+- Exact source SHA: `12af8f1e5946250138f222721e91497543e50889`.
+- Primary workflow: `40842771764`.
+- Ubuntu GUI parity job `123344061623`: **FAIL**, 5/6 selected tests PASS.
+- First failing boundary:
+  `gui.offscreen-authentication-incomplete-before-native-admission` at
+  `tests/test_desktop_gui_offline.cpp:2291`.
+- The fixture changed only `directNtlmTypeTwoDelivered=true -> false`. Main
+  `hostErrorExplanation` correctly became
+  `Client disconnected before completing authentication.`; the stale test
+  expected an old structural `Authentication: Direct NTLM — ...` sentence.
+- Advanced `authenticationDiagnosticsStatus` owns the current
+  `NTLM Type 2: queued locally` / `NTLM Type 3: not observed` evidence.
+- Correction is test/docs only. TLS, NTLM, CredSSP, credentials, Admission,
+  listener and native behavior are unchanged.
+- Corrective exact-SHA hosted qualification: **PENDING**.
+
 ## R1 zero-timeout readiness-dwell attribution follow-up — 2026-10-29
 
 - Parent: `12af8f1e5946250138f222721e91497543e50889`.

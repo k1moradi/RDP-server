@@ -1,3 +1,22 @@
+## R9 P0 CI correction — GUI parity product-summary/Advanced ownership (2026-10-29)
+
+Exact SHA `12af8f1e5946250138f222721e91497543e50889`, workflow
+`40842771764`, Ubuntu `r9-owner-gui-credential-parity` job
+`123344061623` built successfully and ran five of six selected GUI parity
+tests PASS. The remaining
+`gui.offscreen-authentication-incomplete-before-native-admission` assertion
+expected the obsolete `Authentication: Direct NTLM — ...` structural text in
+the Main `hostErrorExplanation` label after the fixture changed the retained
+Type-2 state from delivered to queued. Production GUI code already keeps that
+Main label product-safe and puts queued/received NTLM stage detail in the
+separate Advanced authentication diagnostics label.
+
+R9 corrects only the existing offscreen assertion and pins both surfaces:
+Main remains `Client disconnected before completing authentication.`; Advanced
+must show Type 2 queued and Type 3 not observed. No product source,
+authentication wire, credential, Admission or native behavior changes.
+Corrective exact-SHA hosted qualification is **PENDING**.
+
 ## R1 P0 follow-up — zero-timeout readiness dwell attribution (2026-10-29)
 
 **Parent:** `12af8f1e5946250138f222721e91497543e50889`. Current source

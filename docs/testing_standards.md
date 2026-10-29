@@ -1,3 +1,18 @@
+## R9 GUI parity keeps product summary separate from Advanced authentication diagnostics (2026-10-29)
+
+When a retained pre-authentication snapshot has Direct-NTLM Type 2 queued but
+does not prove that the TLS writer committed it, the Main
+`hostErrorExplanation` must use the less-specific product-safe
+`Client disconnected before completing authentication.` text. Structural
+stage evidence belongs to the separate selectable Advanced authentication
+diagnostics surface, which may report `NTLM Type 2: queued locally` and
+`NTLM Type 3: not observed`. Do not make the Main error label consume the
+Advanced structural formatter merely to satisfy an offscreen test.
+
+This distinction is a presentation/test ownership rule only. It changes no
+runtime authentication classification, TLS/CredSSP/NTLM wire behavior,
+Admission authority or credential handling.
+
 ## R7 precise failure wording must be consistent across Main and activity (2026-10-29)
 
 When R7 changes the typed first-failure product wording, every offscreen surface

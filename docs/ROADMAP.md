@@ -1,3 +1,37 @@
+## R6 P0 PRIMARY — Microsoft SSPI crash containment and full-CredSSP oracle (2026-10-29)
+
+Current-main dependency review found the original Windows Debug crash blocker
+resolved enough to continue.  Exact SHA
+`cde24568f8bcb60a69559dae19ac40ba96fbf092`, workflow `40847067020`,
+CLANG64 job `123357097619`, artifact
+`r9-windows-clang23-credential-semantics-cde24568f8bcb60a69559dae19ac40ba96fbf092`:
+the isolated Debug credential differential PASSed.  Correct, wrong-password
+and empty-password emitted Type 3.  The unavailable/no-SPNEGO child returned
+`SEC_E_INSUFFICIENT_MEMORY` from `AcquireCredentialsHandleW` before any
+`InitializeSecurityContextW` call.  The historical crashing run did not
+publish a symbolized dump, so a historical stack is unavailable; current
+call-boundary evidence localizes the provider behavior and rules out that row's
+later SecBuffer/context cleanup path.
+
+R6 now extends the existing Microsoft-native fixture through the production
+CredSSP acceptor: final Type 3 + client pubKeyAuth, verified production binding,
+server binding reply, Microsoft-generated authInfo, and production
+CredentialsVerified.  This is direct TLS/memory-BIO protocol evidence only and
+cannot create native admission.  A dedicated test-only mismatched server
+binding must be rejected by Microsoft before authInfo.  The existing required
+NTLM TargetInfo AV-pair negative controls remain the independent malformed
+challenge proof, and the existing physical 40-byte Type-1 / production Type-2
+differential remains observational rather than a fabricated macOS identity.
+
+Authoring parent: `e4a6275bbc7a3b72e8c88a67dda944c29233b46d`.  Source/test/CI/docs review: PASS by inspection.
+Canonical local configure/build/full CTest: NOT RUN in this connector
+environment.  Exact publication-SHA Windows Debug/Release and Microsoft
+interop artifact: PENDING.  No live RDP client, desktop, clipboard, trust store
+or native-admission action was performed.  Next gate: publication-SHA Windows
+CLANG64 Debug/Release plus the exact-SHA Microsoft interop matrix must PASS;
+only then may this oracle qualify a later owner-authorized physical R6
+comparison.
+
 ## R9 P0 CI repair — R7 typed-diagnostic/Main-fallback parity (2026-10-29)
 
 Current-main R7 publication `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`,

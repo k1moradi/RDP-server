@@ -266,6 +266,17 @@ if(WIN32)
         LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
         TIMEOUT 45)
 
+    add_test(NAME security.windows-credssp-production-full-exchange
+        COMMAND test_windows_sspi_credssp_interop full-production-exchange)
+    add_test(NAME security.windows-credssp-server-binding-mismatch-negative-control
+        COMMAND test_windows_sspi_credssp_interop binding-negative-mismatch)
+    set_tests_properties(
+        security.windows-credssp-production-full-exchange
+        security.windows-credssp-server-binding-mismatch-negative-control
+        PROPERTIES
+        LABELS "security;credentials;ntlmv2;credssp;tls;windows;interop;acceptance;offline"
+        TIMEOUT 45)
+
     add_test(NAME security.windows-credssp-production-control-target-next-token
         COMMAND test_windows_sspi_credssp_interop control-target)
     add_test(NAME security.windows-credssp-production-physical-ip-target-next-token

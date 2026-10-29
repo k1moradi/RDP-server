@@ -1,3 +1,47 @@
+## R6 Microsoft-native CredSSP crash containment and completion oracle — 2026-10-29
+
+- Historical failing source: `d9b255bef6ae54952b50ffbca24f4b17ce969d72`,
+  workflow `40761365568`, Windows CLANG64 job `123073932690`: Debug
+  `security.windows-credssp-credential-semantic-differential` SEGFAULT after
+  complete correct/wrong/empty Type-3 rows and before an unavailable/no-SPNEGO
+  receipt; Release passed.  No crash dump/symbolized stack was published by
+  that run.
+- Resolved dependency evidence: exact SHA
+  `cde24568f8bcb60a69559dae19ac40ba96fbf092`, workflow `40847067020`,
+  CLANG64 job `123357097619`, artifact id `12885258246`: the isolated Debug
+  credential-source diagnostic PASSed.  The unavailable/no-SPNEGO child
+  entered `AcquireCredentialsHandleW`, returned
+  `SEC_E_INSUFFICIENT_MEMORY (0x80090300)`, never called
+  `InitializeSecurityContextW`, and completed as `FAILED_BEFORE_TYPE1`.
+  Correct, wrong-password and empty-password each emitted Type 3.
+- Root-cause boundary: the current fresh-process result makes the same
+  Schannel-only `CREDSSP_CRED` construction a typed provider failure instead
+  of a process crash.  For that row no security context, input/output SecBuffer
+  exchange, `CompleteAuthToken`, or context cleanup is reached.  The
+  historical Debug-only crash is therefore contained as process/provider state
+  interaction around credential acquisition; absence of the historical dump
+  prevents claiming a stack-level symbolized fault.
+- Implementation: preserve per-credential process isolation as fail-closed
+  containment and add non-secret provider call boundaries.  Extend the
+  Microsoft-native memory-BIO client through the existing production
+  `StandaloneCredSspNtlmAcceptor` to verified Type 3 + pubKeyAuth, server
+  binding reply, final authInfo and `CredentialsVerified`, using explicit
+  in-memory credentials only.  Add a cryptographically mismatched server
+  binding negative that must fail before authInfo.  Native admission remains
+  impossible on this direct-SSL test path.
+- Existing independent controls retained: TLS 1.3/SystemDefault qualification,
+  target-name and OEM differentials, correct/wrong/empty credential rows,
+  required Type-2 TargetInfo AV-pair negatives, and the observational physical
+  40-byte Type-1 / production Type-2 structural comparison.
+- Authoring parent: `e4a6275bbc7a3b72e8c88a67dda944c29233b46d`.
+- Source/test/CI/docs review: **PASS by inspection**.
+- Canonical local owner build/full CTest: **NOT RUN** in this connector
+  environment.
+- Exact publication-SHA hosted Windows Debug/Release and Microsoft full
+  interoperability matrix: **PENDING**.
+- Live Windows App/mstsc, desktop, clipboard, trust-store changes and native
+  admission: **NOT RUN / NOT AUTHORIZED**.
+
 ## R9 current-main GUI parity blocker — typed diagnostic vs visible fallback (2026-10-29)
 
 - Exact source SHA: `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`.

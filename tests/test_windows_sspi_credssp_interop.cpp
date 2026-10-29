@@ -10,6 +10,7 @@
 #include <sspi.h>
 
 #include "server/runtime/runtime_tls_context.h"
+#include "server/security/credssp_binding.h"
 #include "server/security/credssp_tsrequest.h"
 #include "server/security/standalone_credssp.h"
 #include "server/security/standalone_ntlmssp.h"
@@ -66,6 +67,7 @@ enum class SchannelCredentialProfile : std::uint8_t
 enum class CredSspCredentialState : std::uint8_t
 {
     CorrectPassword,
+    CorrectPasswordEmptyDomain,
     WrongPassword,
     UnavailableNoSpnego,
     EmptyPassword,
@@ -78,6 +80,8 @@ enum class CredSspCredentialState : std::uint8_t
     {
     case CredSspCredentialState::CorrectPassword:
         return "correct";
+    case CredSspCredentialState::CorrectPasswordEmptyDomain:
+        return "correct-empty-domain";
     case CredSspCredentialState::WrongPassword:
         return "wrong-password";
     case CredSspCredentialState::UnavailableNoSpnego:
@@ -1022,7 +1026,8 @@ public:
         SchannelCredentialProfile schannelCredentialProfile,
         CredSspCredentialState credentialState =
             CredSspCredentialState::CorrectPassword) noexcept
-        : schannelCredentialProfile_(schannelCredentialProfile)
+        : schannelCredentialProfile_(schannelCredentialProfile),
+          credentialState_(credentialState)
     {
         identity_.Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
         if (credentialState != CredSspCredentialState::UnavailableNoSpnego)
@@ -1030,14 +1035,26 @@ public:
             identity_.User = username_.data();
             identity_.UserLength =
                 static_cast<unsigned long>(username_.size());
-            identity_.Domain = domain_.data();
-            identity_.DomainLength =
-                static_cast<unsigned long>(domain_.size());
+            if (credentialState ==
+                CredSspCredentialState::CorrectPasswordEmptyDomain)
+            {
+                // Full CredSSP completion uses an explicitly empty domain so
+                // delegated authInfo matches the standalone credential policy.
+                identity_.Domain = emptyDomain_.data();
+                identity_.DomainLength = 0U;
+            }
+            else
+            {
+                identity_.Domain = domain_.data();
+                identity_.DomainLength =
+                    static_cast<unsigned long>(domain_.size());
+            }
         }
 
         switch (credentialState)
         {
         case CredSspCredentialState::CorrectPassword:
+        case CredSspCredentialState::CorrectPasswordEmptyDomain:
             identity_.Password = correctPassword_.data();
             identity_.PasswordLength =
                 static_cast<unsigned long>(correctPassword_.size());
@@ -1117,6 +1134,12 @@ public:
     {
         wchar_t packageName[] = L"CREDSSP";
         TimeStamp expiry{};
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-provider-call credential-state=%s "
+            "call=AcquireCredentialsHandleW phase=begin\n",
+            credentialStateName(credentialState_));
+        std::fflush(stderr);
         const SECURITY_STATUS status = AcquireCredentialsHandleW(
             nullptr,
             packageName,
@@ -1127,6 +1150,16 @@ public:
             nullptr,
             &credential_,
             &expiry);
+        std::fprintf(
+            stderr,
+            "microsoft-credssp-provider-call credential-state=%s "
+            "call=AcquireCredentialsHandleW phase=end status=%s "
+            "code=0x%08lx\n",
+            credentialStateName(credentialState_),
+            securityStatusName(status),
+            static_cast<unsigned long>(
+                static_cast<std::uint32_t>(status)));
+        std::fflush(stderr);
         credentialValid_ = securityStatusSucceeded(status);
         return status;
     }
@@ -1322,6 +1355,7 @@ private:
         static_cast<unsigned short>('R'),
         static_cast<unsigned short>('D'),
         static_cast<unsigned short>('P')};
+    std::array<unsigned short, 1> emptyDomain_{0U};
     std::array<unsigned short, 8> correctPassword_{
         static_cast<unsigned short>('P'),
         static_cast<unsigned short>('a'),
@@ -1352,6 +1386,8 @@ private:
     CREDSSP_CRED credSsp_{};
     SchannelCredentialProfile schannelCredentialProfile_{
         SchannelCredentialProfile::LegacySchannelCred};
+    CredSspCredentialState credentialState_{
+        CredSspCredentialState::CorrectPassword};
     CredHandle credential_{};
     CtxtHandle context_{};
     SspiServerInputBuffer pendingServerInput_{};
@@ -1921,6 +1957,119 @@ public:
         return reader_.releaseFrame();
     }
 
+    [[nodiscard]] bool processClientBindingFrame(
+        bool &hasPubKeyAuth,
+        bool &typeThreeObserved,
+        bool &typeThreeVerified) noexcept
+    {
+        hasPubKeyAuth = false;
+        typeThreeObserved = false;
+        typeThreeVerified = false;
+        if (experiment_ != ChallengeExperiment::Production ||
+            reader_.status() != TsRequestFrameStatus::Complete)
+        {
+            return false;
+        }
+
+        const auto request = parseCredSspTsRequest(reader_.completeDer());
+        if (!request || !request.value.finalNegoAndBindingOnly())
+            return false;
+        hasPubKeyAuth = request.value.hasPubKeyAuth;
+        for (std::uint8_t index = 0U;
+             index < request.value.tokenCount;
+             ++index)
+        {
+            if (hasNtlmMessageType(request.value.tokens[index], 3U))
+            {
+                typeThreeObserved = true;
+                break;
+            }
+        }
+        if (!typeThreeObserved)
+            return false;
+
+        const auto status = acceptor_.processCompleteFrame(
+            reader_, writer_, credential_);
+        typeThreeVerified =
+            status == StandaloneCredSspFrameStatus::BindingReplyQueued &&
+            acceptor_.lastNtlmMessageType() == 3U &&
+            acceptor_.stage() ==
+                StandaloneCredSspStage::ServerBindingReplyQueued;
+        return typeThreeVerified;
+    }
+
+    [[nodiscard]] bool queueInvalidServerBindingReply(
+        bool &hasPubKeyAuth,
+        bool &typeThreeObserved) noexcept
+    {
+        hasPubKeyAuth = false;
+        typeThreeObserved = false;
+        if (experiment_ != ChallengeExperiment::Production ||
+            reader_.status() != TsRequestFrameStatus::Complete)
+        {
+            return false;
+        }
+
+        const auto request = parseCredSspTsRequest(reader_.completeDer());
+        if (!request || !request.value.finalNegoAndBindingOnly())
+            return false;
+        hasPubKeyAuth = request.value.hasPubKeyAuth;
+        for (std::uint8_t index = 0U;
+             index < request.value.tokenCount;
+             ++index)
+        {
+            if (hasNtlmMessageType(request.value.tokens[index], 3U))
+            {
+                typeThreeObserved = true;
+                break;
+            }
+        }
+        if (!typeThreeObserved)
+            return false;
+
+        // Deliberately bypass the production acceptor for this one negative
+        // oracle row and return a structurally sized but cryptographically
+        // invalid server binding. Microsoft SSPI must reject it.
+        std::array<
+            std::uint8_t,
+            kNtlmMessageSignatureBytes + kCredSspBindingHashBytes>
+            invalidProtectedBinding{};
+        const auto requestVersion =
+            static_cast<std::uint8_t>(request.value.version);
+        if (!reader_.releaseFrame())
+            return false;
+        return writer_.queueReply(
+            tls_.get(),
+            requestVersion,
+            CredSspServerReplyField::EncryptedServerBinding,
+            invalidProtectedBinding);
+    }
+
+    [[nodiscard]] bool processAuthInfoFrame(
+        bool &authInfoObserved,
+        bool &credentialsVerified) noexcept
+    {
+        authInfoObserved = false;
+        credentialsVerified = false;
+        if (experiment_ != ChallengeExperiment::Production ||
+            reader_.status() != TsRequestFrameStatus::Complete)
+        {
+            return false;
+        }
+
+        const auto request = parseCredSspTsRequest(reader_.completeDer());
+        authInfoObserved = request && request.value.finalAuthInfoOnly();
+        if (!authInfoObserved)
+            return false;
+
+        const auto status = acceptor_.processCompleteFrame(
+            reader_, writer_, credential_);
+        credentialsVerified =
+            status == StandaloneCredSspFrameStatus::CredentialsVerified &&
+            acceptor_.stage() == StandaloneCredSspStage::CredentialsVerified;
+        return credentialsVerified;
+    }
+
     [[nodiscard]] StandaloneSpnegoInitialTokenObservation
     initialTokenObservation() const noexcept
     {
@@ -1955,6 +2104,7 @@ enum class CredSspPumpBoundary : std::uint8_t
 {
     InitialClientTsRequest,
     NextClientTsRequest,
+    FinalAuthInfoTsRequest,
 };
 
 enum class CredSspPumpStopReason : std::uint8_t
@@ -2093,7 +2243,9 @@ template <typename Client, typename Server>
                 if (reply == ReplyAdvance::Failed)
                 {
                     result.failureStage =
-                        "memory-bio-production-type2-write";
+                        boundary == CredSspPumpBoundary::FinalAuthInfoTsRequest
+                            ? "memory-bio-server-binding-write"
+                            : "memory-bio-production-type2-write";
                     result.stopReason =
                         CredSspPumpStopReason::TypedFailure;
                     result.iterations[result.iterationCount++] =
@@ -2105,7 +2257,9 @@ template <typename Client, typename Server>
                     if (!server.releaseProductionReply())
                     {
                         result.failureStage =
-                            "memory-bio-production-type2-release";
+                            boundary == CredSspPumpBoundary::FinalAuthInfoTsRequest
+                                ? "memory-bio-server-binding-release"
+                                : "memory-bio-production-type2-release";
                         result.stopReason =
                             CredSspPumpStopReason::TypedFailure;
                         result.iterations[result.iterationCount++] =
@@ -2127,7 +2281,10 @@ template <typename Client, typename Server>
                         boundary ==
                             CredSspPumpBoundary::InitialClientTsRequest
                         ? "memory-bio-server-initial-tsrequest"
-                        : "memory-bio-server-next-tsrequest";
+                        : boundary ==
+                              CredSspPumpBoundary::NextClientTsRequest
+                            ? "memory-bio-server-next-tsrequest"
+                            : "memory-bio-server-authinfo-tsrequest";
                     result.stopReason =
                         CredSspPumpStopReason::TypedFailure;
                     result.iterations[result.iterationCount++] =
@@ -2199,7 +2356,10 @@ template <typename Client, typename Server>
                     : boundary ==
                           CredSspPumpBoundary::InitialClientTsRequest
                         ? "tls-or-credssp-continue"
-                        : "after-production-type2";
+                        : boundary ==
+                              CredSspPumpBoundary::NextClientTsRequest
+                            ? "after-production-type2"
+                            : "after-server-binding";
             pendingClientStep =
                 client.step(profile, serverToken);
             havePendingClientStep = true;
@@ -2224,6 +2384,7 @@ template <typename Client, typename Server>
                 pendingClientStep.status;
 
             const bool productionTypeTwoConsumedThisCall =
+                boundary == CredSspPumpBoundary::NextClientTsRequest &&
                 sendQueuedProductionReply &&
                 productionReplyCommitted &&
                 pendingClientStep.inputBytes != 0U &&
@@ -2233,6 +2394,7 @@ template <typename Client, typename Server>
                 result.productionTypeTwoConsumed ||
                 productionTypeTwoConsumedThisCall;
             const bool nextClientTsRequestProduced =
+                boundary == CredSspPumpBoundary::NextClientTsRequest &&
                 sendQueuedProductionReply &&
                 result.productionTypeTwoConsumed &&
                 !pendingClientStep.output.empty();
@@ -2241,7 +2403,7 @@ template <typename Client, typename Server>
                 phase,
                 pendingClientStep,
                 server.tlsReady(),
-                boundary == CredSspPumpBoundary::NextClientTsRequest,
+                boundary != CredSspPumpBoundary::InitialClientTsRequest,
                 result.productionTypeTwoConsumed,
                 nextClientTsRequestProduced,
                 false);
@@ -2806,6 +2968,13 @@ private:
            scriptedServer.complete();
 }
 
+enum class PostTypeThreeExperiment : std::uint8_t
+{
+    StopAfterTypeThree,
+    CompleteProductionExchange,
+    InvalidServerBinding,
+};
+
 using BoundedCipherName = std::array<char, 64>;
 
 void copyBoundedCipherName(
@@ -2830,6 +2999,7 @@ struct FullCredSspAttempt final
     SECURITY_STATUS lastClientStatus{SEC_E_INTERNAL_ERROR};
     CredSspPumpResult initialPump{};
     CredSspPumpResult nextPump{};
+    CredSspPumpResult bindingPump{};
     bool typeOneObserved{};
     bool directNtlmTypeOneAccepted{};
     const char *rawTokenType{"not-observed"};
@@ -2857,6 +3027,14 @@ struct FullCredSspAttempt final
     bool productionObservedTypeThree{};
     bool productionVerifiedTypeThree{};
     bool nextClientHasPubKeyAuth{};
+    bool productionBindingReplyQueued{};
+    bool productionBindingReplyTlsCommitted{};
+    bool microsoftAuthInfoGenerated{};
+    bool authInfoTsRequestReceived{};
+    bool authInfoObserved{};
+    bool credentialsVerified{};
+    bool invalidServerBindingReplyQueued{};
+    bool invalidServerBindingRejected{};
 };
 
 
@@ -2996,7 +3174,9 @@ void printClientProfileObservation(
     TlsServerProfile tlsServerProfile =
         TlsServerProfile::SystemDefault,
     CredSspCredentialState credentialState =
-        CredSspCredentialState::CorrectPassword)
+        CredSspCredentialState::CorrectPassword,
+    PostTypeThreeExperiment postTypeThreeExperiment =
+        PostTypeThreeExperiment::StopAfterTypeThree)
 {
     FullCredSspAttempt result{};
     result.schannelCredentialProfile = schannelCredentialProfile;
@@ -3101,17 +3281,94 @@ void printClientProfileObservation(
 
     [[maybe_unused]] std::uint8_t tokenCount = 0U;
     result.stage = "production-consume-next-client-token";
-    if (!server.processNextClientFrame(
-            tokenCount,
-            result.nextClientHasPubKeyAuth,
-            result.productionObservedTypeThree,
-            result.productionVerifiedTypeThree))
+    if (postTypeThreeExperiment ==
+        PostTypeThreeExperiment::StopAfterTypeThree)
+    {
+        if (!server.processNextClientFrame(
+                tokenCount,
+                result.nextClientHasPubKeyAuth,
+                result.productionObservedTypeThree,
+                result.productionVerifiedTypeThree))
+        {
+            return result;
+        }
+        result.stage = result.productionObservedTypeThree
+            ? "none"
+            : "next-client-tsrequest-without-type3";
+        return result;
+    }
+
+    if (experiment != ChallengeExperiment::Production)
+    {
+        result.stage = "post-type3-experiment-requires-production";
+        return result;
+    }
+
+    if (postTypeThreeExperiment ==
+        PostTypeThreeExperiment::CompleteProductionExchange)
+    {
+        if (!server.processClientBindingFrame(
+                result.nextClientHasPubKeyAuth,
+                result.productionObservedTypeThree,
+                result.productionVerifiedTypeThree))
+        {
+            return result;
+        }
+        result.productionBindingReplyQueued = true;
+    }
+    else
+    {
+        if (!server.queueInvalidServerBindingReply(
+                result.nextClientHasPubKeyAuth,
+                result.productionObservedTypeThree))
+        {
+            return result;
+        }
+        result.invalidServerBindingReplyQueued = true;
+    }
+
+    result.stage = "memory-bio-after-server-binding";
+    result.bindingPump = pumpCredSspMemoryBio(
+        profile, client, server,
+        CredSspPumpBoundary::FinalAuthInfoTsRequest, true);
+    result.lastClientStatus = result.bindingPump.lastClientStatus;
+    result.productionBindingReplyTlsCommitted =
+        result.bindingPump.productionReplyCommitted;
+    result.microsoftAuthInfoGenerated =
+        result.bindingPump.microsoftOutputGenerated;
+
+    if (postTypeThreeExperiment ==
+        PostTypeThreeExperiment::InvalidServerBinding)
+    {
+        result.invalidServerBindingRejected =
+            result.bindingPump.stopReason ==
+                CredSspPumpStopReason::TypedFailure &&
+            std::string_view{result.bindingPump.failureStage} ==
+                "memory-bio-microsoft-credssp";
+        result.stage = result.invalidServerBindingRejected
+            ? "invalid-server-binding-detected"
+            : result.bindingPump.failureStage;
+        return result;
+    }
+
+    if (result.bindingPump.stopReason !=
+        CredSspPumpStopReason::BoundaryComplete)
+    {
+        result.stage = result.bindingPump.failureStage;
+        return result;
+    }
+    result.authInfoTsRequestReceived = true;
+
+    result.stage = "production-authinfo";
+    if (!server.processAuthInfoFrame(
+            result.authInfoObserved,
+            result.credentialsVerified))
     {
         return result;
     }
-    result.stage = result.productionObservedTypeThree
-        ? "none"
-        : "next-client-tsrequest-without-type3";
+    result.stage = result.credentialsVerified
+        ? "credentials-verified"
+        : "authinfo-not-verified";
     return result;
 }
 
@@ -3294,7 +3551,8 @@ struct SecurityStatusObservation final
                    "memory-bio-microsoft-credssp";
     };
     return isMicrosoftFailure(attempt.initialPump) ||
-           isMicrosoftFailure(attempt.nextPump);
+           isMicrosoftFailure(attempt.nextPump) ||
+           isMicrosoftFailure(attempt.bindingPump);
 }
 
 enum class CredentialSemanticOutcome : std::uint8_t
@@ -3824,6 +4082,112 @@ void printFailure(
     return harnessValid;
 }
 
+[[nodiscard]] bool completedProductionCredSspExchange(
+    const FullCredSspAttempt &result) noexcept
+{
+    return std::string_view{result.stage} == "credentials-verified" &&
+           result.tlsEstablished &&
+           result.initialClientTsRequestReceived &&
+           result.productionTypeTwoQueued &&
+           result.productionTypeTwoTlsCommitted &&
+           result.productionTypeTwoConsumed &&
+           result.nextClientTsRequestReceived &&
+           result.productionObservedTypeThree &&
+           result.productionVerifiedTypeThree &&
+           result.nextClientHasPubKeyAuth &&
+           result.productionBindingReplyQueued &&
+           result.productionBindingReplyTlsCommitted &&
+           result.microsoftAuthInfoGenerated &&
+           result.authInfoTsRequestReceived &&
+           result.authInfoObserved &&
+           result.credentialsVerified;
+}
+
+[[nodiscard]] bool runProductionFullCredSspExchange()
+{
+    const FullCredSspAttempt result =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::ModernSystemDefaults,
+            TlsServerProfile::SystemDefault,
+            CredSspCredentialState::CorrectPasswordEmptyDomain,
+            PostTypeThreeExperiment::CompleteProductionExchange);
+    const bool passed = completedProductionCredSspExchange(result);
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-full-exchange status=%s tls=%s "
+        "type3-observed=%s type3-verified=%s pubkeyauth=%s "
+        "server-binding-queued=%s server-binding-committed=%s "
+        "authinfo-output=%s authinfo-tsrequest=%s authinfo=%s "
+        "credentials-verified=%s native-admission=no stage=%s\n",
+        passed ? "PASS" : "FAIL",
+        tlsVersionName(result.negotiatedTlsVersion),
+        result.productionObservedTypeThree ? "yes" : "no",
+        result.productionVerifiedTypeThree ? "yes" : "no",
+        result.nextClientHasPubKeyAuth ? "yes" : "no",
+        result.productionBindingReplyQueued ? "yes" : "no",
+        result.productionBindingReplyTlsCommitted ? "yes" : "no",
+        result.microsoftAuthInfoGenerated ? "yes" : "no",
+        result.authInfoTsRequestReceived ? "yes" : "no",
+        result.authInfoObserved ? "yes" : "no",
+        result.credentialsVerified ? "yes" : "no",
+        result.stage);
+    std::fflush(stderr);
+    if (!passed)
+        printFailure(TargetProfile::PortableServerName, result);
+    return passed;
+}
+
+[[nodiscard]] bool runServerBindingMismatchNegativeControl()
+{
+    const FullCredSspAttempt result =
+        runFullCredSspAttempt(
+            TargetProfile::PortableServerName,
+            ChallengeExperiment::Production,
+            SchannelCredentialProfile::ModernSystemDefaults,
+            TlsServerProfile::SystemDefault,
+            CredSspCredentialState::CorrectPasswordEmptyDomain,
+            PostTypeThreeExperiment::InvalidServerBinding);
+    const bool detected =
+        result.tlsEstablished &&
+        result.productionTypeTwoTlsCommitted &&
+        result.productionTypeTwoConsumed &&
+        result.productionObservedTypeThree &&
+        result.nextClientHasPubKeyAuth &&
+        result.invalidServerBindingReplyQueued &&
+        result.productionBindingReplyTlsCommitted &&
+        result.invalidServerBindingRejected &&
+        !result.authInfoTsRequestReceived &&
+        !result.authInfoObserved &&
+        !result.credentialsVerified;
+
+    std::fprintf(
+        stderr,
+        "microsoft-credssp-binding-negative-control "
+        "experiment=mismatched-server-binding challenge=production "
+        "type3=%s pubkeyauth=%s invalid-binding-queued=%s "
+        "invalid-binding-committed=%s authinfo=%s "
+        "credentials-verified=%s microsoft-status=%s code=0x%08lx "
+        "stage=%s oracle-detected=%s "
+        "production-binding-change-authorized=no\n",
+        result.productionObservedTypeThree ? "yes" : "no",
+        result.nextClientHasPubKeyAuth ? "yes" : "no",
+        result.invalidServerBindingReplyQueued ? "yes" : "no",
+        result.productionBindingReplyTlsCommitted ? "yes" : "no",
+        result.authInfoObserved ? "yes" : "no",
+        result.credentialsVerified ? "yes" : "no",
+        securityStatusName(result.lastClientStatus),
+        static_cast<unsigned long>(
+            static_cast<std::uint32_t>(result.lastClientStatus)),
+        result.stage,
+        detected ? "yes" : "no");
+    std::fflush(stderr);
+    if (!detected)
+        printFailure(TargetProfile::PortableServerName, result);
+    return detected;
+}
+
 [[nodiscard]] bool runTypeTwoNegativeControl(
     ChallengeExperiment experiment)
 {
@@ -3916,6 +4280,10 @@ int main(int argc, char **argv)
         printDefaultCredentialPolicyRow();
         return 0;
     }
+    if (mode == "full-production-exchange")
+        return runProductionFullCredSspExchange() ? 0 : 1;
+    if (mode == "binding-negative-mismatch")
+        return runServerBindingMismatchNegativeControl() ? 0 : 1;
     if (mode == "type2-negative-missing-nb-computer")
         return runTypeTwoNegativeControl(
                    ChallengeExperiment::MissingNbComputerName) ? 0 : 1;

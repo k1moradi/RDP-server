@@ -1,3 +1,36 @@
+## R6 Microsoft-native full CredSSP completion oracle (2026-10-29)
+
+The Windows Microsoft-CredSSP interoperability fixture must not stop at an
+observed NTLM Type 3 when production already owns the later CredSSP states.
+Its positive full-exchange row uses only explicit in-memory test credentials,
+the production generated TLS identity, and
+`StandaloneCredSspNtlmAcceptor::processCompleteFrame`.  The final NTLM
+message must share one TSRequest with client `pubKeyAuth`; production must
+verify that binding, queue the server binding response, Microsoft SSPI must
+accept it and emit the final encrypted `authInfo`, and production must reach
+`CredentialsVerified`.  The direct-memory-BIO path is protocol-only and MUST
+NOT create an owned-connection authenticated proof or native admission.
+
+The completion credential uses the existing User/Password test secret with an
+explicitly empty domain solely because the standalone final delegated-password
+policy requires an empty domain.  Existing correct, wrong-password,
+empty-password, unavailable/no-SPNEGO, target-name, OEM, TLS-version and
+physical-profile controls remain unchanged.
+
+The independent oracle also requires a server-binding negative: after the
+unchanged production Type 2 causes Microsoft SSPI to emit Type 3 plus
+`pubKeyAuth`, the test-only server path returns a correctly shaped but
+cryptographically mismatched protected binding.  Microsoft SSPI must reject it
+with a typed provider failure before `authInfo`; a crash, no-progress result,
+authInfo emission or CredentialsVerified outcome is FAIL.  Existing required-AV
+Type-2 mutations remain the independent malformed-challenge controls.
+
+The unavailable/no-SPNEGO row remains process-isolated.  A begin marker is
+emitted before `AcquireCredentialsHandleW`, and provider call begin/end
+markers make any future process-fatal failure attributable without printing
+credentials.  Child crashes/nonzero exits remain hard failures and are never
+retried or converted to acceptance.
+
 ## R9/R7 GUI parity distinguishes typed authentication diagnostics from Main fallback text (2026-10-29)
 
 When R7 intentionally leaves `HostStatus::authenticationDiagnostic` empty for

@@ -11,10 +11,12 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QByteArray>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QFileDialog>
 #include <QFont>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -23,6 +25,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QPushButton>
+#include <QSaveFile>
 #include <QScrollArea>
 #include <QSignalBlocker>
 #include <QSpinBox>
@@ -30,6 +33,7 @@
 #include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTimer>
+#include <QStringList>
 #include <QVBoxLayout>
 #include <QVariant>
 
@@ -156,6 +160,322 @@ QString ownerPermissionStatusText(const HostStatus& status)
     return QStringLiteral("Sharing permission unavailable");
 }
 
+
+QString certificateFingerprintText(const HostStatus& status)
+{
+    if (!status.tlsFingerprintAvailable)
+        return QStringLiteral("unavailable");
+
+    using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
+    constexpr std::size_t certificateSha256Size =
+        std::tuple_size_v<RuntimeTlsCertificateFingerprint>;
+    static_assert(certificateSha256Size == 32U);
+    constexpr std::size_t fingerprintCharacterCount =
+        certificateSha256Size * 3U - 1U;
+    static_assert(fingerprintCharacterCount == 95U);
+
+    constexpr char hexDigits[] = "0123456789ABCDEF";
+    std::array<char, fingerprintCharacterCount> fingerprint{};
+    for (std::size_t index = 0; index < certificateSha256Size; ++index)
+    {
+        const auto byte = status.tlsFingerprint[index];
+        const std::size_t offset = index * 3U;
+        fingerprint[offset] = hexDigits[byte >> 4U];
+        fingerprint[offset + 1U] = hexDigits[byte & 0x0fU];
+        if (index + 1U < certificateSha256Size)
+            fingerprint[offset + 2U] = ':';
+    }
+    return QString::fromLatin1(
+        fingerprint.data(), static_cast<qsizetype>(fingerprint.size()));
+}
+
+QString authenticationStageText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientAuthenticationStage stage)
+{
+    using Stage =
+        rdp_server::server::runtime::RuntimeAcceptedClientAuthenticationStage;
+    switch (stage)
+    {
+    case Stage::Transport: return QStringLiteral("transport");
+    case Stage::Tls: return QStringLiteral("TLS");
+    case Stage::CredSsp: return QStringLiteral("CredSSP");
+    case Stage::CredSspSpnego: return QStringLiteral("CredSSP / SPNEGO");
+    case Stage::CredSspDirectNtlm: return QStringLiteral("NTLM negotiate");
+    case Stage::NtlmChallenge: return QStringLiteral("NTLM challenge");
+    case Stage::NtlmAuthenticate: return QStringLiteral("NTLM authenticate");
+    case Stage::CredSspBinding: return QStringLiteral("CredSSP TLS binding");
+    case Stage::CredentialDelegation:
+        return QStringLiteral("credential delegation");
+    case Stage::Authenticated: return QStringLiteral("authenticated");
+    case Stage::Admission: return QStringLiteral("native admission");
+    case Stage::Mcs: return QStringLiteral("MCS");
+    }
+    return QStringLiteral("unavailable");
+}
+
+QString protocolStageText(
+    const rdp_server::server::runtime::RuntimeAcceptedClientProtocolStage stage)
+{
+    using Stage =
+        rdp_server::server::runtime::RuntimeAcceptedClientProtocolStage;
+    switch (stage)
+    {
+    case Stage::PreAdmission: return QStringLiteral("pre-admission");
+    case Stage::NativeAdmissionVerified:
+        return QStringLiteral("native admission verified");
+    case Stage::McsConnectInitialReceived:
+        return QStringLiteral("MCS Connect-Initial received");
+    case Stage::McsConnectResponseSent:
+        return QStringLiteral("MCS Connect-Response sent");
+    case Stage::McsErectDomainReceived:
+        return QStringLiteral("MCS Erect Domain received");
+    case Stage::McsAttachUserReceived:
+        return QStringLiteral("MCS Attach User received");
+    case Stage::McsChannelJoin: return QStringLiteral("MCS channel join");
+    case Stage::McsEstablished: return QStringLiteral("MCS established");
+    case Stage::ShareActivation: return QStringLiteral("Share activation");
+    case Stage::ShareActivated: return QStringLiteral("Share activated");
+    }
+    return QStringLiteral("unavailable");
+}
+
+QString tlsVersionText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientTlsProtocolVersion version)
+{
+    using Version = rdp_server::server::runtime::
+        RuntimeAcceptedClientTlsProtocolVersion;
+    switch (version)
+    {
+    case Version::Unavailable: return QStringLiteral("unavailable");
+    case Version::Tls12: return QStringLiteral("TLS 1.2");
+    case Version::Tls13: return QStringLiteral("TLS 1.3");
+    }
+    return QStringLiteral("unavailable");
+}
+
+QString terminationText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
+{
+    using PreType3 =
+        rdp_server::server::runtime::RuntimeAcceptedClientPreType3Termination;
+    switch (diagnostics.preType3Termination)
+    {
+    case PreType3::PeerEof:
+        return QStringLiteral("TCP FIN / peer EOF before Type 3");
+    case PreType3::PeerReset:
+        return QStringLiteral("TCP reset before Type 3");
+    case PreType3::TlsAlert:
+        return QStringLiteral("TLS alert before Type 3");
+    case PreType3::LocalClose:
+        return QStringLiteral("local close before Type 3");
+    case PreType3::TlsCloseNotify:
+        return QStringLiteral("TLS close_notify before Type 3");
+    case PreType3::None:
+        break;
+    }
+
+    using Termination =
+        rdp_server::server::runtime::RuntimeAcceptedClientTermination;
+    switch (diagnostics.termination)
+    {
+    case Termination::Open: return QStringLiteral("open");
+    case Termination::OrderlyTlsClose:
+        return QStringLiteral("orderly TLS close");
+    case Termination::TransportError: return QStringLiteral("transport error");
+    case Termination::TlsFailure: return QStringLiteral("TLS failure");
+    case Termination::ProtocolError: return QStringLiteral("protocol error");
+    case Termination::Cancelled: return QStringLiteral("cancelled");
+    case Termination::PeerEof: return QStringLiteral("TCP FIN / peer EOF");
+    case Termination::PeerReset: return QStringLiteral("TCP reset");
+    case Termination::PeerTlsAlert: return QStringLiteral("TLS alert");
+    case Termination::LocalTlsFailure:
+        return QStringLiteral("local TLS failure");
+    case Termination::Timeout: return QStringLiteral("timeout");
+    case Termination::OwnerCancellation:
+        return QStringLiteral("owner cancellation");
+    }
+    return QStringLiteral("unavailable");
+}
+
+QString microsecondsText(bool available, std::uint64_t value)
+{
+    return available
+        ? QStringLiteral("%1 us").arg(static_cast<qulonglong>(value))
+        : QStringLiteral("unavailable");
+}
+
+[[nodiscard]] constexpr bool typeThreeObserved(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using Stage =
+        rdp_server::server::runtime::RuntimeAcceptedClientAuthenticationStage;
+    switch (diagnostics.authenticationStage)
+    {
+    case Stage::NtlmAuthenticate:
+    case Stage::CredSspBinding:
+    case Stage::CredentialDelegation:
+    case Stage::Authenticated:
+    case Stage::Admission:
+    case Stage::Mcs:
+        return true;
+    case Stage::Transport:
+    case Stage::Tls:
+    case Stage::CredSsp:
+    case Stage::CredSspSpnego:
+    case Stage::CredSspDirectNtlm:
+    case Stage::NtlmChallenge:
+        return false;
+    }
+    return false;
+}
+
+QString typedFirstFailureText(const HostStatus& status)
+{
+    if (status.localDesktopAuthorizationFailed)
+        return QStringLiteral("Native desktop admission denied.");
+    if (status.remoteAuthenticationInvalidCredentials)
+        return QStringLiteral("Invalid credentials.");
+    if (status.remoteAuthenticationIncomplete)
+        return QStringLiteral(
+            "Client disconnected before completing authentication.");
+    if (status.remoteAuthenticationFailed)
+        return QStringLiteral("Remote client authentication failed.");
+    return QStringLiteral("No typed authentication failure observed.");
+}
+
+QString authenticationDiagnosticsText(const HostStatus& status)
+{
+    const auto& diagnostics = status.acceptedClientDiagnostics;
+    QStringList lines;
+    const QString endpoint =
+        !status.selectedEndpoint.isEmpty()
+            ? status.selectedEndpoint
+            : (!status.lanAddress.isEmpty()
+                ? status.lanAddress
+                : QStringLiteral("unavailable"));
+    lines.push_back(QStringLiteral("Endpoint: ") + endpoint);
+    lines.push_back(
+        diagnostics.available && diagnostics.acceptedClientId != 0U
+            ? QStringLiteral("Connection ID: %1")
+                  .arg(static_cast<qulonglong>(diagnostics.acceptedClientId))
+            : QStringLiteral("Connection ID: unavailable"));
+    lines.push_back(
+        diagnostics.available
+            ? QStringLiteral("Connection stage: %1 / %2")
+                  .arg(authenticationStageText(diagnostics.authenticationStage),
+                       protocolStageText(diagnostics.protocolStage))
+            : QStringLiteral("Connection stage: unavailable"));
+    lines.push_back(QStringLiteral("First failure: ") +
+                    typedFirstFailureText(status));
+    lines.push_back(QStringLiteral("TLS version: ") +
+                    tlsVersionText(status.tlsConnection.protocolVersion));
+    lines.push_back(QStringLiteral("Certificate SHA-256: ") +
+                    certificateFingerprintText(status));
+
+    if (diagnostics.available)
+    {
+        lines.push_back(QStringLiteral("NTLM Type 1: ") +
+            (diagnostics.ntlmTypeOne.observed ? QStringLiteral("received")
+                                              : QStringLiteral("not observed")));
+        lines.push_back(QStringLiteral("NTLM Type 2: ") +
+            (diagnostics.directNtlmTypeTwoDelivered
+                 ? QStringLiteral("committed locally by the server TLS writer")
+                 : (diagnostics.directNtlmTypeTwoQueued
+                    ? QStringLiteral("queued locally")
+                    : QStringLiteral("not observed"))));
+        lines.push_back(QStringLiteral("NTLM Type 3: ") +
+            (typeThreeObserved(diagnostics) ? QStringLiteral("received")
+                                            : QStringLiteral("not observed")));
+        lines.push_back(QStringLiteral("Peer close: ") +
+                        terminationText(diagnostics));
+        lines.push_back(QStringLiteral("Stage timings (monotonic):"));
+        lines.push_back(QStringLiteral("  accept -> TLS established: ") +
+            microsecondsText(diagnostics.acceptedToTlsEstablishedAvailable,
+                             diagnostics.acceptedToTlsEstablishedMicroseconds));
+        lines.push_back(QStringLiteral("  TLS established -> Type 1: ") +
+            microsecondsText(diagnostics.tlsEstablishedToTypeOneAvailable,
+                             diagnostics.tlsEstablishedToTypeOneMicroseconds));
+        lines.push_back(QStringLiteral("  Type 1 -> Type 2 queued: ") +
+            microsecondsText(diagnostics.typeOneToTypeTwoQueuedAvailable,
+                             diagnostics.typeOneToTypeTwoQueuedMicroseconds));
+        lines.push_back(QStringLiteral("  Type 2 queued -> local TLS commit: ") +
+            microsecondsText(
+                diagnostics.directNtlmTypeTwoCreationToDeliveryAgeAvailable,
+                diagnostics.directNtlmTypeTwoCreationToDeliveryMicroseconds));
+        lines.push_back(QStringLiteral("  Type 2 commit -> first client TLS byte: ") +
+            microsecondsText(diagnostics.postTypeTwoFirstClientTlsByteAvailable,
+                             diagnostics.postTypeTwoFirstClientTlsByteMicroseconds));
+        lines.push_back(QStringLiteral("  Type 2 commit -> peer EOF: ") +
+            microsecondsText(diagnostics.directNtlmTypeTwoToPeerEofAvailable,
+                             diagnostics.directNtlmTypeTwoToPeerEofMicroseconds));
+        lines.push_back(QStringLiteral("  accept -> peer EOF: ") +
+            microsecondsText(diagnostics.preauthElapsedAtPeerEofAvailable,
+                             diagnostics.preauthElapsedAtPeerEofMicroseconds));
+
+        if (diagnostics.preTlsTransportAttributionAvailable)
+        {
+            lines.push_back(QStringLiteral("Pre-TLS transport attribution:"));
+            lines.push_back(QStringLiteral("  accept -> first client byte: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.acceptedToFirstClientTransportByteMicroseconds)));
+            lines.push_back(QStringLiteral("  first client byte -> X.224 complete: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.firstClientTransportByteToX224CompleteMicroseconds)));
+            lines.push_back(QStringLiteral("  X.224 complete -> first server byte: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.x224CompleteToFirstServerTransportByteMicroseconds)));
+            lines.push_back(QStringLiteral("  first server byte -> X.224 confirm: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.firstServerTransportByteToX224ConfirmCompleteMicroseconds)));
+            lines.push_back(QStringLiteral("  X.224 confirm -> first TLS client byte: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.x224ConfirmCompleteToFirstTlsClientByteMicroseconds)));
+            lines.push_back(QStringLiteral("  first TLS client -> first TLS server byte: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.firstTlsClientByteToFirstTlsServerByteMicroseconds)));
+            lines.push_back(QStringLiteral("  first TLS server -> TLS established: %1 us")
+                .arg(static_cast<qulonglong>(
+                    diagnostics.firstTlsServerByteToTlsEstablishedMicroseconds)));
+        }
+
+        if (diagnostics.directNtlmTypeTwoDelivered)
+        {
+            lines.push_back(
+                QStringLiteral(
+                    "Post-Type-2 activity: encrypted=%1 B, plaintext=%2 B, "
+                    "complete TSRequests=%3, partial TSRequest=%4 B, "
+                    "TLS alerts=%5")
+                    .arg(static_cast<qulonglong>(
+                        diagnostics.postTypeTwoClientTlsBytes))
+                    .arg(static_cast<qulonglong>(
+                        diagnostics.postTypeTwoPlaintextBytes))
+                    .arg(static_cast<qulonglong>(
+                        diagnostics.postTypeTwoCompleteTsRequestCount))
+                    .arg(static_cast<qulonglong>(
+                        diagnostics.postTypeTwoPartialTsRequestBytes))
+                    .arg(static_cast<qulonglong>(
+                        diagnostics.postTypeTwoTlsAlertsReceived)));
+        }
+    }
+    else
+    {
+        lines.push_back(QStringLiteral("NTLM Type 1: unavailable"));
+        lines.push_back(QStringLiteral("NTLM Type 2: unavailable"));
+        lines.push_back(QStringLiteral("NTLM Type 3: unavailable"));
+        lines.push_back(QStringLiteral("Peer close: unavailable"));
+        lines.push_back(QStringLiteral("Stage timings: unavailable"));
+    }
+
+    lines.push_back(QStringLiteral(
+        "Microsoft error 0x204 is a generic client code; use the "
+        "server-observed stages above instead of inferring reachability."));
+    return lines.join(QLatin1Char('\n'));
+}
+
 QString tlsIdentityStatusText(const HostStatus& status)
 {
     using rdp_server::server::runtime::RuntimeTlsIdentityState;
@@ -201,36 +521,8 @@ QString tlsIdentityStatusText(const HostStatus& status)
         break;
     }
 
-    if (status.tlsFingerprintAvailable)
-    {
-        using rdp_server::server::runtime::RuntimeTlsCertificateFingerprint;
-        constexpr std::size_t certificateSha256Size =
-            std::tuple_size_v<RuntimeTlsCertificateFingerprint>;
-        static_assert(certificateSha256Size == 32U);
-        constexpr std::size_t fingerprintCharacterCount =
-            certificateSha256Size * 3U - 1U;
-        static_assert(fingerprintCharacterCount == 95U);
-
-        constexpr char hexDigits[] = "0123456789ABCDEF";
-        std::array<char, fingerprintCharacterCount> fingerprint{};
-        for (std::size_t index = 0; index < certificateSha256Size; ++index)
-        {
-            const auto byte = status.tlsFingerprint[index];
-            const std::size_t offset = index * 3U;
-            fingerprint[offset] = hexDigits[byte >> 4U];
-            fingerprint[offset + 1U] = hexDigits[byte & 0x0fU];
-            if (index + 1U < certificateSha256Size)
-                fingerprint[offset + 2U] = ':';
-        }
-        explanation += QStringLiteral("\nSHA-256: ") +
-            QString::fromLatin1(
-                fingerprint.data(),
-                static_cast<qsizetype>(fingerprint.size()));
-    }
-    else
-    {
-        explanation += QStringLiteral("\nSHA-256: unavailable.");
-    }
+    explanation += QStringLiteral("\nSHA-256: ") +
+        certificateFingerprintText(status);
 
     explanation += QStringLiteral(
         "\nClient trust: unknown. Verify the fingerprint independently.");
@@ -421,6 +713,9 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
       authenticationModeStatus_(label(
           QStringLiteral("Authentication mode: Existing OS Account"), advancedTab_)),
       runtimeReadinessStatus_(label({}, advancedTab_)),
+      authenticationDiagnosticsStatus_(label({}, advancedTab_)),
+      exportDiagnostics_(new QPushButton(
+          QStringLiteral("Save Diagnostic Snapshot…"), advancedTab_)),
       trayIcon_(new QSystemTrayIcon(this)),
       trayMenu_(new QMenu(this)),
       trayOpen_(new QAction(QStringLiteral("Open"), trayMenu_)),
@@ -447,6 +742,11 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     activity_->setObjectName("clientStatus");
     authenticationModeStatus_->setObjectName("authenticationModeStatus");
     runtimeReadinessStatus_->setObjectName("runtimeReadinessStatus");
+    authenticationDiagnosticsStatus_->setObjectName(
+        "authenticationDiagnosticsStatus");
+    authenticationDiagnosticsStatus_->setTextInteractionFlags(
+        Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    exportDiagnostics_->setObjectName("saveDiagnostics");
 
     QFont addressFont = addressStatus_->font();
     addressFont.setBold(true);
@@ -644,6 +944,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
     diagnosticsLayout->addWidget(status_);
     diagnosticsLayout->addWidget(runtimeReadinessStatus_);
     diagnosticsLayout->addWidget(errorStatus_);
+    diagnosticsLayout->addWidget(authenticationDiagnosticsStatus_);
+    diagnosticsLayout->addWidget(exportDiagnostics_);
     advancedLayout->addWidget(diagnosticsGroup);
     advancedLayout->addStretch();
 
@@ -730,6 +1032,8 @@ DesktopWindow::DesktopWindow(HostControl& host, QWidget* parent)
         if (!address.isEmpty())
             QApplication::clipboard()->setText(address);
     });
+    connect(exportDiagnostics_, &QPushButton::clicked,
+            this, [this] { exportDiagnostics(); });
     connect(interfaces_, &QComboBox::currentIndexChanged,
             this, [this](int) {
                 manualInterfaceOverride_ = true;
@@ -991,6 +1295,45 @@ void DesktopWindow::requestStart()
                 "not be started.")
             : host_.status().failure;
     refresh();
+}
+
+QString DesktopWindow::diagnosticExportText() const
+{
+    return QStringLiteral(
+               "RDP Server diagnostic snapshot\n"
+               "Privacy: generated from bounded read-only runtime status; "
+               "passwords, authentication responses, NTLM challenges and "
+               "session keys are not included.\n\n") +
+           authenticationDiagnosticsText(host_.status());
+}
+
+void DesktopWindow::exportDiagnostics()
+{
+    const QString fileName = QFileDialog::getSaveFileName(
+        this, QStringLiteral("Save Diagnostic Snapshot"),
+        QStringLiteral("rdp-server-diagnostics.txt"),
+        QStringLiteral("Text files (*.txt);;All files (*)"));
+    if (fileName.isEmpty())
+        return;
+
+    QSaveFile file(fileName);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+    {
+        userFacingError_ =
+            QStringLiteral("Diagnostic export could not be opened.");
+        refresh();
+        return;
+    }
+
+    const QByteArray payload = diagnosticExportText().toUtf8();
+    const qint64 bytesWritten = file.write(payload);
+    if (bytesWritten != static_cast<qint64>(payload.size()) ||
+        !file.commit())
+    {
+        userFacingError_ =
+            QStringLiteral("Diagnostic export could not be saved.");
+        refresh();
+    }
 }
 
 void DesktopWindow::requestStop()
@@ -1294,18 +1637,21 @@ void DesktopWindow::refresh()
         !mayStillBeHosting(snapshot));
 
     const QString denial = blockedReason(snapshot);
-    const QString sharingAvailabilityMessage =
-        snapshot.localDesktopAuthorizationFailed
-            ? QStringLiteral(
-                  "Could not authorize access to the local desktop.")
-            : (snapshot.remoteAuthenticationIncomplete
-                ? QStringLiteral(
-                      "Remote client authentication did not complete.")
-                : (snapshot.remoteAuthenticationFailed
-                    ? QStringLiteral("Remote client authentication failed.")
-                    : (!mayStillBeHosting(snapshot) && snapshot.controlAvailable
-                        ? (snapshot.failure.isEmpty() ? denial : snapshot.failure)
-                        : QString{})));
+    QString sharingAvailabilityMessage;
+    if (snapshot.localDesktopAuthorizationFailed)
+        sharingAvailabilityMessage =
+            QStringLiteral("Native desktop admission denied.");
+    else if (snapshot.remoteAuthenticationInvalidCredentials)
+        sharingAvailabilityMessage = QStringLiteral("Invalid credentials.");
+    else if (snapshot.remoteAuthenticationIncomplete)
+        sharingAvailabilityMessage = QStringLiteral(
+            "Client disconnected before completing authentication.");
+    else if (snapshot.remoteAuthenticationFailed)
+        sharingAvailabilityMessage =
+            QStringLiteral("Remote client authentication failed.");
+    else if (!mayStillBeHosting(snapshot) && snapshot.controlAvailable)
+        sharingAvailabilityMessage =
+            snapshot.failure.isEmpty() ? denial : snapshot.failure;
     sharingAvailabilityStatus_->setText(sharingAvailabilityMessage);
     sharingAvailabilityStatus_->setVisible(
         !sharingAvailabilityMessage.isEmpty());
@@ -1406,6 +1752,8 @@ void DesktopWindow::refresh()
                                 "Diagnostics: no host error reported.")
                           : QStringLiteral("Diagnostics: ") +
                                 snapshot.failure)));
+    authenticationDiagnosticsStatus_->setText(
+        authenticationDiagnosticsText(snapshot));
 
     const bool clientActionsEnabled =
         snapshot.controlAvailable &&

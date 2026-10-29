@@ -730,6 +730,19 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;identity;listener;lifecycle;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # A valid Type-3 shape with an invalid NTLMv2 proof must surface only the
+    # existing verifier's typed credential-rejection fact. No token bytes are
+    # retained or projected into product diagnostics.
+    add_test(
+        NAME runtime.linux-direct-ntlm-invalid-credentials-diagnostic
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-invalid-credentials-diagnostic)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-invalid-credentials-diagnostic
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;credentials;diagnostics;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # A delivered Type 2 followed by peer close is an incomplete exchange,
     # distinct from malformed Type 3 rejection and later native Admission denial.
     add_test(
@@ -4848,6 +4861,24 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;authentication;diagnostics"
+        TIMEOUT 30)
+
+    add_test(NAME gui.offscreen-advanced-authentication-diagnostics-export-redaction
+        COMMAND test_desktop_gui_offline
+            advanced-authentication-diagnostics-export-redaction)
+    add_test(NAME gui.offscreen-authentication-first-failure-classification
+        COMMAND test_desktop_gui_offline
+            authentication-first-failure-classification)
+    add_test(NAME gui.offscreen-authentication-diagnostics-connection-replacement
+        COMMAND test_desktop_gui_offline
+            authentication-diagnostics-connection-replacement)
+    set_tests_properties(
+        gui.offscreen-advanced-authentication-diagnostics-export-redaction
+        gui.offscreen-authentication-first-failure-classification
+        gui.offscreen-authentication-diagnostics-connection-replacement
+        PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;authentication;diagnostics;lifecycle"
         TIMEOUT 30)
 
     add_test(NAME gui.offscreen-authentication-incomplete-before-native-admission

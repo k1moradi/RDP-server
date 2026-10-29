@@ -1,3 +1,50 @@
+## R7 P1 — bounded desktop first-failure diagnostics and secure export (2026-10-29)
+
+**Authoring parent:** `d671a572292ab68253c62121e3873bf7a81dd992`. R7 consumes the existing R1/R2/R10
+accepted-connection snapshot instead of creating another wire/parser owner.
+Advanced now has one bounded first-failure view for endpoint, opaque connection
+ID, authentication/protocol stage, TLS version, certificate fingerprint,
+Type-1/Type-2/Type-3 progression, typed peer-close category, existing monotonic
+stage timings (including R1's available pre-TLS attribution) and bounded
+post-Type-2 counters. The same read-only projection backs an explicit
+owner-initiated text export; it contains no Username, Session Password, NTLM
+challenge/response, MIC, authInfo, session key or raw record bytes and performs
+no automatic file/network/system mutation.
+
+Product classification is evidence-gated. The existing standalone verifier's
+typed credential-rejection result is now retained as one non-secret scalar
+before verifier teardown, so R7 may say `Invalid credentials.` only for that
+boundary. A pre-Type-3 peer close says
+`Client disconnected before completing authentication.`; verified
+credentials plus a concrete native admission reason says
+`Native desktop admission denied.`. Microsoft 0x204 remains a generic client
+code and is not interpreted as server reachability. Production TLS, Type-2
+bytes/identity, authentication policy, native Admission, MCS, Share, graphics,
+input and clipboard authority are unchanged.
+
+New behavior gates:
+`runtime.linux-direct-ntlm-invalid-credentials-diagnostic`,
+`gui.offscreen-advanced-authentication-diagnostics-export-redaction`,
+`gui.offscreen-authentication-first-failure-classification`, and
+`gui.offscreen-authentication-diagnostics-connection-replacement`.
+The existing Stop -> Start GUI credential test is strengthened to require the
+displayed Username to remain the exact configured handoff Username while the
+memory-only credential is reused without a second configuration call.
+Existing Windows GUI offline/system-state and firewall-smoke gates remain
+unchanged; source audit still finds no ordinary GUI path that writes firewall,
+TermService, OS RDP or networking state.
+
+**Authoring verification:** current-main policy/source/test reconciliation
+**PASS by inspection**. Canonical owner one-`build/` configure/build/focused
+and full CTest **NOT RUN** in this connector environment; exact-publication-SHA
+hosted CI **PENDING**. No live Windows App/mstsc attempt, firewall mutation or
+desktop action was run.
+
+**Next gate:** exact-publication-SHA compile and ordinary CTest, including the
+four new behavior gates and existing Windows no-side-effect smoke; then consume
+these bounded fields in the next owner-authorized R6/R9 physical client
+comparison without changing production wire behavior from GUI evidence alone.
+
 ## R1 P0 CI correction — consume X.224 Confirm before synthetic client TLS (2026-10-29)
 
 Publication `3fdde5748e1c88d2684e13632778d9775eddc36f`, workflow

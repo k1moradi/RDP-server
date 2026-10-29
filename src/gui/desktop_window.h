@@ -30,6 +30,7 @@ public:
     void refresh();
     [[nodiscard]] bool canStart() const;
     [[nodiscard]] QString blockedReason() const;
+    [[nodiscard]] QString diagnosticExportText() const;
 
 protected:
     void closeEvent(QCloseEvent* event) override;
@@ -48,6 +49,7 @@ private:
     void requestStart();
     void requestStop();
     void requestQuit();
+    void exportDiagnostics();
     void updateTray(const HostStatus& snapshot, const QString& address);
 
     HostControl& host_;
@@ -87,6 +89,8 @@ private:
     QLabel* activity_;
     QLabel* authenticationModeStatus_;
     QLabel* runtimeReadinessStatus_;
+    QLabel* authenticationDiagnosticsStatus_;
+    QPushButton* exportDiagnostics_;
 
     QSystemTrayIcon* trayIcon_;
     QMenu* trayMenu_;

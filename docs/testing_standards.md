@@ -1,3 +1,37 @@
+## R7 bounded authentication diagnostics and export gate (2026-10-29)
+
+The existing offscreen GUI executable owns three first-round behavior gates:
+`gui.offscreen-advanced-authentication-diagnostics-export-redaction` proves
+endpoint, accepted-client ID, connection stage, TLS/fingerprint, NTLM
+Type-1/2/3 progression, peer-close category and available monotonic stage
+timings are rendered from one R10 snapshot and that the reusable export text
+contains no entered Username/Session Password or protocol-secret fields.
+`gui.offscreen-authentication-first-failure-classification` requires the
+three typed product outcomes exactly: `Client disconnected before completing
+authentication.`, `Invalid credentials.`, and
+`Native desktop admission denied.`; it also pins 0x204 as a generic client
+code rather than a reachability diagnosis.
+`gui.offscreen-authentication-diagnostics-connection-replacement` replaces
+the accepted-client ID and timing snapshot and proves no prior connection
+values survive in Advanced or export.
+
+Linux additionally runs
+`runtime.linux-direct-ntlm-invalid-credentials-diagnostic` against the real
+listener/TLS/CredSSP/standalone verifier. A structurally valid Type 3 with a
+deliberately invalid NTLMv2 proof must retain only the typed credential-
+rejection scalar, remain PreAdmission and create no MCS/Share/native/graphics
+authority. The existing malformed-Type-3 case must *not* acquire that scalar.
+
+Keep the existing configured-Username and
+`gui.offscreen-owner-acceptance-password-stop-restart-reuses-memory-credential`
+coverage: after the first successful handoff the displayed Username must remain
+the exact handoff Username, secret editors stay empty, and repeated ordinary
+Stop -> Start must not configure a second credential. The existing Windows
+offline/no-side-effect and extracted firewall-smoke gates remain authoritative
+for firewall, TermService, OS-RDP and networking mutation; the new save action
+is never invoked automatically and writes only a path explicitly chosen by the
+owner.
+
 ## R1 pre-TLS accounting fixture must consume X.224 before client TLS (2026-10-29)
 
 A native-socket TLS fixture that verifies the server's cumulative X.224 send

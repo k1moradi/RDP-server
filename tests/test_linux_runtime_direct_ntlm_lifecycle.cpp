@@ -306,7 +306,8 @@ void writeSecurityBuffer(
 
 [[nodiscard]] std::optional<Bytes> makeDirectTypeThree(
     const ParsedTypeTwo& challenge,
-    NtlmV2SecurityContext& clientSecurity)
+    NtlmV2SecurityContext& clientSecurity,
+    bool rejectCredentialProof = false)
 {
     EphemeralNtlmV2Credential credential;
     auto password = kStandalonePassword;
@@ -408,6 +409,13 @@ void writeSecurityBuffer(
         serverPerspective, clientSecurity);
     if (!clientSecurity.active())
         return std::nullopt;
+
+    if (rejectCredentialProof)
+    {
+        // Keep the Type-3 structure valid while making the NT proof fail the
+        // production verifier. No credential bytes are logged or retained.
+        authenticate[ntResponseOffset] ^= 0x01U;
+    }
     return authenticate;
 }
 
@@ -855,7 +863,8 @@ struct PeerResult final
     std::uint16_t port,
     bool validCredentials,
     std::uint8_t nonceSeed,
-    std::atomic<bool>& release) noexcept
+    std::atomic<bool>& release,
+    bool rejectCredentialProof = false) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -886,17 +895,31 @@ struct PeerResult final
 
     if (!validCredentials)
     {
-        std::array<std::uint8_t, 40> malformedTypeThree{};
-        constexpr std::array<std::uint8_t, 8> signature{
-            'N','T','L','M','S','S','P',0};
-        std::copy(
-            signature.begin(), signature.end(),
-            malformedTypeThree.begin());
-        malformedTypeThree[8] = 3U;
-        const auto malformed =
-            initialTokenRequest(malformedTypeThree);
-        if (!client.writeFrame(malformed))
-            return result;
+        if (rejectCredentialProof)
+        {
+            NtlmV2SecurityContext rejectedSecurity;
+            const auto rejectedTypeThree =
+                makeDirectTypeThree(*challenge, rejectedSecurity, true);
+            if (!rejectedTypeThree ||
+                !client.writeFrame(initialTokenRequest(*rejectedTypeThree)))
+            {
+                return result;
+            }
+        }
+        else
+        {
+            std::array<std::uint8_t, 40> malformedTypeThree{};
+            constexpr std::array<std::uint8_t, 8> signature{
+                'N','T','L','M','S','S','P',0};
+            std::copy(
+                signature.begin(), signature.end(),
+                malformedTypeThree.begin());
+            malformedTypeThree[8] = 3U;
+            const auto malformed =
+                initialTokenRequest(malformedTypeThree);
+            if (!client.writeFrame(malformed))
+                return result;
+        }
         result.passed = waitForRelease(release);
         return result;
     }
@@ -1593,6 +1616,8 @@ int main(int argc, char** argv)
     const bool peerCloseClassificationOnly =
         testCase ==
             "type2-peer-close-distinct-from-authentication-rejection";
+    const bool invalidCredentialDiagnosticOnly =
+        testCase == "direct-ntlm-invalid-credentials-diagnostic";
     const bool preauthOwnerLockIsolationOnly =
         testCase == "direct-ntlm-preauth-owner-lock-isolation";
     const bool preauthOwnerLogoutIsolationOnly =
@@ -1612,6 +1637,7 @@ int main(int argc, char** argv)
         !typeTwoTimingDiagnosticsOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
         !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
+        !invalidCredentialDiagnosticOnly &&
         !preauthOwnerIsolationOnly && !targetIdentityRetryOnly)
     {
         return 2;
@@ -1759,6 +1785,53 @@ int main(int argc, char** argv)
         assert(peerResult.passed);
         assert(peerResult.directTypeTwoReceived);
         assert(!peerResult.authInfoSent);
+        return 0;
+    }
+
+    if (invalidCredentialDiagnosticOnly)
+    {
+        std::atomic<bool> releasePeer{false};
+        std::atomic<bool> peerFinished{false};
+        PeerResult peerResult;
+        std::thread peer([&] {
+            peerResult = runDirectNtlmPeer(
+                recommendation.address, selectedPort, false, 0x11U,
+                releasePeer, true);
+            peerFinished.store(true, std::memory_order_release);
+        });
+
+        assert(pumpUntilNewAttemptRetired(control, peerFinished));
+        const auto rejected = control.status();
+        const auto& diagnostics = rejected.acceptedClientPreauthDiagnostics;
+        assert(rejected.lastError == RuntimeHostError::AuthenticationRejected);
+        assert(rejected.listenerAvailable);
+        assert(rejected.listenerGeneration == firstListenerGeneration);
+        assert(rejected.activeClients.empty());
+        assert(diagnostics.available);
+        assert(diagnostics.acceptedClientId != 0U);
+        assert(diagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
+        assert(diagnostics.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::Failed);
+        assert(diagnostics.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+        assert(diagnostics.standaloneCredentialsRejected);
+        assert(diagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None);
+        assert(diagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!diagnostics.mcsSessionAdvanced);
+        assert(!diagnostics.shareActivated);
+        assert(!rejected.nativeDesktopReady);
+        assert(!rejected.graphicsReady);
+
+        releasePeer.store(true, std::memory_order_release);
+        peer.join();
+        assert(peerResult.passed);
+        assert(peerResult.directTypeTwoReceived);
+        assert(!peerResult.authInfoSent);
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
         return 0;
     }
 
@@ -2563,6 +2636,8 @@ int main(int argc, char** argv)
                RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate);
         assert(afterBad.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
                RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation);
+        assert(!afterBad.acceptedClientPreauthDiagnostics
+                    .standaloneCredentialsRejected);
         assert(afterBad.acceptedClientPreauthDiagnostics
                    .standaloneCredentialGeneration == credential.generation);
         assert(control.standaloneApplicationPasswordObservation().generation ==

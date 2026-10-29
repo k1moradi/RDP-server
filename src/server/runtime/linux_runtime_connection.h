@@ -580,6 +580,7 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     std::uint64_t preTlsActiveWorkMicroseconds{};
     std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
     std::uint64_t preTlsUnattributedMicroseconds{};
+    bool standaloneCredentialsRejected{};
 };
 
 namespace detail
@@ -1424,6 +1425,9 @@ private:
         standaloneAuthenticationFailureStage_{
             rdp_server::server::security::
                 StandaloneAuthenticationFailureStage::None};
+    // Latched from the existing SPNEGO/NTLM verifier before it is reset.
+    // This carries only the typed rejection fact, never credential material.
+    bool standaloneCredentialsRejected_{};
     rdp_server::server::security::LinuxConsoleAdmissionFailureReason
         admissionFailureReason_{
             rdp_server::server::security::

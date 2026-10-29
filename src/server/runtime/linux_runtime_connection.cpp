@@ -817,6 +817,8 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
         selectedCertificateMatchesRuntimeIdentity_;
     snapshot.directNtlmTypeTwoQueued = directNtlmTypeTwoQueued_;
     snapshot.directNtlmTypeTwoDelivered = directNtlmTypeTwoDelivered_;
+    snapshot.standaloneCredentialsRejected =
+        standaloneCredentialsRejected_;
     snapshot.acceptedToTlsEstablishedAvailable =
         acceptedToTlsEstablishedAvailable_;
     snapshot.acceptedToTlsEstablishedMicroseconds =
@@ -1808,6 +1810,15 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
         using FailureStage = rdp_server::server::security::
             StandaloneAuthenticationFailureStage;
         const auto failureStage = standaloneCredSspAcceptor_.failureStage();
+        if (failureStage ==
+                rdp_server::server::security::
+                    StandaloneAuthenticationFailureStage::NtlmNegotiation &&
+            standaloneCredSspAcceptor_.spnegoRejectionReason() ==
+                rdp_server::server::security::
+                    StandaloneSpnegoRejectionReason::CredentialRejected)
+        {
+            standaloneCredentialsRejected_ = true;
+        }
         const bool transportClosedWithoutAuthenticationFailure =
             status == Step::Closed &&
             failureStage == FailureStage::None &&

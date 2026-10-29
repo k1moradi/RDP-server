@@ -953,6 +953,12 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     std::uint64_t preTlsActiveWorkMicroseconds{};
     std::uint64_t tlsHandshakeActiveWorkMicroseconds{};
     std::uint64_t preTlsUnattributedMicroseconds{};
+    // Opaque accepted-client lifetime identifier owned by R10. This is only
+    // diagnostic correlation state and cannot recreate connection authority.
+    std::uint64_t acceptedClientId{};
+    // True only when the existing standalone NTLM verifier reports a typed
+    // credential rejection. No password, response, challenge or key is kept.
+    bool standaloneCredentialsRejected{};
 };
 
 struct RuntimeHostPermissionRequest final

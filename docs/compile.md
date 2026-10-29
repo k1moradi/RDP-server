@@ -1,3 +1,13 @@
+## R7 authentication diagnostics add no build or privilege surface (2026-10-29)
+
+The Advanced diagnostic view reuses the existing Qt Widgets desktop target and
+the existing R1/R2/R10 status types. User-initiated export uses Qt's existing
+`QFileDialog` and `QSaveFile`; it adds no library, service, firewall,
+networking, credential-provider or platform-security dependency. Linux's
+credential-rejection regression reuses
+`test_linux_runtime_direct_ntlm_lifecycle` and its existing OpenSSL/runtime
+linkage. No second build root, executable or runtime daemon is introduced.
+
 ## R1 pre-TLS transport attribution adds no build surface (2026-10-29)
 
 The timing audit extends the existing R1 native TCP/BIO owner, Linux runtime

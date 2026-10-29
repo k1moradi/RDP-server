@@ -101,6 +101,13 @@ struct HostStatus
     // R10. No token bytes or authentication authority cross this UI boundary.
     rdp_server::server::runtime::RuntimeAcceptedClientNtlmTypeOneDiagnostics
         ntlmTypeOne{};
+    // Complete bounded R10 diagnostic snapshot for Advanced presentation and
+    // explicit export. Qt owns no parser, timer or connection state.
+    rdp_server::server::runtime::RuntimeAcceptedClientPreauthDiagnostics
+        acceptedClientDiagnostics{};
+    // Product classification only when the existing verifier supplied the
+    // typed credential-rejection fact.
+    bool remoteAuthenticationInvalidCredentials{};
 };
 
 struct HostRequest

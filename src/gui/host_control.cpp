@@ -115,6 +115,23 @@ using rdp_server::server::runtime::RuntimeHostError;
     return retainedChallengeBoundary || legacyMisclassifiedBoundary;
 }
 
+[[nodiscard]] constexpr bool isConfirmedInvalidStandaloneCredentials(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
+{
+    using namespace rdp_server::server::runtime;
+    return diagnostics.available &&
+           diagnostics.standaloneCredentialsRejected &&
+           diagnostics.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::Failed &&
+           diagnostics.standaloneFailureStage ==
+               RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation &&
+           diagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None &&
+           diagnostics.authenticationStage !=
+               RuntimeAcceptedClientAuthenticationStage::Admission;
+}
+
 [[nodiscard]] QString authenticationDiagnosticText(
     const rdp_server::server::runtime::
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics)
@@ -122,6 +139,9 @@ using rdp_server::server::runtime::RuntimeHostError;
     using namespace rdp_server::server::runtime;
     if (!diagnostics.available)
         return {};
+
+    if (isConfirmedInvalidStandaloneCredentials(diagnostics))
+        return QStringLiteral("Invalid credentials.");
 
     if (isRemoteAuthenticationIncompleteBeforeAdmission(diagnostics))
     {
@@ -131,10 +151,10 @@ using rdp_server::server::runtime::RuntimeHostError;
             diagnostics.directNtlmTypeTwoDelivered;
         return deliveredChallenge
             ? QStringLiteral(
-                  "Client disconnected after authentication challenge.")
+                  "Client disconnected before completing authentication. "
+                  "NTLM Type 2 was committed locally; Type 3 was not observed.")
             : QStringLiteral(
-                  "Authentication: Direct NTLM — "
-                  "client disconnected before authentication completed.");
+                  "Client disconnected before completing authentication.");
     }
 
     if (diagnostics.authenticationStage ==
@@ -356,6 +376,7 @@ HostStatus HostControl::status() const
 
     const auto& authenticationDiagnostics =
         runtimeStatus.acceptedClientPreauthDiagnostics;
+    view.acceptedClientDiagnostics = authenticationDiagnostics;
     if (authenticationDiagnostics.available)
     {
         view.tlsConnection = authenticationDiagnostics.tlsConnection;
@@ -366,10 +387,15 @@ HostStatus HostControl::status() const
         isConfirmedLocalDesktopAuthorizationFailure(authenticationDiagnostics);
     view.localDesktopAuthorizationFailed =
         localDesktopAuthorizationFailed;
+    view.remoteAuthenticationInvalidCredentials =
+        runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
+        !localDesktopAuthorizationFailed &&
+        isConfirmedInvalidStandaloneCredentials(authenticationDiagnostics);
     const bool incompletePeerAuthentication =
         runtimeStatus.lastError ==
             RuntimeHostError::AuthenticationIncompletePeerClosed;
     view.remoteAuthenticationIncomplete =
+        !view.remoteAuthenticationInvalidCredentials &&
         (incompletePeerAuthentication ||
          runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected) &&
         !localDesktopAuthorizationFailed &&
@@ -386,8 +412,11 @@ HostStatus HostControl::status() const
         view.authenticationFailures.push_back(
             view.remoteAuthenticationIncomplete
                 ? QStringLiteral(
-                      "Remote client authentication did not complete.")
-                : QStringLiteral("Remote client authentication failed."));
+                      "Client disconnected before completing authentication.")
+                : (view.remoteAuthenticationInvalidCredentials
+                    ? QStringLiteral("Invalid credentials.")
+                    : QStringLiteral(
+                          "Remote client authentication failed.")));
     }
 
     view.authenticationDiagnostic =

@@ -872,6 +872,8 @@ projectLinuxAcceptedClientPreauthDiagnostics(
     projected.available = true;
     projected.directNtlmTypeTwoQueued = source.directNtlmTypeTwoQueued;
     projected.directNtlmTypeTwoDelivered = source.directNtlmTypeTwoDelivered;
+    projected.standaloneCredentialsRejected =
+        source.standaloneCredentialsRejected;
     projected.acceptedToTlsEstablishedAvailable =
         source.acceptedToTlsEstablishedAvailable;
     projected.acceptedToTlsEstablishedMicroseconds =
@@ -1923,6 +1925,8 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
         snapshot.acceptedClientPreauthDiagnostics =
             projectLinuxAcceptedClientPreauthDiagnostics(
                 acceptedClient_->acceptanceDiagnostics());
+        snapshot.acceptedClientPreauthDiagnostics.acceptedClientId =
+            acceptedClientId_;
     }
     applyConnectionTargetDiagnostics(
         snapshot.acceptedClientPreauthDiagnostics);
@@ -2873,6 +2877,8 @@ void LinuxRuntimeHostControl::retireAcceptedClient(
         const auto diagnostics = acceptedClient_->acceptanceDiagnostics();
         acceptedClientPreauthDiagnostics_ =
             projectLinuxAcceptedClientPreauthDiagnostics(diagnostics);
+        acceptedClientPreauthDiagnostics_.acceptedClientId =
+            acceptedClientId_;
         applyConnectionTargetDiagnostics(
             acceptedClientPreauthDiagnostics_);
         applyConnectionCertificateDiagnostics(

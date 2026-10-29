@@ -1,3 +1,35 @@
+## R7 first-failure desktop diagnostics remain projection-only (2026-10-29)
+
+The desktop GUI may present and export only the bounded read-only facts already
+owned by R1/R2/R10 for the accepted connection: selected endpoint, R10's opaque
+accepted-client ID, TLS version/cipher, current certificate fingerprint,
+redacted NTLM Type-1 structure, Type-2 local-write state, Type-3 stage
+progression, typed termination category and the existing monotonic stage
+durations/counters. R7 must not add a socket/BIO reader, TLS/NTLM/CredSSP
+parser, timer, packet cache or competing connection-generation owner.
+
+"Invalid credentials" is permitted only when the existing standalone NTLM
+verifier reports its typed credential-rejection result and the connection is
+still pre-Admission. A peer close before Type 3 is instead "Client disconnected
+before completing authentication"; verified credentials followed by a concrete
+R2 admission reason is "Native desktop admission denied". Generic client error
+0x204 is never proof that the server was unreachable. Missing facts remain
+unavailable rather than being reconstructed from UI state or log text.
+
+Diagnostic export is explicit user action and serializes the same bounded
+snapshot rendered in Advanced. Never export Session Passwords, NTLM
+challenge/response bytes, MICs, protected authInfo, TLS/session keys, delegated
+credentials or raw protocol records. The export action must not change
+firewall, TermService, OS RDP policy, networking, trust, listener or credential
+state. Ordinary GUI launch remains read-only until explicit Sharing ON.
+
+The configured Username remains the existing non-secret GUI handoff receipt:
+after a successful standalone credential transaction it must continue to match
+the credential that R10 owns. Ordinary Sharing OFF preserves the runtime
+credential under the established security rule, and Stop -> Start may reuse it
+only while that displayed Username is unchanged. A Username replacement still
+requires a new matching Session Password/Confirm handoff.
+
 ## R2 challenge evidence and mutation ownership (2026-10-29)
 
 A physical NTLM reference fixture must distinguish captured bytes from

@@ -1603,6 +1603,8 @@ int main(int argc, char** argv)
             assert(toggle->isChecked());
             assert(password->text().isEmpty());
             assert(confirmation->text().isEmpty());
+            assert(username->text() == QStringLiteral("rdp"));
+            assert(runtime.lastStandaloneUsername == std::u16string{u"rdp"});
             assert(host.status().credentialsConfigured);
             assert(credentialStatus->text() ==
                    QStringLiteral(
@@ -1843,10 +1845,11 @@ int main(int argc, char** argv)
         assert(sharingToggle(window)->isChecked());
         assert(availability->text() ==
                QStringLiteral(
-                   "Remote client authentication did not complete."));
+                   "Client disconnected before completing authentication."));
         assert(diagnostic->text() ==
                QStringLiteral(
-                   "Client disconnected after authentication challenge."));
+                   "Client disconnected before completing authentication. "
+                   "NTLM Type 2 was committed locally; Type 3 was not observed."));
         assert(tlsIdentity->text().contains(
             QStringLiteral("TLS version: TLS 1.3")));
         assert(tlsIdentity->text().contains(
@@ -1895,6 +1898,269 @@ int main(int argc, char** argv)
         window.refresh();
         assert(!tlsIdentity->text().contains(
             QStringLiteral("Client profile:"), Qt::CaseInsensitive));
+        return 0;
+    }
+
+
+    if (mode == "advanced-authentication-diagnostics-export-redaction")
+    {
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 91U;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.selectedEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        runtime.snapshot.tlsIdentityReady = true;
+        runtime.snapshot.tlsIdentity.state =
+            RuntimeTlsIdentityState::BoundAndMatched;
+        runtime.snapshot.tlsIdentity.endpointGeneration =
+            runtime.snapshot.listenerGeneration;
+        runtime.snapshot.tlsIdentity.fingerprintAvailable = true;
+        runtime.snapshot.tlsIdentity.certificateSha256.fill(0xefU);
+
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 41U;
+        diagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.directNtlmTypeTwoQueued = true;
+        diagnostics.directNtlmTypeTwoDelivered = true;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::PeerEof;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::PeerEof;
+        diagnostics.ntlmTypeOne.observed = true;
+        diagnostics.tlsConnection.protocolVersion =
+            RuntimeAcceptedClientTlsProtocolVersion::Tls13;
+        diagnostics.acceptedToTlsEstablishedAvailable = true;
+        diagnostics.acceptedToTlsEstablishedMicroseconds = 101U;
+        diagnostics.tlsEstablishedToTypeOneAvailable = true;
+        diagnostics.tlsEstablishedToTypeOneMicroseconds = 202U;
+        diagnostics.typeOneToTypeTwoQueuedAvailable = true;
+        diagnostics.typeOneToTypeTwoQueuedMicroseconds = 303U;
+        diagnostics.directNtlmTypeTwoCreationToDeliveryAgeAvailable = true;
+        diagnostics.directNtlmTypeTwoCreationToDeliveryMicroseconds = 404U;
+        diagnostics.directNtlmTypeTwoToPeerEofAvailable = true;
+        diagnostics.directNtlmTypeTwoToPeerEofMicroseconds = 505U;
+        diagnostics.preauthElapsedAtPeerEofAvailable = true;
+        diagnostics.preauthElapsedAtPeerEofMicroseconds = 1515U;
+        diagnostics.preTlsTransportAttributionAvailable = true;
+        diagnostics.acceptedToFirstClientTransportByteMicroseconds = 11U;
+        diagnostics.firstClientTransportByteToX224CompleteMicroseconds = 22U;
+        diagnostics.x224CompleteToFirstServerTransportByteMicroseconds = 33U;
+        diagnostics.firstServerTransportByteToX224ConfirmCompleteMicroseconds =
+            44U;
+        diagnostics.x224ConfirmCompleteToFirstTlsClientByteMicroseconds = 55U;
+        diagnostics.firstTlsClientByteToFirstTlsServerByteMicroseconds = 66U;
+        diagnostics.firstTlsServerByteToTlsEstablishedMicroseconds = 77U;
+
+        DesktopWindow window(host);
+        auto* advanced =
+            requiredLabel(window, "authenticationDiagnosticsStatus");
+        auto* save = requiredButton(window, "saveDiagnostics");
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        assert(advanced && save && username && password && confirmation);
+        username->setText(QStringLiteral("diagnostic-user-sentinel"));
+        password->setText(QStringLiteral("DO_NOT_EXPORT_PASSWORD_7A1F"));
+        confirmation->setText(password->text());
+
+        window.refresh();
+        const QString exportText = window.diagnosticExportText();
+        for (const QString& requiredText :
+             {QStringLiteral("Endpoint: 192.168.0.10:3389"),
+              QStringLiteral("Connection ID: 41"),
+              QStringLiteral(
+                  "Connection stage: NTLM challenge / pre-admission"),
+              QStringLiteral("TLS version: TLS 1.3"),
+              QStringLiteral("Certificate SHA-256: EF:EF:EF:EF"),
+              QStringLiteral("NTLM Type 1: received"),
+              QStringLiteral(
+                  "NTLM Type 2: committed locally by the server TLS writer"),
+              QStringLiteral("NTLM Type 3: not observed"),
+              QStringLiteral("TCP FIN / peer EOF before Type 3"),
+              QStringLiteral("accept -> TLS established: 101 us"),
+              QStringLiteral("Type 2 queued -> local TLS commit: 404 us"),
+              QStringLiteral("Type 2 commit -> peer EOF: 505 us"),
+              QStringLiteral("accept -> first client byte: 11 us"),
+              QStringLiteral("first TLS server -> TLS established: 77 us"),
+              QStringLiteral("Microsoft error 0x204 is a generic client code")})
+        {
+            assert(advanced->text().contains(requiredText));
+            assert(exportText.contains(requiredText));
+        }
+        assert(save->isEnabled());
+        assert(!exportText.contains(
+            QStringLiteral("DO_NOT_EXPORT_PASSWORD_7A1F")));
+        assert(!exportText.contains(
+            QStringLiteral("diagnostic-user-sentinel")));
+        assert(!exportText.contains(
+            QStringLiteral("NTLM challenge:"), Qt::CaseInsensitive));
+        assert(!exportText.contains(
+            QStringLiteral("session key:"), Qt::CaseInsensitive));
+        assert(!exportText.contains(
+            QStringLiteral("authentication response:"),
+            Qt::CaseInsensitive));
+        return 0;
+    }
+
+    if (mode == "authentication-first-failure-classification")
+    {
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 92U;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 51U;
+        diagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::None;
+
+        DesktopWindow window(host);
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* advanced =
+            requiredLabel(window, "authenticationDiagnosticsStatus");
+
+        runtime.snapshot.lastError =
+            RuntimeHostError::AuthenticationIncompletePeerClosed;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Closed;
+        diagnostics.directNtlmTypeTwoDelivered = true;
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::PeerEof;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::PeerEof;
+        window.refresh();
+        assert(availability->text() == QStringLiteral(
+            "Client disconnected before completing authentication."));
+        assert(advanced->text().contains(availability->text()));
+
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmAuthenticate;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        diagnostics.standaloneCredentialsRejected = true;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::OwnerCancellation;
+        diagnostics.preType3Termination =
+            RuntimeAcceptedClientPreType3Termination::None;
+        window.refresh();
+        const HostStatus invalid = host.status();
+        assert(invalid.remoteAuthenticationInvalidCredentials);
+        assert(!invalid.remoteAuthenticationIncomplete);
+        assert(!invalid.localDesktopAuthorizationFailed);
+        assert(availability->text() ==
+               QStringLiteral("Invalid credentials."));
+        assert(advanced->text().contains(
+            QStringLiteral("First failure: Invalid credentials.")));
+
+        diagnostics.standaloneCredentialsRejected = false;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Admission;
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::Admission;
+        diagnostics.admissionFailureReason =
+            RuntimeAcceptedClientAdmissionFailureReason::
+                SessionMonitorUnavailable;
+        window.refresh();
+        const HostStatus admission = host.status();
+        assert(admission.localDesktopAuthorizationFailed);
+        assert(!admission.remoteAuthenticationInvalidCredentials);
+        assert(!admission.remoteAuthenticationIncomplete);
+        assert(availability->text() ==
+               QStringLiteral("Native desktop admission denied."));
+        assert(advanced->text().contains(
+            QStringLiteral(
+                "First failure: Native desktop admission denied.")));
+        assert(advanced->text().contains(
+            QStringLiteral("Microsoft error 0x204 is a generic client code")));
+        assert(!advanced->text().contains(
+            QStringLiteral("server unreachable"), Qt::CaseInsensitive));
+        return 0;
+    }
+
+    if (mode == "authentication-diagnostics-connection-replacement")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 93U;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 61U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.ntlmTypeOne.observed = true;
+        diagnostics.acceptedToTlsEstablishedAvailable = true;
+        diagnostics.acceptedToTlsEstablishedMicroseconds = 6111U;
+
+        DesktopWindow window(host);
+        auto* advanced =
+            requiredLabel(window, "authenticationDiagnosticsStatus");
+        assert(advanced->text().contains(
+            QStringLiteral("Connection ID: 61")));
+        assert(advanced->text().contains(QStringLiteral("6111 us")));
+
+        diagnostics = {};
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 62U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Tls;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.acceptedToTlsEstablishedAvailable = true;
+        diagnostics.acceptedToTlsEstablishedMicroseconds = 6222U;
+        window.refresh();
+
+        const QString exportText = window.diagnosticExportText();
+        assert(advanced->text().contains(
+            QStringLiteral("Connection ID: 62")));
+        assert(advanced->text().contains(QStringLiteral("6222 us")));
+        assert(!advanced->text().contains(
+            QStringLiteral("Connection ID: 61")));
+        assert(!advanced->text().contains(QStringLiteral("6111 us")));
+        assert(exportText.contains(QStringLiteral("Connection ID: 62")));
+        assert(!exportText.contains(QStringLiteral("Connection ID: 61")));
+        assert(!exportText.contains(QStringLiteral("6111 us")));
         return 0;
     }
 
@@ -1988,13 +2254,14 @@ int main(int argc, char** argv)
         assert(!availability->isHidden());
         assert(availability->text() ==
                QStringLiteral(
-                   "Remote client authentication did not complete."));
+                   "Client disconnected before completing authentication."));
         assert(activity->text().contains(
             QStringLiteral(
                 "Remote client authentication did not complete.")));
         assert(diagnostic->text() ==
                QStringLiteral(
-                   "Client disconnected after authentication challenge."));
+                   "Client disconnected before completing authentication. "
+                   "NTLM Type 2 was committed locally; Type 3 was not observed."));
         for (const QString& disallowedClaim :
              {QStringLiteral("wrong password"),
               QStringLiteral("local desktop"),
@@ -2020,7 +2287,7 @@ int main(int argc, char** argv)
         window.refresh();
         assert(availability->text() ==
                QStringLiteral(
-                   "Remote client authentication did not complete."));
+                   "Client disconnected before completing authentication."));
         assert(diagnostic->text() ==
                QStringLiteral(
                    "Authentication: Direct NTLM — "
@@ -2055,7 +2322,7 @@ int main(int argc, char** argv)
         assert(legacy.remoteAuthenticationIncomplete);
         assert(availability->text() ==
                QStringLiteral(
-                   "Remote client authentication did not complete."));
+                   "Client disconnected before completing authentication."));
         assert(diagnostic->text() ==
                QStringLiteral(
                    "Authentication: Direct NTLM — "
@@ -2160,7 +2427,7 @@ int main(int argc, char** argv)
         assert(!availability->isHidden());
         assert(availability->text() ==
                QStringLiteral(
-                   "Could not authorize access to the local desktop."));
+                   "Native desktop admission denied."));
         assert(diagnostic->text() ==
                QStringLiteral(
                    "Local desktop authorization: session monitor unavailable"));

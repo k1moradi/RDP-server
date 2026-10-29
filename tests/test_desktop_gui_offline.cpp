@@ -2330,8 +2330,13 @@ int main(int argc, char** argv)
                    "Client disconnected before completing authentication."));
         assert(diagnostic->text() ==
                QStringLiteral(
-                   "Authentication: Direct NTLM — "
-                   "client disconnected before authentication completed."));
+                   "Client disconnected before completing authentication."));
+        assert(authenticationDiagnostics->text().contains(
+            QStringLiteral(
+                "First failure: Client disconnected before completing authentication.")));
+        assert(authenticationDiagnostics->text().contains(
+            QStringLiteral(
+                "NTLM Type 2: committed locally by the server TLS writer")));
         assert(sharingToggle(window)->isChecked());
         assert(password->text().isEmpty());
         assert(confirmation->text().isEmpty());

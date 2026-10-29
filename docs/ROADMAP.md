@@ -1,3 +1,20 @@
+## R9 P0 CI correction follow-up — legacy incomplete-authentication parity (2026-10-29)
+
+R9 publication `88b9aedbfa3202110fde4a24daee5d3f1c7f08e3`, workflow
+`40844429155`, Ubuntu GUI parity job `123348390366`, again ran five of six
+selected tests PASS. The same
+`gui.offscreen-authentication-incomplete-before-native-admission` test then
+reached its older Admission-misclassification compatibility branch and failed
+at line 2331 because that second assertion still expected the obsolete
+structural `Authentication: Direct NTLM — ...` text in the Main error label.
+
+The production HostControl projection already classifies this retained peer EOF
+as incomplete remote authentication, not native Admission failure. R9 updates
+only that remaining stale assertion and pins the Advanced label as owner of the
+Type-2 commit detail. Product source, TLS/CredSSP/NTLM wire state, credentials,
+Admission and native behavior remain unchanged. Corrective exact-SHA hosted
+qualification is **PENDING**.
+
 ## R9 P0 CI correction — GUI parity product-summary/Advanced ownership (2026-10-29)
 
 Exact SHA `12af8f1e5946250138f222721e91497543e50889`, workflow

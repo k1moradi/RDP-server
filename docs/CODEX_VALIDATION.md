@@ -1,3 +1,18 @@
+## R9 GUI parity legacy-branch stale assertion — 2026-10-29
+
+- Exact source SHA: `88b9aedbfa3202110fde4a24daee5d3f1c7f08e3`.
+- Primary workflow: `40844429155`.
+- Ubuntu GUI parity job `123348390366`: **FAIL**, 5/6 selected tests PASS.
+- First failing boundary after the prior correction:
+  `gui.offscreen-authentication-incomplete-before-native-admission`,
+  legacy retained-Admission compatibility block at
+  `tests/test_desktop_gui_offline.cpp:2331`.
+- Runtime projection remained correct: the peer EOF is incomplete remote
+  authentication, while Main uses the bounded product summary and Advanced
+  diagnostics owns the Type-2 commit detail.
+- Correction is test/docs only; no production wire or authority code changes.
+- Corrective exact-SHA hosted qualification: **PENDING**.
+
 ## R9 GUI parity stale structural-label assertion — 2026-10-29
 
 - Exact source SHA: `12af8f1e5946250138f222721e91497543e50889`.

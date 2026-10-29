@@ -1,3 +1,14 @@
+## R9 legacy incomplete-authentication GUI parity uses the same surface ownership (2026-10-29)
+
+The compatibility path that recognizes an older retained peer-EOF snapshot
+misclassified at the Admission stage must use the same presentation ownership
+as the current challenge-stage path. Main `hostErrorExplanation` remains the
+product-safe `Client disconnected before completing authentication.` summary;
+the separate Advanced authentication diagnostics surface may expose the
+server-observed Type-2 commit and typed first-failure detail. A legacy snapshot
+must not resurrect the superseded `Authentication: Direct NTLM — ...` Main
+label wording.
+
 ## R9 GUI parity keeps product summary separate from Advanced authentication diagnostics (2026-10-29)
 
 When a retained pre-authentication snapshot has Direct-NTLM Type 2 queued but

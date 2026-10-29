@@ -1,3 +1,19 @@
+## R7 authoritative Username and typed-classification regression (2026-10-29)
+
+`gui.offscreen-configured-username-runtime-projection` constructs the desktop
+against an already-configured R10 status and requires Main's Username to equal
+the runtime-owned standalone Username while every mutating HostControl call
+counter remains zero. The existing Stop -> Start credential test additionally
+requires the fake R10 projection, HostStatus projection and visible field to
+stay equal while Session Password editors remain empty and no second credential
+configuration occurs.
+
+The incomplete-authentication regression must fail closed: an
+`AuthenticationRejected` snapshot with an Admission-shaped historical stage
+but no typed admission reason is generic authentication failure, not a peer
+disconnect or native-admission denial. Export redaction includes both an
+in-progress UI Username sentinel and a runtime-configured Username sentinel.
+
 ## R5 physical evidence timing-attribution validation (2026-10-29)
 
 The existing `macos.windows-app-owner-evidence-readonly-manifest` CTest must

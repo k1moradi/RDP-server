@@ -2118,6 +2118,21 @@ RuntimeHostStatus LinuxRuntimeHostControl::status() const
     snapshot.product.automaticRuntimeProvisioned = false;
 #endif
     snapshot.product.credentialsConfigured = snapshot.credentialsConfigured;
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    if (snapshot.product.credentialsConfigured &&
+        authenticationMode_ ==
+            ConfiguredAuthenticationMode::StandalonePassword &&
+        standaloneConfiguredUsernameGeneration_ ==
+            standaloneCredentialGeneration_ &&
+        standaloneConfiguredUsernameLength_ <=
+            rdp_server::server::security::
+                kMaximumStandaloneNtlmUserCodeUnits)
+    {
+        snapshot.product.configuredStandaloneUsername.assign(
+            standaloneConfiguredUsername_.data(),
+            standaloneConfiguredUsernameLength_);
+    }
+#endif
     snapshot.product.ownerAuthorized = snapshot.hostOwnerAuthorized;
     snapshot.product.sharingPermission =
         sharingPermissionStatus(ownerPermission);
@@ -2230,6 +2245,8 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
     standaloneCredentialGeneration_ = 0U;
+    standaloneConfiguredUsernameLength_ = 0U;
+    standaloneConfiguredUsernameGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
 
@@ -2246,15 +2263,31 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
     authenticationMode_ = ConfiguredAuthenticationMode::StandalonePassword;
     standaloneCredentialGeneration_ = observation.generation;
     credentialsConfigured_ = true;
-    if (!selectedStandaloneCredentialReady())
+    if (!selectedStandaloneCredentialReady() ||
+        username.empty() ||
+        username.size() >
+            rdp_server::server::security::
+                kMaximumStandaloneNtlmUserCodeUnits)
     {
         authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
         standaloneCredentialGeneration_ = 0U;
+        standaloneConfiguredUsernameLength_ = 0U;
+        standaloneConfiguredUsernameGeneration_ = 0U;
         credentialsConfigured_ = false;
         standalonePasswordCredential_.revoke();
         lastError_ = RuntimeHostError::CredentialNotConfigured;
         return false;
     }
+
+    standaloneConfiguredUsernameLength_ = username.size();
+    for (std::size_t index = 0;
+         index < standaloneConfiguredUsernameLength_; ++index)
+    {
+        standaloneConfiguredUsername_[index] = username[index];
+    }
+    standaloneConfiguredUsername_[
+        standaloneConfiguredUsernameLength_] = u'\0';
+    standaloneConfiguredUsernameGeneration_ = observation.generation;
 
     (void)refreshStandaloneCredentialSessionBinding(
         standaloneCredentialSessionBinding_, *ownerEvidenceSource_, true);
@@ -2301,6 +2334,8 @@ RuntimeHostResult LinuxRuntimeHostControl::requestCredentialSetup(
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
     standaloneCredentialGeneration_ = 0U;
+    standaloneConfiguredUsernameLength_ = 0U;
+    standaloneConfiguredUsernameGeneration_ = 0U;
     credentialsConfigured_ = false;
 #endif
     const auto decision = assessLanCredentialChoice(choice);
@@ -4180,6 +4215,8 @@ void LinuxRuntimeHostControl::retireStoppedRuntime(
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
         authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
         standaloneCredentialGeneration_ = 0U;
+        standaloneConfiguredUsernameLength_ = 0U;
+        standaloneConfiguredUsernameGeneration_ = 0U;
         credentialsConfigured_ = false;
 #endif
     }

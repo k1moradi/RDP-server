@@ -81,38 +81,51 @@ using rdp_server::server::runtime::RuntimeHostError;
                RuntimeAcceptedClientAdmissionFailureReason::None;
 }
 
+[[nodiscard]] constexpr bool isPeerDrivenAuthenticationClose(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientTermination termination) noexcept
+{
+    using Termination =
+        rdp_server::server::runtime::RuntimeAcceptedClientTermination;
+    switch (termination)
+    {
+    case Termination::OrderlyTlsClose:
+    case Termination::PeerEof:
+    case Termination::PeerReset:
+    case Termination::PeerTlsAlert:
+        return true;
+    case Termination::Open:
+    case Termination::TransportError:
+    case Termination::TlsFailure:
+    case Termination::ProtocolError:
+    case Termination::Cancelled:
+    case Termination::LocalTlsFailure:
+    case Termination::Timeout:
+    case Termination::OwnerCancellation:
+        return false;
+    }
+    return false;
+}
+
 [[nodiscard]] constexpr bool isRemoteAuthenticationIncompleteBeforeAdmission(
     const rdp_server::server::runtime::
         RuntimeAcceptedClientPreauthDiagnostics& diagnostics) noexcept
 {
     using namespace rdp_server::server::runtime;
-    if (!diagnostics.available ||
-        diagnostics.ntlmEnvelope !=
-            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm ||
-        diagnostics.admissionFailureReason !=
-            RuntimeAcceptedClientAdmissionFailureReason::None ||
-        diagnostics.termination != RuntimeAcceptedClientTermination::PeerEof)
-    {
-        return false;
-    }
-
-    const bool retainedChallengeBoundary =
-        diagnostics.authenticationStage ==
-            RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
-        diagnostics.credSspTransition ==
-            RuntimeAcceptedClientCredSspTransition::Closed &&
-        (diagnostics.standaloneFailureStage ==
-             RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation ||
-         diagnostics.standaloneFailureStage ==
-             RuntimeAcceptedClientStandaloneFailureStage::None);
-    const bool legacyMisclassifiedBoundary =
-        diagnostics.authenticationStage ==
-            RuntimeAcceptedClientAuthenticationStage::Admission &&
-        diagnostics.credSspTransition ==
-            RuntimeAcceptedClientCredSspTransition::Failed &&
-        diagnostics.standaloneFailureStage ==
-            RuntimeAcceptedClientStandaloneFailureStage::Admission;
-    return retainedChallengeBoundary || legacyMisclassifiedBoundary;
+    return diagnostics.available &&
+           diagnostics.ntlmEnvelope ==
+               RuntimeAcceptedClientNtlmEnvelope::DirectNtlm &&
+           diagnostics.admissionFailureReason ==
+               RuntimeAcceptedClientAdmissionFailureReason::None &&
+           isPeerDrivenAuthenticationClose(diagnostics.termination) &&
+           diagnostics.authenticationStage ==
+               RuntimeAcceptedClientAuthenticationStage::NtlmChallenge &&
+           diagnostics.credSspTransition ==
+               RuntimeAcceptedClientCredSspTransition::Closed &&
+           (diagnostics.standaloneFailureStage ==
+                RuntimeAcceptedClientStandaloneFailureStage::NtlmNegotiation ||
+            diagnostics.standaloneFailureStage ==
+                RuntimeAcceptedClientStandaloneFailureStage::None);
 }
 
 [[nodiscard]] constexpr bool isConfirmedInvalidStandaloneCredentials(
@@ -239,6 +252,9 @@ HostStatus HostControl::status() const
                          runtimeStatus.lastError != RuntimeHostError::ControlUnavailable;
     view.controlAvailable = runtimeStatus.product.controlAvailable;
     view.credentialsConfigured = runtimeStatus.product.credentialsConfigured;
+    view.configuredStandaloneUsername =
+        QString::fromStdU16String(
+            runtimeStatus.product.configuredStandaloneUsername);
     view.credentialEditingAllowed =
         runtimeStatus.product.credentialEditingAllowed;
     view.credentialCapabilities =
@@ -391,13 +407,10 @@ HostStatus HostControl::status() const
         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected &&
         !localDesktopAuthorizationFailed &&
         isConfirmedInvalidStandaloneCredentials(authenticationDiagnostics);
-    const bool incompletePeerAuthentication =
-        runtimeStatus.lastError ==
-            RuntimeHostError::AuthenticationIncompletePeerClosed;
     view.remoteAuthenticationIncomplete =
+        runtimeStatus.lastError ==
+            RuntimeHostError::AuthenticationIncompletePeerClosed &&
         !view.remoteAuthenticationInvalidCredentials &&
-        (incompletePeerAuthentication ||
-         runtimeStatus.lastError == RuntimeHostError::AuthenticationRejected) &&
         !localDesktopAuthorizationFailed &&
         isRemoteAuthenticationIncompleteBeforeAdmission(
             authenticationDiagnostics);

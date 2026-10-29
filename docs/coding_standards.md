@@ -1,3 +1,25 @@
+## R7 configured Username and first-failure wording are runtime-authoritative (2026-10-29)
+
+The configured standalone Username is non-secret but still belongs to R10's
+selected credential generation. Retain it only as bounded generation-fenced
+configuration metadata in the same serialized R10 owner; do not reach into the
+password/hash-bearing credential object and do not treat a successful GUI
+handoff as an independent credential-state cache. Ordinary Stop preserves the
+receipt together with the credential; credential replacement, mode change,
+terminal revoke and Quit retire it.
+
+R7 may remember only the last Username projected by R10 to preserve an
+in-progress owner edit. Startup and unchanged Stop -> Start synchronize from
+R10. Diagnostic export remains Username-free even though Main may display the
+configured non-secret Username.
+
+First-failure product wording follows typed runtime state. Only
+`AuthenticationIncompletePeerClosed` plus the bounded peer-close observation
+may produce `Client disconnected before completing authentication.`.
+`AuthenticationRejected` must not be reshaped into that wording from a legacy
+stage pattern; absent a typed credential rejection or native-admission reason it
+remains generic remote authentication failure.
+
 ## R10 pre-auth service fairness stays serialized and readiness-led (2026-10-29)
 
 The Linux GUI may drain a bounded burst of already-actionable R10 work, but it

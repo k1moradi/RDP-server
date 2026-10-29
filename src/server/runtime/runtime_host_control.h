@@ -1222,6 +1222,10 @@ struct RuntimeProductHostStatus final
     // credentials are configured and never grants consent or listener access.
     // Appended to preserve existing aggregate-initializer field positions.
     bool credentialEditingAllowed{};
+    // Non-secret Username for the current standalone credential generation.
+    // Empty for every other credential mode or when no standalone credential
+    // is configured. Password/hash material never enters product status.
+    std::u16string configuredStandaloneUsername;
 };
 
 struct RuntimeFirstLiveGraphicsTrace final

@@ -39,6 +39,7 @@ struct HostStatus
     bool listenerReady{};
     bool controlAvailable{};
     bool credentialsConfigured{};
+    QString configuredStandaloneUsername;
     rdp_server::server::runtime::RuntimeCredentialCapabilities
         credentialCapabilities{};
     bool desktopAuthorized{};

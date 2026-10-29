@@ -1,3 +1,33 @@
+## R7 P1 completion — runtime-owned Username and typed-only first failure (2026-10-29)
+
+**Authoring parent:** `56a411b79595a7f9425c383edabd43229845f987`. R9 has resolved the stale Main/Advanced
+offscreen assertions and R10 has landed the pre-auth no-starvation correction
+plus its qualification repair. R5's newer owner-evidence timing work is
+preserved. The remaining R7 ownership gap is closed without touching credential
+internals: R10 retains a bounded non-secret Username receipt tied to the exact
+standalone credential generation and projects it through product status.
+
+Startup and ordinary Stop -> Start therefore present the Username R10 actually
+selected; a pending owner edit stays local until a new Session Password handoff
+succeeds. Only typed `AuthenticationIncompletePeerClosed` may produce
+`Client disconnected before completing authentication.`;
+`AuthenticationRejected` without a concrete credential-rejection or native
+admission reason remains generic. Diagnostic export omits both runtime and
+pending UI Usernames in addition to existing password/challenge/response/MIC/key
+redactions.
+
+New gate: `gui.offscreen-configured-username-runtime-projection`; existing R7
+export/classification/connection-replacement and Stop -> Start gates are
+strengthened. No R1 wire, TLS/CredSSP, listener, firewall, TermService, OS-RDP,
+networking, native-admission, graphics, input or clipboard authority changes are
+introduced.
+
+**Authoring verification:** current-main source/dependency/ownership audit PASS
+by inspection. The current structure guard is green; full hosted CI for the
+parent is queued. Publication need not wait under AGENTS.md. Local canonical
+one-build compile/full CTest NOT RUN in this connector environment; exact
+publication-SHA hosted CI is the next verification gate.
+
 ## R5 P0 follow-up — consume R1/R10 pre-auth timing attribution (2026-10-29)
 
 **Initial authoring parent:** `cde24568f8bcb60a69559dae19ac40ba96fbf092`.

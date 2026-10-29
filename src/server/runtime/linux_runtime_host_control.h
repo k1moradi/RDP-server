@@ -9,6 +9,7 @@
 #include "server/security/linux_logind_console_evidence.h"
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/lan_listener.h"
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -310,6 +311,15 @@ private:
     ConfiguredAuthenticationMode authenticationMode_{
         ConfiguredAuthenticationMode::Unconfigured};
     std::uint64_t standaloneCredentialGeneration_{};
+    // R10-owned non-secret receipt for the selected standalone generation.
+    // Fixed storage avoids allocation in credential configuration's noexcept
+    // path and cannot carry password/hash/proof material.
+    std::array<
+        char16_t,
+        rdp_server::server::security::kMaximumStandaloneNtlmUserCodeUnits + 1U>
+        standaloneConfiguredUsername_{};
+    std::size_t standaloneConfiguredUsernameLength_{};
+    std::uint64_t standaloneConfiguredUsernameGeneration_{};
     bool credentialsConfigured_{};
 #endif
     // Production-native evidence owns all borrowed views. It must outlive

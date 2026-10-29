@@ -103,7 +103,8 @@ private:
     bool manualInterfaceOverride_{false};
     bool quitRequested_{false};
     QString userFacingError_;
-    // Non-authorizing GUI handoff receipt, never a second credential owner.
+    // Last authoritative non-secret Username projected by R10. This is only
+    // presentation state used to preserve an in-progress owner edit.
     QString configuredStandaloneUsername_;
 };
 

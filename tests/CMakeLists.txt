@@ -4888,6 +4888,9 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;security;authentication;diagnostics"
         TIMEOUT 30)
 
+    add_test(NAME gui.offscreen-configured-username-runtime-projection
+        COMMAND test_desktop_gui_offline
+            configured-username-runtime-projection)
     add_test(NAME gui.offscreen-advanced-authentication-diagnostics-export-redaction
         COMMAND test_desktop_gui_offline
             advanced-authentication-diagnostics-export-redaction)
@@ -4898,6 +4901,7 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         COMMAND test_desktop_gui_offline
             authentication-diagnostics-connection-replacement)
     set_tests_properties(
+        gui.offscreen-configured-username-runtime-projection
         gui.offscreen-advanced-authentication-diagnostics-export-redaction
         gui.offscreen-authentication-first-failure-classification
         gui.offscreen-authentication-diagnostics-connection-replacement

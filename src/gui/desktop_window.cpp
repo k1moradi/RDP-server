@@ -1219,8 +1219,8 @@ bool DesktopWindow::standaloneCredentialReady(
 bool DesktopWindow::configuredUsernameChanged(
     const HostStatus& snapshot) const
 {
-    // Compare only the non-secret Username from this GUI's successful
-    // handoff. R10 remains the sole owner of the actual configured credential.
+    // Compare the visible edit with the last authoritative non-secret
+    // Username projected by R10. R10 remains the credential owner.
     return standaloneCredentialReady(snapshot) &&
            !configuredStandaloneUsername_.isEmpty() &&
            username_->text() != configuredStandaloneUsername_;
@@ -1250,8 +1250,6 @@ void DesktopWindow::requestStart()
     {
         const bool credentialConfigured =
             host_.configureStandalonePassword(username_->text(), password);
-        if (credentialConfigured)
-            configuredStandaloneUsername_ = username_->text();
         sessionPassword_->clear();
         sessionPasswordConfirm_->clear();
         if (!credentialConfigured)
@@ -1302,8 +1300,8 @@ QString DesktopWindow::diagnosticExportText() const
     return QStringLiteral(
                "RDP Server diagnostic snapshot\n"
                "Privacy: generated from bounded read-only runtime status; "
-               "passwords, authentication responses, NTLM challenges and "
-               "session keys are not included.\n\n") +
+               "Usernames, passwords, authentication responses, NTLM "
+               "challenges, MICs and session keys are not included.\n\n") +
            authenticationDiagnosticsText(host_.status());
 }
 
@@ -1421,6 +1419,30 @@ void DesktopWindow::updateTray(
 void DesktopWindow::refresh()
 {
     const HostStatus snapshot = host_.status();
+
+    // R10 is authoritative for the configured standalone Username. Preserve
+    // an in-progress owner edit, but replace the first-launch suggestion or
+    // prior projected value when R10 reports a different current credential.
+    if (!snapshot.configuredStandaloneUsername.isEmpty())
+    {
+        const bool maySynchronize =
+            configuredStandaloneUsername_.isEmpty() ||
+            username_->text().isEmpty() ||
+            username_->text() == configuredStandaloneUsername_;
+        if (maySynchronize &&
+            username_->text() != snapshot.configuredStandaloneUsername)
+        {
+            const QSignalBlocker blocked(username_);
+            username_->setText(snapshot.configuredStandaloneUsername);
+        }
+        configuredStandaloneUsername_ =
+            snapshot.configuredStandaloneUsername;
+    }
+    else
+    {
+        configuredStandaloneUsername_.clear();
+    }
+
     const QString previousInterface = interfaces_->currentData().toString();
     const QString previousInterfaceId =
         interfaces_->currentData(Qt::UserRole + 1).toString();

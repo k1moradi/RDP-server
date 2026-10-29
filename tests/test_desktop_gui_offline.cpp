@@ -201,6 +201,8 @@ public:
         if (valid)
         {
             snapshot.credentialsConfigured = true;
+            snapshot.product.configuredStandaloneUsername.assign(
+                username.begin(), username.end());
             // Production R2 revokes owner consent whenever the standalone
             // credential generation changes. Model that authority boundary so
             // GUI orchestration cannot accidentally rely on a stale snapshot.
@@ -1605,7 +1607,11 @@ int main(int argc, char** argv)
             assert(confirmation->text().isEmpty());
             assert(username->text() == QStringLiteral("rdp"));
             assert(runtime.lastStandaloneUsername == std::u16string{u"rdp"});
+            assert(runtime.snapshot.product.configuredStandaloneUsername ==
+                   std::u16string{u"rdp"});
             assert(host.status().credentialsConfigured);
+            assert(host.status().configuredStandaloneUsername ==
+                   QStringLiteral("rdp"));
             assert(credentialStatus->text() ==
                    QStringLiteral(
                        "Session Password configured for this app session"));
@@ -1902,6 +1908,35 @@ int main(int argc, char** argv)
     }
 
 
+    if (mode == "configured-username-runtime-projection")
+    {
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.product.credentialCapabilities.standalonePassword =
+            true;
+        runtime.snapshot.product.configuredStandaloneUsername =
+            u"runtime-owner";
+
+        DesktopWindow window(host);
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        assert(username);
+        assert(username->text() == QStringLiteral("runtime-owner"));
+        assert(host.status().configuredStandaloneUsername ==
+               QStringLiteral("runtime-owner"));
+        assert(runtime.credentialSetupCalls == 0);
+        assert(runtime.standaloneCredentialCalls == 0);
+        assert(runtime.permissionSetupCalls == 0);
+        assert(runtime.configureCalls == 0);
+        assert(runtime.startCalls == 0);
+        assert(runtime.stopCalls == 0);
+        assert(runtime.revokeCalls == 0);
+        assert(runtime.disconnectCalls == 0);
+        window.refresh();
+        assert(username->text() == QStringLiteral("runtime-owner"));
+        return 0;
+    }
+
     if (mode == "advanced-authentication-diagnostics-export-redaction")
     {
         runtime.snapshot.lastError =
@@ -1912,6 +1947,8 @@ int main(int argc, char** argv)
         runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
         runtime.snapshot.selectedEndpoint = "192.168.0.10:3389";
         runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.product.configuredStandaloneUsername =
+            u"DO_NOT_EXPORT_RUNTIME_USERNAME_31CF";
         runtime.snapshot.hostOwnerAuthorized = true;
         runtime.snapshot.product.sharingPermission = {
             true, true, true, true, 15U * 60U * 1000U,
@@ -2011,6 +2048,8 @@ int main(int argc, char** argv)
             QStringLiteral("DO_NOT_EXPORT_PASSWORD_7A1F")));
         assert(!exportText.contains(
             QStringLiteral("diagnostic-user-sentinel")));
+        assert(!exportText.contains(
+            QStringLiteral("DO_NOT_EXPORT_RUNTIME_USERNAME_31CF")));
         assert(!exportText.contains(
             QStringLiteral("NTLM challenge:"), Qt::CaseInsensitive));
         assert(!exportText.contains(
@@ -2308,9 +2347,9 @@ int main(int argc, char** argv)
                 QStringLiteral("Direct NTLM"), Qt::CaseInsensitive));
         }
 
-        // Older retained snapshots incorrectly rewrote this same peer EOF as
-        // Admission with no typed admission reason. R7 must still fail toward
-        // authentication presentation rather than invent native authorization.
+        // An AuthenticationRejected snapshot with no typed admission reason
+        // must not be rewritten into a peer-disconnect or native-admission
+        // claim. Typed R10 state is the only product classification authority.
         runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
         runtime.snapshot.acceptedClientPreauthDiagnostics.credSspTransition =
             RuntimeAcceptedClientCredSspTransition::Failed;
@@ -2321,22 +2360,17 @@ int main(int argc, char** argv)
                 RuntimeAcceptedClientStandaloneFailureStage::Admission;
         window.refresh();
 
-        const HostStatus legacy = host.status();
-        assert(!legacy.localDesktopAuthorizationFailed);
-        assert(legacy.remoteAuthenticationFailed);
-        assert(legacy.remoteAuthenticationIncomplete);
+        const HostStatus untypedAdmission = host.status();
+        assert(!untypedAdmission.localDesktopAuthorizationFailed);
+        assert(untypedAdmission.remoteAuthenticationFailed);
+        assert(!untypedAdmission.remoteAuthenticationIncomplete);
+        assert(!untypedAdmission.remoteAuthenticationInvalidCredentials);
         assert(availability->text() ==
-               QStringLiteral(
-                   "Client disconnected before completing authentication."));
-        assert(diagnostic->text() ==
-               QStringLiteral(
-                   "Client disconnected before completing authentication."));
+               QStringLiteral("Remote client authentication failed."));
+        assert(diagnostic->text().isEmpty());
         assert(authenticationDiagnostics->text().contains(
             QStringLiteral(
-                "First failure: Client disconnected before completing authentication.")));
-        assert(authenticationDiagnostics->text().contains(
-            QStringLiteral(
-                "NTLM Type 2: committed locally by the server TLS writer")));
+                "First failure: Remote client authentication failed.")));
         assert(sharingToggle(window)->isChecked());
         assert(password->text().isEmpty());
         assert(confirmation->text().isEmpty());

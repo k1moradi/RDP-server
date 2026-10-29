@@ -6074,6 +6074,13 @@ void testOwnedPreTlsTransportByteAccounting()
     assert(owner.sentTransportBytes() == 0U);
 
     const auto request = tlsAndHybridRequestWire();
+    const auto parsed = parseConnectionRequest(request);
+    assert(parsed);
+    const auto expectedReply =
+        negotiateSecurity(parsed, SecurityNegotiationPolicy::HybridNla);
+    assert(expectedReply.decision == SecurityDecision::Tls);
+    assert(expectedReply.selectedProtocol == kRdpProtocolHybrid);
+
     nativeSendAll(clientIo, std::span(request).first(3U));
     assert(owner.onSocketReady(true, false) == Interest::Read);
     assert(owner.receivedTransportBytes() == 3U);
@@ -6087,6 +6094,14 @@ void testOwnedPreTlsTransportByteAccounting()
     assert(owner.onSocketReady(false, true) == Interest::ConfigureTls);
     assert(owner.receivedTransportBytes() == request.size());
     assert(owner.sentTransportBytes() == 19U);
+
+    // The synthetic client must consume the plaintext X.224 Confirm before
+    // attaching TLS; otherwise those bytes are correctly rejected as a TLS
+    // record and the fixture no longer models the production protocol order.
+    std::array<std::uint8_t, 19> confirm{};
+    nativeReadAll(clientIo, confirm);
+    assert(confirm == expectedReply.packet);
+    assert(confirm[15] == kRdpProtocolHybrid);
 
     TlsHandshakeFixture tls{false, false};
     OwnedPreauthTcpConnection::ServerTls server{

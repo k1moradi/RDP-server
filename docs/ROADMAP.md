@@ -1,3 +1,20 @@
+## R1 P0 CI correction — consume X.224 Confirm before synthetic client TLS (2026-10-29)
+
+Publication `3fdde5748e1c88d2684e13632778d9775eddc36f`, workflow
+`40840884671`, Ubuntu protocol job `123336728405`, built successfully and
+ran **966/967 PASS** with one R1 fixture failure:
+`transport.tcp-owned-pre-tls-transport-byte-accounting`. The assertion was
+inside the synthetic client's `SSL_do_handshake`: the new test had verified
+the server locally sent all 19 X.224 Confirm bytes but had not read those
+plaintext bytes from the client socket before attaching the client TLS BIO.
+OpenSSL therefore correctly rejected the unread X.224 Confirm as a TLS record.
+
+This is **not a production transport defect** and does not change the R1 timing
+audit conclusion. The correction reads and byte-compares the complete HYBRID
+X.224 Confirm before client TLS starts, matching the existing production-order
+fixtures. No production source, TLS policy, timeout, certificate behavior or
+wire bytes change. Exact correction-SHA hosted CI: **PENDING**.
+
 ## R2 P0 — production authentication-challenge audit and Microsoft negative controls (2026-10-29)
 
 **Authoring parent:** `3fdde5748e1c88d2684e13632778d9775eddc36f`. **Production conclusion: NO CHALLENGE DEFECT

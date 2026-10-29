@@ -45,6 +45,20 @@
 
 # Validation evidence
 
+## R1 pre-TLS accounting fixture CI correction — 2026-10-29
+
+- Initial publication: `3fdde5748e1c88d2684e13632778d9775eddc36f`.
+- Structure workflow `40840884642`: **PASS**.
+- Primary workflow `40840884671`, Ubuntu protocol job `123336728405`:
+  build **PASS**; full CTest **966/967 PASS**, with only
+  `transport.tcp-owned-pre-tls-transport-byte-accounting` aborting.
+- First failing boundary: synthetic client TLS started while the 19-byte
+  plaintext HYBRID X.224 Confirm was still unread on its socket.
+- Correction: consume and verify the exact X.224 Confirm before client TLS BIO
+  attachment. Production R1 source and all security/timing policy remain
+  unchanged.
+- Correction-SHA hosted CI: **PENDING**.
+
 ## R1 accepted-to-TLS transport attribution — 2026-10-29
 
 - Reconciled source parent: `675cf908d0e67018157b309ee1585e703f9068a9`; assignment-time main:

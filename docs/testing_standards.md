@@ -1,3 +1,12 @@
+## R1 pre-TLS accounting fixture must consume X.224 before client TLS (2026-10-29)
+
+A native-socket TLS fixture that verifies the server's cumulative X.224 send
+count must also consume and validate that plaintext Confirm on the synthetic
+client before attaching its TLS BIO. Leaving the Confirm unread makes the
+client TLS parser correctly reject X.224 bytes as a TLS record and is a fixture
+ordering defect, not evidence of a production handshake failure. The
+production contract remains X.224 Confirm fully delivered first, then TLS.
+
 ## R2 independent Type-2 conformance and Microsoft negative-control gate (2026-10-29)
 
 Challenge qualification has two independent layers. First, a test parser that

@@ -862,6 +862,51 @@ already cover duplicate/malformed GCC blocks, Erect/Attach/Join ordering,
 unadmitted/reconnect cleanup, partial/stale write cancellation, personal
 licensing and Share activation/revocation.
 
+**R3 Round-2 handoff (2026-10-30; source parent `75fc65aa081c2f7452d9c17750e90021de41acaf`):**
+`runtime.linux-connection-mcs-pre-admission-tls-coalesced-denials`
+adds the missing real HYBRID TLS/R2-reader/R10 aggregate negative using
+the unmodified 416-byte Microsoft Connect-Initial, once alone and once
+after a rejected CredSSP TSRequest in the same TLS write. Both deny R3
+intake (zero MCS bytes), Connect-Response and channel creation without
+a native R2 lease, including stale readiness after revocation. The
+existing 1001..65536 RDP UserId, conditional ChannelJoin batching,
+duplicate joins and first-exchange tests remain untouched. Source audit:
+PASS by inspection; owner Debug/focused/full CTest/sanitizers: NOT RUN
+(network checkout unavailable); exact publication-SHA CI: PENDING.
+Physical client and native-admitted positive boundary: BLOCKED/NOT RUN.
+
+**Agent 10 first eligible TPKT and lifecycle contract:** R1 alone owns
+the X.224/HYBRID TLS, entire CredSSP exchange and single application
+plaintext reader. After completed CredentialsVerified, no pending
+CredSSP reply and R1 AwaitMcsConnectInitial, R2 alone issues its current
+OS-backed, independently revocable identity/native-owner admission lease.
+R10 calls `advancePostAdmissionMcsConnectInitial` for one bounded
+complete TLS-protected TPKT and immediately passes the borrowed frame to
+R2's `authorizeR3McsConnectInitial`; fresh R1 TLS/credential/native
+checks must authorize the exact generation before R3 BER/PER/GCC parse.
+Parser validity, copied admission epoch or accepted-client Boolean is
+never a substitute. The same checked generations gate Connect-Response
+write slices and final byte receipt, Erect, Attach/Confirm, sequential
+or permitted batched user/I/O/static joins, Client Info, PersonalDesktop
+Valid Client licensing and Share/finalization. A PersonalDesktop no-CAL
+decision changes only licensing; Share/Graphics/clipboard require
+same-generation ShareActivated plus joined channel and new revalidation.
+Revoke retires pending R3 readers, channel IDs, write receipts, DVC,
+Share and graphics/clipboard routes before R2 proof and finally R1
+TLS/socket. No prior connection's channel IDs survive the boundary.
+
+**Agent 8 outbound CLIPRDR handoff:** the production capability/format
+advertisement *initiator* remains unimplemented. R8 owns constructing
+and scheduling the CLIPRDR payload (after the exact activated joined
+`cliprdr` route); R3 owns its only MCS/static-channel serializer and
+byte-receipt ledger. Use existing R2
+`queueR3PersonalDesktopClipboardPdu`,
+`pendingR3PersonalDesktopClipboardWrite` and
+`completeR3PersonalDesktopClipboardWrite` via R10's one R1 TLS writer.
+Never add another channel serializer, generation owner or socket reader.
+No live clipboard advertisement is claimed.
+
+
 **Defect found and fixed:** `parseGccConferenceCreate` previously accepted
 `CS_SECURITY` when both encryption-method fields contained no recognized
 MS-RDPBCGR flag. Section 3.3.5.3.3 requires the connection to close in that

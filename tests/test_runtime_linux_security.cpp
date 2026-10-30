@@ -4,6 +4,7 @@
 #include "server/runtime/runtime_configuration.h"
 #include "server/security/linux_console_admission.h"
 #include "server/security/authentication_attempt_limiter.h"
+#include "server/transport/mcs_connect_initial.h"
 
 #include <krb5.h>
 
@@ -14,13 +15,16 @@
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <span>
 #include <string>
 #include <string_view>
 #include <system_error>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -33,6 +37,10 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
+
+#ifndef RDP_R3_MICROSOFT_MCS_FIXTURE_PATH
+#error RDP_R3_MICROSOFT_MCS_FIXTURE_PATH must name the checked-in Microsoft fixture
+#endif
 
 namespace rdp_server::server::transport
 {
@@ -1410,6 +1418,129 @@ void testConnectionPostAdmissionMcsFramingDenials(
     assert(replay.status == Step::Closed);
     assert(replay.plaintextBytesRead == 0U);
     assert(::close(clientDescriptor) == 0);
+}
+
+
+[[nodiscard]] std::vector<std::uint8_t> loadMcsAdmissionBoundaryFixture()
+{
+    // A wire-valid Microsoft 4.1.3 Connect-Initial cannot independently
+    // establish a genuine, revocable native R2 admission lease.
+    std::ifstream input{RDP_R3_MICROSOFT_MCS_FIXTURE_PATH};
+    assert(input.good());
+    std::vector<std::uint8_t> packet;
+    packet.reserve(416U);
+    std::string line;
+    while (std::getline(input, line))
+    {
+        if (line.empty() || line.front() == '#')
+            continue;
+        std::istringstream bytes{line};
+        unsigned int value = 0U;
+        while (bytes >> std::hex >> value)
+        {
+            assert(value <= 255U);
+            packet.emplace_back(static_cast<std::uint8_t>(value));
+        }
+        assert(bytes.eof());
+    }
+    assert(packet.size() == 416U);
+    assert(rdp_server::server::transport::parseMcsConnectInitial(packet));
+    return packet;
+}
+
+void testConnectionMcsPreAdmissionTlsCoalescedDenials(
+    const std::filesystem::path &fixtureDirectory)
+{
+    using Step = LinuxPostAdmissionMcsStepStatus;
+    const auto microsoftConnectInitial = loadMcsAdmissionBoundaryFixture();
+    const auto rejectedCredSsp = encodeCredSspServerTsRequest(
+        6, CredSspServerReplyField::NegoToken, kRejectedInitialSpnego);
+    assert(!rejectedCredSsp.empty());
+
+    const auto keytab =
+        fixtureDirectory / "runtime-mcs-pre-admission-coalesced.keytab";
+    assert(writeSyntheticKeytab(keytab, kServicePrincipal));
+    LinuxRuntimeSecurityConfiguration configuration;
+    assert(configuration.configure(
+        kServicePrincipal, "FILE:" + keytab.string(), validRule()));
+    auto tlsContext =
+        makeRuntimeTlsContext(fixtureDirectory, "mcs-pre-admission");
+
+    // A real HYBRID TLS socket, valid MCS and accepted-client descriptor
+    // never substitute for the independent R2/native-owner credential proof.
+    for (const bool coalescedCredSsp : {false, true})
+    {
+        int clientDescriptor = -1;
+        auto accepted = acceptLoopbackConnection(clientDescriptor);
+        LinuxRuntimeConnection connection{configuration, std::move(accepted)};
+        assert(connection.ready());
+        TestSsl clientTls =
+            establishHybridTls(connection, clientDescriptor, tlsContext);
+
+        std::vector<std::uint8_t> plaintext;
+        plaintext.reserve(
+            microsoftConnectInitial.size() +
+            (coalescedCredSsp ? rejectedCredSsp.size() : 0U));
+        if (coalescedCredSsp)
+        {
+            plaintext.insert(
+                plaintext.end(), rejectedCredSsp.begin(),
+                rejectedCredSsp.end());
+        }
+        plaintext.insert(
+            plaintext.end(), microsoftConnectInitial.begin(),
+            microsoftConnectInitial.end());
+        // One SSL write places MCS directly after the rejected TSRequest;
+        // the sole R1 reader, not a second R3 reader, owns their boundaries.
+        assert(writeTlsClientAll(clientTls.get(), plaintext));
+
+        if (coalescedCredSsp)
+        {
+            std::size_t credentialBytesRead = 0U;
+            bool providerRejected = false;
+            for (std::size_t attempt = 0U; attempt < 16384U; ++attempt)
+            {
+                const auto result = connection.onCredSspIoReady();
+                credentialBytesRead += result.plaintextBytesRead;
+                // A complete MCS TPKT is not another CredSSP token.
+                assert(credentialBytesRead <= rejectedCredSsp.size());
+                if (connection.gssStage() == SpnegoStage::Failed)
+                {
+                    providerRejected = true;
+                    break;
+                }
+                assert(result.status == LinuxCredSspStepStatus::Progress ||
+                       result.status == LinuxCredSspStepStatus::NeedRead ||
+                       result.status == LinuxCredSspStepStatus::NeedWrite);
+                std::this_thread::yield();
+            }
+            assert(providerRejected);
+        }
+
+        assert(!connection.hasAdmissionLease());
+        assert(connection.mcsPhase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+        // Bypass R10 scheduling deliberately: real R2/R3 production gating
+        // must reject R1 TLS bytes without an independent native lease.
+        const auto denied =
+            connection.advancePostAdmissionMcsConnectInitial(true, true);
+        assert(denied.status == Step::AdmissionDenied);
+        assert(denied.plaintextBytesRead == 0U);
+        assert(!connection.ready());
+        assert(!connection.hasAdmissionLease());
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+
+        // Old connection read notifications cannot consume any queued
+        // MCS bytes or generate the first R3 Connect-Response.
+        const auto stale =
+            connection.advancePostAdmissionMcsConnectInitial(true, true);
+        assert(stale.status == Step::Closed);
+        assert(stale.plaintextBytesRead == 0U);
+        connection.revoke();
+        assert(connection.mcsPhase() == McsSessionPhase::Closed);
+        clientTls.reset();
+        assert(::close(clientDescriptor) == 0);
+    }
 }
 
 void testConnectionR1TlsAttachIndependentOfDiagnosticProjection(
@@ -4111,6 +4242,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-connection-native-poll-expiry-revocation")
     {
         testConnectionNativePollExpiryRevocation(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-connection-mcs-pre-admission-tls-coalesced-denials")
+    {
+        testConnectionMcsPreAdmissionTlsCoalescedDenials(fixtureDirectory);
         return 0;
     }
     if (testCase == "linux-connection-post-admission-mcs-framing-denials")

@@ -2361,6 +2361,8 @@ if(TARGET rdp-server-linux-runtime-security)
     add_executable(test_runtime_linux_security
         test_runtime_linux_security.cpp)
     target_compile_features(test_runtime_linux_security PRIVATE cxx_std_23)
+    target_compile_definitions(test_runtime_linux_security PRIVATE
+        "RDP_R3_MICROSOFT_MCS_FIXTURE_PATH=\"${PROJECT_SOURCE_DIR}/tests/fixtures/ms_rdpbcgr_4_1_3_mcs_connect_initial.hex\"")
     target_include_directories(test_runtime_linux_security PRIVATE
         "${RDP_SERVER_TEST_KRB5_INCLUDE_DIR}")
     target_link_libraries(test_runtime_linux_security PRIVATE
@@ -2385,6 +2387,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-pre-admission-dispatch
             linux-connection-pre-admission-native-poll
             linux-connection-native-poll-expiry-revocation
+            linux-connection-mcs-pre-admission-tls-coalesced-denials
             linux-connection-post-admission-mcs-framing-denials
             linux-connection-post-admission-mcs-response-denials
             linux-connection-post-admission-erect-domain-denials

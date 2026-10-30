@@ -220,6 +220,24 @@ DNS resolution failed. This is documentation-only, not a new CI PASS.
   No production source or security assertion changed.
 - Corrective exact-SHA hosted validation: **PENDING**.
 
+## R3 Round-2 HYBRID TLS first-MCS admission gate — 2026-10-30
+
+- Inspected parent: `75fc65aa081c2f7452d9c17750e90021de41acaf`, existing main. Prior UserId-range,
+  borrowed-span, ChannelJoin, Microsoft first-exchange corrections retained.
+- Added production-backed CTest:
+  `runtime.linux-connection-mcs-pre-admission-tls-coalesced-denials`,
+  using real R1 loopback OpenSSL, R2 CredSSP, R10 connection and the
+  checked-in 416-byte Microsoft MCS fixture. The negative scenarios are
+  early valid MCS and rejected-TSRequest+MCS coalescing; R3 consumes zero
+  bytes and stale connection callbacks remain terminal.
+- Source/ownership/test-registration audit: PASS by inspection only.
+  Owner canonical Debug configure/build/focused/full CTest: NOT RUN;
+  sanitizers: NOT RUN; exact publication-SHA hosted CI: PENDING.
+  No production source/authorization change, fake OS admission, live
+  MCS/Share or client acceptance. Next: hosted exact-SHA producer suite,
+  then real R2-admitted physical-client positive completion/revocation.
+  R8 remains owner of later outbound CLIPRDR format/capability payload.
+
 ## R9/R3 macOS MCS borrowed-view fixture blocker — 2026-10-29
 
 - Failing source SHA: `b93e8110f44558f07c096132977856dd54db97a4`.

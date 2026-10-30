@@ -459,6 +459,23 @@ owner-acceptance package, protocol matrix, CLANG64, sanitizers, GUI parity and
 documentation producers to be green. A skipped ordinary-push manual job is
 never candidate PASS.
 
+## R3 real-TLS pre-admission MCS handoff denial (2026-10-30)
+
+The new `runtime.linux-connection-mcs-pre-admission-tls-coalesced-denials`
+CTest exercises the actual `LinuxRuntimeConnection`, native loopback
+X.224/HYBRID TLS, R2 CredSSP reader and the 416-byte published Microsoft
+MS-RDPBCGR Connect-Initial. It sends a valid MCS TPKT as the first TLS
+application payload, and a rejected CredSSP TSRequest followed by that
+valid MCS TPKT in a single SSL write. The R2 reader may consume only the
+CredSSP frame; R3 must consume zero unauthorized bytes, revoke all
+admission/channel state and deny late read callbacks. Existing parser,
+coalesced-batch, 65536 UserId and channel-join CTests are unchanged.
+No positive native admission is manufactured; successful-credential
+buffered-completion/revocation remains a separately authorized live
+acceptance gate. Local canonical build/focused/full CTest and sanitizer:
+NOT RUN (owner build root unavailable); exact publication-SHA hosted
+CI: PENDING.
+
 ## R3 first MCS/GCC exchange conformance gate (2026-10-29)
 
 The dedicated production-backed

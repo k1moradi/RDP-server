@@ -242,6 +242,11 @@ REQUIRED_TOKENS = (
     "microsoft-credssp-type2-negative-controls",
     "microsoft-credssp-full-exchange",
     "credssp-full-production-authinfo-failure=",
+    "authinfo_expected_test_count=4",
+    "security.standalone-credssp-authinfo-first-failure-classification",
+    "security.standalone-credssp-authinfo-credential-structure-classification",
+    "security.standalone-credssp-authinfo-post-binding-revocation",
+    "security.standalone-credssp-authinfo-empty-fields-are-mismatch",
     "microsoft-credssp-binding-negative-control",
     "invalid-controls=DETECTED",
     "process-isolation=per-challenge",
@@ -638,6 +643,13 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             text.count("ctest --test-dir build --build-config Debug -N") >= 10,
             "missing critical ctest -N sanitizer preflights",
+        )
+        require(
+            text.count("authinfo_selection=") == 1
+            and text.count("authinfo_expected_test_count=4") == 1
+            and '-R "$authinfo_selection" --output-on-failure' in text,
+            "R2 final-authInfo sanitizer CTest selector must be present, "
+            "unique and fail-closed",
         )
         full_exchange_status = text.find("full_exchange_status=0")
         full_exchange_capture = text.find(

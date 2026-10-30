@@ -1,3 +1,49 @@
+## R9 Round 2 — final-authInfo sanitizer inventory and current gating (2026-10-30)
+
+Parent `1642ce2330eaf67780d83737cca9ed52ada0d1e3`. On `998eba3fc94c8fc2ffba3a10dd30582c0c9cc55c`,
+Actions `41077872585`, Windows MSVC job `124138885834`, the
+Microsoft final-authInfo path progressed from the earlier DER rejection to
+`production-authinfo-failure=credential-identity-or-password-mismatch`.
+The workflow's redacted category was captured in the exact-SHA matrix,
+which correctly remained `INCOMPLETE_FAIL`. Type 3, binding, and
+Microsoft authInfo are reached; `CredentialsVerified` is not.
+R8's registered CLANG64 Release FileContents crash remains resolved.
+
+The R2 production parser's allowed empty-value syntax exposed two stale
+credential-parser CTest assertions. On the same source SHA Ubuntu/macos
+full Debug and CLANG64 full Debug/Release failed these assertions;
+the sanitizer selection also failed strict-fields. Agent 2 has now
+published test-only corrections in `c78815cbe2fbe694452e6025b0e9c9384f5be95a`
+and `1642ce2330eaf67780d83737cca9ed52ada0d1e3`.
+Their exact-SHA full/sanitizer results remain **PENDING**; this is
+fixture repair in source, not yet an accepted green regression.
+
+R9 independent qualification gap: R2's four newly registered
+final-authInfo classification, credential-structure, post-binding-revocation,
+and empty-fields-mismatch tests were in ordinary full CTest but not the
+explicit R9 ASan/UBSan selection. The existing R9 security/protocol
+sanitizer job now runs all four through one independent flat selector,
+with four-case name/cardinality preflight and no new runner/build root.
+The existing workflow structure validator asserts that selector remains
+registered and executed. This does not remove or change any R2/R6 test,
+R8 clipboard test, compiler warnings, Windows full Debug/Release,
+bad-binding negative, or manual owner-candidate prerequisite.
+
+**Gate:** Agent 6/R2 must resolve Microsoft's actual delegated credential
+identity/password mismatch, prove a positive `CredentialsVerified`
+while preserving negative binding, and obtain one exact-SHA
+`COMPLETE_PASS` matrix with MSVC, CLANG64 Debug/Release, native
+Windows sanitizer, Ubuntu/macOS security/protocol and GUI Round 2.
+R9's explicit owner candidate is **BLOCKED**. Same-SHA owner-native
+Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 Debug/full CTest
+receipts are still separate M1 requirements. No physical client,
+desktop or clipboard test authorized.
+
+Verification: current-main source/CTest/CI review PASS by inspection.
+Local canonical `~/rdp-server/build/` build and CTests NOT RUN (approved
+checkout absent). Publication-SHA structure, sanitizer and complete
+platform CI remain **PENDING**.
+
 **R2 strict-fields fixture source-order correction (2026-10-30):**
 The newly updated early strict-fields test must inspect the credential
 result directly rather than call a later-defined assertion helper.

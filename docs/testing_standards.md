@@ -1,3 +1,15 @@
+## R9 sanitizer coverage for four production-backed final-authInfo cases (2026-10-30)
+
+The existing R9 ASan/UBSan job must enumerate and run all four registered
+`security.standalone-credssp-authinfo-*` CTests: first-failure
+classification, credential-structure classification, post-binding
+revocation, and empty-fields-are-mismatch. Pin all four full names and
+an exact count. Keep this regex flat, separate from the large licensing
+selection, and execute ordinary instrumented CTest with nonzero results
+preserved. The existing workflow structure self-test must retain the
+selector. These offline tests never authorize Microsoft
+`CredentialsVerified` or native admission.
+
 ## R2 delegated-authInfo empty OCTET STRING syntax — parser regression reconciliation (2026-10-30)
 
 The production parser accepts bounded, well-formed UTF-16LE empty userName

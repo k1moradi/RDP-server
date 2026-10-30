@@ -1805,6 +1805,29 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$credential_selection" --output-on-failure
 
+          # R2's production-owned final authInfo parser/revocation tests need
+          # instrumented execution as well as ordinary full CTest.
+          # Keep a separate flat selector; do not enlarge the MCS regex.
+          authinfo_selection='^security[.]standalone-credssp-authinfo-(first-failure-classification|credential-structure-classification|post-binding-revocation|empty-fields-are-mismatch)$'
+          authinfo_tests="$(ctest --test-dir build --build-config Debug -N -R "$authinfo_selection")"
+          printf '%s\n' "$authinfo_tests"
+          readonly authinfo_expected_test_count=4
+          authinfo_selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$authinfo_tests")"
+          if [[ "$authinfo_selected_count" -ne "$authinfo_expected_test_count" ]]; then
+            printf 'R9 authInfo sanitizer registry mismatch: expected %s tests, found %s\n' \
+              "$authinfo_expected_test_count" "$authinfo_selected_count" >&2
+            exit 1
+          fi
+          for required_authinfo_test in \
+            security.standalone-credssp-authinfo-first-failure-classification \
+            security.standalone-credssp-authinfo-credential-structure-classification \
+            security.standalone-credssp-authinfo-post-binding-revocation \
+            security.standalone-credssp-authinfo-empty-fields-are-mismatch; do
+            grep -Fq ": $required_authinfo_test" <<< "$authinfo_tests"
+          done
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$authinfo_selection" --output-on-failure
+
           delegated_account_selection='^security\.(credssp-(password-field-synchronous-visitor|delegated-(account-(extraction|sensitive-retirement|adversarial-boundaries)|domain-identity-denials))|console-policy-delegated-account-binding)$'
           delegated_account_tests="$(ctest --test-dir build --build-config Debug -N -R "$delegated_account_selection")"
           printf '%s\n' "$delegated_account_tests"

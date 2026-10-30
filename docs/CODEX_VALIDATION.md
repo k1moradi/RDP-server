@@ -1,3 +1,28 @@
+## R9 four-case ASan/UBSan authInfo coverage and dependency decision — 2026-10-30
+
+- Authoring parent `1642ce2330eaf67780d83737cca9ed52ada0d1e3`.
+- Windows MSVC SHA `998eba3fc94c8fc2ffba3a10dd30582c0c9cc55c`,
+  workflow `41077872585`, job `124138885834`:
+  `authinfo=yes credentials-verified=no
+  production-authinfo-failure=credential-identity-or-password-mismatch`;
+  normalized artifact category captured; final `INCOMPLETE_FAIL`.
+- CLANG64 Debug/Release same SHA: both full suites FAIL on the positive
+  Microsoft CredSSP oracle and two outdated R2 credential-parser fixture
+  expectations. R8 FileContents Debug and Release PASS.
+- Ubuntu/macOS full Debug and R9 security/protocol sanitizer at the same
+  SHA FAIL the affected R2 strict-field expectations. Agent 2's fixture
+  correction in `c78815cb` plus `1642ce23` is source-published;
+  exact-SHA CI NOT YET VERIFIED.
+- R9 added four mandatory `security.standalone-credssp-authinfo-*`
+  CTests to the existing ASan/UBSan job, with exact-name/size preflight;
+  the workflow structure validator requires the unique selector.
+  CTest registration and R2/R6 production source unchanged.
+- Final positive Microsoft `CredentialsVerified`: FAIL.
+  Manual owner candidate: BLOCKED. Owner-native M1 receipts and physical
+  Windows App/mstsc: NOT RUN.
+- Publication-SHA workflow structure and sanitizer: PENDING;
+  local canonical build/CTest: NOT RUN (no approved checkout in tools).
+
 ## R2 strict-fields fixture source-order correction (2026-10-30)
 
 The immediate test-only follow-up replaces a call to the later-defined

@@ -4135,6 +4135,18 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # A synchronous R4 pixel borrow cannot publish after native R2
+        # retirement, even when the callback completed its read successfully.
+        add_test(NAME x11.desktop-resource-inflight-frame-borrow-authority-retirement
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                inflight-frame-borrow-authority-retirement)
+        set_tests_properties(
+            x11.desktop-resource-inflight-frame-borrow-authority-retirement
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         add_test(NAME x11.desktop-resource-capture-terminal-denial
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"

@@ -1,3 +1,7 @@
+## R5 synchronous XShm borrow retirement CTest (2026-10-30)
+
+The new behavior-named Xvfb test reuses `test_x11_desktop_resources`, production `rdp-server-linux-x11-desktop`, XCB/XShm/XDamage/XFixes/XTEST and the existing private ephemeral `xvfb-run`. No native package, build flag, target or alternate build root is added. Ordinary CTest gains one test when those dependencies are available; the R5 explicit ASan/UBSan inventory and workflow validator both advance 44 -> 45. Use only the canonical `~/rdp-server/build/` locally (no approved checkout exists in this connector runtime). This source-only authoring records local compile, full CTest and sanitizers as **NOT RUN** until real exact-SHA receipts arrive.
+
 ## R1 queued-plaintext/FIN exact-SHA hosted qualification (2026-10-30)
 
 At `452ce336efcb779adb21979f7c22a63bf23535c9`, workflow `41111017558` Ubuntu job

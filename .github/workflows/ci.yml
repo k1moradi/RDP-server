@@ -2325,12 +2325,12 @@ jobs:
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: |
           set -euo pipefail
-          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|frame-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|authority-retirement-queued-damage-isolation|reentrant-authority-loss-damage-dispatch|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-admission-route-denials-and-revocation|input-authorized-slow-path-native-mapping-denials)$'
+          r5_x11_selection='^x11\.(capture-layout-bounds|cursor-reply-length-bounds|capture-arena-and-connection-denials|capture-native-(disconnect-cancellation|destructor-retirement)|capture-(bgra-ingress|stride-layout-denials|generation-retirement)|display-event-(budget-and-readiness|disconnect-cleanup|failure-defers-owner-teardown)|cursor-native-(connection-denials-and-cancellation|destructor-retirement)|damage-native-(connection-denials-and-cancellation|destructor-retirement)|input-native-(connection-denials-and-cancellation|destructor-held-input-release|authority-retirement-no-native-post|generation-mismatch-denial)|pointer-xi2-(motion-coalescing|remote-echo-suppression|disconnect-cancellation|destructor-retirement|malformed-event-bounds)|desktop-resource-(owner-connection-denial|owner-lifecycle|event-routing|randr-rebuild|frame-read-boundary|capture-pixel-parity|randr-capture-generation|randr-stale-damage-isolation|authority-retirement-queued-damage-isolation|reentrant-authority-loss-damage-dispatch|inflight-frame-borrow-authority-retirement|capture-terminal-denial|pointer-capability-denials|pointer-event-routing|pointer-randr-rebuild|pointer-randr-stale-motion-isolation)|native-geometry-observation-generation-retirement|same-pixel-randr-capture-retirement|randr-burst-generation-retirement-recovery|input-admission-route-denials-and-revocation|input-authorized-slow-path-native-mapping-denials)$'
 
           selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$r5_x11_selection")"
           printf '%s\n' "$selected_tests"
 
-          readonly r5_expected_test_count=44
+          readonly r5_expected_test_count=45
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:[[:space:]]+x11\./ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$r5_expected_test_count" ]]; then
             printf 'R5 native X11 registry mismatch: expected %s tests, found %s\n' \
@@ -2348,6 +2348,7 @@ jobs:
           grep -Fq 'x11.desktop-resource-randr-stale-damage-isolation' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-authority-retirement-queued-damage-isolation' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-reentrant-authority-loss-damage-dispatch' <<< "$selected_tests"
+          grep -Fq 'x11.desktop-resource-inflight-frame-borrow-authority-retirement' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-pointer-randr-stale-motion-isolation' <<< "$selected_tests"
           grep -Fq 'x11.desktop-resource-capture-terminal-denial' <<< "$selected_tests"
           grep -Fq 'x11.capture-native-destructor-retirement' <<< "$selected_tests"

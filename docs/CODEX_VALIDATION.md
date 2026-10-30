@@ -1,3 +1,11 @@
+## R5 in-flight XShm borrow terminal retirement — 2026-10-30
+
+- Authoring parent `dc9f142593f87bc249b512bca61a56ab1aade5d6`. New `x11.desktop-resource-inflight-frame-borrow-authority-retirement` in production-linked existing Xvfb target; callback reads synthetic pixels and then retires current aggregate before returning `true`. `consumeR4Frame` must return `false` and a fresh owner must reject old generation, old Damage and stale frame access.
+- Existing authority audit: R10 `GraphicsReady` and accepted-client R2 `visitNativeDesktopSelection` create resources; R2 revalidates concrete live lease, consent, owned R1/TLS/principal and logind before/after visitation. Terminal XTEST cleanup remains no-post; graceful disconnect can release held keys/buttons while authorized. No production code, real desktop, clipboard, input or capture changed.
+- CTest/source/CI selector inspection **PASS** at authoring; R5 explicit native ASan/UBSan selector is now 45 names, with fail-closed name and count sentinels in workflow and validator. Local compile/CTest/Xvfb/ASan/UBSan **NOT RUN** (no approved checkout and no GitHub DNS); exact-publication hosted tests **PENDING**. Previous 44/44 hosted qualification remains PASS on `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`, not yet on this increment.
+- Private macOS Windows App owner manifest v2/redacted summary v1 reviewed: SHA, client, credentials-matched boolean, correlation and stage/timing outcomes preserved; sensitive exact fields redacted. It cannot authorize an R2 lease or represent Linux seat0/UID/lock/consent generation by itself. The future owner-private Linux acceptance ledger and redaction contract are in `docs/ROADMAP.md`.
+- Physical Linux native admission, real capture/frame ACK, input, resize, lock/logout/switch/Stop and reconnect **BLOCKED / NOT RUN / not authorized** pending R9 exact-SHA/manual dispatch and real R2 lease. Current global macOS R3/OpenSSL 4.1 CI repair remains separately owned; do not attribute it to R5. Benchmark **NOT RUN**.
+
 ## R1 queued plaintext before FIN exact-SHA qualification — 2026-10-30
 
 - Implementation: `452ce336efcb779adb21979f7c22a63bf23535c9`.

@@ -1950,6 +1950,131 @@ syntheticXvfbPointerRandrStaleMotionIsolation()
 }
 #endif
 
+// R5: An R4 consumer may be the last synchronous owner of borrowed XShm
+// pixels. If the R2 authority disappears before that callback returns, the
+// completed read must never become a successful frame publication.
+struct InFlightFrameAuthorityRetirement final
+{
+    X11DesktopResources *owner{};
+    std::uint64_t expectedCaptureGeneration{};
+    std::uint32_t callbacks{};
+
+    static bool consume(void *rawContext, const FramebufferView &frame,
+                        std::uint64_t captureGeneration) noexcept
+    {
+        auto &self = *static_cast<InFlightFrameAuthorityRetirement *>(rawContext);
+        ++self.callbacks;
+        assert(self.owner != nullptr);
+        assert(captureGeneration == self.expectedCaptureGeneration);
+        assert(frame.valid());
+        assert(frame.widthPixels == 1280U);
+        assert(frame.heightPixels == 720U);
+        assert(frame.strideBytes == 1280U * 4U);
+        assert(frame.pixels.size() == 1280U * 720U * 4U);
+
+        // Consume the borrowed pixel bytes BEFORE terminal retirement. A
+        // callback must not retain or dereference this span after revocation.
+        const auto topLeft = kFirstPixelPattern.topLeft;
+        assert(frame.pixels[0] == static_cast<std::byte>(topLeft.blue));
+        assert(frame.pixels[1] == static_cast<std::byte>(topLeft.green));
+        assert(frame.pixels[2] == static_cast<std::byte>(topLeft.red));
+        self.owner->retireAfterAuthorizationLoss();
+        return true; // R5 must override this stale positive on return.
+    }
+
+    [[nodiscard]] X11R4BgraFrameConsumer callback() noexcept
+    {
+        return {this, &consume};
+    }
+};
+
+void
+syntheticXvfbInFlightFrameBorrowAuthorityRetirement()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 913U;
+    constexpr std::uint64_t maximumCapturePixels = 1280U * 720U;
+    constexpr Rectangle changedPixels{0, 0, 8, 6};
+    const char *display = syntheticDisplay();
+
+    X11DesktopResources retiredOwner(display, maximumCapturePixels);
+    requireValidResources(retiredOwner, "in-flight XShm retirement");
+    const X11NativeGeometryObservation retiredObservation =
+        retiredOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(retiredObservation.valid());
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *screen = screenFor(*helper, helperScreenNumber);
+    assert(screen->root_depth == 24U);
+    drawSyntheticPattern(
+        *helper, screen->root, changedPixels, kFirstPixelPattern);
+    xcb_connection_t *const retiredConnection = retiredOwner.nativeConnection();
+    assert(retiredConnection != nullptr);
+    synchronizeXcbConnection(*retiredConnection);
+
+    InFlightFrameAuthorityRetirement consumer{
+        &retiredOwner, retiredObservation.captureGeneration};
+    assert(!retiredOwner.consumeR4Frame(
+        retiredObservation, nativeSessionGeneration, consumer.callback()));
+    assert(consumer.callbacks == 1U);
+    assert(!retiredOwner.valid());
+    assert(retiredOwner.nativeConnection() == nullptr);
+    assert(retiredOwner.fileDescriptor() == -1);
+    assert(retiredOwner.captureGeneration() == 0U);
+    assert(!retiredOwner.nativeGeometryIsCurrent(
+        retiredObservation, nativeSessionGeneration));
+    // Idempotent later disconnect cannot turn terminal revocation into a
+    // cleanup XTEST request, nor resurrect an already-borrowed XShm image.
+    retiredOwner.disconnect();
+    assert(!retiredOwner.capture(
+        retiredObservation.captureGeneration, changedPixels).valid());
+
+    X11DesktopResources replacementOwner(display, maximumCapturePixels);
+    requireValidResources(replacementOwner, "replacement after in-flight borrow");
+    const X11NativeGeometryObservation replacementObservation =
+        replacementOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(replacementObservation.valid());
+    assert(replacementObservation.captureGeneration !=
+           retiredObservation.captureGeneration);
+    assert(!replacementOwner.nativeGeometryIsCurrent(
+        retiredObservation, nativeSessionGeneration));
+
+    NativeGeometryFrameProbe staleConsumer{
+        retiredObservation.pixelGeometry,
+        retiredObservation.captureGeneration};
+    assert(!replacementOwner.consumeR4Frame(
+        retiredObservation, nativeSessionGeneration, staleConsumer.callback()));
+    assert(staleConsumer.calls == 0U);
+    assert(!replacementOwner.capture(
+        retiredObservation.captureGeneration, changedPixels).valid());
+
+    xcb_connection_t *const replacementConnection =
+        replacementOwner.nativeConnection();
+    assert(replacementConnection != nullptr);
+    synchronizeXcbConnection(*replacementConnection);
+    bool workMayRemain = false;
+    assert(replacementOwner.processEvents(
+        64U, &workMayRemain, false) == ConnectionStatus::Ok);
+    assert(replacementOwner.damageNotificationCount() == 0U);
+    assert(!replacementOwner.damagePending());
+
+    const std::uint64_t previousNotifications =
+        replacementOwner.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, screen->root, changedPixels, kSecondPixelPattern);
+    requireSyntheticDamage(
+        replacementOwner, previousNotifications, changedPixels);
+
+    NativeGeometryFrameProbe freshConsumer{
+        replacementObservation.pixelGeometry,
+        replacementObservation.captureGeneration};
+    assert(replacementOwner.consumeR4Frame(
+        replacementObservation, nativeSessionGeneration,
+        freshConsumer.callback()));
+    assert(freshConsumer.calls == 1U);
+    replacementOwner.retireAfterAuthorizationLoss();
+}
+
 void
 syntheticXvfbCaptureR4BgraIngress()
 {
@@ -2407,6 +2532,11 @@ main(int argc, char **argv)
     if (behavior == "randr-stale-damage-isolation")
     {
         syntheticXvfbRandrStaleDamageIsolation();
+        return 0;
+    }
+    if (behavior == "inflight-frame-borrow-authority-retirement")
+    {
+        syntheticXvfbInFlightFrameBorrowAuthorityRetirement();
         return 0;
     }
     if (behavior == "reentrant-authority-loss-damage-dispatch")

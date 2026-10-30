@@ -616,7 +616,11 @@ void serverLocalSourceRevocationResponseDrain()
     const auto outcome = queuedRoute.onAcceptedBytes(
         routeGeneration, replySequence, writeSliceSequence, 1U);
     assert(outcome == RdpClipboardWriteOutcome::Pending);
-    assert(queuedBridge.recordAcceptedWrite(pending, 1U, outcome));
+    // The accepted-byte callback can advance/reuse R3's borrowed packet
+    // view. Observe only the pre-copied scalar receipt after R3 commits.
+    assert(queuedBridge.recordAcceptedWriteReceipt(
+        routeGeneration, replySequence, writeSliceSequence,
+        offeredBytes, 1U, outcome));
     assert(!queuedBridge.revokeServerClipboardGeneration(500U));
     assert(!queuedBridge.active());
     assert(queuedBridge.pendingApplicationPdu().empty());

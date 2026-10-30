@@ -1,3 +1,14 @@
+## R8 source-loss fixture uses copied post-R3 receipt scalars (2026-10-30)
+
+The new `clipboard.route-bridge-server-local-source-revocation-response-drain`
+case records the partial R3 accepted-byte receipt from copied route/reply/
+slice/size scalars after `onAcceptedBytes` mutates the R3 packet view.
+This test-only correction retains the original source-loss state machine,
+CTest registration, 105-case sanitizer selection and activation=false. Local
+build/CTest/ASan/UBSan **NOT RUN** (approved checkout unavailable); exact
+publication-SHA hosted qualification **PENDING**. No native clipboard or
+physical client access.
+
 ## R8 native source loss before server Format List Response (2026-10-30)
 
 **Authoring parent:** `3ebbccef29c2a011ab7a33f5e140c55bb3107e57`. The existing dormant bridge covered a

@@ -1,3 +1,15 @@
+## R8 partial-receipt fixture borrowed-view correction — 2026-10-30
+
+- Parent `c75cf533e2d1fab238ad9781ed6da50db2770cc3` has the source-loss bridge/CTest/CI increment.
+- The dedicated test now uses `recordAcceptedWriteReceipt` with stable
+  route/reply/slice/offered-byte scalars copied before R3's positive partial
+  accepted-byte mutation, as mandated by the sole-writer ownership contract.
+- Production bridge, all other tests, 105 clipboard sanitizer inventory,
+  `kLinuxProductionClipboardActivationApproved = false`: **UNCHANGED**.
+- Local canonical full/focused CTest and ASan/UBSan **NOT RUN**;
+  exact publication-SHA hosted qualification **PENDING**.
+- Physical clipboard, user files, client: **NOT RUN**.
+
 ## R8 native source-loss Format List response fence — 2026-10-30
 
 - Authoring parent: `3ebbccef29c2a011ab7a33f5e140c55bb3107e57`, atomic direct-main source/CTest/docs.

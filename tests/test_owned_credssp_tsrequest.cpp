@@ -296,8 +296,14 @@ void testStrictPasswordCredentialFields()
         {}, {}, utf16Le(u"secret"));
     const Bytes emptyPassword = passwordCredentials(
         {}, utf16Le(u"alice"), {});
-    assertPasswordCredentialAccepted(emptyUsername);
-    assertPasswordCredentialAccepted(emptyPassword);
+    const auto emptyUsernameInspection =
+        inspectCredSspCredentials(emptyUsername);
+    const auto emptyPasswordInspection =
+        inspectCredSspCredentials(emptyPassword);
+    assert(emptyUsernameInspection.kind == CredSspCredentialKind::Password);
+    assert(emptyUsernameInspection.error == CredSspCredentialError::None);
+    assert(emptyPasswordInspection.kind == CredSspCredentialKind::Password);
+    assert(emptyPasswordInspection.error == CredSspCredentialError::None);
     assert(!inspectCredSspDelegatedAccount(emptyUsername));
 
     auto embeddedNulUser = utf16Le(u"alice");

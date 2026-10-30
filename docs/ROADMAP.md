@@ -1,3 +1,11 @@
+**R2 strict-fields fixture source-order correction (2026-10-30):**
+The newly updated early strict-fields test must inspect the credential
+result directly rather than call a later-defined assertion helper.
+This is a test-only compile correction; the previously documented
+MS-CSSP empty-field syntax and rejection boundary are unchanged.
+Local Debug/CTest and sanitizers NOT RUN in this connector environment;
+exact publication-SHA hosted CI remains the next gate.
+
 ## R2 P0 Round 2 — Microsoft delegated-authInfo parser proof and strict-fixture reconciliation (2026-10-30)
 
 **Verified source:** `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`,

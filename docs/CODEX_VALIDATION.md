@@ -1,3 +1,12 @@
+## R2 strict-fields fixture source-order correction (2026-10-30)
+
+The immediate test-only follow-up replaces a call to the later-defined
+`assertPasswordCredentialAccepted` helper in
+`testStrictPasswordCredentialFields` with direct inspection assertions.
+This preserves the intended empty-field syntax checks while avoiding an
+undeclared forward reference. No production code or authentication-policy
+change. Local compile/CTest/sanitizer NOT RUN; exact-SHA CI PENDING.
+
 ## R2 P0 Microsoft final-authInfo transition and parser fixture recovery — 2026-10-30
 
 - Source `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`,

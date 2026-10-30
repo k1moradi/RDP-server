@@ -1,3 +1,23 @@
+## R3 CredentialsVerified + complete Microsoft MCS coalescing regression (2026-10-30)
+
+Keep
+`runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`
+production-backed. Its real loopback listener, HYBRID TLS and Direct-NTLM
+CredSSP flow must reach `CredentialsVerified`; the final TLS application write
+then contains the remaining valid `authInfo` bytes immediately followed by
+the checked-in 416-byte Microsoft MS-RDPBCGR 4.1.3 Connect-Initial. The R2
+reader must account for exactly the two post-Type-2 CredSSP TSRequests and none
+of the 416 MCS bytes. Independent native Admission must still deny, with
+protocol stage remaining pre-admission, MCS/Share positive observability false,
+native desktop/clipboard/graphics dormant, and a fresh same-listener retry
+using new TLS/NTLM state.
+
+Never construct a synthetic native lease for this regression. Keep this
+existing lifecycle mode in the R9 Linux protocol/security ASan/UBSan
+owner-candidate gate, where skip code 77 is a hard failure. This boundary is
+distinct from the rejected-CredSSP split/coalesced first-MCS cases: valid
+credentials and valid MCS bytes together still grant no R3 authority.
+
 ## R7 final-authInfo typed Advanced-only presentation gate (2026-10-30)
 
 After R10 projects `RuntimeAcceptedClientAuthInfoFailureReason`, R7 may

@@ -621,6 +621,9 @@ if(TARGET rdp-server-linux-host-control)
         test_linux_runtime_direct_ntlm_lifecycle.cpp)
     target_link_libraries(test_linux_runtime_direct_ntlm_lifecycle PRIVATE
         rdp-server-linux-host-control OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(
+        test_linux_runtime_direct_ntlm_lifecycle PRIVATE
+        "RDP_R3_MICROSOFT_MCS_FIXTURE_PATH=\"${PROJECT_SOURCE_DIR}/tests/fixtures/ms_rdpbcgr_4_1_3_mcs_connect_initial.hex\"")
     target_compile_options(test_linux_runtime_direct_ntlm_lifecycle PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     add_test(
@@ -646,11 +649,11 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;admission;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
-    # R1 realistic delegated-credential framing: a valid nonempty final
-    # authInfo larger than the reader scratch chunk is fragmented across
-    # tag/length/body/final writes. Unrelated application plaintext appended
-    # to the final TLS write must remain outside the CredSSP owner and be
-    # discarded when native Admission denies the exact connection.
+    # R1/R3 delegated-credential handoff: a valid nonempty final authInfo
+    # larger than the reader scratch chunk is fragmented across tag/length/body
+    # writes. The final TLS application write appends the exact 416-byte
+    # Microsoft Connect-Initial; it must remain outside CredSSP and be discarded
+    # when independent native Admission denies the exact connection.
     add_test(
         NAME runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect
         COMMAND test_linux_runtime_direct_ntlm_lifecycle

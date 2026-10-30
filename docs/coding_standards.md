@@ -1,3 +1,26 @@
+## R3 successful CredentialsVerified does not admit buffered MCS (2026-10-30)
+
+A successful CredSSP `CredentialsVerified` transition is authentication
+evidence, not native-session authority. R1/OpenSSL may already hold a complete
+416-byte Microsoft Connect-Initial in the same TLS application write as final
+`authInfo`; R2 must consume only the bounded CredSSP DER and the connection
+must still obtain a fresh, independent native R2 lease before R3 reads any of
+those bytes. If native Admission denies, retire the accepted connection and all
+buffered post-auth plaintext with no MCS/GCC semantic dispatch, Share
+transition, or static/dynamic virtual-channel construction. A caller Boolean,
+valid TPKT/GCC profile, Username, credential generation or cached epoch never
+substitutes for that lease.
+
+R8 dormant CLIPRDR initialization may consume only one current protected R3
+route observation after `ShareActivated`: the exact joined `cliprdr` static
+channel ID and route generation, the R3-assigned user ID used by that route,
+the current Share state and fresh R2 authority. R3 remains the sole owner of
+MCS/static-channel framing, queued write slices and the exact
+`(routeGeneration, replySequence, writeSliceSequence, acceptedBytes)` receipt.
+`R3ClipboardTransferBridge` consumes those prerequisites and retains
+server-originated `CB_CLIP_CAPS` / `CB_FORMAT_LIST` application
+serialization; do not add an R3 serializer or second route/receipt owner.
+
 ## R5 callback-time XCB authority retirement (2026-10-30)
 
 An owner-thread native X11 event sink may revoke its aggregate while a malloc-backed XCB event is still borrowed by the active event batch. After terminal authority loss, discard held XTEST state without release requests; retire event registrations, XDamage/XShm and the sole XCB owner before another poll. The batch frees only its current event, must not invoke later callbacks on the retired owner and never forwards borrowed pixels/events into a replacement generation. R2's protected synchronous visitor remains the only native authorization gate; geometry or event observations grant none. Preserve serialized event-loop affinity and explicit RAII child-before-XCB destruction.

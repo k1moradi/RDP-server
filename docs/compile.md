@@ -1,3 +1,13 @@
+## R3 CredentialsVerified/MCS lifecycle fixture adds no dependency (2026-10-30)
+
+The existing `test_linux_runtime_direct_ntlm_lifecycle` target now receives the
+checked-in Microsoft 416-byte Connect-Initial path through a private compile
+definition. No production target, library, package, generated source, build
+root or protocol compile option changes. The R9 sanitizer owner-candidate
+already builds this executable and now directly executes the strengthened
+existing lifecycle mode; ordinary full CTest registration and test count are
+unchanged.
+
 ## R5 reentrant callback XDamage retirement adds no build surface (2026-10-30)
 
 `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` reuses `test_x11_desktop_resources`, existing XCB/XShm/XDamage/XTEST dependencies, ephemeral `xvfb-run` and one canonical checkout-local `build/`. No new package, target, service, real owner input, thread, or benchmark. R5 sanitizer inventory advances 43 -> 44. Local build/full CTest/Xvfb/ASan/UBSan **NOT RUN** in connector-only environment; exact publication-SHA hosted CI **PENDING**.

@@ -500,6 +500,7 @@ REQUIRED_TOKENS = (
     "runtime.linux-connection-personal-desktop-clipboard-gateway-denials",
     "runtime.linux-connection-pre-admission-native-poll",
     "runtime.linux-connection-pre-admission-mcs-split-tls-revocation-denials",
+    "direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect",
     "runtime.linux-connection-native-poll-expiry-revocation",
     "post-admission-(mcs-(framing-denials|response-denials)|erect-domain-denials|attach-(user|confirm-write)-denials|channel-join-denials|client-info-denials)",
     "runtime.linux-connection-existing-cal-unadmitted-denial",

@@ -20,11 +20,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <pwd.h>
 #include <span>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -943,6 +945,38 @@ struct PeerResult final
     NtlmServerChallenge serverChallenge{};
 };
 
+[[nodiscard]] Bytes loadMicrosoftMcsConnectInitialFixture()
+{
+    std::ifstream input{RDP_R3_MICROSOFT_MCS_FIXTURE_PATH};
+    assert(input.good());
+
+    Bytes packet;
+    packet.reserve(416U);
+    std::string line;
+    while (std::getline(input, line))
+    {
+        if (line.empty() || line.front() == '#')
+            continue;
+
+        std::istringstream bytes{line};
+        unsigned int value = 0U;
+        while (bytes >> std::hex >> value)
+        {
+            assert(value <= 255U);
+            packet.emplace_back(static_cast<std::uint8_t>(value));
+        }
+        assert(bytes.eof());
+    }
+
+    // Published MS-RDPBCGR 4.1.3 fixture: one complete 416-byte TPKT.
+    assert(packet.size() == 416U);
+    assert(packet[0] == 0x03U);
+    assert(packet[1] == 0x00U);
+    assert(packet[2] == 0x01U);
+    assert(packet[3] == 0xa0U);
+    return packet;
+}
+
 [[nodiscard]] bool waitForRelease(
     const std::atomic<bool>& release) noexcept
 {
@@ -1122,9 +1156,10 @@ struct PeerResult final
         // A large nonempty delegated TSPasswordCreds fixture crosses the
         // 512-byte R2 TLS-read scratch size and uses the canonical 0x82 outer
         // DER length. Split tag/length, body and final bytes across logical
-        // TLS application writes. The last write appends unrelated plaintext;
-        // R2 must stop exactly at the final TSRequest boundary and R10 must
-        // retire the tail when native Admission fails.
+        // TLS application writes. The last write appends the complete published
+        // Microsoft Connect-Initial. R2 must stop exactly at final authInfo;
+        // native Admission denial must retire those buffered MCS bytes before
+        // R3 can consume or semantically dispatch them.
         if (authInfoBytes.size() <= 512U ||
             authInfoBytes.size() > kMaximumCredSspRequestBytes ||
             authInfoBytes.size() < 16U ||
@@ -1159,22 +1194,20 @@ struct PeerResult final
         }
         offset += bodyBytes;
 
-        constexpr std::array<std::uint8_t, 9>
-            postAuthApplicationMarker{
-                0x52U, 0x31U, 0x2dU, 0x54U, 0x41U,
-                0x49U, 0x4cU, 0xa5U, 0x5aU};
+        const Bytes microsoftConnectInitial =
+            loadMicrosoftMcsConnectInitialFixture();
         Bytes finalWrite;
         finalWrite.reserve(
-            finalAuthInfoBytes + postAuthApplicationMarker.size());
+            finalAuthInfoBytes + microsoftConnectInitial.size());
         finalWrite.insert(
             finalWrite.end(),
             authInfoBytes.begin() + static_cast<std::ptrdiff_t>(offset),
             authInfoBytes.end());
         finalWrite.insert(
             finalWrite.end(),
-            postAuthApplicationMarker.begin(),
-            postAuthApplicationMarker.end());
-        result.trailingApplicationBytes = postAuthApplicationMarker.size();
+            microsoftConnectInitial.begin(),
+            microsoftConnectInitial.end());
+        result.trailingApplicationBytes = microsoftConnectInitial.size();
         if (!client.writeFrame(finalWrite))
             return result;
     }
@@ -1756,6 +1789,7 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     assert(peerResult.directTypeTwoReceived);
     if (peerResult.trailingApplicationBytes != 0U)
     {
+        assert(peerResult.trailingApplicationBytes == 416U);
         assert(peerResult.authInfoSent);
         assert(peerResult.finalAuthInfoBytes > 512U);
         assert(peerResult.finalAuthInfoBytes <= kMaximumCredSspRequestBytes);

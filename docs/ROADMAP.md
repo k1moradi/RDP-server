@@ -1,3 +1,54 @@
+## R3 Round 3 — CredentialsVerified cannot promote buffered Microsoft MCS before native Admission (2026-10-30)
+
+**Authoring parent:** `d31b0fa6c20a63eb7c17c388866a5ffb9453acce`. MS-RDPBCGR/MS-RDPELE sequencing was
+rechecked before changing the fixture: Basic Settings carries MCS
+Connect-Initial/Response before Erect/Attach/Join; Client Info precedes
+licensing; PersonalDesktop's valid-client licensing result removes only the CAL
+decision; Demand/Confirm Active remains a later Share transition.
+
+Production authority audit: **PASS by source inspection; no production defect
+found.** The only HYBRID promotion path remains R1 TLS/CredSSP ->
+`CredentialsVerified` -> independent native R2 Admission lease -> bounded
+authenticated TLS TPKT -> R3. First-MCS intake revalidates the live lease before
+the bounded TLS read and calls `authorizeR3McsConnectInitial` again only after
+a complete TPKT exists. Connect-Response, Erect Domain, Attach User, each
+Channel Join, Client Info, PersonalDesktop licensing, Demand/Confirm Active and
+virtual-channel use/creation retain fresh R2 checks; outbound state advances
+only from reauthorized accepted-byte receipts. PersonalDesktop changes only the
+CAL decision.
+
+The existing production-backed
+`runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`
+now appends the exact checked-in 416-byte Microsoft Connect-Initial to the same
+TLS application write that finishes valid final `authInfo`. The real listener
+reaches `CredentialsVerified`, then the independent native broker denies
+Admission. The MCS tail is excluded from R2 CredSSP byte accounting, MCS/Share
+remain unadvanced, native desktop/clipboard/graphics remain dormant, and a
+fresh same-listener connection is still required. No synthetic OS admission,
+MCS/GCC byte, Microsoft-profile UserId behavior or production serializer was
+changed.
+
+R8 handoff stays single-owner: after Share activation R8 may consume only a
+fresh protected observation of the exact joined `cliprdr` channel ID/route
+generation plus the R3-assigned user ID, current Share state and R2 authority.
+R3 owns static-channel framing/queueing and accepted-byte receipt sequences;
+R8's `R3ClipboardTransferBridge` owns server `CB_CLIP_CAPS` /
+`CB_FORMAT_LIST` serialization.
+
+Future live evidence remains exactly:
+`CredentialsVerified -> genuine native Admission -> Connect-Initial ->
+Connect-Response -> Erect/Attach/Join -> PersonalDesktop licensing ->
+Demand/Confirm Active -> ShareActivated`. The Microsoft memory-BIO credential
+oracle remains `native-admission=no`; no physical client is authorized until
+R9 designates an exact SHA.
+
+Validation at authoring: source/registry/workflow-guard inspection **PASS**.
+Canonical local configure/build/focused/full CTest and ASan/UBSan are **NOT
+RUN** because this connector environment has no approved `~/rdp-server/build`
+checkout. Exact publication-SHA hosted CI/sanitizers: **PENDING**. Physical
+client/native desktop: **BLOCKED / NOT RUN**. Benchmark: **NOT RUN / not
+applicable**; production code and hot paths are unchanged.
+
 ## R8 Round 3 descendant qualification — dormant initialization/order green (2026-10-30)
 
 **Qualified source lineage:** `aeeb318315db1634068b885f24a103ce06f4d236`

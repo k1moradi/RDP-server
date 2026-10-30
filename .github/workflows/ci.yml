@@ -1333,6 +1333,10 @@ jobs:
             same-port-rebind-after-server-close
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-reconnect-stop-start-lifecycle
+          # R3: successful CredentialsVerified plus a complete Microsoft MCS
+          # TPKT still stops at independent native Admission.
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-stop-queued-authinfo-retirement
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \

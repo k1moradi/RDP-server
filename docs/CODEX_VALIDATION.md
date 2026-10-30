@@ -1,3 +1,30 @@
+## R3 CredentialsVerified -> native Admission -> MCS authority boundary — 2026-10-30
+
+- Authoring parent: `d31b0fa6c20a63eb7c17c388866a5ffb9453acce`.
+- MS-RDPBCGR/MS-RDPELE sequence and PersonalDesktop licensing semantics:
+  **rechecked**; no wire behavior changed.
+- Production R2/R3 audit: **PASS by inspection**. A current independent native
+  lease is required before first-MCS TLS intake and again at complete
+  Connect-Initial semantic dispatch; later MCS/ClientInfo/licensing/Share/VC
+  plans and accepted-byte receipts reauthorize current authority.
+- Strengthened existing production-backed lifecycle CTest:
+  `runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`.
+  Its final valid authInfo TLS write now appends the exact checked-in 416-byte
+  Microsoft Connect-Initial. The expected boundary is
+  `CredentialsVerified=yes`, native Admission denied, all 416 MCS bytes
+  outside CredSSP accounting, MCS/Share false and native/clipboard/graphics
+  dormant. No synthetic lease is used.
+- R9 Linux protocol/security ASan/UBSan owner-candidate now directly executes
+  that lifecycle mode; the workflow structure validator pins it.
+- Production source: **UNCHANGED**. Microsoft MCS/GCC profile and UserId
+  behavior: **UNCHANGED**. R8 retains CLIPRDR serializer ownership.
+- Canonical local focused/full/sanitizer execution: **NOT RUN** (approved
+  checkout/build root unavailable in this connector environment).
+- Exact publication-SHA hosted CI/sanitizer execution: **PENDING** at
+  authoring.
+- Physical Microsoft client, native Admission and desktop acceptance:
+  **BLOCKED / NOT RUN / unauthorized** pending R9 exact-SHA authorization.
+
 ## R8 dormant initialization/order exact-descendant qualification — 2026-10-30
 
 - R8 implementation lineage: `aeeb318315db1634068b885f24a103ce06f4d236`,

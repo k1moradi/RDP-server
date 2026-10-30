@@ -1,3 +1,24 @@
+## R4 current-main dependency check — R4 green, R9 blocked by macOS OpenSSL licensing compile (2026-10-30)
+
+- Exact audited SHA: `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`; primary workflow `41096120483`.
+- **R4 current-main sanitizer PASS:** portable graphics **45/45**, including
+  `graphics.frame-ack-deferred-revocation-generation-reset`.
+- Upstream source fixes now effective: R5 44-case validator/structure gate
+  **PASS**; R10 complete-type lifecycle fixture compiles in Ubuntu/sanitizer;
+  Ubuntu protocol, Windows MSVC, Windows CLANG64, R9 sanitizers, Linux R2
+  runtime-security, GUI/bootstrap/parity producers observed **PASS**.
+- **Current R9 blocker:** macOS protocol compile fails at
+  `rdp_licensing.cpp:1180`: OpenSSL 4.1 deprecates
+  `ASN1_STRING_length()`; `-Werror,-Wdeprecated-declarations` makes this
+  terminal. SERVER-TEST preview consequently fails and the owner-candidate
+  aggregate is skipped. This is shared licensing/toolchain compatibility, not
+  R4 graphics.
+- R4 production behavior remains unchanged; no speculative codec fix.
+  Physical native admission / first frame / ACK / resize / reconnect:
+  **BLOCKED / NOT RUN** pending a green exact-SHA R9 candidate, genuine R2
+  native-session authority and explicit authorization. Local build and
+  benchmark: **NOT RUN**.
+
 ## R5 CI guard correction — 2026-10-30
 
 - Parent `79c5a118ec219976273618c1596b87d5c23d8b71`; self-owned R5 structure failure on `6b9bee50dbd77145dea658a56bbf675c92ed5c5b`, run `41088602495` and descendant run `41090491580`: `missing required workflow token: r5_expected_test_count=43`. Update `scripts/validate_ci_workflow.py` to 44 and add exact reentrant-XDamage CTest sentinel; keep CI workflow selector and negative fixtures unchanged.

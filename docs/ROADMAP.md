@@ -1,3 +1,35 @@
+## R4 current-main dependency check — R4 green, R9 blocked by macOS OpenSSL licensing compile (2026-10-30)
+
+**Audited main:** `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`, workflow `41096120483`.
+The previously identified upstream source blockers are resolved: R9/R5's native
+sanitizer inventory is consistently 44 and current structure guard
+`41096120405` **PASS**; R10's Direct-NTLM lifecycle test now includes the
+complete `linux_runtime_connection.h` definition. On this exact SHA, Ubuntu
+protocol **PASS**, Windows MSVC protocol **PASS**, Windows CLANG64 **PASS**,
+R9 security/protocol sanitizers **PASS**, both Linux R2 runtime-security jobs
+**PASS**, GUI/bootstrap/parity gates **PASS**, and the portable graphics
+sanitizer selection is **45/45 PASS**, explicitly including
+`graphics.frame-ack-deferred-revocation-generation-reset`.
+
+**Remaining same-SHA blocker is outside R4:** macOS protocol compilation
+**FAILS** in `src/server/transport/rdp_licensing.cpp:1180` because the hosted
+OpenSSL 4.1 headers mark `ASN1_STRING_length()` deprecated and the project
+correctly treats the warning as an error. No graphics source or R4 test fails.
+The SERVER-TEST preview therefore fails its protocol prerequisite and the R9
+CredSSP owner-candidate job is skipped; the clean Windows portable-GUI producer
+also remains queued. R9 cannot designate this SHA as the whole-project owner
+candidate until the shared licensing/OpenSSL compatibility compile failure is
+fixed and the exact descendant matrix reruns green.
+
+**R4 disposition:** no codec, surface, scheduler, prepared-frame lifetime or
+ACK-window change is justified. Offline first-frame/ACK readiness remains
+**VERIFIED**. Physical Client Core 0x0100 -> RDPGFX VERSION8/VERSION81 ->
+CREATE/MAP -> first ClearCodec DATA -> matching FRAME_ACK -> resize/remap ->
+disconnect/reconnect remains **BLOCKED / NOT RUN** by the missing same-SHA R9
+qualification, genuine native R2 admission and explicit physical authorization.
+Local canonical build and performance benchmark are **NOT RUN** in this
+connector environment; fixture timing is not performance evidence.
+
 ## R5 workflow structure recovery and hosted gate (2026-10-30)
 
 **Parent:** `79c5a118ec219976273618c1596b87d5c23d8b71`. R6 Microsoft delegated CredSSP positive is **PASS** at exact SHA `0143d16613152c349463aae655aa506c5c85b12a`; `CredentialsVerified` is not native admission. R10 independently corrected the incomplete `LinuxRuntimeConnectionAcceptanceDiagnostics` test header in `81633e1bfa4251a98e5dfbc9cd21853bad844599`; hosted compile/full CTest after that correction remain **PENDING**. The R9 manual owner-candidate and physical seat0 native admission remain separate.

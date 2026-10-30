@@ -1,3 +1,40 @@
+## R4 Round 2 P2 — remap-before-first-frame offline contract (2026-10-30)
+
+Inspected main parent: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`. No previous R4/R10
+ACK-credit, resize, TLS-write pacing or Linux HostControl fix is reopened.
+R10 revalidates native geometry and R2 before a synchronous capture; R3
+owns DVC, DELETE/CREATE/MAP accepted-byte receipts and stale-surface
+FRAME_ACK ID fences; R4 owns frame encoding, surface geometry, one delivery
+receipt, ACK window and zero-byte cancellation.
+
+Added production-linked `graphics.surface-remap-before-first-frame-wire` to
+the shared CTest registry. It covers a mapped frame-free surface retired
+before first publication; exact DELETE/CREATE/MAP receipts; early ACK and
+pre-map submission denials; stale 2x2 framebuffer denial; odd 3x1
+padded-stride 79-byte ClearCodec output with fixed 16-byte input and
+96-byte output/canary boundaries; zero-byte cancellation/retry without
+sequence or ACK-credit consumption; and first exact publication/matching
+ACK. The fixture invokes no native host, R1 socket or fabricated R2 lease.
+Test-file assertions are explicitly live in Release.
+
+Source and test contract review: PASS **by inspection**. Local configure,
+build, focused/full CTest and sanitizer: **NOT RUN** (GitHub DNS checkout
+unavailable in the connector environment). Exact publication-SHA hosted CI:
+**PENDING**. The fixed-bounds fixture is not an FPS, RSS or latency benchmark.
+**First physical frame: BLOCKED/NOT RUN** until R9 qualification and
+owner-authorized R6 Microsoft CredSSP completion plus genuine R2 native
+admission. Windows App physical evidence still stops after Type 2/FIN,
+without Type 3. No codec/scheduler/timer changes, legacy bitmap fallback or
+VERSION10+ exposure.
+
+Next R4 action: qualify this new CTest and established graphics/sanitizer
+suites at one published SHA, then on one separately authorized physical
+Microsoft-client run record (1) CredentialsVerified, (2) fresh R2 admission,
+(3) MCS/Share, (4) Client Core 0x0100 and VERSION8/81 caps, (5) CREATE/MAP
+full receipts, (6) first ClearCodec DATA full R1 accepted-byte receipt,
+(7) matching FRAME_ACKNOWLEDGE, and (8) resize/reconnect/revocation. No
+physical pixels or ACK are yet verified.
+
 ## R4 P1 dependency reconciliation — first-frame blockers resolved in source (2026-10-29)
 
 **Reconciled parent:** `cd117cb374042fec463bf64c231e22625bd8bd99`. The older R4 handoff/row text that still

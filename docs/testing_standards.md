@@ -1,3 +1,17 @@
+## R4 pre-first-frame resize / fixed-buffer regression (2026-10-30)
+
+The production-linked CTest `graphics.surface-remap-before-first-frame-wire`
+uses the existing R4 lifecycle/clear-codec/ACK owners. It requires a
+frame-free DELETE/CREATE/MAP remap to commit by exact receipts before
+publication. It rejects stale geometry, incomplete command delivery,
+early ACK, short output and stale frame receipt without granting authority.
+A 3x1 padded-stride input proves fixed-size 79-byte ClearCodec output,
+source immutability, untouched tail canaries and zero-byte retry sequence
+preservation. These bounded stack buffers are not a performance benchmark.
+Keep fixture assertions enabled before project headers in Release.
+The R4 owner-only offline result never substitutes for R3/R1 real transport
+or a physically authenticated, independently admitted native desktop.
+
 ## R9/R3 borrowed MCS views require live backing frames (2026-10-29)
 
 `parseMcsChannelRequest` intentionally returns `request.userData` as a

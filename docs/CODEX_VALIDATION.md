@@ -1,3 +1,20 @@
+## R4 Round 2 remap-before-first-frame authoring evidence — 2026-10-30
+
+- Parent source inspected: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`.
+- Production path R10 native capture -> R2 admission revalidation ->
+  R3 surface receipts -> R4 ClearCodec/ACK owner: PASS by source inspection.
+  No production code or codec/scheduler change.
+- New CTest: `graphics.surface-remap-before-first-frame-wire`.
+  16-byte padded input, 96-byte output, 79-byte wire contract; three
+  receipt stages, stale ACK/geometry denial and zero-byte retry.
+- GitHub-connector authoring inspection: PASS. Local checkout/build,
+  focused/full CTest and sanitizers: NOT RUN (DNS unavailable).
+  Exact publication-SHA hosted CI: PENDING.
+- Physical Microsoft CredSSP/R2/MCS/Share/first DATA/ACK/resize: BLOCKED/
+  NOT RUN. No live desktop operation or benchmark performed.
+- Next: qualify exact-SHA hosted R4 graphics CTests and sanitizers; obtain
+  separately authorized physical R6/R9/R2 admission evidence.
+
 ## R4 dependency-graph reconciliation — 2026-10-29
 
 - Reconciled source parent: `cd117cb374042fec463bf64c231e22625bd8bd99`.

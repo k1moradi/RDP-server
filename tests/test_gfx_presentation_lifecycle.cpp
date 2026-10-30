@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Preserve state-changing assertions in Release before any project header.
+#if defined(NDEBUG)
+#undef NDEBUG
+#endif
 #include "rdp/gfx_presentation_lifecycle.h"
 #include <array>
 #include <cassert>
@@ -165,6 +169,108 @@ void firstFrameCompatibilityContract()
            GfxFramePublicationReadiness::Rejected);
     assert(!lifecycle.onFrameAcknowledge(
         generation, ack(request.frameId), result));
+}
+
+
+void resizeBeforeFirstFramePublication()
+{
+    constexpr std::uint64_t generation = 2502U;
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, generation, {2U, 2U});
+    assert(!lifecycle.acceptanceStatus().firstClearCodecFramePrepared);
+    assert(!lifecycle.acceptanceStatus().firstExactFrameWriteCommitted);
+
+    // A native resize before the first frame must retire the previous
+    // mapping. Only complete R3 delivery receipts can progress each stage.
+    assert(lifecycle.requestSurfaceDelete(generation));
+    GfxFrameAckWindowResult ackResult = GfxFrameAckWindowResult::Suspended;
+    assert(!lifecycle.onFrameAcknowledge(generation, ack(90U), ackResult));
+    assert(ackResult == GfxFrameAckWindowResult::Suspended);
+    const Receipt deleted = emit(lifecycle, generation, std::byte{0x0A}, 10U);
+    assert(!lifecycle.completeCommand(deleted, deleted.bytes - 1U));
+    assert(lifecycle.stage() == GfxPresentationStage::DeleteInFlight);
+    assert(!lifecycle.canSubmitFrame(generation));
+    assert(lifecycle.completeCommand(deleted, deleted.bytes));
+
+    assert(lifecycle.configureSurface(generation, 8U, {3U, 1U}));
+    const Receipt created = emit(lifecycle, generation, std::byte{0x09}, 15U);
+    assert(!lifecycle.completeCommand(created, created.bytes - 1U));
+    assert(!lifecycle.canSubmitFrame(generation));
+    assert(lifecycle.completeCommand(created, created.bytes));
+    const Receipt mappedReceipt = emit(lifecycle, generation, std::byte{0x0F}, 20U);
+    assert(!lifecycle.completeCommand(mappedReceipt, mappedReceipt.bytes - 1U));
+    assert(lifecycle.stage() == GfxPresentationStage::MapInFlight);
+    assert(!lifecycle.canSubmitFrame(generation));
+    assert(!lifecycle.onFrameAcknowledge(generation, ack(90U), ackResult));
+    assert(ackResult == GfxFrameAckWindowResult::Suspended);
+    assert(lifecycle.completeCommand(mappedReceipt, mappedReceipt.bytes));
+    assert(lifecycle.stage() == GfxPresentationStage::Mapped);
+
+    // The old 2x2 capture must not populate the new 3x1 surface. The
+    // native framebuffer is borrowed only during synchronous encoding.
+    const std::array<std::byte, 16U> oldPixels{};
+    const GfxClearCodecFrameRequest oldFrame{
+        7U, 90U, FramebufferView{oldPixels, 2U, 2U, 8U}};
+    const std::array<std::byte, 16U> paddedPixels{
+        std::byte{0x11}, std::byte{0x22}, std::byte{0x33}, std::byte{0xFF},
+        std::byte{0x44}, std::byte{0x55}, std::byte{0x66}, std::byte{0xFF},
+        std::byte{0x77}, std::byte{0x88}, std::byte{0x99}, std::byte{0xFF},
+        std::byte{0xA5}, std::byte{0xA5}, std::byte{0xA5}, std::byte{0xA5}};
+    const auto originalPixels = paddedPixels;
+    const GfxClearCodecFrameRequest resizedFrame{
+        8U, 91U, FramebufferView{paddedPixels, 3U, 1U, 16U}};
+    assert(gfxClearCodecFrameBytes(resizedFrame) == 79U);
+
+    std::array<std::byte, 96U> output{};
+    output.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt receipt{9U, 8U, 7U, 6U};
+    const auto initialReceipt = receipt;
+    assert(!lifecycle.prepareClearCodecFrame(generation, oldFrame, output, receipt));
+    assert(!lifecycle.prepareClearCodecFrame(
+        generation, resizedFrame, std::span<std::byte>{output}.first(78U), receipt));
+    assert(receipt == initialReceipt);
+    for (const std::byte value : output)
+        assert(value == std::byte{0xA5});
+    assert(lifecycle.outstandingFrames() == 0U);
+
+    assert(lifecycle.prepareClearCodecFrame(generation, resizedFrame, output, receipt));
+    assert(receipt.frameId == 91U && receipt.bytes == 79U);
+    assert(output[42U] == std::byte{0}); // Initial ClearCodec sequence.
+    assert(output[55U] == paddedPixels[0U]);
+    assert(output[63U] == paddedPixels[8U]);
+    assert(output[66U] == std::byte{1}); // Last one-pixel run.
+    for (std::size_t index = receipt.bytes; index < output.size(); ++index)
+        assert(output[index] == std::byte{0xA5});
+    assert(paddedPixels == originalPixels);
+    assert(lifecycle.acceptanceStatus().firstClearCodecFramePrepared);
+    assert(!lifecycle.acceptanceStatus().firstExactFrameWriteCommitted);
+    assert(!lifecycle.requestSurfaceDelete(generation));
+
+    // R3's conclusively unwritten (zero outer bytes) publication may be
+    // canceled and retried; the ClearCodec sequence and ACK credit stay put.
+    assert(lifecycle.cancelUnwrittenFrameDelivery(receipt));
+    assert(lifecycle.framePublicationReadiness(generation, 91U) ==
+           GfxFramePublicationReadiness::Ready);
+    output.fill(std::byte{0xA5});
+    GfxFrameDeliveryReceipt retried{};
+    assert(lifecycle.prepareClearCodecFrame(generation, resizedFrame, output, retried));
+    assert(retried.serial > receipt.serial);
+    assert(output[42U] == std::byte{0});
+    assert(lifecycle.completeFrameDelivery(retried, retried.bytes));
+    assert(!lifecycle.completeFrameDelivery(receipt, receipt.bytes));
+    assert(lifecycle.outstandingFrames() == 1U);
+
+    // Unmatched ACK from before the remap cannot consume the first frame.
+    assert(lifecycle.onFrameAcknowledge(generation, ack(90U, 8U), ackResult));
+    assert(ackResult == GfxFrameAckWindowResult::Unmatched);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.onFrameAcknowledge(generation, ack(91U, 8U), ackResult));
+    assert(ackResult == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+    const auto status = lifecycle.acceptanceStatus();
+    assert(status.firstClearCodecFramePrepared);
+    assert(status.firstExactFrameWriteCommitted);
+    assert(status.firstGenuineFrameAcknowledge);
 }
 
 void ordering()
@@ -824,6 +930,7 @@ int main(int argc, char **argv)
     if (argc != 2) return 2;
     const std::string_view mode{argv[1]};
     if (mode == "first-frame-compatibility-contract") { firstFrameCompatibilityContract(); return 0; }
+    if (mode == "surface-remap-before-first-frame-wire") { resizeBeforeFirstFramePublication(); return 0; }
     if (mode == "channel-lifecycle-ordering") { ordering(); return 0; }
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }

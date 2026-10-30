@@ -1809,6 +1809,7 @@ function(add_rdp_test source_file suite behavior)
     elseif(test_target STREQUAL "test_gfx_presentation_lifecycle")
         foreach(case_name IN ITEMS
                 first-frame-compatibility-contract
+                surface-remap-before-first-frame-wire
                 channel-lifecycle-ordering
                 channel-lifecycle-denials
                 surface-resize-revocation

@@ -1,3 +1,7 @@
+## R2/R6 credential-parser failure-only reinspection (2026-10-30)
+
+Final CredSSP diagnostic refinement may call the existing bounded credential inspection a second time **only after** the canonical delegated-password visitor has already failed. Keep this off the successful authentication path, reuse the same parser contract, and project only an enum distinguishing outer credential-envelope DER, nested password-field structure, unsupported type or generic invalid input. Never expose decrypted buffer contents or lengths to logs/UI, and never make the diagnostic result influence credential acceptance, retry, fallback, challenge construction or native admission. This preserves one R2 verifier owner while giving R6 an interoperability boundary precise enough for a Microsoft differential.
+
 ## R2/R6 final CredSSP authInfo first-failure ownership (2026-10-30)
 
 The single production CredSSP acceptor may retain one small enum through

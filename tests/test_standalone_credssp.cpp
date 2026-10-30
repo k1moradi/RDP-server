@@ -1358,6 +1358,7 @@ enum class FinalAuthInfoDenialFixture : std::uint8_t
     MissingAuthInfo,
     ShortProtectedAuthInfo,
     MalformedCredentialDer,
+    MalformedPasswordFields,
     RevokedCredential,
 };
 
@@ -1392,10 +1393,30 @@ void assertFinalAuthInfoDenial(
         }
         else
         {
-            const Bytes credentials =
-                fixture == FinalAuthInfoDenialFixture::MalformedCredentialDer
-                    ? Bytes{0x30U, 0x00U}
-                    : passwordCredentials({}, u"User", u"Password");
+            Bytes credentials;
+            if (fixture == FinalAuthInfoDenialFixture::MalformedCredentialDer)
+            {
+                credentials = {0x30U, 0x00U};
+            }
+            else if (fixture ==
+                     FinalAuthInfoDenialFixture::MalformedPasswordFields)
+            {
+                const auto type = wrap(
+                    0xa0U,
+                    wrap(0x02U, std::array<std::uint8_t, 1>{1U}));
+                const auto malformedPasswordCreds =
+                    wrap(0x30U, std::span<const std::uint8_t>{});
+                credentials = wrap(
+                    0x30U,
+                    append(
+                        type,
+                        octetContext(0xa1U, malformedPasswordCreds)));
+            }
+            else
+            {
+                credentials =
+                    passwordCredentials({}, u"User", u"Password");
+            }
             protectedAuthInfo = protectAuthInfo(clientSecurity, credentials);
         }
         request = authInfoRequest(protectedAuthInfo);
@@ -1433,7 +1454,10 @@ void testAuthInfoMalformedFinalDenials()
         StandaloneAuthInfoFailureReason::InvalidProtectedLength);
     assertFinalAuthInfoDenial(
         FinalAuthInfoDenialFixture::MalformedCredentialDer,
-        StandaloneAuthInfoFailureReason::InvalidCredential);
+        StandaloneAuthInfoFailureReason::InvalidCredentialEnvelope);
+    assertFinalAuthInfoDenial(
+        FinalAuthInfoDenialFixture::MalformedPasswordFields,
+        StandaloneAuthInfoFailureReason::InvalidPasswordFields);
 }
 
 void testAuthInfoPostBindingCredentialRevocation()
@@ -1826,6 +1850,12 @@ int main(int argc, char **argv)
         testAuthInfoMalformedFinalDenials();
         testAuthInfoCredentialMismatchRevokes();
         testAuthInfoTamperRevokes();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-credential-structure-classification")
+    {
+        testAuthInfoMalformedFinalDenials();
         return 0;
     }
     if (testCase ==

@@ -1,3 +1,12 @@
+## R6 Microsoft authInfo structural classifier continuation — 2026-10-30
+
+- Exact prior Agent 6 SHA `e8def2b91a433a727094711345c60f868577d7ac`, workflow `41072936007`.
+- MSVC job `124124540101`: full Microsoft CredSSP **FAIL**, first production final-authInfo reason `credential-der-or-fields`; TLS1.3, Type 3, pubKeyAuth, binding commit, Microsoft `SEC_E_OK` and final authInfo all reached. Bad-binding negative remains **PASS** with `SEC_E_INVALID_TOKEN` before authInfo.
+- CLANG64 job `124124539950`: same full-exchange category in Debug and Release. Offline first-failure classifier **PASS** in both configs. This rules out a compiler-only positive failure and resolves the prior wait-for-oracle dependency.
+- Current-line MSVC job `124124681701` repeats the same category after R2/R7/R10 follow-ups; R1 Linux transport is independently green. R9 now records the failed authInfo scalar in the exact-SHA interop artifact. No later commit changed the production delegated-credential parser.
+- Continued source change is diagnostic-only: split existing aggregate parser rejection into outer credential-envelope DER versus nested password-field validation using the existing secret-free inspection API. Acceptance predicate, TLS/NTLM/CredSSP wire, domain/password policy and native admission are unchanged. Dedicated CTest added for the split.
+- Local build/full CTest: **NOT RUN**. Exact publication-SHA Windows producer qualification: **PENDING**. Physical client/native admission: **BLOCKED / NOT RUN**.
+
 ## R9 failed-positive CredSSP artifact capture — 2026-10-30
 
 - Parent reviewed: `b5f7301ff1c6f2d223125b1625d9da0362a11a25`.

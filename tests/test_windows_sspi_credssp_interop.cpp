@@ -3021,7 +3021,11 @@ void copyBoundedCipherName(
         return "protected-length";
     case StandaloneAuthInfoFailureReason::SignSeal: return "sign-seal";
     case StandaloneAuthInfoFailureReason::InvalidCredential:
-        return "credential-der-or-fields";
+        return "credential-unclassified";
+    case StandaloneAuthInfoFailureReason::InvalidCredentialEnvelope:
+        return "credential-envelope-der";
+    case StandaloneAuthInfoFailureReason::InvalidPasswordFields:
+        return "password-credential-fields";
     case StandaloneAuthInfoFailureReason::UnsupportedCredentialType:
         return "unsupported-credential-type";
     case StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain:

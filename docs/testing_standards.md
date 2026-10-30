@@ -1,3 +1,7 @@
+## R6 final-authInfo structural differential (2026-10-30)
+
+When a Microsoft-generated final authInfo decrypts and verifies SIGN/SEAL but the delegated credential parser rejects it, do not stop at a combined “DER or fields” label. Reuse the canonical credential inspection only on the failure path and report a bounded outer-envelope versus nested-password-fields category. The classification must not retain or log decrypted bytes, field lengths, credential strings, hashes, responses, signatures or keys and must not alter acceptance. A dedicated ordinary CTest must independently exercise malformed TSCredentials envelope DER and a valid TSCredentials envelope containing malformed TSPasswordCreds fields, in addition to the existing sign/seal, domain, mismatch, revocation and positive cases. Microsoft positive qualification remains `CredentialsVerified` or FAIL; a structurally classified rejection is diagnostic evidence, never acceptance.
+
 ## R9 failed Microsoft full-CredSSP receipts remain artifact-visible (2026-10-30)
 
 The exact-SHA Microsoft interoperability artifact must retain one normalized,

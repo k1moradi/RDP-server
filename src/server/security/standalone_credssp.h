@@ -56,6 +56,8 @@ enum class StandaloneAuthInfoFailureReason : std::uint8_t
     InvalidProtectedLength,
     SignSeal,
     InvalidCredential,
+    InvalidCredentialEnvelope,
+    InvalidPasswordFields,
     UnsupportedCredentialType,
     NonEmptyDelegatedDomain,
     CredentialUnavailable,

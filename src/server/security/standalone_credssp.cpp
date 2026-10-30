@@ -450,6 +450,24 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
             CredSspPasswordFieldVisitStatus::UnsupportedCredentialType)
             authInfoFailureReason_ =
                 StandaloneAuthInfoFailureReason::UnsupportedCredentialType;
+        else if (visitStatus ==
+                 CredSspPasswordFieldVisitStatus::InvalidCredential)
+        {
+            // Failure-only reinspection reuses the canonical parser to split
+            // the safe structural boundary without retaining any plaintext.
+            const CredSspCredentialInspection inspection =
+                inspectCredSspCredentials(plaintext);
+            if (inspection.error == CredSspCredentialError::InvalidDer)
+                authInfoFailureReason_ =
+                    StandaloneAuthInfoFailureReason::InvalidCredentialEnvelope;
+            else if (inspection.error ==
+                     CredSspCredentialError::InvalidPasswordFields)
+                authInfoFailureReason_ =
+                    StandaloneAuthInfoFailureReason::InvalidPasswordFields;
+            else
+                authInfoFailureReason_ =
+                    StandaloneAuthInfoFailureReason::InvalidCredential;
+        }
         else if (visitStatus != CredSspPasswordFieldVisitStatus::Visited)
             authInfoFailureReason_ =
                 StandaloneAuthInfoFailureReason::InvalidCredential;

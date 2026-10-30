@@ -1,3 +1,17 @@
+## R9 exact native X11 sanitizer inventory follows R5 registration (2026-10-30)
+
+When an R5 behavior test is newly registered in the existing X11 CTest
+suite and selected by the R9 native X11 ASan/UBSan job, update the
+structural workflow validator's mandatory inventory token in the same
+lineage. The production-backed
+`x11.desktop-resource-reentrant-authority-loss-damage-dispatch`
+adds one native retirement test, changing R5's selector from 43 to **44**.
+Require this exact CTest name and count in the workflow **and** its
+structure validator; never delete it or reduce the count to obtain green
+CI. The standalone structure guard must not block the entire producer graph
+because of a stale 43-case string. A structure PASS does not substitute
+for actual Xvfb/sanitizer/full CTest execution.
+
 ## R5 reentrant Damage callback authority-loss CTest (2026-10-30)
 
 `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` runs the production `X11DesktopResources::processEvents` against private `-noreset` Xvfb. A genuine queued Damage notification is processed before the additional native event sink terminally revokes the aggregate from inside that callback. Assert terminal return, no further callback, no live XCB file descriptor/XShm frame or old geometry provenance, rejection of the old capture generation by a new owner, and fresh Damage only after a post-replacement draw. This is distinct from the pre-dispatch queued-Damage test. Do not use real owner input, seat0, login, clipboard, credentials or a fabricated R2 lease. Register an ordinary behavior CTest and add it to the fail-closed R5 sanitizer inventory 43 -> 44 with exact-name sentinel; green hosted Xvfb is not physical native admission.

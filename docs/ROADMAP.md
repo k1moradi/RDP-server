@@ -1,3 +1,43 @@
+## R9 Round 3 — R5 44-case sanitizer structure guard reconciliation (2026-10-30)
+
+**Authoring parent:** `98b91f4a1df64f955b63a3e7c78164baffa57429`. The exact-SHA CI structure guards
+`41090491580` (standalone) and `41090491478` (primary) both fail on
+`missing required workflow token: r5_expected_test_count=43`. This is
+not a failed R5 test. Agent 5's new behavior CTest
+`x11.desktop-resource-reentrant-authority-loss-damage-dispatch` is
+registered in `tests/CMakeLists.txt`, explicitly selected in the existing
+R9 X11 sanitizer job, and the workflow correctly requires **44** cases.
+Only `scripts/validate_ci_workflow.py` retained the superseded count
+**43**. R9 updates that structural sentinel to **44** and pins the
+new test's full name. No test, warning policy, CI dependency or sanitizer
+selection is skipped, reduced or weakened.
+
+**Resolved agent dependency:** Agent 6's exact SHA
+`0143d16613152c349463aae655aa506c5c85b12a`, workflow
+`41088156347`: MSVC positive Microsoft full CredSSP **PASS**, genuine
+`CredentialsVerified=yes`, `delegation-requested=yes`,
+`production-authinfo-failure=none`,
+`production-authinfo-empty-fields=none`, artifact
+`COMPLETE_PASS`, and the independent invalid-binding negative **PASS**.
+MSVC ordinary Debug and Release protocol 822/822 **PASS**. Windows CLANG64
+ordinary Debug/Release 876/876 **PASS** and native sanitizer 60/60
+**PASS**. That SHA is not a whole-repository candidate: Ubuntu protocol,
+R9 security/protocol sanitizers and portable bootstrap failed to **compile**
+the R10 test `tests/test_linux_runtime_direct_ntlm_lifecycle.cpp:1836`
+because `LinuxRuntimeConnectionAcceptanceDiagnostics` was incomplete.
+The last source audit still finds that test uses an incomplete type;
+Agent 10 owns the source/test correction. Later R8/R5 commits require a
+fresh exact-SHA qualification rather than borrowing Windows green.
+
+**Decision:** the structure token is R9-owned and corrected by this
+atomic commit. Remaining dependency is Agent 10's Linux compile blocker,
+then an all-green same-SHA producer matrix, GUI Round 2 and the explicit
+manual `r9_credssp_owner_candidate=true` gate. Physical Windows
+App/mstsc and owner-native Linux/X11, Windows MSYS2 CLANG64/Clang 23
+and macOS 27 full Debug CTest receipts are still **NOT RUN/NOT VERIFIED**.
+Local canonical build and CTest: **NOT RUN** (approved checkout unavailable).
+This correction's publication-SHA structure/full CI: **PENDING**.
+
 ## R8 Round 3 hosted qualification — R8 build green, full CTest blocked by R10 compile defect (2026-10-30)
 
 **R8 correction SHA:** `0665b2eab68b63d828b5ccdf68d1105bfa241463`.

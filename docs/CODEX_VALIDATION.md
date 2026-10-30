@@ -1,3 +1,32 @@
+## R9 R5 44-case structure validator correction — 2026-10-30
+
+- Authoring HEAD: `98b91f4a1df64f955b63a3e7c78164baffa57429`.
+- At `98b91f4a1df64f955b63a3e7c78164baffa57429`, standalone structure workflow `41090491580`
+  and primary `41090491478` are **FAIL**, exact message
+  `missing required workflow token: r5_expected_test_count=43`.
+- R5 source/CMake and `.github/workflows/ci.yml` already register,
+  select and require `x11.desktop-resource-reentrant-authority-loss-damage-dispatch`
+  in the R9 44-case native X11 sanitizer group. The sole structural
+  validator token lagged behind. R9 updates it from 43 to 44, adds
+  the exact test sentinel, and retains all denials and count checks.
+- Verified 369 required workflow literals before this change: after
+  unescaping Python literals, the **only missing token** was
+  `r5_expected_test_count=43`. Source/registration review: PASS.
+  Exact publication-SHA hosted validator: **PENDING**; local CTest: **NOT RUN**.
+- R6 Windows `0143d16613152c349463aae655aa506c5c85b12a`,
+  `41088156347`, MSVC `124174758888`: `CredentialsVerified=yes`,
+  full exchange PASS, bad binding PASS and `COMPLETE_PASS`;
+  full MSVC Debug/Release 822/822. CLANG64 `124174758891`:
+  full Debug/Release 876/876 and native sanitizer 60/60 **PASS**.
+- Same SHA Ubuntu job `124174759112`, R9 sanitizer job
+  `124174758996` and bootstrap job `124174759394` fail to compile
+  `test_linux_runtime_direct_ntlm_lifecycle.cpp:1836`:
+  `LinuxRuntimeConnectionAcceptanceDiagnostics` is incomplete.
+  R10 owns this regression. Do not infer same-SHA candidate eligibility
+  from the Windows-only green evidence.
+- Manual owner candidate remains **BLOCKED**. Skipped ordinary push is
+  not PASS; no physical desktop/Windows App/mstsc testing was authorized.
+
 ## R6 Microsoft CredSSP oracle final exact-SHA qualification — 2026-10-30
 
 - Implementation/evidence SHA:

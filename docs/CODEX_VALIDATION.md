@@ -1,3 +1,39 @@
+## R6 Microsoft CredSSP oracle final exact-SHA qualification — 2026-10-30
+
+- Implementation/evidence SHA:
+  `0143d16613152c349463aae655aa506c5c85b12a`.
+- Primary workflow: `41088156347`; standalone structure guard
+  `41088156416`: **PASS**. Primary structure job `124174694486` and Windows
+  PowerShell parser job `124174694119`: **PASS**.
+- MSVC job `124174758888`: **PASS**. Strict Debug configure/build and R6
+  native preflight pass. Focused Microsoft full exchange is **PASS** with
+  TLS1.3, verified Type 3, pubKeyAuth, committed production binding, final
+  authInfo, `credentials-verified=yes`, `native-admission=no`,
+  `delegation-requested=yes`, terminal `delegation-returned=no`,
+  `production-authinfo-failure=none`, and
+  `production-authinfo-empty-fields=none`.
+- The bad-server-binding parity control is **PASS** and rejects before authInfo
+  with `SEC_E_INVALID_TOKEN (0x80090308)`,
+  `delegation-requested=yes delegation-returned=no`. The exact Microsoft
+  artifact closes `interop-matrix-final=COMPLETE_PASS` at the same source
+  SHA.
+- MSVC ordinary Debug project CTest: **822/822 PASS**. MSVC ordinary Release
+  protocol CTest: **822/822 PASS**.
+- CLANG64 job `124174758891`: **PASS**, Clang **23.1.4**. Ordinary full Debug
+  CTest: **876/876 PASS**. Ordinary full Release CTest: **876/876 PASS**.
+  Windows R6 sanitizer lifetime CTests: **60/60 PASS**.
+  `R9 WINDOWS CLANG64 QUALIFICATION PASS` names the same implementation SHA.
+- The final successful context's missing `ISC_RET_DELEGATE` remains recorded
+  as `delegation-returned=no`; it is not hidden or inferred from an
+  intermediate call. CredSSP credential forwarding is functionally proved by
+  nonempty final authInfo accepted by production. No policy/system mutation was
+  used to force the generic context capability bit.
+- **Agent 2 handoff: no production verifier change is required.** R2 accepted
+  the configured delegated User/Password as-is. No production authentication
+  semantics were changed by Agent 6.
+- Physical Windows App/mstsc and native admission: **NOT RUN**, per round
+  instruction.
+
 ## R8 Round 3 hosted build evidence and external blocker — 2026-10-30
 
 - Candidate source lineage: `aeeb318315db1634068b885f24a103ce06f4d236`

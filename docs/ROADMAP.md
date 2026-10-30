@@ -397,7 +397,9 @@ clipboard.
 
 That final `ISC_RET_DELEGATE` absence is retained as a bounded provider/context observation, not treated as credential-forwarding failure: generic SSPI DELEGATE context capability is Kerberos-specific, while CredSSP's request flag separately controls forwarding the user credentials. The actual nonempty final authInfo accepted by production is the decisive functional oracle. Therefore **Agent 2 must not change the production verifier**. The initial CLANG64 Debug and Release full suites on the same SHA build cleanly but fail the over-strict R6 positive predicate that required `delegation-returned=yes`; the follow-up removes only that unsupported pass condition while keeping the terminal scalar mandatory evidence.
 
-**Next gate:** rerun exact-publication-SHA MSVC plus CLANG64 Debug/Release after that qualification correction. Positive success must require `delegation-requested=yes`, a present `delegation-returned=yes|no` terminal observation, `production-authinfo-empty-fields=none`, `credentials-verified=yes`, `production-authinfo-failure=none`, and `native-admission=no`; bad binding must still reject before authInfo using the same delegation-request profile. No Group Policy, registry, firewall, TermService, trust, TLS, Type 2, target-name or R2 verifier mutation is authorized. Physical macOS Windows App / Windows 11 mstsc and native admission remain **BLOCKED / NOT RUN**.
+**R6 automated P0 qualification: PASS.** Exact implementation SHA `0143d16613152c349463aae655aa506c5c85b12a`, workflow `41088156347`. MSVC job `124174758888` reports the positive Microsoft exchange `PASS`: TLS1.3, verified Type 3, pubKeyAuth, committed production binding, final authInfo, `credentials-verified=yes`, `production-authinfo-failure=none`, `production-authinfo-empty-fields=none`, `delegation-requested=yes`, terminal `delegation-returned=no`, and `native-admission=no`. The bad-binding parity row remains rejected before authInfo with typed `SEC_E_INVALID_TOKEN`, requested=yes/returned=no. The exact Microsoft matrix is `COMPLETE_PASS`. MSVC ordinary Debug and Release suites are **822/822 PASS** each.
+
+CLANG64 job `124174758891` uses Clang 23.1.4; ordinary full Debug and Release CTest are **876/876 PASS** each, R6 Windows sanitizer lifetime selection is **60/60 PASS**, and `R9 WINDOWS CLANG64 QUALIFICATION PASS` names the same SHA. Workflow-structure and Windows PowerShell-parser guards are also PASS. This proves the hosted environment can provide the standards-valid positive CredSSP credential-forwarding oracle without Group Policy, registry, firewall, TermService, trust, TLS, Type 2, target-name or R2 verifier mutation. **Agent 2: no production verifier change is required.** Physical macOS Windows App / Windows 11 mstsc and native admission remain **BLOCKED / NOT RUN** as required.
 
 ## R9 Round 2 — exact-SHA empty-field/delegation normalization and candidate gate (2026-10-30)
 
@@ -446,13 +448,16 @@ ASan/UBSan authInfo selector advances from four to **five** production-backed
 cases and pins every full name and the exact cardinality. Ordinary full CTest
 remains mandatory; no test is skipped or weakened.
 
-**Active P0 dependency:** Agent 6's test-client correction adds only
-`ISC_REQ_DELEGATE` through an explicit full-exchange profile and emits both
-bounded delegation scalars. R9 does not reopen TLS, Type 2, transport, verifier
-policy or clipboard. The publication SHA requires a fresh single-SHA matrix;
-no earlier green claim transfers to it. Even a green automated matrix is **not** the manual
-owner-candidate PASS: the owner must explicitly dispatch
-`r9_credssp_owner_candidate=true` only after every prerequisite succeeds.
+**R6 P0 dependency: CLEARED by executable exact-SHA evidence.** Agent 6's
+test-client correction adds only `ISC_REQ_DELEGATE` through the explicit
+full-exchange profile and emits both bounded delegation scalars. Exact SHA
+`0143d16613152c349463aae655aa506c5c85b12a` has a `COMPLETE_PASS`
+Microsoft matrix, MSVC Debug/Release full suites, CLANG64 Debug/Release full
+suites and the Windows sanitizer/qualification gate all green. R9 does not
+reopen TLS, Type 2, transport, verifier policy or clipboard. This automated
+matrix is still **not** the manual owner-candidate PASS: the owner must
+explicitly dispatch `r9_credssp_owner_candidate=true` only after every
+remaining prerequisite succeeds.
 M1 still separately requires same-SHA owner-native Debug/full CTest receipts
 for Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27.
 

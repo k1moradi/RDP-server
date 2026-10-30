@@ -1,3 +1,31 @@
+## R1 Round 3 exact-SHA qualification — queued plaintext/FIN drain (2026-10-30)
+
+**Implementation SHA:** `452ce336efcb779adb21979f7c22a63bf23535c9`. Standalone structure workflow
+`41111017232` **PASS**. Primary workflow `41111017558`, Ubuntu job
+`124253216902`: full Debug CTest **994/994 PASS** and full Release CTest
+**994/994 PASS**. The dedicated
+`runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain` passes in
+Debug (**0.17 s**) and Release (**0.22 s**). This proves the production-linked
+R1 path drains the queued one-byte TLS application plaintext before terminal
+peer-EOF retirement while preserving the partial-TSRequest observation.
+
+R9 sanitizer job `124253217087` **PASS** and compiles the modified lifecycle
+target under ASan/UBSan, but its explicit Direct-NTLM list still runs the older
+partial-raw-TLS-record case rather than this new mode; sanitizer execution of
+the new regression is therefore **NOT RUN**, not PASS. macOS protocol job
+`124253216884` independently passes full Debug/Release **773/773** with
+OpenSSL 4.0.3. That means the earlier hosted OpenSSL-4.1 deprecation failure does
+not block this exact SHA, but it does not prove 4.1 source compatibility.
+
+No production transport/TLS behavior changed. Local canonical build/CTest is
+**NOT RUN** because the approved checkout/build root is unavailable. Physical
+client/server execution remains **NOT RUN / unauthorized**. The next R1 gate is
+same-attempt physical correlation only: a client-side Agent-6 observation must
+be paired with the exact listener/accepted-client generation and R1's local
+Type-2 commit, first later encrypted-byte observation, application plaintext
+count, TLS alert/close_notify and FIN/reset classification before any R1
+hypothesis is reopened.
+
 ## R2 native Admission prepared owner-consent epoch fence (2026-10-30)
 
 **Audit baseline:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`. R2 found a consent-lifetime gap: `LinuxConsoleAdmissionBroker::prepareAdmission()` sampled owner consent before NSS/logind evidence, but `issueWithSources()` did not compare the same grant/revocation epoch when completing R2 native proof and publishing a lease. Owner commands and broker methods are serialized on the R10 owner thread, but the consent owner's revocation generation is atomic and may change during a reentrant evidence callback or externally published terminal revocation. Later MCS authorization was a separate defense, not a safe basis for minting a lease.

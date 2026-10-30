@@ -1,3 +1,15 @@
+## R1 queued-plaintext/FIN exact-SHA hosted qualification (2026-10-30)
+
+At `452ce336efcb779adb21979f7c22a63bf23535c9`, workflow `41111017558` Ubuntu job
+`124253216902` builds the existing
+`test_linux_runtime_direct_ntlm_lifecycle` target and passes full Debug and
+Release CTest **994/994**. The new
+`runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain` case passes
+in **0.17 s** Debug and **0.22 s** Release. R9 sanitizer job
+`124253217087` is **PASS** and compiles the target under ASan/UBSan; the new
+mode is not in its explicit direct-run list, so sanitizer execution of that mode
+is **NOT RUN**. No build surface or dependency was added.
+
 ## R2 owner-consent epoch admission fence build boundary (2026-10-30)
 
 The epoch fence modifies the existing Linux R2 admission broker and the existing `test_runtime_linux_security` executable; it adds one ordinary offline Linux-only CTest, plus one isolated ASan/UBSan selector in the existing R9 sanitizer job. No new target, library, OS service, dependency, native session, build configuration or second build root. Use the canonical `~/rdp-server/build/` Debug build/full CTest and the existing CI single-root sanitizer workflow. Local compile/full CTest/ASan/UBSan: **NOT RUN** in connector-only authoring; hosted exact-publication-SHA qualification **PENDING**.

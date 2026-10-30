@@ -1,3 +1,26 @@
+## R1 queued plaintext before FIN exact-SHA qualification — 2026-10-30
+
+- Implementation: `452ce336efcb779adb21979f7c22a63bf23535c9`.
+- Structure workflow `41111017232`: **PASS**.
+- Primary workflow `41111017558`, Ubuntu `124253216902`: Debug full CTest
+  **994/994 PASS**, Release full CTest **994/994 PASS**.
+- Dedicated
+  `runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain`:
+  **PASS**, 0.17 s Debug / 0.22 s Release.
+- R9 ASan/UBSan job `124253217087`: **PASS** and modified lifecycle target
+  compiled; the explicit direct-run inventory does not select the new mode, so
+  that mode's sanitizer execution is **NOT RUN**.
+- macOS protocol `124253216884`: Debug/Release **773/773 PASS** using
+  OpenSSL 4.0.3. The former hosted OpenSSL-4.1 compile failure is absent from
+  this exact run; no 4.1 source-compatibility claim is made.
+- Production source changes: **NONE**. Local canonical build/CTest:
+  **NOT RUN**. Physical client/server and OS/network changes:
+  **NOT RUN / unauthorized**. Benchmark: **NOT RUN / not applicable**.
+- R1 remains evidence-bound: local Type-2 TLS commit is not peer receipt. Only a
+  same-attempt Agent-6 client observation correlated to R1's exact
+  listener/accepted-client generation and post-Type-2 byte/alert/FIN fields may
+  legitimately reopen transport.
+
 ## R2 native Admission consent-epoch continuity — 2026-10-30
 
 - Authoring baseline: `c82988ee8178294d986e86a3c0cb09801f9bee5b`; current security decision: **missing admission-time consent fence, corrected in production source and offline regression**.

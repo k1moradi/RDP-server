@@ -1,3 +1,23 @@
+## R8 Round 3 authority follow-up — local generation invalidates borrowed route observation (2026-10-30)
+
+**Parent:** `aeeb318315db1634068b885f24a103ce06f4d236`. Final authority-path review found one narrow lifetime
+fence: a fresh R3 route observation can precede an independently observed local
+clipboard ownership change. The new local generation now clears that borrowed
+route-observation bit, so publishing the replacement Format List requires a new
+R2/R3 protected visit after the generation exists. This does not change wire
+bytes, initialization order, response draining or the sole writer; it only
+prevents an older authorization observation from being reused for newer native
+state.
+
+The existing
+`clipboard.route-bridge-server-initialization-generation-replacement` CTest is
+strengthened to prove the pre-generation observation cannot stage the new offer,
+then proves a fresh visit can. The reconnect case advances its high-water
+generation accordingly. No test count or CI selector changes. Local build/CTest
+and sanitizers remain **NOT RUN** in this connector environment; exact-SHA
+hosted CI is **PENDING**. `kLinuxProductionClipboardActivationApproved = false`
+remains unchanged; no live clipboard or file access.
+
 ## R8 Round 3 — dormant CLIPRDR initialization/order state (2026-10-30)
 
 **Authoring parent:** `f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1`. MS-RDPECLIP initialization was rechecked

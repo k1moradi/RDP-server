@@ -1,3 +1,19 @@
+## R8 local-generation route-observation fence — 2026-10-30
+
+- Parent: `aeeb318315db1634068b885f24a103ce06f4d236`.
+- Production change: observing a newer server-local clipboard generation now
+  clears the bridge's borrowed fresh-route bit. A new Format List for that
+  generation requires another protected R2/R3 route visit.
+- Regression: existing
+  `clipboard.route-bridge-server-initialization-generation-replacement`
+  rejects reuse of the pre-generation observation, succeeds after a fresh
+  visit, and preserves the higher generation across reconnect.
+- Wire serialization, Monitor Ready ordering, Format List response draining,
+  FileContents/INCR owners, test count 104, and
+  `kLinuxProductionClipboardActivationApproved = false`: **UNCHANGED**.
+- Local build/CTest/sanitizers: **NOT RUN**. Exact publication-SHA CI:
+  **PENDING**. Physical clipboard/files/client: **NOT RUN / BLOCKED**.
+
 ## R8 dormant CLIPRDR initialization/order authoring evidence — 2026-10-30
 
 - Authoring parent: `f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1`.

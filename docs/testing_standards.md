@@ -1,3 +1,13 @@
+## R8 generation/authorization ordering regression (2026-10-30)
+
+Strengthen
+`clipboard.route-bridge-server-initialization-generation-replacement` so an
+R3 route observation taken before a local clipboard generation replacement
+cannot be reused to publish that replacement. Require the begin call to fail,
+then perform a fresh production route visit and require success. Continue to
+prove the generation high-water survives same-channel-ID reconnect. This is an
+existing behavior CTest strengthening; the clipboard inventory remains 104.
+
 ## R8 dormant server initialization/order regressions (2026-10-30)
 
 Use the production `R3ClipboardTransferBridge` plus

@@ -628,6 +628,11 @@ bool R3ClipboardTransferBridge::observeServerClipboardGeneration(
 
     lastServerClipboardGeneration_ = clipboardGeneration;
     serverClipboardGeneration_ = clipboardGeneration;
+
+    // A native/local ownership change can race independently of R2. Any route
+    // observation borrowed before this new generation existed is no longer
+    // sufficient authority to publish it; require a fresh protected visit.
+    routeObservationAvailable_ = false;
     return true;
 }
 

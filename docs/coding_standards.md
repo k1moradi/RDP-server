@@ -1,3 +1,13 @@
+## R8 local clipboard generation invalidates earlier route observations (2026-10-30)
+
+A local/native clipboard generation change must clear any previously borrowed
+fresh-route observation before that generation can be advertised. The local
+owner can change independently of R2, so only an R2/R3 protected route visit
+performed after the new generation exists may authorize staging its server
+Format List. Keep the monotonic local-generation high-water mark; do not retire
+the route merely because the native generation advanced. Response draining and
+the one R1 writer remain unchanged.
+
 ## R8 dormant CLIPRDR initialization and local-publication ownership (2026-10-30)
 
 Keep server initialization in the existing `R3ClipboardTransferBridge`; do

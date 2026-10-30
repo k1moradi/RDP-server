@@ -501,6 +501,16 @@ void serverInitializationGenerationReplacement()
     assert(accepted->status ==
            R3ClipboardTransferBridge::ServerFormatListStatus::Accepted);
 
+    // An R2/R3 route observation that predates a new local clipboard
+    // generation cannot authorize that replacement offer.
+    assert(visitor.visit(visitor.context, first));
+    assert(bridge.observeServerClipboardGeneration(102U));
+    assert(!bridge.beginServerFormatList(102U, formats));
+    assert(visitor.visit(visitor.context, first));
+    assert(bridge.beginServerFormatList(102U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, firstRoute);
+    acknowledgeServerFormatList(bridge, first, kResponseOk);
+
     bridge.retireR3ChannelState();
     firstRoute.close();
     assert(!bridge.active());
@@ -516,12 +526,12 @@ void serverInitializationGenerationReplacement()
     assert(!bridge.beginServerFormatList(101U, formats));
     completeServerInitialization(
         bridge, replacementRoute, replacement, flags);
-    assert(!bridge.observeServerClipboardGeneration(101U));
-    assert(bridge.observeServerClipboardGeneration(102U));
+    assert(!bridge.observeServerClipboardGeneration(102U));
+    assert(bridge.observeServerClipboardGeneration(103U));
     assert(visitor.visit(visitor.context, replacement));
-    assert(!bridge.beginServerFormatList(101U, formats));
+    assert(!bridge.beginServerFormatList(102U, formats));
     assert(visitor.visit(visitor.context, replacement));
-    assert(bridge.beginServerFormatList(102U, formats));
+    assert(bridge.beginServerFormatList(103U, formats));
 }
 
 void serverInitializationPendingWriteRetirement()

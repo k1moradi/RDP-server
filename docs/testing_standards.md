@@ -214,6 +214,20 @@ sentinel which proves the assert expression was evaluated and emits a bounded
 fail-only diagnostic before executing stateful cases. Do not weaken or skip the
 affected Release CTest to obtain a green candidate.
 
+## R10 pending final authInfo Stop/replacement gate (2026-10-30)
+
+`runtime.linux-host-control-stop-queued-authinfo-retirement` drives production R1/TLS and R2/Direct-NTLM with a test-only
+barrier after verified server pubKeyAuth. A complete final protected authInfo
+is queued while no further R10 service call runs, then Stop retires the old
+socket, listener and all session/native/graphics/input/clipboard capability.
+The configured memory credential may survive ordinary Stop, never its peer.
+Fresh consent, listener and client generations reject an old client ID while
+the replacement stays active; later full CredentialsVerified still cannot
+invent an R2 native lease from synthetic evidence. The barrier must not add
+another production socket reader, scheduler, timer or TLS policy. Execute full
+CTest plus the existing R9 ASan/UBSan negotiation gate; host-dependent skip
+77 is NOT RUN, not positive acceptance.
+
 ## R10 no-starvation pre-auth service contract (2026-10-29)
 
 The production-backed runtime.linux-direct-ntlm-preauth-service-no-starvation

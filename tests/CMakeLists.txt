@@ -642,6 +642,17 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;admission;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # Pending complete final authInfo must not survive R10 Stop or act on a
+    # replacement accepted connection; use real R1 TLS/R2 CredSSP owners.
+    add_test(NAME runtime.linux-host-control-stop-queued-authinfo-retirement
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-stop-queued-authinfo-retirement)
+    set_tests_properties(runtime.linux-host-control-stop-queued-authinfo-retirement
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;admission;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 25)
+
     # Two consecutive Type-2 deliveries followed by peer EOF before Type 3
     # remain pre-admission on one listener while current owner consent survives;
     # this gate grants no native, MCS, graphics or clipboard authority.

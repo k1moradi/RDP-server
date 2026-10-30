@@ -445,6 +445,17 @@ is claimed. Next gate: exact-SHA CI plus owner-native platform CTest.
 
 ## R10 P0 pre-auth no-starvation service correction — 2026-10-29
 
+**R10 Round 2 queued authInfo retirement (2026-10-30):** Added
+`runtime.linux-host-control-stop-queued-authinfo-retirement` to production-backed Linux TLS/Direct-NTLM lifecycle coverage.
+It holds valid final authInfo pending during Stop, verifies retained memory
+credential with retired listener, rejects stale client ID on a replacement,
+then requires genuine R2 native admission even after another complete
+CredentialsVerified. No production source modified. Authoring/source/registry
+inspection PASS; local Debug CTest and ASan/UBSan NOT RUN (checkout and DNS
+unavailable); publication-SHA hosted qualification PENDING. M1 owner-native
+and M2 physical-client acceptance NOT RUN; independent R6/R8 blockers remain.
+
+
 - Authoring parent: 1942cb4ecf08056c6d636a57acfcd6ae40be4773; concurrent work preserved.
 - Source audit demonstrated fixed-25-ms pacing of immediate work and blocking
   pre-auth GUI/service native probes on the same Qt owner thread.

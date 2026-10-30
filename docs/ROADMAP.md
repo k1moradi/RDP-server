@@ -470,6 +470,22 @@ bottleneck. The physical Windows App still closes about 48.7 ms after Type-2
 delivery without Type 3, a separate client-specific post-challenge boundary.
 
 New behavior CTest: runtime.linux-direct-ntlm-preauth-service-no-starvation.
+
+**R10 Round 2 queued-authInfo Stop regression (2026-10-30):** Existing
+production listener/TLS/Direct-NTLM fixture now verifies Stop while a correct
+protected final authInfo is queued but still unconsumed by the serialized R10
+owner. Stop retires accepted R1 connection, endpoint TLS identity, listener,
+native desktop, MCS/Share, graphics and clipboard; only approved memory
+credential generation survives. Fresh consent/Start changes listener and peer
+generations; stale client ID cannot disconnect a replacement. Later complete
+CredentialsVerified still fails independent R2 native admission without
+physical evidence. CTest: `runtime.linux-host-control-stop-queued-authinfo-retirement`. Concurrent R1 fragmented-authInfo
+coverage remains unchanged. No R10 production wire, scheduler or admission
+code changed. Source/registry review PASS by inspection. Local full Debug
+CTest/sanitizers NOT RUN (GitHub DNS/checkout unavailable); exact-SHA CI
+PENDING. R6 Microsoft full-exchange/R8 CLANG64 Release clipboard remain
+separate R9 blockers; owner-native/physical client NOT RUN.
+
 The scheduler source gate and sanitizer owner-candidate job are strengthened.
 Canonical owner one-build configure/build/full CTest: NOT RUN in this connector
 environment. Exact publication-SHA hosted CI/sanitizers: PENDING. Next physical

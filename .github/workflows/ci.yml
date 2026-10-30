@@ -1272,6 +1272,8 @@ jobs:
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-reconnect-stop-start-lifecycle
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
+            direct-ntlm-stop-queued-authinfo-retirement
+          build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-type2-peer-eof-pre-admission-diagnostics
           build/tests/test_linux_runtime_direct_ntlm_lifecycle \
             direct-ntlm-preauth-service-no-starvation

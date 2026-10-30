@@ -854,6 +854,14 @@ private:
     std::uint64_t activeConsoleReadCount_{};
 };
 
+// A test-only peer/owner handoff; R10 remains the sole socket/TLS owner.
+struct PendingAuthInfoGate final
+{
+    std::atomic<bool> serverBindingVerified{};
+    std::atomic<bool> permitFinalAuthInfo{};
+    std::atomic<bool> finalAuthInfoWritten{};
+};
+
 enum class FinalAuthInfoWritePattern : std::uint8_t
 {
     Complete,
@@ -890,7 +898,8 @@ struct PeerResult final
     std::atomic<bool>& release,
     bool rejectCredentialProof = false,
     FinalAuthInfoWritePattern authInfoWritePattern =
-        FinalAuthInfoWritePattern::Complete) noexcept
+        FinalAuthInfoWritePattern::Complete,
+    PendingAuthInfoGate* pendingAuthInfoGate = nullptr) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -979,6 +988,14 @@ struct PeerResult final
         return result;
     }
 
+    if (pendingAuthInfoGate != nullptr)
+    {
+        pendingAuthInfoGate->serverBindingVerified.store(
+            true, std::memory_order_release);
+        if (!waitForRelease(pendingAuthInfoGate->permitFinalAuthInfo))
+            return result;
+    }
+
     const auto credentials = passwordCredentials();
     const auto protectedCredentials =
         protectClientMessage(clientSecurity, credentials);
@@ -1019,6 +1036,9 @@ struct PeerResult final
     }
 
     result.authInfoSent = true;
+    if (pendingAuthInfoGate != nullptr)
+        pendingAuthInfoGate->finalAuthInfoWritten.store(
+            true, std::memory_order_release);
     result.passed = waitForRelease(release);
     return result;
 }
@@ -1659,6 +1679,8 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-preauth-stage-timeline-lifecycle" ||
         testCase ==
             "direct-ntlm-preauth-zero-timeout-readiness-attribution";
+    const bool stopQueuedAuthInfoRetirementOnly =
+        testCase == "direct-ntlm-stop-queued-authinfo-retirement";
     const bool serviceNoStarvationOnly =
         testCase == "direct-ntlm-preauth-service-no-starvation";
     const bool typeTwoTimingDiagnosticsOnly =
@@ -1708,6 +1730,7 @@ int main(int argc, char** argv)
             "connection-target-identity-retained-across-peer-retry";
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
         !typeTwoTimingDiagnosticsOnly && !serviceNoStarvationOnly &&
+        !stopQueuedAuthInfoRetirementOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
         !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
         !invalidCredentialDiagnosticOnly &&
@@ -1790,6 +1813,115 @@ int main(int argc, char** argv)
     assertFixedConnectionTargetIdentity(
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
+
+    if (stopQueuedAuthInfoRetirementOnly)
+    {
+        PendingAuthInfoGate gate;
+        std::atomic<bool> releaseOldPeer{false};
+        std::atomic<bool> oldPeerFinished{false};
+        PeerResult oldPeerResult;
+        std::thread oldPeer([&] {
+            oldPeerResult = runDirectNtlmPeer(
+                recommendation.address, selectedPort, true, 0x41U,
+                releaseOldPeer, false, FinalAuthInfoWritePattern::Complete,
+                &gate);
+            oldPeerFinished.store(true, std::memory_order_release);
+        });
+
+        // The real client has verified R2's server pubKeyAuth reply.
+        assert(pumpUntilPeerSignal(
+            control, gate.serverBindingVerified, oldPeerFinished));
+        const RuntimeHostStatus beforeStop = control.status();
+        const std::uint64_t oldClientId =
+            beforeStop.acceptedClientPreauthDiagnostics.acceptedClientId;
+        assert(oldClientId != 0U);
+        assert(beforeStop.listenerAvailable);
+        assert(beforeStop.activeClients.size() == 1U);
+        assert(!beforeStop.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!beforeStop.acceptedClientPreauthDiagnostics.shareActivated);
+        assertClipboardDormant(beforeStop);
+        assertGraphicsDormant(beforeStop);
+
+        // The protected final authInfo reaches the old socket, but the
+        // single R10 service owner does not consume it before Stop.
+        gate.permitFinalAuthInfo.store(true, std::memory_order_release);
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds{8};
+        while (!gate.finalAuthInfoWritten.load(std::memory_order_acquire) &&
+               !oldPeerFinished.load(std::memory_order_acquire) &&
+               std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds{1});
+        }
+        assert(gate.finalAuthInfoWritten.load(std::memory_order_acquire));
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus stopped = control.status();
+        assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(!stopped.listenerAvailable);
+        assert(!stopped.hostOwnerAuthorized);
+        assert(stopped.activeClients.empty());
+        assert(!stopped.connectionTargetIdentity.valid());
+        assert(!stopped.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!stopped.acceptedClientPreauthDiagnostics.shareActivated);
+        assertClipboardDormant(stopped);
+        assertGraphicsDormant(stopped);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+        releaseOldPeer.store(true, std::memory_order_release);
+        oldPeer.join();
+        assert(oldPeerResult.passed && oldPeerResult.authInfoSent);
+
+        // Only the approved memory credential survives the old generation.
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(startSharingOnPort(control, recommendation, selectedPort));
+        const RuntimeHostStatus restarted = control.status();
+        assert(restarted.listenerAvailable);
+        assert(restarted.listenerGeneration != firstListenerGeneration);
+        assert(restarted.activeClients.empty());
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+
+        std::atomic<bool> nextTypeTwoReceived{false};
+        std::atomic<bool> releaseNextPeer{false};
+        std::atomic<bool> nextPeerFinished{false};
+        PeerResult nextPeerResult;
+        std::thread nextPeer([&] {
+            nextPeerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                nextTypeTwoReceived, releaseNextPeer);
+            nextPeerFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(
+            control, nextTypeTwoReceived, nextPeerFinished));
+        const RuntimeHostStatus replacement = control.status();
+        assert(replacement.listenerAvailable);
+        assert(replacement.activeClients.size() == 1U);
+        assert(replacement.acceptedClientPreauthDiagnostics.acceptedClientId !=
+               oldClientId);
+        assert(control.disconnectClient(oldClientId).error ==
+               RuntimeHostError::ClientNotFound);
+        const RuntimeHostStatus unaffected = control.status();
+        assert(unaffected.listenerAvailable);
+        assert(unaffected.activeClients.size() == 1U);
+        assert(unaffected.acceptedClientPreauthDiagnostics.acceptedClientId ==
+               replacement.acceptedClientPreauthDiagnostics.acceptedClientId);
+        assertClipboardDormant(unaffected);
+        assertGraphicsDormant(unaffected);
+        releaseNextPeer.store(true, std::memory_order_release);
+        assert(pumpUntilClientRetired(control));
+        nextPeer.join();
+        assert(nextPeerResult.passed && nextPeerResult.directTypeTwoReceived);
+
+        // A subsequent complete CredSSP exchange remains unable to mint a
+        // native R2 lease from the synthetic evidence fixture.
+        const PeerResult denied = runAdmissionDeniedPeer(
+            control, recommendation.address, selectedPort, 0x43U,
+            restarted.listenerGeneration, credential.generation);
+        assert(denied.directTypeTwoReceived);
+        assert(control.stopSharing().succeeded());
+        assert(control.revokeSharing().succeeded());
+        return 0;
+    }
 
     if (serviceNoStarvationOnly)
     {

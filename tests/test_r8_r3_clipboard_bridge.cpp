@@ -545,7 +545,7 @@ void serverInitializationPendingWriteRetirement()
     }};
     constexpr RdpClipboardStaticChannelView view{1008U, 63U};
 
-    R3ClipboardStaticChannelRoute route;
+    RdpClipboardStaticChannelRoute route;
     assert(route.start(1005U, view.channelId, view.generation, 1600U));
     R3ClipboardTransferBridge bridge(flags, true);
     auto visitor = bridge.channelVisitor();

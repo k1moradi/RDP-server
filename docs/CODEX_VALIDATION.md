@@ -1,3 +1,15 @@
+## R8 Round 3 test compile correction — 2026-10-30
+
+- Failing parent: `aeeb318315db1634068b885f24a103ce06f4d236`,
+  workflow `41086564468`.
+- Ubuntu job `124170655769`: production sources compiled; Debug build stopped
+  at `test_r8_r3_clipboard_bridge.cpp` with unknown
+  `R3ClipboardStaticChannelRoute`.
+- Sanitizer job `124170655879`: same isolated fixture compile error and compiler
+  suggestion `RdpClipboardStaticChannelRoute`.
+- Correction: test-only type spelling; protocol/state/authority logic unchanged.
+- Correction-SHA hosted CI: **PENDING**. Local build: **NOT RUN**.
+
 ## R1 delegated final-authInfo qualification and Microsoft payload receipt — 2026-10-30
 
 - R1 exact SHA `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`; workflow `41085415452`; Ubuntu job `124166024982`: Debug full CTest **987/987 PASS**, Release full CTest **987/987 PASS**.

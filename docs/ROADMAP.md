@@ -1,3 +1,16 @@
+## R8 Round 3 compile-fixture correction (2026-10-30)
+
+Exact parent `aeeb318315db1634068b885f24a103ce06f4d236`, workflow
+`41086564468`: Ubuntu protocol job `124170655769` and R9 sanitizer job
+`124170655879` both compiled the changed production clipboard sources, then
+failed while compiling the new bridge regression because the fixture misspelled
+the existing type as `R3ClipboardStaticChannelRoute` instead of
+`RdpClipboardStaticChannelRoute`. This correction changes that test-only
+identifier and no production behavior. Parent production compilation reached
+the test target; exact correction-SHA full/focused/sanitizer qualification
+remains required. Activation stays false and physical clipboard/files remain
+NOT RUN.
+
 ## R1 Round 2 qualification follow-up — delegation-enabled Microsoft authInfo is inside the proven transport envelope (2026-10-30)
 
 **R1 publication:** `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`, workflow `41085415452`. Ubuntu job `124166024982` builds the modified lifecycle target warning-clean and reports full Debug **987/987 PASS** and full Release **987/987 PASS**. The dedicated `runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect` passes in both configurations (0.44 s Debug, 0.36 s Release), as do the prior final-authInfo fragmentation and queued-authInfo-retirement gates. R9 security/protocol sanitizer job `124166024771` is **PASS** and compiles the modified lifecycle executable under ASan/UBSan; its explicit direct-run inventory does not invoke the new mode, so sanitizer execution of that mode remains **NOT RUN**, not inferred.

@@ -1,3 +1,31 @@
+## R8 P0 — Windows CLANG64 Release joined FileContents fixture qualification (2026-10-30)
+
+**Observed boundary:** at `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, workflow `40860372282`,
+CLANG64 job `123401900577`,
+`clipboard.file-contents-joined-mcs-envelope` passed Debug and SEGFAULTed
+Release. The earlier `NDEBUG`/assert-header correction and always-live startup
+sentinel were already present; the crash still lacks a symbolized stack or
+faulting statement. Do not infer a production defect from that hypothesis.
+
+**R8 test-only containment:** keep the existing production-backed CTest and all
+53 behavior/precondition checks, make its state-mutating setup and optional
+receipt checks unconditional with bounded fail-only diagnostics, and put the
+four large `RemoteTransfer` fixture owners in RAII `std::unique_ptr`
+storage rather than one optimized Windows test stack frame. No production
+FileContents framing, MCS/channel authorization, stream/receipt semantics,
+clipboard data, native adapters or runtime activation changes.
+`kLinuxProductionClipboardActivationApproved = false` remains unchanged.
+
+**Status:** source and CI-log inspection PASS; exact publication-SHA Windows
+CLANG64 Debug/Release focused/full CTest, MSVC and sanitizers PENDING/NOT RUN.
+If Release still crashes, collect the instrumented first-invalid-operation
+stack before changing production code. No live clipboard or file access.
+**Next offline CLIPRDR dependency:** the existing R3 bridge owns accepted-byte
+receipts for queued outbound PDUs but does not yet originate server
+`CB_CLIP_CAPS` or `CB_FORMAT_LIST`. Once Release qualifies, extend the same
+R8/R3 owner with a bounded negotiation-aware serializer and protocol-only
+conformance CTest; neither a second controller nor live activation is allowed.
+
 ## R4 Round 2 P2 — remap-before-first-frame offline contract (2026-10-30)
 
 Inspected main parent: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`. No previous R4/R10

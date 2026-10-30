@@ -17,8 +17,10 @@
 #include <array>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -3336,6 +3338,19 @@ void testFileContentsSizeRangeStreaming()
     assert(transfer.synchronized());
 }
 
+// Keep setup and optional preconditions live under CLANG64 Release optimization.
+#define R8_REQUIRE(condition)                                                   \
+    do                                                                          \
+    {                                                                           \
+        if (!(condition))                                                       \
+        {                                                                       \
+            std::fprintf(stderr,                                               \
+                         "clipboard joined FileContents fixture:%d: %s\n",    \
+                         __LINE__, #condition);                                 \
+            std::abort();                                                       \
+        }                                                                       \
+    } while (false)
+
 void testJoinedFileContentsRequestEnvelopeAndWriteFences()
 {
     using namespace rdp_server::clipboard;
@@ -3350,25 +3365,25 @@ void testJoinedFileContentsRequestEnvelopeAndWriteFences()
 
     const std::array<std::uint16_t, 1> channels{1003};
     McsChannelJoinWriteGate gate;
-    assert(gate.configure(1007, channels));
+    R8_REQUIRE(gate.configure(1007, channels));
     McsChannelRequest join{};
     join.kind = McsChannelRequestKind::ChannelJoin;
     join.initiator = 1007;
     join.channelId = 1003;
-    assert(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
-    assert(gate.onReplyBytesWritten(
+    R8_REQUIRE(gate.beginJoin(join) == McsJoinStartOutcome::ReplyPending);
+    R8_REQUIRE(gate.onReplyBytesWritten(
         gate.pendingReplySequence(), gate.pendingWriteSliceSequence(), 15) ==
         McsJoinWriteOutcome::Confirmed);
 
     const auto prepareOwner = [&](RemoteTransfer &owner) {
-        assert(owner.receiveCapabilitiesPdu(
+        R8_REQUIRE(owner.receiveCapabilitiesPdu(
             capabilitiesPdu(kFileFlags), kFileFlags));
         std::vector<std::uint8_t> formats;
         appendLongFormat(formats, kFileListFormatId, "FileGroupDescriptorW");
-        assert(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
+        R8_REQUIRE(owner.receiveLongFormatListPdu(longFormatPdu(formats)));
 
         std::vector<std::uint8_t> request;
-        assert(owner.beginFileGroupDescriptorRequest(request));
+        R8_REQUIRE(owner.beginFileGroupDescriptorRequest(request));
         std::vector<std::uint8_t> list(4U + kDescriptorBytes, 0);
         put32(list, 0, 1);
         auto descriptor = std::span(list).subspan(4U, kDescriptorBytes);
@@ -3376,135 +3391,137 @@ void testJoinedFileContentsRequestEnvelopeAndWriteFences()
         putDescriptorFileSize(descriptor, 100000U);
         putFileName(descriptor, u"joined.bin");
         const auto listWire = responsePdu(kResponseOk, list);
-        assert(owner.storeFileGroupDescriptors(
+        R8_REQUIRE(owner.storeFileGroupDescriptors(
             owner.receiveResponse(listWire)));
     };
 
     std::array<std::uint8_t, 96> output{};
     output.fill(0xa5);
-    RemoteTransfer owner;
-    prepareOwner(owner);
+    auto owner = std::make_unique<RemoteTransfer>();
+    prepareOwner(*owner);
 
     // Membership/role mismatch cannot reserve a stream or mutate output.
-    assert(!owner.prepareJoinedFileSizeRequest(
+    R8_REQUIRE(!owner->prepareJoinedFileSizeRequest(
         gate, 1003, 1004, 0, output));
-    assert(!owner.hasOutstandingFileContentsRequest());
-    assert(std::all_of(output.begin(), output.end(),
+    R8_REQUIRE(!owner->hasOutstandingFileContentsRequest());
+    R8_REQUIRE(std::all_of(output.begin(), output.end(),
                        [](std::uint8_t byte) { return byte == 0xa5; }));
 
-    const auto size = owner.prepareJoinedFileSizeRequest(
+    const auto size = owner->prepareJoinedFileSizeRequest(
         gate, 1003, 1003, 0, output);
-    assert(size);
-    assert(size->bytes == 54U);
-    assert(size->request.sequence != 0);
-    assert(size->request.streamId ==
+    R8_REQUIRE(size);
+    R8_REQUIRE(size->bytes == 54U);
+    R8_REQUIRE(size->request.sequence != 0);
+    R8_REQUIRE(size->request.streamId ==
            static_cast<std::uint32_t>(size->request.sequence));
-    assert(size->request.kind == RemoteTransfer::FileContentsKind::Size);
-    assert(size->request.requestedBytes == 8U);
-    assert(owner.joinedFileContentsRequestMayWrite(size->request.sequence));
+    R8_REQUIRE(size->request.kind == RemoteTransfer::FileContentsKind::Size);
+    R8_REQUIRE(size->request.requestedBytes == 8U);
+    R8_REQUIRE(owner->joinedFileContentsRequestMayWrite(size->request.sequence));
 
     const std::array<std::uint8_t, 14> envelope{
         0x03, 0x00, 0x00, 0x36, 0x02, 0xf0, 0x80,
         0x68, 0x00, 0x06, 0x03, 0xeb, 0x70, 0x28};
-    assert(std::equal(envelope.begin(), envelope.end(), output.begin()));
+    R8_REQUIRE(std::equal(envelope.begin(), envelope.end(), output.begin()));
     PduView clipboardRequest{};
-    assert(decodePdu(
+    R8_REQUIRE(decodePdu(
         std::span<const std::uint8_t>{output}.subspan(22U, 32U),
         clipboardRequest));
-    assert(clipboardRequest.type == kFileContentsRequest);
-    assert(clipboardRequest.payload.size() == 24U);
-    assert(clipboardRequest.payload[0] ==
+    R8_REQUIRE(clipboardRequest.type == kFileContentsRequest);
+    R8_REQUIRE(clipboardRequest.payload.size() == 24U);
+    R8_REQUIRE(clipboardRequest.payload[0] ==
            static_cast<std::uint8_t>(size->request.streamId));
-    assert(clipboardRequest.payload[8] == 1U);
-    assert(clipboardRequest.payload[20] == 8U);
+    R8_REQUIRE(clipboardRequest.payload[8] == 1U);
+    R8_REQUIRE(clipboardRequest.payload[20] == 8U);
 
-    assert(!owner.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(!owner->recordJoinedFileContentsRequestWritten(
         size->request.sequence + 1U, 1U));
-    assert(owner.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(owner->recordJoinedFileContentsRequestWritten(
         size->request.sequence, 7U));
-    assert(owner.joinedFileContentsRequestMayWrite(size->request.sequence));
-    assert(!owner.cancelUnwrittenJoinedFileContentsRequest(
+    R8_REQUIRE(owner->joinedFileContentsRequestMayWrite(size->request.sequence));
+    R8_REQUIRE(!owner->cancelUnwrittenJoinedFileContentsRequest(
         size->request.sequence));
-    assert(owner.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(owner->recordJoinedFileContentsRequestWritten(
         size->request.sequence, size->bytes));
-    assert(!owner.joinedFileContentsRequestMayWrite(size->request.sequence));
+    R8_REQUIRE(!owner->joinedFileContentsRequestMayWrite(size->request.sequence));
 
     std::array<std::uint8_t, 8> fileSize{};
     put64(fileSize, 0, 100000U);
     const auto sizeResponse = fileContentsResponsePdu(
         kResponseOk, size->request.streamId, fileSize);
-    assert(owner.receiveFileContentsResponse(sizeResponse).status ==
+    R8_REQUIRE(owner->receiveFileContentsResponse(sizeResponse).status ==
            FileStatus::ReceivedSize);
 
     // An entirely unwritten framed request can be revoked without ambiguity.
     output.fill(0xa5);
-    const auto cancelled = owner.prepareJoinedFileRangeRequest(
+    const auto cancelled = owner->prepareJoinedFileRangeRequest(
         gate, 1003, 1003, 0, 16U, 32U, output);
-    assert(cancelled);
-    assert(!owner.cancelUnsentFileContentsRequest(
+    R8_REQUIRE(cancelled);
+    R8_REQUIRE(!owner->cancelUnsentFileContentsRequest(
         cancelled->request.sequence));
-    assert(owner.cancelUnwrittenJoinedFileContentsRequest(
+    R8_REQUIRE(owner->cancelUnwrittenJoinedFileContentsRequest(
         cancelled->request.sequence));
-    assert(!owner.hasOutstandingFileContentsRequest());
+    R8_REQUIRE(!owner->hasOutstandingFileContentsRequest());
 
     // Replacement revokes write permission before the first byte.
-    const auto obsoleteUnsent = owner.prepareJoinedFileRangeRequest(
+    const auto obsoleteUnsent = owner->prepareJoinedFileRangeRequest(
         gate, 1003, 1003, 0, 0, 4U, output);
-    assert(obsoleteUnsent);
-    assert(owner.receiveFormatList(
+    R8_REQUIRE(obsoleteUnsent);
+    R8_REQUIRE(owner->receiveFormatList(
         std::array<std::uint32_t, 1>{kFormatUnicodeText}));
-    assert(!owner.joinedFileContentsRequestMayWrite(
+    R8_REQUIRE(!owner->joinedFileContentsRequestMayWrite(
         obsoleteUnsent->request.sequence));
-    assert(owner.cancelUnwrittenJoinedFileContentsRequest(
+    R8_REQUIRE(owner->cancelUnwrittenJoinedFileContentsRequest(
         obsoleteUnsent->request.sequence));
 
     // A fully delivered old-generation frame keeps its stream identity and
     // drains its eventual response as obsolete.
-    RemoteTransfer delivered;
-    prepareOwner(delivered);
-    const auto old = delivered.prepareJoinedFileRangeRequest(
+    auto delivered = std::make_unique<RemoteTransfer>();
+    prepareOwner(*delivered);
+    const auto old = delivered->prepareJoinedFileRangeRequest(
         gate, 1003, 1003, 0, 8U, 4U, output);
-    assert(old);
-    assert(delivered.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(old);
+    R8_REQUIRE(delivered->recordJoinedFileContentsRequestWritten(
         old->request.sequence, old->bytes));
-    assert(delivered.receiveFormatList(
+    R8_REQUIRE(delivered->receiveFormatList(
         std::array<std::uint32_t, 1>{kFormatUnicodeText}));
     const std::array<std::uint8_t, 4> oldBytes{1, 2, 3, 4};
     const auto oldResponse = fileContentsResponsePdu(
         kResponseOk, old->request.streamId, oldBytes);
-    assert(delivered.receiveFileContentsResponse(oldResponse).status ==
+    R8_REQUIRE(delivered->receiveFileContentsResponse(oldResponse).status ==
            FileStatus::DiscardedPreviousGeneration);
-    assert(delivered.synchronized());
+    R8_REQUIRE(delivered->synchronized());
 
     // Partial/unknown delivery can never release the stream for reuse.
-    RemoteTransfer partial;
-    prepareOwner(partial);
-    const auto active = partial.prepareJoinedFileRangeRequest(
+    auto partial = std::make_unique<RemoteTransfer>();
+    prepareOwner(*partial);
+    const auto active = partial->prepareJoinedFileRangeRequest(
         gate, 1003, 1003, 0, 0, 4U, output);
-    assert(active);
-    assert(partial.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(active);
+    R8_REQUIRE(partial->recordJoinedFileContentsRequestWritten(
         active->request.sequence, 1U));
-    assert(!partial.cancelUnwrittenJoinedFileContentsRequest(
+    R8_REQUIRE(!partial->cancelUnwrittenJoinedFileContentsRequest(
         active->request.sequence));
-    assert(partial.abandonJoinedFileContentsRequest(
+    R8_REQUIRE(partial->abandonJoinedFileContentsRequest(
         active->request.sequence));
-    assert(!partial.synchronized());
-    partial.resetAfterDisconnect();
-    assert(!partial.recordJoinedFileContentsRequestWritten(
+    R8_REQUIRE(!partial->synchronized());
+    partial->resetAfterDisconnect();
+    R8_REQUIRE(!partial->recordJoinedFileContentsRequestWritten(
         active->request.sequence, active->bytes));
 
     // A response before the framed request is fully submitted is terminal.
-    RemoteTransfer early;
-    prepareOwner(early);
-    const auto tooEarly = early.prepareJoinedFileRangeRequest(
+    auto early = std::make_unique<RemoteTransfer>();
+    prepareOwner(*early);
+    const auto tooEarly = early->prepareJoinedFileRangeRequest(
         gate, 1003, 1003, 0, 0, 4U, output);
-    assert(tooEarly);
+    R8_REQUIRE(tooEarly);
     const auto earlyResponse = fileContentsResponsePdu(
         kResponseOk, tooEarly->request.streamId, oldBytes);
-    assert(early.receiveFileContentsResponse(earlyResponse).status ==
+    R8_REQUIRE(early->receiveFileContentsResponse(earlyResponse).status ==
            FileStatus::ProtocolError);
-    assert(!early.synchronized());
+    R8_REQUIRE(!early->synchronized());
 }
+
+#undef R8_REQUIRE
 
 void testFileContentsResponseRejections()
 {

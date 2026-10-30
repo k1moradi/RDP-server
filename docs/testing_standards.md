@@ -1,3 +1,20 @@
+## R8 CLANG64 Release FileContents fixture precondition and stack ownership (2026-10-30)
+
+The production-backed `clipboard.file-contents-joined-mcs-envelope` CTest must
+execute every state-mutating fixture prerequisite in Release as well as Debug.
+Checks must remain active independent of `NDEBUG` and produce bounded
+fail-only expression/line diagnostics before reading absent optional receipts.
+A single fixture must not simultaneously keep multiple large fixed-capacity
+`RemoteTransfer` owners in one optimized Windows stack frame; prefer RAII
+`std::unique_ptr` for these test owners. Preserve membership denial, exact
+FileContents SIZE/RANGE framing, cumulative accepted-byte receipts, zero-byte
+cancellation, monotonic stream identity, replacement, stale responses and
+partial-write terminal state. Do not weaken outcomes or skip Release.
+
+A source-only assertion-header fix does not establish successful qualification:
+require the focused CTest separately in CLANG64 Debug and Release, then full
+CTest, independent MSVC and sanitizer evidence at the same publication SHA.
+
 ## R4 pre-first-frame resize / fixed-buffer regression (2026-10-30)
 
 The production-linked CTest `graphics.surface-remap-before-first-frame-wire`

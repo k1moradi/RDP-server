@@ -1,3 +1,37 @@
+## R8 CLANG64 Release FileContents fixture containment — 2026-10-30
+
+- Source parent: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`; workflow `40860372282`, CLANG64 job
+  `123401900577` confirms Debug joined FileContents PASS / Release SEGFAULT.
+  The existing Release assert-header sentinel did not prevent the crash; no
+  symbolized stack/faulting instruction was uploaded.
+- R8 updates only `tests/test_owned_remote_transfer.cpp`: always-live
+  fail-only checks before optional dereferences and RAII ownership for four
+  large test-local `RemoteTransfer` objects. The existing behavior CTest is
+  reused without weakening a single assertion. Production clipboard and R3
+  outbound code are unchanged.
+- Local CLANG64 Debug and Release focused/full CTest, MSVC, sanitizers:
+  **NOT RUN** in this connector execution environment. Exact publication-SHA
+  hosted CI: **PENDING**. No native clipboard or filesystem access performed.
+- If Release still crashes, obtain a symbolized first-invalid-operation trace
+  before attributing the defect to the production `RemoteTransfer` lifetime.
+
+## R4 Round 2 remap-before-first-frame authoring evidence — 2026-10-30
+
+- Parent source inspected: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`.
+- Production path R10 native capture -> R2 admission revalidation ->
+  R3 surface receipts -> R4 ClearCodec/ACK owner: PASS by source inspection.
+  No production code or codec/scheduler change.
+- New CTest: `graphics.surface-remap-before-first-frame-wire`.
+  16-byte padded input, 96-byte output, 79-byte wire contract; three
+  receipt stages, stale ACK/geometry denial and zero-byte retry.
+- GitHub-connector authoring inspection: PASS. Local checkout/build,
+  focused/full CTest and sanitizers: NOT RUN (DNS unavailable).
+  Exact publication-SHA hosted CI: PENDING.
+- Physical Microsoft CredSSP/R2/MCS/Share/first DATA/ACK/resize: BLOCKED/
+  NOT RUN. No live desktop operation or benchmark performed.
+- Next: qualify exact-SHA hosted R4 graphics CTests and sanitizers; obtain
+  separately authorized physical R6/R9/R2 admission evidence.
+
 ## R4 Round 2 remap-before-first-frame authoring evidence — 2026-10-30
 
 - Parent source inspected: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`.

@@ -1,3 +1,12 @@
+## R5 Round 2 evidence subset gate reuses the existing Python test surface (2026-10-30)
+
+The private evidence-validator check and dedicated CTest reuse the existing
+Python standard-library script, unittest fixture, shared CTest registry and
+single checkout-local `build/` root. No compiler, platform library, thread,
+X11 resource, native authorization provider or new build root is introduced.
+Local configure/build/full CTest cannot execute in the disconnected connector
+container; publication-SHA hosted results remain the executable gate.
+
 ## R1 readiness-dwell refinement adds no build surface (2026-10-29)
 
 The follow-up changes only existing Linux runtime diagnostic fields, projection,

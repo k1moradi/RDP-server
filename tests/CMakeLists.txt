@@ -1237,6 +1237,16 @@ add_test(NAME macos.windows-app-owner-evidence-readonly-manifest
 set_tests_properties(macos.windows-app-owner-evidence-readonly-manifest PROPERTIES
     LABELS "macos;offline;project-policy;evidence" TIMEOUT 15)
 
+# Dedicated negative gate: contradictory R1/R10 timing subsets and private
+# manifest extension fields must never pass validation or enter shared output.
+add_test(NAME macos.windows-app-owner-evidence-timing-subset-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k timing_attribution_subset_denials_and_private_metadata_redaction)
+set_tests_properties(macos.windows-app-owner-evidence-timing-subset-denials PROPERTIES
+    LABELS "macos;offline;project-policy;evidence" TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

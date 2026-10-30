@@ -533,40 +533,114 @@ def _stage_matrix_failures(stage_matrix: object) -> list[str]:
     return []
 
 
+_TIMING_REQUIRED_TOP = (
+    "accepted_to_tls_microseconds",
+    "tls_to_type1_microseconds",
+    "type1_to_type2_queued_microseconds",
+    "type2_creation_to_delivery_microseconds",
+    "type2_to_peer_eof_microseconds",
+    "preauth_elapsed_at_peer_eof_microseconds",
+)
+_TIMING_PRE_TLS_NAMES = (
+    "read_wait_microseconds",
+    "write_wait_microseconds",
+    "active_work_microseconds",
+    "tls_handshake_active_work_microseconds",
+    "unattributed_microseconds",
+    "socket_poll_microseconds",
+    "read_ready_to_service_microseconds",
+    "write_ready_to_service_microseconds",
+)
+_TIMING_SERVICE_NAMES = (
+    "application_reschedule_wait_microseconds",
+    "peer_readiness_wait_upper_bound_microseconds",
+    "service_execution_microseconds",
+    "native_maintenance_microseconds",
+    "service_invocations",
+    "maximum_application_reschedule_wait_microseconds",
+)
+
+
+
+def _is_u64(value: object) -> bool:
+    # Private JSON is not necessarily produced by this collector; bool is not
+    # a valid timing scalar even though Python treats it as an int.
+    return type(value) is int and 0 <= value <= ((1 << 64) - 1)
+
+
+def _redacted_stage_matrix(stage_matrix: object) -> dict[str, object]:
+    if not isinstance(stage_matrix, dict):
+        return {}
+    stage_names = (
+        "tls_established",
+        "type1_received",
+        "type2_fully_committed",
+        "type3_received",
+        "pubkeyauth_reached",
+        "authinfo_reached",
+        "credentials_verified",
+    )
+    redacted = {
+        name: stage_matrix.get(name)
+        if stage_matrix.get(name) in _STAGE_VALUES
+        else _NOT_RECORDED
+        for name in stage_names
+    }
+    byte_count = stage_matrix.get("post_type2_client_bytes")
+    redacted["post_type2_client_bytes"] = (
+        byte_count if _is_u64(byte_count) and byte_count <= (1 << 30) else None
+    )
+    outcome = stage_matrix.get("typed_terminal_outcome")
+    redacted["typed_terminal_outcome"] = (
+        outcome
+        if isinstance(outcome, str)
+        and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.:-]{0,63}", outcome)
+        else None
+    )
+    return redacted
+
+
+def _redacted_server_timing_attribution(timing: object) -> dict[str, object]:
+    if not isinstance(timing, dict):
+        return {}
+    # Project the documented scalars only. Never serialize an entire private
+    # JSON object: an injected field may contain a username, path or raw log.
+    redacted: dict[str, object] = {
+        name: timing.get(name) if _is_u64(timing.get(name)) else None
+        for name in _TIMING_REQUIRED_TOP
+    }
+    first_client_byte = timing.get("post_type2_first_client_tls_byte_microseconds")
+    redacted["post_type2_first_client_tls_byte_microseconds"] = (
+        first_client_byte if _is_u64(first_client_byte) else None
+    )
+    for group_name, field_names in (
+        ("pre_tls", _TIMING_PRE_TLS_NAMES),
+        ("accepted_to_tls_service", _TIMING_SERVICE_NAMES),
+        ("tls_to_type1_service", _TIMING_SERVICE_NAMES),
+    ):
+        group = timing.get(group_name)
+        redacted[group_name] = (
+            {
+                name: group.get(name) if _is_u64(group.get(name)) else None
+                for name in field_names
+            }
+            if isinstance(group, dict)
+            else {}
+        )
+    return redacted
+
+
 def _timing_attribution_failures(
     timing: object, post_type2_client_bytes: object
 ) -> tuple[list[str], list[str], dict[str, object]]:
     if not isinstance(timing, dict):
         return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], {}
 
-    required_top = (
-        "accepted_to_tls_microseconds",
-        "tls_to_type1_microseconds",
-        "type1_to_type2_queued_microseconds",
-        "type2_creation_to_delivery_microseconds",
-        "type2_to_peer_eof_microseconds",
-        "preauth_elapsed_at_peer_eof_microseconds",
-    )
-    pre_tls_names = (
-        "read_wait_microseconds",
-        "write_wait_microseconds",
-        "active_work_microseconds",
-        "tls_handshake_active_work_microseconds",
-        "unattributed_microseconds",
-        "socket_poll_microseconds",
-        "read_ready_to_service_microseconds",
-        "write_ready_to_service_microseconds",
-    )
-    service_names = (
-        "application_reschedule_wait_microseconds",
-        "peer_readiness_wait_upper_bound_microseconds",
-        "service_execution_microseconds",
-        "native_maintenance_microseconds",
-        "service_invocations",
-        "maximum_application_reschedule_wait_microseconds",
-    )
+    required_top = _TIMING_REQUIRED_TOP
+    pre_tls_names = _TIMING_PRE_TLS_NAMES
+    service_names = _TIMING_SERVICE_NAMES
 
-    if any(not isinstance(timing.get(name), int) for name in required_top):
+    if any(not _is_u64(timing.get(name)) for name in required_top):
         return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], timing
 
     pre_tls = timing.get("pre_tls")
@@ -576,11 +650,11 @@ def _timing_attribution_failures(
         not isinstance(pre_tls, dict)
         or not isinstance(accepted_service, dict)
         or not isinstance(type1_service, dict)
-        or any(not isinstance(pre_tls.get(name), int) for name in pre_tls_names)
+        or any(not _is_u64(pre_tls.get(name)) for name in pre_tls_names)
         or any(
-            not isinstance(accepted_service.get(name), int) for name in service_names
+            not _is_u64(accepted_service.get(name)) for name in service_names
         )
-        or any(not isinstance(type1_service.get(name), int) for name in service_names)
+        or any(not _is_u64(type1_service.get(name)) for name in service_names)
     ):
         return ["SERVER_TIMING_ATTRIBUTION_INCOMPLETE"], [], timing
 
@@ -589,7 +663,7 @@ def _timing_attribution_failures(
     first_client_byte = timing.get(
         "post_type2_first_client_tls_byte_microseconds"
     )
-    if first_client_byte is not None and not isinstance(first_client_byte, int):
+    if first_client_byte is not None and not _is_u64(first_client_byte):
         failures.append("SERVER_TIMING_ATTRIBUTION_INCOMPLETE")
     if post_type2_client_bytes == 0 and first_client_byte is not None:
         failures.append("SERVER_TIMING_ATTRIBUTION_INCONSISTENT")
@@ -601,6 +675,27 @@ def _timing_attribution_failures(
     if (
         timing["type2_creation_to_delivery_microseconds"] > peer_eof
         or timing["type2_to_peer_eof_microseconds"] > peer_eof
+    ):
+        failures.append("SERVER_TIMING_ATTRIBUTION_INCONSISTENT")
+
+    # These are measured subsets, not independent additive totals. A smaller
+    # elapsed bucket cannot contain a larger child observation.
+    if (
+        pre_tls["tls_handshake_active_work_microseconds"]
+        > pre_tls["active_work_microseconds"]
+        or pre_tls["read_ready_to_service_microseconds"]
+        > pre_tls["read_wait_microseconds"]
+        or pre_tls["write_ready_to_service_microseconds"]
+        > pre_tls["write_wait_microseconds"]
+        or pre_tls["socket_poll_microseconds"]
+        > pre_tls["read_wait_microseconds"] + pre_tls["write_wait_microseconds"]
+        or any(
+            service["native_maintenance_microseconds"]
+            > service["service_execution_microseconds"]
+            or service["maximum_application_reschedule_wait_microseconds"]
+            > service["application_reschedule_wait_microseconds"]
+            for service in (accepted_service, type1_service)
+        )
     ):
         failures.append("SERVER_TIMING_ATTRIBUTION_INCONSISTENT")
 
@@ -858,7 +953,7 @@ def build_redacted_summary(
     limitations = list(dict.fromkeys(limitations))
     timing_findings = list(dict.fromkeys(timing_findings))
     stage_matrix = manifest.get("server_stage_matrix")
-    redacted_stages = stage_matrix if isinstance(stage_matrix, dict) else {}
+    redacted_stages = _redacted_stage_matrix(stage_matrix)
 
     return {
         "schema": "rdp-server.macos-windows-app-redacted-diagnostic.v1",
@@ -920,7 +1015,9 @@ def build_redacted_summary(
             "maximum_allowed_delta_seconds": MAX_CORRELATION_DELTA_SECONDS,
         },
         "server_stage_matrix": redacted_stages,
-        "server_timing_attribution": manifest.get("server_timing_attribution"),
+        "server_timing_attribution": _redacted_server_timing_attribution(
+            manifest.get("server_timing_attribution")
+        ),
         "server_pre_auth_native_isolation": native_isolation,
         "pair_comparison": pair_summary,
     }

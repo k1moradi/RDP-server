@@ -1,3 +1,15 @@
+## R5 evidence timing is a measured subset, never a private JSON passthrough (2026-10-30)
+
+Preserve R1/R10 native timing semantics: TLS work is a subset of active work;
+read/write readiness-to-service and socket poll observations are subsets of
+read/write dwell; native owner maintenance is a subset of service execution;
+maximum application reschedule gap is bounded by total reschedule wait. These
+are non-additive diagnostic subsets, not authentication or performance authority.
+A redacted physical-client summary must construct a typed allowlist of R1/R10
+stage and timing fields rather than forwarding whole private manifest objects,
+including unknown nested keys. Preserve private evidence for owner review but
+never publish injected identity, log paths or usernames from private extensions.
+
 ## R3 Microsoft RDP User Channel ID profile (2026-10-29)
 
 For RDP interoperability, follow **MS-RDPBCGR** as the project-primary wire

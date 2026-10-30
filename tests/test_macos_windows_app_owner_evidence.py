@@ -81,7 +81,7 @@ class OwnerEvidenceTests(unittest.TestCase):
             post_type2_first_client_tls_byte_us=None,
             pre_tls_read_wait_us=4_500_000,
             pre_tls_write_wait_us=5_000,
-            pre_tls_active_work_us=40_000,
+            pre_tls_active_work_us=160_000,
             tls_handshake_active_work_us=120_000,
             pre_tls_unattributed_us=160_323,
             pre_tls_socket_poll_us=500,
@@ -356,6 +356,45 @@ class OwnerEvidenceTests(unittest.TestCase):
             "EARLY_NATIVE_MAINTENANCE_OBSERVED",
             summary["diagnostic_findings"],
         )
+
+    def test_timing_attribution_subset_denials_and_private_metadata_redaction(self):
+        impossible_subsets = (
+            ("tls_handshake_active_work_us", 160_001),
+            ("pre_tls_read_ready_to_service_us", 4_500_001),
+            ("pre_tls_write_ready_to_service_us", 5_001),
+            ("pre_tls_socket_poll_us", 4_505_001),
+            ("accepted_to_tls_native_maintenance_us", 100_001),
+            ("tls_to_type1_max_app_gap_us", 500_001),
+        )
+        for name, impossible_value in impossible_subsets:
+            with self.subTest(name=name):
+                original_value = getattr(self.options, name)
+                try:
+                    setattr(self.options, name, impossible_value)
+                    summary = evidence.build_redacted_summary(
+                        evidence.build_manifest(self.options)
+                    )
+                finally:
+                    setattr(self.options, name, original_value)
+                self.assertEqual(summary["evidence_status"], "FAIL")
+                self.assertIn(
+                    "SERVER_TIMING_ATTRIBUTION_INCONSISTENT",
+                    summary["evidence_failures"],
+                )
+
+        manifest = evidence.build_manifest(self.options)
+        private_marker = "/private/client/username-and-raw-log"
+        manifest["server_timing_attribution"]["private_log_path"] = private_marker
+        manifest["server_timing_attribution"]["pre_tls"]["username"] = private_marker
+        manifest["server_stage_matrix"]["client_identity"] = private_marker
+        summary = evidence.build_redacted_summary(manifest)
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertNotIn(private_marker, json.dumps(summary))
+        self.assertNotIn(
+            "private_log_path", summary["server_timing_attribution"]
+        )
+        self.assertNotIn("username", summary["server_timing_attribution"]["pre_tls"])
+        self.assertNotIn("client_identity", summary["server_stage_matrix"])
 
     def test_complete_pair_comparison_is_redacted_and_valid(self):
         manifest = evidence.build_manifest(self.options)

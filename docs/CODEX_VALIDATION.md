@@ -1,3 +1,11 @@
+## R5 Round 2 evidence subset/summary redaction — 2026-10-30
+
+- Inspected baseline `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` and existing R2/R10/R5 authority, X11 native generation and owner-evidence tests.
+- Added timing-subset contradiction detection and field-only redaction to the existing macOS Windows App evidence validator. New behavior CTest `macos.windows-app-owner-evidence-timing-subset-denials` exercises six impossible subsets and private extension-field suppression. Existing positive early-native-maintenance finding is preserved.
+- Source/static patch review: **PASS by inspection**. Actual Python unittest/CTest, Linux Debug build/full CTest, Xvfb and sanitizer: **NOT RUN** (no local checkout, GitHub DNS unavailable in execution container).
+- Exact publication-SHA CI: **PENDING**. Physical Windows App/mstsc, owner-consented native seat0 and R2 admission: **BLOCKED / NOT RUN** pending R9 and Windows producer gates.
+- Next: qualify exact publication SHA in hosted Python/Linux/sanitizer jobs, then wait for R9 approval for physical evidence; no change to native authorization or graphics is authorized by this increment.
+
 ## R4 first-frame sanitizer-selection correction — 2026-10-30
 
 - Publication parent: `a812df7668b7a45b85dd1cd9f5d73c956411948b`.

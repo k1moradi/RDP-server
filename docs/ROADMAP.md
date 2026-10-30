@@ -1,3 +1,13 @@
+## R5 P1 Round 2 — native authority retirement audit and private evidence subset checks (2026-10-30)
+
+**Source baseline:** `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`. The Linux R2/R10/R5 native construction boundary remains after actual R2 admission, Share and GraphicsReady; no offline test or Microsoft SSPI memory-BIO oracle can create the selected physical X11 owner. R10 owns a single serialized listener, Qt service and R1 reader; R5's `X11DesktopResources` owns one XCB/XShm/XDamage/XTEST generation and suppresses native input during authorization-loss retirement. Existing R5 native-generation and Xvfb cases remain authoritative. No production X11/R2/R10 change is justified by this source review.
+
+**Delivered increment:** the R5 private evidence validator now denies timing subsets that exceed their measured parents (TLS handshake/active, ready-to-service/Read-Write dwell, socket poll/Read-Write dwell, native maintenance/service execution, maximum app gap/total app wait), using typed bounded values. The redacted stage/timing output projects only known fields so private manifest extensions cannot escape as client identifiers, usernames or log paths. A dedicated behavior CTest reuses the existing offline Python fixture, including a corrected internally consistent active-work sample. Nonzero *valid* early native maintenance remains a diagnostic finding, not an invented authentication cause.
+
+**Verification:** source and regression registration reviewed; local canonical Linux Debug configure/build/full CTest, Xvfb native suites, ASan/UBSan and actual Python CTest **NOT RUN** here because the execution container cannot resolve GitHub and has no authorized checkout. Exact-publication-SHA hosted CI **PENDING**. Physical-client/real R2 admission **BLOCKED / NOT RUN** pending R9 approval and both Windows producer gates.
+
+**Next gate:** qualify the dedicated manifest CTest, full Linux and sanitizer jobs at one exact SHA. Only after R9 authorization, collect one physically owner-consented seat0/unlocked same-UID attempt and verify fresh consent/listener and selected display/lease generations, first real framebuffer and client FRAME_ACK, keyboard/mouse dispatch, Stop/lock/logout/switch cleanup and reconnect with no stale input/capture. Record separate actual `mstsc.exe` and Windows App stages; no offline PASS may be labeled native acceptance.
+
 ## R4 P2 sanitizer-selection follow-up (2026-10-30)
 
 Follow-up parent: `a812df7668b7a45b85dd1cd9f5d73c956411948b`. R9's portable RDPGFX

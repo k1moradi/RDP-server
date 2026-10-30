@@ -1,3 +1,16 @@
+## R5 private timing subset and summary-projection regressions (2026-10-30)
+
+`macos.windows-app-owner-evidence-timing-subset-denials` is a dedicated offline
+negative gate in the shared CTest registry. The R1 TLS-active-work, ready-to-service
+and socket-poll observations are subsets of their parent pre-TLS buckets; R10
+native maintenance cannot exceed service execution, and a maximum application
+gap cannot exceed the cumulative reschedule wait in the same stage. A
+contradiction is `SERVER_TIMING_ATTRIBUTION_INCONSISTENT`. Both nested timing
+and stage summaries project only documented bounded scalar fields; inject a
+private username/log-path sentinel in unknown fields and prove it is absent.
+Maintain the separate valid-nonzero native-maintenance finding without inventing
+a client or credential cause. This offline test is not admission evidence.
+
 ## R4 remap-before-first-frame sanitizer registration (2026-10-30)
 
 In addition to ordinary full CTest, the existing R9 portable RDPGFX

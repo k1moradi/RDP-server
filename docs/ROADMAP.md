@@ -1,3 +1,45 @@
+## R2 P0 Round 2 — production verifier acceptance predicate frozen; Microsoft delegation request is the blocker (2026-10-30)
+
+**Audited source:** `fc35cc370ba002f6dadd42813a32bd296fbb282b`. R2 production source review plus exact-SHA hosted evidence
+show no verifier-policy incompatibility after the empty-field parser correction.
+`processAuthInfo()` still requires the final-only TSRequest at the negotiated
+version/state, the exact pinned TLS owner, bounded protected authInfo, successful
+NTLM SIGN/SEAL unwrap, valid TSCredentials/TSPasswordCreds syntax, empty delegated
+domain, a currently configured credential, the existing ASCII case-insensitive
+Username rule, constant-time NT-hash equivalence and successful final frame
+release. The typed failure/empty-field enums are observation only and are cleared
+on fresh challenge, reset and success.
+
+**Exact-SHA evidence:** workflow `41080994452` at this source SHA: Ubuntu full
+Debug/Release CTest **984/984 PASS**; macOS full Debug/Release **769/769 PASS**;
+R9 security/protocol sanitizer selections **PASS**, including strict credential
+fields and the production-backed authInfo empty-field/mismatch cases. Windows
+MSVC job `124149857609` and CLANG64 job `124149857159` both reach Type 3,
+pubKeyAuth, committed binding and Microsoft final authInfo, then remain
+`credentials-verified=no` with
+`production-authinfo-failure=credential-identity-or-password-mismatch` and
+`production-authinfo-empty-fields=both-empty`. CLANG64 Debug/Release full CTest
+fail only the Microsoft positive exchange.
+
+**Dependency decision:** Agent 6's current CredSSP
+`InitializeSecurityContextW` request flags are
+`ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM | ISC_REQ_MANUAL_CRED_VALIDATION`;
+they do not request `ISC_REQ_DELEGATE`. Microsoft documents for CredSSP that
+without `ISC_REQ_DELEGATE` an empty credential set is delegated to the server.
+Therefore the present `both-empty` result is an oracle/client-request defect,
+not evidence to relax R2 username/password/domain policy.
+
+**Next gate / owner:** Agent 6 must first request `ISC_REQ_DELEGATE` in the
+Microsoft CredSSP client context and rerun the positive plus existing bad-binding
+control. The first useful result is nonempty delegated credential fields and
+`CredentialsVerified` with `native-admission=no`. If a correctly
+delegation-requesting Microsoft client still reaches nonempty fields but R2
+reports `CredentialMismatch`, return that exact typed boundary to Agent 2 for
+the smallest standards-backed verifier investigation. Until then R2 production
+authentication remains unchanged and fail-closed. No memory-BIO fixture may mint
+native admission, CurrentOwnerSharingAuthority, MCS, Share, graphics, input or
+clipboard.
+
 ## R6 P0 follow-up — distinguish empty delegated SSPI fields without changing policy (2026-10-30)
 
 **Confirmed executable boundary:** R6 exact SHA `2b75e267ea25dce33737ac5e9ddc29ae31d00856`, workflow `41077183098`, MSVC job `124136732870`, CLANG64 job `124136732710`: production Type 2, Type 3, client pubKeyAuth, TLS 1.3, committed server binding, Microsoft `SEC_E_OK` and final authInfo are reached; production rejects the parsed credential as `password-credential-fields`. The dedicated `security.standalone-credssp-authinfo-credential-structure-classification` passed in both CLANG64 Debug and Release. Bad-binding negative still returns `SEC_E_INVALID_TOKEN` without authInfo.

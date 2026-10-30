@@ -1,3 +1,21 @@
+## Microsoft CredSSP positive oracle must explicitly request credential delegation (2026-10-30)
+
+A Windows SSPI CredSSP fixture is not a valid positive delegated-credential
+oracle unless its `InitializeSecurityContextW` request includes
+`ISC_REQ_DELEGATE`. Microsoft documents that omission delegates an empty
+credential set. Therefore a `both-empty` final-authInfo observation from a
+context that omitted `ISC_REQ_DELEGATE` must be classified as an oracle/client
+request limitation, not a production R2 compatibility defect.
+
+Before any R2 username/password/domain-policy change, the Microsoft positive
+fixture must request delegation, still generate final authInfo, preserve the
+bad-server-binding negative, and require production `CredentialsVerified`.
+The fixture may report only the existing bounded fail-only field-presence
+category and typed production reason; never log credential text, decrypted
+payloads, field lengths, hashes, signatures or session keys. A positive
+memory-BIO result remains non-authorizing and must continue to report
+`native-admission=no`.
+
 ## R6 Microsoft delegated username/password empty-field attribution (2026-10-30)
 
 The Windows Microsoft-generated final authInfo oracle may project only a scalar `production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`, derived by the existing synchronous R2 validated-password visitor after cryptographic unwrapping and only on terminal rejection. It is not a credential, a field length or login authority, and must not weaken the independent `CredentialMismatch` acceptance boundary. The dedicated `security.standalone-credssp-authinfo-empty-field-categories` CTest must exercise the actual production verifier with valid secured frames for missing username, missing password, both missing and nonempty invalid identities, retaining reader/writer closure and mismatch. Preserve required AV, malformed DER, sign/seal, post-binding revocation and Microsoft bad-binding controls. No raw TSRequest, username, password or NTLM material in test receipts.

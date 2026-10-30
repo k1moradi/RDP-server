@@ -1,3 +1,37 @@
+## R2 production CredSSP verifier freeze and Microsoft delegation blocker — 2026-10-30
+
+- Audited source SHA: `fc35cc370ba002f6dadd42813a32bd296fbb282b`; no production R2 code change.
+- `processAuthInfo()` acceptance remains fail-closed across final-frame/version
+  state, pinned owned TLS provenance, protected-length bounds, NTLM SIGN/SEAL,
+  validated password-credential syntax, empty standalone domain, configured
+  credential, existing case-insensitive ASCII Username semantics, constant-time
+  password-hash comparison, and final frame release.
+- Credential generation replacement remains fenced by
+  `StandalonePasswordCredentialOwner::visit()` plus the authenticated-principal
+  proof's exact generation/TLS revalidation; native admission remains a separate
+  R2 step.
+- Workflow `41080994452`: Ubuntu full Debug/Release **984/984 PASS**; macOS
+  full Debug/Release **769/769 PASS**; R9 sanitizer selections **PASS**.
+  Strict-field/UTF-16 parser reconciliation and authInfo empty-field/mismatch
+  regressions are green.
+- Windows MSVC job `124149857609` and CLANG64 job `124149857159`:
+  Type 3, pubKeyAuth, committed binding and Microsoft final authInfo reached;
+  `credentials-verified=no`,
+  `production-authinfo-failure=credential-identity-or-password-mismatch`,
+  `production-authinfo-empty-fields=both-empty`. CLANG64 Debug/Release fail
+  only `security.windows-credssp-production-full-exchange`.
+- Source audit confirms Agent 6's current CredSSP context flags omit
+  `ISC_REQ_DELEGATE`. Microsoft CredSSP documentation states omission
+  delegates an empty credential set. The current positive oracle is therefore
+  not yet a valid request for delegated User/Password.
+- **BLOCKED outside R2:** Agent 6 must rerun with `ISC_REQ_DELEGATE` before any
+  production verifier relaxation is considered. Desired next result:
+  nonempty delegated fields, production `CredentialsVerified`, and
+  `native-admission=no`. Physical client/native admission remains NOT RUN.
+- Local owner canonical build/full CTest: **NOT RUN** in this connector
+  environment. This audit introduces documentation only; publication-SHA hosted
+  CI is not required to establish a new binary behavior.
+
 ## R6 Microsoft delegated empty-field diagnostic after Agent 2 parser correction (2026-10-30)
 
 - R6 SHA `2b75e267ea25dce33737ac5e9ddc29ae31d00856`, workflow `41077183098`: Windows MSVC job `124136732870`, CLANG64 job `124136732710` both **FAIL** full Microsoft CredSSP positive at `password-credential-fields` after Type 3, pubKeyAuth, binding, Microsoft `SEC_E_OK` and final authInfo; CLANG64 structural classifier passes Debug and Release. Bad-binding negative remains **PASS**.

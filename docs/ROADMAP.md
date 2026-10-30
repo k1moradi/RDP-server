@@ -1,3 +1,42 @@
+## R3 P0 follow-up — CAL test registry compile blocker found and corrected (2026-10-30)
+
+Dependency-graph audit on current `main` found the immediate blocker is no
+longer the production OpenSSL call site. The new
+`licensing-client-cal-signed-content-empty-only` behavior increased the
+single `test_owned_mcs_connect_initial` dispatch table from 169 to 170
+entries, but its fixed `std::array` bound remained 169. Exact R3 SHA
+`e6293ca6fc860ccec651793952c23e2b460576ff` therefore failed macOS,
+Ubuntu and R9 sanitizer compilation with excess initializers; Windows failed
+with C2078/C2131. The fix is the minimal 169 -> 170 bound correction.
+
+The target dependency chain is
+`test_owned_mcs_connect_initial -> rdp-server-protocol +
+rdp-server-runtime-licensing -> OpenSSL`. Because this test executable is
+compiled by every protocol matrix job, the stale bound prevented any CAL CTest
+or downstream Share/licensing qualification from running. The production
+OpenSSL compatibility helper remains present on current main.
+
+R2's prepared owner-consent epoch fence has now landed in production at
+`e469ce9707965c888988fc27c4134acccfd31b1a`, and later R5/R10 docs consume
+that authoritative lease contract. That removes the earlier source-level R2
+handoff gap for future R3 admission, subject to exact-SHA hosted qualification.
+R8 still owns CLIPRDR application serialization; R3 remains the sole
+MCS/static-channel route and accepted-byte receipt owner.
+
+Validation before this correction: exact R3 structure workflow
+`41111411166` **PASS**. Primary workflow `41111411260`: macOS
+`124254320590` **FAIL**, Ubuntu `124254320684` **FAIL**, Windows
+`124254320603` **FAIL**, R9 sanitizer `124254320460` **FAIL**, all at the
+170-entry/169-bound test compile barrier. macOS did compile
+`rdp_licensing.cpp` successfully but used OpenSSL 4.0.3, so OpenSSL 4.1+
+source compatibility remains **NOT YET VERIFIED**.
+
+Next gate after publication: exact-SHA Linux/Windows/macOS compile and full
+CTest plus R9 sanitizer. Then revalidate the existing
+`CredentialsVerified` + coalesced 416-byte Microsoft MCS denial on the
+descendant with R2's consent-epoch fence. No synthetic native lease and no
+physical client without R9 authorization.
+
 ## R5 Round 4 — in-flight XShm borrow retirement and owner-only physical protocol (2026-10-30)
 
 **Authoring parent:** `dc9f142593f87bc249b512bca61a56ab1aade5d6`. The already-qualified native 44/44 ASan/UBSan Xvfb suite includes queued XDamage, a revoke inside the XDamage event sink, capture-generation ABA denial, RandR burst/unchanged-pixel generation replacement, XInput2 old-motion fences and held XTEST no-post retirement. The remaining separate exercised boundary is a *synchronous R4 framebuffer callback* that reads a real XShm image and then triggers terminal native retirement before its successful return. Existing `X11DesktopResources::consumeR4Frame` performs the required post-callback `valid()`, capture generation and geometry checks. Add the production-linked Xvfb CTest `x11.desktop-resource-inflight-frame-borrow-authority-retirement` to prove this fail-closed return, old XCB/socket/geometry/capture denial, idempotent no-input retirement and no stale XDamage/frame in a newly constructed owner using the same native session-generation scalar. A fresh post-replacement draw must still produce new-generation capture. This is a separate callback boundary from the previously tested Damage *event* sink. No production mutation, frame copy, XShm lifetime extension, XID-based admission, or new owner is introduced. The native sanitizer exact inventory advances 44 -> 45 with one explicit-name sentinel in both CI workflow and fail-closed validator. Source/test/CI inspection **PASS**; new full hosted and local Xvfb/ASan/UBSan **PENDING / NOT RUN** before exact-SHA publication. The prior 44/44 remains qualified only at its recorded SHA.

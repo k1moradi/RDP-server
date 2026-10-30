@@ -1,3 +1,15 @@
+## R3 CAL regression dispatch-table compile blocker correction (2026-10-30)
+
+Exact R3 SHA `e6293ca6fc860ccec651793952c23e2b460576ff`
+successfully compiled `rdp_licensing.cpp` on macOS with OpenSSL 4.0.3 and
+then failed while compiling `test_owned_mcs_connect_initial.cpp` because the
+new CAL case made 170 entries in a fixed `std::array<McsTestCase, 169>`.
+Linux and sanitizer jobs report the same excess-initializer failure; Windows
+reports C2078/C2131. Correct the table cardinality to 170 only. No target,
+dependency, warning policy, build root, OpenSSL selection or production wire
+behavior changes. OpenSSL 4.1+ compatibility still requires an exact-SHA build
+that actually selects 4.1+ headers; the observed macOS job used 4.0.3.
+
 ## R5 synchronous XShm borrow retirement CTest (2026-10-30)
 
 The new behavior-named Xvfb test reuses `test_x11_desktop_resources`, production `rdp-server-linux-x11-desktop`, XCB/XShm/XDamage/XFixes/XTEST and the existing private ephemeral `xvfb-run`. No native package, build flag, target or alternate build root is added. Ordinary CTest gains one test when those dependencies are available; the R5 explicit ASan/UBSan inventory and workflow validator both advance 44 -> 45. Use only the canonical `~/rdp-server/build/` locally (no approved checkout exists in this connector runtime). This source-only authoring records local compile, full CTest and sanitizers as **NOT RUN** until real exact-SHA receipts arrive.

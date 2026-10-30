@@ -1,3 +1,14 @@
+## R3 MCS test-dispatch cardinality must match registered behaviors (2026-10-30)
+
+The shared `test_owned_mcs_connect_initial` executable uses one fixed
+`std::array<McsTestCase, N>` dispatch table for its behavior-named cases.
+When adding or removing a case, update `N` in the same commit and keep the
+ordinary CTest registry/CI sentinels synchronized. A stale cardinality is a
+compile-time repository-wide blocker because this executable is built in the
+Linux, Windows, macOS and sanitizer protocol jobs before the individual R3 CAL
+tests can execute. Do not work around the failure by dropping the new case,
+weakening warnings or splitting a duplicate executable.
+
 ## R5 XShm callback-time authority retirement and owner replacement regression (2026-10-30)
 
 `x11.desktop-resource-inflight-frame-borrow-authority-retirement` executes one genuine XShm full-frame capture through the production `consumeR4Frame(X11NativeGeometryObservation, nativeSessionGeneration, callback)` API inside isolated `xvfb-run -a -s '-screen 0 1280x720x24 -nolisten tcp -noreset'`. After reading pixel bytes, the callback retires the aggregate as if native R2 authority disappeared, then returns `true`; the outer R5 boundary must return `false` because the XCB owner and capture generation were retired while the view was borrowed. No callback reads or retains freed pixel storage after retirement. Assert XCB descriptor/connection invalid, old geometry and capture unusable, later disconnect idempotent, replacement generation different even with the same synthetic session number, replacement denies old read and callback, no queued old Damage, and only a new draw yields current Damage and frame consumption. Do not synthesize an R2 lease or touch physical seat0. Register under ordinary CTest, exact 45-case R5 sanitizer selector and both workflow-required-name/cardinality checks; prior reentrant XDamage callback test remains independent. Zero new third-party dependencies. Hosted full/ASan/UBSan qualification must name the implementation SHA; an unrun script is `NOT RUN`, not `PASS`.

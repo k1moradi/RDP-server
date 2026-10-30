@@ -1,3 +1,30 @@
+## R3 CAL dispatch-table compile blocker follow-up — 2026-10-30
+
+- Exact implementation SHA `e6293ca6fc860ccec651793952c23e2b460576ff`
+  reached the shared MCS/CAL test translation unit on all protocol platforms.
+- Failure was test-registry cardinality, not the production licensing helper:
+  170 behavior entries were initialized into
+  `std::array<McsTestCase, 169>`.
+- macOS job `124254320590`: **FAIL**, excess elements in array initializer
+  after `rdp-server-protocol` (including `rdp_licensing.cpp`) built.
+  CMake selected OpenSSL 4.0.3, so this does not prove the 4.1+ branch.
+- Ubuntu `124254320684`: **FAIL**, too many initializers.
+- Windows `124254320603`: **FAIL**, C2078/C2131 at the same table.
+- R9 ASan/UBSan `124254320460`: **FAIL**, excess elements in array initializer.
+- Correction: fixed bound 169 -> 170 only; production source, CTest names,
+  CAL 9-case selector and sanitizer sentinels unchanged.
+- Current dependency chain:
+  `test_owned_mcs_connect_initial -> rdp-server-protocol +
+  rdp-server-runtime-licensing -> OpenSSL`.
+- R2 consent-epoch fence is present on current main via
+  `e469ce9707965c888988fc27c4134acccfd31b1a`; no R3 bypass or synthetic
+  native admission was added.
+- Local canonical build/full CTest/sanitizers: **NOT RUN**; approved local build
+  root unavailable in this connector environment.
+- New exact-SHA hosted matrix/sanitizer: **PENDING** until this correction is
+  published and Actions completes. Physical client/native admission:
+  **NOT RUN / unauthorized**.
+
 ## R5 in-flight XShm borrow terminal retirement — 2026-10-30
 
 - Authoring parent `dc9f142593f87bc249b512bca61a56ab1aade5d6`. New `x11.desktop-resource-inflight-frame-borrow-authority-retirement` in production-linked existing Xvfb target; callback reads synthetic pixels and then retires current aggregate before returning `true`. `consumeR4Frame` must return `false` and a fresh owner must reject old generation, old Damage and stale frame access.

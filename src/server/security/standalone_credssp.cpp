@@ -27,6 +27,8 @@ struct StandalonePasswordMatchContext final
     const EphemeralNtlmV2Credential *credential{};
     bool matched{};
     bool nonEmptyDelegatedDomain{};
+    bool emptyDelegatedUsername{};
+    bool emptyDelegatedPassword{};
 };
 
 void matchStandalonePasswordFields(
@@ -39,9 +41,11 @@ void matchStandalonePasswordFields(
         static_cast<StandalonePasswordMatchContext *>(opaqueContext);
     if (context == nullptr || context->credential == nullptr)
         return;
-    // The caller owns these secret-bearing borrowed views. Only the
-    // non-secret empty-domain classification survives the callback.
+    // The caller owns these secret-bearing borrowed views. Retain only
+    // categorical emptiness facts, never the buffers or their lengths.
     context->nonEmptyDelegatedDomain = !domainUtf16Le.empty();
+    context->emptyDelegatedUsername = userUtf16Le.empty();
+    context->emptyDelegatedPassword = passwordUtf16Le.empty();
     context->matched = context->credential->matchesDelegatedPassword(
         domainUtf16Le, userUtf16Le, passwordUtf16Le);
 }
@@ -116,6 +120,8 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     challengeObservation_ = {};
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
+    authInfoEmptyFieldObservation_ =
+        StandaloneAuthInfoEmptyFieldObservation::None;
     lastNtlmMessageType_ = 0U;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
@@ -134,6 +140,8 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     stage_ = StandaloneCredSspStage::Unconfigured;
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
+    authInfoEmptyFieldObservation_ =
+        StandaloneAuthInfoEmptyFieldObservation::None;
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     lastNtlmMessageType_ = 0U;
@@ -434,7 +442,8 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     }
     failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
 
-    StandalonePasswordMatchContext match{&credential, false, false};
+    StandalonePasswordMatchContext match{
+        &credential, false, false, false, false};
     const auto visitStatus = visitCredSspValidatedPasswordFields(
         plaintext, &matchStandalonePasswordFields, &match);
     // The original reject predicate is retained. Classification observes
@@ -446,6 +455,21 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
         matchesPinnedTls(reader.completedFrameServerTls());
     if (!verified)
     {
+        // Record only the empty-field category of a validated, rejected
+        // delegated password. This never alters the fail-closed predicate.
+        if (visitStatus == CredSspPasswordFieldVisitStatus::Visited)
+        {
+            if (match.emptyDelegatedUsername &&
+                match.emptyDelegatedPassword)
+                authInfoEmptyFieldObservation_ =
+                    StandaloneAuthInfoEmptyFieldObservation::BothEmpty;
+            else if (match.emptyDelegatedUsername)
+                authInfoEmptyFieldObservation_ =
+                    StandaloneAuthInfoEmptyFieldObservation::EmptyUsername;
+            else if (match.emptyDelegatedPassword)
+                authInfoEmptyFieldObservation_ =
+                    StandaloneAuthInfoEmptyFieldObservation::EmptyPassword;
+        }
         if (visitStatus ==
             CredSspPasswordFieldVisitStatus::UnsupportedCredentialType)
             authInfoFailureReason_ =
@@ -496,6 +520,8 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     writer.close();
     failureStage_ = StandaloneAuthenticationFailureStage::None;
     authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
+    authInfoEmptyFieldObservation_ =
+        StandaloneAuthInfoEmptyFieldObservation::None;
     stage_ = StandaloneCredSspStage::CredentialsVerified;
     return StandaloneCredSspFrameStatus::CredentialsVerified;
 }

@@ -2088,6 +2088,12 @@ public:
         return acceptor_.authInfoFailureReason();
     }
 
+    [[nodiscard]] StandaloneAuthInfoEmptyFieldObservation
+    authInfoEmptyFieldObservation() const noexcept
+    {
+        return acceptor_.authInfoEmptyFieldObservation();
+    }
+
     [[nodiscard]] StandaloneSpnegoInitialTokenObservation
     initialTokenObservation() const noexcept
     {
@@ -3040,6 +3046,22 @@ void copyBoundedCipherName(
     return "unknown";
 }
 
+[[nodiscard]] constexpr const char *authInfoEmptyFieldName(
+    StandaloneAuthInfoEmptyFieldObservation observation) noexcept
+{
+    switch (observation)
+    {
+    case StandaloneAuthInfoEmptyFieldObservation::None: return "none";
+    case StandaloneAuthInfoEmptyFieldObservation::EmptyUsername:
+        return "empty-username";
+    case StandaloneAuthInfoEmptyFieldObservation::EmptyPassword:
+        return "empty-password";
+    case StandaloneAuthInfoEmptyFieldObservation::BothEmpty:
+        return "both-empty";
+    }
+    return "unknown";
+}
+
 struct FullCredSspAttempt final
 {
     const char *stage{"not-started"};
@@ -3085,6 +3107,8 @@ struct FullCredSspAttempt final
     bool microsoftBindingSecEOk{};
     StandaloneAuthInfoFailureReason authInfoFailureReason{
         StandaloneAuthInfoFailureReason::None};
+    StandaloneAuthInfoEmptyFieldObservation authInfoEmptyFields{
+        StandaloneAuthInfoEmptyFieldObservation::None};
     bool invalidServerBindingReplyQueued{};
     bool invalidServerBindingRejected{};
 };
@@ -3422,6 +3446,7 @@ void printClientProfileObservation(
     const bool authInfoAccepted = server.processAuthInfoFrame(
         result.authInfoObserved, result.credentialsVerified);
     result.authInfoFailureReason = server.authInfoFailureReason();
+    result.authInfoEmptyFields = server.authInfoEmptyFieldObservation();
     if (!authInfoAccepted)
         return result;
     result.stage = result.credentialsVerified
@@ -4184,7 +4209,8 @@ void printFailure(
         "authinfo-output=%s authinfo-tsrequest=%s authinfo=%s "
         "credentials-verified=%s native-admission=no stage=%s "
         "sspi-empty-domain-requested=%s microsoft-binding-sec-e-ok=%s "
-        "production-authinfo-failure=%s\n",
+        "production-authinfo-failure=%s "
+        "production-authinfo-empty-fields=%s\n",
         passed ? "PASS" : "FAIL",
         tlsVersionName(result.negotiatedTlsVersion),
         result.productionObservedTypeThree ? "yes" : "no",
@@ -4199,7 +4225,8 @@ void printFailure(
         result.stage,
         result.explicitEmptyDomainRequested ? "yes" : "no",
         result.microsoftBindingSecEOk ? "yes" : "no",
-        authInfoFailureReasonName(result.authInfoFailureReason));
+        authInfoFailureReasonName(result.authInfoFailureReason),
+        authInfoEmptyFieldName(result.authInfoEmptyFields));
     std::fflush(stderr);
     if (!passed)
         printFailure(TargetProfile::PortableServerName, result);

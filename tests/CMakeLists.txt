@@ -544,6 +544,7 @@ foreach(standalone_credssp_case IN ITEMS
         standalone-credssp-authinfo-credential-structure-classification
         standalone-credssp-authinfo-post-binding-revocation
         standalone-credssp-authinfo-empty-fields-are-mismatch
+        standalone-credssp-authinfo-empty-field-categories
         standalone-credssp-manual-frame-provenance-denial)
     add_test(NAME "security.${standalone_credssp_case}"
         COMMAND test_standalone_credssp "${standalone_credssp_case}")

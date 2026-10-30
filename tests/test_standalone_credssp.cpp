@@ -1471,7 +1471,9 @@ void assertAuthInfoCredentialRejection(
     std::u16string_view domain,
     std::u16string_view user,
     std::u16string_view delegatedPassword,
-    StandaloneAuthInfoFailureReason expectedReason)
+    StandaloneAuthInfoFailureReason expectedReason,
+    StandaloneAuthInfoEmptyFieldObservation expectedEmptyFields =
+        StandaloneAuthInfoEmptyFieldObservation::None)
 {
     MemoryTlsPair tls;
     TsRequestFrameReader reader;
@@ -1499,6 +1501,8 @@ void assertAuthInfoCredentialRejection(
     assert(acceptor.failureStage() ==
            StandaloneAuthenticationFailureStage::AuthInfo);
     assert(acceptor.authInfoFailureReason() == expectedReason);
+    assert(acceptor.authInfoEmptyFieldObservation() ==
+           expectedEmptyFields);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }
@@ -1520,10 +1524,16 @@ void testAuthInfoEmptyDelegatedFieldsAreMismatch()
 {
     assertAuthInfoCredentialRejection(
         {}, {}, u"Password",
-        StandaloneAuthInfoFailureReason::CredentialMismatch);
+        StandaloneAuthInfoFailureReason::CredentialMismatch,
+        StandaloneAuthInfoEmptyFieldObservation::EmptyUsername);
     assertAuthInfoCredentialRejection(
         {}, u"User", {},
-        StandaloneAuthInfoFailureReason::CredentialMismatch);
+        StandaloneAuthInfoFailureReason::CredentialMismatch,
+        StandaloneAuthInfoEmptyFieldObservation::EmptyPassword);
+    assertAuthInfoCredentialRejection(
+        {}, {}, {},
+        StandaloneAuthInfoFailureReason::CredentialMismatch,
+        StandaloneAuthInfoEmptyFieldObservation::BothEmpty);
 }
 
 void testAuthInfoTamperRevokes()
@@ -1878,6 +1888,14 @@ int main(int argc, char **argv)
         "standalone-credssp-authinfo-empty-fields-are-mismatch")
     {
         testAuthInfoEmptyDelegatedFieldsAreMismatch();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-empty-field-categories")
+    {
+        // Production-backed parser and verifier with nonauthorizing receipt.
+        testAuthInfoEmptyDelegatedFieldsAreMismatch();
+        testAuthInfoCredentialMismatchRevokes();
         return 0;
     }
     if (testCase ==

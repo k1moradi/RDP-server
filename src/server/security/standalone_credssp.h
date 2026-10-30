@@ -65,6 +65,16 @@ enum class StandaloneAuthInfoFailureReason : std::uint8_t
     FrameRelease,
 };
 
+// On a failed, syntactically validated final authInfo, record only which
+// delegated fields were empty. No value, length, owner or authority escapes.
+enum class StandaloneAuthInfoEmptyFieldObservation : std::uint8_t
+{
+    None,
+    EmptyUsername,
+    EmptyPassword,
+    BothEmpty,
+};
+
 struct StandaloneCredSspInitialNegoObservation final
 {
     bool observed{};
@@ -147,6 +157,12 @@ public:
         const noexcept
     {
         return authInfoFailureReason_;
+    }
+
+    [[nodiscard]] StandaloneAuthInfoEmptyFieldObservation
+    authInfoEmptyFieldObservation() const noexcept
+    {
+        return authInfoEmptyFieldObservation_;
     }
 
     [[nodiscard]] std::uint32_t lastNtlmMessageType() const noexcept
@@ -234,6 +250,8 @@ private:
         StandaloneAuthenticationFailureStage::None};
     StandaloneAuthInfoFailureReason authInfoFailureReason_{
         StandaloneAuthInfoFailureReason::None};
+    StandaloneAuthInfoEmptyFieldObservation authInfoEmptyFieldObservation_{
+        StandaloneAuthInfoEmptyFieldObservation::None};
     std::uint32_t lastNtlmMessageType_{};
     StandaloneCredSspInitialNegoObservation initialNegoObservation_{};
     NtlmChallengeMessageObservation challengeObservation_{};

@@ -1,3 +1,10 @@
+## R6 Microsoft delegated empty-field diagnostic after Agent 2 parser correction (2026-10-30)
+
+- R6 SHA `2b75e267ea25dce33737ac5e9ddc29ae31d00856`, workflow `41077183098`: Windows MSVC job `124136732870`, CLANG64 job `124136732710` both **FAIL** full Microsoft CredSSP positive at `password-credential-fields` after Type 3, pubKeyAuth, binding, Microsoft `SEC_E_OK` and final authInfo; CLANG64 structural classifier passes Debug and Release. Bad-binding negative remains **PASS**.
+- Agent 2 SHA `2944f354f2cff5074d5dcf492b48a2a21c6ddd64` changes empty user/password strings to syntactically permitted fields, preserving policy denial: MSVC `124137657394` and CLANG64 `124137656832` now report `credential-identity-or-password-mismatch` (still **FAIL**). Separate old strict-parser fixture assertions initially fail across Linux/Windows/sanitizers; R2 follow-up `c78815cbe2fbe694452e6025b0e9c9384f5be95a`, `1642ce2330eaf67780d83737cca9ed52ada0d1e3` update those fixtures, exact-SHA qualification pending.
+- R6 adds only fail-only validated delegated user/password emptiness classification, without retaining bytes or affecting credential acceptance, Type 2, TLS, SSPI, pubKeyAuth or native R2 admission. New ordinary behavior CTest `security.standalone-credssp-authinfo-empty-field-categories`; negative controls retained.
+- Local canonical Windows MSVC/CLANG64 Debug and Release configure/build/full CTest **NOT RUN** (connector environment has no approved Windows checkout). Exact publication-SHA CI **PENDING**. Real RDP client/physical A/B and native admission **BLOCKED / NOT RUN**. First unresolved invariant is Microsoft's delegated username/password equivalence; initial syntax rejection has been resolved.
+
 ## R9 four-case ASan/UBSan authInfo coverage and dependency decision — 2026-10-30
 
 - Authoring parent `1642ce2330eaf67780d83737cca9ed52ada0d1e3`.

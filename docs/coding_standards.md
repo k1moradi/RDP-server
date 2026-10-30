@@ -1,3 +1,7 @@
+## R2/R6 fail-only empty delegated-field observability (2026-10-30)
+
+After the actual production CredSSP verifier's canonical parser validates password fields, its borrowed visitor may retain at most a bounded enum describing empty delegated username/password *only when authentication fails*. Never retain the borrowed `std::span` buffers, their sizes, actual UTF-16 values, credentials or raw SSPI tokens; reset the enum with challenge owner reset and successful authentication. The classifier has no effect on the existing comparison, signature/seal, session provenance, credential-generation or R2 native-admission predicate. Windows oracle logging must distinguish an SSPI input empty-domain request from any observed delegated fields; neither is proof of a valid login or a policy exception.
+
 ## R8 server-originated CLIPRDR serialization ownership (2026-10-30)
 
 Server-originated clipboard capabilities and format offers belong to the

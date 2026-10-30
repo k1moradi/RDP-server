@@ -1,3 +1,7 @@
+## R6 Microsoft delegated username/password empty-field attribution (2026-10-30)
+
+The Windows Microsoft-generated final authInfo oracle may project only a scalar `production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`, derived by the existing synchronous R2 validated-password visitor after cryptographic unwrapping and only on terminal rejection. It is not a credential, a field length or login authority, and must not weaken the independent `CredentialMismatch` acceptance boundary. The dedicated `security.standalone-credssp-authinfo-empty-field-categories` CTest must exercise the actual production verifier with valid secured frames for missing username, missing password, both missing and nonempty invalid identities, retaining reader/writer closure and mismatch. Preserve required AV, malformed DER, sign/seal, post-binding revocation and Microsoft bad-binding controls. No raw TSRequest, username, password or NTLM material in test receipts.
+
 ## R9 sanitizer coverage for four production-backed final-authInfo cases (2026-10-30)
 
 The existing R9 ASan/UBSan job must enumerate and run all four registered

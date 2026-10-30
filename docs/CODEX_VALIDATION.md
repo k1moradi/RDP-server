@@ -1,3 +1,12 @@
+## R1 Round 2 qualification follow-up — 2026-10-30
+
+- Exact tested SHA: `975c62cdac3e4008056b24f53bbab6adc43181d5`; primary workflow `41073410701`; Ubuntu protocol job `124124681621`.
+- Linux Debug full CTest: **980/980 PASS**. Linux Release full CTest: **980/980 PASS**.
+- R1 acceptance gates in the same job: **PASS** for `runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect`, `runtime.linux-host-control-stop-queued-authinfo-retirement`, `runtime.linux-direct-ntlm-preauth-service-no-starvation`, `transport.tcp-owned-tls-read-want-interleaved-frame-write`, and `transport.credssp-direct-ntlm-type2-delivery-receipts`.
+- This resolves the prior hosted-execution blocker for the R1 Round 2 transport increment. Local `~/rdp-server/build/` execution remains **NOT RUN** because this connector environment still has no approved checkout / usable GitHub DNS.
+- Dependency graph remains blocked outside R1: Windows MSVC job `124124681701` reaches Microsoft final authInfo and reports `production-authinfo-failure=credential-der-or-fields` with `credentials-verified=no`; R2/R6 own that verifier boundary. The current CLANG64 producer is not yet qualified, so R9 owner-candidate and physical Windows App/mstsc testing remain **BLOCKED / NOT AUTHORIZED**.
+- R1 conclusion: **READY / no demonstrated transport defect**. Local TLS write completion is not peer receipt; readiness/timing counters remain diagnostic only. No TLS policy, Type-2, polling, timeout, socket-owner or retry workaround is justified.
+
 ## R2 final-authInfo offline negative-fixture follow-up (2026-10-30)
 
 - Parent `58ba13d5aa515fda10f7b559b8c5adee28b324e8`: current typed production verifier and Microsoft

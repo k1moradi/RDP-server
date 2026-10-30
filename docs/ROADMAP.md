@@ -1,3 +1,12 @@
+## R1 Round 2 qualification follow-up — transport gate green, physical gate remains external (2026-10-30)
+
+**Exact SHA:** `975c62cdac3e4008056b24f53bbab6adc43181d5` · workflow `41073410701` · Ubuntu protocol job `124124681621`.
+Current-main hosted Linux qualification is now executable evidence, not source-only review: Debug and Release full CTest each **980/980 PASS**. The R1-focused gates all pass in that same job, including `runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect`, `runtime.linux-host-control-stop-queued-authinfo-retirement`, `runtime.linux-direct-ntlm-preauth-service-no-starvation`, `transport.tcp-owned-tls-read-want-interleaved-frame-write`, and `transport.credssp-direct-ntlm-type2-delivery-receipts`. The prior R1 **PENDING** hosted-qualification item is therefore resolved.
+
+Dependency disposition: **no current R1 transport blocker is demonstrated**. The same exact SHA's Windows MSVC protocol job `124124681701` reaches TLS 1.3, verified Type 3, pubKeyAuth, committed server binding and Microsoft final authInfo, then fails with `production-authinfo-failure=credential-der-or-fields` before `CredentialsVerified`. That boundary is R2/R6 credential/delegated-authInfo verification, not R1 TLS framing or readiness. R8's current CLANG64 producer remains in progress/unqualified, so R9's owner-candidate and any physical Windows App/mstsc attempt remain **BLOCKED / NOT AUTHORIZED**. Do not alter TLS version, certificate, Type-2 bytes, polling cadence, readiness timing or timeouts from this evidence.
+
+**Next R1 action:** none that requires production transport changes. Preserve the single accepted-socket/SSL/BIO owner and current diagnostics; consume any future physical receipt only after R9 authorizes it. If a later exact-SHA client trace shows truncated/duplicated plaintext, incomplete local write completion, contradictory R1 readiness attribution or stale-generation activity, reopen R1 at that first reproducible boundary.
+
 ## R2 P0 Round 2 follow-up — final-authInfo denial regressions (2026-10-30)
 
 **Parent:** `58ba13d5aa515fda10f7b559b8c5adee28b324e8`. The existing typed production verifier and Agent 6's

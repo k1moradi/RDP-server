@@ -1,3 +1,11 @@
+## R5 workflow structure recovery and hosted gate (2026-10-30)
+
+**Parent:** `79c5a118ec219976273618c1596b87d5c23d8b71`. R6 Microsoft delegated CredSSP positive is **PASS** at exact SHA `0143d16613152c349463aae655aa506c5c85b12a`; `CredentialsVerified` is not native admission. R10 independently corrected the incomplete `LinuxRuntimeConnectionAcceptanceDiagnostics` test header in `81633e1bfa4251a98e5dfbc9cd21853bad844599`; hosted compile/full CTest after that correction remain **PENDING**. The R9 manual owner-candidate and physical seat0 native admission remain separate.
+
+**R5-owned CI guard defect:** commit `6b9bee50dbd77145dea658a56bbf675c92ed5c5b` added the 44th native Xvfb CTest and its exact selector but missed `scripts/validate_ci_workflow.py`. Structure jobs `41088602495` and `41090491580` **FAIL** with the stale `r5_expected_test_count=43`. Align the required-token list to `r5_expected_test_count=44` and explicitly require `x11.desktop-resource-reentrant-authority-loss-damage-dispatch`; preserve all existing workflow negative fixtures. No X11, R2, R10 or R6 production authority behavior changes.
+
+**Next:** exact-publication-SHA workflow structure, Linux full Debug/Release CTest, 44-case R5 Xvfb/ASan/UBSan **PENDING / NOT RUN** at authoring time. Local canonical build **NOT RUN** (no approved checkout; execution-container GitHub DNS unavailable). Future physical Linux unlocked seat0/same UID, Sharing ON, exact authenticated client, R2 lease, first frame/ACK, input, session loss/Stop and fresh reconnect remain **BLOCKED / NOT RUN / not authorized**, pending R9 approval. No benchmark.
+
 ## R4 exact-SHA graphics qualification and resolved upstream source blockers (2026-10-30)
 
 **R4 offline regression now verified:** `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`

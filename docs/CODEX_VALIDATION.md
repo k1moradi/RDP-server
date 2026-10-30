@@ -1,3 +1,9 @@
+## R5 CI guard correction — 2026-10-30
+
+- Parent `79c5a118ec219976273618c1596b87d5c23d8b71`; self-owned R5 structure failure on `6b9bee50dbd77145dea658a56bbf675c92ed5c5b`, run `41088602495` and descendant run `41090491580`: `missing required workflow token: r5_expected_test_count=43`. Update `scripts/validate_ci_workflow.py` to 44 and add exact reentrant-XDamage CTest sentinel; keep CI workflow selector and negative fixtures unchanged.
+- Independent R10 incomplete-diagnostic-type test-header fix `81633e1bfa4251a98e5dfbc9cd21853bad844599` is retained, not overwritten. R6 delegated-authInfo **PASS** at `0143d16613152c349463aae655aa506c5c85b12a`, `native-admission=no`; physical R2/R9 remains blocked.
+- Static validator/CTest name inspection **PASS**; corrected workflow structure, hosted exact-SHA full CTest, 44-case R5 native sanitizers **PENDING**. Local canonical build **NOT RUN**, physical seat0/owner input **BLOCKED / NOT RUN / unauthorized**. No benchmark.
+
 ## R4 exact-SHA graphics qualification and resolved upstream source blockers (2026-10-30)
 
 - R4 `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`:

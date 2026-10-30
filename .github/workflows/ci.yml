@@ -2012,6 +2012,22 @@ jobs:
           ctest --test-dir build --build-config Debug --timeout 60 \
             -R "$pam_selection" --output-on-failure
 
+      # R2's exact prepared consent-epoch predicate, with no native lease.
+      - name: Run native R2 admission consent-epoch denial with sanitizers
+        if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:halt_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: |
+          set -euo pipefail
+          consent_epoch_case='^security[.]linux-native-admission-prepared-consent-epoch-denials$'
+          selected_tests="$(ctest --test-dir build --build-config Debug -N -R "$consent_epoch_case")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq 'security.linux-native-admission-prepared-consent-epoch-denials' <<< "$selected_tests"
+          grep -Eq '^Total Tests: 1$' <<< "$selected_tests"
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R "$consent_epoch_case" --output-on-failure
+
       - name: Run all direct R10 Linux runtime security CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

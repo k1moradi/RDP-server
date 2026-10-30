@@ -1,3 +1,7 @@
+## R2 prepared consent-epoch admission denials (2026-10-30)
+
+Register `security.linux-native-admission-prepared-consent-epoch-denials` in the one shared CTest registry, use the real R2 broker's final `authorizesAtEpoch()` predicate, and invoke it with a scoped non-authorizing owner-evidence fixture. Require denial after Stop, same-permission grant replacement, widened permissions, session-generation replacement and revocation published during the evidence callback. Ensure no lease, authenticated proof, desktop, TCP or system consent is manufactured; positive owner-scalar comparisons are not native OS authorization. Keep separate existing negatives for policy generation, credential replacement/stale proof and first MCS without native admission. Pin the new behavior name in R9 ASan/UBSan `ctest -N` with exactly one selected case; preserve all fixed existing sanitizer selections and their counts. A compiled/passing offline fixture never substitutes for live native admission.
+
 ## R8 native source-loss server response regression (2026-10-30)
 
 Production-backed `clipboard.route-bridge-server-local-source-revocation-response-drain`

@@ -2437,6 +2437,19 @@ if(TARGET rdp-server-linux-runtime-security)
         "${RDP_SERVER_TEST_K5CRYPTO_LIBRARY}")
     target_compile_options(test_runtime_linux_security PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+    # R2 exact prepared-owner-epoch denial; exercises the production
+    # admission predicate using only injected non-authorizing evidence.
+    # No native lease, desktop access, R1 TLS or authenticated principal.
+    add_test(NAME security.linux-native-admission-prepared-consent-epoch-denials
+        COMMAND test_runtime_linux_security
+            linux-native-admission-prepared-consent-epoch-denials
+            "${PROJECT_BINARY_DIR}/runtime-linux-security-fixtures")
+    set_tests_properties(
+        security.linux-native-admission-prepared-consent-epoch-denials
+        PROPERTIES LABELS
+            "security;owner-consent;linux-provider;native-admission;offline"
+            TIMEOUT 20)
+
     foreach(runtime_linux_security_case IN ITEMS
             linux-security-explicit-keytab-continuity
             linux-security-personal-desktop-preflight-denials

@@ -99,6 +99,18 @@ struct LinuxConsoleAdmissionBrokerTestAccess final
     {
         return broker.personalDesktopPolicyMatches(deploymentPolicy);
     }
+
+    // Observe only the exact predicate invoked by production after native
+    // evidence and after completion; never call issue() or fabricate a lease.
+    [[nodiscard]] static bool preparedOwnerConsentCurrent(
+        const LinuxConsoleAdmissionBroker &broker,
+        const ConsoleEvidenceRequest &request,
+        const OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch)
+        noexcept
+    {
+        return broker.preparedOwnerConsentCurrent(
+            request, ownerAuthorizationEpoch);
+    }
 };
 } // namespace rdp_server::server::security
 
@@ -2657,6 +2669,116 @@ void testConnectionCredSspAuthorizationDenials(
     assert(::close(clientDescriptor) == 0);
 }
 
+// Exercise the real R2 final owner-consent predicate with deterministic
+// session observations only. No TLS, principal proof, physical OS admission,
+// lease, desktop resource or R3 state can be created by this fixture.
+void testNativeAdmissionPreparedConsentEpochDenials()
+{
+    using namespace rdp_server::server::security;
+
+    class AdmissionOwnerEvidence final : public ConsoleOsEvidenceSource
+    {
+    public:
+        ConsoleSessionObservation session{
+            ConsoleEvidenceReadStatus::Observed, "admission-test", "seat0",
+            ":0", 1001U, 7U, 1000U, true, true, 1001U,
+            ConsoleDesktopLockState::Unlocked, false};
+        std::uint64_t now{1000U};
+        CurrentOwnerSharingAuthority *revokeOnNextSessionRead{};
+
+        [[nodiscard]] ConsoleAccountObservation readUnixAccount(
+            std::string_view) noexcept override
+        {
+            return {};
+        }
+
+        [[nodiscard]] ConsoleSessionObservation readActiveConsole()
+            noexcept override
+        {
+            if (revokeOnNextSessionRead != nullptr)
+            {
+                auto *const authority =
+                    std::exchange(revokeOnNextSessionRead, nullptr);
+                authority->revoke(OwnerConsentRevocationReason::Stop);
+            }
+            session.observedAtMonotonicMilliseconds = now;
+            return session;
+        }
+
+        [[nodiscard]] std::optional<std::uint64_t>
+        readMonotonicMilliseconds() noexcept override
+        {
+            return now;
+        }
+    } evidence;
+
+    ConsoleIdentityPolicy policy;
+    assert(policy.add(validRule()) == ConsoleRuleError::None);
+    CurrentOwnerSharingAuthority ownerAuthority(evidence);
+    LinuxConsoleAdmissionBroker broker(policy, &ownerAuthority);
+    const ConsoleEvidenceRequest request{
+        "alice@EXAMPLE.TEST", "alice", "seat0", ":0",
+        kConsoleViewPermission};
+    const OwnerSharingIntent intent{
+        kConsoleViewPermission, 5000U};
+    const auto grant = [&]() {
+        assert(ownerAuthority.requestConsent(intent) ==
+               OwnerConsentRequestResult::Granted);
+        const auto epoch =
+            ownerAuthority.authorizationEpoch(request.requestedPermissions);
+        assert(epoch.has_value());
+        return *epoch;
+    };
+    const auto consentCurrent =
+        [&](const OwnerSharingAuthorizationEpoch &epoch) {
+            return LinuxConsoleAdmissionBrokerTestAccess::
+                preparedOwnerConsentCurrent(broker, request, epoch);
+        };
+
+    // No grant, or only fabricated scalar generations, grants no admission.
+    assert(!consentCurrent({}));
+    const auto firstEpoch = grant();
+    assert(consentCurrent(firstEpoch));
+
+    // A Stop/revoke after preparation invalidates the exact epoch.
+    ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(!consentCurrent(firstEpoch));
+    const auto replacementEpoch = grant();
+    assert(replacementEpoch != firstEpoch);
+    assert(!consentCurrent(firstEpoch));
+    assert(consentCurrent(replacementEpoch));
+
+    // Even identical replacement permissions cannot revive old preparation.
+    const auto newerEpoch = grant();
+    assert(newerEpoch != replacementEpoch);
+    assert(!consentCurrent(replacementEpoch));
+    assert(consentCurrent(newerEpoch));
+
+    // The same grant may not be upgraded by changing requested permissions.
+    const ConsoleEvidenceRequest expandedRequest{
+        request.kerberosPrincipal, request.unixAccount, request.seat,
+        request.display,
+        kConsoleViewPermission | kConsoleInputPermission};
+    assert(!LinuxConsoleAdmissionBrokerTestAccess::
+        preparedOwnerConsentCurrent(broker, expandedRequest, newerEpoch));
+
+    // A native session replacement retires the authority, even when the
+    // prepared epoch scalars themselves are unchanged.
+    ++evidence.session.sessionGeneration;
+    assert(!consentCurrent(newerEpoch));
+    const auto newSessionEpoch = grant();
+    assert(!consentCurrent(newerEpoch));
+    assert(consentCurrent(newSessionEpoch));
+
+    // The evidence callback itself can publish atomic revocation during
+    // authorizesAtEpoch(): the final generation check rejects that race.
+    evidence.revokeOnNextSessionRead = &ownerAuthority;
+    assert(!consentCurrent(newSessionEpoch));
+    assert(evidence.revokeOnNextSessionRead == nullptr);
+    assert(!consentCurrent(newSessionEpoch));
+    assert(broker.state() == LinuxConsoleAdmissionState::Ready);
+}
+
 void testConnectionFinalCredentialNativeAdmissionDenials(
     const std::filesystem::path &fixtureDirectory)
 {
@@ -4288,6 +4410,11 @@ int main(int argumentCount, char **argumentValues)
     if (testCase == "linux-security-admission-request-owned-generation-fence")
     {
         testAdmissionConfigurationOwnedGenerationFence(fixtureDirectory);
+        return 0;
+    }
+    if (testCase == "linux-native-admission-prepared-consent-epoch-denials")
+    {
+        testNativeAdmissionPreparedConsentEpochDenials();
         return 0;
     }
     if (testCase == "linux-connection-standalone-authentication-selector-denials")

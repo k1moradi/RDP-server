@@ -1,3 +1,13 @@
+## R2 native Admission prepared owner-consent epoch fence (2026-10-30)
+
+**Audit baseline:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`. R2 found a consent-lifetime gap: `LinuxConsoleAdmissionBroker::prepareAdmission()` sampled owner consent before NSS/logind evidence, but `issueWithSources()` did not compare the same grant/revocation epoch when completing R2 native proof and publishing a lease. Owner commands and broker methods are serialized on the R10 owner thread, but the consent owner's revocation generation is atomic and may change during a reentrant evidence callback or externally published terminal revocation. Later MCS authorization was a separate defense, not a safe basis for minting a lease.
+
+**Correction:** Capture the existing `OwnerSharingAuthorizationEpoch` for the exact permission set at preparation. Use `authorizesAtEpoch()` after the second native evidence/change-monitor check, again after native-proof and R1 CredSSP completion, and for every protected broker lease revalidation. A replacement grant with identical permissions cannot revive the original admission. Failure remains `OwnerConsentMissing`, with broker/proof terminal denial; no new policy Boolean/controller, password verifier, transport behavior, wire bytes or secret-bearing diagnostic. `CredentialsVerified` is still non-authorizing.
+
+**New offline production-predicate CTest:** `security.linux-native-admission-prepared-consent-epoch-denials` uses the real R2 broker final consent predicate and the real owner authority with injected, non-authorizing session facts. It asserts no grant, Stop revocation, identical-permission grant replacement, permission-scope change, native session-generation replacement and revocation inside the evidence callback all reject the prepared epoch. No TLS/GSS principal, native R2 lease, X11 desktop, real credential, MCS or clipboard is fabricated. Existing policy generation, stale credential/proof and standalone CredSSP tests remain the independent negative owners. The CI R9 ASan/UBSan run selects this CTest explicitly without changing its fixed existing sanitizer inventories.
+
+**Validation at authoring:** source and registered CTest/CI review **PASS**; canonical `~/rdp-server/build/` compile, focused/full CTest and local sanitizers **NOT RUN** (GitHub connector has no approved checkout). Exact-publication-SHA hosted CTest/ASan/UBSan **PENDING**. Physical native seat0/mstsc/desktop tests **NOT RUN / unauthorized**. Next gate: hosted exact-head PASS, then separately approved native admission/first-MCS proof. No benchmark.
+
 ## R8 source-loss fixture uses copied post-R3 receipt scalars (2026-10-30)
 
 The new `clipboard.route-bridge-server-local-source-revocation-response-drain`

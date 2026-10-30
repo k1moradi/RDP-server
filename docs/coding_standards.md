@@ -1,3 +1,7 @@
+## R2 native lease must retain its prepared owner-consent epoch (2026-10-30)
+
+The Linux R2 broker captures `CurrentOwnerSharingAuthority::authorizationEpoch(requestedPermissions)` during Admission preparation, after freshly checking grant/native session. The scalar pair is a freshness fence, not permission or identity. After NSS/logind evidence and change-monitor sampling and before finishing proof/R1 CredSSP admission, require `authorizesAtEpoch()` with the same exact permissions; repeat immediately after synchronous completion and before publishing the lease. Store the epoch in the existing private lease control and require the same epoch on every protected broker authorization/revalidation, so a same-permission replacement grant cannot reuse an older lease. Failure is terminal `OwnerConsentMissing`, not a retry or a CredSSP/password-policy exception. Broker and mutable grant methods are owner-thread serialized; atomic revocation can also publish terminal loss. An `isRevoked()` scalar observation is not a substitute for protected R2 broker revalidation before MCS, Share, graphics, input or clipboard. No owner-consent state or privileged proof is exposed to R10.
+
 ## R8 local source destruction revokes publication authority (2026-10-30)
 
 Native clipboard ownership may end without a new generation. Revoke only

@@ -1,3 +1,12 @@
+## R2 native Admission consent-epoch continuity — 2026-10-30
+
+- Authoring baseline: `c82988ee8178294d986e86a3c0cb09801f9bee5b`; current security decision: **missing admission-time consent fence, corrected in production source and offline regression**.
+- Inspected `CurrentOwnerSharingAuthority` atomic revoke/generation, `LinuxConsoleAdmissionBroker::prepareAdmission()` and `issueWithSources()`, `LinuxConsoleAdmissionLease`, the exact R1 `completeCredSspAdmission()` call, and protected broker/R3 revalidation. Owner commands are serialized; atomic revocation and evidence-call reentrancy require comparing the exact prepared grant epoch before lease publication. Original code did not.
+- R2 correction captures owner epoch once, checks after evidence and after proof/R1 completion, stores it in private lease control and denies old-epoch use on each protected broker revalidation. Failure taxonomy `OwnerConsentMissing` retained. No standalone CredSSP, NTLM/pubKeyAuth/authInfo/password, R1, or R10 controller change.
+- Dedicated ordinary Linux behavior CTest `security.linux-native-admission-prepared-consent-epoch-denials` covers no grant, revoke, replacement, permission scope, session generation and callback revocation without issuing a synthetic lease; sanitizer CI pins the exact one-case selection. Prior policy/credential/proof and MCS negative tests remain.
+- Source/CTest/CI review: **PASS**. Local canonical compile, full/focused CTest, sanitizers and benchmark: **NOT RUN**, no approved checkout in this connector. Exact-publication-SHA hosted CI and sanitizers: **PENDING** at authoring. Physical native OS admission, capture/input/clipboard: **NOT RUN / unauthorized**.
+- Next gate: hosted exact-publication-SHA compile/full CTest/ASan/UBSan; only afterward, separate authorization for genuine owner-session/mstsc/native admission and first MCS.
+
 ## R8 partial-receipt fixture borrowed-view correction — 2026-10-30
 
 - Parent `c75cf533e2d1fab238ad9781ed6da50db2770cc3` has the source-loss bridge/CTest/CI increment.

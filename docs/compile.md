@@ -1,3 +1,7 @@
+## R2 owner-consent epoch admission fence build boundary (2026-10-30)
+
+The epoch fence modifies the existing Linux R2 admission broker and the existing `test_runtime_linux_security` executable; it adds one ordinary offline Linux-only CTest, plus one isolated ASan/UBSan selector in the existing R9 sanitizer job. No new target, library, OS service, dependency, native session, build configuration or second build root. Use the canonical `~/rdp-server/build/` Debug build/full CTest and the existing CI single-root sanitizer workflow. Local compile/full CTest/ASan/UBSan: **NOT RUN** in connector-only authoring; hosted exact-publication-SHA qualification **PENDING**.
+
 ## R8 source-loss response fence build (2026-10-30)
 
 Reuses noninstalled `rdp-server-r8-r3-clipboard` and existing

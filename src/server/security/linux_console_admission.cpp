@@ -22,6 +22,7 @@ public:
     std::atomic<std::int64_t> validThroughSteadyMilliseconds{};
     const ConsoleIdentityPolicy *policy{};
     std::uint64_t policyGeneration{};
+    OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch{};
 };
 
 namespace
@@ -412,10 +413,12 @@ bool LinuxConsoleAdmissionBroker::prepareAdmission(
     LinuxAuthenticatedPrincipalProof &principalProof,
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request,
-    std::uint64_t &policyGeneration) noexcept
+    std::uint64_t &policyGeneration,
+    OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch) noexcept
 {
     using Failure = LinuxConsoleAdmissionFailureReason;
     policyGeneration = 0U;
+    ownerAuthorizationEpoch = {};
     const auto reject = [&](Failure reason) noexcept {
         lastAdmissionFailureReason_ = reason;
         logNativeAdmissionFailure(
@@ -427,11 +430,13 @@ bool LinuxConsoleAdmissionBroker::prepareAdmission(
 
     if (state_ != LinuxConsoleAdmissionState::Ready)
         return reject(Failure::AdmissionRequestInvalid);
-    if (ownerSharingAuthority_ == nullptr ||
-        !ownerSharingAuthority_->authorizes(request.requestedPermissions))
-    {
+    const auto preparedEpoch = ownerSharingAuthority_ != nullptr
+        ? ownerSharingAuthority_->authorizationEpoch(
+              request.requestedPermissions)
+        : std::nullopt;
+    if (!preparedEpoch)
         return reject(Failure::OwnerConsentMissing);
-    }
+    ownerAuthorizationEpoch = *preparedEpoch;
     if (!r1HybridNlaSecurityView(connection))
         return reject(Failure::HybridTlsProvenanceInvalid);
 
@@ -449,6 +454,16 @@ bool LinuxConsoleAdmissionBroker::prepareAdmission(
         return reject(Failure::AdmissionRequestInvalid);
     }
     return true;
+}
+
+bool LinuxConsoleAdmissionBroker::preparedOwnerConsentCurrent(
+    const ConsoleEvidenceRequest &request,
+    const OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch) const
+    noexcept
+{
+    return ownerSharingAuthority_ != nullptr &&
+           ownerSharingAuthority_->authorizesAtEpoch(
+               request.requestedPermissions, ownerAuthorizationEpoch);
 }
 
 bool LinuxConsoleAdmissionBroker::refreshDeadline(
@@ -503,6 +518,7 @@ LinuxConsoleAdmissionBroker::issueWithSources(
     rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
     const ConsoleEvidenceRequest &request,
     std::uint64_t policyGeneration,
+    const OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch,
     ConsoleOsEvidenceSource &evidenceSource,
     ConsoleSessionChangeSource &changes,
     bool monitorAvailable,
@@ -602,6 +618,10 @@ LinuxConsoleAdmissionBroker::issueWithSources(
     {
         return reject(Failure::AuthenticationProofMismatch);
     }
+    // A consent revoke/replacement during NSS/logind sampling must not be
+    // promoted by a still-matching policy/session/proof candidate.
+    if (!preparedOwnerConsentCurrent(request, ownerAuthorizationEpoch))
+        return reject(Failure::OwnerConsentMissing);
 
     std::shared_ptr<LinuxConsoleAdmissionControl> newControl;
     try
@@ -630,9 +650,14 @@ LinuxConsoleAdmissionBroker::issueWithSources(
     }
     if (!connection.completeCredSspAdmission())
         return reject(Failure::CredSspAdmissionCompletionFailed);
+    // The completion callbacks are synchronous but may retire owner consent.
+    // Never publish a lease for an epoch different from preparation.
+    if (!preparedOwnerConsentCurrent(request, ownerAuthorizationEpoch))
+        return reject(Failure::OwnerConsentMissing);
 
     newControl->policy = &policy_;
     newControl->policyGeneration = policyGeneration;
+    newControl->ownerAuthorizationEpoch = ownerAuthorizationEpoch;
     newControl->validThroughSteadyMilliseconds.store(
         *now + kAdmissionValidityMilliseconds, std::memory_order_relaxed);
     newControl->activeGeneration.store(
@@ -656,8 +681,10 @@ LinuxConsoleAdmissionBroker::issue(
 {
     lastAdmissionFailureReason_ = LinuxConsoleAdmissionFailureReason::None;
     std::uint64_t policyGeneration = 0U;
+    OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch{};
     if (!prepareAdmission(
-            principalProof, connection, request, policyGeneration))
+            principalProof, connection, request, policyGeneration,
+            ownerAuthorizationEpoch))
     {
         return std::nullopt;
     }
@@ -682,7 +709,8 @@ LinuxConsoleAdmissionBroker::issue(
         changes_->nativeFd() >= 0 && changes_->nativeEvents() > 0;
     return issueWithSources(
         principalProof, connection, request, policyGeneration,
-        evidence_, *changes_, monitorAvailable, &evidence_, changes_.get());
+        ownerAuthorizationEpoch, evidence_, *changes_, monitorAvailable,
+        &evidence_, changes_.get());
 }
 
 std::optional<LinuxConsoleAdmissionLease>
@@ -708,9 +736,9 @@ bool LinuxConsoleAdmissionBroker::revalidationChecksPass(
     const SSL *activeServerTls) noexcept
 {
     // Every protected R2 operation revalidates affirmative native authority.
-    if (ownerSharingAuthority_ == nullptr ||
-        !ownerSharingAuthority_->authorizes(lease.permissions_) ||
-        !ownsActiveLease(lease) ||
+    if (!ownsActiveLease(lease) ||
+        !preparedOwnerConsentCurrent(
+            requestView(lease), control_->ownerAuthorizationEpoch) ||
         control_->policyGeneration != policy_.generation() ||
         !principalProof.revalidatesNativeAdmission(
             activeServerTls, requestView(lease),

@@ -963,12 +963,20 @@ private:
         LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request,
-        std::uint64_t &policyGeneration) noexcept;
+        std::uint64_t &policyGeneration,
+        OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch) noexcept;
+    // The prepared grant must still be the same grant after native sampling
+    // and immediately before publishing an R2 lease. No scalar authorizes alone.
+    [[nodiscard]] bool preparedOwnerConsentCurrent(
+        const ConsoleEvidenceRequest &request,
+        const OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch) const
+        noexcept;
     [[nodiscard]] std::optional<LinuxConsoleAdmissionLease> issueWithSources(
         LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request,
         std::uint64_t policyGeneration,
+        const OwnerSharingAuthorizationEpoch &ownerAuthorizationEpoch,
         ConsoleOsEvidenceSource &evidenceSource,
         ConsoleSessionChangeSource &changes,
         bool monitorAvailable,

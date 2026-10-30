@@ -1286,6 +1286,7 @@ enum class PostTypeTwoPeerAction : std::uint8_t
 {
     Silence,
     PartialTlsRecord,
+    PartialTsRequestThenOrderlyFin,
     CompleteNonTypeThreeTsRequest,
     TlsCloseNotify,
     OrderlyFin,
@@ -1322,6 +1323,16 @@ enum class PostTypeTwoPeerAction : std::uint8_t
         constexpr std::array<std::uint8_t, 6> partialRecord{
             0x17U, 0x03U, 0x03U, 0x00U, 0x10U, 0x00U};
         applied = client.writeRawTransportBytes(partialRecord);
+        break;
+    }
+    case PostTypeTwoPeerAction::PartialTsRequestThenOrderlyFin:
+    {
+        // Queue one valid TLS application record containing only the DER
+        // SEQUENCE tag, then half-close before the runtime services either
+        // event. R1 must drain the application byte before classifying EOF.
+        constexpr std::array<std::uint8_t, 1> partialTsRequest{0x30U};
+        applied = client.writeFrame(partialTsRequest) &&
+                  client.sendOrderlyFin();
         break;
     }
     case PostTypeTwoPeerAction::CompleteNonTypeThreeTsRequest:
@@ -1942,6 +1953,9 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-post-type2-silence";
     const bool postTypeTwoPartialTlsRecordOnly =
         testCase == "direct-ntlm-post-type2-partial-tls-record";
+    const bool postTypeTwoPartialTsRequestFinOnly =
+        testCase ==
+            "direct-ntlm-post-type2-partial-tsrequest-fin-drain";
     const bool postTypeTwoNonTypeThreeTsRequestOnly =
         testCase == "direct-ntlm-post-type2-non-type3-tsrequest";
     const bool postTypeTwoCloseNotifyOnly =
@@ -1952,6 +1966,7 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-post-type2-immediate-retry";
     const bool postTypeTwoObservationOnly =
         postTypeTwoSilenceOnly || postTypeTwoPartialTlsRecordOnly ||
+        postTypeTwoPartialTsRequestFinOnly ||
         postTypeTwoNonTypeThreeTsRequestOnly ||
         postTypeTwoCloseNotifyOnly || postTypeTwoOrderlyFinOnly ||
         postTypeTwoImmediateRetryOnly;
@@ -2522,6 +2537,8 @@ int main(int argc, char** argv)
         PostTypeTwoPeerAction action = PostTypeTwoPeerAction::Silence;
         if (postTypeTwoPartialTlsRecordOnly)
             action = PostTypeTwoPeerAction::PartialTlsRecord;
+        else if (postTypeTwoPartialTsRequestFinOnly)
+            action = PostTypeTwoPeerAction::PartialTsRequestThenOrderlyFin;
         else if (postTypeTwoNonTypeThreeTsRequestOnly)
             action = PostTypeTwoPeerAction::CompleteNonTypeThreeTsRequest;
         else if (postTypeTwoCloseNotifyOnly)
@@ -2553,7 +2570,17 @@ int main(int argc, char** argv)
         assertGraphicsDormant(waiting);
 
         performAction.store(true, std::memory_order_release);
-        assert(pumpUntilPeerSignal(control, actionApplied, peerFinished));
+        if (postTypeTwoPartialTsRequestFinOnly)
+        {
+            // Do not service the accepted socket until the peer has queued the
+            // TLS application record and its FIN in that order.
+            assert(waitForRelease(actionApplied));
+        }
+        else
+        {
+            assert(pumpUntilPeerSignal(
+                control, actionApplied, peerFinished));
+        }
 
         if (postTypeTwoSilenceOnly)
         {
@@ -2624,6 +2651,19 @@ int main(int argc, char** argv)
             assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
             assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
             assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(diagnostics.postTypeTwoTcpFinReceived);
+            assert(!diagnostics.postTypeTwoTcpResetReceived);
+            assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+        }
+        else if (postTypeTwoPartialTsRequestFinOnly)
+        {
+            assert(diagnostics.postTypeTwoClientTlsBytes != 0U);
+            assert(diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes == 1U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 1U);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);
             assert(diagnostics.postTypeTwoTcpFinReceived);
             assert(!diagnostics.postTypeTwoTcpResetReceived);
             assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);

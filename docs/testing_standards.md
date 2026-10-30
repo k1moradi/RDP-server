@@ -1,3 +1,22 @@
+## R1 post-Type-2 queued-plaintext/FIN drain regression (2026-10-30)
+
+Keep
+`runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain`
+production-linked. The loopback TLS peer must first receive the normal Direct
+NTLM Type 2, then queue a valid TLS application record containing exactly one
+DER SEQUENCE-tag plaintext byte and immediately `SHUT_WR` before the runtime
+services the accepted socket. The server must drain that application plaintext
+through the sole R1/OpenSSL reader before terminal EOF retirement: encrypted
+post-Type-2 bytes are nonzero, plaintext and partial-TSRequest counts are exactly
+one, complete TSRequest count and TLS-alert count remain zero, TCP FIN is true,
+and TCP reset/close_notify are false.
+
+This test covers queued TLS application data followed by terminal TCP EOF. Do
+not merge it with the existing incomplete raw TLS-record case, pure orderly-FIN
+case, or same-listener immediate-retry case; those pin different boundaries.
+No assertion may treat local Type-2 TLS write completion as peer receipt, and no
+partial plaintext may create an R2 proof, MCS/Share state or native authority.
+
 ## R3 CredentialsVerified + complete Microsoft MCS coalescing regression (2026-10-30)
 
 Keep

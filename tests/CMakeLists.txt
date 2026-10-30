@@ -786,6 +786,9 @@ if(TARGET rdp-server-linux-host-control)
     add_test(NAME runtime.linux-direct-ntlm-post-type2-partial-tls-record
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             direct-ntlm-post-type2-partial-tls-record)
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-partial-tsrequest-fin-drain)
     add_test(NAME runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             direct-ntlm-post-type2-non-type3-tsrequest)
@@ -801,6 +804,7 @@ if(TARGET rdp-server-linux-host-control)
     set_tests_properties(
         runtime.linux-direct-ntlm-post-type2-silence
         runtime.linux-direct-ntlm-post-type2-partial-tls-record
+        runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain
         runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest
         runtime.linux-direct-ntlm-post-type2-tls-close-notify
         runtime.linux-direct-ntlm-post-type2-orderly-fin

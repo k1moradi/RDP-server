@@ -1,3 +1,44 @@
+## R1 Round 3 — queued post-Type-2 plaintext drains before terminal FIN (2026-10-30)
+
+**Authoring parent:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`. R1 receipt/ownership audit finds no
+production semantic defect: Direct-NTLM Type 2 "delivered" remains a
+connection-local receipt meaning every reply plaintext byte was accepted by the
+exact R1 TLS writer and the reply owner revalidated the transport generation,
+SSL identity and certificate. It is not peer-consumption evidence. The sole
+native socket/BIO/SSL owner also remains authoritative for cumulative encrypted
+receive bytes, TLS alert/close_notify classification and TCP EOF/reset.
+
+**New negative CTest:**
+`runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain` reuses the
+production listener/TLS/Direct-NTLM fixture. After Type 2, the peer queues one
+valid TLS application record containing only the first DER SEQUENCE byte of the
+next TSRequest and immediately half-closes its TCP write side before the runtime
+services either event. R1 must account for the encrypted bytes, expose exactly
+one plaintext partial-TSRequest byte, then classify peer EOF without a complete
+TSRequest, R2 proof, MCS/Share advance or native/graphics/clipboard authority.
+The existing orderly-FIN and immediate same-listener retry cases remain the
+fresh-generation teardown/reconnect gates; this test does not duplicate them.
+
+**Physical A/B contract:** pair one exact accepted-client attempt with its
+listener generation and report only bounded non-secret scalars: Type-2 queued
+and local-TLS-commit booleans, post-commit encrypted-byte delta and first-byte
+availability/age, post-commit plaintext/complete/partial TSRequest counts, TLS
+alert count plus close_notify, TCP FIN/reset, and the terminal classification.
+Agent 6 should pair that server line with its same-attempt client-side first
+post-Type-2 observation. Agent 10 should preserve the accepted-client ID and
+generation correlation. A zero server byte delta plus FIN remains proof only of
+the server-observed receive boundary, never of client receipt or a Type-2
+rejection.
+
+**Validation at authoring:** source/registry/policy inspection **PASS**. Canonical
+local configure/build/focused/full CTest and sanitizers **NOT RUN** because this
+environment has no approved `~/rdp-server/` checkout or `build/`. Exact
+publication-SHA hosted CI is **PENDING**. Physical client/server execution,
+service restart and OS/network mutation are **NOT RUN / unauthorized**.
+Benchmark **NOT RUN / not applicable**. Next gate: exact-SHA hosted execution,
+then only a same-attempt client observation that contradicts the R1 boundary may
+reopen R1.
+
 ## R3 Round 3 — CredentialsVerified cannot promote buffered Microsoft MCS before native Admission (2026-10-30)
 
 **Authoring parent:** `d31b0fa6c20a63eb7c17c388866a5ffb9453acce`. MS-RDPBCGR/MS-RDPELE sequencing was

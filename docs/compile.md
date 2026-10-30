@@ -1,3 +1,14 @@
+## R1 post-Type-2 partial-TSRequest/FIN regression adds no build surface (2026-10-30)
+
+`runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain` is another
+mode of the existing `test_linux_runtime_direct_ntlm_lifecycle` executable and
+reuses its real loopback listener, OpenSSL TLS client/server and HostControl
+fixture. It adds no production source, target, library, package, compile
+definition, socket owner, service, native permission or alternate build root.
+The target retains the existing strict-warning policy. Local canonical build and
+CTest are **NOT RUN** because the approved checkout/build root is unavailable;
+exact publication-SHA hosted CI is the executable gate.
+
 ## R3 CredentialsVerified/MCS lifecycle fixture adds no dependency (2026-10-30)
 
 The existing `test_linux_runtime_direct_ntlm_lifecycle` target now receives the

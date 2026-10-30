@@ -1,3 +1,30 @@
+## R1 receipt audit + queued plaintext before FIN regression — 2026-10-30
+
+- Authoring parent: `c82988ee8178294d986e86a3c0cb09801f9bee5b`.
+- Production receipt audit: **PASS by source inspection**. Type-2 queueing is
+  neither TLS completion nor peer receipt. Type-2 "delivered" is set only after
+  the exact R1 TLS writer accepts all plaintext and `releaseReply()` revalidates
+  transport generation, SSL identity and certificate; source comments and the
+  GUI describe this as a local TLS commit, not remote consumption.
+- Cumulative post-Type-2 encrypted bytes come from the sole connection-local
+  native receive counter; EOF contributes zero bytes. TLS alert/close_notify and
+  TCP EOF/reset are terminal classifications from the same SSL/socket owner.
+  HostControl snapshots terminal diagnostics before owner cancellation and a
+  replacement accepted client receives fresh connection-local counters/timing.
+- New production-backed negative:
+  `runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain`. The peer
+  queues one TLS application record containing one partial DER byte and then a
+  TCP FIN before server servicing. Expected: encrypted bytes observed, exactly
+  one plaintext/partial TSRequest byte, no complete TSRequest or TLS alert,
+  terminal peer EOF, and no MCS/Share/native authority.
+- Existing immediate-retry coverage remains the fresh same-listener TLS/NTLM
+  generation gate after terminal pre-Type-3 FIN; large final-authInfo and
+  interleaved-WANT cases are unchanged.
+- Local canonical build/focused/full CTest/sanitizers: **NOT RUN** (no approved
+  `~/rdp-server/` checkout/build root). Exact publication-SHA hosted CI:
+  **PENDING**. Physical client/server, service restart and OS/network mutation:
+  **NOT RUN / unauthorized**. No benchmark.
+
 ## R3 CredentialsVerified -> native Admission -> MCS authority boundary — 2026-10-30
 
 - Authoring parent: `d31b0fa6c20a63eb7c17c388866a5ffb9453acce`.

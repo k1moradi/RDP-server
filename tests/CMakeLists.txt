@@ -2054,6 +2054,7 @@ foreach(case_name IN ITEMS
         server-initialization-ordering
         server-initialization-generation-replacement
         server-initialization-pending-write-retirement
+        server-local-source-revocation-response-drain
         source-request-receipt
         missing-activated-route-denial
         old-route-generation-retirement

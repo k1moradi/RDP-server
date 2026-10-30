@@ -1,3 +1,11 @@
+## R8 source-loss response fence build (2026-10-30)
+
+Reuses noninstalled `rdp-server-r8-r3-clipboard` and existing
+`test_r8_r3_clipboard_bridge` with one additional behavior-named CTest.
+No library, executable, OS SDK, native file, thread, dependency or new
+build root. The existing R9 clipboard ASan/UBSan selection advances
+104 -> 105. Use only canonical `build/`.
+
 ## R3 OpenSSL 4.1 macOS licensing compile blocker (2026-10-30)
 
 Only the PKCS#7 SignedData content-length accessor is version-switched:

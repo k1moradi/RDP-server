@@ -628,11 +628,46 @@ bool R3ClipboardTransferBridge::observeServerClipboardGeneration(
 
     lastServerClipboardGeneration_ = clipboardGeneration;
     serverClipboardGeneration_ = clipboardGeneration;
+    lastServerFormatListReceipt_.reset();
 
     // A native/local ownership change can race independently of R2. Any route
     // observation borrowed before this new generation existed is no longer
     // sufficient authority to publish it; require a fresh protected visit.
     routeObservationAvailable_ = false;
+    return true;
+}
+
+bool R3ClipboardTransferBridge::revokeServerClipboardGeneration(
+    const std::uint64_t clipboardGeneration) noexcept
+{
+    // Native revocation cannot mint R2 authority or revoke a newer owner.
+    if (!active() || clipboardGeneration == 0U ||
+        clipboardGeneration != serverClipboardGeneration_)
+    {
+        return false;
+    }
+
+    serverClipboardGeneration_ = 0U;
+    routeObservationAvailable_ = false;
+    lastServerFormatListReceipt_.reset();
+
+    if (outboundKind_ == OutboundKind::ServerFormatList)
+    {
+        if (outboundBound_)
+        {
+            // R3 owns these queued bytes, perhaps partially accepted by R1.
+            // The caller must retire the R3 queue/route on this failure.
+            return failCurrentRoute();
+        }
+
+        // This R8-only staged offer has not entered the sole writer.
+        // Its local generation remains spent; never reuse the watermark.
+        clearOutbound();
+        pendingServerFormatListGeneration_ = 0U;
+    }
+
+    // An already Delivered offer retains its untagged response slot: an
+    // arriving reply will be drained as Superseded, not Accepted.
     return true;
 }
 

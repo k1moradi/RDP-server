@@ -145,6 +145,10 @@ public:
     // the replacement generation.
     [[nodiscard]] bool observeServerClipboardGeneration(
         std::uint64_t clipboardGeneration) noexcept;
+    // Native source loss is not a new clipboard generation. A false result
+    // for a queued offer requires R2/R3 to retire the sole writer/route.
+    [[nodiscard]] bool revokeServerClipboardGeneration(
+        std::uint64_t clipboardGeneration) noexcept;
     [[nodiscard]] bool beginServerFormatList(
         std::uint64_t clipboardGeneration,
         std::span<const OutboundFormat> formats) noexcept;

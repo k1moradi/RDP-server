@@ -1,3 +1,14 @@
+## R8 native source-loss server response regression (2026-10-30)
+
+Production-backed `clipboard.route-bridge-server-local-source-revocation-response-drain`
+must cover no-successor native loss before late Format List OK (Superseded),
+invalidated previously Accepted receipt, stale revocation versus replacement,
+unsent staged cancellation, fresh-route requirement, FAIL receipt and positive
+partial R3-queued accepted bytes followed by terminal route retirement.
+No test-only controller, real clipboard, file or synthetic R2 authority.
+Include in ordinary sanitizer clipboard inventory, raising 104 -> 105 with
+exact-name/count fail-closed guards.
+
 ## R3 CAL PKCS#7 optional signed-content acceptance/denial (2026-10-30)
 
 Run dedicated `transport.licensing-client-cal-signed-content-empty-only`

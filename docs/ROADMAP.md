@@ -1,3 +1,48 @@
+## R8 native source loss before server Format List Response (2026-10-30)
+
+**Authoring parent:** `3ebbccef29c2a011ab7a33f5e140c55bb3107e57`. The existing dormant bridge covered a
+newer local generation but not native source destruction *without* replacement:
+a late CB_FORMAT_LIST_RESPONSE OK could still be recorded Accepted.
+The existing R8 bridge now observes exact-generation local revocation,
+invalidates previous publication receipt and borrowed route observation,
+preserves generation high-water, drains an already Delivered untagged response
+as Superseded, and discards only an unqueued staged offer. An R3-bound server
+offer is ambiguous even when only partially accepted, so R8 retires its route
+and requires R2/R3 to retire the single R3 queue/writer. Delayed native owner
+callbacks never revoke a replacement source.
+
+Dedicated production-backed offline regression:
+`clipboard.route-bridge-server-local-source-revocation-response-drain`.
+Shared clipboard sanitizer count 104 -> 105, CI and validator exact-name
+sentinels updated atomically. No new serializer, controller, native adapter
+or wire format. FileContents stream/clipDataId handling, Format Data single
+flight, X11 INCR and native generations are unchanged.
+
+**Safety audit:** Remote file names and hierarchy remain metadata rather than
+destination authority. Linux/macOS/Windows destinations require independent
+native owner-selected writable regular-file descriptor/HANDLE capabilities,
+verify source generation and epoch, bounded 64 KiB FileContents chunks,
+offset, cumulative size and request receipt, with cancellation/truncation.
+FileContents uses monotonic stream IDs, checked SIZE/RANGE and clipDataId.
+PNG/DIBV5 verifies bounded input and checked row strides/dimensions with a
+256 MiB prospective 32-bpp output limit; no decompression was added.
+
+**R10 future gate, not activation:** independent current R2 native lease,
+authenticated credential/session generation, ShareActivated/GraphicsReady,
+exact joined cliprdr role/channel and R3 route generation, one R1 TLS/static
+writer and R2/R3 exact accepted-byte Delivered receipts. Capabilities before
+Monitor Ready, initial client Format List Response delivered before server
+native offer, fresh R2-protected route visit after each native generation;
+on native source loss revoke that exact generation and abort R3 on queued
+ambiguity. `kLinuxProductionClipboardActivationApproved = false` unchanged.
+Live scope remains Unicode-only and requires separate authorization.
+
+Source/spec/test review PASS by inspection. Local single-build-root focused/
+full Debug/Release CTest and ASan/UBSan **NOT RUN** (no approved checkout).
+Exact publication-SHA hosted CI/sanitizer **PENDING**. Real clipboard, user
+files, physical clients **NOT RUN / unauthorized**. Benchmark **NOT RUN /
+not applicable**; only cold-path control state changed.
+
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
 
 **Source audit baseline:** `452ce336efcb779adb21979f7c22a63bf23535c9`; reconciled on descendant `e6293ca6fc860ccec651793952c23e2b460576ff` (R6 A/B worksheet and R3 OpenSSL fix retained). This is a source/ownership and dependency audit; production source, scheduler, R1 TLS, R2 verifier, R3 state machine, CTest inventory and clipboard activation are **UNCHANGED**.

@@ -1,3 +1,14 @@
+## R8 local source destruction revokes publication authority (2026-10-30)
+
+Native clipboard ownership may end without a new generation. Revoke only
+the exact current server source in the existing bridge; invalidate old
+Accepted receipts and borrowed route observations, retaining monotonic
+generation high-water. Drain a Delivered server Format List response as
+Superseded. Only unbound staged R8 bytes can be discarded; once R3 owns
+the queued write, retire R8 and require R2/R3 to cancel its sole route/
+writer without fabricating write offsets or receipts. Stale native
+callbacks never revoke a later generation. Serialized event-loop only.
+
 ## R3 PKCS#7 signed-content length accessor across OpenSSL versions (2026-10-30)
 
 For CAL SignedData inspection, preserve the exact optional-content policy:

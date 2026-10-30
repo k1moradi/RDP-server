@@ -534,6 +534,98 @@ void serverInitializationGenerationReplacement()
     assert(bridge.beginServerFormatList(103U, formats));
 }
 
+void serverLocalSourceRevocationResponseDrain()
+{
+    using namespace rdp_server::clipboard;
+    using Status = R3ClipboardTransferBridge::ServerFormatListStatus;
+    constexpr std::uint32_t flags = kUseLongFormatNames;
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 2> formats{{
+        {kFormatUnicodeText, u""}, {0xc001U, u"PNG"},
+    }};
+    constexpr RdpClipboardStaticChannelView view{1008U, 64U};
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, view.channelId, view.generation, 1600U));
+    R3ClipboardTransferBridge bridge(flags, true);
+    auto visitor = bridge.channelVisitor();
+    completeServerInitialization(bridge, route, view, flags);
+
+    assert(bridge.observeServerClipboardGeneration(300U));
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerFormatList(300U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    // Native owner loss has no successor; delayed OK must drain as stale.
+    assert(bridge.revokeServerClipboardGeneration(300U));
+    assert(bridge.serverClipboardGeneration() == 0U);
+    assert(!bridge.lastServerFormatListReceipt());
+    acknowledgeServerFormatList(bridge, view, kResponseOk);
+    const auto obsolete = bridge.lastServerFormatListReceipt();
+    assert(obsolete && obsolete->clipboardGeneration == 300U &&
+           obsolete->status == Status::Superseded);
+    assert(bridge.active());
+    assert(!bridge.observeServerClipboardGeneration(300U));
+
+    assert(bridge.observeServerClipboardGeneration(301U));
+    assert(!bridge.lastServerFormatListReceipt());
+    assert(!bridge.revokeServerClipboardGeneration(300U));
+    assert(bridge.serverClipboardGeneration() == 301U);
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerFormatList(301U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    acknowledgeServerFormatList(bridge, view, kResponseOk);
+    const auto accepted = bridge.lastServerFormatListReceipt();
+    assert(accepted && accepted->clipboardGeneration == 301U &&
+           accepted->status == Status::Accepted);
+
+    // Accepted receipts must not survive native ownership revocation.
+    assert(bridge.revokeServerClipboardGeneration(301U));
+    assert(!bridge.lastServerFormatListReceipt());
+    assert(bridge.observeServerClipboardGeneration(302U));
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerFormatList(302U, formats));
+    assert(!bridge.pendingApplicationPdu().empty());
+    assert(bridge.revokeServerClipboardGeneration(302U));
+    assert(bridge.pendingApplicationPdu().empty());
+    assert(bridge.active());
+    assert(bridge.observeServerClipboardGeneration(303U));
+    assert(!bridge.beginServerFormatList(303U, formats));
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerFormatList(303U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    acknowledgeServerFormatList(bridge, view, kResponseFail);
+    assert(bridge.lastServerFormatListReceipt() &&
+           bridge.lastServerFormatListReceipt()->status == Status::Rejected);
+
+    // A queued offer has R3 write ownership, including partial R1 receipts.
+    constexpr RdpClipboardStaticChannelView queuedView{1008U, 65U};
+    RdpClipboardStaticChannelRoute queuedRoute;
+    assert(queuedRoute.start(
+        1005U, queuedView.channelId, queuedView.generation, 1600U));
+    R3ClipboardTransferBridge queuedBridge(flags, true);
+    auto queuedVisitor = queuedBridge.channelVisitor();
+    completeServerInitialization(queuedBridge, queuedRoute, queuedView, flags);
+    assert(queuedBridge.observeServerClipboardGeneration(500U));
+    assert(queuedVisitor.visit(queuedVisitor.context, queuedView));
+    assert(queuedBridge.beginServerFormatList(500U, formats));
+    assert(queuedRoute.queue(queuedBridge.pendingApplicationPdu()));
+    const auto pending = queuedRoute.pending();
+    assert(pending && queuedBridge.bindQueuedWrite(pending));
+    const auto routeGeneration = pending.routeGeneration;
+    const auto replySequence = pending.replySequence;
+    const auto writeSliceSequence = pending.writeSliceSequence;
+    const auto offeredBytes = pending.wireBytes.size();
+    const auto outcome = queuedRoute.onAcceptedBytes(
+        routeGeneration, replySequence, writeSliceSequence, 1U);
+    assert(outcome == RdpClipboardWriteOutcome::Pending);
+    assert(queuedBridge.recordAcceptedWrite(pending, 1U, outcome));
+    assert(!queuedBridge.revokeServerClipboardGeneration(500U));
+    assert(!queuedBridge.active());
+    assert(queuedBridge.pendingApplicationPdu().empty());
+    queuedRoute.close();
+    assert(!queuedBridge.recordAcceptedWriteReceipt(
+        routeGeneration, replySequence, writeSliceSequence,
+        offeredBytes, 1U, outcome));
+}
+
 void serverInitializationPendingWriteRetirement()
 {
     using namespace rdp_server::clipboard;
@@ -1102,6 +1194,8 @@ int main(int argc, char **argv)
         serverInitializationGenerationReplacement();
     else if (behavior == "server-initialization-pending-write-retirement")
         serverInitializationPendingWriteRetirement();
+    else if (behavior == "server-local-source-revocation-response-drain")
+        serverLocalSourceRevocationResponseDrain();
     else if (behavior == "source-request-receipt")
         sourceRequestReceipt();
     else if (behavior == "missing-activated-route-denial")

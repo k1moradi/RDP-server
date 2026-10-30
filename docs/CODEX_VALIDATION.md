@@ -1,3 +1,21 @@
+## R8 native source-loss Format List response fence — 2026-10-30
+
+- Authoring parent: `3ebbccef29c2a011ab7a33f5e140c55bb3107e57`, atomic direct-main source/CTest/docs.
+- Previously uncovered: native source destroyed with no replacement after
+  Delivered server Format List, then late CB_FORMAT_LIST_RESPONSE OK.
+- Production: exact-generation local revocation invalidates old receipts,
+  keeps old response for Superseded drain, cancels unqueued staged bytes
+  and retires R8 on R3-bound ambiguous writes. New native generations
+  require fresh R2/R3 route authorization.
+- New offline test:
+  `clipboard.route-bridge-server-local-source-revocation-response-drain`.
+  R9 sanitizer count 104 -> 105, CI/validator exact-name guards.
+- Canonical local focused/full/ASan/UBSan: **NOT RUN**; no approved
+  checkout/network access. Exact publication-SHA hosted: **PENDING**.
+- `kLinuxProductionClipboardActivationApproved = false` unchanged;
+  physical clipboard, user files, client acceptance **NOT RUN / unauthorized**.
+  Benchmark **NOT RUN / not applicable**.
+
 ## R10 first-positive admission integration audit and one-attempt physical receipt — 2026-10-30
 
 - Source audit parent: `452ce336efcb779adb21979f7c22a63bf23535c9`. Read AGENTS/vision/roadmap, coding/testing/compile/benchmark standards and validation; traced R1 `OwnedPreauthTcpConnection`, R2 proof/broker, R10 `advanceAcceptedClientOnce()`, R3 MCS/Share, R4 frame ACK, R5 X11, R7 HostControl and R8 dormant clipboard.

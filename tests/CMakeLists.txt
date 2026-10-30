@@ -540,6 +540,7 @@ foreach(standalone_credssp_case IN ITEMS
         standalone-credssp-direct-tls-cannot-bind-admission-proof
         standalone-credssp-authinfo-credential-mismatch-revokes
         standalone-credssp-authinfo-tamper-revokes
+        standalone-credssp-authinfo-first-failure-classification
         standalone-credssp-manual-frame-provenance-denial)
     add_test(NAME "security.${standalone_credssp_case}"
         COMMAND test_standalone_credssp "${standalone_credssp_case}")

@@ -1,3 +1,27 @@
+## R6 Microsoft-generated authInfo first-failure classification (2026-10-30)
+
+The production verifier's `authInfoFailureReason()` is a non-secret read-only
+scalar, never a capability. The new ordinary offline CTest
+`security.standalone-credssp-authinfo-first-failure-classification` exercises
+genuine memory-BIO TLS/NTLM/CredSSP and asserts a cleared reason after valid
+credentials, a combined identity/password mismatch for those two failures, a
+separate nonempty delegated-domain reason, and sign/seal for tampered authInfo.
+It must not inspect or print borrowed decrypted password/domain/user buffers.
+
+Windows `security.windows-credssp-production-full-exchange` must require
+TLS1.3, the production Type 2, verified Type 3, protected pubKeyAuth,
+committed server binding, Microsoft `SEC_E_OK`, emitted final authInfo and
+production `CredentialsVerified`, retaining `native-admission=no`. The
+explicit `SEC_WINNT_AUTH_IDENTITY_W` empty-domain pointer/length is only an
+SSPI input request; do not infer delegated TSPasswordCreds domain emptiness.
+The logged production category must come only from its own validation path.
+Retain the Microsoft bad-binding control (typed rejection before authInfo),
+required-AV mutations, credential-source process isolation, TLS version and
+physical Type-1/Type-2 controls. Any later physical macOS Windows App / Windows
+11 mstsc comparison requires owner authorization, one green exact SHA, equal
+endpoint/TLS/credential control and private R1/R10 stage timing; carry only the
+redacted authInfo classification, never passwords, raw logs or SSPI bytes.
+
 ## R5 private timing subset and summary-projection regressions (2026-10-30)
 
 `macos.windows-app-owner-evidence-timing-subset-denials` is a dedicated offline

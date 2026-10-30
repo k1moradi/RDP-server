@@ -1,11 +1,13 @@
-## R5 Round 2 evidence subset gate reuses the existing Python test surface (2026-10-30)
+## R6 authInfo first-failure diagnostic adds no build surface (2026-10-30)
 
-The private evidence-validator check and dedicated CTest reuse the existing
-Python standard-library script, unittest fixture, shared CTest registry and
-single checkout-local `build/` root. No compiler, platform library, thread,
-X11 resource, native authorization provider or new build root is introduced.
-Local configure/build/full CTest cannot execute in the disconnected connector
-container; publication-SHA hosted results remain the executable gate.
+The R2 read-only result and R6 Windows SSPI oracle extend existing source and
+already-linked test targets only; the dedicated production-backed offline
+CTest is an additional mode of `test_standalone_credssp`. No new dependencies,
+Windows privileges, user secrets, runtime listener, build root or service
+configuration are introduced. Reuse the canonical single build root and
+existing MSVC/CLANG64 Debug/Release producers. Local build/full CTest:
+**NOT RUN** in the GitHub connector environment; exact publication-SHA CI:
+**PENDING**. This is not a benchmark or live-client acceptance receipt.
 
 ## R1 readiness-dwell refinement adds no build surface (2026-10-29)
 

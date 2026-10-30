@@ -1,3 +1,24 @@
+## R6 Round 2 Microsoft delegated authInfo typed diagnosis — 2026-10-30
+
+- Initial source SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`; [Actions 40860372282](https://github.com/k1moradi/RDP-server/actions/runs/40860372282).
+- Windows MSVC protocol job `123401900562`: **FAIL** at full CredSSP,
+  despite TLS1.3, production Type 2, Type 3, pubKeyAuth, server binding and
+  Microsoft final authInfo; production CredentialsVerified is false.
+- Windows CLANG64 job `123401900577`: **FAIL** at same positive in Debug
+  and Release; a separate Release clipboard segfault remains R9-owned.
+  Bad-server-binding Microsoft control: **PASS** `SEC_E_INVALID_TOKEN`,
+  no authInfo.
+- Source-level review: **PASS** for explicit SSPI empty-domain input
+  request; delegated-domain payload remains **UNKNOWN**. Authored read-only
+  production classification and a separate production-backed offline CTest;
+  no protocol wire, password policy, native authorization or CI workflow
+  change. Typed category must be measured, not guessed.
+- Local owner Windows MSVC/CLANG64 Debug/Release configure/build/CTest:
+  **NOT RUN** (connector environment; approved Windows build root absent).
+  Exact publication-SHA hosted CI **PENDING**; physical client and native
+  admission **NOT RUN**. The first unresolved boundary remains production
+  final authInfo. Agent 2 owns verified security-policy disposition.
+
 ## R5 Round 2 evidence subset/summary redaction — 2026-10-30
 
 - Inspected baseline `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` and existing R2/R10/R5 authority, X11 native generation and owner-evidence tests.

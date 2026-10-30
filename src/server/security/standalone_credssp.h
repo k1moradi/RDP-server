@@ -47,6 +47,22 @@ enum class StandaloneAuthenticationFailureStage : std::uint8_t
     Admission,
 };
 
+// Read-only, non-authorizing first-failure facts from the existing final
+// CredSSP verifier. Never retain or expose decrypted credential data.
+enum class StandaloneAuthInfoFailureReason : std::uint8_t
+{
+    None,
+    InvalidFrameOrSession,
+    InvalidProtectedLength,
+    SignSeal,
+    InvalidCredential,
+    UnsupportedCredentialType,
+    NonEmptyDelegatedDomain,
+    CredentialUnavailable,
+    CredentialMismatch,
+    FrameRelease,
+};
+
 struct StandaloneCredSspInitialNegoObservation final
 {
     bool observed{};
@@ -123,6 +139,12 @@ public:
     [[nodiscard]] StandaloneAuthenticationFailureStage failureStage() const noexcept
     {
         return failureStage_;
+    }
+
+    [[nodiscard]] StandaloneAuthInfoFailureReason authInfoFailureReason()
+        const noexcept
+    {
+        return authInfoFailureReason_;
     }
 
     [[nodiscard]] std::uint32_t lastNtlmMessageType() const noexcept
@@ -208,6 +230,8 @@ private:
     StandaloneCredSspStage stage_{StandaloneCredSspStage::Unconfigured};
     StandaloneAuthenticationFailureStage failureStage_{
         StandaloneAuthenticationFailureStage::None};
+    StandaloneAuthInfoFailureReason authInfoFailureReason_{
+        StandaloneAuthInfoFailureReason::None};
     std::uint32_t lastNtlmMessageType_{};
     StandaloneCredSspInitialNegoObservation initialNegoObservation_{};
     NtlmChallengeMessageObservation challengeObservation_{};

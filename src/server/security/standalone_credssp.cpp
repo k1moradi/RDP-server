@@ -26,6 +26,7 @@ struct StandalonePasswordMatchContext final
 {
     const EphemeralNtlmV2Credential *credential{};
     bool matched{};
+    bool nonEmptyDelegatedDomain{};
 };
 
 void matchStandalonePasswordFields(
@@ -38,6 +39,9 @@ void matchStandalonePasswordFields(
         static_cast<StandalonePasswordMatchContext *>(opaqueContext);
     if (context == nullptr || context->credential == nullptr)
         return;
+    // The caller owns these secret-bearing borrowed views. Only the
+    // non-secret empty-domain classification survives the callback.
+    context->nonEmptyDelegatedDomain = !domainUtf16Le.empty();
     context->matched = context->credential->matchesDelegatedPassword(
         domainUtf16Le, userUtf16Le, passwordUtf16Le);
 }
@@ -111,6 +115,7 @@ bool StandaloneCredSspNtlmAcceptor::configureChallenge(
     initialNegoObservation_ = {};
     challengeObservation_ = {};
     failureStage_ = StandaloneAuthenticationFailureStage::None;
+    authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
     lastNtlmMessageType_ = 0U;
     stage_ = StandaloneCredSspStage::AwaitInitialNego;
     return true;
@@ -128,6 +133,7 @@ void StandaloneCredSspNtlmAcceptor::reset() noexcept
     negotiatedVersion_ = 0;
     stage_ = StandaloneCredSspStage::Unconfigured;
     failureStage_ = StandaloneAuthenticationFailureStage::None;
+    authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
     lastSpnegoStatus_ = StandaloneSpnegoStatus::Continue;
     spnegoRejectionReason_ = StandaloneSpnegoRejectionReason::None;
     lastNtlmMessageType_ = 0U;
@@ -384,6 +390,8 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     const EphemeralNtlmV2Credential &credential) noexcept
 {
     failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
+    authInfoFailureReason_ =
+        StandaloneAuthInfoFailureReason::InvalidFrameOrSession;
     if (!request || !request.value.finalAuthInfoOnly() ||
         request.value.version != negotiatedVersion_ ||
         mechanism_.stage() != StandaloneSpnegoStage::MechanismVerified ||
@@ -393,6 +401,8 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
         return reject(reader, writer);
     }
 
+    authInfoFailureReason_ =
+        StandaloneAuthInfoFailureReason::InvalidProtectedLength;
     const auto protectedAuthInfo = request.value.encryptedAuthInfo;
     if (protectedAuthInfo.size() <= kNtlmMessageSignatureBytes ||
         protectedAuthInfo.size() >
@@ -415,6 +425,7 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     SensitiveBytesGuard plaintextGuard{plaintext};
 
     failureStage_ = StandaloneAuthenticationFailureStage::SignSeal;
+    authInfoFailureReason_ = StandaloneAuthInfoFailureReason::SignSeal;
     if (mechanism_.unwrapClientMessage(
             ciphertext, signature, plaintext) !=
         NtlmMessageSecurityResult::Processed)
@@ -423,16 +434,38 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     }
     failureStage_ = StandaloneAuthenticationFailureStage::AuthInfo;
 
-    StandalonePasswordMatchContext match{
-        &credential, false};
+    StandalonePasswordMatchContext match{&credential, false, false};
     const auto visitStatus = visitCredSspValidatedPasswordFields(
         plaintext, &matchStandalonePasswordFields, &match);
+    // The original reject predicate is retained. Classification observes
+    // the existing verification result and never changes its authority.
     const bool verified =
         visitStatus == CredSspPasswordFieldVisitStatus::Visited &&
         match.matched &&
         credential.configured() &&
         matchesPinnedTls(reader.completedFrameServerTls());
-    if (!verified || !reader.releaseFrame())
+    if (!verified)
+    {
+        if (visitStatus ==
+            CredSspPasswordFieldVisitStatus::UnsupportedCredentialType)
+            authInfoFailureReason_ =
+                StandaloneAuthInfoFailureReason::UnsupportedCredentialType;
+        else if (visitStatus != CredSspPasswordFieldVisitStatus::Visited)
+            authInfoFailureReason_ =
+                StandaloneAuthInfoFailureReason::InvalidCredential;
+        else if (match.nonEmptyDelegatedDomain)
+            authInfoFailureReason_ =
+                StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain;
+        else if (!credential.configured())
+            authInfoFailureReason_ =
+                StandaloneAuthInfoFailureReason::CredentialUnavailable;
+        else
+            authInfoFailureReason_ =
+                StandaloneAuthInfoFailureReason::CredentialMismatch;
+        return reject(reader, writer);
+    }
+    authInfoFailureReason_ = StandaloneAuthInfoFailureReason::FrameRelease;
+    if (!reader.releaseFrame())
         return reject(reader, writer);
 
     // authInfo is the final CredSSP protected message. Retire the mechanism
@@ -444,6 +477,7 @@ StandaloneCredSspNtlmAcceptor::processAuthInfo(
     reader.close();
     writer.close();
     failureStage_ = StandaloneAuthenticationFailureStage::None;
+    authInfoFailureReason_ = StandaloneAuthInfoFailureReason::None;
     stage_ = StandaloneCredSspStage::CredentialsVerified;
     return StandaloneCredSspFrameStatus::CredentialsVerified;
 }

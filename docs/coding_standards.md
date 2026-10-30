@@ -1,14 +1,17 @@
-## R5 evidence timing is a measured subset, never a private JSON passthrough (2026-10-30)
+## R2/R6 final CredSSP authInfo first-failure ownership (2026-10-30)
 
-Preserve R1/R10 native timing semantics: TLS work is a subset of active work;
-read/write readiness-to-service and socket poll observations are subsets of
-read/write dwell; native owner maintenance is a subset of service execution;
-maximum application reschedule gap is bounded by total reschedule wait. These
-are non-additive diagnostic subsets, not authentication or performance authority.
-A redacted physical-client summary must construct a typed allowlist of R1/R10
-stage and timing fields rather than forwarding whole private manifest objects,
-including unknown nested keys. Preserve private evidence for owner review but
-never publish injected identity, log paths or usernames from private extensions.
+The single production CredSSP acceptor may retain one small enum through
+terminal final-authInfo rejection, using its existing parser and sign/seal
+verifier. The enum is observation only: no decrypted credential buffers,
+identity, password, domain string, access capability or fallback authority may
+escape. Test fixtures may report an SSPI empty-domain *request* separately
+from the verified decrypted-field category; zero `DomainLength` is not proof
+of delegated-domain emptiness. Distinguish invalid protected length,
+cryptographic unwrapping, invalid DER/type, nonempty domain and combined
+identity/password mismatch without changing the verifier's acceptance
+predicate or fail-closed teardown. Clear observations on fresh challenge,
+reset and successful verification. Agent 2 owns future verifier-policy changes;
+Agent 6's Windows oracle remains diagnostic and `native-admission=no`.
 
 ## R3 Microsoft RDP User Channel ID profile (2026-10-29)
 

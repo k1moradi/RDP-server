@@ -1189,6 +1189,8 @@ void testAuthInfoExactCredentialMatch()
            StandaloneCredSspFrameStatus::CredentialsVerified);
     assert(acceptor.stage() ==
            StandaloneCredSspStage::CredentialsVerified);
+    assert(acceptor.authInfoFailureReason() ==
+           StandaloneAuthInfoFailureReason::None);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
     assert(serverCredential.configured());
@@ -1356,7 +1358,8 @@ void testAuthInfoCredentialMismatchRevokes()
     const auto runMismatch = [](
         std::u16string_view domain,
         std::u16string_view user,
-        std::u16string_view delegatedPassword)
+        std::u16string_view delegatedPassword,
+        StandaloneAuthInfoFailureReason expectedReason)
     {
         MemoryTlsPair tls;
         TsRequestFrameReader reader;
@@ -1386,13 +1389,17 @@ void testAuthInfoCredentialMismatchRevokes()
                StandaloneCredSspStage::Failed);
         assert(acceptor.failureStage() ==
                StandaloneAuthenticationFailureStage::AuthInfo);
+        assert(acceptor.authInfoFailureReason() == expectedReason);
         assert(reader.status() == TsRequestFrameStatus::Closed);
         assert(writer.status() == TsRequestTlsWriteStatus::Closed);
     };
 
-    runMismatch({}, u"Other", u"Password");
-    runMismatch({}, u"User", u"Passw0rd");
-    runMismatch(u"Domain", u"User", u"Password");
+    runMismatch({}, u"Other", u"Password",
+                StandaloneAuthInfoFailureReason::CredentialMismatch);
+    runMismatch({}, u"User", u"Passw0rd",
+                StandaloneAuthInfoFailureReason::CredentialMismatch);
+    runMismatch(u"Domain", u"User", u"Password",
+                StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain);
 }
 
 void testAuthInfoTamperRevokes()
@@ -1426,6 +1433,8 @@ void testAuthInfoTamperRevokes()
            StandaloneCredSspStage::Failed);
     assert(acceptor.failureStage() ==
            StandaloneAuthenticationFailureStage::SignSeal);
+    assert(acceptor.authInfoFailureReason() ==
+           StandaloneAuthInfoFailureReason::SignSeal);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
 }
@@ -1717,6 +1726,15 @@ int main(int argc, char **argv)
         "standalone-credssp-authinfo-credential-mismatch-revokes")
     {
         testAuthInfoCredentialMismatchRevokes();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-first-failure-classification")
+    {
+        // Reuse the complete production-backed TLS/NTLM/CredSSP fixtures.
+        testAuthInfoExactCredentialMatch();
+        testAuthInfoCredentialMismatchRevokes();
+        testAuthInfoTamperRevokes();
         return 0;
     }
     if (testCase ==

@@ -1130,6 +1130,18 @@ public:
     WindowsCredSspClient(const WindowsCredSspClient &) = delete;
     WindowsCredSspClient &operator=(const WindowsCredSspClient &) = delete;
 
+    // SSPI input intent, not proof of the resulting delegated domain.
+    [[nodiscard]] bool explicitEmptyDomainRequested() const noexcept
+    {
+        return credentialState_ ==
+                   CredSspCredentialState::CorrectPasswordEmptyDomain &&
+               identity_.Flags == SEC_WINNT_AUTH_IDENTITY_UNICODE &&
+               identity_.Domain != nullptr &&
+               identity_.DomainLength == 0U &&
+               credSsp_.Type == CredsspSubmitBufferBoth &&
+               credSsp_.pSpnegoCred == &identity_;
+    }
+
     [[nodiscard]] SECURITY_STATUS acquire() noexcept
     {
         wchar_t packageName[] = L"CREDSSP";
@@ -2070,6 +2082,12 @@ public:
         return credentialsVerified;
     }
 
+    [[nodiscard]] StandaloneAuthInfoFailureReason authInfoFailureReason()
+        const noexcept
+    {
+        return acceptor_.authInfoFailureReason();
+    }
+
     [[nodiscard]] StandaloneSpnegoInitialTokenObservation
     initialTokenObservation() const noexcept
     {
@@ -2991,6 +3009,33 @@ void copyBoundedCipherName(
     std::copy_n(sourceView.begin(), bytesToCopy, destination.begin());
 }
 
+[[nodiscard]] constexpr const char *authInfoFailureReasonName(
+    StandaloneAuthInfoFailureReason reason) noexcept
+{
+    switch (reason)
+    {
+    case StandaloneAuthInfoFailureReason::None: return "none";
+    case StandaloneAuthInfoFailureReason::InvalidFrameOrSession:
+        return "frame-or-session";
+    case StandaloneAuthInfoFailureReason::InvalidProtectedLength:
+        return "protected-length";
+    case StandaloneAuthInfoFailureReason::SignSeal: return "sign-seal";
+    case StandaloneAuthInfoFailureReason::InvalidCredential:
+        return "credential-der-or-fields";
+    case StandaloneAuthInfoFailureReason::UnsupportedCredentialType:
+        return "unsupported-credential-type";
+    case StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain:
+        return "nonempty-delegated-domain";
+    case StandaloneAuthInfoFailureReason::CredentialUnavailable:
+        return "credential-unavailable";
+    case StandaloneAuthInfoFailureReason::CredentialMismatch:
+        return "credential-identity-or-password-mismatch";
+    case StandaloneAuthInfoFailureReason::FrameRelease:
+        return "frame-release";
+    }
+    return "unknown";
+}
+
 struct FullCredSspAttempt final
 {
     const char *stage{"not-started"};
@@ -3032,6 +3077,10 @@ struct FullCredSspAttempt final
     bool authInfoTsRequestReceived{};
     bool authInfoObserved{};
     bool credentialsVerified{};
+    bool explicitEmptyDomainRequested{};
+    bool microsoftBindingSecEOk{};
+    StandaloneAuthInfoFailureReason authInfoFailureReason{
+        StandaloneAuthInfoFailureReason::None};
     bool invalidServerBindingReplyQueued{};
     bool invalidServerBindingRejected{};
 };
@@ -3183,6 +3232,8 @@ void printClientProfileObservation(
     result.credentialState = credentialState;
     WindowsCredSspClient client{
         schannelCredentialProfile, credentialState};
+    result.explicitEmptyDomainRequested =
+        client.explicitEmptyDomainRequested();
     ProductionCredSspServer server{experiment, tlsServerProfile};
     if (!server.valid())
     {
@@ -3338,6 +3389,8 @@ void printClientProfileObservation(
         result.nextPump.productionReplyCommitted;
     result.microsoftAuthInfoGenerated =
         result.nextPump.microsoftOutputGenerated;
+    result.microsoftBindingSecEOk =
+        result.nextPump.lastClientStatus == SEC_E_OK;
 
     if (postTypeThreeExperiment ==
         PostTypeThreeExperiment::InvalidServerBinding)
@@ -3362,12 +3415,11 @@ void printClientProfileObservation(
     result.authInfoTsRequestReceived = true;
 
     result.stage = "production-authinfo";
-    if (!server.processAuthInfoFrame(
-            result.authInfoObserved,
-            result.credentialsVerified))
-    {
+    const bool authInfoAccepted = server.processAuthInfoFrame(
+        result.authInfoObserved, result.credentialsVerified);
+    result.authInfoFailureReason = server.authInfoFailureReason();
+    if (!authInfoAccepted)
         return result;
-    }
     result.stage = result.credentialsVerified
         ? "credentials-verified"
         : "authinfo-not-verified";
@@ -4087,6 +4139,11 @@ void printFailure(
     const FullCredSspAttempt &result) noexcept
 {
     return std::string_view{result.stage} == "credentials-verified" &&
+           result.negotiatedTlsVersion == TLS1_3_VERSION &&
+           result.explicitEmptyDomainRequested &&
+           result.microsoftBindingSecEOk &&
+           result.authInfoFailureReason ==
+               StandaloneAuthInfoFailureReason::None &&
            result.tlsEstablished &&
            result.initialClientTsRequestReceived &&
            result.productionTypeTwoQueued &&
@@ -4121,7 +4178,9 @@ void printFailure(
         "type3-observed=%s type3-verified=%s pubkeyauth=%s "
         "server-binding-queued=%s server-binding-committed=%s "
         "authinfo-output=%s authinfo-tsrequest=%s authinfo=%s "
-        "credentials-verified=%s native-admission=no stage=%s\n",
+        "credentials-verified=%s native-admission=no stage=%s "
+        "sspi-empty-domain-requested=%s microsoft-binding-sec-e-ok=%s "
+        "production-authinfo-failure=%s\n",
         passed ? "PASS" : "FAIL",
         tlsVersionName(result.negotiatedTlsVersion),
         result.productionObservedTypeThree ? "yes" : "no",
@@ -4133,7 +4192,10 @@ void printFailure(
         result.authInfoTsRequestReceived ? "yes" : "no",
         result.authInfoObserved ? "yes" : "no",
         result.credentialsVerified ? "yes" : "no",
-        result.stage);
+        result.stage,
+        result.explicitEmptyDomainRequested ? "yes" : "no",
+        result.microsoftBindingSecEOk ? "yes" : "no",
+        authInfoFailureReasonName(result.authInfoFailureReason));
     std::fflush(stderr);
     if (!passed)
         printFailure(TargetProfile::PortableServerName, result);

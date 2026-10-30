@@ -225,6 +225,36 @@ CLANG64 Debug/Release plus the exact-SHA Microsoft interop matrix must PASS;
 only then may this oracle qualify a later owner-authorized physical R6
 comparison.
 
+**R6 Round 2 Microsoft authInfo attribution (2026-10-30; source parent `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`):**
+MSVC protocol job `123401900562` and CLANG64 job `123401900577`
+(workflow `40860372282`) independently reach TLS1.3, committed production
+Type 2, verified Type 3, pubKeyAuth, committed server binding and Microsoft
+final authInfo/TSRequest, but not `CredentialsVerified`. The independent
+bad-server-binding control correctly returns `SEC_E_INVALID_TOKEN` before
+authInfo. The first unproven boundary is production final delegated-credential
+verification, not Type 2, TLS or the CredSSP binding algorithm.
+
+Agent 6's minimal diagnostic increment exposes the first production-owned
+final-authInfo rejection category (frame/context, protected length, sign/seal,
+malformed/unsupported credential, nonempty delegated domain, unconfigured
+credential, identity/password mismatch, frame release) without logging any
+credential or raw SSPI data. It reports only whether SSPI was *asked* for an
+explicit empty domain; zero `DomainLength` does not prove Microsoft serialized
+an empty delegated domain. R2/Agent 2 retains full ownership of verifier
+policy and must adjudicate any independently confirmed domain mismatch.
+The positive oracle additionally pins TLS1.3, Microsoft `SEC_E_OK` after
+binding and production `CredentialsVerified`; it never issues R2/native
+admission. Existing malformed binding, required-AV, credential-source and
+TLS-version negatives remain mandatory. New offline behavior CTest:
+`security.standalone-credssp-authinfo-first-failure-classification`.
+**Local Windows MSVC/CLANG64 Debug/Release and full CTest: NOT RUN** in this
+connector environment; **exact publication-SHA hosted CI: PENDING**. The
+actual delegated-domain category is **UNDETERMINED** until that run; never
+rename an asserted source-intent observation as delegated-domain evidence.
+**Next:** use both Windows compilers' exact-SHA oracle receipts to identify
+the first typed production rejection, hand confirmed policy mismatches to
+Agent 2, and require R9's complete producer set before any physical candidate.
+
 ## R9 P0 CI repair — R7 typed-diagnostic/Main-fallback parity (2026-10-29)
 
 Current-main R7 publication `0a40bc6c78ed4243b3e74e3a38eee6911e1d3618`,
@@ -980,6 +1010,14 @@ certificate or CredSSP wire change.
 **Next:** repair/qualify the existing exact-SHA producer set, run the existing
 manual R9 owner-candidate gate, then capture the controlled two-client physical
 record. Do not run either real client in hosted CI.
+
+**Round 2 A/B evidence extension (2026-10-30):** attach the redacted
+`production-authinfo-failure` classification and SSPI empty-domain input
+intent separately for the same server SHA; record R1/R10 Accepted-to-TLS,
+TLS-to-Type-1, Type-2-to-EOF, readiness-to-service and application-reschedule
+fields only with their documented measurement semantics. Never treat a bare
+0x204 or a missing Type 3 as delegated-domain rejection. Physical rows remain
+NOT RUN while either Windows producer is red.
 
 ## R10 P0 supporting — reconciled pre-authentication stage timeline (2026-10-27)
 

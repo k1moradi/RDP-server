@@ -1,42 +1,8 @@
 ## R3 P0 follow-up — CAL test registry compile blocker found and corrected (2026-10-30)
 
-Dependency-graph audit on current `main` found the immediate blocker is no
-longer the production OpenSSL call site. The new
-`licensing-client-cal-signed-content-empty-only` behavior increased the
-single `test_owned_mcs_connect_initial` dispatch table from 169 to 170
-entries, but its fixed `std::array` bound remained 169. Exact R3 SHA
-`e6293ca6fc860ccec651793952c23e2b460576ff` therefore failed macOS,
-Ubuntu and R9 sanitizer compilation with excess initializers; Windows failed
-with C2078/C2131. The fix is the minimal 169 -> 170 bound correction.
+Exact R3 SHA `e6293ca6fc860ccec651793952c23e2b460576ff` proved the OpenSSL licensing source reached the shared MCS test translation unit, then all protocol platforms failed because the newly added CAL behavior made 170 entries in `std::array<McsTestCase, 169>`. Commit `8249dd3d948b6d598deb4564f4820f8863292c7d` corrects only that bound to 170; production licensing/MCS/Share behavior is unchanged. The prior macOS job used OpenSSL 4.0.3, so the OpenSSL 4.1+ branch still needs exact-SHA hosted proof.
 
-The target dependency chain is
-`test_owned_mcs_connect_initial -> rdp-server-protocol +
-rdp-server-runtime-licensing -> OpenSSL`. Because this test executable is
-compiled by every protocol matrix job, the stale bound prevented any CAL CTest
-or downstream Share/licensing qualification from running. The production
-OpenSSL compatibility helper remains present on current main.
-
-R2's prepared owner-consent epoch fence has now landed in production at
-`e469ce9707965c888988fc27c4134acccfd31b1a`, and later R5/R10 docs consume
-that authoritative lease contract. That removes the earlier source-level R2
-handoff gap for future R3 admission, subject to exact-SHA hosted qualification.
-R8 still owns CLIPRDR application serialization; R3 remains the sole
-MCS/static-channel route and accepted-byte receipt owner.
-
-Validation before this correction: exact R3 structure workflow
-`41111411166` **PASS**. Primary workflow `41111411260`: macOS
-`124254320590` **FAIL**, Ubuntu `124254320684` **FAIL**, Windows
-`124254320603` **FAIL**, R9 sanitizer `124254320460` **FAIL**, all at the
-170-entry/169-bound test compile barrier. macOS did compile
-`rdp_licensing.cpp` successfully but used OpenSSL 4.0.3, so OpenSSL 4.1+
-source compatibility remains **NOT YET VERIFIED**.
-
-Next gate after publication: exact-SHA Linux/Windows/macOS compile and full
-CTest plus R9 sanitizer. Then revalidate the existing
-`CredentialsVerified` + coalesced 416-byte Microsoft MCS denial on the
-descendant with R2's consent-epoch fence. No synthetic native lease and no
-physical client without R9 authorization.
-
+R2's prepared owner-consent epoch fence is present via `e469ce9707965c888988fc27c4134acccfd31b1a`; R10 consumes the authoritative lease only. At the last check, structure workflow `41115191080` was PASS and primary `41115190802` was IN PROGRESS. Next gate is exact-head Linux/Windows/macOS full CTest plus R9 sanitizers, then manual `r9_credssp_owner_candidate=true` PASS and separate explicit owner authorization before any physical native-admission attempt. No synthetic lease; clipboard activation remains false.
 
 ## R5 Round 4 — in-flight XShm borrow retirement and owner-only physical protocol (2026-10-30)
 
@@ -146,32 +112,15 @@ not applicable**; only cold-path control state changed.
 
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
 
-**Source audit baseline:** `452ce336efcb779adb21979f7c22a63bf23535c9`; reconciled on descendant `e6293ca6fc860ccec651793952c23e2b460576ff` (R6 A/B worksheet and R3 OpenSSL fix retained). This is a source/ownership and dependency audit; production source, scheduler, R1 TLS, R2 verifier, R3 state machine, CTest inventory and clipboard activation are **UNCHANGED**.
+**Current contract:** R10 remains a coordinator only. R1 owns the sole TCP/BIO/SSL and bounded TLS reader/writer; R2 owns CredSSP principal proof, native authority and the lease; R3 owns MCS/Share/static-channel state and accepted-byte receipts; R4 owns frame/ACK lifecycle; R5 owns X11 capture/input; R7 owns GUI; R8 owns clipboard application state. `kLinuxProductionClipboardActivationApproved = false`.
 
-**Positive handoff contract (not a claimed physical PASS):**
-1. R7 Main begins Sharing OFF, commits the owner-entered memory-only Session Password, asks for current unlocked owner consent and explicitly turns Sharing ON. R10 independently checks current selected LAN endpoint, service-bound certificate, native X11 selector, credential/session generation and single listener. A GUI Username or status field never grants authority.
-2. R10 accepts one HYBRID/X.224 peer and creates one `LinuxRuntimeConnection`. R1 owns its only TCP/BIO/SSL, negotiated-HYBRID/certificate provenance and bounded TLS/CredSSP reader/writer; R2 consumes complete TSRequests and, only after final verified `authInfo`, returns `CredentialsVerified` with a pinned connection/credential principal proof.
-3. In the same serialized `advanceAcceptedClientOnce()` invocation, R10 obtains the selected generation-bound `ConsoleEvidenceRequest` and calls `LinuxRuntimeConnection::issueAdmission()`. Only R2's `LinuxConsoleAdmissionBroker::issue()` may issue a current nonforgeable lease after verified TLS/authentication proof, current consent, policy generation, fresh NSS/logind same-UID/unlocked physical seat0 + DISPLAY/session fingerprint and live native change monitor. R1 `completeCredSspAdmission()` advances the transport phase only inside that successful broker path. R10 never treats a diagnostic, Boolean, credential or selected display as a lease.
-4. On successful lease issuance R10 advances exactly one accepted-client phase to `McsConnectInitial`; subsequent work validates owner/credential/session state and R2's concrete lease. The existing R1 `readTlsApplicationData()` consumes at most the current MCS frame reader's `bytesNeeded()`, including decrypted `SSL_pending()` bytes left after final authInfo; it must not replay, drop, double-consume, or route trailing plaintext through CredSSP. R2 revalidates before the read and `authorizeR3McsConnectInitial()` independently authorizes the complete TPKT before the R3 session advances. A native-denied connection discards any buffered Connect-Initial.
-5. R3 alone performs Connect-Response accepted-byte receipts, Erect/Attach/Join, Client Info, PersonalDesktop licensing (no CAL decision), Demand/Confirm Active and Share. Its outbound receipts are reauthorized against the same R2 lease/R1 owner. R4 owns frame/surface/ACK generation; R5 owns X11 desktop/capture/input constructed only after GraphicsReady under R2 `visitNativeDesktopSelection()`; R7 reads only R10 product status. R8 owns the separately prepared CLIPRDR bridge and route/local generations, but `kLinuxProductionClipboardActivationApproved = false` remains a hard production gate.
+**Resolved blocker:** Agent 2 landed `e469ce9707965c888988fc27c4134acccfd31b1a`. R2 now captures the exact prepared `OwnerSharingAuthorizationEpoch`, rechecks it after native evidence and after proof/R1 completion, stores it in private lease control and requires the same epoch on protected revalidation. R10 still calls only `issueAdmission()` and `visitNativeDesktopSelection()`; there is no R10 epoch cache, Boolean authority, or duplicate controller.
 
-**First unresolved positive boundary:** No source-level gap is demonstrated in the serialized `CredentialsVerified -> issueAdmission -> first MCS` composition. The current production-backed coalesced 416-byte Microsoft MCS test proves **denial-only**; there is still no genuinely admitted physical-client receipt proving its MCS/Share path. The first transport-focused case to investigate *if* a genuine admitted client stalls at first MCS is a following TLS record held in OpenSSL with `SSL_pending() == 0` despite non-decrypted pending record data: R1's `tlsApplicationReadReady()` uses `SSL_pending()` and R10 otherwise waits for socket readiness. This is an **unreproduced hypothesis, not permission to change R1 polling/TLS**. The new R1 partial-TSRequest-before-FIN negative is distinct and does not prove a positive admitted MCS handoff.
+**Positive handoff:** one accepted HYBRID connection reaches R2 `CredentialsVerified`; in the same serialized owner step R10 obtains the current generation-bound admission request and calls `issueAdmission()`. Only a successful R2 lease advances R10 to `McsConnectInitial`. R1 then reads at most the first MCS frame reader's remaining bytes, including decrypted OpenSSL pending plaintext; R2 revalidates before the read and again before R3 consumes the complete Connect-Initial. R3 alone advances Connect-Response, Erect/Attach/Join, Client Info, PersonalDesktop licensing, Demand/Confirm Active and Share.
 
-**Consent-epoch cross-owner decision (R2):** The current Linux `prepareAdmission()` samples `CurrentOwnerSharingAuthority::authorizes()`; `issueWithSources()` rechecks monitor, policy, principal proof and native evidence before `completeNativeAdmission()` and `completeCredSspAdmission()`, but does not explicitly pin/recheck the same `OwnerSharingAuthorizationEpoch` at that final boundary. Agent 2 owns the final contract, including lock/replacement/expiry and whether an exact-epoch recheck is required. Do not add a weaker R10 cached epoch, owner Boolean, speculative positive lease or second authority controller.
+**Retirement:** owner authority revokes first. Current production then retires prepared clipboard/X11 native children, revokes the accepted R3/R2 aggregate, closes CredSSP framing and finally the R1 TLS/socket, then the listener. Existing owner-thread serialization plus R5's no-native-post/reentrant retirement tests have not reproduced a need to reorder those lifetimes.
 
-**Observed retirement contract (verify, do not silently reorder):** R10 Stop/session-loss calls revoke owner consent first; its current implementation then retires prepared R8 clipboard/X11 native children (no XTEST on authority loss), calls `LinuxRuntimeConnection::revoke()` to retire R3/graphics/receipt and R2 proof/lease state, closes R1 CredSSP frames and SSL/socket last, then closes the listener. A peer-only disconnect retires native before its accepted aggregate but keeps the authorized listener for a new peer. Thus the *actual* native-vs-R3 destructor sequence differs from a proposed R3-first teardown ordering. The owner thread and first owner revocation prevent normal new work, and R5 has reentrant XDamage retirement coverage; no R10 reentrant-use defect has been reproduced. Any teardown reorder requires a concrete failing lifetime test and Agent 5/R8 agreement. Stop, credential/session/display change, pending outbound R1/R3 receipts and reconnect must invalidate old generations and borrow scopes.
-
-**Critical path / handoffs:**
-- Agent 3: the OpenSSL 4.1 licensing source fix and dedicated CAL signed-content regression landed as `e6293ca6fc860ccec651793952c23e2b460576ff`; hosted exact-descendant macOS/Windows/Linux CI and R9 sanitizer qualification remain required before that blocker is declared resolved. Preserve R3 MCS/Share ownership.
-- Agent 2: finalize the Linux same-consent-epoch issuance contract and genuine native authority; R10 consumes its existing lease API only.
-- Agents 6/1: follow the credential-controlled A/B worksheet in `docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` and correlate the same physical Windows App attempt (currently no observed client Type3 after locally committed production Type2); local Type2 commit is not peer receipt. No speculative TLS/profile change.
-- Agent 9: designate and explicitly authorize an exact green owner-candidate SHA and the separate controlled physical run; a green fixture is not owner consent.
-- Agent 5/R4: once real R2/R3 gates pass, qualify selected X11 desktop, first RDPGFX surface/frame/ACK, input, resize, revocation; Agent 8's native clipboard remains disabled.
-- Agent 7: observe R10's existing redacted product/Advanced projection only.
-
-**Single owner-authorized physical receipt, STOP AT FIRST FAILURE:** Agent 6's `docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` controls client credential selection and A/B validity; the following adds R10's downstream server-native milestones, not a second run.  record exact repository/source and extracted package SHAs plus CI/R9 qualification; OS/client version and attempt ID; Sharing OFF -> owner consent -> explicit ON; endpoint/interface and certificate fingerprint/identity-check; GUI Username matching fact and Session Password comparison success/failure category *without any credential values/lengths/hashes*; TLS selected protocol and R1 ownership; Type1; Type2 queued vs exact local TLS write completion; client-side Type3 observed/absent and server post-Type2 bytes/FIN/alerts; pubKeyAuth/server binding/final authInfo; `CredentialsVerified`; R2 current native Admission outcome and denial reason; then only if reached, MCS Connect-Initial/Response, Erect/Attach/Join, licensing and Share; then Graphics DVC/surface/first frame/ACK, input/resize, Stop/lock/session loss and fresh reconnect. Each not-reached field is `NOT REACHED`, never `FAIL`; retain bounded first-failure category, same accepted-client ID/listener+credential generations, independent client/server timings and no protected payload. Obtain explicit owner authorization before network/native/desktop action and never run physical clipboard.
-
-**Validation:** source/interface/CTest registration inspection **PASS** on `452ce336efcb779adb21979f7c22a63bf23535c9`. Existing R10 typed-authInfo replacement and R3 coalesced-MCS negative CTests are registered; no new test or source change here. Current-head workflow structure `41111017232` **PASS**; primary `41111017558` **IN PROGRESS** at audit. Canonical local configure/build/focused/full CTest, sanitizers and benchmark **NOT RUN** (approved `~/rdp-server/build/` unavailable). Real native Admission, physical Microsoft client, R3/graphics/input and reconnect **BLOCKED / NOT RUN / not authorized** pending Agent 3/R9 and explicit owner consent. Next R10 gate: consume Agent 2's final exact-epoch contract and Agent 9's designated SHA, then diagnose the first observed physical boundary without rewriting working owners.
+**Current blockers:** no genuinely admitted physical client has yet proved `CredentialsVerified -> native Admission -> first MCS -> Share -> graphics/input -> Stop/reconnect`. The R3 OpenSSL source fix has landed and its immediate 170/169 test-table compile blocker is corrected, but exact-head full Linux/Windows/macOS and sanitizer qualification is still required. No recent manual owner-candidate workflow dispatch exists. Therefore physical execution remains BLOCKED / NOT RUN until R9 designates one exact SHA and the owner separately authorizes the attempt. Agent 6's `docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md` remains the client-side A/B procedure; stop at the first actual failing boundary and mark later stages NOT REACHED.
 
 ## R3 P0 OpenSSL 4.1 CAL inspection build unblock — 2026-10-30
 

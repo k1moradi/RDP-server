@@ -1736,6 +1736,7 @@ function(add_rdp_test source_file suite behavior)
         # belong to the existing real TLS fixture and remain explicit
         # security contracts rather than transport-only coverage.
         foreach(case_name IN ITEMS
+                credssp-active-tls-public-key-length-portability
                 credssp-active-tls-binding-positive
                 credssp-active-tls-binding-rejections
                 credssp-tls-release-certificate-denial)

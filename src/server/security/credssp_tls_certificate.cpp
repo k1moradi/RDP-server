@@ -51,14 +51,27 @@ namespace
     {
         return false;
     }
+#if !defined(LIBRESSL_VERSION_NUMBER) && \
+    OPENSSL_VERSION_NUMBER >= 0x40100000L
+    const std::size_t length = ASN1_STRING_get_length(bits);
+    const unsigned char *data = ASN1_STRING_get0_data(bits);
+    if (length == 0U || length > kMaximumCredSspPublicKeyBytes ||
+        data == nullptr)
+    {
+        return false;
+    }
+    key = {data, length};
+#else
     const int length = ASN1_STRING_length(bits);
     const unsigned char *data = ASN1_STRING_get0_data(bits);
-    if (length <= 0 || length > static_cast<int>(kMaximumCredSspPublicKeyBytes) ||
+    if (length <= 0 ||
+        length > static_cast<int>(kMaximumCredSspPublicKeyBytes) ||
         data == nullptr)
     {
         return false;
     }
     key = {data, static_cast<std::size_t>(length)};
+#endif
     return true;
 }
 

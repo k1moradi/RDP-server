@@ -1,3 +1,22 @@
+## R6 OpenSSL 4.1 CredSSP selected-certificate length compatibility — 2026-10-30
+
+- Failure baseline: `8249dd3d948b6d598deb4564f4820f8863292c7d`;
+  reconciled publication parent: `d4821dacb33f03bbf34d177f2e704aeeac2fe6e3`.
+- Current macOS producer failure: AppleClang/OpenSSL 4.1 treats
+  `ASN1_STRING_length` in `credssp_tls_certificate.cpp` as a deprecated
+  warning and the project correctly promotes it to an error.
+- Narrow correction: OpenSSL 4.1+ uses `ASN1_STRING_get_length`; older
+  OpenSSL/LibreSSL keep the previous accessor and all existing selected-key
+  bounds/borrowing semantics.
+- Added ordinary offline
+  `security.credssp-active-tls-public-key-length-portability`, using the
+  existing real TLS fixture and independent binding-hash equality check.
+  Existing SSPI oracle and negative controls are unchanged.
+- Source/CTest registration inspection **PASS**. Local canonical build/full
+  CTest and benchmark **NOT RUN** in connector-only authoring. Exact-SHA hosted
+  macOS/Linux/Windows and R9 qualification **PENDING**. Physical client/native
+  desktop remains **NOT RUN / unauthorized**.
+
 ## R10 dependency-graph recovery after concurrent ROADMAP truncation — 2026-10-30
 
 - Current-head audit found `docs/ROADMAP.md` at `8249dd3d948b6d598deb4564f4820f8863292c7d` was a zero-byte blob, dropping the living TODO and all R10 dependency sections despite Agent 3's intended CAL-cardinality entry.

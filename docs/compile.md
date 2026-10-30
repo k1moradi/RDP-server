@@ -1,3 +1,14 @@
+## R6 OpenSSL 4.1 CredSSP selected-certificate compatibility (2026-10-30)
+
+The selected-certificate binding helper keeps the existing OpenSSL dependency
+and `test_owned_preauth_session` target. OpenSSL 4.1+ uses
+`ASN1_STRING_get_length`; older OpenSSL and LibreSSL retain
+`ASN1_STRING_length`. The new focused CTest adds no library, package, build
+flag, native service, network dependency or build root. Use only the canonical
+`~/rdp-server/build/`. Local compile/full CTest is **NOT RUN** in this
+connector environment; exact-SHA hosted macOS/OpenSSL 4.1 plus Linux/Windows
+qualification is required.
+
 ## R3 CAL regression dispatch-table compile blocker correction (2026-10-30)
 
 Exact R3 SHA `e6293ca6fc860ccec651793952c23e2b460576ff`

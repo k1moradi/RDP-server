@@ -1,3 +1,35 @@
+## R6 OpenSSL 4.1 selected CredSSP certificate compile unblock (2026-10-30)
+
+**Failure baseline:** `8249dd3d948b6d598deb4564f4820f8863292c7d`;
+**reconciled publication parent:** `d4821dacb33f03bbf34d177f2e704aeeac2fe6e3`.
+Agent 3 has resolved the preceding MCS test-dispatch cardinality failure, but
+the descendant macOS/OpenSSL 4.1 producer exposes a second deprecated
+`ASN1_STRING_length` in
+`src/server/security/credssp_tls_certificate.cpp`. This is R6's selected
+server-certificate public-key extraction path used by the existing CredSSP
+binding helper. Replace only that accessor with
+`ASN1_STRING_get_length` on OpenSSL 4.1+, retaining the old API for older
+OpenSSL/LibreSSL and the same nonzero/4096-byte bound. The test-side independent
+key view uses the identical version boundary.
+
+New ordinary CTest
+`security.credssp-active-tls-public-key-length-portability` reuses the existing
+real local TLS fixture and proves the production binding hash equals an
+independently computed hash from the exact selected certificate public-key view.
+Existing Microsoft SSPI full-CredSSP, malformed Type-2, binding-negative,
+target, TLS-profile and credential-source controls are unchanged. No TLS,
+certificate selection, Type-2, target-name, verifier or native-admission
+semantics change.
+
+**Validation at authoring:** source/registration review **PASS**; canonical
+local build/full CTest **NOT RUN** because this connector has no approved
+`~/rdp-server/build` checkout. Exact-publication-SHA hosted macOS/OpenSSL 4.1,
+Linux/Windows full CTest and R9 producer qualification **PENDING**. Physical
+Windows App/mstsc, credential-store mutation and native desktop testing remain
+**BLOCKED / NOT RUN / unauthorized** pending a green common SHA, manual R9
+candidate PASS and separate owner permission. Benchmark **NOT RUN / not
+applicable**.
+
 ## R3 P0 follow-up — CAL test registry compile blocker found and corrected (2026-10-30)
 
 Exact R3 SHA `e6293ca6fc860ccec651793952c23e2b460576ff` proved the OpenSSL licensing source reached the shared MCS test translation unit, then all protocol platforms failed because the newly added CAL behavior made 170 entries in `std::array<McsTestCase, 169>`. Commit `8249dd3d948b6d598deb4564f4820f8863292c7d` corrects only that bound to 170; production licensing/MCS/Share behavior is unchanged. The prior macOS job used OpenSSL 4.0.3, so the OpenSSL 4.1+ branch still needs exact-SHA hosted proof.

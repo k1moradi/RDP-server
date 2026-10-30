@@ -1,3 +1,15 @@
+## R6 CredSSP selected-certificate ASN.1 length portability (2026-10-30)
+
+CredSSP selected-certificate public-key extraction follows the same OpenSSL
+version boundary as CAL SignedData inspection: use the size_t-returning
+`ASN1_STRING_get_length` only with OpenSSL 4.1+ headers, retain
+`ASN1_STRING_length` for older OpenSSL and LibreSSL, and keep the existing
+strict nonzero / `kMaximumCredSspPublicKeyBytes` bound before forming a
+borrowed span. This is compile/API portability only; it must not alter the
+selected certificate, TLS policy, CredSSP binding bytes, target identity or
+authentication/native-admission decisions. Keep `-Werror`; do not suppress
+the deprecation warning.
+
 ## R5 borrowed framebuffer callback may retire its native owner (2026-10-30)
 
 The R4 framebuffer callback owns a temporary `std::span<const std::byte>` into the current XShm arena. The callback may synchronously trigger terminal native authority revocation, so callers must check aggregate health, capture generation and geometry **after** callback return before reporting a successful publication. Never inspect or retain the borrowed pixels after the callback destroys the old arena. Avoid a second buffer owner or a speculative XShm copy on the hot path. The native owner thread serializes callback delivery and resource retirement. Graceful disconnect under valid R2 authority may emit held-key/button releases; terminal authorization loss and fatal display failure must clear local input state without any XTEST request. R10 consumes the broker's authoritative consent/lease revalidation, not a duplicated owner-consent epoch.

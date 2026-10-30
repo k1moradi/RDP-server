@@ -7856,6 +7856,50 @@ void testOwnedHybridProvenanceRevocation()
     }
 }
 
+[[nodiscard]] std::size_t selectedTlsPublicKeyLengthForTest(
+    const ASN1_BIT_STRING *bits) noexcept
+{
+    if (bits == nullptr)
+        return 0U;
+#if !defined(LIBRESSL_VERSION_NUMBER) && \
+    OPENSSL_VERSION_NUMBER >= 0x40100000L
+    return ASN1_STRING_get_length(bits);
+#else
+    const int length = ASN1_STRING_length(bits);
+    return length > 0 ? static_cast<std::size_t>(length) : 0U;
+#endif
+}
+
+void testLiveTlsSelectedPublicKeyLengthPortability()
+{
+    TlsHandshakeFixture tls;
+    assert(SSL_is_init_finished(tls.server.get()) == 1);
+    const X509 *selected = SSL_get_certificate(tls.server.get());
+    assert(selected);
+    const ASN1_BIT_STRING *bits = X509_get0_pubkey_bitstr(selected);
+    const std::size_t keyLength = selectedTlsPublicKeyLengthForTest(bits);
+    assert(keyLength > 0U && keyLength <= kMaximumCredSspPublicKeyBytes);
+    const auto *keyBytes = ASN1_STRING_get0_data(bits);
+    assert(keyBytes);
+
+    const auto keyView = std::span{
+        static_cast<const std::uint8_t *>(keyBytes), keyLength};
+    std::array<std::uint8_t, 32> nonce{};
+    for (std::size_t index = 0U; index < nonce.size(); ++index)
+        nonce[index] = static_cast<std::uint8_t>(index + 1U);
+
+    CredSspHash independent{};
+    CredSspHash selectedTls{};
+    assert(computeCredSspBindingHash(
+        CredSspBindingDirection::ClientToServer,
+        nonce, keyView, independent));
+    assert(computeCredSspBindingForActiveServerTls(
+        tls.server.get(),
+        CredSspBindingDirection::ClientToServer,
+        nonce, selectedTls));
+    assert(selectedTls == independent);
+}
+
 void testLiveTlsCertificateBindingPositive()
 {
     // The OpenSSL TLS fixture performs a real handshake and chooses an
@@ -7870,13 +7914,13 @@ void testLiveTlsCertificateBindingPositive()
         assert(selected);
         const ASN1_BIT_STRING *bits = X509_get0_pubkey_bitstr(selected);
         assert(bits);
-        const int keyLength = ASN1_STRING_length(bits);
-        assert(keyLength > 0);
+        const std::size_t keyLength =
+            selectedTlsPublicKeyLengthForTest(bits);
+        assert(keyLength > 0U && keyLength <= kMaximumCredSspPublicKeyBytes);
         const auto *keyBytes = ASN1_STRING_get0_data(bits);
         assert(keyBytes);
         const auto keyView = std::span{
-            static_cast<const std::uint8_t *>(keyBytes),
-            static_cast<std::size_t>(keyLength)};
+            static_cast<const std::uint8_t *>(keyBytes), keyLength};
 
         CredSspTlsCertificateFingerprint fingerprint{};
         assert(fingerprintActiveCredSspServerTlsCertificate(
@@ -11922,6 +11966,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
     {"credssp-owned-tls-reply", &testOwnedTlsCredSspReplyTransport},
     {"credssp-tls-certificate-pinning", &testTlsCredSspCertificatePinning},
     {"credssp-tls-release-certificate-denial", &testTlsCredSspReleaseCertificateContinuity},
+    {"credssp-active-tls-public-key-length-portability",
+     &testLiveTlsSelectedPublicKeyLengthPortability},
     {"credssp-active-tls-binding-positive", &testLiveTlsCertificateBindingPositive},
     {"credssp-active-tls-binding-rejections", &testLiveTlsCertificateBindingRejections},
     {"credssp-tls-reply-wire", &testTlsCredSspReplyWire},

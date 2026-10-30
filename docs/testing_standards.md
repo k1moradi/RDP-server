@@ -1,3 +1,16 @@
+## R6 OpenSSL 4.1 selected CredSSP public-key length regression (2026-10-30)
+
+Keep `security.credssp-active-tls-public-key-length-portability` as an
+ordinary offline CTest in the existing real-TLS `test_owned_preauth_session`
+executable. It must complete a real local TLS handshake, read the selected
+server certificate's SubjectPublicKey BIT STRING with the version-compatible
+length accessor, enforce the production maximum, independently compute one
+client-to-server CredSSP binding hash from that exact borrowed key view and
+require equality with `computeCredSspBindingForActiveServerTls`. The existing
+positive/rejection/release certificate-binding cases remain independent. This
+test opens no external listener, uses no OS credential, and grants no native
+Admission.
+
 ## R3 MCS test-dispatch cardinality must match registered behaviors (2026-10-30)
 
 The shared `test_owned_mcs_connect_initial` executable uses one fixed

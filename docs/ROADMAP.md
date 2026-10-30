@@ -1,3 +1,19 @@
+## R2 P0 Round 2 follow-up — final-authInfo denial regressions (2026-10-30)
+
+**Parent:** `58ba13d5aa515fda10f7b559b8c5adee28b324e8`. The existing typed production verifier and Agent 6's
+read-only SSPI oracle remain unchanged. R2 extends the existing first-failure
+CTest with malformed final TSRequest, invalid protected length and correctly
+sealed malformed delegated DER, and registers a second behavior-named CTest
+for post-binding credential revocation. Each requires Failed, closed
+reader/writer, exact typed reason and reset of non-authorizing diagnostics.
+This fills gaps in offline assurance without changing password/domain policy,
+NTLM wrap/unwrap, TLS, R2 native admission, MCS, Share, graphics or clipboard.
+
+Local canonical Debug CTest and focused ASan/UBSan: NOT RUN (GitHub DNS /
+approved checkout unavailable in this connector environment). Exact-SHA
+hosted CI and actual typed Microsoft authInfo result: PENDING. No positive
+Microsoft CredentialsVerified result or native session was inferred.
+
 ## R5 P1 Round 2 — native authority retirement audit and private evidence subset checks (2026-10-30)
 
 **Source baseline:** `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`. The Linux R2/R10/R5 native construction boundary remains after actual R2 admission, Share and GraphicsReady; no offline test or Microsoft SSPI memory-BIO oracle can create the selected physical X11 owner. R10 owns a single serialized listener, Qt service and R1 reader; R5's `X11DesktopResources` owns one XCB/XShm/XDamage/XTEST generation and suppresses native input during authorization-loss retirement. Existing R5 native-generation and Xvfb cases remain authoritative. No production X11/R2/R10 change is justified by this source review.

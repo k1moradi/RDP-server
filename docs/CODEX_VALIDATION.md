@@ -1,3 +1,15 @@
+## R2 final-authInfo offline negative-fixture follow-up (2026-10-30)
+
+- Parent `58ba13d5aa515fda10f7b559b8c5adee28b324e8`: current typed production verifier and Microsoft
+  SSPI oracle were not modified by this test-only increment.
+- New/expanded existing CTest modes: malformed final request, short sealed
+  length, malformed DER under valid NTLM sign/seal, and post-binding credential
+  revoke; each requires closed reader/writer and exact typed rejection.
+- Source/test static review PASS; actual local Debug full CTest and focused
+  ASan/UBSan NOT RUN (no approved checkout or GitHub DNS in connector).
+- Exact publication-SHA CI: PENDING. Microsoft generated authInfo reason:
+  NOT VERIFIED until Agent 6's Windows run finishes.
+
 ## R6 Round 2 Microsoft delegated authInfo typed diagnosis — 2026-10-30
 
 - Initial source SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`; [Actions 40860372282](https://github.com/k1moradi/RDP-server/actions/runs/40860372282).

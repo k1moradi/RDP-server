@@ -1353,6 +1353,96 @@ void testDirectTlsCannotBindAdmissionProof()
     assert(acceptor.stage() == StandaloneCredSspStage::Unconfigured);
 }
 
+enum class FinalAuthInfoDenialFixture : std::uint8_t
+{
+    MissingAuthInfo,
+    ShortProtectedAuthInfo,
+    MalformedCredentialDer,
+    RevokedCredential,
+};
+
+// Use the existing production verifier and a real in-memory TLS peer.
+// No fabricated native admission or second credential controller is used.
+void assertFinalAuthInfoDenial(
+    FinalAuthInfoDenialFixture fixture,
+    StandaloneAuthInfoFailureReason expectedReason)
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer);
+
+    Bytes request;
+    if (fixture == FinalAuthInfoDenialFixture::MissingAuthInfo)
+    {
+        request = wrap(0x30U, version(6U));
+    }
+    else
+    {
+        Bytes protectedAuthInfo;
+        if (fixture == FinalAuthInfoDenialFixture::ShortProtectedAuthInfo)
+        {
+            protectedAuthInfo.resize(kNtlmMessageSignatureBytes);
+        }
+        else
+        {
+            const Bytes credentials =
+                fixture == FinalAuthInfoDenialFixture::MalformedCredentialDer
+                    ? Bytes{0x30U, 0x00U}
+                    : passwordCredentials({}, u"User", u"Password");
+            protectedAuthInfo = protectAuthInfo(clientSecurity, credentials);
+        }
+        request = authInfoRequest(protectedAuthInfo);
+    }
+
+    if (fixture == FinalAuthInfoDenialFixture::RevokedCredential)
+        serverCredential.revoke();
+
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::Rejected);
+    assert(acceptor.authInfoFailureReason() == expectedReason);
+    assert(acceptor.stage() == StandaloneCredSspStage::Failed);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+    assert(serverCredential.configured() ==
+           (fixture != FinalAuthInfoDenialFixture::RevokedCredential));
+
+    // Reset retires the typed observation; no first-failure state leaks to
+    // a later accepted connection or credential generation.
+    acceptor.reset();
+    assert(acceptor.authInfoFailureReason() ==
+           StandaloneAuthInfoFailureReason::None);
+}
+
+void testAuthInfoMalformedFinalDenials()
+{
+    assertFinalAuthInfoDenial(
+        FinalAuthInfoDenialFixture::MissingAuthInfo,
+        StandaloneAuthInfoFailureReason::InvalidFrameOrSession);
+    assertFinalAuthInfoDenial(
+        FinalAuthInfoDenialFixture::ShortProtectedAuthInfo,
+        StandaloneAuthInfoFailureReason::InvalidProtectedLength);
+    assertFinalAuthInfoDenial(
+        FinalAuthInfoDenialFixture::MalformedCredentialDer,
+        StandaloneAuthInfoFailureReason::InvalidCredential);
+}
+
+void testAuthInfoPostBindingCredentialRevocation()
+{
+    assertFinalAuthInfoDenial(
+        FinalAuthInfoDenialFixture::RevokedCredential,
+        StandaloneAuthInfoFailureReason::CredentialUnavailable);
+}
+
 void testAuthInfoCredentialMismatchRevokes()
 {
     const auto runMismatch = [](
@@ -1733,8 +1823,15 @@ int main(int argc, char **argv)
     {
         // Reuse the complete production-backed TLS/NTLM/CredSSP fixtures.
         testAuthInfoExactCredentialMatch();
+        testAuthInfoMalformedFinalDenials();
         testAuthInfoCredentialMismatchRevokes();
         testAuthInfoTamperRevokes();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-post-binding-revocation")
+    {
+        testAuthInfoPostBindingCredentialRevocation();
         return 0;
     }
     if (testCase ==

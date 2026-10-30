@@ -1,3 +1,17 @@
+## R2 final-authInfo negative classification completion (2026-10-30)
+
+The existing production-backed `security.standalone-credssp-authinfo-first-failure-classification`
+now also checks malformed final TSRequest, short protected authInfo and signed
+but malformed delegated-credential DER using the same in-memory TLS owner.
+The new `security.standalone-credssp-authinfo-post-binding-revocation`
+revokes the configured credential after Type 3/pubKeyAuth but before final
+authInfo, requiring `CredentialUnavailable` and terminal frame/writer cleanup.
+Both modes pin redacted enum values and verify `reset()` clears the receipt.
+They neither forge native Admission nor modify the Windows Microsoft oracle.
+A deliberate internal `releaseFrame()` failure is not injectable through the
+valid public complete-frame owner; keep its production denial branch intact.
+Local full Debug/sanitizer execution remains NOT RUN pending exact-SHA hosted CI.
+
 ## R6 Microsoft-generated authInfo first-failure classification (2026-10-30)
 
 The production verifier's `authInfoFailureReason()` is a non-secret read-only

@@ -1505,6 +1505,15 @@ void assertAuthInfoCredentialRejection(
            expectedEmptyFields);
     assert(reader.status() == TsRequestFrameStatus::Closed);
     assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+
+    // Terminal diagnostic facts are connection-local only. Reset must retire
+    // both the typed first-failure reason and the fail-only empty-field
+    // observation before a later credential generation can be processed.
+    acceptor.reset();
+    assert(acceptor.authInfoFailureReason() ==
+           StandaloneAuthInfoFailureReason::None);
+    assert(acceptor.authInfoEmptyFieldObservation() ==
+           StandaloneAuthInfoEmptyFieldObservation::None);
 }
 
 void testAuthInfoCredentialMismatchRevokes()

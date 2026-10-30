@@ -1,3 +1,15 @@
+## R2 authInfo diagnostic reset regression — 2026-10-30
+
+- Parent source: `1c172fc0d3d864f267289ebf320a450ac541c130`.
+- Strengthened the existing production-backed authInfo rejection helper to
+  require reset of both the typed failure reason and fail-only empty-field
+  observation after mismatch/domain/empty-field rejection.
+- No production code, Microsoft SSPI harness, credential policy or native
+  admission change. Existing behavior CTests are reused; no duplicate test
+  executable/controller was added.
+- Local canonical Debug/full CTest and sanitizers: **NOT RUN** in this connector
+  environment. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R2 production CredSSP verifier freeze and Microsoft delegation blocker — 2026-10-30
 
 - Audited source SHA: `fc35cc370ba002f6dadd42813a32bd296fbb282b`; no production R2 code change.

@@ -1,3 +1,14 @@
+**R2 diagnostic-retirement regression follow-up (2026-10-30):**
+The existing production-backed authInfo credential-rejection helper now asserts
+that `StandaloneCredSspNtlmAcceptor::reset()` clears both the typed
+`authInfoFailureReason` and the fail-only empty-field observation after
+username mismatch, password mismatch, nonempty-domain denial and all empty-field
+categories. This is a test-only strengthening of the already-audited reset
+behavior. Credential replacement remains covered by the owner-generation fence:
+a stale generation cannot be visited, and the runtime generation-mismatch path
+fails the connection and resets the same acceptor before further CredSSP work.
+No production policy or diagnostic surface changes.
+
 ## R2 P0 Round 2 — production verifier acceptance predicate frozen; Microsoft delegation request is the blocker (2026-10-30)
 
 **Audited source:** `fc35cc370ba002f6dadd42813a32bd296fbb282b`. R2 production source review plus exact-SHA hosted evidence

@@ -1,3 +1,14 @@
+## R2 final-authInfo diagnostic observations retire on reset (2026-10-30)
+
+The existing production-backed authInfo mismatch/empty-field fixture must assert
+that `StandaloneCredSspNtlmAcceptor::reset()` retires both
+`authInfoFailureReason` and `authInfoEmptyFieldObservation`. Reuse the same
+credential-rejection helper rather than adding a duplicate parser or verifier.
+This complements the credential-owner generation tests and runtime generation
+mismatch path, which deny stale visits and reset the connection-scoped acceptor
+before a replacement credential can continue authentication. Diagnostic
+retirement never authorizes retry, fallback or admission.
+
 ## Microsoft CredSSP positive oracle must explicitly request credential delegation (2026-10-30)
 
 A Windows SSPI CredSSP fixture is not a valid positive delegated-credential

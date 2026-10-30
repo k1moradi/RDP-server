@@ -244,8 +244,10 @@ REQUIRED_TOKENS = (
     "credssp-full-production-authinfo-failure=",
     "credssp-full-production-authinfo-empty-fields=",
     "credssp-full-delegation-requested=",
+    "credssp-full-delegation-returned=",
     "production-authinfo-empty-fields=",
     "delegation-requested=",
+    "delegation-returned=",
     "authinfo_expected_test_count=5",
     "security.standalone-credssp-authinfo-first-failure-classification",
     "security.standalone-credssp-authinfo-credential-structure-classification",
@@ -664,8 +666,11 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         full_exchange_empty_capture = text.find(
             "credssp-full-production-authinfo-empty-fields="
         )
-        full_exchange_delegation_capture = text.find(
+        full_exchange_delegation_request_capture = text.find(
             "credssp-full-delegation-requested="
+        )
+        full_exchange_delegation_return_capture = text.find(
+            "credssp-full-delegation-returned="
         )
         full_exchange_success_gate = text.find(
             'if [[ "$full_exchange_status" -eq 0 ]]; then'
@@ -675,11 +680,14 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
                 full_exchange_status,
                 full_exchange_failure_capture,
                 full_exchange_empty_capture,
-                full_exchange_delegation_capture,
+                full_exchange_delegation_request_capture,
+                full_exchange_delegation_return_capture,
                 full_exchange_success_gate,
             )
             and full_exchange_status < full_exchange_failure_capture
-            < full_exchange_empty_capture < full_exchange_delegation_capture
+            < full_exchange_empty_capture
+            < full_exchange_delegation_request_capture
+            < full_exchange_delegation_return_capture
             < full_exchange_success_gate,
             "Microsoft full CredSSP bounded failure, empty-field and delegation "
             "facts must be captured before the success-only gate",
@@ -687,11 +695,12 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             "credssp-full-production-authinfo-empty-fields=none" in text
             and "credssp-full-delegation-requested=yes" in text
+            and "credssp-full-delegation-returned=yes" in text
             and "production-authinfo-empty-fields=none" in text
-            and "delegation-requested=yes" in text
+            and "delegation-requested=yes delegation-returned=yes" in text
             and "credentials-verified=yes" in text,
             "Microsoft full CredSSP candidate must require verified credentials, "
-            "nonempty delegated fields and requested delegation",
+            "nonempty delegated fields and final returned delegation",
         )
         require(
             'run_case credssp-full-production-exchange '

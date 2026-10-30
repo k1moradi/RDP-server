@@ -93,9 +93,23 @@ request limitation, not a production R2 compatibility defect.
 Before any R2 username/password/domain-policy change, the Microsoft positive
 fixture must request delegation, still generate final authInfo, preserve the
 bad-server-binding negative, and require production `CredentialsVerified`.
-The fixture may report only the existing bounded fail-only field-presence
-category and typed production reason; never log credential text, decrypted
-payloads, field lengths, hashes, signatures or session keys. A positive
+Use an explicit test-only context-requirements profile so only the positive full
+exchange and its bad-binding parity control add `ISC_REQ_DELEGATE`; legacy
+stop-at-Type3, credential-source, TLS-version and target-name rows retain their
+existing request flags. Inspect `pfContextAttr` for `ISC_RET_DELEGATE` only
+after the final successful `InitializeSecurityContextW` call, never on an
+intermediate security return, and expose only
+`delegation-requested=yes|no` / `delegation-returned=yes|no`.
+`ISC_REQ_USE_SUPPLIED_CREDS` is not part of this experiment: the fixture
+already supplies explicit `CREDSSP_CRED` / `pSpnegoCred` to
+`AcquireCredentialsHandleW`, while that request flag has separate
+package-parameter input semantics.
+
+The fixture may report only bounded non-secret categories and scalars; never log
+credential text, decrypted payloads, field lengths, hashes, signatures or
+session keys. A typed delegation-policy result or missing final
+`ISC_RET_DELEGATE` is an oracle/environment outcome, not permission to mutate
+Group Policy, registry, firewall, TermService or trust settings. A positive
 memory-BIO result remains non-authorizing and must continue to report
 `native-admission=no`.
 
@@ -117,12 +131,13 @@ The exact-SHA Microsoft interoperability artifact may normalize only the
 bounded production empty-field values `none`, `empty-username`,
 `empty-password`, or `both-empty`; a missing/unknown value is an evidence
 failure. It may also consume Agent 6's explicit
-`delegation-requested=yes|no` request-intent scalar. Candidate success
-requires `delegation-requested=yes`, production failure `none`, production
-empty fields `none`, and `credentials-verified=yes`. Do not infer
-delegation request or final delegation success from an intermediate SSPI
-context attribute. A terminal return scalar may be added only after Agent 6
-validates its semantics. Never log credential values, field lengths, decrypted
+`delegation-requested=yes|no` request-intent scalar and terminal
+`delegation-returned=yes|no`. The latter is derived only from
+`ISC_RET_DELEGATE` returned by the final successful
+`InitializeSecurityContextW` call. Candidate success requires both delegation
+scalars `yes`, production failure `none`, production empty fields `none`,
+and `credentials-verified=yes`. Never infer final delegation success from an
+intermediate SSPI context attribute. Never log credential values, field lengths, decrypted
 authInfo, raw SSPI/NTLM tokens, signatures, hashes or session keys.
 
 These offline and hosted facts never authorize native admission or physical

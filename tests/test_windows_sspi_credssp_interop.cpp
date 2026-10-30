@@ -213,6 +213,33 @@ constexpr ULONG kCredSspContextRequirements =
     ISC_REQ_STREAM |
     ISC_REQ_MANUAL_CRED_VALIDATION;
 
+enum class CredSspContextRequirementsProfile : std::uint8_t
+{
+    ExistingWireSemantics,
+    DelegatingFullExchange,
+};
+
+[[nodiscard]] constexpr ULONG credSspContextRequirements(
+    CredSspContextRequirementsProfile profile) noexcept
+{
+    return kCredSspContextRequirements |
+           (profile ==
+                    CredSspContextRequirementsProfile::DelegatingFullExchange
+                ? ISC_REQ_DELEGATE
+                : 0U);
+}
+
+static_assert(
+    (credSspContextRequirements(
+         CredSspContextRequirementsProfile::DelegatingFullExchange) ^
+     credSspContextRequirements(
+         CredSspContextRequirementsProfile::ExistingWireSemantics)) ==
+    ISC_REQ_DELEGATE);
+static_assert(
+    (credSspContextRequirements(
+         CredSspContextRequirementsProfile::DelegatingFullExchange) &
+     ISC_REQ_USE_SUPPLIED_CREDS) == 0U);
+
 [[nodiscard]] constexpr bool credSspUsesWireStreamSemantics() noexcept
 {
     return (kCredSspContextRequirements & ISC_REQ_STREAM) != 0U &&
@@ -1025,9 +1052,13 @@ public:
     explicit WindowsCredSspClient(
         SchannelCredentialProfile schannelCredentialProfile,
         CredSspCredentialState credentialState =
-            CredSspCredentialState::CorrectPassword) noexcept
+            CredSspCredentialState::CorrectPassword,
+        CredSspContextRequirementsProfile contextRequirementsProfile =
+            CredSspContextRequirementsProfile::ExistingWireSemantics) noexcept
         : schannelCredentialProfile_(schannelCredentialProfile),
-          credentialState_(credentialState)
+          credentialState_(credentialState),
+          contextRequirements_(
+              credSspContextRequirements(contextRequirementsProfile))
     {
         identity_.Flags = SEC_WINNT_AUTH_IDENTITY_UNICODE;
         if (credentialState != CredSspCredentialState::UnavailableNoSpnego)
@@ -1181,6 +1212,22 @@ public:
         return contextValid_;
     }
 
+    [[nodiscard]] bool delegationRequested() const noexcept
+    {
+        return (contextRequirements_ & ISC_REQ_DELEGATE) != 0U;
+    }
+
+    [[nodiscard]] bool finalSuccessfulContextAttributesAvailable()
+        const noexcept
+    {
+        return finalSuccessfulContextAttributesAvailable_;
+    }
+
+    [[nodiscard]] ULONG finalSuccessfulContextAttributes() const noexcept
+    {
+        return finalSuccessfulContextAttributes_;
+    }
+
     [[nodiscard]] bool canContinueWithoutNewServerBytes() const noexcept
     {
         return contextValid_ && !needsMoreServerBytes_ &&
@@ -1284,7 +1331,7 @@ public:
             &credential_,
             existingContext,
             mutableTarget.data(),
-            kCredSspContextRequirements,
+            contextRequirements_,
             0U,
             SECURITY_NATIVE_DREP,
             input,
@@ -1293,6 +1340,17 @@ public:
             &outputDescriptor,
             &result.contextAttributes,
             &expiry);
+
+        // Security-related ISC_RET_* attributes are meaningful only on the
+        // final successful InitializeSecurityContextW return. Retain only
+        // that scalar attribute word; do not infer delegation from any
+        // intermediate result.
+        finalSuccessfulContextAttributesAvailable_ =
+            result.status == SEC_E_OK;
+        finalSuccessfulContextAttributes_ =
+            finalSuccessfulContextAttributesAvailable_
+                ? result.contextAttributes
+                : 0U;
 
         if (!contextValid_ && securityStatusSucceeded(result.status))
         {
@@ -1400,13 +1458,16 @@ private:
         SchannelCredentialProfile::LegacySchannelCred};
     CredSspCredentialState credentialState_{
         CredSspCredentialState::CorrectPassword};
+    ULONG contextRequirements_{kCredSspContextRequirements};
     CredHandle credential_{};
     CtxtHandle context_{};
     SspiServerInputBuffer pendingServerInput_{};
     SECURITY_STATUS lastStatus_{SEC_E_INTERNAL_ERROR};
     ULONG lastContextAttributes_{};
+    ULONG finalSuccessfulContextAttributes_{};
     bool credentialValid_{};
     bool contextValid_{};
+    bool finalSuccessfulContextAttributesAvailable_{};
     bool needsMoreServerBytes_{};
     bool continuationWithoutWireAllowed_{};
 };
@@ -3105,6 +3166,8 @@ struct FullCredSspAttempt final
     bool credentialsVerified{};
     bool explicitEmptyDomainRequested{};
     bool microsoftBindingSecEOk{};
+    bool delegationRequested{};
+    bool delegationReturned{};
     StandaloneAuthInfoFailureReason authInfoFailureReason{
         StandaloneAuthInfoFailureReason::None};
     StandaloneAuthInfoEmptyFieldObservation authInfoEmptyFields{
@@ -3252,16 +3315,21 @@ void printClientProfileObservation(
     CredSspCredentialState credentialState =
         CredSspCredentialState::CorrectPassword,
     PostTypeThreeExperiment postTypeThreeExperiment =
-        PostTypeThreeExperiment::StopAfterTypeThree)
+        PostTypeThreeExperiment::StopAfterTypeThree,
+    CredSspContextRequirementsProfile contextRequirementsProfile =
+        CredSspContextRequirementsProfile::ExistingWireSemantics)
 {
     FullCredSspAttempt result{};
     result.schannelCredentialProfile = schannelCredentialProfile;
     result.tlsServerProfile = tlsServerProfile;
     result.credentialState = credentialState;
     WindowsCredSspClient client{
-        schannelCredentialProfile, credentialState};
+        schannelCredentialProfile,
+        credentialState,
+        contextRequirementsProfile};
     result.explicitEmptyDomainRequested =
         client.explicitEmptyDomainRequested();
+    result.delegationRequested = client.delegationRequested();
     ProductionCredSspServer server{experiment, tlsServerProfile};
     if (!server.valid())
     {
@@ -3419,6 +3487,15 @@ void printClientProfileObservation(
         result.nextPump.microsoftOutputGenerated;
     result.microsoftBindingSecEOk =
         result.nextPump.lastClientStatus == SEC_E_OK;
+    // Inspect ISC_RET_DELEGATE only after the final successful Microsoft
+    // context call. Intermediate context attributes are never delegation
+    // evidence.
+    if (client.finalSuccessfulContextAttributesAvailable())
+    {
+        result.delegationReturned =
+            (client.finalSuccessfulContextAttributes() &
+             ISC_RET_DELEGATE) != 0U;
+    }
 
     if (postTypeThreeExperiment ==
         PostTypeThreeExperiment::InvalidServerBinding)
@@ -4171,6 +4248,8 @@ void printFailure(
            result.negotiatedTlsVersion == TLS1_3_VERSION &&
            result.explicitEmptyDomainRequested &&
            result.microsoftBindingSecEOk &&
+           result.delegationRequested &&
+           result.delegationReturned &&
            result.authInfoFailureReason ==
                StandaloneAuthInfoFailureReason::None &&
            result.tlsEstablished &&
@@ -4199,7 +4278,8 @@ void printFailure(
             SchannelCredentialProfile::ModernSystemDefaults,
             TlsServerProfile::SystemDefault,
             CredSspCredentialState::CorrectPasswordEmptyDomain,
-            PostTypeThreeExperiment::CompleteProductionExchange);
+            PostTypeThreeExperiment::CompleteProductionExchange,
+            CredSspContextRequirementsProfile::DelegatingFullExchange);
     const bool passed = completedProductionCredSspExchange(result);
     std::fprintf(
         stderr,
@@ -4209,6 +4289,7 @@ void printFailure(
         "authinfo-output=%s authinfo-tsrequest=%s authinfo=%s "
         "credentials-verified=%s native-admission=no stage=%s "
         "sspi-empty-domain-requested=%s microsoft-binding-sec-e-ok=%s "
+        "delegation-requested=%s delegation-returned=%s "
         "production-authinfo-failure=%s "
         "production-authinfo-empty-fields=%s\n",
         passed ? "PASS" : "FAIL",
@@ -4225,6 +4306,8 @@ void printFailure(
         result.stage,
         result.explicitEmptyDomainRequested ? "yes" : "no",
         result.microsoftBindingSecEOk ? "yes" : "no",
+        result.delegationRequested ? "yes" : "no",
+        result.delegationReturned ? "yes" : "no",
         authInfoFailureReasonName(result.authInfoFailureReason),
         authInfoEmptyFieldName(result.authInfoEmptyFields));
     std::fflush(stderr);
@@ -4242,7 +4325,8 @@ void printFailure(
             SchannelCredentialProfile::ModernSystemDefaults,
             TlsServerProfile::SystemDefault,
             CredSspCredentialState::CorrectPasswordEmptyDomain,
-            PostTypeThreeExperiment::InvalidServerBinding);
+            PostTypeThreeExperiment::InvalidServerBinding,
+            CredSspContextRequirementsProfile::DelegatingFullExchange);
     const bool detected =
         result.tlsEstablished &&
         result.productionTypeTwoTlsCommitted &&
@@ -4252,6 +4336,8 @@ void printFailure(
         result.invalidServerBindingReplyQueued &&
         result.productionBindingReplyTlsCommitted &&
         result.invalidServerBindingRejected &&
+        result.delegationRequested &&
+        !result.delegationReturned &&
         !result.authInfoTsRequestReceived &&
         !result.authInfoObserved &&
         !result.credentialsVerified;
@@ -4263,8 +4349,8 @@ void printFailure(
         "type3=%s pubkeyauth=%s invalid-binding-queued=%s "
         "invalid-binding-committed=%s authinfo=%s "
         "credentials-verified=%s microsoft-status=%s code=0x%08lx "
-        "stage=%s oracle-detected=%s "
-        "production-binding-change-authorized=no\n",
+        "stage=%s delegation-requested=%s delegation-returned=%s "
+        "oracle-detected=%s production-binding-change-authorized=no\n",
         result.productionObservedTypeThree ? "yes" : "no",
         result.nextClientHasPubKeyAuth ? "yes" : "no",
         result.invalidServerBindingReplyQueued ? "yes" : "no",
@@ -4275,6 +4361,8 @@ void printFailure(
         static_cast<unsigned long>(
             static_cast<std::uint32_t>(result.lastClientStatus)),
         result.stage,
+        result.delegationRequested ? "yes" : "no",
+        result.delegationReturned ? "yes" : "no",
         detected ? "yes" : "no");
     std::fflush(stderr);
     if (!detected)

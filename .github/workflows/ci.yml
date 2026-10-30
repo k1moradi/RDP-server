@@ -539,8 +539,9 @@ jobs:
                 ;;
             esac
 
-            # Agent 6 owns the Microsoft client. R9 consumes only the bounded
-            # request-intent scalar; no context-return flag is security success.
+            # Agent 6 emits only bounded request/final-return scalars. The
+            # returned flag is inspected by the fixture only after the final
+            # successful InitializeSecurityContextW call.
             delegation_requested="$(sed -n 's/.* delegation-requested=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
             case "$delegation_requested" in
               yes|no)
@@ -551,11 +552,22 @@ jobs:
                 overall_status=1
                 ;;
             esac
+            delegation_returned="$(sed -n 's/.* delegation-returned=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
+            case "$delegation_returned" in
+              yes|no)
+                printf 'credssp-full-delegation-returned=%s\n' "$delegation_returned" | tee -a "$result_file"
+                ;;
+              *)
+                printf 'credssp-full-delegation-returned=INVALID_OR_MISSING\n' | tee -a "$result_file"
+                overall_status=1
+                ;;
+            esac
           else
             printf '%s\n' \
               'credssp-full-production-authinfo-failure=SUMMARY_MISSING' \
               'credssp-full-production-authinfo-empty-fields=SUMMARY_MISSING' \
               'credssp-full-delegation-requested=SUMMARY_MISSING' \
+              'credssp-full-delegation-returned=SUMMARY_MISSING' \
               | tee -a "$result_file"
             overall_status=1
           fi
@@ -570,7 +582,7 @@ jobs:
             grep -Fq 'native-admission=no' <<< "$full_exchange_line"
             grep -Fq 'production-authinfo-failure=none' <<< "$full_exchange_line"
             grep -Fq 'production-authinfo-empty-fields=none' <<< "$full_exchange_line"
-            grep -Fq 'delegation-requested=yes' <<< "$full_exchange_line"
+            grep -Fq 'delegation-requested=yes delegation-returned=yes' <<< "$full_exchange_line"
             printf 'credssp-full-exchange-%s\n' "$full_exchange_line" | tee -a "$result_file"
           else
             overall_status=1
@@ -586,6 +598,7 @@ jobs:
             grep -Fq 'invalid-binding-committed=yes' <<< "$binding_negative_line"
             grep -Fq 'authinfo=no' <<< "$binding_negative_line"
             grep -Fq 'credentials-verified=no' <<< "$binding_negative_line"
+            grep -Fq 'delegation-requested=yes delegation-returned=no' <<< "$binding_negative_line"
             grep -Fq 'oracle-detected=yes' <<< "$binding_negative_line"
             grep -Fq 'production-binding-change-authorized=no' <<< "$binding_negative_line"
             printf 'credssp-binding-negative-%s\n' "$binding_negative_line" | tee -a "$result_file"
@@ -2507,13 +2520,14 @@ jobs:
           grep -Fxq 'credssp-full-production-authinfo-failure=none' "$matrix_file"
           grep -Fxq 'credssp-full-production-authinfo-empty-fields=none' "$matrix_file"
           grep -Fxq 'credssp-full-delegation-requested=yes' "$matrix_file"
+          grep -Fxq 'credssp-full-delegation-returned=yes' "$matrix_file"
           full_exchange_receipt="$(grep '^credssp-full-exchange-microsoft-credssp-full-exchange ' "$matrix_file")"
           test -n "$full_exchange_receipt"
           grep -Fq 'status=PASS' <<< "$full_exchange_receipt"
           grep -Fq 'credentials-verified=yes' <<< "$full_exchange_receipt"
           grep -Fq 'production-authinfo-failure=none' <<< "$full_exchange_receipt"
           grep -Fq 'production-authinfo-empty-fields=none' <<< "$full_exchange_receipt"
-          grep -Fq 'delegation-requested=yes' <<< "$full_exchange_receipt"
+          grep -Fq 'delegation-requested=yes delegation-returned=yes' <<< "$full_exchange_receipt"
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
           grep -Fxq 'ntlm-oem-omission=PASS test=security.windows-sspi-production-type2-oem-omission-differential' "$matrix_file"

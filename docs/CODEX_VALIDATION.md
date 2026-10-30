@@ -1,3 +1,27 @@
+## R6 Microsoft CredSSP delegation-request oracle correction — 2026-10-30
+
+- Authoring parent: `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`.
+- Test-harness only: an explicit context profile adds only
+  `ISC_REQ_DELEGATE` for the positive full exchange and bad-binding parity
+  control. Legacy stop-at-Type3, credential-source, TLS-version and target-name
+  controls keep their existing flags; `ISC_REQ_USE_SUPPLIED_CREDS` remains
+  absent.
+- The fixture records only `delegation-requested=yes|no` and
+  `delegation-returned=yes|no`. `ISC_RET_DELEGATE` is inspected only after
+  the final successful `InitializeSecurityContextW` return; intermediate
+  security attributes are not evidence.
+- R9's exact-SHA artifact/structure gate now normalizes and requires both
+  delegation scalars for a positive, plus
+  `production-authinfo-empty-fields=none`; bad-binding parity requires
+  requested=yes/returned=no and rejection before authInfo.
+- No production R2 authentication/verifier code is changed. Required AV,
+  TLS-version, credential-source process isolation, target-name, stack-budget
+  and native-admission controls remain intact.
+- Local canonical MSVC/CLANG64 Debug/Release build/focused/full CTest:
+  **NOT RUN** in this connector environment. Exact publication-SHA hosted
+  Windows qualification: **PENDING**. Physical Windows App/mstsc and native
+  admission: **NOT RUN**.
+
 ## R1 realistic delegated final-authInfo framing coverage — 2026-10-30
 
 - Authoring parent: `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`. No production R1/R2/R10 code is changed.
@@ -180,13 +204,12 @@
   by normalizing
   `credssp-full-production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`.
   Missing/unknown values fail evidence collection.
-- R9 now also requires the Microsoft full-exchange summary to expose bounded
-  `delegation-requested=yes|no`; the artifact normalizes it and treats
-  missing/unknown intent as an evidence failure. Candidate success requires
-  normalized `delegation-requested=yes`, empty fields `none`, failure
-  `none`, raw `credentials-verified=yes`, and `COMPLETE_PASS`.
-  No terminal delegation-return scalar is accepted until Agent 6 validates
-  which SSPI return attribute is semantically authoritative.
+- R9 requires the Microsoft full-exchange summary to expose bounded
+  `delegation-requested=yes|no`; this Agent 6 increment adds
+  `delegation-returned=yes|no`, derived only from final-success
+  `ISC_RET_DELEGATE`. Candidate success now requires both normalized
+  delegation scalars `yes`, empty fields `none`, failure `none`, raw
+  `credentials-verified=yes`, and `COMPLETE_PASS`.
 - ASan/UBSan authInfo inventory advances four -> five by adding existing
   `security.standalone-credssp-authinfo-empty-field-categories`; exact
   name/count preflight remains fail-closed.

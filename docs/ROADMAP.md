@@ -61,51 +61,65 @@ clipboard.
 
 **Next gate:** Windows MSVC and CLANG64 Debug/Release exact-publication-SHA output must establish whether Microsoft's delegated user/password fields are empty. If neither is empty, identity/password equivalence remains an R2 verifier boundary requiring a separate non-secret differential; no policy, Type 2, binding or TLS mutation is authorized. Local canonical Windows builds and full CTest **NOT RUN** in the connector environment; hosted CI **PENDING**. Physical macOS Windows App / Windows 11 mstsc A/B and native admission remain **BLOCKED / NOT RUN** until R9 qualifies all producers and the owner authorizes a candidate.
 
-## R9 Round 2 — final-authInfo sanitizer inventory and current gating (2026-10-30)
+## R9 Round 2 — exact-SHA empty-field/delegation normalization and candidate gate (2026-10-30)
 
-Parent `1642ce2330eaf67780d83737cca9ed52ada0d1e3`. On `998eba3fc94c8fc2ffba3a10dd30582c0c9cc55c`,
-Actions `41077872585`, Windows MSVC job `124138885834`, the
-Microsoft final-authInfo path progressed from the earlier DER rejection to
-`production-authinfo-failure=credential-identity-or-password-mismatch`.
-The workflow's redacted category was captured in the exact-SHA matrix,
-which correctly remained `INCOMPLETE_FAIL`. Type 3, binding, and
-Microsoft authInfo are reached; `CredentialsVerified` is not.
-R8's registered CLANG64 Release FileContents crash remains resolved.
+**Evidence baseline:** `fc35cc370ba002f6dadd42813a32bd296fbb282b`,
+workflow `41080994452`. Ubuntu protocol Debug/Release **984/984 PASS**,
+macOS Debug/Release **769/769 PASS**, R9 security/protocol sanitizers **PASS**,
+Linux runtime security **PASS**, Linux GUI ZIP **PASS**, GUI credential parity
+**PASS**, R7 macOS lifecycle/session sanitizers **PASS**, portable GUI bootstrap
+**PASS**, workflow structure/PowerShell parser/documentation **PASS**. The
+strict parser/UTF-16 fixture regressions are therefore **CLEARED by executable
+same-SHA evidence** and are no longer an R9 blocker.
 
-The R2 production parser's allowed empty-value syntax exposed two stale
-credential-parser CTest assertions. On the same source SHA Ubuntu/macos
-full Debug and CLANG64 full Debug/Release failed these assertions;
-the sanitizer selection also failed strict-fields. Agent 2 has now
-published test-only corrections in `c78815cbe2fbe694452e6025b0e9c9384f5be95a`
-and `1642ce2330eaf67780d83737cca9ed52ada0d1e3`.
-Their exact-SHA full/sanitizer results remain **PENDING**; this is
-fixture repair in source, not yet an accepted green regression.
+Windows MSVC job `124149857609` remains **FAIL** only at the positive
+Microsoft full CredSSP differential. Windows CLANG64 job `124149857159`
+runs ordinary full Debug **871/872** and Release **871/872**; each fails only
+`security.windows-credssp-production-full-exchange`, while the Windows native
+sanitizer inventory is **PASS** and R8's
+`clipboard.file-contents-joined-mcs-envelope` is **PASS** in both configs.
+The positive receipt reaches TLS1.3, verified Type 3, pubKeyAuth, committed
+server binding and Microsoft final authInfo, but reports
+`credentials-verified=no`,
+`production-authinfo-failure=credential-identity-or-password-mismatch` and
+`production-authinfo-empty-fields=both-empty`.
 
-R9 independent qualification gap: R2's four newly registered
-final-authInfo classification, credential-structure, post-binding-revocation,
-and empty-fields-mismatch tests were in ordinary full CTest but not the
-explicit R9 ASan/UBSan selection. The existing R9 security/protocol
-sanitizer job now runs all four through one independent flat selector,
-with four-case name/cardinality preflight and no new runner/build root.
-The existing workflow structure validator asserts that selector remains
-registered and executed. This does not remove or change any R2/R6 test,
-R8 clipboard test, compiler warnings, Windows full Debug/Release,
-bad-binding negative, or manual owner-candidate prerequisite.
+**R9 artifact correction:** the exact-SHA Microsoft artifact previously kept
+the bounded failure reason but dropped the new empty-field scalar even though
+the job log contained it. R9 now normalizes exactly
+`none|empty-username|empty-password|both-empty`; missing or unknown values are
+an evidence failure. It also establishes the Agent-6/R9 handoff contract
+`delegation-requested=yes|no`. Missing/unknown delegation intent is a hard
+evidence failure; R9 does not infer it from an intermediate SSPI context flag.
+A successful positive exchange must report failure `none`, empty fields
+`none`, `delegation-requested=yes`, and `credentials-verified=yes`.
+The manual candidate gate rechecks those normalized scalars plus the successful
+raw full-exchange receipt before accepting `COMPLETE_PASS`. A separate
+`final-delegation-returned` scalar is intentionally not consumed until
+Agent 6 validates a terminal return attribute; no intermediate context flag is
+classified as security success.
 
-**Gate:** Agent 6/R2 must resolve Microsoft's actual delegated credential
-identity/password mismatch, prove a positive `CredentialsVerified`
-while preserving negative binding, and obtain one exact-SHA
-`COMPLETE_PASS` matrix with MSVC, CLANG64 Debug/Release, native
-Windows sanitizer, Ubuntu/macOS security/protocol and GUI Round 2.
-R9's explicit owner candidate is **BLOCKED**. Same-SHA owner-native
-Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27 Debug/full CTest
-receipts are still separate M1 requirements. No physical client,
-desktop or clipboard test authorized.
+**Sanitizer inventory:** Agent 6 registered
+`security.standalone-credssp-authinfo-empty-field-categories`. R9's explicit
+ASan/UBSan authInfo selector advances from four to **five** production-backed
+cases and pins every full name and the exact cardinality. Ordinary full CTest
+remains mandatory; no test is skipped or weakened.
 
-Verification: current-main source/CTest/CI review PASS by inspection.
-Local canonical `~/rdp-server/build/` build and CTests NOT RUN (approved
-checkout absent). Publication-SHA structure, sanitizer and complete
-platform CI remain **PENDING**.
+**Active P0 dependency:** source at this baseline omits `ISC_REQ_DELEGATE`
+from the Microsoft `InitializeSecurityContextW` request. Agent 6 owns that
+test-client correction and must emit the bounded `delegation-requested`
+fact. R9 does not reopen TLS, Type 2, transport, verifier policy or clipboard.
+After Agent 6 publishes, all green claims must be discarded and a fresh
+single-SHA matrix rebuilt. Even a green automated matrix is **not** the manual
+owner-candidate PASS: the owner must explicitly dispatch
+`r9_credssp_owner_candidate=true` only after every prerequisite succeeds.
+M1 still separately requires same-SHA owner-native Debug/full CTest receipts
+for Linux/X11, Windows MSYS2 CLANG64/Clang 23 and macOS 27.
+
+**Current decision:** **BLOCKED** by the Microsoft positive full exchange /
+missing delegation request. Physical Windows App/mstsc testing is not requested
+or authorized. Local canonical build/CTest: **NOT RUN** in this connector
+environment.
 
 **R2 strict-fields fixture source-order correction (2026-10-30):**
 The newly updated early strict-fields test must inspect the credential

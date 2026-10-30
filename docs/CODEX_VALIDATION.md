@@ -51,30 +51,49 @@
 - R6 adds only fail-only validated delegated user/password emptiness classification, without retaining bytes or affecting credential acceptance, Type 2, TLS, SSPI, pubKeyAuth or native R2 admission. New ordinary behavior CTest `security.standalone-credssp-authinfo-empty-field-categories`; negative controls retained.
 - Local canonical Windows MSVC/CLANG64 Debug and Release configure/build/full CTest **NOT RUN** (connector environment has no approved Windows checkout). Exact publication-SHA CI **PENDING**. Real RDP client/physical A/B and native admission **BLOCKED / NOT RUN**. First unresolved invariant is Microsoft's delegated username/password equivalence; initial syntax rejection has been resolved.
 
-## R9 four-case ASan/UBSan authInfo coverage and dependency decision — 2026-10-30
+## R9 exact-SHA artifact/delegation qualification ledger — 2026-10-30
 
-- Authoring parent `1642ce2330eaf67780d83737cca9ed52ada0d1e3`.
-- Windows MSVC SHA `998eba3fc94c8fc2ffba3a10dd30582c0c9cc55c`,
-  workflow `41077872585`, job `124138885834`:
-  `authinfo=yes credentials-verified=no
-  production-authinfo-failure=credential-identity-or-password-mismatch`;
-  normalized artifact category captured; final `INCOMPLETE_FAIL`.
-- CLANG64 Debug/Release same SHA: both full suites FAIL on the positive
-  Microsoft CredSSP oracle and two outdated R2 credential-parser fixture
-  expectations. R8 FileContents Debug and Release PASS.
-- Ubuntu/macOS full Debug and R9 security/protocol sanitizer at the same
-  SHA FAIL the affected R2 strict-field expectations. Agent 2's fixture
-  correction in `c78815cb` plus `1642ce23` is source-published;
-  exact-SHA CI NOT YET VERIFIED.
-- R9 added four mandatory `security.standalone-credssp-authinfo-*`
-  CTests to the existing ASan/UBSan job, with exact-name/size preflight;
-  the workflow structure validator requires the unique selector.
-  CTest registration and R2/R6 production source unchanged.
-- Final positive Microsoft `CredentialsVerified`: FAIL.
-  Manual owner candidate: BLOCKED. Owner-native M1 receipts and physical
-  Windows App/mstsc: NOT RUN.
-- Publication-SHA workflow structure and sanitizer: PENDING;
-  local canonical build/CTest: NOT RUN (no approved checkout in tools).
+- Baseline SHA `fc35cc370ba002f6dadd42813a32bd296fbb282b`,
+  workflow `41080994452`.
+- PASS: CI workflow structure, Windows PowerShell parser, Ubuntu protocol
+  Debug/Release 984/984, macOS protocol Debug/Release 769/769, R9
+  security/protocol sanitizers, both Linux runtime-security variants, Linux GUI
+  ZIP, Ubuntu/macOS GUI credential parity, R7 macOS native lifecycle/portable
+  GUI/session sanitizers, portable GUI bootstrap, documentation policy.
+  The former strict-parser regressions are **resolved by executable evidence**.
+- Windows MSVC job `124149857609`: **FAIL**, first exact failing prerequisite
+  is `security.windows-credssp-production-full-exchange`.
+  Receipt: `authinfo=yes credentials-verified=no
+  production-authinfo-failure=credential-identity-or-password-mismatch
+  production-authinfo-empty-fields=both-empty`. Bad-binding negative PASS.
+- Windows CLANG64 job `124149857159`: Debug full 871/872 FAIL and Release
+  full 871/872 FAIL only the same positive Microsoft test; native sanitizer
+  inventory PASS. R8 FileContents PASS in both Debug and Release.
+- Exact artifact `r9-microsoft-interop-fc35cc370ba002f6dadd42813a32bd296fbb282b`,
+  artifact `12988788914`: final `INCOMPLETE_FAIL`. It retained
+  `credssp-full-production-authinfo-failure=credential-identity-or-password-mismatch`
+  but omitted the available empty-field scalar. That R9 evidence gap is fixed
+  by normalizing
+  `credssp-full-production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`.
+  Missing/unknown values fail evidence collection.
+- R9 now also requires the Microsoft full-exchange summary to expose bounded
+  `delegation-requested=yes|no`; the artifact normalizes it and treats
+  missing/unknown intent as an evidence failure. Candidate success requires
+  normalized `delegation-requested=yes`, empty fields `none`, failure
+  `none`, raw `credentials-verified=yes`, and `COMPLETE_PASS`.
+  No terminal delegation-return scalar is accepted until Agent 6 validates
+  which SSPI return attribute is semantically authoritative.
+- ASan/UBSan authInfo inventory advances four -> five by adding existing
+  `security.standalone-credssp-authinfo-empty-field-categories`; exact
+  name/count preflight remains fail-closed.
+- Current R2/R6 source audit shows the Microsoft client request omits
+  `ISC_REQ_DELEGATE`; Agent 6 owns the next test-client publication. R9 does
+  not change the production verifier or Microsoft client in this commit.
+- Manual `r9_credssp_owner_candidate=true`: **NOT ELIGIBLE**. Ordinary-push
+  skipped candidate is not PASS. Physical Windows App/mstsc: NOT RUN /
+  not authorized. M1 owner-native same-SHA receipts remain separate.
+- Local canonical build/full CTest: NOT RUN. Publication-SHA hosted structure
+  and producer qualification: PENDING after this R9 CI/docs commit.
 
 ## R2 strict-fields fixture source-order correction (2026-10-30)
 

@@ -31,17 +31,30 @@ memory-BIO result remains non-authorizing and must continue to report
 
 The Windows Microsoft-generated final authInfo oracle may project only a scalar `production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`, derived by the existing synchronous R2 validated-password visitor after cryptographic unwrapping and only on terminal rejection. It is not a credential, a field length or login authority, and must not weaken the independent `CredentialMismatch` acceptance boundary. The dedicated `security.standalone-credssp-authinfo-empty-field-categories` CTest must exercise the actual production verifier with valid secured frames for missing username, missing password, both missing and nonempty invalid identities, retaining reader/writer closure and mismatch. Preserve required AV, malformed DER, sign/seal, post-binding revocation and Microsoft bad-binding controls. No raw TSRequest, username, password or NTLM material in test receipts.
 
-## R9 sanitizer coverage for four production-backed final-authInfo cases (2026-10-30)
+## R9 sanitizer coverage and exact-SHA Microsoft artifact scalars (2026-10-30)
 
-The existing R9 ASan/UBSan job must enumerate and run all four registered
-`security.standalone-credssp-authinfo-*` CTests: first-failure
-classification, credential-structure classification, post-binding
-revocation, and empty-fields-are-mismatch. Pin all four full names and
-an exact count. Keep this regex flat, separate from the large licensing
+The existing R9 ASan/UBSan job must enumerate and run all five registered
+production-backed final-authInfo CTests: first-failure classification,
+credential-structure classification, post-binding revocation,
+empty-fields-are-mismatch, and empty-field-categories. Pin all five full names
+and an exact count. Keep this regex flat, separate from the large licensing
 selection, and execute ordinary instrumented CTest with nonzero results
-preserved. The existing workflow structure self-test must retain the
-selector. These offline tests never authorize Microsoft
-`CredentialsVerified` or native admission.
+preserved. The workflow structure self-test must retain the selector.
+
+The exact-SHA Microsoft interoperability artifact may normalize only the
+bounded production empty-field values `none`, `empty-username`,
+`empty-password`, or `both-empty`; a missing/unknown value is an evidence
+failure. It may also consume Agent 6's explicit
+`delegation-requested=yes|no` request-intent scalar. Candidate success
+requires `delegation-requested=yes`, production failure `none`, production
+empty fields `none`, and `credentials-verified=yes`. Do not infer
+delegation request or final delegation success from an intermediate SSPI
+context attribute. A terminal return scalar may be added only after Agent 6
+validates its semantics. Never log credential values, field lengths, decrypted
+authInfo, raw SSPI/NTLM tokens, signatures, hashes or session keys.
+
+These offline and hosted facts never authorize native admission or physical
+client testing.
 
 ## R2 delegated-authInfo empty OCTET STRING syntax — parser regression reconciliation (2026-10-30)
 

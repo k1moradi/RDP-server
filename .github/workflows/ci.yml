@@ -519,7 +519,7 @@ jobs:
           if [[ -n "$full_exchange_line" ]]; then
             authinfo_failure="$(sed -n 's/.* production-authinfo-failure=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
             case "$authinfo_failure" in
-              none|frame-or-session|protected-length|sign-seal|credential-der-or-fields|unsupported-credential-type|nonempty-delegated-domain|credential-unavailable|credential-identity-or-password-mismatch|frame-release)
+              none|frame-or-session|protected-length|sign-seal|credential-der-or-fields|credential-unclassified|credential-envelope-der|password-credential-fields|unsupported-credential-type|nonempty-delegated-domain|credential-unavailable|credential-identity-or-password-mismatch|frame-release)
                 printf 'credssp-full-production-authinfo-failure=%s\n' "$authinfo_failure" | tee -a "$result_file"
                 ;;
               *)
@@ -527,8 +527,36 @@ jobs:
                 overall_status=1
                 ;;
             esac
+
+            authinfo_empty_fields="$(sed -n 's/.* production-authinfo-empty-fields=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
+            case "$authinfo_empty_fields" in
+              none|empty-username|empty-password|both-empty)
+                printf 'credssp-full-production-authinfo-empty-fields=%s\n' "$authinfo_empty_fields" | tee -a "$result_file"
+                ;;
+              *)
+                printf 'credssp-full-production-authinfo-empty-fields=INVALID_OR_MISSING\n' | tee -a "$result_file"
+                overall_status=1
+                ;;
+            esac
+
+            # Agent 6 owns the Microsoft client. R9 consumes only the bounded
+            # request-intent scalar; no context-return flag is security success.
+            delegation_requested="$(sed -n 's/.* delegation-requested=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
+            case "$delegation_requested" in
+              yes|no)
+                printf 'credssp-full-delegation-requested=%s\n' "$delegation_requested" | tee -a "$result_file"
+                ;;
+              *)
+                printf 'credssp-full-delegation-requested=INVALID_OR_MISSING\n' | tee -a "$result_file"
+                overall_status=1
+                ;;
+            esac
           else
-            printf 'credssp-full-production-authinfo-failure=SUMMARY_MISSING\n' | tee -a "$result_file"
+            printf '%s\n' \
+              'credssp-full-production-authinfo-failure=SUMMARY_MISSING' \
+              'credssp-full-production-authinfo-empty-fields=SUMMARY_MISSING' \
+              'credssp-full-delegation-requested=SUMMARY_MISSING' \
+              | tee -a "$result_file"
             overall_status=1
           fi
           if [[ "$full_exchange_status" -eq 0 ]]; then
@@ -541,6 +569,8 @@ jobs:
             grep -Fq 'credentials-verified=yes' <<< "$full_exchange_line"
             grep -Fq 'native-admission=no' <<< "$full_exchange_line"
             grep -Fq 'production-authinfo-failure=none' <<< "$full_exchange_line"
+            grep -Fq 'production-authinfo-empty-fields=none' <<< "$full_exchange_line"
+            grep -Fq 'delegation-requested=yes' <<< "$full_exchange_line"
             printf 'credssp-full-exchange-%s\n' "$full_exchange_line" | tee -a "$result_file"
           else
             overall_status=1
@@ -1808,10 +1838,10 @@ jobs:
           # R2's production-owned final authInfo parser/revocation tests need
           # instrumented execution as well as ordinary full CTest.
           # Keep a separate flat selector; do not enlarge the MCS regex.
-          authinfo_selection='^security[.]standalone-credssp-authinfo-(first-failure-classification|credential-structure-classification|post-binding-revocation|empty-fields-are-mismatch)$'
+          authinfo_selection='^security[.]standalone-credssp-authinfo-(first-failure-classification|credential-structure-classification|post-binding-revocation|empty-fields-are-mismatch|empty-field-categories)$'
           authinfo_tests="$(ctest --test-dir build --build-config Debug -N -R "$authinfo_selection")"
           printf '%s\n' "$authinfo_tests"
-          readonly authinfo_expected_test_count=4
+          readonly authinfo_expected_test_count=5
           authinfo_selected_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$authinfo_tests")"
           if [[ "$authinfo_selected_count" -ne "$authinfo_expected_test_count" ]]; then
             printf 'R9 authInfo sanitizer registry mismatch: expected %s tests, found %s\n' \
@@ -1822,7 +1852,8 @@ jobs:
             security.standalone-credssp-authinfo-first-failure-classification \
             security.standalone-credssp-authinfo-credential-structure-classification \
             security.standalone-credssp-authinfo-post-binding-revocation \
-            security.standalone-credssp-authinfo-empty-fields-are-mismatch; do
+            security.standalone-credssp-authinfo-empty-fields-are-mismatch \
+            security.standalone-credssp-authinfo-empty-field-categories; do
             grep -Fq ": $required_authinfo_test" <<< "$authinfo_tests"
           done
           ctest --test-dir build --build-config Debug --timeout 60 \
@@ -2472,6 +2503,15 @@ jobs:
           grep -Fxq "interop-matrix-begin=PARTIAL source-sha=$GITHUB_SHA workflow-run=$GITHUB_RUN_ID" "$matrix_file"
           grep -Fxq "interop-matrix-final=COMPLETE_PASS source-sha=$GITHUB_SHA" "$matrix_file"
           grep -Fxq 'credssp-full-production-authinfo-failure=none' "$matrix_file"
+          grep -Fxq 'credssp-full-production-authinfo-empty-fields=none' "$matrix_file"
+          grep -Fxq 'credssp-full-delegation-requested=yes' "$matrix_file"
+          full_exchange_receipt="$(grep '^credssp-full-exchange-microsoft-credssp-full-exchange ' "$matrix_file")"
+          test -n "$full_exchange_receipt"
+          grep -Fq 'status=PASS' <<< "$full_exchange_receipt"
+          grep -Fq 'credentials-verified=yes' <<< "$full_exchange_receipt"
+          grep -Fq 'production-authinfo-failure=none' <<< "$full_exchange_receipt"
+          grep -Fq 'production-authinfo-empty-fields=none' <<< "$full_exchange_receipt"
+          grep -Fq 'delegation-requested=yes' <<< "$full_exchange_receipt"
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
           grep -Fxq 'ntlm-oem-omission=PASS test=security.windows-sspi-production-type2-oem-omission-differential' "$matrix_file"

@@ -242,11 +242,16 @@ REQUIRED_TOKENS = (
     "microsoft-credssp-type2-negative-controls",
     "microsoft-credssp-full-exchange",
     "credssp-full-production-authinfo-failure=",
-    "authinfo_expected_test_count=4",
+    "credssp-full-production-authinfo-empty-fields=",
+    "credssp-full-delegation-requested=",
+    "production-authinfo-empty-fields=",
+    "delegation-requested=",
+    "authinfo_expected_test_count=5",
     "security.standalone-credssp-authinfo-first-failure-classification",
     "security.standalone-credssp-authinfo-credential-structure-classification",
     "security.standalone-credssp-authinfo-post-binding-revocation",
     "security.standalone-credssp-authinfo-empty-fields-are-mismatch",
+    "security.standalone-credssp-authinfo-empty-field-categories",
     "microsoft-credssp-binding-negative-control",
     "invalid-controls=DETECTED",
     "process-isolation=per-challenge",
@@ -646,14 +651,20 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         )
         require(
             text.count("authinfo_selection=") == 1
-            and text.count("authinfo_expected_test_count=4") == 1
+            and text.count("authinfo_expected_test_count=5") == 1
             and '-R "$authinfo_selection" --output-on-failure' in text,
             "R2 final-authInfo sanitizer CTest selector must be present, "
             "unique and fail-closed",
         )
         full_exchange_status = text.find("full_exchange_status=0")
-        full_exchange_capture = text.find(
+        full_exchange_failure_capture = text.find(
             "credssp-full-production-authinfo-failure="
+        )
+        full_exchange_empty_capture = text.find(
+            "credssp-full-production-authinfo-empty-fields="
+        )
+        full_exchange_delegation_capture = text.find(
+            "credssp-full-delegation-requested="
         )
         full_exchange_success_gate = text.find(
             'if [[ "$full_exchange_status" -eq 0 ]]; then'
@@ -661,12 +672,25 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             -1 not in (
                 full_exchange_status,
-                full_exchange_capture,
+                full_exchange_failure_capture,
+                full_exchange_empty_capture,
+                full_exchange_delegation_capture,
                 full_exchange_success_gate,
             )
-            and full_exchange_status < full_exchange_capture < full_exchange_success_gate,
-            "Microsoft full CredSSP failure-path authInfo category must be "
-            "captured before the success-only gate",
+            and full_exchange_status < full_exchange_failure_capture
+            < full_exchange_empty_capture < full_exchange_delegation_capture
+            < full_exchange_success_gate,
+            "Microsoft full CredSSP bounded failure, empty-field and delegation "
+            "facts must be captured before the success-only gate",
+        )
+        require(
+            "credssp-full-production-authinfo-empty-fields=none" in text
+            and "credssp-full-delegation-requested=yes" in text
+            and "production-authinfo-empty-fields=none" in text
+            and "delegation-requested=yes" in text
+            and "credentials-verified=yes" in text,
+            "Microsoft full CredSSP candidate must require verified credentials, "
+            "nonempty delegated fields and requested delegation",
         )
         require(
             'run_case credssp-full-production-exchange '

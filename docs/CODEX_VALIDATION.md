@@ -1,3 +1,29 @@
+## R8 Round 3 hosted build evidence and external blocker — 2026-10-30
+
+- Candidate source lineage: `aeeb318315db1634068b885f24a103ce06f4d236`
+  (state machine), `95b6ba11364e5d4c3661ed6238264a54fa29300c`
+  (local-generation route-authority fence), and correction
+  `0665b2eab68b63d828b5ccdf68d1105bfa241463` (test type spelling).
+- `41087532492` structure guard: **PASS**.
+- `41087532510` workflow structure / PowerShell parser / documentation policy:
+  **PASS**.
+- Ubuntu job `124172757688`: `rdp-server-r8-r3-clipboard` **BUILT** and
+  `test_r8_r3_clipboard_bridge` **BUILT/LINKED**. Full Debug build then
+  **FAIL/BLOCKED** at unrelated
+  `test_linux_runtime_direct_ntlm_lifecycle.cpp:1836` because
+  `LinuxRuntimeConnectionAcceptanceDiagnostics` is incomplete.
+- R9 sanitizer job `124172757534`: R8 production/test target
+  **BUILT/LINKED under ASan/UBSan**; same unrelated R10 test compile failure
+  prevents the sanitizer CTest phase.
+- The three new R8 behavior CTests and 104-test clipboard sanitizer run are
+  therefore **NOT RUN / BLOCKED**, not failed. No R8 compiler error remains in
+  the observed jobs.
+- Local canonical build: **NOT RUN** in this connector environment.
+- Activation constant: **false / unchanged**. Physical clipboard, files and
+  client: **NOT RUN / BLOCKED**.
+- Next gate: qualify the unchanged R8 lineage on a descendant SHA after the R10
+  fixture compiles; do not add a special CI bypass.
+
 ## R5 reentrant XDamage callback retirement — 2026-10-30
 
 - Authoring parent: `0143d16613152c349463aae655aa506c5c85b12a`. Audited native R2 lease, R1/principal provenance and pre/post visitor checks behind R10 GraphicsReady; CredentialsVerified alone never constructs native X11.

@@ -1,3 +1,29 @@
+## R8 Round 3 hosted qualification — R8 build green, full CTest blocked by R10 compile defect (2026-10-30)
+
+**R8 correction SHA:** `0665b2eab68b63d828b5ccdf68d1105bfa241463`.
+Structure workflow `41087532492`: **PASS**. Protocol workflow
+`41087532510` internal structure and Windows PowerShell parser: **PASS**.
+Documentation policy: **PASS**.
+
+Ubuntu protocol job `124172757688` builds
+`rdp-server-r8-r3-clipboard` and links `test_r8_r3_clipboard_bridge`
+successfully. R9 sanitizer job `124172757534` independently builds and links
+the same production-backed R8 executable under Clang ASan/UBSan. Both jobs then
+stop in the unrelated R10 Direct-NTLM lifecycle fixture at
+`test_linux_runtime_direct_ntlm_lifecycle.cpp:1836`: the newly introduced
+`LinuxRuntimeConnectionAcceptanceDiagnostics` variable has incomplete type
+(with follow-on lambda capture diagnostics). The failing file is outside this
+R8 increment and was not changed by the R8 commits.
+
+Therefore R8 source/test compilation is **PASS**, while execution of the three
+new R8 CTests and the full 104-test clipboard sanitizer selection is
+**BLOCKED** by that upstream R10 compile defect. Do not weaken, bypass or split
+the canonical build to manufacture an R8 PASS. Next gate: the R10 owner repairs
+its fixture, then rerun the current descendant exact-SHA full Ubuntu/macOS/
+Windows and sanitizer matrix and require the three new R8 cases to pass.
+`kLinuxProductionClipboardActivationApproved = false` remains unchanged;
+physical clipboard/files/client testing remains blocked.
+
 ## R5 Round 3 — reentrant XDamage callback authority retirement (2026-10-30)
 
 **Authoring parent:** `0143d16613152c349463aae655aa506c5c85b12a`. R10 constructs `X11DesktopResources` only after explicit Sharing consent, exact authenticated client, genuine R2 native lease/selection, Share and GraphicsReady. R2 verifies the lease, principal, R1/TLS and native generations before and after the synchronous visitor. `CredentialsVerified` alone cannot create XCB/XShm/XDamage/XFixes/XTEST resources. The R6 Microsoft credential blocker does not relax native authority rules.

@@ -1,3 +1,35 @@
+## R2 current unblock / security handoff — 2026-10-30
+
+- Positive Microsoft CredSSP is **PASS** with no R2 verifier modification:
+  exact SHA `0143d16613152c349463aae655aa506c5c85b12a`,
+  workflow `41088156347`, MSVC `124174758888` (ordinary Debug and
+  Release **822/822 PASS** each), CLANG64 `124174758891`
+  (full Debug and Release **876/876 PASS** each; native sanitizer lifetime
+  **60/60 PASS**). Delegation-enabled SSPI sends final authInfo,
+  `production-authinfo-empty-fields=none`,
+  `production-authinfo-failure=none`, `credentials-verified=yes`;
+  Microsoft bad-binding negative is still rejected, `native-admission=no`.
+- The earlier `both-empty` oracle omitted `ISC_REQ_DELEGATE`. It is fixed
+  by Agent 6's client-only request flag; do not loosen the standalone
+  empty-credential, domain, Username or password comparison policies.
+- Security composition inspected at latest source `a1ef7a61afb6e1fefd9cb861fde0092d7c1f6029`: the
+  production `CredentialsVerified` stage is non-authorizing; exact connection,
+  owned HYBRID TLS and credential-generation proof must precede an
+  independent native broker admission/lease, and MCS/Share/native devices
+  remain gated after that lease. No live/physical native test was executed.
+- Other-agent qualification blockers currently observed: R5's workflow
+  structure inventory still requires `r5_expected_test_count=43` although
+  the R5 sanitizer inventory advanced to 44 (guard run `41090491580`
+  **FAIL**); R10's lifecycle CTest fixture at its previous hosted run fails
+  compilation because `LinuxRuntimeConnectionAcceptanceDiagnostics` is
+  incomplete where instantiated. The current `main` protocol run
+  `41090491478` is **QUEUED**, not a same-SHA PASS.
+- Local canonical build/full CTest/sanitizers **NOT RUN** (GitHub-only
+  environment); physical native authorization **NOT RUN / unauthorized**.
+  R2 code/test changes: **NONE** in this evidence-only update. Next gate:
+  R5/R9 structure reconciliation, R10 compile repair, then exact-SHA R9
+  aggregate and separately authorized genuine native admission.
+
 ## R9 R5 44-case structure validator correction — 2026-10-30
 
 - Authoring HEAD: `98b91f4a1df64f955b63a3e7c78164baffa57429`.
@@ -379,7 +411,7 @@
 - Local canonical Debug/full CTest and sanitizers: **NOT RUN** in this connector
   environment. Exact publication-SHA hosted CI: **PENDING**.
 
-## R2 production CredSSP verifier freeze and Microsoft delegation blocker — 2026-10-30
+## R2 production CredSSP verifier freeze — former Microsoft delegation blocker (historical, now resolved) — 2026-10-30
 
 - Audited source SHA: `fc35cc370ba002f6dadd42813a32bd296fbb282b`; no production R2 code change.
 - `processAuthInfo()` acceptance remains fail-closed across final-frame/version

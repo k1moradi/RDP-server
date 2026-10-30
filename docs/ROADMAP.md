@@ -383,7 +383,7 @@ a stale generation cannot be visited, and the runtime generation-mismatch path
 fails the connection and resets the same acceptor before further CredSSP work.
 No production policy or diagnostic surface changes.
 
-## R2 P0 Round 2 — production verifier acceptance predicate frozen; Microsoft delegation request is the blocker (2026-10-30)
+## R2 P0 Round 2 — production verifier acceptance predicate frozen; Microsoft delegation blocker resolved (2026-10-30)
 
 **Audited source:** `fc35cc370ba002f6dadd42813a32bd296fbb282b`. R2 production source review plus exact-SHA hosted evidence
 show no verifier-policy incompatibility after the empty-field parser correction.
@@ -406,23 +406,37 @@ pubKeyAuth, committed binding and Microsoft final authInfo, then remain
 `production-authinfo-empty-fields=both-empty`. CLANG64 Debug/Release full CTest
 fail only the Microsoft positive exchange.
 
-**Dependency decision:** Agent 6's current CredSSP
-`InitializeSecurityContextW` request flags are
-`ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_STREAM | ISC_REQ_MANUAL_CRED_VALIDATION`;
-they do not request `ISC_REQ_DELEGATE`. Microsoft documents for CredSSP that
-without `ISC_REQ_DELEGATE` an empty credential set is delegated to the server.
-Therefore the present `both-empty` result is an oracle/client-request defect,
-not evidence to relax R2 username/password/domain policy.
+**Historical dependency decision (now resolved):** The earlier Agent 6
+`InitializeSecurityContextW` client lacked `ISC_REQ_DELEGATE`, explaining why
+its final password fields were both empty. The deliberately unchanged production
+acceptor correctly rejected those fields. Agent 6 then enabled delegation only
+for the Microsoft positive/full-exchange and bad-binding controls; this is a
+client fixture correction, not a standalone-verifier policy exception.
 
-**Next gate / owner:** Agent 6 must first request `ISC_REQ_DELEGATE` in the
-Microsoft CredSSP client context and rerun the positive plus existing bad-binding
-control. The first useful result is nonempty delegated credential fields and
-`CredentialsVerified` with `native-admission=no`. If a correctly
-delegation-requesting Microsoft client still reaches nonempty fields but R2
-reports `CredentialMismatch`, return that exact typed boundary to Agent 2 for
-the smallest standards-backed verifier investigation. Until then R2 production
-authentication remains unchanged and fail-closed. No memory-BIO fixture may mint
-native admission, CurrentOwnerSharingAuthority, MCS, Share, graphics, input or
+**R2 proof / resolved gate:** Agent 6's exact-SHA `0143d16613152c349463aae655aa506c5c85b12a`
+Windows MSVC job `124174758888` and CLANG64 job `124174758891` in workflow
+`41088156347` establish full Microsoft CredSSP `CredentialsVerified=YES`,
+nonempty delegated fields (`production-authinfo-empty-fields=none`), no
+production authInfo failure and no native admission. The bad-binding control
+still fails before authInfo with `SEC_E_INVALID_TOKEN`. MSVC ordinary Debug and
+Release CTest each pass 822/822; CLANG64 full Debug/Release each pass 876/876,
+and the Windows native sanitizer lifetime selection passes 60/60. Final SSPI
+`ISC_RET_DELEGATE` is separately observed as absent and is not substituted for
+the actual successful credential-forwarding/production-verifier evidence.
+**No R2 production acceptance-policy change is needed.**
+
+**Next gate / owner:** R9 must requalify one exact post-integration SHA across
+all mandatory producers. At `98b91f4a1df64f955b63a3e7c78164baffa57429`,
+structure workflow `41090491580` fails a separate R5 inventory token
+(`r5_expected_test_count=43`), whereas current R5's sanitizer inventory has
+advanced to 44. The current R10 Direct-NTLM lifecycle fixture also uses
+`LinuxRuntimeConnectionAcceptanceDiagnostics` with only a forward declaration
+visible from its included HostControl header, blocking Linux compilation in
+prior hosted runs. R5/R9 own the inventory reconciliation and R10 owns the
+fixture compile correction; these are not CredSSP acceptance defects.
+Independent native R2 admission and real physical Windows App/mstsc evidence
+remain **NOT RUN / unauthorized**. `CredentialsVerified` alone cannot mint
+CurrentOwnerSharingAuthority, native admission, MCS, Share, graphics, input or
 clipboard.
 
 ## R6 P0 follow-up — distinguish empty delegated SSPI fields without changing policy (2026-10-30)

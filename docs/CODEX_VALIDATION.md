@@ -1,3 +1,28 @@
+## R4 exact-SHA graphics qualification and resolved upstream source blockers (2026-10-30)
+
+- R4 `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`:
+  Ubuntu ordinary full Debug/Release **986/986 PASS**;
+  macOS full Debug/Release **770/770 PASS**;
+  portable graphics ASan/UBSan **45/45 PASS**, explicitly executing
+  `graphics.frame-ack-deferred-revocation-generation-reset`.
+  Structure guard `41085178808` **PASS**.
+- R6 production-backed Microsoft offline `CredentialsVerified` is
+  **PASS** at `0143d16613152c349463aae655aa506c5c85b12a`:
+  MSVC full Debug/Release **822/822 PASS**, CLANG64 full Debug/Release
+  **876/876 PASS**, Windows native sanitizers **60/60 PASS**.
+  `native-admission=no`; no physical client proof.
+- Previously failing CI structure guard 43/44 mismatch: R9 fixed
+  source in `a1ef7a61afb6e1fefd9cb861fde0092d7c1f6029`;
+  previous R10 incomplete-type test compile defect: R10 corrected
+  source in `81633e1bfa4251a98e5dfbc9cd21853bad844599`.
+  Exact descendant structure guard `41095835844` **PASS**;
+  full primary `41095835716` **QUEUED**, not yet a PASS.
+- Remaining **BLOCKED**: same-SHA R9 whole-project owner-candidate
+  qualification, genuine R2 native-session admission and separately
+  authorized physical RDPGFX CREATE/MAP/first ClearCodec/FRAME_ACK/
+  resize/reconnect observations. Local canonical build/full CTest and
+  benchmark **NOT RUN** in this connector. No R4 codec change proposed.
+
 ## R7 Advanced-only typed final-authInfo and generation-retirement integration — 2026-10-30
 
 - Authoring parent: `81633e1bfa4251a98e5dfbc9cd21853bad844599`; R10 prerequisite delivered in `f85ae6ba`.

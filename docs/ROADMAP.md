@@ -1,3 +1,40 @@
+## R4 exact-SHA graphics qualification and resolved upstream source blockers (2026-10-30)
+
+**R4 offline regression now verified:** `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`
+is an ancestor of current `main`. Primary Actions `41085178801`
+report Ubuntu full Debug **986/986 PASS**, Release **986/986 PASS**,
+macOS full Debug **770/770 PASS**, Release **770/770 PASS** and R9
+portable graphics ASan/UBSan **45/45 PASS**. The sanitizer log explicitly
+runs `graphics.frame-ack-deferred-revocation-generation-reset`; structure
+guard `41085178808` **PASS**. The regression proves deferred ACK credit
+is not reserved, retired generation callbacks cannot suspend/acknowledge a
+replacement numeric frame ID, and a current-generation ACK retires the
+replacement. No production codec or scheduler change was required.
+
+**Upstream progress:** R6 on `0143d16613152c349463aae655aa506c5c85b12a`
+reaches Microsoft-produced CredSSP `credentials-verified=yes`,
+`native-admission=no` with MSVC full Debug/Release **822/822 PASS**,
+CLANG64 full Debug/Release **876/876 PASS**, Windows sanitizer
+**60/60 PASS** (`41088156347`). R9 fixed the R5 sanitizer
+44-test workflow-validator token in `a1ef7a61afb6e1fefd9cb861fde0092d7c1f6029`;
+R10 added the missing complete-type header to its Direct-NTLM lifecycle
+test in `81633e1bfa4251a98e5dfbc9cd21853bad844599`.
+The latter exact-SHA structure guard `41095835844` **PASS**;
+its full protocol/sanitizer workflow `41095835716` was **QUEUED**
+at this verification. These two repairs are **source-resolved**,
+not yet claimed full CI PASS.
+
+**Remaining graph gate:** R9 must first qualify a common descendant exact SHA
+across Linux/macOS/Windows ordinary tests, sanitizers, GUI/owner controls and
+the owner-candidate gate. Then the separately authorized genuine R2
+native-session admission and physical R3/R5/R10/R4 path may be observed.
+Physical Client Core 0x0100 -> VERSION8/VERSION81 RDPGFX -> exact
+CREATE/MAP -> first ClearCodec DATA -> matching FRAME_ACK -> resize/remap
+-> disconnect/reconnect is **BLOCKED / NOT RUN**. Never infer native
+admission from the Microsoft memory-BIO credential oracle. Local canonical
+build and performance benchmark are **NOT RUN** in this connector
+environment; do not publish FPS or latency from fixture CTests.
+
 ## R7 Round 2 continuation — consume R10 typed final-authInfo only in Advanced (2026-10-30)
 
 **Authoring parent:** `81633e1bfa4251a98e5dfbc9cd21853bad844599`. R10's `f85ae6ba` now supplies

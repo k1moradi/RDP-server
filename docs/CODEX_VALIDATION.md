@@ -1,3 +1,39 @@
+## R7 typed final-authInfo exact-SHA hosted qualification — 2026-10-30
+
+- Implementation SHA:
+  `74e5fc40af280a3af1aad6527a135283fb5076fc`.
+- Standalone structure guard `41095974951`: **PASS**.
+- Primary workflow `41095974957`: R7 macOS portable-GUI job
+  `124202365414` **PASS**; complete offscreen GUI inventory **52/52
+  PASS or expected SKIP**. New
+  `gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement`
+  **PASS**; existing
+  `gui.offscreen-authinfo-failure-connection-replacement-redaction`
+  **PASS**.
+- The same R7 job also passes the production pre-listener no-TCC-prompt CTest,
+  package integrity/framework closure, runtime PlainText source guard,
+  extracted ad-hoc-signed Cocoa LaunchServices/no-listener smoke and
+  owner-acceptance UI parity.
+- R9 GUI Round 2 job `124209206302`: **PASS**, exact receipt
+  `GUI ROUND 2 PASS: 74e5fc40af280a3af1aad6527a135283fb5076fc`.
+- Ubuntu protocol, Windows protocol, Windows CLANG64, R9 security/protocol
+  sanitizers, R7 macOS lifecycle/session sanitizers and owner-GUI parity jobs
+  on the same SHA are **PASS**. This also demonstrates that the earlier R10
+  incomplete-type lifecycle-fixture compile blocker is resolved on a
+  descendant build.
+- Whole primary workflow remains **FAIL** only because macOS protocol job
+  `124202365497` stops compiling unrelated
+  `src/server/transport/rdp_licensing.cpp:1180`: OpenSSL 4.1 deprecates
+  `ASN1_STRING_length`, and `-Werror` promotes it to an error.
+  No R7 source participates in that compile failure.
+- Descendant `434ac8fe600e9aa6fdf7ede842d67d6f662457f3` resolves the
+  R5 43/44 workflow-validator mismatch; standalone structure run
+  `41096120405` is **PASS**.
+- R7 code changes: **NONE** in this qualification follow-up. Local canonical
+  build/full CTest: **NOT RUN**. Physical Windows App/mstsc, native desktop,
+  input and clipboard: **BLOCKED / NOT RUN / unauthorized** until a common
+  R9-approved candidate and genuine native R2 admission exist.
+
 ## R5 exact-SHA hosted X11 qualification — 2026-10-30
 
 - Implementation SHA `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`; structure run `41096120405`: **PASS**.

@@ -1,3 +1,44 @@
+## R7 exact-SHA qualification — typed final-authInfo Advanced integration green (2026-10-30)
+
+**Qualified implementation:** `74e5fc40af280a3af1aad6527a135283fb5076fc`.
+Standalone structure workflow `41095974951`: **PASS**. Primary workflow
+`41095974957` independently reports **PASS** for Ubuntu protocol,
+Windows protocol, Windows CLANG64, R9 security/protocol sanitizers, R7 macOS
+native lifecycle, R7 macOS session sanitizers, macOS/Ubuntu owner-GUI parity,
+portable bootstrap, Linux GUI ZIP, documentation policy, and the dedicated
+R7 macOS portable-GUI job.
+
+R7 macOS portable-GUI job `124202365414` runs the complete
+`^gui[.]offscreen-` inventory: **52/52 PASS or expected SKIP**, with
+`gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement`
+**PASS** and
+`gui.offscreen-authinfo-failure-connection-replacement-redaction`
+**PASS**. Its exact pre-listener no-TCC-prompt runtime gate, package integrity,
+PlainText constructor guard, extracted ad-hoc-signed Cocoa launch/no-TCP-listener
+smoke and owner-acceptance parity also **PASS**. R9 GUI Round 2 aggregate job
+`124209206302` explicitly prints
+`GUI ROUND 2 PASS: 74e5fc40af280a3af1aad6527a135283fb5076fc`.
+This closes the R7 source/hosted qualification blocker for the typed
+final-authInfo Advanced presentation and connection-generation retirement.
+
+The same primary workflow is **not** a whole-project green candidate because
+macOS protocol job `124202365497` fails during Debug compilation in unrelated
+`src/server/transport/rdp_licensing.cpp:1180`: OpenSSL 4.1 marks
+`ASN1_STRING_length` deprecated and the project correctly treats that warning
+as an error. No R7 Qt source is involved in that failure. The earlier R10
+incomplete-type fixture blocker is proven resolved on this descendant by
+successful Ubuntu protocol and R9 sanitizer jobs. The R5 43/44 structure-token
+mismatch is also resolved on descendant `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`;
+standalone structure workflow `41096120405` is **PASS**.
+
+**R7 next gate:** no further GUI classifier/parser work is justified. Physical
+Microsoft-client/native-desktop acceptance remains separate and
+**BLOCKED / NOT RUN** pending a common R9-approved candidate, genuine R2 native
+admission and explicit owner authorization. The current common-matrix technical
+blocker is the macOS/OpenSSL licensing compile incompatibility owned outside R7.
+Local canonical `~/rdp-server/build/` configure/build/full CTest remains
+**NOT RUN** in this connector environment.
+
 ## R5 hosted X11 qualification complete; physical admission remains gated (2026-10-30)
 
 **Qualified implementation SHA:** `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`. Structure run `41096120405`: **PASS**. In primary run `41096120483`, Ubuntu job `124202413372` reports **993/993 PASS** in both Debug and Release and executes `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` (#893) successfully in each. R9 sanitizer job `124202412993` is **PASS**; its fail-closed R5 inventory is exactly **44**, includes the new exact test name, and finishes **44/44 PASS** under ASan/UBSan. R5 Linux GUI ZIP job `124202413138` is also **PASS**, including the read-only physical-X11 precredential owner-readiness gate. This closes R5's hosted regression qualification.

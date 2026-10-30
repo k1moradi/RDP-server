@@ -1,3 +1,9 @@
+## R5 queued native-event retirement isolation (2026-10-30)
+
+The behavior CTest `x11.desktop-resource-authority-retirement-queued-damage-isolation` must run only on an ephemeral Xvfb display. Queue a real XDamage event on the retiring aggregate's XCB connection, synchronize it into that connection's private queue without dispatching it, call `retireAfterAuthorizationLoss()`, and then create a replacement `X11DesktopResources` owner. The replacement must have a different capture generation, reject the retired geometry observation, observe zero stale damage from the retired connection, and accept damage/capture only from work generated after replacement construction. Never fabricate a positive R2 lease or use a logged-in desktop.
+
+Keep this case in the ordinary R5 sanitizer selection and its fail-closed exact inventory. Authority-loss retirement is distinct from graceful disconnect: it must not synthesize held-key/button XTEST cleanup, and queued events from a retired XCB connection must never be replayed into a replacement generation.
+
 ## R1 realistic final-authInfo TLS framing regression (2026-10-30)
 
 The production-backed Linux listener regression

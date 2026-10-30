@@ -1,3 +1,14 @@
+## R5 queued XDamage authority-retirement regression — 2026-10-30
+
+- Authoring baseline: `671cae88da7dcb604ced089a9f21c2af9fe78597`.
+- Audit: `X11DesktopResources` construction remains behind R10 `GraphicsReady` and the R2-protected `visitNativeDesktopSelection()`; the broker checks concrete lease/principal/R1/native facts before and after synchronous construction. `CredentialsVerified` alone is not native authority.
+- New Xvfb CTest: `x11.desktop-resource-authority-retirement-queued-damage-isolation`. A genuine old-owner XDamage event is queued but not dispatched, authorization loss retires that aggregate, and a replacement owner must observe no stale damage and reject old capture/native provenance. A new post-replacement draw is required before replacement damage/capture can occur.
+- R5 sanitizer selection/inventory: 42 -> 43, with an exact-name sentinel for the new case. Workflow structure validator updated accordingly.
+- Private evidence-validator review: timing-subset contradiction, stage ordering, first-byte/zero-byte inconsistency and unknown-field redaction cases already exist; no unauthoritative attempt-generation field was added.
+- Local build/Xvfb/sanitizers: **NOT RUN** in this connector-only environment. Exact publication-SHA hosted CI: **PENDING**.
+- Physical Linux seat0/native admission: **BLOCKED / NOT RUN / not authorized** pending positive Microsoft delegated-credential verification and R9 exact-SHA approval. The future run sheet requires fresh seat0/unlocked same-UID evidence, Sharing ON, exact authenticated connection, fresh R2 lease, first capture/frame ACK, keyboard/mouse, lock/logout/switch/Stop revocation, and fresh reconnect with no stale resources.
+- Benchmark: **NOT RUN / not applicable**; no production hot-path algorithm changed.
+
 ## R6 Microsoft CredSSP delegation-request oracle correction — 2026-10-30
 
 - Authoring parent: `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`.

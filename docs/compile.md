@@ -1,3 +1,7 @@
+## R5 queued-event retirement regression adds no dependency (2026-10-30)
+
+The queued-XDamage authority-retirement regression reuses the existing `test_x11_desktop_resources`, `rdp-server-linux-x11-desktop`, XDamage/XShm/XTEST dependencies and ephemeral `xvfb-run`. It adds no package, native service, thread, second XCB owner in production, build root or live desktop requirement. The existing sanitizer inventory increases from 42 to 43 selected R5 X11 CTests.
+
 ## R1 realistic final-authInfo framing adds no build surface (2026-10-30)
 
 The delegated-size final-authInfo regression reuses

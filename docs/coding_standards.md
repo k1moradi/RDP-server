@@ -1,3 +1,7 @@
+## R5 queued X11 events remain owner-generation local (2026-10-30)
+
+An XCB event is valid only for the aggregate connection/generation that received it. Authorization-loss teardown must destroy geometry-bound children and the sole XCB owner before any replacement aggregate is exposed; do not copy, cache or replay XDamage/XFixes/RandR/input events across owners. Replacement construction must allocate fresh capture/native resource generations even when display name, root geometry and R2 session generation are unchanged. Terminal authority loss uses suppressing input retirement; only a still-authorized graceful disconnect may emit held-input cleanup.
+
 ## R3 first-MCS buffered plaintext is never admission authority (2026-10-30)
 
 R1/OpenSSL may hold decrypted bytes beyond the current CredSSP frame, including

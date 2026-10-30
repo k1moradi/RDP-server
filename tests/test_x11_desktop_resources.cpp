@@ -1419,6 +1419,100 @@ syntheticXvfbRandrStaleDamageIsolation()
 }
 
 void
+syntheticXvfbAuthorityRetirementQueuedDamageIsolation()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 717U;
+    constexpr Rectangle damageRectangle{0, 0, 8, 6};
+    const char *display = syntheticDisplay();
+
+    X11DesktopResources retiredOwner(display, kCaptureArenaPixels);
+    requireValidResources(
+        retiredOwner, "authorization-retirement queued-damage isolation");
+    const X11NativeGeometryObservation retiredObservation =
+        retiredOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(retiredObservation.valid());
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    assert(helperScreen->root_depth == 24U);
+
+    xcb_connection_t *const retiredConnection = retiredOwner.nativeConnection();
+    assert(retiredConnection != nullptr);
+    const std::uint64_t retiredNotificationCount =
+        retiredOwner.damageNotificationCount();
+
+    // Queue a genuine XDamage notification on the old XCB owner, but retire
+    // R2/native authority before its serialized event loop can dispatch it.
+    drawSyntheticPattern(
+        *helper, helperScreen->root, damageRectangle, kFirstPixelPattern);
+    synchronizeXcbConnection(*retiredConnection);
+    assert(retiredOwner.damageNotificationCount() == retiredNotificationCount);
+    assert(!retiredOwner.damagePending());
+
+    retiredOwner.retireAfterAuthorizationLoss();
+    assert(!retiredOwner.valid());
+    assert(retiredOwner.fileDescriptor() == -1);
+    assert(retiredOwner.nativeConnection() == nullptr);
+    assert(retiredOwner.captureGeneration() == 0U);
+    assert(!retiredOwner.nativeGeometryIsCurrent(
+        retiredObservation, nativeSessionGeneration));
+
+    bool staleWorkMayRemain = true;
+    assert(retiredOwner.processEvents(
+               64U, &staleWorkMayRemain, true) ==
+           ConnectionStatus::Failed);
+    assert(!staleWorkMayRemain);
+
+    // A replacement owner on the same Xvfb display gets a fresh XCB,
+    // XDamage and capture generation. The retired event is connection-local
+    // and must not become damage or frame authority for this generation.
+    X11DesktopResources replacementOwner(display, kCaptureArenaPixels);
+    requireValidResources(
+        replacementOwner, "replacement after queued-damage retirement");
+    const X11NativeGeometryObservation replacementObservation =
+        replacementOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(replacementObservation.valid());
+    assert(replacementObservation.captureGeneration !=
+           retiredObservation.captureGeneration);
+    assert(!replacementOwner.nativeGeometryIsCurrent(
+        retiredObservation, nativeSessionGeneration));
+
+    xcb_connection_t *const replacementConnection =
+        replacementOwner.nativeConnection();
+    assert(replacementConnection != nullptr);
+    synchronizeXcbConnection(*replacementConnection);
+    bool replacementWorkMayRemain = false;
+    assert(replacementOwner.processEvents(
+               64U, &replacementWorkMayRemain, false) ==
+           ConnectionStatus::Ok);
+    assert(!replacementWorkMayRemain);
+    assert(replacementOwner.damageNotificationCount() == 0U);
+    assert(!replacementOwner.damagePending());
+
+    DamageRegion staleDamage;
+    assert(replacementOwner.snapshotDamage(staleDamage));
+    assert(staleDamage.rectangles().empty());
+
+    // Only native work generated after replacement construction may reach the
+    // replacement Damage tracker and XShm capture generation.
+    const std::uint64_t replacementNotificationCount =
+        replacementOwner.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, damageRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        replacementOwner, replacementNotificationCount, damageRectangle);
+    const FramebufferView replacementFrame =
+        replacementOwner.capture(damageRectangle);
+    requireCapturedPattern(
+        replacementFrame, damageRectangle, damageRectangle,
+        kSecondPixelPattern);
+
+    replacementOwner.retireAfterAuthorizationLoss();
+    assert(!replacementOwner.valid());
+}
+
+void
 syntheticXvfbCaptureTerminalDenial()
 {
     X11DesktopResources resources(syntheticDisplay(), kCaptureArenaPixels);
@@ -2193,6 +2287,11 @@ main(int argc, char **argv)
     if (behavior == "randr-stale-damage-isolation")
     {
         syntheticXvfbRandrStaleDamageIsolation();
+        return 0;
+    }
+    if (behavior == "authority-retirement-queued-damage-isolation")
+    {
+        syntheticXvfbAuthorityRetirementQueuedDamageIsolation();
         return 0;
     }
     if (behavior == "capture-terminal-denial")

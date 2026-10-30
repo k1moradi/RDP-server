@@ -1,3 +1,13 @@
+## R1 delegated final-authInfo qualification and Microsoft payload receipt — 2026-10-30
+
+- R1 exact SHA `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`; workflow `41085415452`; Ubuntu job `124166024982`: Debug full CTest **987/987 PASS**, Release full CTest **987/987 PASS**.
+- Dedicated `runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`: **PASS** in Debug (0.44 s) and Release (0.36 s). Prior `runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect` and `runtime.linux-host-control-stop-queued-authinfo-retirement` also PASS in both full suites.
+- R9 ASan/UBSan job `124166024771`: **PASS**; the modified lifecycle executable compiles under ASan/UBSan and the existing R1/CredSSP sanitizer selections pass. The new large/coalesced-tail mode is not directly invoked by that explicit sanitizer inventory, so that one mode is **NOT RUN under sanitizers**.
+- Local canonical `~/rdp-server/build/` configure/build/focused/full CTest and local sanitizers: **NOT RUN**; the approved checkout is absent and local GitHub DNS is unavailable.
+- Agent 6 descendant `671cae88da7dcb604ced089a9f21c2af9fe78597`, workflow `41085647004`, MSVC job `124166200509`: after server binding Microsoft returns `SEC_E_OK`, emits **98 bytes** of TLS 1.3 application data with no retained/extra/missing input, and production reaches `CredentialsVerified` with authInfo failure `none` and empty-fields `none`.
+- From the fixture's public test constants (empty domain, `User`, `Password`) and the canonical MS-CSSP/NTLM wrapper sizes, the final TSRequest is **76 plaintext bytes**. A single TLS 1.3 record adds exactly 22 bytes (record header + inner content type + AEAD tag), matching the observed 98-byte SSPI output. R1's 16 KiB frame cap and exact `bytesNeeded()` reads therefore cover the actual delegation-enabled Microsoft payload with wide margin; the 518-byte R1 stress fixture is larger and crosses the 512-byte reader chunk boundary.
+- First remaining failure is **outside R1**: Agent 6 records `delegation-requested=yes delegation-returned=no`; its positive oracle requires final `ISC_RET_DELEGATE` even though authInfo is emitted and production credentials verify. Physical client/native admission: **NOT RUN / not authorized**.
+
 ## R8 local-generation route-observation fence — 2026-10-30
 
 - Parent: `aeeb318315db1634068b885f24a103ce06f4d236`.

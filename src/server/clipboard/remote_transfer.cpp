@@ -595,7 +595,7 @@ bool RemoteTransfer::receiveCapabilitiesPdu(
 {
     using namespace rdp_server::clipboard;
     PduView pdu{};
-    if (poisoned_ || capabilitiesReceived_ || generation_ != 0 ||
+    if (poisoned_ || capabilitiesReceived_ ||
         !decodePdu(completePdu, pdu) || pdu.type != kClipCaps ||
         pdu.flags != 0 || pdu.payload.size() < kCapabilityHeaderBytes)
     {
@@ -668,7 +668,7 @@ bool RemoteTransfer::receiveTemporaryDirectoryPdu(
     using namespace rdp_server::clipboard;
     PduView pdu{};
     if (poisoned_ || !capabilitiesReceived_ || temporaryDirectoryReceived_ ||
-        generation_ != 0 || !decodePdu(completePdu, pdu) ||
+        !decodePdu(completePdu, pdu) ||
         pdu.type != kTempDirectory || pdu.flags != 0 ||
         !validTemporaryDirectoryPayload(pdu.payload))
     {

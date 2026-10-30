@@ -93,8 +93,11 @@ public:
 
     // Called on the session event loop after R3 admits the CLIPRDR channel.
     // The caller supplies the server's actually advertised generalFlags.
-    // Missing capabilities imply zero flags; duplicates/malformed sets
-    // poison this channel until resetAfterDisconnect().
+    // Missing capabilities imply zero flags until the PDU arrives.
+    // MS-RDPECLIP requires the server to remain ready for client capabilities
+    // after Monitor Ready even if a short Format List arrived first. A late
+    // first capability PDU affects only subsequent format-list interpretation;
+    // duplicates/malformed sets poison this channel until disconnect.
     [[nodiscard]] bool receiveCapabilitiesPdu(
         std::span<const std::uint8_t> completePdu,
         std::uint32_t localGeneralFlags) noexcept;
@@ -102,8 +105,9 @@ public:
     [[nodiscard]] std::uint32_t negotiatedGeneralFlags() const noexcept;
 
     // Consume the client's fixed-size Temporary Directory PDU after its
-    // capabilities and before the first Format List. The path is validated
-    // structurally but never retained or dereferenced by this owner.
+    // capabilities. Monitor Ready also permits a client Format List to arrive
+    // first, so this may follow an already-processed initial offer. The path is
+    // validated structurally but never retained or dereferenced by this owner.
     [[nodiscard]] bool receiveTemporaryDirectoryPdu(
         std::span<const std::uint8_t> completePdu) noexcept;
 

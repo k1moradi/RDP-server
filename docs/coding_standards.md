@@ -1,3 +1,38 @@
+## R8 dormant CLIPRDR initialization and local-publication ownership (2026-10-30)
+
+Keep server initialization in the existing `R3ClipboardTransferBridge`; do
+not add a second clipboard controller, writer, channel framer or generation
+owner. Server `CB_CLIP_CAPS` precedes `CB_MONITOR_READY`, and each outbound
+stage advances only from the exact R3/R2 accepted-byte `Delivered` receipt.
+A fresh protected R3 route observation is required before each newly staged
+application PDU. Serialization, a joined channel ID, or an initialization enum
+is never R2/Share/native authority.
+
+After Monitor Ready, accept the client's initial Format List even if the first
+client capabilities and Temporary Directory have not arrived yet. A first late
+capability PDU may update feature negotiation for subsequent Format Lists;
+missing capabilities mean zero negotiated flags. Do not reinterpret an already
+parsed short Format List after capabilities arrive. Temporary Directory remains
+optional for base initialization but mandatory wherever the existing file-lock
+prerequisite requires it. Duplicate capability/temp-directory PDUs stay
+terminal.
+
+Treat server-local clipboard ownership as a lifetime-monotonic generation
+separate from the remote `RemoteTransfer` source generation. A server Format
+List may be staged only after base initialization is Ready, for the exact
+current local generation, with no incompatible PDU/request or undrained prior
+Format List response. If ownership changes before the response arrives, drain
+the old response as superseded and never apply it to the replacement generation.
+Preserve local-generation high-water marks across R3 route retirement so a
+reused numeric channel ID cannot revive old ownership. Route-local stage,
+pending response and receipt state must retire on R2/Share/channel loss.
+
+Do not couple this ordering state to ordinary Format Data single-flight,
+FileContents stream IDs, lock/`clipDataId` state, X11 INCR ownership or native
+adapter callbacks. Those owners retain their existing generation and
+retirement contracts. `kLinuxProductionClipboardActivationApproved` remains
+false until the separately authorized R10 product handoff is satisfied.
+
 ## R5 queued X11 events remain owner-generation local (2026-10-30)
 
 An XCB event is valid only for the aggregate connection/generation that received it. Authorization-loss teardown must destroy geometry-bound children and the sole XCB owner before any replacement aggregate is exposed; do not copy, cache or replay XDamage/XFixes/RandR/input events across owners. Replacement construction must allocate fresh capture/native resource generations even when display name, root geometry and R2 session generation are unchanged. Terminal authority loss uses suppressing input retirement; only a still-authorized graceful disconnect may emit held-input cleanup.

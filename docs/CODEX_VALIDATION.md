@@ -1,3 +1,45 @@
+## R8 dormant CLIPRDR initialization/order authoring evidence — 2026-10-30
+
+- Authoring parent: `f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1`.
+- MS-RDPECLIP review: **PASS by inspection**. Server capabilities precede
+  Monitor Ready; after Monitor Ready the server remains ready for a client
+  Format List plus late first capabilities/Temporary Directory. The initial
+  client Format List is acknowledged before server-local copy/publication
+  generations are allowed.
+- Production state: existing `R3ClipboardTransferBridge` gains receipt-driven
+  initialization stages, Monitor Ready serialization, server-local monotonic
+  clipboard generations and generation-scoped Format List Response receipts.
+  No second controller/writer/framer is introduced.
+- Interop correction: `RemoteTransfer` permits the first valid client
+  capabilities and Temporary Directory after an already accepted Format List;
+  duplicate/malformed PDUs remain terminal. Missing capabilities still mean
+  zero negotiated flags; Temporary Directory remains a file-lock prerequisite,
+  not base initialization authority.
+- New CTests:
+  `clipboard.route-bridge-server-initialization-ordering`,
+  `clipboard.route-bridge-server-initialization-generation-replacement`,
+  `clipboard.route-bridge-server-initialization-pending-write-retirement`.
+  Shared clipboard sanitizer count: **104**.
+- Existing server capability/Format List serialization semantics are retained:
+  General Capability v2, supported flag mask, negotiated long names, bounded
+  short ASCII/Unicode fallback, nonzero unique IDs, registered PNG/file names,
+  no silent truncation, max 64 formats.
+- FileContents request/stream receipt logic, stale Format Data response draining,
+  file lock/`clipDataId`, X11 INCR cleanup and native generation revocation:
+  **UNCHANGED**.
+- Future R10 construction is defined but not enabled: current R2
+  authorization/native/session generations, Share/Graphics readiness, current
+  joined `cliprdr` route, and the one R1 TLS/static-channel writer are required
+  before the dormant owner could begin capabilities -> Monitor Ready -> client
+  initialization. Later local publications revalidate that same authority.
+- `kLinuxProductionClipboardActivationApproved = false`: **VERIFIED by source
+  review / unchanged**. Live clipboard/files/physical client: **NOT RUN /
+  BLOCKED**.
+- Local canonical configure/build/focused/full CTest, MSVC/CLANG64 and
+  sanitizers: **NOT RUN** in this connector environment. Exact
+  publication-SHA hosted CI: **PENDING**. Benchmark: **NOT RUN / not
+  applicable**.
+
 ## R10 final-authInfo diagnostic projection and replacement fencing — 2026-10-30
 
 - Authoring parent: `3040716a0f098f117a0895ed15101824191a0f7c`.

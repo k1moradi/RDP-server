@@ -19,6 +19,16 @@ namespace rdp_server::server::runtime
 // Production R8 activation remains blocked until the first real Windows App
 // video/input/Stop acceptance is recorded. Keep this hard gate false in M1;
 // the prepared route below is still compiled and reviewed in ordinary builds.
+//
+// Future R10 handoff, once that separate product gate is approved: construct
+// this owner only for the current credential/native-admission/session
+// generations after Share activation/GraphicsReady and a freshly authorized,
+// joined cliprdr route. R8 must then stage server CB_CLIP_CAPS, await the sole
+// R3/R1 writer receipt, stage CB_MONITOR_READY, process client capabilities /
+// optional temp-directory / initial Format List, and deliver that Format List
+// Response before publishing any local server Format List generation. Every
+// later offer still requires a fresh R2 route observation and the same one
+// R1 TLS/static-channel writer. Serialization never substitutes for authority.
 inline constexpr bool kLinuxProductionClipboardActivationApproved = false;
 
 // Owned by exactly one serialized R10 accepted-client/native lifetime. It

@@ -1,3 +1,79 @@
+## R8 Round 3 — dormant CLIPRDR initialization/order state (2026-10-30)
+
+**Authoring parent:** `f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1`. MS-RDPECLIP initialization was rechecked
+before this wire/state change. The server sends `CB_CLIP_CAPS` before
+`CB_MONITOR_READY`; after Monitor Ready it must accept the client's initial
+`CB_FORMAT_LIST` while remaining prepared for a first client capability PDU
+and optional Temporary Directory. The initial client Format List is answered
+with `CB_FORMAT_LIST_RESPONSE`. A server-owned Format List is therefore
+modeled as the first server copy/publication generation after base
+initialization, not as a fabricated extra initialization packet.
+
+R8 now keeps that dormant lifecycle inside the existing
+`R3ClipboardTransferBridge`. The route-local stages are
+`Dormant -> ServerCapabilitiesWritePending -> AwaitMonitorReady ->
+MonitorReadyWritePending -> AwaitClientInitialization -> Ready`.
+Transitions that claim a server packet was sent occur only after R3/R2 reports
+the exact positive accepted-byte `Delivered` receipt from the one existing
+static-channel/TLS writer. Each initiating call still requires a fresh
+`channelVisitor()` observation of the exact R3 generation. No serializer,
+stage enum or local clipboard generation can mint R2 admission, Share authority,
+channel membership or transport permission.
+
+The initial client Format List may arrive before client capabilities or the
+Temporary Directory after Monitor Ready. The production `RemoteTransfer`
+therefore no longer rejects the *first* valid capabilities or Temporary
+Directory solely because a Format List generation already exists. Duplicate
+capability/temp-directory messages and malformed input remain fail-closed.
+Capabilities remain optional: absence leaves negotiated flags at zero and uses
+the bounded short-format fallback. Temporary Directory is not required for
+base clipboard readiness; existing file-lock/`clipDataId` prerequisites still
+require it before that file feature can operate.
+
+Server-local publication has a separate monotonic clipboard generation.
+`beginServerFormatList` requires `Ready`, the exact current generation, a
+fresh R3 route observation, no incompatible bridge write/request and no
+undrained prior server Format List response. If the local clipboard generation
+changes before the response arrives, the old response is drained as
+`Superseded`; it cannot acknowledge the replacement source. R3 route
+retirement resets only route-local initialization/pending state while retaining
+generation high-water marks, so reconnect with the same numeric channel ID
+cannot revive an old local generation. Existing format serialization keeps one
+General Capability v2, supported-flag masking, negotiated long names, bounded
+short ASCII/Unicode entries, unique nonzero IDs, registered
+`PNG`/`FileGroupDescriptorW` names, no truncation and the 64-format bound.
+
+Dedicated production-backed offline CTests:
+`clipboard.route-bridge-server-initialization-ordering`,
+`clipboard.route-bridge-server-initialization-generation-replacement`, and
+`clipboard.route-bridge-server-initialization-pending-write-retirement`.
+They cover pre-route/duplicate Monitor Ready denials, client Format List before
+late capabilities/temp-directory, response-delivery readiness, accepted/rejected
+server Format List responses, local replacement before response, same-channel-ID
+reconnect with a new R3 generation, conflicting capability replacement during
+an outstanding server offer and positive-partial-write retirement. The shared
+clipboard sanitizer inventory advances **101 -> 104** with exact-name guards.
+
+**R10 future activation handoff (definition only):** construct the prepared R8
+owner only after current credential/native-admission/session generations,
+Share/Graphics readiness and a freshly R2-authorized joined `cliprdr` route
+are all current. Then stage server capabilities, finish its sole-writer receipt,
+stage Monitor Ready, process client initialization, and deliver the initial
+Format List Response before any local server Format List publication. Every
+subsequent native generation must re-enter R2, observe the current R3 route and
+use the same R1 writer. Stop/revoke/reconnect retires the route before native
+generation state.
+
+**Activation remains disabled:** `kLinuxProductionClipboardActivationApproved
+= false` is unchanged. No real clipboard, owner file, desktop or physical RDP
+client is accessed. FileContents request single-flight/stream IDs, stale response
+draining, file lock/`clipDataId`, X11 INCR cleanup and native generation
+revocation are unchanged. Local canonical configure/build/focused/full CTest
+and sanitizers are **NOT RUN** in this connector environment; exact
+publication-SHA hosted CI is **PENDING**. Benchmark: **NOT RUN / not
+applicable**; this is control-state/order work, not a throughput or latency
+change.
+
 ## R10 Round 2 — typed final-authInfo diagnostic projection and authority fencing (2026-10-30)
 
 **Authoring parent:** `3040716a0f098f117a0895ed15101824191a0f7c`. R10 now latches R2's existing secret-free

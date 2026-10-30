@@ -2042,6 +2042,9 @@ else()
 endif()
 foreach(case_name IN ITEMS
         server-outbound-capabilities-format-lists
+        server-initialization-ordering
+        server-initialization-generation-replacement
+        server-initialization-pending-write-retirement
         source-request-receipt
         missing-activated-route-denial
         old-route-generation-retirement

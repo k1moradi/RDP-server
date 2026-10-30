@@ -108,6 +108,14 @@ void write32(std::span<std::uint8_t> bytes, const std::size_t offset,
     return encodePdu(kClipCaps, 0U, payload, pdu);
 }
 
+[[nodiscard]] bool encodeServerMonitorReady(
+    std::vector<std::uint8_t> &pdu) noexcept
+{
+    return rdp_server::clipboard::encodePdu(
+        rdp_server::clipboard::kMonitorReady, 0U,
+        std::span<const std::uint8_t>{}, pdu);
+}
+
 [[nodiscard]] bool encodeServerLongFormatList(
     const std::span<const R3ClipboardTransferBridge::OutboundFormat> formats,
     std::vector<std::uint8_t> &pdu) noexcept
@@ -350,6 +358,30 @@ bool R3ClipboardTransferBridge::stageFormatListResponse(
     }
 }
 
+void R3ClipboardTransferBridge::maybeCompleteServerInitialization() noexcept
+{
+    if (serverInitializationStage_ ==
+            ServerInitializationStage::AwaitClientInitialization &&
+        clientInitialFormatListResponseDelivered_)
+    {
+        // Client capabilities are optional. Missing capabilities intentionally
+        // leave negotiated flags at zero; a late first capability PDU remains
+        // accepted in Ready and affects only subsequent Format Lists.
+        serverInitializationStage_ = ServerInitializationStage::Ready;
+    }
+}
+
+void R3ClipboardTransferBridge::resetServerInitializationForRoute() noexcept
+{
+    serverInitializationStage_ = ServerInitializationStage::Dormant;
+    lastServerFormatListReceipt_.reset();
+    serverClipboardGeneration_ = 0U;
+    pendingServerFormatListGeneration_ = 0U;
+    clientInitialFormatListResponseDelivered_ = false;
+    formatListResponseInitial_ = false;
+    serverFormatListAwaitingResponse_ = false;
+}
+
 void R3ClipboardTransferBridge::clearOutbound() noexcept
 {
     outboundPdu_.clear();
@@ -383,21 +415,52 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
 
     switch (pdu.type)
     {
+    case kMonitorReady:
+        // CB_MONITOR_READY is server-to-client. Once this bridge has entered
+        // the server initialization sequence, a peer Monitor Ready would make
+        // the direction/order ambiguous and retires the route.
+        if (serverInitializationStage_ != ServerInitializationStage::Dormant)
+            return failCurrentRoute();
+        return true;
+
     case kClipCaps:
+        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
+            serverInitializationStage_ !=
+                ServerInitializationStage::AwaitClientInitialization &&
+            serverInitializationStage_ != ServerInitializationStage::Ready)
+        {
+            return failCurrentRoute();
+        }
         if (!transfer_.receiveCapabilitiesPdu(
                 completePdu, localAdvertisedGeneralFlags_))
         {
             return failCurrentRoute();
         }
+        maybeCompleteServerInitialization();
         return true;
 
     case kTempDirectory:
+        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
+            serverInitializationStage_ !=
+                ServerInitializationStage::AwaitClientInitialization &&
+            serverInitializationStage_ != ServerInitializationStage::Ready)
+        {
+            return failCurrentRoute();
+        }
         if (!transfer_.receiveTemporaryDirectoryPdu(completePdu))
             return failCurrentRoute();
         return true;
 
     case kFormatList:
     {
+        if (serverInitializationStage_ != ServerInitializationStage::Dormant &&
+            serverInitializationStage_ !=
+                ServerInitializationStage::AwaitClientInitialization &&
+            serverInitializationStage_ != ServerInitializationStage::Ready)
+        {
+            return failCurrentRoute();
+        }
+
         // Do not supersede a source while a server-to-client clipboard PDU is
         // only partially accepted by R1. R3 retirement owns ambiguous writes.
         if (outboundKind_ != OutboundKind::None)
@@ -408,12 +471,44 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
             completePdu, nativeOfferAccepted_, acknowledgment);
         if (!transfer_.synchronized())
             return failCurrentRoute();
+
+        formatListResponseInitial_ =
+            serverInitializationStage_ ==
+                ServerInitializationStage::AwaitClientInitialization &&
+            !clientInitialFormatListResponseDelivered_;
         if (!stageFormatListResponse(acknowledgment))
+        {
+            formatListResponseInitial_ = false;
             return failCurrentRoute();
+        }
 
         // Native refusal is represented by CB_RESPONSE_FAIL and remains a
         // valid protocol exchange; it does not create clipboard authority.
         (void)accepted;
+        return true;
+    }
+
+    case kFormatListResponse:
+    {
+        if (!serverFormatListAwaitingResponse_ || !pdu.payload.empty() ||
+            (pdu.flags != kResponseOk && pdu.flags != kResponseFail) ||
+            pendingServerFormatListGeneration_ == 0U)
+        {
+            return failCurrentRoute();
+        }
+
+        const std::uint64_t completedGeneration =
+            pendingServerFormatListGeneration_;
+        serverFormatListAwaitingResponse_ = false;
+        pendingServerFormatListGeneration_ = 0U;
+        const bool superseded =
+            serverClipboardGeneration_ != completedGeneration;
+        lastServerFormatListReceipt_ = ServerFormatListReceipt{
+            completedGeneration,
+            superseded ? ServerFormatListStatus::Superseded :
+                         (pdu.flags == kResponseOk ?
+                              ServerFormatListStatus::Accepted :
+                              ServerFormatListStatus::Rejected)};
         return true;
     }
 
@@ -478,6 +573,7 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
 bool R3ClipboardTransferBridge::beginServerCapabilities() noexcept
 {
     if (!active() || !routeObservationAvailable_ ||
+        serverInitializationStage_ != ServerInitializationStage::Dormant ||
         outboundKind_ != OutboundKind::None ||
         formatRequestDelivered_ || fileContentsRequestDelivered_)
     {
@@ -490,13 +586,61 @@ bool R3ClipboardTransferBridge::beginServerCapabilities() noexcept
         return failCurrentRoute();
     if (!stageOutbound(OutboundKind::ServerCapabilities, std::move(pdu)))
         return failCurrentRoute();
+    serverInitializationStage_ =
+        ServerInitializationStage::ServerCapabilitiesWritePending;
+    return true;
+}
+
+bool R3ClipboardTransferBridge::beginServerMonitorReady() noexcept
+{
+    if (!active() || !routeObservationAvailable_ ||
+        serverInitializationStage_ !=
+            ServerInitializationStage::AwaitMonitorReady ||
+        outboundKind_ != OutboundKind::None ||
+        formatRequestDelivered_ || fileContentsRequestDelivered_)
+    {
+        return false;
+    }
+    routeObservationAvailable_ = false;
+
+    std::vector<std::uint8_t> pdu;
+    if (!encodeServerMonitorReady(pdu))
+        return failCurrentRoute();
+    if (!stageOutbound(OutboundKind::ServerMonitorReady, std::move(pdu)))
+        return failCurrentRoute();
+    serverInitializationStage_ =
+        ServerInitializationStage::MonitorReadyWritePending;
+    return true;
+}
+
+bool R3ClipboardTransferBridge::observeServerClipboardGeneration(
+    const std::uint64_t clipboardGeneration) noexcept
+{
+    if (!active() || !serverInitializationReady() ||
+        clipboardGeneration == 0U)
+    {
+        return false;
+    }
+    if (clipboardGeneration == serverClipboardGeneration_)
+        return true;
+    if (clipboardGeneration <= lastServerClipboardGeneration_)
+        return false;
+
+    lastServerClipboardGeneration_ = clipboardGeneration;
+    serverClipboardGeneration_ = clipboardGeneration;
     return true;
 }
 
 bool R3ClipboardTransferBridge::beginServerFormatList(
+    const std::uint64_t clipboardGeneration,
     const std::span<const OutboundFormat> formats) noexcept
 {
     if (!active() || !routeObservationAvailable_ ||
+        !serverInitializationReady() ||
+        clipboardGeneration == 0U ||
+        clipboardGeneration != serverClipboardGeneration_ ||
+        clipboardGeneration <= lastServerFormatListOfferedGeneration_ ||
+        serverFormatListAwaitingResponse_ ||
         outboundKind_ != OutboundKind::None ||
         formatRequestDelivered_ || fileContentsRequestDelivered_)
     {
@@ -512,6 +656,10 @@ bool R3ClipboardTransferBridge::beginServerFormatList(
         return false;
     if (!stageOutbound(OutboundKind::ServerFormatList, std::move(pdu)))
         return failCurrentRoute();
+
+    pendingServerFormatListGeneration_ = clipboardGeneration;
+    lastServerFormatListOfferedGeneration_ = clipboardGeneration;
+    lastServerFormatListReceipt_.reset();
     return true;
 }
 
@@ -674,10 +822,58 @@ bool R3ClipboardTransferBridge::recordAcceptedWriteReceipt(
 
     const OutboundKind completedKind = outboundKind_;
     clearOutbound();
-    if (completedKind == OutboundKind::FormatDataRequest)
+    switch (completedKind)
+    {
+    case OutboundKind::ServerCapabilities:
+        if (serverInitializationStage_ !=
+            ServerInitializationStage::ServerCapabilitiesWritePending)
+        {
+            return failCurrentRoute();
+        }
+        serverInitializationStage_ =
+            ServerInitializationStage::AwaitMonitorReady;
+        break;
+
+    case OutboundKind::ServerMonitorReady:
+        if (serverInitializationStage_ !=
+            ServerInitializationStage::MonitorReadyWritePending)
+        {
+            return failCurrentRoute();
+        }
+        serverInitializationStage_ =
+            ServerInitializationStage::AwaitClientInitialization;
+        maybeCompleteServerInitialization();
+        break;
+
+    case OutboundKind::ServerFormatList:
+        if (pendingServerFormatListGeneration_ == 0U ||
+            serverFormatListAwaitingResponse_)
+        {
+            return failCurrentRoute();
+        }
+        serverFormatListAwaitingResponse_ = true;
+        break;
+
+    case OutboundKind::FormatListResponse:
+        if (formatListResponseInitial_)
+        {
+            clientInitialFormatListResponseDelivered_ = true;
+            formatListResponseInitial_ = false;
+            maybeCompleteServerInitialization();
+        }
+        break;
+
+    case OutboundKind::FormatDataRequest:
         formatRequestDelivered_ = true;
-    else if (completedKind == OutboundKind::FileContentsRequest)
+        break;
+
+    case OutboundKind::FileContentsRequest:
         fileContentsRequestDelivered_ = true;
+        break;
+
+    case OutboundKind::None:
+        return failCurrentRoute();
+    }
     return true;
 }
 
@@ -688,6 +884,7 @@ void R3ClipboardTransferBridge::retireR3ChannelState() noexcept
     routeGeneration_ = 0U;
     routeObservationAvailable_ = false;
     clearOutbound();
+    resetServerInitializationForRoute();
     formatRequestDelivered_ = false;
     fileContentsRequestDelivered_ = false;
     transfer_.retireR3ChannelState();

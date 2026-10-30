@@ -1,3 +1,14 @@
+## R8 dormant initialization/order state adds no build surface (2026-10-30)
+
+The initialization state extends the existing noninstalled
+`rdp-server-r8-r3-clipboard` and existing `RemoteTransfer` source only.
+The three new behavior modes reuse `test_r8_r3_clipboard_bridge`; no library,
+executable, platform SDK, package, thread, socket owner or native dependency is
+added. The ordinary clipboard sanitizer inventory advances 101 -> 104. Existing
+Windows CLANG64/MSVC, macOS and Linux build roots/selectors remain unchanged
+apart from the shared clipboard exact-name/count guard. Use only the canonical
+single `build/` root.
+
 ## R5 queued-event retirement regression adds no dependency (2026-10-30)
 
 The queued-XDamage authority-retirement regression reuses the existing `test_x11_desktop_resources`, `rdp-server-linux-x11-desktop`, XDamage/XShm/XTEST dependencies and ephemeral `xvfb-run`. It adds no package, native service, thread, second XCB owner in production, build root or live desktop requirement. The existing sanitizer inventory increases from 42 to 43 selected R5 X11 CTests.

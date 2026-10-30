@@ -100,6 +100,27 @@ std::vector<std::uint8_t> shortUnicodeFormatListPdu()
     return pdu(rdp_server::clipboard::kFormatList, 0U, payload);
 }
 
+std::vector<std::uint8_t> temporaryDirectoryPdu()
+{
+    std::array<std::uint8_t, 520> payload{};
+    constexpr std::u16string_view path = u"C:\\Temp";
+    for (std::size_t index = 0U; index < path.size(); ++index)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(path[index]);
+        payload[index * 2U] = static_cast<std::uint8_t>(codeUnit);
+        payload[index * 2U + 1U] =
+            static_cast<std::uint8_t>(codeUnit >> 8U);
+    }
+    return pdu(rdp_server::clipboard::kTempDirectory, 0U, payload);
+}
+
+std::vector<std::uint8_t> formatListResponsePdu(
+    const std::uint16_t responseFlag)
+{
+    return pdu(
+        rdp_server::clipboard::kFormatListResponse, responseFlag);
+}
+
 std::vector<std::uint8_t> formatDataResponse(
     std::span<const std::uint8_t> payload)
 {
@@ -182,6 +203,64 @@ void deliverPendingSinglePacketWithFraming(
     assert(bridge.pendingApplicationPdu().empty());
 }
 
+void completeServerInitialization(
+    R3ClipboardTransferBridge &bridge,
+    RdpClipboardStaticChannelRoute &route,
+    const RdpClipboardStaticChannelView view,
+    const std::uint32_t peerGeneralFlags)
+{
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerCapabilities());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationStage() == Stage::AwaitMonitorReady);
+
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerMonitorReady());
+    rdp_server::clipboard::PduView monitor{};
+    assert(rdp_server::clipboard::decodePdu(
+        bridge.pendingApplicationPdu(), monitor));
+    assert(monitor.type == rdp_server::clipboard::kMonitorReady);
+    assert(monitor.flags == 0U && monitor.payload.empty());
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+
+    // MS-RDPECLIP requires the server to accept a client Format List after
+    // Monitor Ready even when client capabilities/temp-directory follow it.
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(!bridge.serverInitializationReady());
+
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(
+        sink.context, capabilitiesPdu(peerGeneralFlags)));
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, temporaryDirectoryPdu()));
+    assert(!bridge.serverInitializationReady());
+
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationReady());
+    assert(bridge.serverInitializationStage() == Stage::Ready);
+}
+
+void acknowledgeServerFormatList(
+    R3ClipboardTransferBridge &bridge,
+    const RdpClipboardStaticChannelView view,
+    const std::uint16_t responseFlag)
+{
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(
+        sink.context, formatListResponsePdu(responseFlag)));
+}
+
 void expectLongFormat(
     std::span<const std::uint8_t> payload, std::size_t &offset,
     const R3ClipboardTransferBridge::OutboundFormat &expected)
@@ -220,28 +299,15 @@ void serverOutboundCapabilitiesAndFormatLists()
                            1600U));
     R3ClipboardTransferBridge longBridge(configuredLocalFlags, true);
     auto longVisitor = longBridge.channelVisitor();
-    auto longSink = longBridge.completePduSink();
 
-    assert(longVisitor.visit(longVisitor.context, longView));
-    assert(longBridge.beginServerCapabilities());
-    PduView decoded{};
-    assert(decodePdu(longBridge.pendingApplicationPdu(), decoded));
-    assert(decoded.type == kClipCaps && decoded.flags == 0U);
-    assert(decoded.payload.size() == 16U);
-    assert(read16(decoded.payload, 0U) == 1U);
-    assert(read16(decoded.payload, 2U) == 0U);
-    assert(read16(decoded.payload, 4U) == 1U);
-    assert(read16(decoded.payload, 6U) == 12U);
-    assert(read32(decoded.payload, 8U) == 2U);
-    assert(read32(decoded.payload, 12U) == localFlags);
-    deliverPendingSinglePacketWithFraming(longBridge, longRoute);
-
-    assert(longVisitor.visit(longVisitor.context, longView));
-    assert(longSink.consume(longSink.context, capabilitiesPdu(localFlags)));
+    completeServerInitialization(
+        longBridge, longRoute, longView, localFlags);
     assert(longBridge.transfer().negotiatedGeneralFlags() == localFlags);
-
+    assert(longBridge.observeServerClipboardGeneration(1U));
     assert(longVisitor.visit(longVisitor.context, longView));
-    assert(longBridge.beginServerFormatList(formats));
+    assert(longBridge.beginServerFormatList(1U, formats));
+
+    PduView decoded{};
     assert(decodePdu(longBridge.pendingApplicationPdu(), decoded));
     assert(decoded.type == kFormatList && decoded.flags == 0U);
     std::size_t longOffset = 0U;
@@ -249,13 +315,20 @@ void serverOutboundCapabilitiesAndFormatLists()
         expectLongFormat(decoded.payload, longOffset, format);
     assert(longOffset == decoded.payload.size());
     deliverPendingSinglePacketWithFraming(longBridge, longRoute);
+    acknowledgeServerFormatList(longBridge, longView, kResponseOk);
+    const auto longReceipt = longBridge.lastServerFormatListReceipt();
+    assert(longReceipt &&
+           longReceipt->clipboardGeneration == 1U &&
+           longReceipt->status ==
+               R3ClipboardTransferBridge::ServerFormatListStatus::Accepted);
 
     std::array<R3ClipboardTransferBridge::OutboundFormat,
                RemoteTransfer::kMaximumFormats + 1U> tooManyFormats{};
     for (std::size_t index = 0U; index < tooManyFormats.size(); ++index)
         tooManyFormats[index].formatId = static_cast<std::uint32_t>(index + 1U);
+    assert(longBridge.observeServerClipboardGeneration(2U));
     assert(longVisitor.visit(longVisitor.context, longView));
-    assert(!longBridge.beginServerFormatList(tooManyFormats));
+    assert(!longBridge.beginServerFormatList(2U, tooManyFormats));
     assert(longBridge.active());
     assert(longBridge.pendingApplicationPdu().empty());
 
@@ -264,14 +337,17 @@ void serverOutboundCapabilitiesAndFormatLists()
             {0xc010U, u"PNG"},
             {0xc010U, u"FileGroupDescriptorW"},
         }};
+    assert(longBridge.observeServerClipboardGeneration(3U));
     assert(longVisitor.visit(longVisitor.context, longView));
-    assert(!longBridge.beginServerFormatList(duplicateFormats));
+    assert(!longBridge.beginServerFormatList(3U, duplicateFormats));
     assert(longBridge.active());
     assert(longBridge.pendingApplicationPdu().empty());
 
     R3ClipboardTransferBridge dormant(localFlags, true);
     assert(!dormant.beginServerCapabilities());
-    assert(!dormant.beginServerFormatList(formats));
+    assert(!dormant.beginServerMonitorReady());
+    assert(!dormant.observeServerClipboardGeneration(1U));
+    assert(!dormant.beginServerFormatList(1U, formats));
 
     constexpr std::uint32_t shortLocalFlags =
         kStreamFileclipEnabled | kFileclipNoFilePaths;
@@ -281,24 +357,14 @@ void serverOutboundCapabilitiesAndFormatLists()
                             1600U));
     R3ClipboardTransferBridge shortBridge(shortLocalFlags, true);
     auto shortVisitor = shortBridge.channelVisitor();
-    auto shortSink = shortBridge.completePduSink();
 
-    assert(shortVisitor.visit(shortVisitor.context, shortView));
-    assert(shortBridge.beginServerCapabilities());
-    assert(decodePdu(shortBridge.pendingApplicationPdu(), decoded));
-    assert(decoded.type == kClipCaps && decoded.flags == 0U);
-    assert(read32(decoded.payload, 12U) == shortLocalFlags);
-    deliverPendingSinglePacketWithFraming(shortBridge, shortRoute);
-
-    // The peer may support long names, but the sender did not advertise them;
-    // the negotiated layout therefore remains the short variant.
-    assert(shortVisitor.visit(shortVisitor.context, shortView));
-    assert(shortSink.consume(shortSink.context, capabilitiesPdu(localFlags)));
+    completeServerInitialization(
+        shortBridge, shortRoute, shortView, localFlags);
     assert((shortBridge.transfer().negotiatedGeneralFlags() &
             kUseLongFormatNames) == 0U);
-
+    assert(shortBridge.observeServerClipboardGeneration(1U));
     assert(shortVisitor.visit(shortVisitor.context, shortView));
-    assert(shortBridge.beginServerFormatList(formats));
+    assert(shortBridge.beginServerFormatList(1U, formats));
     assert(decodePdu(shortBridge.pendingApplicationPdu(), decoded));
     assert(decoded.type == kFormatList && decoded.flags == kAsciiNames);
     assert(decoded.payload.size() == formats.size() * 36U);
@@ -322,6 +388,189 @@ void serverOutboundCapabilitiesAndFormatLists()
             [](const std::uint8_t byte) { return byte == 0U; }));
     }
     deliverPendingSinglePacketWithFraming(shortBridge, shortRoute);
+    acknowledgeServerFormatList(shortBridge, shortView, kResponseFail);
+    const auto shortReceipt = shortBridge.lastServerFormatListReceipt();
+    assert(shortReceipt &&
+           shortReceipt->clipboardGeneration == 1U &&
+           shortReceipt->status ==
+               R3ClipboardTransferBridge::ServerFormatListStatus::Rejected);
+}
+
+void serverInitializationOrdering()
+{
+    using namespace rdp_server::clipboard;
+    using Stage = R3ClipboardTransferBridge::ServerInitializationStage;
+    constexpr std::uint32_t flags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr RdpClipboardStaticChannelView view{1008U, 60U};
+
+    R3ClipboardTransferBridge bridge(flags, true);
+    assert(!bridge.beginServerCapabilities());
+    assert(!bridge.beginServerMonitorReady());
+
+    RdpClipboardStaticChannelRoute route;
+    assert(route.start(1005U, view.channelId, view.generation, 1600U));
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+
+    assert(visitor.visit(visitor.context, view));
+    assert(!bridge.beginServerMonitorReady());
+    assert(bridge.beginServerCapabilities());
+    assert(bridge.serverInitializationStage() ==
+           Stage::ServerCapabilitiesWritePending);
+    assert(!bridge.beginServerCapabilities());
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationStage() == Stage::AwaitMonitorReady);
+
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerMonitorReady());
+    PduView monitor{};
+    assert(decodePdu(bridge.pendingApplicationPdu(), monitor));
+    assert(monitor.type == kMonitorReady && monitor.flags == 0U &&
+           monitor.payload.empty());
+    assert(!bridge.beginServerMonitorReady());
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationStage() ==
+           Stage::AwaitClientInitialization);
+
+    // A client offer can precede its capabilities/temp-directory once Monitor
+    // Ready is delivered. The response write, not parsing alone, completes the
+    // initial format synchronization.
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, shortUnicodeFormatListPdu()));
+    assert(!bridge.serverInitializationReady());
+
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, capabilitiesPdu(flags)));
+    assert(bridge.transfer().negotiatedGeneralFlags() == flags);
+    assert(visitor.visit(visitor.context, view));
+    assert(sink.consume(sink.context, temporaryDirectoryPdu()));
+    assert(!bridge.serverInitializationReady());
+
+    deliverPendingSinglePacketWithFraming(bridge, route);
+    assert(bridge.serverInitializationReady());
+
+    assert(visitor.visit(visitor.context, view));
+    assert(!bridge.beginServerMonitorReady());
+    assert(bridge.serverInitializationReady());
+}
+
+void serverInitializationGenerationReplacement()
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t flags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 2> formats{{
+        {kFormatUnicodeText, u""},
+        {0xc001U, u"PNG"},
+    }};
+
+    R3ClipboardTransferBridge bridge(flags, true);
+    auto visitor = bridge.channelVisitor();
+
+    constexpr RdpClipboardStaticChannelView first{1008U, 61U};
+    RdpClipboardStaticChannelRoute firstRoute;
+    assert(firstRoute.start(
+        1005U, first.channelId, first.generation, 1600U));
+    completeServerInitialization(bridge, firstRoute, first, flags);
+
+    assert(bridge.observeServerClipboardGeneration(100U));
+    assert(visitor.visit(visitor.context, first));
+    assert(bridge.beginServerFormatList(100U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, firstRoute);
+
+    // Local ownership changes while the old response has no request ID. Drain
+    // that response as stale before the replacement generation may publish.
+    assert(bridge.observeServerClipboardGeneration(101U));
+    acknowledgeServerFormatList(bridge, first, kResponseOk);
+    const auto stale = bridge.lastServerFormatListReceipt();
+    assert(stale && stale->clipboardGeneration == 100U);
+    assert(stale->status ==
+           R3ClipboardTransferBridge::ServerFormatListStatus::Superseded);
+
+    assert(visitor.visit(visitor.context, first));
+    assert(!bridge.beginServerFormatList(100U, formats));
+    assert(visitor.visit(visitor.context, first));
+    assert(bridge.beginServerFormatList(101U, formats));
+    deliverPendingSinglePacketWithFraming(bridge, firstRoute);
+    acknowledgeServerFormatList(bridge, first, kResponseOk);
+    const auto accepted = bridge.lastServerFormatListReceipt();
+    assert(accepted && accepted->clipboardGeneration == 101U);
+    assert(accepted->status ==
+           R3ClipboardTransferBridge::ServerFormatListStatus::Accepted);
+
+    bridge.retireR3ChannelState();
+    firstRoute.close();
+    assert(!bridge.active());
+
+    // Numeric channel-ID reuse cannot revive an old route or local clipboard
+    // generation; the new route repeats initialization and requires a newer
+    // native generation before any server Format List can be staged.
+    constexpr RdpClipboardStaticChannelView replacement{1008U, 62U};
+    RdpClipboardStaticChannelRoute replacementRoute;
+    assert(replacementRoute.start(
+        1005U, replacement.channelId, replacement.generation, 1600U));
+    assert(visitor.visit(visitor.context, replacement));
+    assert(!bridge.beginServerFormatList(101U, formats));
+    completeServerInitialization(
+        bridge, replacementRoute, replacement, flags);
+    assert(!bridge.observeServerClipboardGeneration(101U));
+    assert(bridge.observeServerClipboardGeneration(102U));
+    assert(visitor.visit(visitor.context, replacement));
+    assert(!bridge.beginServerFormatList(101U, formats));
+    assert(visitor.visit(visitor.context, replacement));
+    assert(bridge.beginServerFormatList(102U, formats));
+}
+
+void serverInitializationPendingWriteRetirement()
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t flags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 1> formats{{
+        {kFormatUnicodeText, u""},
+    }};
+    constexpr RdpClipboardStaticChannelView view{1008U, 63U};
+
+    R3ClipboardStaticChannelRoute route;
+    assert(route.start(1005U, view.channelId, view.generation, 1600U));
+    R3ClipboardTransferBridge bridge(flags, true);
+    auto visitor = bridge.channelVisitor();
+    auto sink = bridge.completePduSink();
+    completeServerInitialization(bridge, route, view, flags);
+
+    assert(bridge.observeServerClipboardGeneration(200U));
+    assert(visitor.visit(visitor.context, view));
+    assert(bridge.beginServerFormatList(200U, formats));
+    assert(route.queue(bridge.pendingApplicationPdu()));
+    const auto first = route.pending();
+    assert(first && bridge.bindQueuedWrite(first));
+    const std::uint64_t routeGeneration = first.routeGeneration;
+    const std::uint64_t replySequence = first.replySequence;
+    const std::uint64_t writeSliceSequence = first.writeSliceSequence;
+    const std::size_t offeredBytes = first.wireBytes.size();
+    const auto partial = route.onAcceptedBytes(
+        routeGeneration, replySequence, writeSliceSequence, 1U);
+    assert(partial == RdpClipboardWriteOutcome::Pending);
+    assert(bridge.recordAcceptedWriteReceipt(
+        routeGeneration, replySequence, writeSliceSequence,
+        offeredBytes, 1U, partial));
+
+    // Capabilities are single-shot. A replacement attempt while the server
+    // offer has a positive partial R1 receipt is ambiguous and retires R8.
+    assert(visitor.visit(visitor.context, view));
+    assert(!sink.consume(sink.context, capabilitiesPdu(0U)));
+    assert(!bridge.active());
+    assert(bridge.serverInitializationStage() ==
+           R3ClipboardTransferBridge::ServerInitializationStage::Dormant);
+    route.close();
+
+    assert(!bridge.recordAcceptedWriteReceipt(
+        routeGeneration, replySequence, writeSliceSequence,
+        offeredBytes, 1U, partial));
 }
 
 void sourceRequestReceipt()
@@ -837,6 +1086,12 @@ int main(int argc, char **argv)
     const std::string_view behavior{argv[1]};
     if (behavior == "server-outbound-capabilities-format-lists")
         serverOutboundCapabilitiesAndFormatLists();
+    else if (behavior == "server-initialization-ordering")
+        serverInitializationOrdering();
+    else if (behavior == "server-initialization-generation-replacement")
+        serverInitializationGenerationReplacement();
+    else if (behavior == "server-initialization-pending-write-retirement")
+        serverInitializationPendingWriteRetirement();
     else if (behavior == "source-request-receipt")
         sourceRequestReceipt();
     else if (behavior == "missing-activated-route-denial")

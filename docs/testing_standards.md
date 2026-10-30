@@ -1,3 +1,37 @@
+## R8 dormant server initialization/order regressions (2026-10-30)
+
+Use the production `R3ClipboardTransferBridge` plus
+`RdpClipboardStaticChannelRoute` for dormant initialization tests; never
+simulate transport completion by mutating R8 state directly. Server
+capabilities and Monitor Ready must advance only after the production route
+reports a positive `Delivered` receipt. Verify exact complete CLIPRDR PDUs
+through the existing route/writer seam.
+
+The central behavior cases are:
+`clipboard.route-bridge-server-initialization-ordering`,
+`clipboard.route-bridge-server-initialization-generation-replacement`, and
+`clipboard.route-bridge-server-initialization-pending-write-retirement`.
+Coverage must include no-route capability denial, Monitor Ready before
+capabilities and duplicate Monitor Ready denial, an initial client Format List
+before late first capabilities/Temporary Directory, readiness only after the
+initial Format List Response write completes, OK/FAIL server-offer responses,
+local-generation replacement before response, stale generation denial after
+same-channel-ID reconnect, duplicate/replacement client capabilities while a
+server offer is outstanding, and route retirement after a positive partial
+accepted-byte receipt.
+
+Client capabilities are optional for base readiness: a no-capability peer stays
+at zero negotiated flags and uses short Format Lists. A late first capability
+PDU affects only later lists. Temporary Directory is likewise not a base-ready
+condition; separately keep existing file lock/`clipDataId` prerequisite tests.
+Do not weaken or duplicate Format Data, FileContents, X11 INCR or native
+generation regressions.
+
+Register the three cases under the ordinary `clipboard` label and update the
+single fail-closed sanitizer inventory atomically from 101 to 104 with exact
+test-name sentinels. No test may open a host clipboard, inspect owner files,
+construct native admission or claim physical-client acceptance.
+
 ## R10 typed final-authInfo diagnostic lifetime gate (2026-10-30)
 
 R10 may retain only the bounded R2 final-authInfo failure category. Protected

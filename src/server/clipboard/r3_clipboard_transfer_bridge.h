@@ -81,6 +81,48 @@ public:
         return active() ? routeGeneration_ : 0U;
     }
 
+    enum class ServerInitializationStage : std::uint8_t
+    {
+        Dormant,
+        ServerCapabilitiesWritePending,
+        AwaitMonitorReady,
+        MonitorReadyWritePending,
+        AwaitClientInitialization,
+        Ready,
+    };
+
+    enum class ServerFormatListStatus : std::uint8_t
+    {
+        Accepted,
+        Rejected,
+        Superseded,
+    };
+
+    struct ServerFormatListReceipt final
+    {
+        std::uint64_t clipboardGeneration{};
+        ServerFormatListStatus status{ServerFormatListStatus::Rejected};
+    };
+
+    [[nodiscard]] ServerInitializationStage
+    serverInitializationStage() const noexcept
+    {
+        return serverInitializationStage_;
+    }
+    [[nodiscard]] bool serverInitializationReady() const noexcept
+    {
+        return serverInitializationStage_ == ServerInitializationStage::Ready;
+    }
+    [[nodiscard]] std::uint64_t serverClipboardGeneration() const noexcept
+    {
+        return serverClipboardGeneration_;
+    }
+    [[nodiscard]] std::optional<ServerFormatListReceipt>
+    lastServerFormatListReceipt() const noexcept
+    {
+        return lastServerFormatListReceipt_;
+    }
+
     struct OutboundFormat final
     {
         std::uint32_t formatId{};
@@ -95,7 +137,16 @@ public:
     // The live scheduler must still honor the MS-RDPECLIP initialization
     // sequence and use R3/R2's sole queue/write-receipt path.
     [[nodiscard]] bool beginServerCapabilities() noexcept;
+    [[nodiscard]] bool beginServerMonitorReady() noexcept;
+
+    // Local/native clipboard generations are monotonic over this bridge
+    // lifetime. Replacing the local generation while a Format List response is
+    // outstanding marks that response stale; it is drained but cannot accept
+    // the replacement generation.
+    [[nodiscard]] bool observeServerClipboardGeneration(
+        std::uint64_t clipboardGeneration) noexcept;
     [[nodiscard]] bool beginServerFormatList(
+        std::uint64_t clipboardGeneration,
         std::span<const OutboundFormat> formats) noexcept;
 
     // Requires a fresh channelVisitor() observation from R2/R3. The generated
@@ -141,6 +192,7 @@ private:
     {
         None,
         ServerCapabilities,
+        ServerMonitorReady,
         ServerFormatList,
         FormatListResponse,
         FormatDataRequest,
@@ -161,6 +213,8 @@ private:
         OutboundKind kind, std::vector<std::uint8_t> pdu) noexcept;
     [[nodiscard]] bool stageFormatListResponse(
         const std::array<std::uint8_t, 8> &response) noexcept;
+    void maybeCompleteServerInitialization() noexcept;
+    void resetServerInitializationForRoute() noexcept;
     void clearOutbound() noexcept;
     [[nodiscard]] bool failCurrentRoute() noexcept;
 
@@ -174,8 +228,18 @@ private:
     std::uint64_t outboundRouteGeneration_{};
     std::uint64_t outboundReplySequence_{};
     OutboundKind outboundKind_{OutboundKind::None};
+    ServerInitializationStage serverInitializationStage_{
+        ServerInitializationStage::Dormant};
+    std::optional<ServerFormatListReceipt> lastServerFormatListReceipt_{};
+    std::uint64_t serverClipboardGeneration_{};
+    std::uint64_t lastServerClipboardGeneration_{};
+    std::uint64_t pendingServerFormatListGeneration_{};
+    std::uint64_t lastServerFormatListOfferedGeneration_{};
     bool nativeOfferAccepted_{};
     bool routeObservationAvailable_{};
+    bool clientInitialFormatListResponseDelivered_{};
+    bool formatListResponseInitial_{};
+    bool serverFormatListAwaitingResponse_{};
     bool outboundBound_{};
     bool formatRequestDelivered_{};
     bool fileContentsRequestDelivered_{};

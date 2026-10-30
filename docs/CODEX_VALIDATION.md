@@ -1,3 +1,29 @@
+## R6 client-path and Windows-native round-one audit — 2026-10-30
+
+- Audited `main` baseline `c82988ee8178294d986e86a3c0cb09801f9bee5b`,
+  existing Microsoft CredSSP fixture, production
+  `StandaloneCredSspNtlmAcceptor`, private schema-v2 macOS evidence and
+  WTS/DXGI/SendInput adapters with their existing offline cases.
+- Existing exact-SHA Microsoft MSVC/CLANG64 `COMPLETE_PASS` receipts:
+  `ISC_REQ_DELEGATE` positive, terminal returned flag observed as
+  `delegation-returned=no`, nonempty authenticated final credentials,
+  `native-admission=no`; mismatched binding rejected before authInfo.
+  This is **PASS** as an offline oracle only.
+- Private physical traces show Type 2 committed, no later server-observed TLS
+  bytes, Type 3 not received and FIN. They establish no client-selected
+  credential, client Type-2 consumption, specific trust error or policy cause.
+- Windows native read-only code audit **PASS by inspection**; existing tests
+  already cover WTS SID/LUID/session mismatches, DXGI access-loss and
+  callback-time retirement, generation-invalid input and SendInput revocation.
+  No demonstrated missing negative boundary; no C++ code or CTest modification.
+- The precise macOS Windows App versus Windows 11 mstsc owner-run worksheet,
+  privacy rules, stop/invalid-pair rules and hypothesis discriminators are
+  maintained in `docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md`.
+- Source/procedure review **PASS**; local canonical build, ordinary full CTest,
+  live physical A/B, real desktop capture/input and benchmarking **NOT RUN**.
+  Next: common-descendant whole-project R9 producer qualification, manual
+  owner-candidate PASS and separate owner authorization, then private A/B.
+
 ## R1 receipt audit + queued plaintext before FIN regression — 2026-10-30
 
 - Authoring parent: `c82988ee8178294d986e86a3c0cb09801f9bee5b`.

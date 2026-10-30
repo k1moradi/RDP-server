@@ -1,3 +1,45 @@
+## R6 Round 1 — client-path differential and Windows-native boundary audit (2026-10-30)
+
+**Reviewed exact `main` baseline:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`.
+The Microsoft SSPI memory-BIO full CredSSP positive retains an explicit
+`CredsspSubmitBufferBoth` Unicode user/password, an intentionally empty
+domain, `ISC_REQ_DELEGATE`, a selected target/Schannel profile and final
+`SEC_E_OK` terminal `ISC_RET_DELEGATE` observation. Existing exact-SHA
+Windows receipts verify `credentials-verified=yes`,
+`production-authinfo-failure=none`, `production-authinfo-empty-fields=none`,
+`native-admission=no` and safe rejection of mismatched binding. The
+legacy Type-3, credential-source isolation, malformed-required-AV and target
+controls remain unchanged; **no duplicate fixture or production change** is
+indicated. This is not physical Windows App/mstsc proof.
+
+**Physical differential:** Linux receipt TLS1.3/AES-256-GCM, Direct-NTLM Type 1
+`0xe2088235`, production Type 2 `0xe08a8235` fully locally committed,
+no server-observed next TLS bytes, no Type 3 and peer FIN. Client credential
+selection, actual peer Type-2 consumption, delegation/policy, local trust and
+client-first error are **UNDETERMINED**, not a demonstrated bad password.
+R5's private schema-v2 macOS Core/UI owner evidence and the paired Windows 11
+mstsc row are the only next physical discriminator; the step-by-step
+owner-controlled A/B worksheet and prioritized evidence table are in
+`docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md`.
+
+**Windows native audit:** the WTS/LSA/token-SID reader rejects Session 0,
+inactive/non-console or unsupported logons and mismatched SID/LUID/session;
+the capture-session guard revokes current generations and closes on missing,
+stale or reentrant observations; DXGI access loss and desktop/surface
+replacement retire owned resources; SendInput is a private post-authority
+callback and loss/reentry discards held input without injection. Existing
+dedicated offline WTS, DXGI, capture-session and SendInput denial CTests cover
+these boundaries. **No additional missing negative boundary demonstrated**;
+no live Windows capture/input, R2 admission or policy modification authorized.
+
+**Next gate — BLOCKED / NOT RUN:** qualify all R9 producers on a common
+descendant SHA, explicitly pass manual `r9_credssp_owner_candidate=true`,
+obtain separate owner permission, then collect the controlled physical
+two-client A/B without modifying certificate, credentials stores, TLS, Type 2,
+target or native admission. Local canonical build/full CTest and physical
+A/B **NOT RUN** in the connector environment; code audit **PASS by inspection**;
+benchmark **NOT RUN / not applicable**.
+
 ## R1 Round 3 — queued post-Type-2 plaintext drains before terminal FIN (2026-10-30)
 
 **Authoring parent:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`. R1 receipt/ownership audit finds no

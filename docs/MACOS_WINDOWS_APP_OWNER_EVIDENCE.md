@@ -1,3 +1,123 @@
+## R6 round-one controlled physical A/B execution worksheet (2026-10-30)
+
+**Eligibility before any connection:** R9 must nominate one exact 40-character
+`main` SHA with all mandatory Linux/macOS/Windows, GUI, sanitizer and
+documentation producers green, and the manually dispatched
+`r9_credssp_owner_candidate=true` gate must independently **PASS** for that
+same SHA. Obtain separate owner authorization for both clients and the real
+server. An ordinary-push skipped candidate, an offline Microsoft SSPI result
+or a green Windows-only producer is **not** eligibility. Do not run either
+physical client, change a credential store, trust, Group Policy, registry,
+firewall, TermService or native capture/input as part of preparation.
+
+**Server preflight, owner terminal, canonical existing checkout only:**
+
+```sh
+cd ~/rdp-server
+git switch main
+git pull --ff-only origin main
+git rev-parse HEAD
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON
+cmake --build build --config Debug --parallel 2
+ctest --test-dir build -C Debug --output-on-failure
+```
+
+Require that the printed SHA equals the approved R9 candidate and that full
+CTest passes. Preserve the full result privately. With explicit owner consent,
+prepare **one** selected listener/standalone credential and one unchanged TLS
+certificate; note the listener selection, exact destination IP string,
+certificate SHA-256 fingerprint, configured standalone Username and whether
+the separately entered Session Password is intentionally identical in both
+clients. The Linux OS account password is **not** the application Session
+Password. Record exact values only in the private owner evidence, never the
+shared diagnostic summary. Do not restart, rotate, change destination text or
+change credentials between A and B; invalidate the pair if this occurs.
+
+**A — macOS Windows App, one deliberate attempt.** Record OS and Windows App
+version/build. In the existing Remote PC card's **Edit -> Saved credential**
+control, record whether a saved credential already existed, whether the owner
+explicitly created/replaced/re-entered it for this attempt, which saved entry
+was selected, and whether its Username matches the standalone Username
+(yes/no) and password matches the Session Password (yes/no only). Use an
+explicitly selected matching saved credential for the controlled row; an
+`Ask when required`/unknown credential is useful only as a separately labeled
+diagnostic row and does **not** satisfy the comparison. Do not disclose or
+export saved-secret contents. Using the documented **Help -> Troubleshooting
+-> Logging** UI, choose owner-controlled Core/UI log levels and a fresh output
+folder, Start Logging, make exactly one connection, then Stop Logging. Note
+warning shown/accepted, exact UI result, first typed Core/UI provider event
+when actually present, and an offset-aware attempt time. Create and validate
+the existing schema-v2 manifest using this document's commands and the same
+Linux connection, keeping all raw logs private.
+
+**B — Windows 11 `mstsc.exe`, one deliberate attempt.** Only after A is
+captured, record Windows build and the mstsc file version. Inspect the
+connection UI's displayed Username/credential selection and record whether a
+saved credential already existed, whether it was explicitly re-entered or
+replaced for this attempt, and whether the displayed Username and intentionally
+entered password match the same standalone pair (yes/no only). The
+owner-authorized `mstsc.exe /v:<exact-same-IP> /prompt` option requests a
+credential prompt, but the operator must still confirm which account is
+actually selected; do not assume a prompt bypasses machine policy. Never pass
+the password on the command line. Do not use `/restrictedAdmin`,
+`/remoteGuard`, a gateway or an implicit OS login as a supposedly equivalent
+delegating control. If a preexisting saved credential cannot be distinguished
+from the intended explicit entry without changing the store, mark B
+`INVALID_CREDENTIAL_CONTROL` and stop rather than deleting it. Record the
+same warning decision, client-visible error, exact destination and
+offset-aware correlation, with any separately owner-approved client diagnostics
+when available; do not invent a private mstsc log path.
+
+**For both rows, preserve separately:** exact server SHA and certificate
+fingerprint; listener/destination; client/OS versions; saved credential
+existed/selected/re-entered-or-replaced facts; Username and Session Password
+matching booleans; client UI warning/result and first *actually observed*
+provider/category/time; Linux connection ID and offset-aware terminal time;
+TLS/cipher, Type 1 flags, Type 2 flags and fully committed status,
+post-Type-2 server-observed TLS byte count, first-byte/EOF/alert facts,
+Type 3, pubKeyAuth, authInfo, CredentialsVerified, native Admission and
+first terminal stage. **Local Type 2 write completion is not peer-consumption
+proof**, a zero server-observed post-Type-2 byte count is not proof that the
+client emitted nothing, and FIN or generic `0x204` never identifies a
+credential, policy or certificate root cause.
+
+| Priority | Candidate cause (not established) | Required discriminator / owner |
+| --- | --- | --- |
+| 1 | Wrong selected, stale or absent client credential | Verify the explicit saved/prompt source, match booleans and client-side credential category. R5/R6 client evidence first |
+| 2 | Local certificate or trust decision | Compare warning actions and exact client trust/provider category. An unmatched warning decision invalidates the A/B pair |
+| 3 | Client CredSSP/delegation restriction or local token non-emission | A *client-side* event proving Type 2 was consumed plus refusal/no next token; inspect policy read-only. No unauthorised policy change |
+| 4 | Common live peer/server compatibility boundary | Both controlled clients stop after Type 2, with no earlier typed client cause. This prioritizes investigation, **not** a Type 2 or TLS rewrite |
+| 5 | Server R1/R2 parsing after Type 2 | Server receives post-Type-2 bytes: hand off the first observed TLS/TSRequest/token or protected-authInfo failure to R1/R2 |
+| 6 | Native session/Share path | Genuine Type 3 and verified credentials: R2 then R10 must independently establish native Admission before R3/Share. A hosted credential PASS never does so |
+
+**Comparison decision:** A stops after Type 2 but B emits Type 3 -> focus on
+macOS client-specific state; both stop -> seek a common requirement or two
+explicit client-side causes; both emit Type 3 -> advance to production proof,
+pubKeyAuth/authInfo and R2. A different SHA, destination, identity,
+certificate or client-warning decision -> **INCONCLUSIVE**, not a negative
+proof. Preserve event order within each source; report
+`ORDER_UNDETERMINED` across unverified client/server clocks. Stop at the
+first independently demonstrated failure and retain all private material under
+owner control. No physical execution is authorized by this worksheet.
+
+**Independent documentation:** Microsoft CredSSP
+`InitializeSecurityContext` requires `ISC_REQ_DELEGATE` for nonempty
+delegated credentials. The project's positive memory-BIO fixture explicitly
+supplies Unicode `User` / `Password`, empty domain, a chosen target,
+Schannel profile and delegation intent, and has already reached production
+`CredentialsVerified`. Neither macOS Windows App's saved-credential
+selection nor Windows 11 mstsc's UI/policy are exercised by that fixture;
+terminal `ISC_RET_DELEGATE=no` in the verified NTLM path does not negate the
+nonempty final authInfo. Do not rerun the already-qualified synthetic matrix
+to stand in for A/B.
+
+Microsoft references:
+<https://learn.microsoft.com/windows-app/user-account-settings-add-remove-manage>,
+<https://learn.microsoft.com/windows-app/troubleshoot-collect-logs>,
+<https://learn.microsoft.com/windows-server/administration/windows-commands/mstsc>,
+<https://learn.microsoft.com/windows/win32/secauthn/initializesecuritycontext--credssp>,
+<https://learn.microsoft.com/windows/security/identity-protection/remote-credential-guard>.
+
 # macOS Windows App physical owner-evidence procedure
 
 ## R5 P0 evidence validator and first-client-error contract (2026-10-29)

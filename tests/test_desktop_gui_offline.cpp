@@ -2174,10 +2174,19 @@ int main(int argc, char** argv)
             true, true, true, true, 15U * 60U * 1000U,
             RuntimeSharingPermissionDenial::None};
 
+        constexpr std::uint64_t failedConnectionId = 741'900'001ULL;
+        constexpr std::uint64_t replacementConnectionId = 742'900'002ULL;
+        const QString failedConnectionText =
+            QStringLiteral("Connection ID: %1")
+                .arg(static_cast<qulonglong>(failedConnectionId));
+        const QString replacementConnectionText =
+            QStringLiteral("Connection ID: %1")
+                .arg(static_cast<qulonglong>(replacementConnectionId));
+
         auto& diagnostics =
             runtime.snapshot.acceptedClientPreauthDiagnostics;
         diagnostics.available = true;
-        diagnostics.acceptedClientId = 741U;
+        diagnostics.acceptedClientId = failedConnectionId;
         diagnostics.ntlmEnvelope =
             RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
         diagnostics.authenticationStage =
@@ -2253,8 +2262,7 @@ int main(int argc, char** argv)
                 "Main/Activity did not retain generic post-Type-3 failure");
         require(mainDiagnostic->text().contains(
                     QStringLiteral("credential verification failed")) &&
-                    advanced->text().contains(
-                        QStringLiteral("Connection ID: 741")) &&
+                    advanced->text().contains(failedConnectionText) &&
                     advanced->text().contains(
                         QStringLiteral("credential delegation / pre-admission")) &&
                     advanced->text().contains(QStringLiteral("741111 us")) &&
@@ -2265,7 +2273,7 @@ int main(int argc, char** argv)
                 "post-Type-3 diagnostic evidence lost or misclassified");
 
         const QString previousExport = window.diagnosticExportText();
-        require(previousExport.contains(QStringLiteral("Connection ID: 741")) &&
+        require(previousExport.contains(failedConnectionText) &&
                     previousExport.contains(QStringLiteral("741111 us")),
                 "old peer is absent from its own diagnostic snapshot");
         for (const QString& marker : secretMarkers)
@@ -2276,10 +2284,10 @@ int main(int argc, char** argv)
         runtime.snapshot.lastError = RuntimeHostError::None;
         runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
         runtime.snapshot.activeClients = {
-            RuntimeHostClient{742U, "192.168.0.55", true, false, false}};
+            RuntimeHostClient{replacementConnectionId, "192.168.0.55", true, false, false}};
         diagnostics = {};
         diagnostics.available = true;
-        diagnostics.acceptedClientId = 742U;
+        diagnostics.acceptedClientId = replacementConnectionId;
         diagnostics.authenticationStage =
             RuntimeAcceptedClientAuthenticationStage::Tls;
         diagnostics.protocolStage =
@@ -2308,14 +2316,19 @@ int main(int argc, char** argv)
         for (const QString& current :
              {advanced->text(), replacementExport})
         {
-            require(current.contains(QStringLiteral("Connection ID: 742")) &&
+            require(current.contains(replacementConnectionText) &&
                         current.contains(QStringLiteral("742222 us")) &&
                         current.contains(QStringLiteral("NTLM Type 3: not observed")) &&
                         current.contains(QStringLiteral(
                             "First failure: No typed authentication failure observed.")),
                     "new accepted peer's status is not current");
+        }
+        for (const QString& current :
+             {mainDiagnostic->text(), activity->text(),
+              advanced->text(), replacementExport})
+        {
             for (const QString& retired :
-                 {QStringLiteral("Connection ID: 741"),
+                 {failedConnectionText,
                   QStringLiteral("741111 us"),
                   QStringLiteral("741222 us"),
                   QStringLiteral("credential delegation"),
@@ -2336,6 +2349,8 @@ int main(int argc, char** argv)
                     QStringLiteral("Connection ID: unavailable")) &&
                     emptyExport.contains(
                         QStringLiteral("Connection ID: unavailable")) &&
+                    !advanced->text().contains(replacementConnectionText) &&
+                    !emptyExport.contains(replacementConnectionText) &&
                     !advanced->text().contains(QStringLiteral("742222 us")) &&
                     !emptyExport.contains(QStringLiteral("742222 us")) &&
                     activity->text() == QStringLiteral("No connected devices"),

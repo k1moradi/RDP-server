@@ -1,3 +1,26 @@
+## R7 authInfo generation replacement and macOS package no-prompt qualification (2026-10-30)
+
+Keep final-authInfo GUI diagnostics connection-scoped. The existing
+`gui.offscreen-authinfo-failure-connection-replacement-redaction` case must
+prove that replacing R10's accepted-client snapshot removes the retired
+connection identifier, failure stage/text and connection-only timings from
+Main, Activity, Advanced and explicit diagnostic export, while preserving only
+the new connection's bounded facts. Final retirement must remove the replacement
+identifier/timings too. Secret-bearing Username/password/delegated-domain,
+NTLM/authInfo/MIC/binding/TLS material remains forbidden from export. Until R10
+projects a bounded final-authInfo reason, Qt may render only the existing
+generic AuthInfo-stage diagnostic and must not infer bad password, pre-Type-3
+peer close or native-admission denial.
+
+For the macOS portable GUI, qualify normal pre-listener startup at the exact
+packaging SHA with `runtime.macos-host-control-no-prompt-on-app-launch` before
+the extracted LaunchServices/no-listener smoke. Archive metadata must continue
+to distinguish `ad_hoc_signed=true` from `signed=false` and
+`notarized=false`, and its trust text must not claim Developer ID or verified
+release notarization. These offline gates never request TCC, grant R2 authority
+or substitute for production signing/notarization or physical-client
+acceptance.
+
 ## R2 final-authInfo diagnostic observations retire on reset (2026-10-30)
 
 The existing production-backed authInfo mismatch/empty-field fixture must assert

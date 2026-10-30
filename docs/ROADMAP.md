@@ -1,3 +1,44 @@
+## R7 Round 2 follow-up — authInfo generation redaction and portable no-prompt gate (2026-10-30)
+
+**Authoring parent:** `9e8ee7807d57455938f8c14d9f2e78f5573f0da4`. R10 projection audit confirms
+`RuntimeAcceptedClientPreauthDiagnostics` still exposes only the coarse
+`RuntimeAcceptedClientStandaloneFailureStage::AuthInfo`; it does not yet
+project the production final-authInfo failure reason. R7 therefore makes no
+new authentication classifier and keeps Main/Activity generic for final
+authInfo rejection. The current upstream blocker is also outside R7/R2:
+the Microsoft CredSSP oracle omitted `ISC_REQ_DELEGATE`, so its positive
+exchange delegated both empty fields and never reached `CredentialsVerified`.
+Agent 6 owns that next oracle correction; physical-client/native admission
+remains blocked behind R9 qualification.
+
+The existing behavior-named
+`gui.offscreen-authinfo-failure-connection-replacement-redaction` is
+strengthened rather than duplicated. Connection A now uses a distinctive
+64-bit diagnostic connection identifier; after R10 replaces the snapshot with
+connection B, Main, Activity, Advanced and explicit export must all omit A's
+identifier, failure stage/text and A-only timings. B's current identifier and
+timing must be present only on the detailed surfaces, and final retirement must
+remove B's identifier/timing as well. Existing Username/password/domain/NTLM/
+authInfo/MIC/binding/TLS-secret sentinels remain forbidden from export.
+
+Portable-package audit found one qualification gap: the real macOS packaging
+lane launched the extracted Cocoa app with a no-listener check, while the
+production `runtime.macos-host-control-no-prompt-on-app-launch` CTest was not
+pinned in that same exact-SHA package job. The lane now builds and runs that
+exact-one pre-listener runtime case before LaunchServices smoke. The archive
+integrity test also requires its trust metadata to say ad-hoc preview signing
+and explicitly deny verified release signing/notarization or Developer ID
+trust. Windows offline smoke already snapshots firewall rules, TermService and
+OS-RDP policy and remains unchanged.
+
+**Verification:** source/test/workflow review PASS by inspection. Local
+`~/rdp-server/build/` configure/build/focused/full CTest is **NOT RUN** in
+this connector environment; no second build root, live listener, TCC prompt,
+desktop, firewall, TermService or physical client was used. Publication-SHA
+hosted structure/macOS GUI/full CTest is **PENDING**. Next R7 production action
+remains consuming the smallest bounded final-authInfo enum only after R10
+authoritatively projects it.
+
 **R2 diagnostic-retirement regression follow-up (2026-10-30):**
 The existing production-backed authInfo credential-rejection helper now asserts
 that `StandaloneCredSspNtlmAcceptor::reset()` clears both the typed

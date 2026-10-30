@@ -1,3 +1,34 @@
+## R7 authInfo generation replacement and macOS package no-prompt follow-up — 2026-10-30
+
+- Authoring parent: `9e8ee7807d57455938f8c14d9f2e78f5573f0da4`.
+- R10 diagnostic projection audit: **BLOCKED for Advanced category integration**.
+  `RuntimeAcceptedClientPreauthDiagnostics` still has the AuthInfo failure
+  stage but no projected bounded final-authInfo reason. No R2 parser/verifier
+  data is read from Qt and Main/Activity remain generic.
+- Strengthened existing
+  `gui.offscreen-authinfo-failure-connection-replacement-redaction`: a
+  distinctive 64-bit connection-A identifier, A-only stage/timings/failure,
+  and secret sentinels must disappear from Main, Activity, Advanced and export
+  when connection B becomes current; B identifier/timing must then disappear
+  on retirement.
+- macOS archive integrity now asserts trust wording remains explicitly
+  ad-hoc preview only, release signing/notarization unverified, with no
+  Developer ID claim.
+- The `r7-macos-portable-gui` job now builds and runs exact-one
+  `runtime.macos-host-control-no-prompt-on-app-launch` before the existing
+  extracted LaunchServices/no-TCP-listener smoke, tying the production
+  pre-listener no-TCC-prompt contract to the package SHA.
+- Windows portable GUI system-state smoke is unchanged and already snapshots
+  firewall profiles/rules, TermService, RDP-Tcp port/policy and process sockets.
+- Current authentication blocker: Agent 6's Microsoft CredSSP client context
+  omitted `ISC_REQ_DELEGATE`; same-SHA R2 evidence shows both delegated fields
+  empty and `CredentialsVerified` false. No R7 classification change is
+  authorized by that oracle result.
+- Local canonical build/focused/full CTest: **NOT RUN** (connector environment
+  has no owner-approved local checkout/build root). Hosted publication-SHA
+  structure/macOS GUI/full CTest: **PENDING**. Physical client/native desktop:
+  **BLOCKED / NOT RUN**.
+
 ## R2 authInfo diagnostic reset regression — 2026-10-30
 
 - Parent source: `1c172fc0d3d864f267289ebf320a450ac541c130`.

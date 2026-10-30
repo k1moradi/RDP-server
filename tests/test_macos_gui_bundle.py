@@ -115,6 +115,10 @@ class MacGuiBundleTests(unittest.TestCase):
         self.assertFalse(signing["signed"])
         self.assertFalse(signing["notarized"])
         self.assertTrue(signing["ad_hoc_signed"])
+        trust = signing["trust"]
+        self.assertIn("ad-hoc signed", trust)
+        self.assertIn("release signing/notarization not verified", trust)
+        self.assertNotIn("Developer ID", trust)
         shutil.rmtree(extracted)
         self.assertFalse(extracted.exists())
         self.assertTrue(self.app.is_dir())

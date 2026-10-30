@@ -2936,6 +2936,21 @@ jobs:
           ctest --test-dir build -C Release -N -R '^gui[.]offscreen-'
           ctest --test-dir build -C Release --timeout 30 \
             -R '^gui[.]offscreen-' --output-on-failure
+      # Normal extracted-package startup must not request Screen Recording or
+      # Accessibility. Exercise the real macOS RuntimeHostControl pre-listener
+      # service path at this exact packaging SHA before LaunchServices opens it.
+      - name: Pin macOS pre-listener no-TCC-prompt runtime CTest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --config Release --target test_macos_runtime_host_control --parallel 2
+          selector='^runtime[.]macos-host-control-no-prompt-on-app-launch$'
+          selected_tests="$(ctest --test-dir build -C Release -N -R "$selector")"
+          printf '%s\n' "$selected_tests"
+          grep -Fq ': runtime.macos-host-control-no-prompt-on-app-launch' <<< "$selected_tests"
+          test "$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")" -eq 1
+          ctest --test-dir build -C Release --timeout 30 -R "$selector" --output-on-failure
+
       - name: Pin R7 TLS fingerprint Qt regression on macOS
         shell: bash
         run: |

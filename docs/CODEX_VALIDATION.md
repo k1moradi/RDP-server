@@ -1,3 +1,12 @@
+## R4 first-frame sanitizer-selection correction — 2026-10-30
+
+- Publication parent: `a812df7668b7a45b85dd1cd9f5d73c956411948b`.
+- Corrected the existing portable RDPGFX CTest selection/required-name
+  sentinel to include the new remap-before-first-frame regression.
+- Source/CMake/CI reconciliation PASS by inspection; selected sanitizer and
+  full CTest at this exact publication SHA PENDING.
+- No production behavior or physical client activity changed.
+
 ## R9 Round 2 baseline qualification ledger — 2026-10-30
 
 Source SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` ·

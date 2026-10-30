@@ -1,3 +1,11 @@
+## R4 remap-before-first-frame sanitizer registration (2026-10-30)
+
+In addition to ordinary full CTest, the existing R9 portable RDPGFX
+sanitizer selector explicitly includes
+`graphics.surface-remap-before-first-frame-wire` and verifies the
+test's presence before execution. A passing selected run is still only
+offline lifecycle/encoder/ACK evidence, never physical client acceptance.
+
 ## R1 final CredSSP TLS framing/reconnect gate (2026-10-30)
 
 Use the existing real-LAN-listener Direct-NTLM lifecycle fixture for final

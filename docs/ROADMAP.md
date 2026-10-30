@@ -1,3 +1,15 @@
+## R4 P2 sanitizer-selection follow-up (2026-10-30)
+
+Follow-up parent: `a812df7668b7a45b85dd1cd9f5d73c956411948b`. R9's portable RDPGFX
+sanitizer job maintained an explicit CTest-name selection; the newly added
+`graphics.surface-remap-before-first-frame-wire` was present in the
+full-CTest registry but not in that sanitizer selection. The same canonical
+CI job now includes the new case in its regex and required-name sentinel,
+without creating a new runner, altering a fixed count, or modifying R4
+production code. Source/CI inspection: PASS. Exact publication-SHA hosted
+sanitizer and full CTest: PENDING; local build: NOT RUN (GitHub DNS).
+No physical R2/R6/Microsoft graphics admission is implied.
+
 ## R8 P0 — Windows CLANG64 Release joined FileContents fixture qualification (2026-10-30)
 
 **Observed boundary:** at `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, workflow `40860372282`,

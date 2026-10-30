@@ -2197,6 +2197,9 @@ int main(int argc, char** argv)
             RuntimeAcceptedClientCredSspTransition::Failed;
         diagnostics.standaloneFailureStage =
             RuntimeAcceptedClientStandaloneFailureStage::AuthInfo;
+        diagnostics.standaloneCredentialGeneration = 71U;
+        diagnostics.standaloneAuthInfoFailureReason =
+            RuntimeAcceptedClientAuthInfoFailureReason::CredentialMismatch;
         diagnostics.termination =
             RuntimeAcceptedClientTermination::ProtocolError;
         diagnostics.ntlmTypeOne.observed = true;
@@ -2263,6 +2266,8 @@ int main(int argc, char** argv)
         require(mainDiagnostic->text().contains(
                     QStringLiteral("credential verification failed")) &&
                     advanced->text().contains(failedConnectionText) &&
+                    advanced->text().contains(QStringLiteral(
+                        "Final authInfo: delegated credentials did not match")) &&
                     advanced->text().contains(
                         QStringLiteral("credential delegation / pre-admission")) &&
                     advanced->text().contains(QStringLiteral("741111 us")) &&
@@ -2274,8 +2279,10 @@ int main(int argc, char** argv)
 
         const QString previousExport = window.diagnosticExportText();
         require(previousExport.contains(failedConnectionText) &&
-                    previousExport.contains(QStringLiteral("741111 us")),
-                "old peer is absent from its own diagnostic snapshot");
+                    previousExport.contains(QStringLiteral("741111 us")) &&
+                    previousExport.contains(QStringLiteral(
+                        "Final authInfo: delegated credentials did not match")),
+                "old peer's bounded final-authInfo diagnostics are absent");
         for (const QString& marker : secretMarkers)
             require(!previousExport.contains(marker),
                     "secret sentinel leaked in failed-peer export");
@@ -2332,7 +2339,8 @@ int main(int argc, char** argv)
                   QStringLiteral("741111 us"),
                   QStringLiteral("741222 us"),
                   QStringLiteral("credential delegation"),
-                  QStringLiteral("credential verification failed")})
+                  QStringLiteral("credential verification failed"),
+                  QStringLiteral("Final authInfo:")})
                 require(!current.contains(retired),
                         "old accepted peer metadata survived replacement");
         }
@@ -2355,6 +2363,160 @@ int main(int argc, char** argv)
                     !emptyExport.contains(QStringLiteral("742222 us")) &&
                     activity->text() == QStringLiteral("No connected devices"),
                 "last accepted peer survived retirement");
+        return 0;
+    }
+
+    if (mode == "authinfo-typed-advanced-only-and-generation-retirement")
+    {
+        // R10's non-secret, connection-scoped reason is presentation-only.
+        // This test neither consults R2 internals nor grants native admission.
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 915U;
+        runtime.snapshot.credentialsConfigured = true;
+
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 915'004U;
+        diagnostics.standaloneCredentialGeneration = 53U;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredentialDelegation;
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::AuthInfo;
+
+        DesktopWindow window(host);
+        auto* availability =
+            requiredLabel(window, "sharingAvailabilityStatus");
+        auto* activity = requiredLabel(window, "clientStatus");
+        auto* mainDiagnostic =
+            requiredLabel(window, "hostErrorExplanation");
+        auto* advanced =
+            requiredLabel(window, "authenticationDiagnosticsStatus");
+
+        const auto require = [](bool condition, const char* message) {
+            if (!condition)
+            {
+                std::fprintf(stderr, "typed authInfo GUI: %s\n", message);
+                std::abort();
+            }
+        };
+        using Reason = RuntimeAcceptedClientAuthInfoFailureReason;
+        struct FailureCase final
+        {
+            Reason reason;
+            const char* text;
+        };
+        constexpr FailureCase cases[]{
+            {Reason::FrameOrSessionInvalid,
+             "final credential frame invalid"},
+            {Reason::ProtectedCredentialOrSignSealFailure,
+             "protected credential unwrap failed"},
+            {Reason::CredentialStructureOrTypeFailure,
+             "delegated credential structure invalid"},
+            {Reason::DelegatedDomainRejected,
+             "delegated credential domain rejected"},
+            {Reason::CredentialUnavailableOrRevoked,
+             "session credential unavailable or revoked"},
+            {Reason::CredentialMismatch,
+             "delegated credentials did not match"},
+            {Reason::FrameReleaseFailure,
+             "final credential frame release failed"}};
+
+        for (const FailureCase& failure : cases)
+        {
+            diagnostics.standaloneAuthInfoFailureReason = failure.reason;
+            window.refresh();
+            const QString expected =
+                QStringLiteral("Final authInfo: ") +
+                QString::fromLatin1(failure.text);
+            const QString exportText = window.diagnosticExportText();
+            const HostStatus status = host.status();
+            require(status.remoteAuthenticationFailed &&
+                        !status.remoteAuthenticationInvalidCredentials &&
+                        !status.remoteAuthenticationIncomplete &&
+                        !status.localDesktopAuthorizationFailed,
+                    "typed authInfo changed product failure classification");
+            require(availability->text() ==
+                        QStringLiteral("Remote client authentication failed.") &&
+                        activity->text().contains(availability->text()) &&
+                        !mainDiagnostic->text().contains(
+                            QStringLiteral("Final authInfo:")) &&
+                        !activity->text().contains(
+                            QStringLiteral("Final authInfo:")),
+                    "typed authInfo escaped into Main or Activity");
+            require(advanced->text().contains(expected) &&
+                        exportText.contains(expected) &&
+                        advanced->text().count(
+                            QStringLiteral("Final authInfo:")) == 1 &&
+                        exportText.count(
+                            QStringLiteral("Final authInfo:")) == 1,
+                    "bounded final-authInfo category is absent or duplicated");
+        }
+
+        // No category, no real accepted client, no credential generation,
+        // wrong stage and verified credentials must each suppress the detail.
+        diagnostics.standaloneAuthInfoFailureReason = Reason::None;
+        window.refresh();
+        require(!advanced->text().contains(QStringLiteral("Final authInfo:")),
+                "None projected an invented authInfo category");
+
+        diagnostics.standaloneAuthInfoFailureReason = Reason::CredentialMismatch;
+        diagnostics.acceptedClientId = 0U;
+        window.refresh();
+        require(!advanced->text().contains(QStringLiteral("Final authInfo:")),
+                "missing connection lifetime projected an authInfo category");
+        diagnostics.acceptedClientId = 915'004U;
+
+        diagnostics.standaloneCredentialGeneration = 0U;
+        window.refresh();
+        require(!advanced->text().contains(QStringLiteral("Final authInfo:")),
+                "missing credential generation projected an authInfo category");
+        diagnostics.standaloneCredentialGeneration = 53U;
+
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::PubKeyAuth;
+        window.refresh();
+        require(!advanced->text().contains(QStringLiteral("Final authInfo:")),
+                "unrelated authentication stage reused authInfo reason");
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::AuthInfo;
+
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        window.refresh();
+        require(!advanced->text().contains(QStringLiteral("Final authInfo:")),
+                "verified credentials retained a failure reason");
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{915'005U, "192.168.0.65", true, false, false}};
+        diagnostics = {};
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 915'005U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Tls;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::AwaitingToken;
+        window.refresh();
+        const QString replacementExport = window.diagnosticExportText();
+        for (const QString& current :
+             {availability->text(), activity->text(),
+              mainDiagnostic->text(), advanced->text(), replacementExport})
+        {
+            require(!current.contains(QStringLiteral("Final authInfo:")) &&
+                        !current.contains(QStringLiteral("915004")),
+                    "new peer inherited old authInfo reason or connection ID");
+        }
+        require(advanced->text().contains(QStringLiteral("Connection ID: 915005")) &&
+                    replacementExport.contains(QStringLiteral("Connection ID: 915005")),
+                "replacement connection identity missing from diagnostics");
         return 0;
     }
 

@@ -4976,6 +4976,17 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
         LABELS "gui;offline;authentication;admission;diagnostics;runtime"
         TIMEOUT 30)
 
+    # R7 consumes only R10's lifetime-fenced final-authInfo reason.
+    # Main/Activity stay generic; Advanced/export are bounded and redacted.
+    add_test(NAME gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement
+        COMMAND test_desktop_gui_offline
+            authinfo-typed-advanced-only-and-generation-retirement)
+    set_tests_properties(
+        gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;authentication;diagnostics;security;lifecycle"
+        TIMEOUT 30)
+
     # Advanced connection-security details are display-only and may use only
     # bounded facts supplied by R10/R1, never inference or bypass controls.
     add_test(NAME gui.offscreen-advanced-runtime-security-diagnostics

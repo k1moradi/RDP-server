@@ -1,3 +1,45 @@
+## R7 Round 2 continuation — consume R10 typed final-authInfo only in Advanced (2026-10-30)
+
+**Authoring parent:** `81633e1bfa4251a98e5dfbc9cd21853bad844599`. R10's `f85ae6ba` now supplies
+`RuntimeAcceptedClientAuthInfoFailureReason` through the single
+`RuntimeAcceptedClientPreauthDiagnostics` owner, bounded to the exact
+accepted-client ID and nonzero standalone credential generation. R6's
+empty-field observation and all plaintext credentials remain unprojected.
+R7 consumes only that runtime category in Advanced and explicit redacted
+diagnostic export, with text for frame/session invalid, protected unwrap/
+SIGN-SEAL, credential structure/type, delegated-domain rejection,
+unavailable/revoked credential, mismatch and frame-release failure. The
+generic Main/Activity first-failure classification is deliberately unchanged:
+a final-authInfo mismatch is not independently labeled `Invalid credentials.`
+and cannot be confused with pre-Type-3 peer close or native admission.
+
+**New ordinary CTest:**
+`gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement`.
+It covers every R10 category, no reason, invalid client/credential generation,
+wrong stage, verified transition and replacement peer. The existing
+`gui.offscreen-authinfo-failure-connection-replacement-redaction` also
+now proves that the typed mismatch description disappears with the retired
+connection while IDs, timings and secret sentinels remain isolated.
+No new R2 parser, Qt state owner, wire behavior, native permissions, listener,
+macOS TCC path, Windows policy or package signing is introduced.
+
+**Independent dependency status:** R6's exact `0143d166` Windows MSVC/
+CLANG64 positive CredSSP and negative-binding controls PASS (including
+`CredentialsVerified=yes` with `native-admission=no`). Physical Microsoft
+client, OS native admission and real desktop remain NOT RUN and require R9/
+owner authorization. Latest `98b91f4a` CI structure guard FAILs on unrelated
+R5 `r5_expected_test_count=43` stale sentinel after R5 raised its inventory
+to 44; R8 full CTest is also blocked on the R10 Linux Direct-NTLM fixture
+incomplete-type compilation. These must be fixed at their respective owners;
+do not mask them or claim same-SHA product acceptance.
+
+**Validation:** GitHub source/CTest/doc review PASS by inspection.
+Local canonical Debug build, focused/full CTest and sanitizer NOT RUN
+(connector environment has no owner-approved checkout/build root). Exact
+publication-SHA hosted R7 macOS/offscreen and Linux full CI PENDING.
+Next gate: fix unrelated CI compile/structure blockers, verify the new R7
+CTest at one exact SHA, then R9 physical acceptance permission separately.
+
 ## R10 Round 3 — repair complete-type include for final-authInfo lifecycle CTest (2026-10-30)
 
 **Authoring parent:** `a0c4bb0c519d3f840979fed7fa3058dd8262d559`. Production R10 authInfo projection

@@ -1,3 +1,22 @@
+## R7 final-authInfo typed Advanced-only presentation gate (2026-10-30)
+
+After R10 projects `RuntimeAcceptedClientAuthInfoFailureReason`, R7 may
+render fixed non-secret descriptions only in Advanced and the explicit
+redacted diagnostic export, never Main/Activity. It must require the current
+accepted-client ID, nonzero standalone credential generation, failed CredSSP
+transition and AuthInfo failure stage. A missing/None reason, unrelated
+negotiation/Admission stage, verified credential transition, or replacement
+connection must not inherit a previous reason. R7 must not inspect any R2
+credential bytes, R6 empty-field categories or infer a bad password.
+
+The behavior CTest `gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement`
+exercises every bounded category and the fail-closed conditions under
+`QT_QPA_PLATFORM=offscreen`. The existing connection replacement/redaction
+CTest also enforces current-only typed mismatch text, connection ID and
+timing isolation; secure export remains free of credential and NTLM secrets.
+These are offline UI acceptance gates, not an R2 lease or physical-client
+desktop receipt.
+
 ## R10 lifecycle projection fixture must include the complete production type (2026-10-30)
 
 `runtime.linux-authinfo-diagnostic-replacement-fencing` constructs a

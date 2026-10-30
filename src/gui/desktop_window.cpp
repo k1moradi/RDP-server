@@ -347,6 +347,36 @@ QString typedFirstFailureText(const HostStatus& status)
     return QStringLiteral("No typed authentication failure observed.");
 }
 
+// The read-only R10 category is the sole source of final-authInfo detail.
+// Display strings must not expose delegated fields or reclassify Main/Activity.
+[[nodiscard]] QString finalAuthInfoFailureText(
+    const rdp_server::server::runtime::
+        RuntimeAcceptedClientAuthInfoFailureReason reason)
+{
+    using Reason = rdp_server::server::runtime::
+        RuntimeAcceptedClientAuthInfoFailureReason;
+    switch (reason)
+    {
+    case Reason::None:
+        return {};
+    case Reason::FrameOrSessionInvalid:
+        return QStringLiteral("final credential frame invalid");
+    case Reason::ProtectedCredentialOrSignSealFailure:
+        return QStringLiteral("protected credential unwrap failed");
+    case Reason::CredentialStructureOrTypeFailure:
+        return QStringLiteral("delegated credential structure invalid");
+    case Reason::DelegatedDomainRejected:
+        return QStringLiteral("delegated credential domain rejected");
+    case Reason::CredentialUnavailableOrRevoked:
+        return QStringLiteral("session credential unavailable or revoked");
+    case Reason::CredentialMismatch:
+        return QStringLiteral("delegated credentials did not match");
+    case Reason::FrameReleaseFailure:
+        return QStringLiteral("final credential frame release failed");
+    }
+    return {};
+}
+
 QString authenticationDiagnosticsText(const HostStatus& status)
 {
     const auto& diagnostics = status.acceptedClientDiagnostics;
@@ -371,6 +401,23 @@ QString authenticationDiagnosticsText(const HostStatus& status)
             : QStringLiteral("Connection stage: unavailable"));
     lines.push_back(QStringLiteral("First failure: ") +
                     typedFirstFailureText(status));
+    // Only a current R10 connection/credential generation may contribute
+    // bounded final-authInfo detail. Product classification is unchanged.
+    if (diagnostics.available &&
+        diagnostics.acceptedClientId != 0U &&
+        diagnostics.standaloneCredentialGeneration != 0U &&
+        diagnostics.credSspTransition ==
+            rdp_server::server::runtime::
+                RuntimeAcceptedClientCredSspTransition::Failed &&
+        diagnostics.standaloneFailureStage ==
+            rdp_server::server::runtime::
+                RuntimeAcceptedClientStandaloneFailureStage::AuthInfo)
+    {
+        const QString reason =
+            finalAuthInfoFailureText(diagnostics.standaloneAuthInfoFailureReason);
+        if (!reason.isEmpty())
+            lines.push_back(QStringLiteral("Final authInfo: ") + reason);
+    }
     lines.push_back(QStringLiteral("TLS version: ") +
                     tlsVersionText(status.tlsConnection.protocolVersion));
     lines.push_back(QStringLiteral("Certificate SHA-256: ") +

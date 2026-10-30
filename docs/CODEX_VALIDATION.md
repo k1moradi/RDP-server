@@ -1,3 +1,31 @@
+## R7 Advanced-only typed final-authInfo and generation-retirement integration — 2026-10-30
+
+- Authoring parent: `81633e1bfa4251a98e5dfbc9cd21853bad844599`; R10 prerequisite delivered in `f85ae6ba`.
+- Production R7 change: `src/gui/desktop_window.cpp` renders only
+  `RuntimeAcceptedClientAuthInfoFailureReason` from the R10-projected,
+  available, nonzero accepted-client and credential generation, failed CredSSP
+  AuthInfo stage. `None` emits no category. No credential text, domain value,
+  empty-field marker, protected payload, token material or authentication
+  authority crosses the GUI; Main/Activity product classification is untouched.
+- New behavior CTest:
+  `gui.offscreen-authinfo-typed-advanced-only-and-generation-retirement`;
+  all 7 bounded failures, no reason, missing connection/generation, wrong stage,
+  verified transition and new-peer replacement. Existing
+  `gui.offscreen-authinfo-failure-connection-replacement-redaction` now
+  requires typed mismatch text on A and absence of that text/ID/timings on B.
+- Previous R7 package/no-TCC-prompt lane at `4cb26351`: PASS in hosted macOS
+  `r7-macos-portable-gui` job (workflow `41084723193`).
+- R6 exact-SHA `0143d166` Windows positive CredSSP and bad-binding negative:
+  PASS, `CredentialsVerified=yes`, `native-admission=no`. This is an offline
+  oracle, not physical/native session acceptance.
+- Latest parent `98b91f4a` standalone structure guard: FAIL unrelated
+  stale R5 sanitizer sentinel `r5_expected_test_count=43` after R5 advanced
+  to 44. New R8 full/sanitizer execution blocked on unrelated R10 Direct-NTLM
+  lifecycle fixture incomplete-type compile error.
+- Local canonical Debug/focused/full CTest/ASan/UBSan: NOT RUN (no approved
+  local repo/build root). Exact publication-SHA hosted CI: PENDING. Physical
+  Windows App/mstsc, native desktop, clipboard and input: NOT RUN/unauthorized.
+
 ## R10 final-authInfo CTest compilation repair — 2026-10-30
 
 - Parent: `a0c4bb0c519d3f840979fed7fa3058dd8262d559`. Original R10 source:

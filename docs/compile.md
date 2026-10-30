@@ -1,3 +1,15 @@
+## R1 realistic final-authInfo framing adds no build surface (2026-10-30)
+
+The delegated-size final-authInfo regression reuses
+`test_linux_runtime_direct_ntlm_lifecycle` and the existing native-Linux
+host-control/OpenSSL target. It adds one behavior-named CTest only; no library,
+package, compile definition, TLS provider, runtime switch, socket owner or
+alternate build root is introduced. The target retains the existing
+`-Wall -Wextra -Wpedantic -Werror -UNDEBUG` policy. Local focused/full Debug
+CTest and sanitizer execution are **NOT RUN** in the connector environment
+because the approved `~/rdp-server/` checkout is unavailable; exact
+publication-SHA hosted execution is the required binary qualification.
+
 ## R3 split-TLS first-MCS denial adds no build dependency (2026-10-30)
 
 The new authority-handoff regression is another mode of the existing

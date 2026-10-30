@@ -646,6 +646,21 @@ if(TARGET rdp-server-linux-host-control)
             LABELS "runtime;security;transport;tls;credssp;authentication;admission;linux;native-environment"
             SKIP_RETURN_CODE 77)
 
+    # R1 realistic delegated-credential framing: a valid nonempty final
+    # authInfo larger than the reader scratch chunk is fragmented across
+    # tag/length/body/final writes. Unrelated application plaintext appended
+    # to the final TLS write must remain outside the CredSSP owner and be
+    # discarded when native Admission denies the exact connection.
+    add_test(
+        NAME runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;admission;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Pending complete final authInfo must not survive R10 Stop or act on a
     # replacement accepted connection; use real R1 TLS/R2 CredSSP owners.
     add_test(NAME runtime.linux-host-control-stop-queued-authinfo-retirement

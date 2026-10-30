@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <pwd.h>
@@ -71,6 +72,52 @@ using CertificatePointer = std::unique_ptr<X509, decltype(&X509_free)>;
 constexpr std::u16string_view kStandaloneUser{u"rdp"};
 constexpr std::array<char16_t, 8> kStandalonePassword{
     u'P',u'a',u's',u's',u'w',u'o',u'r',u'd'};
+
+consteval std::array<char16_t, 192> makeLargeStandalonePassword()
+{
+    constexpr std::u16string_view pattern{
+        u"Rdp9!Delegation#Transport7$"};
+    std::array<char16_t, 192> password{};
+    for (std::size_t index = 0U; index < password.size(); ++index)
+        password[index] = pattern[index % pattern.size()];
+    return password;
+}
+
+constexpr std::u16string_view kLargeStandaloneUser{
+    u"rdp_transport_delegation_test_01"};
+constexpr auto kLargeStandalonePassword = makeLargeStandalonePassword();
+static_assert(kLargeStandaloneUser.size() == 32U);
+static_assert(
+    kLargeStandalonePassword.size() <= kMaximumStandalonePasswordCodeUnits);
+
+struct CredentialFixture final
+{
+    std::u16string_view username{};
+    std::u16string_view password{};
+};
+
+constexpr CredentialFixture kDefaultCredentialFixture{
+    kStandaloneUser,
+    {kStandalonePassword.data(), kStandalonePassword.size()}};
+constexpr CredentialFixture kLargeCredentialFixture{
+    kLargeStandaloneUser,
+    {kLargeStandalonePassword.data(), kLargeStandalonePassword.size()}};
+
+[[nodiscard]] std::span<char16_t> copyCredentialPassword(
+    const CredentialFixture& credential,
+    std::array<char16_t, kMaximumStandalonePasswordCodeUnits>& storage) noexcept
+{
+    if (credential.password.empty() ||
+        credential.password.size() > storage.size())
+    {
+        return {};
+    }
+    std::copy(
+        credential.password.begin(), credential.password.end(),
+        storage.begin());
+    return std::span(storage).first(credential.password.size());
+}
+
 constexpr std::uint32_t kDirectTypeOneFlags =
     kNtlmNegotiateUnicode | kNtlmRequestTarget |
     kNtlmNegotiateNtlm | kNtlmNegotiateAlwaysSign |
@@ -193,15 +240,14 @@ void storeLe32(std::uint8_t* bytes, std::uint32_t value) noexcept
     return bytes;
 }
 
-[[nodiscard]] Bytes passwordCredentials()
+[[nodiscard]] Bytes passwordCredentials(
+    const CredentialFixture& credential = kDefaultCredentialFixture)
 {
     const Bytes emptyDomain;
     Bytes fields = octetContext(0xa0U, emptyDomain);
-    const auto user = utf16Le(kStandaloneUser);
+    const auto user = utf16Le(credential.username);
     fields = append(fields, octetContext(0xa1U, user));
-    const auto password = utf16Le(
-        std::u16string_view{
-            kStandalonePassword.data(), kStandalonePassword.size()});
+    const auto password = utf16Le(credential.password);
     fields = append(fields, octetContext(0xa2U, password));
     const auto passwordCreds = wrap(0x30U, fields);
 
@@ -307,12 +353,18 @@ void writeSecurityBuffer(
 [[nodiscard]] std::optional<Bytes> makeDirectTypeThree(
     const ParsedTypeTwo& challenge,
     NtlmV2SecurityContext& clientSecurity,
-    bool rejectCredentialProof = false)
+    bool rejectCredentialProof = false,
+    const CredentialFixture& credentialFixture = kDefaultCredentialFixture)
 {
     EphemeralNtlmV2Credential credential;
-    auto password = kStandalonePassword;
-    if (!credential.configure(kStandaloneUser, password))
+    std::array<char16_t, kMaximumStandalonePasswordCodeUnits> passwordStorage{};
+    auto password = copyCredentialPassword(
+        credentialFixture, passwordStorage);
+    if (password.empty() ||
+        !credential.configure(credentialFixture.username, password))
+    {
         return std::nullopt;
+    }
 
     NtlmV2Key responseKey{};
     if (!credential.deriveResponseKeyNt(u"", responseKey))
@@ -339,7 +391,7 @@ void writeSecurityBuffer(
     ntResponse.insert(ntResponse.end(), proof.begin(), proof.end());
     ntResponse.insert(ntResponse.end(), blob.begin(), blob.end());
 
-    const Bytes user = utf16Le(kStandaloneUser);
+    const Bytes user = utf16Le(credentialFixture.username);
     constexpr std::size_t kHeaderBytes = 72U;
     const std::size_t userOffset = kHeaderBytes;
     const std::size_t ntResponseOffset = userOffset + user.size();
@@ -866,6 +918,7 @@ enum class FinalAuthInfoWritePattern : std::uint8_t
 {
     Complete,
     Fragmented,
+    LargeDelegatedFragmentsWithCoalescedTail,
     TruncatedWithTlsClose
 };
 
@@ -874,6 +927,9 @@ struct PeerResult final
     bool passed{};
     bool directTypeTwoReceived{};
     bool authInfoSent{};
+    std::size_t finalAuthInfoBytes{};
+    std::size_t expectedPostTypeTwoCredSspPlaintextBytes{};
+    std::size_t trailingApplicationBytes{};
     NtlmServerChallenge serverChallenge{};
 };
 
@@ -899,7 +955,9 @@ struct PeerResult final
     bool rejectCredentialProof = false,
     FinalAuthInfoWritePattern authInfoWritePattern =
         FinalAuthInfoWritePattern::Complete,
-    PendingAuthInfoGate* pendingAuthInfoGate = nullptr) noexcept
+    PendingAuthInfoGate* pendingAuthInfoGate = nullptr,
+    const CredentialFixture& credentialFixture =
+        kDefaultCredentialFixture) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -934,7 +992,8 @@ struct PeerResult final
         {
             NtlmV2SecurityContext rejectedSecurity;
             const auto rejectedTypeThree =
-                makeDirectTypeThree(*challenge, rejectedSecurity, true);
+                makeDirectTypeThree(
+                    *challenge, rejectedSecurity, true, credentialFixture);
             if (!rejectedTypeThree ||
                 !client.writeFrame(initialTokenRequest(*rejectedTypeThree)))
             {
@@ -961,7 +1020,8 @@ struct PeerResult final
 
     NtlmV2SecurityContext clientSecurity;
     const auto authenticate =
-        makeDirectTypeThree(*challenge, clientSecurity);
+        makeDirectTypeThree(
+            *challenge, clientSecurity, false, credentialFixture);
     if (!authenticate)
         return result;
 
@@ -996,13 +1056,21 @@ struct PeerResult final
             return result;
     }
 
-    const auto credentials = passwordCredentials();
+    const auto credentials = passwordCredentials(credentialFixture);
     const auto protectedCredentials =
         protectClientMessage(clientSecurity, credentials);
     if (!protectedCredentials)
         return result;
     const auto authInfo = authInfoRequest(*protectedCredentials);
     const ByteSpan authInfoBytes{authInfo};
+    result.finalAuthInfoBytes = authInfoBytes.size();
+    if (finalRequest.size() >
+        (std::numeric_limits<std::size_t>::max)() - authInfoBytes.size())
+    {
+        return result;
+    }
+    result.expectedPostTypeTwoCredSspPlaintextBytes =
+        finalRequest.size() + authInfoBytes.size();
     if (authInfoWritePattern ==
         FinalAuthInfoWritePattern::TruncatedWithTlsClose)
     {
@@ -1028,6 +1096,69 @@ struct PeerResult final
             offset += fragmentSize;
         }
         if (!client.writeFrame(authInfoBytes.subspan(offset)))
+            return result;
+    }
+    else if (
+        authInfoWritePattern ==
+        FinalAuthInfoWritePattern::LargeDelegatedFragmentsWithCoalescedTail)
+    {
+        // A large nonempty delegated TSPasswordCreds fixture crosses the
+        // 512-byte R2 TLS-read scratch size and uses the canonical 0x82 outer
+        // DER length. Split tag/length, body and final bytes across logical
+        // TLS application writes. The last write appends unrelated plaintext;
+        // R2 must stop exactly at the final TSRequest boundary and R10 must
+        // retire the tail when native Admission fails.
+        if (authInfoBytes.size() <= 512U ||
+            authInfoBytes.size() > kMaximumCredSspRequestBytes ||
+            authInfoBytes.size() < 16U ||
+            authInfoBytes[0] != 0x30U || authInfoBytes[1] != 0x82U)
+        {
+            return result;
+        }
+
+        constexpr std::array<std::size_t, 5> fragmentSizes{
+            1U, 2U, 1U, 97U, 131U};
+        constexpr std::size_t finalAuthInfoBytes = 11U;
+        std::size_t offset = 0U;
+        for (const std::size_t fragmentSize : fragmentSizes)
+        {
+            if (fragmentSize > authInfoBytes.size() - offset ||
+                offset + fragmentSize >=
+                    authInfoBytes.size() - finalAuthInfoBytes ||
+                !client.writeFrame(
+                    authInfoBytes.subspan(offset, fragmentSize)))
+            {
+                return result;
+            }
+            offset += fragmentSize;
+        }
+
+        const std::size_t bodyBytes =
+            authInfoBytes.size() - finalAuthInfoBytes - offset;
+        if (bodyBytes == 0U ||
+            !client.writeFrame(authInfoBytes.subspan(offset, bodyBytes)))
+        {
+            return result;
+        }
+        offset += bodyBytes;
+
+        constexpr std::array<std::uint8_t, 9>
+            postAuthApplicationMarker{
+                0x52U, 0x31U, 0x2dU, 0x54U, 0x41U,
+                0x49U, 0x4cU, 0xa5U, 0x5aU};
+        Bytes finalWrite;
+        finalWrite.reserve(
+            finalAuthInfoBytes + postAuthApplicationMarker.size());
+        finalWrite.insert(
+            finalWrite.end(),
+            authInfoBytes.begin() + static_cast<std::ptrdiff_t>(offset),
+            authInfoBytes.end());
+        finalWrite.insert(
+            finalWrite.end(),
+            postAuthApplicationMarker.begin(),
+            postAuthApplicationMarker.end());
+        result.trailingApplicationBytes = postAuthApplicationMarker.size();
+        if (!client.writeFrame(finalWrite))
             return result;
     }
     else if (!client.writeFrame(authInfoBytes))
@@ -1540,7 +1671,9 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     std::uint64_t expectedListenerGeneration,
     std::uint64_t expectedCredentialGeneration,
     FinalAuthInfoWritePattern authInfoWritePattern =
-        FinalAuthInfoWritePattern::Complete) noexcept
+        FinalAuthInfoWritePattern::Complete,
+    const CredentialFixture& credentialFixture =
+        kDefaultCredentialFixture) noexcept
 {
     std::atomic<bool> release{false};
     std::atomic<bool> finished{false};
@@ -1548,7 +1681,7 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     std::thread peer([&] {
         peerResult = runDirectNtlmPeer(
             address, port, true, nonceSeed, release, false,
-            authInfoWritePattern);
+            authInfoWritePattern, nullptr, credentialFixture);
         finished.store(true, std::memory_order_release);
     });
 
@@ -1595,6 +1728,22 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     // server active-close can race the peer's final SSL_write() completion,
     // so that client-side receipt is not an admission correctness condition.
     assert(peerResult.directTypeTwoReceived);
+    if (peerResult.trailingApplicationBytes != 0U)
+    {
+        assert(peerResult.authInfoSent);
+        assert(peerResult.finalAuthInfoBytes > 512U);
+        assert(peerResult.finalAuthInfoBytes <= kMaximumCredSspRequestBytes);
+        assert(peerResult.expectedPostTypeTwoCredSspPlaintextBytes > 0U);
+        assert(status.acceptedClientPreauthDiagnostics
+                   .postTypeTwoCompleteTsRequestCount == 2U);
+        assert(status.acceptedClientPreauthDiagnostics
+                   .postTypeTwoPartialTsRequestBytes == 0U);
+        assert(status.acceptedClientPreauthDiagnostics
+                   .postTypeTwoPlaintextBytes ==
+               peerResult.expectedPostTypeTwoCredSspPlaintextBytes);
+        assert(!status.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!status.acceptedClientPreauthDiagnostics.shareActivated);
+    }
     return peerResult;
 }
 
@@ -1666,12 +1815,16 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-reconnect-stop-start-lifecycle";
     const bool finalAuthInfoFragmentsReconnectOnly =
         testCase == "direct-ntlm-final-authinfo-tls-fragments-reconnect";
+    const bool largeFinalAuthInfoFramingReconnectOnly =
+        testCase ==
+            "direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect";
     const bool admissionRetryOnly =
         testCase ==
             "admission-denial-retains-listener-and-accepts-second-tls" ||
         testCase ==
             "admission-denial-exposes-bounded-reason-and-retries" ||
-        finalAuthInfoFragmentsReconnectOnly;
+        finalAuthInfoFragmentsReconnectOnly ||
+        largeFinalAuthInfoFramingReconnectOnly;
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
@@ -1768,11 +1921,18 @@ int main(int argc, char** argv)
         return 77;
     }
 
-    auto password = kStandalonePassword;
+    const CredentialFixture& credentialFixture =
+        largeFinalAuthInfoFramingReconnectOnly
+            ? kLargeCredentialFixture
+            : kDefaultCredentialFixture;
+    std::array<char16_t, kMaximumStandalonePasswordCodeUnits> passwordStorage{};
+    auto password = copyCredentialPassword(
+        credentialFixture, passwordStorage);
+    assert(!password.empty());
     assert(control.configureStandaloneApplicationPassword(
-        kStandaloneUser, password));
+        credentialFixture.username, password));
     assert(std::ranges::all_of(
-        password, [](char16_t value) { return value == u'\0'; }));
+        passwordStorage, [](char16_t value) { return value == u'\0'; }));
     const auto credential =
         control.standaloneApplicationPasswordObservation();
     assert(credential.configured && credential.generation != 0U);
@@ -3023,7 +3183,8 @@ int main(int argc, char** argv)
     }
 
     PeerResult truncatedAuthInfoResult;
-    if (finalAuthInfoFragmentsReconnectOnly)
+    if (finalAuthInfoFragmentsReconnectOnly ||
+        largeFinalAuthInfoFramingReconnectOnly)
     {
         // First close after a deliberately incomplete final authInfo, with
         // the server binding already committed. Neither an R2 proof nor a
@@ -3033,7 +3194,8 @@ int main(int argc, char** argv)
             truncatedAuthInfoResult = runDirectNtlmPeer(
                 recommendation.address, selectedPort, true, 0x10U,
                 release, false,
-                FinalAuthInfoWritePattern::TruncatedWithTlsClose);
+                FinalAuthInfoWritePattern::TruncatedWithTlsClose,
+                nullptr, credentialFixture);
         });
         assert(pumpUntilClientRetired(control));
         truncatedPeer.join();
@@ -3069,10 +3231,15 @@ int main(int argc, char** argv)
     const PeerResult goodOneResult = runAdmissionDeniedPeer(
         control, recommendation.address, selectedPort, 0x20U,
         firstListenerGeneration, credential.generation,
-        finalAuthInfoFragmentsReconnectOnly
-            ? FinalAuthInfoWritePattern::Fragmented
-            : FinalAuthInfoWritePattern::Complete);
-    if (finalAuthInfoFragmentsReconnectOnly)
+        largeFinalAuthInfoFramingReconnectOnly
+            ? FinalAuthInfoWritePattern::
+                  LargeDelegatedFragmentsWithCoalescedTail
+            : finalAuthInfoFragmentsReconnectOnly
+                  ? FinalAuthInfoWritePattern::Fragmented
+                  : FinalAuthInfoWritePattern::Complete,
+        credentialFixture);
+    if (finalAuthInfoFragmentsReconnectOnly ||
+        largeFinalAuthInfoFramingReconnectOnly)
     {
         assert(challengesDiffer(
             truncatedAuthInfoResult.serverChallenge,
@@ -3092,11 +3259,13 @@ int main(int argc, char** argv)
     // connection-local NTLM state after the first native Admission denial.
     const PeerResult sameListenerRetryResult = runAdmissionDeniedPeer(
         control, recommendation.address, selectedPort, 0x30U,
-        firstListenerGeneration, credential.generation);
+        firstListenerGeneration, credential.generation,
+        FinalAuthInfoWritePattern::Complete, credentialFixture);
     assert(challengesDiffer(
         goodOneResult.serverChallenge,
         sameListenerRetryResult.serverChallenge));
-    if (finalAuthInfoFragmentsReconnectOnly)
+    if (finalAuthInfoFragmentsReconnectOnly ||
+        largeFinalAuthInfoFramingReconnectOnly)
     {
         assert(challengesDiffer(
             truncatedAuthInfoResult.serverChallenge,

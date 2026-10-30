@@ -1,3 +1,35 @@
+## R1 realistic delegated final-authInfo framing coverage — 2026-10-30
+
+- Authoring parent: `1371b43d1b8c0e2a88d044894c932c9ad611e6e1`. No production R1/R2/R10 code is changed.
+- Current R6 blocker remains external to R1: the Windows Microsoft CredSSP
+  oracle omits `ISC_REQ_DELEGATE` and delegates both username and password as
+  empty; Agent 6 owns the delegation-enabled rerun. R9's normalized evidence
+  requires an explicit `delegation-requested=yes` scalar before candidate
+  success.
+- Coverage gap found: the prior real-TLS final-authInfo regression uses
+  nonempty credentials but a small frame and 1/2/3/remainder writes; it does
+  not cross the 512-byte R2 read chunk or test a complete final frame
+  immediately followed by unrelated TLS application plaintext.
+- Added CTest
+  `runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`.
+  It uses valid 32-code-unit username / 192-code-unit password credentials,
+  yielding a 518-byte final authInfo with outer `0x82` DER length. The peer
+  sends 1/2/1/97/131-byte fragments, the remaining body, then the final
+  11 authInfo bytes plus a 9-byte unrelated marker in the same application
+  write. Production must reach `CredentialsVerified` before real native
+  Admission denial while its CredSSP plaintext accounting excludes the marker.
+  The same case covers incomplete-final `close_notify` retirement and clean
+  same-listener retry with a fresh NTLM challenge.
+- Size/ownership audit: CredSSP frame cap 16 KiB <= R1 TLS application cap
+  18 KiB; reader uses checked bounded arithmetic and
+  `min(512, bytesNeeded())`, so it cannot consume beyond one DER frame.
+  Existing `security.credssp-stream-coalesced` covers manual near-limit
+  16,000-byte authInfo framing. Final CredSSP has no TPKT conversion.
+- Local focused test, canonical Debug/full CTest and sanitizers: **NOT RUN**
+  (approved checkout absent / local GitHub DNS unavailable). Source/static
+  review: **PASS**. Exact publication-SHA hosted CI: **PENDING**.
+- Physical client/native admission: **NOT RUN / not authorized**.
+
 ## R4 deferred ACK retirement across graphics generations — 2026-10-30
 
 - Authoring parent: `a816c678f6a4d876d187e9a4de9c7892899a61aa`.

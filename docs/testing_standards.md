@@ -1,3 +1,24 @@
+## R1 realistic final-authInfo TLS framing regression (2026-10-30)
+
+The production-backed Linux listener regression
+`runtime.linux-direct-ntlm-final-authinfo-large-fragments-coalesced-tail-reconnect`
+must reuse the existing R10/R1 listener, owned SSL/BIO, R2
+`TsRequestFrameReader` and Direct-NTLM/CredSSP fixture. Use valid nonempty
+delegated password credentials large enough that the final protected authInfo
+exceeds the reader's 512-byte TLS scratch chunk and uses long-form DER length.
+Exercise separate tag/length writes, body fragmentation, final bytes delivered
+separately, and unrelated application plaintext appended to the same final
+client TLS application write.
+
+The server-side oracle is exact ownership, not client write success:
+`CredentialsVerified` must be reached before the independent native Admission
+denial, the post-Type-2 complete-TSRequest count must include the Type-3/binding
+frame and final authInfo, and the counted CredSSP plaintext bytes must exclude
+the appended tail. Repeat an incomplete final authInfo followed by TLS
+close-notify and then a same-listener valid retry with a fresh NTLM challenge.
+Never add a second TLS reader/parser, fabricate native Admission, or call local
+TLS write completion peer receipt.
+
 ## R4 deferred ACK retirement / replacement-generation regression (2026-10-30)
 
 `graphics.frame-ack-deferred-revocation-generation-reset` fills the single R4

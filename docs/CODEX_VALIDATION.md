@@ -1,3 +1,25 @@
+## R7 Round 2 qualification follow-up — 2026-10-30
+
+- Qualified code SHA: `975c62cdac3e4008056b24f53bbab6adc43181d5`; workflow `41073410701`.
+- **PASS:** Ubuntu and macOS GUI parity; macOS native lifecycle; macOS portable GUI;
+  macOS session sanitizers; portable GUI bootstrap; Linux GUI ZIP.
+- Ubuntu full Debug and Release CTest: **980/980 PASS**; the ordinary registry includes
+  `gui.offscreen-authinfo-failure-connection-replacement-redaction`.
+- R7's prior exact-SHA hosted GUI/package verification PENDING item is resolved.
+- **BLOCKED outside R7:** Windows MSVC reaches Microsoft final authInfo and reports
+  `production-authinfo-failure=credential-der-or-fields` with
+  `credentials-verified=no`. R1 transport is green. R2/R6 own the first failing
+  verifier boundary.
+- The production CredSSP verifier has typed `StandaloneAuthInfoFailureReason` values,
+  but R10 does not currently expose that reason through
+  `RuntimeAcceptedClientPreauthDiagnostics`; Qt sees only the AuthInfo failure stage.
+  Therefore no new user-visible identity/password/native-admission reason is authorized.
+- Local owner build/CTest: **NOT RUN** in this connector environment. Physical
+  Windows App/mstsc and native desktop admission: **BLOCKED / NOT AUTHORIZED** pending
+  R9 Windows-producer qualification and positive R2 `CredentialsVerified`.
+- No production source, wire behavior, CI selector, native permission, TCC, firewall,
+  TermService, listener, or credential policy change accompanies this documentation update.
+
 ## R1 Round 2 qualification follow-up — 2026-10-30
 
 - Exact tested SHA: `975c62cdac3e4008056b24f53bbab6adc43181d5`; primary workflow `41073410701`; Ubuntu protocol job `124124681621`.

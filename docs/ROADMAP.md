@@ -1,3 +1,31 @@
+## R7 Round 2 qualification follow-up — GUI gates green, authInfo classification still external (2026-10-30)
+
+**Qualified code SHA:** `975c62cdac3e4008056b24f53bbab6adc43181d5` · workflow `41073410701`.
+R7's current offline/product-readiness gates are executable evidence, not source-only review:
+`r9-owner-gui-credential-parity` passes on Ubuntu and macOS, `r7-macos-native-lifecycle`,
+`r7-macos-portable-gui`, `r7-macos-session-sanitizers`,
+`r9-portable-gui-bootstrap-acceptance` and the Linux GUI ZIP producer all pass.
+The Ubuntu protocol job also reports full Debug and Release CTest **980/980 PASS**,
+which includes `gui.offscreen-authinfo-failure-connection-replacement-redaction`.
+The prior R7 publication-SHA CI PENDING item is therefore resolved.
+
+**Remaining dependency:** Windows MSVC reaches verified Type 3, pubKeyAuth, committed
+server binding and Microsoft final authInfo, then reports
+`production-authinfo-failure=credential-der-or-fields` before
+`CredentialsVerified`. R1 transport is qualified green; R2/R6 own this verifier
+boundary. The production verifier already has typed `StandaloneAuthInfoFailureReason`
+facts, but R10's `RuntimeAcceptedClientPreauthDiagnostics` still projects only
+`RuntimeAcceptedClientStandaloneFailureStage::AuthInfo`, not the reason. R7 must
+therefore keep Main/Activity generic and may not invent a bad-password, peer-close,
+or native-admission diagnosis. A future typed reason may be consumed only after the
+runtime owner projects it explicitly and Agent 2/R2 confirms its product meaning.
+
+**Next R7 action:** no speculative production GUI or CredSSP change is justified.
+Preserve the current secure export/replacement behavior and package lifecycle gates.
+Physical Windows App/mstsc desktop acceptance remains **BLOCKED / NOT AUTHORIZED**
+until R9 qualifies the Windows producer and R2 reaches genuine `CredentialsVerified`
+plus revocable native admission. GUI readiness is not physical-client desktop acceptance.
+
 ## R1 Round 2 qualification follow-up — transport gate green, physical gate remains external (2026-10-30)
 
 **Exact SHA:** `975c62cdac3e4008056b24f53bbab6adc43181d5` · workflow `41073410701` · Ubuntu protocol job `124124681621`.

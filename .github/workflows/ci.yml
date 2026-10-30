@@ -1738,7 +1738,7 @@ jobs:
           cal_selection='^transport\.licensing-client-cal-'
           cal_tests="$(ctest --test-dir build --build-config Debug -N -R "$cal_selection")"
           printf '%s\\n' "$cal_tests"
-          readonly cal_expected_test_count=8
+          readonly cal_expected_test_count=9
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$cal_tests")"
           if [[ "$selected_test_count" -ne "$cal_expected_test_count" ]]; then
             printf 'R9 M2 CAL registry mismatch: expected %s tests, found %s\n' \
@@ -1746,6 +1746,7 @@ jobs:
             exit 1
           fi
           grep -Fq 'transport.licensing-client-cal-chain-structure' <<< "$cal_tests"
+          grep -Fq 'transport.licensing-client-cal-signed-content-empty-only' <<< "$cal_tests"
           grep -Fq 'transport.licensing-client-cal-issuer-signature-denials' <<< "$cal_tests"
           grep -Fq 'transport.licensing-client-cal-issuer-constraints' <<< "$cal_tests"
           grep -Fq 'transport.licensing-client-cal-product-extension-denials' <<< "$cal_tests"

@@ -10,6 +10,7 @@
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
 #include <openssl/objects.h>
+#include <openssl/opensslv.h>
 #include <openssl/pem.h>
 #include <openssl/pkcs7.h>
 #include <openssl/rand.h>
@@ -1140,6 +1141,20 @@ struct X509ChainLeafResult
 }
 } // namespace
 
+// Only absent or zero-length PKCS#7 signed-data content is supported.
+// OpenSSL 4.1 replaces the deprecated signed-int length accessor with size_t.
+// Do not call the new API on older OpenSSL or LibreSSL headers.
+[[nodiscard]] static bool hasNonEmptyPkcs7SignedContent(
+    const ASN1_OCTET_STRING *signedContent) noexcept
+{
+#if !defined(LIBRESSL_VERSION_NUMBER) && \
+    OPENSSL_VERSION_NUMBER >= 0x40100000L
+    return ASN1_STRING_get_length(signedContent) != 0U;
+#else
+    return ASN1_STRING_length(signedContent) != 0;
+#endif
+}
+
 [[nodiscard]] static RdpClientCalChainInspectionResult
 inspectRdpClientCalCertificateChainImpl(
     std::span<const std::uint8_t> licenseInfo,
@@ -1177,7 +1192,8 @@ inspectRdpClientCalCertificateChainImpl(
         container->d.sign->contents == nullptr ||
         OBJ_obj2nid(container->d.sign->contents->type) != NID_pkcs7_data ||
         (container->d.sign->contents->d.data != nullptr &&
-         ASN1_STRING_length(container->d.sign->contents->d.data) != 0) ||
+         hasNonEmptyPkcs7SignedContent(
+             container->d.sign->contents->d.data)) ||
         sk_PKCS7_SIGNER_INFO_num(container->d.sign->signer_info) != 0 ||
         sk_X509_ALGOR_num(container->d.sign->md_algs) != 0 ||
         (container->d.sign->crl != nullptr &&

@@ -1503,6 +1503,8 @@ function(add_rdp_test source_file suite behavior)
                 licensing-existing-cal-authority-request-product-and-correlation-denials
                 licensing-existing-cal-authority-request-revocation-replay
                 licensing-client-cal-chain-structure
+                # PKCS#7 signed-content absent/empty acceptance and nonempty denial.
+                licensing-client-cal-signed-content-empty-only
                 licensing-client-cal-issuer-signature-denials
                 licensing-client-cal-issuer-constraints
                 licensing-client-cal-product-extension-denials

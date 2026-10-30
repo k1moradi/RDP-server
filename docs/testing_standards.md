@@ -1,3 +1,14 @@
+## R3 CAL PKCS#7 optional signed-content acceptance/denial (2026-10-30)
+
+Run dedicated `transport.licensing-client-cal-signed-content-empty-only`
+using the production CAL inspector and the existing X509/PKCS#7 synthetic
+chain. Test absent optional content, present zero-length content (both
+accepted), and present nonempty content (`UnsupportedContainer`). Keep
+malformed DER, unsupported container, chain verification and lifecycle
+tests unchanged. R9's separate CAL sanitizer inventory advances 8 -> 9;
+the unrelated 94-case licensing selector is unchanged. The test is not
+an OS admission fixture.
+
 ## R1 post-Type-2 queued-plaintext/FIN drain regression (2026-10-30)
 
 Keep

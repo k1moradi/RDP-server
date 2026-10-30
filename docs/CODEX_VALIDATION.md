@@ -1,3 +1,24 @@
+## R3 P0 macOS OpenSSL 4.1 CAL empty-content compatibility — 2026-10-30
+
+- Reconciled base `dc9f142593f87bc249b512bca61a56ab1aade5d6`; concurrent R1 and R6
+  changes are retained.
+- Conditional `ASN1_STRING_get_length` (OpenSSL 4.1+) versus
+  `ASN1_STRING_length` (pre-4.1 OpenSSL/LibreSSL) replaces the one
+  zero/nonzero length predicate without casts, altered policy or
+  warning suppression.
+- CTest `transport.licensing-client-cal-signed-content-empty-only`
+  covers absent/present-empty PKCS#7 SignedData accepted and nonempty
+  `UnsupportedContainer`; existing issuer/chain/malformed cases kept.
+- R9 CAL sanitizer count 8 -> 9, exact-name sentinel and validator
+  synchronized. Separate 94-case licensing selector unchanged.
+- Source/registry inspection **PASS**. Local CMake build, focused/full
+  CTest, ASan/UBSan **NOT RUN** (no `~/rdp-server/build`; GitHub DNS
+  inaccessible). New-SHA hosted macOS compile, Linux/Windows and
+  sanitizer evidence **PENDING**, not yet a verified macOS fix.
+- R9 handoff: validate exact published SHA in platform matrix before
+  owner-candidate approval. Native admission/physical client
+  **BLOCKED / NOT RUN** without explicit R9 authorization.
+
 ## R6 client-path and Windows-native round-one audit — 2026-10-30
 
 - Audited `main` baseline `c82988ee8178294d986e86a3c0cb09801f9bee5b`,

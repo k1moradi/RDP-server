@@ -1,3 +1,38 @@
+## R3 P0 OpenSSL 4.1 CAL inspection build unblock — 2026-10-30
+
+Reconciled base `dc9f142593f87bc249b512bca61a56ab1aade5d6`, including concurrent R1 and R6
+commits. OpenSSL 4.1 deprecated `ASN1_STRING_length` and AppleClang
+`-Werror` prevents the existing macOS protocol suite from compiling.
+The single content-length predicate now uses
+`ASN1_STRING_get_length` for OpenSSL 4.1+ and retains the old API for
+older OpenSSL/LibreSSL. Absent or present-empty PKCS#7 SignedData content
+still passes; any nonempty content stays `UnsupportedContainer`.
+The new production-linked
+`transport.licensing-client-cal-signed-content-empty-only` covers
+each case using the existing CAL chain fixture. CI CAL sanitizer count
+advances 8 -> 9 with exact-name guard; other filter counts remain.
+
+No MCS/GCC/UserId/licensing wire, R2 admission, Share/clipboard route
+ownership or `-Werror` changes. The existing
+`CredentialsVerified` + 416-byte Microsoft Connect-Initial production
+listener denial remains; fresh independent native Admission is required
+before MCS reads. The first unqualified positive **live** transition
+is genuine native Admission into authenticated first MCS TPKT;
+protocol-only offline positive wire/receipt tests are not substitutes.
+Future sequence: CredentialsVerified -> native Admission ->
+Connect-Initial/Response -> Erect/Attach/Join -> Client Info ->
+PersonalDesktop licensing -> Demand/Confirm Active -> ShareActivated.
+R3 owns MCS/static-channel receipts, R8 application CLIPRDR serialization,
+and R10 the single TLS writer/reader. No physical client without R9
+authorization for exact SHA.
+
+Source/registry **PASS by inspection**; local focused/full/sanitizers
+**NOT RUN** (approved build root missing, GitHub DNS unavailable);
+new-SHA macOS OpenSSL 4.1 build, Linux/Windows full CTests, and R9
+ASan/UBSan **PENDING**. MacOS P0 is not considered resolved until its
+new SHA actually compiles. Benchmark **NOT RUN** (no hot path change).
+R9 must consume published SHA and verify before candidate promotion.
+
 ## R6 Round 1 — client-path differential and Windows-native boundary audit (2026-10-30)
 
 **Reviewed exact `main` baseline:** `c82988ee8178294d986e86a3c0cb09801f9bee5b`.

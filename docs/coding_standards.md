@@ -1,3 +1,15 @@
+## R3 PKCS#7 signed-content length accessor across OpenSSL versions (2026-10-30)
+
+For CAL SignedData inspection, preserve the exact optional-content policy:
+an absent `contents->d.data` is allowed, a present zero-length OCTET STRING
+is allowed, and any nonempty content is `UnsupportedContainer` before chain
+trust evaluation. OpenSSL 4.1 introduces the `size_t`-returning
+`ASN1_STRING_get_length` and deprecates `ASN1_STRING_length`; use the new
+accessor only with OpenSSL 4.1+ headers, otherwise retain the old accessor,
+including on LibreSSL. The zero/nonzero comparison needs no cast or warning
+suppression. Keep `-Werror` and licensing enabled; this is header/API
+compatibility only, not a CAL policy or RDP wire change.
+
 ## R3 successful CredentialsVerified does not admit buffered MCS (2026-10-30)
 
 A successful CredSSP `CredentialsVerified` transition is authentication

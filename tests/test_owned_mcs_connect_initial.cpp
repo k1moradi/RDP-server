@@ -10969,13 +10969,40 @@ void addRequiredClientCalFixtureExtensions(X509 *certificate)
     }
 }
 
+enum class ClientCalSignedContentKind : std::uint8_t
+{
+    Absent,
+    Empty,
+    NonEmpty,
+};
+
 [[nodiscard]] std::vector<std::uint8_t> encodeClientCalFixture(
-    std::span<X509 *const> certificates)
+    std::span<X509 *const> certificates,
+    ClientCalSignedContentKind signedContentKind =
+        ClientCalSignedContentKind::Empty)
 {
     LicensingPkcs7Pointer container{PKCS7_new(), PKCS7_free};
     assert(container);
     assert(PKCS7_set_type(container.get(), NID_pkcs7_signed) == 1);
     assert(PKCS7_content_new(container.get(), NID_pkcs7_data) == 1);
+    assert(container->d.sign != nullptr);
+    assert(container->d.sign->contents != nullptr);
+    ASN1_OCTET_STRING *signedContent =
+        container->d.sign->contents->d.data;
+    assert(signedContent != nullptr);
+    if (signedContentKind == ClientCalSignedContentKind::Absent)
+    {
+        ASN1_OCTET_STRING_free(signedContent);
+        container->d.sign->contents->d.data = nullptr;
+    }
+    else if (signedContentKind == ClientCalSignedContentKind::NonEmpty)
+    {
+        constexpr std::array<unsigned char, 1> payload{0x5aU};
+        assert(ASN1_OCTET_STRING_set(
+                   signedContent, payload.data(),
+                   static_cast<int>(payload.size())) == 1);
+    }
+    // Empty uses PKCS7_content_new()'s allocated zero-length OCTET STRING.
     for (X509 *certificate : certificates)
     {
         assert(certificate != nullptr);
@@ -11350,6 +11377,35 @@ void testRdpClientCalChainStructure()
                serverCertificateFixture.serverCertificate,
                fixture.rootDer).error ==
            RdpClientCalChainError::MalformedContainer);
+}
+
+void testRdpClientCalSignedContentEmptyOnly()
+{
+    ClientCalFixture fixture;
+    const std::array<X509 *, 3> certificates{
+        fixture.leafCertificate.get(),
+        fixture.rootCertificate.get(),
+        fixture.issuerCertificate.get()};
+
+    // A missing optional content OCTET STRING and an explicitly present,
+    // zero-length one are both valid. A single payload octet must be denied
+    // as UnsupportedContainer before any CAL chain is trusted.
+    const auto absent = encodeClientCalFixture(
+        certificates, ClientCalSignedContentKind::Absent);
+    const auto empty = encodeClientCalFixture(
+        certificates, ClientCalSignedContentKind::Empty);
+    const auto nonempty = encodeClientCalFixture(
+        certificates, ClientCalSignedContentKind::NonEmpty);
+    assert(absent != empty && empty != nonempty && absent != nonempty);
+    assert(inspectRdpClientCalCertificateChain(
+               absent, fixture.rootDer).error ==
+           RdpClientCalChainError::None);
+    assert(inspectRdpClientCalCertificateChain(
+               empty, fixture.rootDer).error ==
+           RdpClientCalChainError::None);
+    assert(inspectRdpClientCalCertificateChain(
+               nonempty, fixture.rootDer).error ==
+           RdpClientCalChainError::UnsupportedContainer);
 }
 
 void testRdpClientCalIssuerSignatureDenials()
@@ -12788,6 +12844,7 @@ constexpr std::array<McsTestCase, 169> kMcsTestCases{{
     {"licensing-existing-cal-authority-request-product-and-correlation-denials", &testExistingCalAuthorityRequestProductAndCorrelationDenials},
     {"licensing-existing-cal-authority-request-revocation-replay", &testExistingCalAuthorityRequestRevocationReplay},
     {"licensing-client-cal-chain-structure", &testRdpClientCalChainStructure},
+    {"licensing-client-cal-signed-content-empty-only", &testRdpClientCalSignedContentEmptyOnly},
     {"licensing-client-cal-issuer-signature-denials", &testRdpClientCalIssuerSignatureDenials},
     {"licensing-client-cal-issuer-constraints", &testRdpClientCalIssuerConstraints},
     {"licensing-client-cal-product-extension-denials", &testRdpClientCalProductExtensionDenials},

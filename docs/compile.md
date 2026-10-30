@@ -1,3 +1,13 @@
+## R3 OpenSSL 4.1 macOS licensing compile blocker (2026-10-30)
+
+Only the PKCS#7 SignedData content-length accessor is version-switched:
+OpenSSL 4.1+ uses `ASN1_STRING_get_length`; older OpenSSL/LibreSSL use
+`ASN1_STRING_length`. No warning suppression, lowered `-Werror`, library
+change, second build root or disabled licensing. The new CAL content test
+reuses `test_owned_mcs_connect_initial`; exact-SHA AppleClang/OpenSSL
+4.1 compilation plus full CTest and Linux/Windows qualification remain
+mandatory before marking this blocker resolved.
+
 ## R1 post-Type-2 partial-TSRequest/FIN regression adds no build surface (2026-10-30)
 
 `runtime.linux-direct-ntlm-post-type2-partial-tsrequest-fin-drain` is another

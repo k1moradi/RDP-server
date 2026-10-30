@@ -13,7 +13,10 @@ from the verified decrypted-field category; zero `DomainLength` is not proof
 of delegated-domain emptiness. Distinguish invalid protected length,
 cryptographic unwrapping, invalid DER/type, nonempty domain and combined
 identity/password mismatch without changing the verifier's acceptance
-predicate or fail-closed teardown. Clear observations on fresh challenge,
+predicate or fail-closed teardown. An empty TSPasswordCreds userName or
+password OCTET STRING is syntactically representable and must not be mislabeled
+as malformed DER; standalone matching, Unix-account selection and PAM remain
+responsible for rejecting empty credentials before any authority is granted. Clear observations on fresh challenge,
 reset and successful verification. Agent 2 owns future verifier-policy changes;
 Agent 6's Windows oracle remains diagnostic and `native-admission=no`.
 

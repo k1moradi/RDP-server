@@ -78,8 +78,21 @@
   revoke; each requires closed reader/writer and exact typed rejection.
 - Source/test static review PASS; actual local Debug full CTest and focused
   ASan/UBSan NOT RUN (no approved checkout or GitHub DNS in connector).
-- Exact publication-SHA CI: PENDING. Microsoft generated authInfo reason:
-  NOT VERIFIED until Agent 6's Windows run finishes.
+- Exact SHA `975c62cdac3e4008056b24f53bbab6adc43181d5`, workflow
+  `41073410701`: Windows CLANG64 Debug/Release both PASS
+  `security.standalone-credssp-authinfo-first-failure-classification` and
+  `security.standalone-credssp-authinfo-post-binding-revocation`. MSVC and
+  CLANG64 both report Microsoft final authInfo
+  `production-authinfo-failure=credential-der-or-fields`.
+- R1 same-SHA transport gates are green. Source review localizes one parser
+  classification defect: empty userName/password OCTET STRING values are
+  syntactically representable but were rejected as malformed before the
+  credential comparator. The corrective production change permits empty field
+  syntax only; the unchanged standalone matcher, Unix-account policy and PAM
+  verifier still reject empty credentials. New CTest:
+  `security.standalone-credssp-authinfo-empty-fields-are-mismatch`.
+- Local Debug/full CTest and ASan/UBSan for this corrective descendant:
+  NOT RUN in this connector environment. Exact corrective-SHA CI: PENDING.
 
 ## R6 Round 2 Microsoft delegated authInfo typed diagnosis — 2026-10-30
 

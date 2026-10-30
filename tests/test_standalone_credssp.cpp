@@ -1467,53 +1467,63 @@ void testAuthInfoPostBindingCredentialRevocation()
         StandaloneAuthInfoFailureReason::CredentialUnavailable);
 }
 
+void assertAuthInfoCredentialRejection(
+    std::u16string_view domain,
+    std::u16string_view user,
+    std::u16string_view delegatedPassword,
+    StandaloneAuthInfoFailureReason expectedReason)
+{
+    MemoryTlsPair tls;
+    TsRequestFrameReader reader;
+    TsRequestTlsReplyWriter writer;
+    EphemeralNtlmV2Credential serverCredential;
+    configureServerCredential(serverCredential);
+    StandaloneCredSspNtlmAcceptor acceptor;
+    NtlmV2SecurityContext clientSecurity;
+    completeBindingForAuthInfo(
+        acceptor, serverCredential, clientSecurity,
+        tls, reader, writer);
+
+    const auto credentials =
+        passwordCredentials(domain, user, delegatedPassword);
+    const auto protectedAuthInfo =
+        protectAuthInfo(clientSecurity, credentials);
+    const auto request = authInfoRequest(protectedAuthInfo);
+    tls.sendClient(request);
+    tls.readServerFrame(reader);
+
+    assert(acceptor.processCompleteFrame(
+               reader, writer, serverCredential) ==
+           StandaloneCredSspFrameStatus::Rejected);
+    assert(acceptor.stage() == StandaloneCredSspStage::Failed);
+    assert(acceptor.failureStage() ==
+           StandaloneAuthenticationFailureStage::AuthInfo);
+    assert(acceptor.authInfoFailureReason() == expectedReason);
+    assert(reader.status() == TsRequestFrameStatus::Closed);
+    assert(writer.status() == TsRequestTlsWriteStatus::Closed);
+}
+
 void testAuthInfoCredentialMismatchRevokes()
 {
-    const auto runMismatch = [](
-        std::u16string_view domain,
-        std::u16string_view user,
-        std::u16string_view delegatedPassword,
-        StandaloneAuthInfoFailureReason expectedReason)
-    {
-        MemoryTlsPair tls;
-        TsRequestFrameReader reader;
-        TsRequestTlsReplyWriter writer;
-        EphemeralNtlmV2Credential serverCredential;
-        configureServerCredential(serverCredential);
-        StandaloneCredSspNtlmAcceptor acceptor;
-        NtlmV2SecurityContext clientSecurity;
-        completeBindingForAuthInfo(
-            acceptor, serverCredential, clientSecurity,
-            tls, reader, writer);
+    assertAuthInfoCredentialRejection(
+        {}, u"Other", u"Password",
+        StandaloneAuthInfoFailureReason::CredentialMismatch);
+    assertAuthInfoCredentialRejection(
+        {}, u"User", u"Passw0rd",
+        StandaloneAuthInfoFailureReason::CredentialMismatch);
+    assertAuthInfoCredentialRejection(
+        u"Domain", u"User", u"Password",
+        StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain);
+}
 
-        const auto credentials =
-            passwordCredentials(
-                domain, user, delegatedPassword);
-        const auto protectedAuthInfo =
-            protectAuthInfo(clientSecurity, credentials);
-        const auto request =
-            authInfoRequest(protectedAuthInfo);
-        tls.sendClient(request);
-        tls.readServerFrame(reader);
-
-        assert(acceptor.processCompleteFrame(
-                   reader, writer, serverCredential) ==
-               StandaloneCredSspFrameStatus::Rejected);
-        assert(acceptor.stage() ==
-               StandaloneCredSspStage::Failed);
-        assert(acceptor.failureStage() ==
-               StandaloneAuthenticationFailureStage::AuthInfo);
-        assert(acceptor.authInfoFailureReason() == expectedReason);
-        assert(reader.status() == TsRequestFrameStatus::Closed);
-        assert(writer.status() == TsRequestTlsWriteStatus::Closed);
-    };
-
-    runMismatch({}, u"Other", u"Password",
-                StandaloneAuthInfoFailureReason::CredentialMismatch);
-    runMismatch({}, u"User", u"Passw0rd",
-                StandaloneAuthInfoFailureReason::CredentialMismatch);
-    runMismatch(u"Domain", u"User", u"Password",
-                StandaloneAuthInfoFailureReason::NonEmptyDelegatedDomain);
+void testAuthInfoEmptyDelegatedFieldsAreMismatch()
+{
+    assertAuthInfoCredentialRejection(
+        {}, {}, u"Password",
+        StandaloneAuthInfoFailureReason::CredentialMismatch);
+    assertAuthInfoCredentialRejection(
+        {}, u"User", {},
+        StandaloneAuthInfoFailureReason::CredentialMismatch);
 }
 
 void testAuthInfoTamperRevokes()
@@ -1862,6 +1872,12 @@ int main(int argc, char **argv)
         "standalone-credssp-authinfo-post-binding-revocation")
     {
         testAuthInfoPostBindingCredentialRevocation();
+        return 0;
+    }
+    if (testCase ==
+        "standalone-credssp-authinfo-empty-fields-are-mismatch")
+    {
+        testAuthInfoEmptyDelegatedFieldsAreMismatch();
         return 0;
     }
     if (testCase ==

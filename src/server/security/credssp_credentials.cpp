@@ -208,9 +208,13 @@ struct PasswordCredentialFields
         return false;
     }
 
+    // MS-CSSP defines these as OCTET STRING fields and Windows encodes text
+    // from UNICODE_STRING values. Empty user/password strings are therefore
+    // syntactically representable; authentication policy, not DER parsing,
+    // decides whether they can match an actual credential.
     return validUtf16Le(output.domain, true) &&
-           validUtf16Le(output.user, false) &&
-           validUtf16Le(output.password, false);
+           validUtf16Le(output.user, true) &&
+           validUtf16Le(output.password, true);
 }
 
 [[nodiscard]] constexpr bool asciiLower(char value) noexcept

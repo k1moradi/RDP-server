@@ -1,3 +1,16 @@
+## R2 empty delegated fields are syntax, never authentication (2026-10-30)
+
+The production-backed
+`security.standalone-credssp-authinfo-empty-fields-are-mismatch` regression
+requires empty delegated userName or password OCTET STRING values to pass the
+bounded DER/UTF-16 syntax layer but fail the unchanged final standalone
+credential comparison as `CredentialMismatch`. This is not a positive empty
+credential case: `EphemeralNtlmV2Credential::matchesDelegatedPassword`
+continues to reject an empty password/identity mismatch, Unix-account
+extraction rejects an empty account, and the PAM verifier rejects an empty
+password before PAM. The test exists to keep parser syntax separate from
+security policy while investigating Microsoft SSPI final authInfo.
+
 ## R6 final-authInfo structural differential (2026-10-30)
 
 When a Microsoft-generated final authInfo decrypts and verifies SIGN/SEAL but the delegated credential parser rejects it, do not stop at a combined “DER or fields” label. Reuse the canonical credential inspection only on the failure path and report a bounded outer-envelope versus nested-password-fields category. The classification must not retain or log decrypted bytes, field lengths, credential strings, hashes, responses, signatures or keys and must not alter acceptance. A dedicated ordinary CTest must independently exercise malformed TSCredentials envelope DER and a valid TSCredentials envelope containing malformed TSPasswordCreds fields, in addition to the existing sign/seal, domain, mismatch, revocation and positive cases. Microsoft positive qualification remains `CredentialsVerified` or FAIL; a structurally classified rejection is diagnostic evidence, never acceptance.

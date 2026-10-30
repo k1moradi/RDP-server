@@ -96,10 +96,22 @@ reader/writer, exact typed reason and reset of non-authorizing diagnostics.
 This fills gaps in offline assurance without changing password/domain policy,
 NTLM wrap/unwrap, TLS, R2 native admission, MCS, Share, graphics or clipboard.
 
-Local canonical Debug CTest and focused ASan/UBSan: NOT RUN (GitHub DNS /
-approved checkout unavailable in this connector environment). Exact-SHA
-hosted CI and actual typed Microsoft authInfo result: PENDING. No positive
-Microsoft CredentialsVerified result or native session was inferred.
+Exact-SHA hosted evidence at `975c62cdac3e4008056b24f53bbab6adc43181d5`,
+workflow `41073410701`: Windows CLANG64 Debug and Release run both R2
+authInfo classifier CTests PASS; MSVC/CLANG64 independently reach final
+Microsoft authInfo and report
+`production-authinfo-failure=credential-der-or-fields`. R1 transport is
+green. The final TLS1.3 record size is consistent with the Microsoft fixture
+delegating empty credential fields, and source review found the parser
+incorrectly classified empty userName/password OCTET STRING values as malformed
+rather than a credential mismatch. R2 therefore makes only the standards-backed
+syntax/policy separation: empty fields parse, but the unchanged credential
+matcher still rejects them. A dedicated regression pins that denial.
+No empty credential is authorized, no domain rule is relaxed, and no native
+session is inferred. Local canonical Debug/sanitizer remains NOT RUN here.
+Next gate: exact-SHA Windows oracle must move from `credential-der-or-fields`
+to `credential-identity-or-password-mismatch`; if so, the remaining blocker
+is Agent 6's credential-source/delegation behavior, not production verification.
 
 ## R5 P1 Round 2 — native authority retirement audit and private evidence subset checks (2026-10-30)
 

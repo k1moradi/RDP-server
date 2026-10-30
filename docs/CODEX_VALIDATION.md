@@ -1,3 +1,28 @@
+## R8 dormant initialization/order exact-descendant qualification — 2026-10-30
+
+- R8 implementation lineage: `aeeb318315db1634068b885f24a103ce06f4d236`,
+  `95b6ba11364e5d4c3661ed6238264a54fa29300c`,
+  `0665b2eab68b63d828b5ccdf68d1105bfa241463`.
+- Prior external blocker: R10 incomplete-type test compile defect. Resolved by
+  descendant `81633e1bfa4251a98e5dfbc9cd21853bad844599`.
+- Exact workflow `41095835716`: Ubuntu protocol `124201312985` **PASS**
+  Debug/Release 993/993; Windows protocol `124201312613` **PASS**
+  Debug/Release 822/822; macOS protocol `124201312784` **PASS**
+  Debug/Release 773/773; Windows CLANG64 producer `124201312699` **PASS**.
+- The three R8 behavior CTests
+  `clipboard.route-bridge-server-initialization-ordering`,
+  `clipboard.route-bridge-server-initialization-generation-replacement`, and
+  `clipboard.route-bridge-server-initialization-pending-write-retirement`
+  **PASS** in each full protocol platform suite.
+- R9 ASan/UBSan job `124201312599`: clipboard registry **104**, execution
+  **104/104 PASS**; all three new R8 cases and the existing FileContents joined
+  MCS-envelope regression pass under the sanitizer selection.
+- No additional R8 production/test change is justified. Current `main` is a
+  descendant and leaves the qualified R8 bridge/test sources unchanged.
+- `kLinuxProductionClipboardActivationApproved = false`: **unchanged**.
+  Physical clipboard/files/client: **NOT RUN / not authorized**.
+- Benchmark: **NOT RUN / not applicable**.
+
 ## R7 typed final-authInfo exact-SHA hosted qualification — 2026-10-30
 
 - Implementation SHA:

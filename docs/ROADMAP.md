@@ -1,3 +1,40 @@
+## R8 Round 3 descendant qualification — dormant initialization/order green (2026-10-30)
+
+**Qualified source lineage:** `aeeb318315db1634068b885f24a103ce06f4d236`
+(dormant initialization state), `95b6ba11364e5d4c3661ed6238264a54fa29300c`
+(local-generation route-authority fence), and
+`0665b2eab68b63d828b5ccdf68d1105bfa241463` (test fixture spelling
+correction). The external R10 incomplete-type blocker recorded below was
+repaired by descendant `81633e1bfa4251a98e5dfbc9cd21853bad844599`
+without changing the R8 bridge or its behavior tests.
+
+Exact descendant workflow `41095835716` closes the offline execution gate.
+Ubuntu job `124201312985` passes full Debug **993/993** and Release
+**993/993**; Windows protocol job `124201312613` passes full Debug
+**822/822** and Release **822/822**; macOS protocol job `124201312784`
+passes full Debug **773/773** and Release **773/773**. On all three protocol
+platform jobs,
+`clipboard.route-bridge-server-initialization-ordering`,
+`clipboard.route-bridge-server-initialization-generation-replacement`, and
+`clipboard.route-bridge-server-initialization-pending-write-retirement`
+**PASS**. The Windows CLANG64 producer `124201312699` also completes
+successfully.
+
+R9 ASan/UBSan job `124201312599` enumerates exactly **104** clipboard tests
+and passes **104/104**, including all three new initialization/order cases, the
+existing outbound capability/Format List case, route/receipt regressions and
+`clipboard.file-contents-joined-mcs-envelope`. This proves the prior R10
+compile defect no longer blocks R8 qualification; no CI bypass or duplicate R8
+seam is required.
+
+Current `main` is a descendant of the qualified SHA and has not modified
+`R3ClipboardTransferBridge` or `test_r8_r3_clipboard_bridge.cpp` since that
+qualification. The future R10 construction handoff remains definition-only and
+`kLinuxProductionClipboardActivationApproved = false` remains unchanged.
+Physical clipboard, owner files, desktop and Microsoft-client acceptance were
+**NOT RUN / not authorized**. Benchmark: **NOT RUN / not applicable**; this is
+control-state/order work with no hot-path algorithm change.
+
 ## R7 exact-SHA qualification — typed final-authInfo Advanced integration green (2026-10-30)
 
 **Qualified implementation:** `74e5fc40af280a3af1aad6527a135283fb5076fc`.

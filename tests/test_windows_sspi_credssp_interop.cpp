@@ -4249,7 +4249,6 @@ void printFailure(
            result.explicitEmptyDomainRequested &&
            result.microsoftBindingSecEOk &&
            result.delegationRequested &&
-           result.delegationReturned &&
            result.authInfoFailureReason ==
                StandaloneAuthInfoFailureReason::None &&
            result.tlsEstablished &&

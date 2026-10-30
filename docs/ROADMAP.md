@@ -353,9 +353,11 @@ clipboard.
 
 **R6 continuation:** the existing R2 synchronous validated-field visitor now records a small read-only categorical empty-field observation only on final credential rejection: `none`, `empty-username`, `empty-password` or `both-empty`. It never stores text, UTF-16 bytes, lengths, password material, decrypted DER or mutable identity; does not change `CredentialMismatch`, source credentials, signature validation or native admission. The Windows positive oracle prints this category adjacent to its production-owned failure reason, preserving `credentials-verified=no` until real verification succeeds. New dedicated CTest `security.standalone-credssp-authinfo-empty-field-categories` uses the production-backed existing TLS/NTLM/CredSSP fixtures and tests username-empty, password-empty, both-empty and nonempty wrong credentials; existing negative/source/binding coverage stays intact.
 
-**R6 delegation correction — authoring parent `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b`:** an explicit test-only context-requirements profile retains every legacy row's request flags and adds only `ISC_REQ_DELEGATE` to the positive full exchange and bad-server-binding parity control. The fixture inspects `ISC_RET_DELEGATE` only after the final successful Microsoft context call, exposes only `delegation-requested` / `delegation-returned` yes/no scalars, and deliberately does not add `ISC_REQ_USE_SUPPLIED_CREDS`. Production R2 code is unchanged.
+**R6 delegation correction — first executable evidence:** exact SHA `671cae88da7dcb604ced089a9f21c2af9fe78597`, workflow `41085647004`, MSVC job `124166200509` proves the missing-request hypothesis. With only `ISC_REQ_DELEGATE` added, Microsoft reaches TLS1.3 -> verified Type 3 -> pubKeyAuth -> committed production binding -> `SEC_E_OK` -> final authInfo; production reports `credentials-verified=yes`, `production-authinfo-failure=none`, `production-authinfo-empty-fields=none`, and `native-admission=no`. The bad-binding parity row still returns `SEC_E_INVALID_TOKEN` before authInfo. Final successful context attributes report `delegation-requested=yes delegation-returned=no`.
 
-**Next gate:** exact-publication-SHA Windows MSVC plus CLANG64 Debug/Release must determine whether the hosted environment permits standards-valid delegation without system mutation. The desired positive is `delegation-requested=yes delegation-returned=yes`, `production-authinfo-empty-fields=none`, `credentials-verified=yes`, `production-authinfo-failure=none`, and `native-admission=no`; the bad-binding control must still reject before authInfo with `delegation-requested=yes delegation-returned=no`. A typed delegation-policy result or absent final `ISC_RET_DELEGATE` remains an honest environment outcome. Local canonical Windows builds and full CTest **NOT RUN** in the connector environment; hosted CI **PENDING**. Physical macOS Windows App / Windows 11 mstsc and native admission remain **BLOCKED / NOT RUN**.
+That final `ISC_RET_DELEGATE` absence is retained as a bounded provider/context observation, not treated as credential-forwarding failure: generic SSPI DELEGATE context capability is Kerberos-specific, while CredSSP's request flag separately controls forwarding the user credentials. The actual nonempty final authInfo accepted by production is the decisive functional oracle. Therefore **Agent 2 must not change the production verifier**. The initial CLANG64 Debug and Release full suites on the same SHA build cleanly but fail the over-strict R6 positive predicate that required `delegation-returned=yes`; the follow-up removes only that unsupported pass condition while keeping the terminal scalar mandatory evidence.
+
+**Next gate:** rerun exact-publication-SHA MSVC plus CLANG64 Debug/Release after that qualification correction. Positive success must require `delegation-requested=yes`, a present `delegation-returned=yes|no` terminal observation, `production-authinfo-empty-fields=none`, `credentials-verified=yes`, `production-authinfo-failure=none`, and `native-admission=no`; bad binding must still reject before authInfo using the same delegation-request profile. No Group Policy, registry, firewall, TermService, trust, TLS, Type 2, target-name or R2 verifier mutation is authorized. Physical macOS Windows App / Windows 11 mstsc and native admission remain **BLOCKED / NOT RUN**.
 
 ## R9 Round 2 — exact-SHA empty-field/delegation normalization and candidate gate (2026-10-30)
 
@@ -389,13 +391,14 @@ an evidence failure. It also establishes the Agent-6/R9 handoff contract
 evidence failure; R9 does not infer it from an intermediate SSPI context flag.
 Agent 6's corrected oracle supplies both bounded delegation scalars. A
 successful positive exchange must report failure `none`, empty fields `none`,
-`delegation-requested=yes`, `delegation-returned=yes`, and
-`credentials-verified=yes`. The returned scalar is derived only from
-`ISC_RET_DELEGATE` on the final successful
+`delegation-requested=yes`, a present `delegation-returned=yes|no` terminal
+observation, and `credentials-verified=yes`. The returned scalar is derived
+only from `ISC_RET_DELEGATE` on the final successful
 `InitializeSecurityContextW` call; no intermediate context flag is classified
-as security success. The manual candidate gate rechecks both normalized
-delegation scalars plus the successful raw full-exchange receipt before
-accepting `COMPLETE_PASS`.
+as security success and the generic context bit is not substituted for the
+functional CredSSP credential-forwarding result. The manual candidate gate
+rechecks the normalized request and terminal-observation scalars plus the
+successful raw full-exchange receipt before accepting `COMPLETE_PASS`.
 
 **Sanitizer inventory:** Agent 6 registered
 `security.standalone-credssp-authinfo-empty-field-categories`. R9's explicit

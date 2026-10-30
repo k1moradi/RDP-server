@@ -199,14 +199,20 @@ preserved. The workflow structure self-test must retain the selector.
 The exact-SHA Microsoft interoperability artifact may normalize only the
 bounded production empty-field values `none`, `empty-username`,
 `empty-password`, or `both-empty`; a missing/unknown value is an evidence
-failure. It may also consume Agent 6's explicit
+failure. It must also consume Agent 6's explicit
 `delegation-requested=yes|no` request-intent scalar and terminal
 `delegation-returned=yes|no`. The latter is derived only from
 `ISC_RET_DELEGATE` returned by the final successful
-`InitializeSecurityContextW` call. Candidate success requires both delegation
-scalars `yes`, production failure `none`, production empty fields `none`,
-and `credentials-verified=yes`. Never infer final delegation success from an
-intermediate SSPI context attribute. Never log credential values, field lengths, decrypted
+`InitializeSecurityContextW` call and is a mandatory observation, not the
+CredSSP password-forwarding acceptance predicate. Candidate success requires
+`delegation-requested=yes`, a present yes/no terminal observation, production
+failure `none`, production empty fields `none`, and
+`credentials-verified=yes`. The generic SSPI DELEGATE context capability is
+Kerberos-specific, while CredSSP's `ISC_REQ_DELEGATE` separately controls
+credential forwarding; an NTLM-backed CredSSP exchange may therefore verify
+the forwarded credentials while returning `delegation-returned=no`. Never
+infer final delegation success from an intermediate SSPI context attribute.
+Never log credential values, field lengths, decrypted
 authInfo, raw SSPI/NTLM tokens, signatures, hashes or session keys.
 
 These offline and hosted facts never authorize native admission or physical

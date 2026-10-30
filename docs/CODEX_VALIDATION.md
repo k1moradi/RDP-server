@@ -1,3 +1,34 @@
+## R6 delegation hypothesis proved; terminal context bit classified — 2026-10-30
+
+- Evidence SHA: `671cae88da7dcb604ced089a9f21c2af9fe78597`,
+  workflow `41085647004`, MSVC job `124166200509`.
+- MSVC strict Debug build and R6 preflight: **PASS**.
+- Positive Microsoft CredSSP receipt:
+  `tls=TLS1.3 type3-verified=yes pubkeyauth=yes
+  server-binding-committed=yes authinfo=yes credentials-verified=yes
+  native-admission=no delegation-requested=yes delegation-returned=no
+  production-authinfo-failure=none production-authinfo-empty-fields=none`.
+  This proves the prior `both-empty` result was caused by omitting
+  `ISC_REQ_DELEGATE`; production R2 accepts the delegated configured
+  User/Password without a verifier change.
+- Bad-binding parity control: **PASS**, typed `SEC_E_INVALID_TOKEN`, authInfo
+  absent, `delegation-requested=yes delegation-returned=no`.
+- CLANG64 Debug and Release on the same SHA both configure/build/preflight
+  cleanly and their ordinary full CTest steps fail the same over-strict R6
+  positive predicate requiring `delegation-returned=yes`.
+- The final successful `ISC_RET_DELEGATE` bit remains a required bounded
+  observation but is not the CredSSP password-forwarding acceptance predicate.
+  CredSSP's request flag controls credential forwarding; generic SSPI DELEGATE
+  context capability is Kerberos-specific. The functional oracle is nonempty
+  delegated fields plus production `CredentialsVerified`.
+- Follow-up qualification changes no production authentication code and does
+  not weaken binding, required-AV, TLS, credential-source isolation, target-name
+  or stack-budget controls. It removes only the unsupported terminal-bit
+  success requirement while keeping `delegation-returned=yes|no` mandatory
+  in the exact-SHA artifact.
+- **Agent 2 handoff:** no production verifier change is required.
+- Physical Windows App/mstsc and native admission: **NOT RUN**.
+
 ## R8 Round 3 test compile correction — 2026-10-30
 
 - Failing parent: `aeeb318315db1634068b885f24a103ce06f4d236`,
@@ -121,10 +152,10 @@
   `delegation-returned=yes|no`. `ISC_RET_DELEGATE` is inspected only after
   the final successful `InitializeSecurityContextW` return; intermediate
   security attributes are not evidence.
-- R9's exact-SHA artifact/structure gate now normalizes and requires both
-  delegation scalars for a positive, plus
-  `production-authinfo-empty-fields=none`; bad-binding parity requires
-  requested=yes/returned=no and rejection before authInfo.
+- R9's exact-SHA artifact/structure gate normalizes both delegation scalars.
+  Positive qualification requires requested=yes and a present terminal yes/no
+  observation, plus `production-authinfo-empty-fields=none`; bad-binding
+  parity requires requested=yes/returned=no and rejection before authInfo.
 - No production R2 authentication/verifier code is changed. Required AV,
   TLS-version, credential-source process isolation, target-name, stack-budget
   and native-admission controls remain intact.
@@ -316,11 +347,11 @@
   `credssp-full-production-authinfo-empty-fields=none|empty-username|empty-password|both-empty`.
   Missing/unknown values fail evidence collection.
 - R9 requires the Microsoft full-exchange summary to expose bounded
-  `delegation-requested=yes|no`; this Agent 6 increment adds
-  `delegation-returned=yes|no`, derived only from final-success
-  `ISC_RET_DELEGATE`. Candidate success now requires both normalized
-  delegation scalars `yes`, empty fields `none`, failure `none`, raw
-  `credentials-verified=yes`, and `COMPLETE_PASS`.
+  `delegation-requested=yes|no` and `delegation-returned=yes|no`; the
+  latter is derived only from final-success `ISC_RET_DELEGATE`. Candidate
+  success requires requested=yes, a present terminal yes/no observation, empty
+  fields `none`, failure `none`, raw `credentials-verified=yes`, and
+  `COMPLETE_PASS`.
 - ASan/UBSan authInfo inventory advances four -> five by adding existing
   `security.standalone-credssp-authinfo-empty-field-categories`; exact
   name/count preflight remains fail-closed.

@@ -699,12 +699,13 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             "credssp-full-production-authinfo-empty-fields=none" in text
             and "credssp-full-delegation-requested=yes" in text
-            and "credssp-full-delegation-returned=yes" in text
+            and "credssp-full-delegation-returned=(yes|no)" in text
             and "production-authinfo-empty-fields=none" in text
-            and "delegation-requested=yes delegation-returned=yes" in text
+            and "delegation-requested=yes" in text
+            and "delegation-returned=(yes|no)" in text
             and "credentials-verified=yes" in text,
             "Microsoft full CredSSP candidate must require verified credentials, "
-            "nonempty delegated fields and final returned delegation",
+            "nonempty delegated fields, requested delegation and terminal observation",
         )
         require(
             'run_case credssp-full-production-exchange '

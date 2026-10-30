@@ -20,6 +20,24 @@ using namespace rdp_server::server::transport;
 namespace
 {
 
+std::uint16_t read16(
+    std::span<const std::uint8_t> bytes, const std::size_t offset)
+{
+    assert(offset + 2U <= bytes.size());
+    return static_cast<std::uint16_t>(bytes[offset]) |
+           static_cast<std::uint16_t>(bytes[offset + 1U]) << 8U;
+}
+
+std::uint32_t read32(
+    std::span<const std::uint8_t> bytes, const std::size_t offset)
+{
+    assert(offset + 4U <= bytes.size());
+    return static_cast<std::uint32_t>(bytes[offset]) |
+           static_cast<std::uint32_t>(bytes[offset + 1U]) << 8U |
+           static_cast<std::uint32_t>(bytes[offset + 2U]) << 16U |
+           static_cast<std::uint32_t>(bytes[offset + 3U]) << 24U;
+}
+
 void put32(std::span<std::uint8_t> bytes, std::size_t offset,
            std::uint32_t value)
 {
@@ -129,6 +147,181 @@ void deliverPendingApplicationPdu(
     assert(delivered);
     assert(route.idle());
     assert(bridge.pendingApplicationPdu().empty());
+}
+
+void deliverPendingSinglePacketWithFraming(
+    R3ClipboardTransferBridge &bridge,
+    RdpClipboardStaticChannelRoute &route)
+{
+    const auto applicationPdu = bridge.pendingApplicationPdu();
+    assert(!applicationPdu.empty());
+    assert(route.queue(applicationPdu));
+
+    const auto write = route.pending();
+    assert(write);
+    const auto wire = write.wireBytes;
+    assert(wire.size() == applicationPdu.size() + 22U);
+    assert(wire[0] == 0x03U && wire[1] == 0x00U);
+    assert((static_cast<std::size_t>(wire[2]) << 8U | wire[3]) ==
+           wire.size());
+    assert(wire[4] == 0x02U && wire[5] == 0xf0U &&
+           wire[6] == 0x80U && wire[7] == 0x68U);
+    assert(read32(wire, 14U) == applicationPdu.size());
+    assert(read32(wire, 18U) == 0x00000013U);
+    assert(std::equal(
+        applicationPdu.begin(), applicationPdu.end(), wire.begin() + 22U));
+
+    assert(bridge.bindQueuedWrite(write));
+    const std::size_t acceptedBytes = wire.size();
+    const auto outcome = route.onAcceptedBytes(
+        write.routeGeneration, write.replySequence,
+        write.writeSliceSequence, acceptedBytes);
+    assert(outcome == RdpClipboardWriteOutcome::Delivered);
+    assert(bridge.recordAcceptedWrite(write, acceptedBytes, outcome));
+    assert(route.idle());
+    assert(bridge.pendingApplicationPdu().empty());
+}
+
+void expectLongFormat(
+    std::span<const std::uint8_t> payload, std::size_t &offset,
+    const R3ClipboardTransferBridge::OutboundFormat &expected)
+{
+    assert(offset + 6U <= payload.size());
+    assert(read32(payload, offset) == expected.formatId);
+    offset += 4U;
+    for (const char16_t codeUnit : expected.name)
+    {
+        assert(offset + 2U <= payload.size());
+        assert(read16(payload, offset) ==
+               static_cast<std::uint16_t>(codeUnit));
+        offset += 2U;
+    }
+    assert(read16(payload, offset) == 0U);
+    offset += 2U;
+}
+
+void serverOutboundCapabilitiesAndFormatLists()
+{
+    using namespace rdp_server::clipboard;
+    constexpr std::uint32_t localFlags =
+        kUseLongFormatNames | kStreamFileclipEnabled |
+        kFileclipNoFilePaths | kHugeFileSupportEnabled;
+    constexpr std::uint32_t configuredLocalFlags =
+        localFlags | kCanLockClipdata | 0x80000000U;
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 3> formats{{
+        {kFormatUnicodeText, u""},
+        {0xc001U, u"PNG"},
+        {0xc002U, u"FileGroupDescriptorW"},
+    }};
+
+    constexpr RdpClipboardStaticChannelView longView{1008U, 51U};
+    RdpClipboardStaticChannelRoute longRoute;
+    assert(longRoute.start(1005U, longView.channelId, longView.generation,
+                           1600U));
+    R3ClipboardTransferBridge longBridge(configuredLocalFlags, true);
+    auto longVisitor = longBridge.channelVisitor();
+    auto longSink = longBridge.completePduSink();
+
+    assert(longVisitor.visit(longVisitor.context, longView));
+    assert(longBridge.beginServerCapabilities());
+    PduView decoded{};
+    assert(decodePdu(longBridge.pendingApplicationPdu(), decoded));
+    assert(decoded.type == kClipCaps && decoded.flags == 0U);
+    assert(decoded.payload.size() == 16U);
+    assert(read16(decoded.payload, 0U) == 1U);
+    assert(read16(decoded.payload, 2U) == 0U);
+    assert(read16(decoded.payload, 4U) == 1U);
+    assert(read16(decoded.payload, 6U) == 12U);
+    assert(read32(decoded.payload, 8U) == 2U);
+    assert(read32(decoded.payload, 12U) == localFlags);
+    deliverPendingSinglePacketWithFraming(longBridge, longRoute);
+
+    assert(longVisitor.visit(longVisitor.context, longView));
+    assert(longSink.consume(longSink.context, capabilitiesPdu(localFlags)));
+    assert(longBridge.transfer().negotiatedGeneralFlags() == localFlags);
+
+    assert(longVisitor.visit(longVisitor.context, longView));
+    assert(longBridge.beginServerFormatList(formats));
+    assert(decodePdu(longBridge.pendingApplicationPdu(), decoded));
+    assert(decoded.type == kFormatList && decoded.flags == 0U);
+    std::size_t longOffset = 0U;
+    for (const auto &format : formats)
+        expectLongFormat(decoded.payload, longOffset, format);
+    assert(longOffset == decoded.payload.size());
+    deliverPendingSinglePacketWithFraming(longBridge, longRoute);
+
+    std::array<R3ClipboardTransferBridge::OutboundFormat,
+               RemoteTransfer::kMaximumFormats + 1U> tooManyFormats{};
+    for (std::size_t index = 0U; index < tooManyFormats.size(); ++index)
+        tooManyFormats[index].formatId = static_cast<std::uint32_t>(index + 1U);
+    assert(longVisitor.visit(longVisitor.context, longView));
+    assert(!longBridge.beginServerFormatList(tooManyFormats));
+    assert(longBridge.active());
+    assert(longBridge.pendingApplicationPdu().empty());
+
+    constexpr std::array<R3ClipboardTransferBridge::OutboundFormat, 2>
+        duplicateFormats{{
+            {0xc010U, u"PNG"},
+            {0xc010U, u"FileGroupDescriptorW"},
+        }};
+    assert(longVisitor.visit(longVisitor.context, longView));
+    assert(!longBridge.beginServerFormatList(duplicateFormats));
+    assert(longBridge.active());
+    assert(longBridge.pendingApplicationPdu().empty());
+
+    R3ClipboardTransferBridge dormant(localFlags, true);
+    assert(!dormant.beginServerCapabilities());
+    assert(!dormant.beginServerFormatList(formats));
+
+    constexpr std::uint32_t shortLocalFlags =
+        kStreamFileclipEnabled | kFileclipNoFilePaths;
+    constexpr RdpClipboardStaticChannelView shortView{1008U, 52U};
+    RdpClipboardStaticChannelRoute shortRoute;
+    assert(shortRoute.start(1005U, shortView.channelId, shortView.generation,
+                            1600U));
+    R3ClipboardTransferBridge shortBridge(shortLocalFlags, true);
+    auto shortVisitor = shortBridge.channelVisitor();
+    auto shortSink = shortBridge.completePduSink();
+
+    assert(shortVisitor.visit(shortVisitor.context, shortView));
+    assert(shortBridge.beginServerCapabilities());
+    assert(decodePdu(shortBridge.pendingApplicationPdu(), decoded));
+    assert(decoded.type == kClipCaps && decoded.flags == 0U);
+    assert(read32(decoded.payload, 12U) == shortLocalFlags);
+    deliverPendingSinglePacketWithFraming(shortBridge, shortRoute);
+
+    // The peer may support long names, but the sender did not advertise them;
+    // the negotiated layout therefore remains the short variant.
+    assert(shortVisitor.visit(shortVisitor.context, shortView));
+    assert(shortSink.consume(shortSink.context, capabilitiesPdu(localFlags)));
+    assert((shortBridge.transfer().negotiatedGeneralFlags() &
+            kUseLongFormatNames) == 0U);
+
+    assert(shortVisitor.visit(shortVisitor.context, shortView));
+    assert(shortBridge.beginServerFormatList(formats));
+    assert(decodePdu(shortBridge.pendingApplicationPdu(), decoded));
+    assert(decoded.type == kFormatList && decoded.flags == kAsciiNames);
+    assert(decoded.payload.size() == formats.size() * 36U);
+    for (std::size_t index = 0U; index < formats.size(); ++index)
+    {
+        const std::size_t entryOffset = index * 36U;
+        assert(read32(decoded.payload, entryOffset) == formats[index].formatId);
+        for (std::size_t nameIndex = 0U;
+             nameIndex < formats[index].name.size(); ++nameIndex)
+        {
+            assert(decoded.payload[
+                       entryOffset + 4U + nameIndex] ==
+                   static_cast<std::uint8_t>(formats[index].name[nameIndex]));
+        }
+        assert(std::all_of(
+            decoded.payload.begin() +
+                static_cast<std::ptrdiff_t>(
+                    entryOffset + 4U + formats[index].name.size()),
+            decoded.payload.begin() +
+                static_cast<std::ptrdiff_t>(entryOffset + 36U),
+            [](const std::uint8_t byte) { return byte == 0U; }));
+    }
+    deliverPendingSinglePacketWithFraming(shortBridge, shortRoute);
 }
 
 void sourceRequestReceipt()
@@ -642,7 +835,9 @@ int main(int argc, char **argv)
 {
     assert(argc == 2);
     const std::string_view behavior{argv[1]};
-    if (behavior == "source-request-receipt")
+    if (behavior == "server-outbound-capabilities-format-lists")
+        serverOutboundCapabilitiesAndFormatLists();
+    else if (behavior == "source-request-receipt")
         sourceRequestReceipt();
     else if (behavior == "missing-activated-route-denial")
         missingActivatedRouteDenial();

@@ -1,3 +1,15 @@
+## R8 outbound CLIPRDR serializer build boundary (2026-10-30)
+
+The server-originated capability/Format List seam adds no library, package,
+platform SDK or native dependency. It remains in the existing noninstalled
+`rdp-server-r8-r3-clipboard` target and reuses
+`test_r8_r3_clipboard_bridge`. The new
+`clipboard.route-bridge-server-outbound-capabilities-format-lists` case is an
+ordinary cross-platform CTest. The existing Linux sanitizer `clipboard`
+selection therefore advances from 100 to 101 cases with the new exact-name
+sentinel. No Windows CLANG64/MSVC selector, alternate build root or packaging
+surface is introduced.
+
 ## R6 authInfo first-failure diagnostic adds no build surface (2026-10-30)
 
 The R2 read-only result and R6 Windows SSPI oracle extend existing source and

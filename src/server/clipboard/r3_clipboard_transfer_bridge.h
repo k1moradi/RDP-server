@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string_view>
 #include <vector>
 
 namespace rdp_server::server::clipboard
@@ -80,6 +81,23 @@ public:
         return active() ? routeGeneration_ : 0U;
     }
 
+    struct OutboundFormat final
+    {
+        std::uint32_t formatId{};
+        // Borrowed only for beginServerFormatList(); serialization copies it
+        // into outboundPdu_ before returning.
+        std::u16string_view name{};
+    };
+
+    // Offline/reusable server-originated CLIPRDR seam. These methods only
+    // serialize and stage a complete application PDU on the already-observed
+    // authenticated R3 route; they do not activate CLIPRDR or own transport.
+    // The live scheduler must still honor the MS-RDPECLIP initialization
+    // sequence and use R3/R2's sole queue/write-receipt path.
+    [[nodiscard]] bool beginServerCapabilities() noexcept;
+    [[nodiscard]] bool beginServerFormatList(
+        std::span<const OutboundFormat> formats) noexcept;
+
     // Requires a fresh channelVisitor() observation from R2/R3. The generated
     // PDU has no transport authority until R2 successfully queues it through
     // queueR3PersonalDesktopClipboardPdu().
@@ -122,6 +140,8 @@ private:
     enum class OutboundKind : std::uint8_t
     {
         None,
+        ServerCapabilities,
+        ServerFormatList,
         FormatListResponse,
         FormatDataRequest,
         FileContentsRequest,

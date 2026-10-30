@@ -2014,6 +2014,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
 endif()
 foreach(case_name IN ITEMS
+        server-outbound-capabilities-format-lists
         source-request-receipt
         missing-activated-route-denial
         old-route-generation-retirement

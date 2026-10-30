@@ -29,6 +29,7 @@ constexpr std::uint16_t kUnlockClipdata = 11;
 
 constexpr std::uint16_t kResponseOk = 0x0001;
 constexpr std::uint16_t kResponseFail = 0x0002;
+constexpr std::uint16_t kAsciiNames = 0x0004;
 constexpr std::uint32_t kUseLongFormatNames = 0x00000002U;
 constexpr std::uint32_t kStreamFileclipEnabled = 0x00000004U;
 constexpr std::uint32_t kFileclipNoFilePaths = 0x00000008U;

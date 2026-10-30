@@ -1,3 +1,23 @@
+## R8 outbound server capability/Format List conformance seam (2026-10-30)
+
+The behavior CTest
+`clipboard.route-bridge-server-outbound-capabilities-format-lists` must use
+the production `R3ClipboardTransferBridge` and
+`RdpClipboardStaticChannelRoute`, not a test-only controller or duplicate
+framer. It verifies the one-set `CB_CLIP_CAPS` version/flags, masking of
+unsupported local flags, mutually negotiated long-name layout, short
+`CB_ASCII_NAMES` layout, unnamed standard formats, registered
+`PNG`/`FileGroupDescriptorW` names, exact static-channel/MCS framing and the
+existing accepted-byte delivery receipt. Negative coverage must include no
+activated route, more than 64 formats and duplicate format IDs.
+
+Keep this ordinary test under the semantic `clipboard` label so the existing
+ASan/UBSan clipboard selection executes it; update the fail-closed expected
+inventory atomically when registering it. Do not add a Windows-only selector,
+live clipboard dependency or physical-client requirement. A serializer PASS
+proves only bounded offline wire conformance and ownership; it cannot establish
+live initialization order, native clipboard acceptance or R2 authorization.
+
 ## R2 empty delegated fields are syntax, never authentication (2026-10-30)
 
 The production-backed

@@ -1,3 +1,32 @@
+## R8 Release crash resolution and outbound CLIPRDR seam — 2026-10-30
+
+- Crash-fix SHA: `2f3e46909051880b6d7342086e20c4625307d13c`.
+  Workflow `41072241953`, Windows CLANG64 job `124119123794`: the
+  production-backed `clipboard.file-contents-joined-mcs-envelope` CTest
+  **PASS** in Debug and **PASS** in Release. A later descendant job
+  `124124539950` repeats both PASS results. The CLANG64 producer's remaining
+  failure is the independent R6 Microsoft CredSSP full-exchange/authInfo test.
+  R8's Release crash is no longer an offline dependency.
+- Existing R8 sanitizer job on the crash-fix workflow: **PASS**. Structure and
+  documentation guards: **PASS**. Independent same-SHA MSVC full qualification
+  of the R8 fixture remains **NOT VERIFIED** because the Windows producer is
+  still gated by the separate R6 failure.
+- Outbound implementation: extend only `R3ClipboardTransferBridge` with
+  bounded first-party `CB_CLIP_CAPS` and server `CB_FORMAT_LIST` staging.
+  Reuse the existing R3 static-channel route and accepted-byte receipt owner.
+  Add behavior CTest
+  `clipboard.route-bridge-server-outbound-capabilities-format-lists`, covering
+  supported capability masking, long/short names, channel framing and bounded
+  denials. Clipboard sanitizer inventory changes 100 -> 101; no Windows
+  selector changes.
+- `kLinuxProductionClipboardActivationApproved` remains **false**. No live
+  Monitor Ready/clipboard activation, native clipboard, filesystem transfer,
+  desktop or physical Microsoft client was used.
+- Authoring parent: `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`. Source/spec review: **PASS by inspection**.
+  Local configure/build/focused/full CTest, MSVC and sanitizers: **NOT RUN** in
+  this connector environment. Exact publication-SHA Actions: **PENDING**.
+  Benchmark: **NOT RUN / not applicable**.
+
 ## R6 Microsoft authInfo structural classifier continuation — 2026-10-30
 
 - Exact prior Agent 6 SHA `e8def2b91a433a727094711345c60f868577d7ac`, workflow `41072936007`.

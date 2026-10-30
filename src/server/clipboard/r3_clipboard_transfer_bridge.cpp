@@ -5,10 +5,252 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <utility>
 
 namespace rdp_server::server::clipboard
 {
+
+namespace
+{
+constexpr std::uint16_t kGeneralCapabilitySetType = 1U;
+constexpr std::uint16_t kGeneralCapabilitySetBytes = 12U;
+constexpr std::uint32_t kCapabilitiesVersion2 = 2U;
+constexpr std::size_t kMaximumFormatNameCodeUnits = 256U;
+constexpr std::size_t kShortFormatNameBytes = 32U;
+constexpr std::size_t kShortFormatEntryBytes =
+    sizeof(std::uint32_t) + kShortFormatNameBytes;
+
+void write16(std::span<std::uint8_t> bytes, const std::size_t offset,
+             const std::uint16_t value) noexcept
+{
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+}
+
+void write32(std::span<std::uint8_t> bytes, const std::size_t offset,
+             const std::uint32_t value) noexcept
+{
+    bytes[offset] = static_cast<std::uint8_t>(value);
+    bytes[offset + 1U] = static_cast<std::uint8_t>(value >> 8U);
+    bytes[offset + 2U] = static_cast<std::uint8_t>(value >> 16U);
+    bytes[offset + 3U] = static_cast<std::uint8_t>(value >> 24U);
+}
+
+[[nodiscard]] bool validFormatName(
+    const std::u16string_view name) noexcept
+{
+    if (name.size() > kMaximumFormatNameCodeUnits)
+        return false;
+
+    bool pendingHighSurrogate = false;
+    for (const char16_t rawCodeUnit : name)
+    {
+        const auto codeUnit = static_cast<std::uint16_t>(rawCodeUnit);
+        if (codeUnit == 0U)
+            return false;
+        if (codeUnit >= 0xd800U && codeUnit <= 0xdbffU)
+        {
+            if (pendingHighSurrogate)
+                return false;
+            pendingHighSurrogate = true;
+        }
+        else if (codeUnit >= 0xdc00U && codeUnit <= 0xdfffU)
+        {
+            if (!pendingHighSurrogate)
+                return false;
+            pendingHighSurrogate = false;
+        }
+        else if (pendingHighSurrogate)
+        {
+            return false;
+        }
+    }
+    return !pendingHighSurrogate;
+}
+
+[[nodiscard]] bool validFormats(
+    const std::span<const R3ClipboardTransferBridge::OutboundFormat> formats)
+    noexcept
+{
+    if (formats.size() > RemoteTransfer::kMaximumFormats)
+        return false;
+
+    for (std::size_t index = 0U; index < formats.size(); ++index)
+    {
+        if (formats[index].formatId == 0U ||
+            !validFormatName(formats[index].name))
+        {
+            return false;
+        }
+        for (std::size_t previous = 0U; previous < index; ++previous)
+        {
+            if (formats[previous].formatId == formats[index].formatId)
+                return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] bool encodeServerCapabilities(
+    const std::uint32_t localAdvertisedGeneralFlags,
+    std::vector<std::uint8_t> &pdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    std::array<std::uint8_t, 16U> payload{};
+    write16(payload, 0U, 1U);
+    write16(payload, 2U, 0U);
+    write16(payload, 4U, kGeneralCapabilitySetType);
+    write16(payload, 6U, kGeneralCapabilitySetBytes);
+    write32(payload, 8U, kCapabilitiesVersion2);
+    write32(payload, 12U,
+            localAdvertisedGeneralFlags & RemoteTransfer::kSupportedGeneralFlags);
+    return encodePdu(kClipCaps, 0U, payload, pdu);
+}
+
+[[nodiscard]] bool encodeServerLongFormatList(
+    const std::span<const R3ClipboardTransferBridge::OutboundFormat> formats,
+    std::vector<std::uint8_t> &pdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    std::size_t payloadBytes = 0U;
+    for (const auto &format : formats)
+    {
+        const std::size_t nameBytes = (format.name.size() + 1U) * 2U;
+        if (payloadBytes > kMaximumPduBytes - 8U - sizeof(std::uint32_t) ||
+            nameBytes > kMaximumPduBytes - 8U - payloadBytes -
+                            sizeof(std::uint32_t))
+        {
+            return false;
+        }
+        payloadBytes += sizeof(std::uint32_t) + nameBytes;
+    }
+
+    try
+    {
+        std::vector<std::uint8_t> payload(payloadBytes, 0U);
+        std::size_t offset = 0U;
+        for (const auto &format : formats)
+        {
+            write32(payload, offset, format.formatId);
+            offset += sizeof(std::uint32_t);
+            for (const char16_t rawCodeUnit : format.name)
+            {
+                write16(payload, offset,
+                        static_cast<std::uint16_t>(rawCodeUnit));
+                offset += 2U;
+            }
+            write16(payload, offset, 0U);
+            offset += 2U;
+        }
+        return offset == payload.size() &&
+               encodePdu(kFormatList, 0U, payload, pdu);
+    }
+    catch (...)
+    {
+        pdu.clear();
+        return false;
+    }
+}
+
+[[nodiscard]] bool encodeServerShortFormatList(
+    const std::span<const R3ClipboardTransferBridge::OutboundFormat> formats,
+    std::vector<std::uint8_t> &pdu) noexcept
+{
+    using namespace rdp_server::clipboard;
+    bool useAsciiNames = true;
+    for (const auto &format : formats)
+    {
+        if (format.name.size() > kShortFormatNameBytes)
+        {
+            useAsciiNames = false;
+            break;
+        }
+        for (const char16_t rawCodeUnit : format.name)
+        {
+            if (static_cast<std::uint16_t>(rawCodeUnit) > 0x7fU)
+            {
+                useAsciiNames = false;
+                break;
+            }
+        }
+        if (!useAsciiNames)
+            break;
+    }
+
+    if (!useAsciiNames)
+    {
+        constexpr std::size_t kMaximumShortUnicodeCodeUnits =
+            kShortFormatNameBytes / 2U;
+        for (const auto &format : formats)
+        {
+            if (format.name.size() > kMaximumShortUnicodeCodeUnits)
+                return false;
+        }
+    }
+
+    if (formats.size() >
+        (std::numeric_limits<std::size_t>::max)() / kShortFormatEntryBytes)
+    {
+        return false;
+    }
+
+    try
+    {
+        std::vector<std::uint8_t> payload(
+            formats.size() * kShortFormatEntryBytes, 0U);
+        for (std::size_t index = 0U; index < formats.size(); ++index)
+        {
+            const std::size_t entryOffset = index * kShortFormatEntryBytes;
+            write32(payload, entryOffset, formats[index].formatId);
+            if (useAsciiNames)
+            {
+                for (std::size_t nameIndex = 0U;
+                     nameIndex < formats[index].name.size(); ++nameIndex)
+                {
+                    payload[entryOffset + sizeof(std::uint32_t) + nameIndex] =
+                        static_cast<std::uint8_t>(
+                            formats[index].name[nameIndex]);
+                }
+            }
+            else
+            {
+                for (std::size_t nameIndex = 0U;
+                     nameIndex < formats[index].name.size(); ++nameIndex)
+                {
+                    write16(
+                        payload,
+                        entryOffset + sizeof(std::uint32_t) + nameIndex * 2U,
+                        static_cast<std::uint16_t>(
+                            formats[index].name[nameIndex]));
+                }
+            }
+        }
+        return encodePdu(
+            kFormatList, useAsciiNames ? kAsciiNames : 0U, payload, pdu);
+    }
+    catch (...)
+    {
+        pdu.clear();
+        return false;
+    }
+}
+
+[[nodiscard]] bool encodeServerFormatList(
+    const std::span<const R3ClipboardTransferBridge::OutboundFormat> formats,
+    const bool useLongFormatNames,
+    std::vector<std::uint8_t> &pdu) noexcept
+{
+    if (!validFormats(formats))
+    {
+        pdu.clear();
+        return false;
+    }
+    return useLongFormatNames ?
+        encodeServerLongFormatList(formats, pdu) :
+        encodeServerShortFormatList(formats, pdu);
+}
+} // namespace
 
 R3ClipboardTransferBridge::R3ClipboardTransferBridge(
     const std::uint32_t localAdvertisedGeneralFlags,
@@ -231,6 +473,46 @@ bool R3ClipboardTransferBridge::consumeCompletePdu(
         // ignored here rather than being reinterpreted as an offer or response.
         return true;
     }
+}
+
+bool R3ClipboardTransferBridge::beginServerCapabilities() noexcept
+{
+    if (!active() || !routeObservationAvailable_ ||
+        outboundKind_ != OutboundKind::None ||
+        formatRequestDelivered_ || fileContentsRequestDelivered_)
+    {
+        return false;
+    }
+    routeObservationAvailable_ = false;
+
+    std::vector<std::uint8_t> pdu;
+    if (!encodeServerCapabilities(localAdvertisedGeneralFlags_, pdu))
+        return failCurrentRoute();
+    if (!stageOutbound(OutboundKind::ServerCapabilities, std::move(pdu)))
+        return failCurrentRoute();
+    return true;
+}
+
+bool R3ClipboardTransferBridge::beginServerFormatList(
+    const std::span<const OutboundFormat> formats) noexcept
+{
+    if (!active() || !routeObservationAvailable_ ||
+        outboundKind_ != OutboundKind::None ||
+        formatRequestDelivered_ || fileContentsRequestDelivered_)
+    {
+        return false;
+    }
+    routeObservationAvailable_ = false;
+
+    std::vector<std::uint8_t> pdu;
+    const bool useLongFormatNames =
+        (transfer_.negotiatedGeneralFlags() &
+         rdp_server::clipboard::kUseLongFormatNames) != 0U;
+    if (!encodeServerFormatList(formats, useLongFormatNames, pdu))
+        return false;
+    if (!stageOutbound(OutboundKind::ServerFormatList, std::move(pdu)))
+        return failCurrentRoute();
+    return true;
 }
 
 bool R3ClipboardTransferBridge::beginFormatDataRequest(

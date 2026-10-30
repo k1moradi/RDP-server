@@ -1,3 +1,32 @@
+## R8 server-originated CLIPRDR serialization ownership (2026-10-30)
+
+Server-originated clipboard capabilities and format offers belong to the
+existing `R3ClipboardTransferBridge` outbound owner; do not add a second
+clipboard controller, static-channel serializer, write-offset ledger or socket
+reader. A serializer may run only after the exact R3 route generation has been
+observed, copies any caller-borrowed format-name views before return, and stages
+the resulting complete CLIPRDR application PDU into the bridge's existing owned
+contiguous buffer. R3/R2 remain the sole static-channel/MCS queue and
+accepted-byte receipt owner.
+
+Advertise one MS-RDPECLIP General Capability Set v2 and mask configured flags
+to `RemoteTransfer::kSupportedGeneralFlags`; a configuration bit unsupported
+by the production state machine must never appear on the wire. General
+capability version is informational. Select a long `CB_FORMAT_LIST` only from
+the mutually negotiated `CB_USE_LONG_FORMAT_NAMES` bit. Long entries are
+LE32 format ID plus a null-terminated UTF-16LE name. Without the negotiated
+long-name bit, use fixed 36-byte entries: `CB_ASCII_NAMES` only if every name
+fits the 32-byte ASCII field, otherwise the 16-code-unit Unicode field. Reject
+rather than silently truncate an outbound registered name that cannot be
+represented. Require nonzero unique format IDs, valid bounded UTF-16 and at
+most `RemoteTransfer::kMaximumFormats` entries.
+
+Serialization and an R3 route observation are not activation authority. The
+live owner still must implement the normative initialization/order policy,
+fresh R2 authorization, joined `cliprdr` role and one R1 TLS writer.
+Keep `kLinuxProductionClipboardActivationApproved = false`; offline
+capability/format bytes must not flip it or construct native clipboard state.
+
 ## R2/R6 credential-parser failure-only reinspection (2026-10-30)
 
 Final CredSSP diagnostic refinement may call the existing bounded credential inspection a second time **only after** the canonical delegated-password visitor has already failed. Keep this off the successful authentication path, reuse the same parser contract, and project only an enum distinguishing outer credential-envelope DER, nested password-field structure, unsupported type or generic invalid input. Never expose decrypted buffer contents or lengths to logs/UI, and never make the diagnostic result influence credential acceptance, retry, fallback, challenge construction or native admission. This preserves one R2 verifier owner while giving R6 an interoperability boundary precise enough for a Microsoft differential.

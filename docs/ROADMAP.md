@@ -1,3 +1,50 @@
+## R8 P0/P1 Round 2 — Release crash cleared; first-party outbound CLIPRDR seam (2026-10-30)
+
+**Authoring parent:** `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`. The R8 P0 Windows CLANG64 Release blocker is
+resolved by exact-SHA evidence for `2f3e46909051880b6d7342086e20c4625307d13c`:
+workflow `41072241953`, job `124119123794`, runs
+`clipboard.file-contents-joined-mcs-envelope` successfully in both Debug and
+Release. A later descendant Windows CLANG64 job `124124539950` repeats the
+same Debug/Release PASS. The Windows producer remains red for the independent
+R6 Microsoft CredSSP full-exchange/authInfo gate, not for R8 FileContents.
+R8 therefore no longer waits on the Release crash before advancing offline
+CLIPRDR work.
+
+This increment extends the existing production `R3ClipboardTransferBridge`;
+it does not add a clipboard controller. R8 can now stage one bounded
+server-originated `CB_CLIP_CAPS` with a General Capability Set v2 and one
+server `CB_FORMAT_LIST` through the bridge's existing owned outbound PDU.
+Capability flags are masked to the production-supported set. Format Lists use
+the long Unicode layout only after mutual `CB_USE_LONG_FORMAT_NAMES`; without
+that negotiated bit the serializer uses a bounded 36-byte short entry, choosing
+`CB_ASCII_NAMES` only when every supplied name is representable, otherwise
+using the short Unicode field or rejecting an unrepresentable name. Format IDs
+must be nonzero/unique, names are bounded/validated UTF-16, and the 64-format
+production limit is retained.
+
+The production-backed
+`clipboard.route-bridge-server-outbound-capabilities-format-lists` regression
+drives both long and short layouts through the existing
+`RdpClipboardStaticChannelRoute`, checking the CLIPRDR header, General flags,
+MCS/static-channel framing and exact R3 accepted-byte completion. It also checks
+missing-route, duplicate-ID and over-limit denials. The shared clipboard
+sanitizer inventory advances from 100 to 101 and its existing fail-closed
+sentinel is updated; no Windows selector is changed.
+
+**Security/activation boundary:** this is only a reusable serializer/staging
+seam. It does not schedule the full live initialization sequence, create R2
+Admission, activate a native clipboard, or transmit outside R3/R2's sole queue
+and R10/R1 writer. `kLinuxProductionClipboardActivationApproved = false`
+remains literal false. Live `CB_MONITOR_READY`, server offer scheduling and
+physical Microsoft-client/native clipboard acceptance remain future
+authorization-bound integration work after the repository-wide R6/R9 gates.
+
+**Authoring validation:** source/spec/dependency review PASS by inspection.
+Local configure/build/focused/full CTest, MSVC and sanitizers are **NOT RUN** in
+this connector environment. Exact publication-SHA hosted CI is **PENDING**.
+No native clipboard, file transfer or desktop was accessed. Benchmark:
+**NOT RUN / not applicable**; no hot-path algorithm or scheduling loop changes.
+
 ## R6 P0 Round 2 continuation — Microsoft authInfo structural boundary narrowed (2026-10-30)
 
 **Resolved dependency:** Agent 6 publication `e8def2b91a433a727094711345c60f868577d7ac`, workflow `41072936007`, executed the typed oracle. MSVC job `124124540101` and CLANG64 job `124124539950` both reached TLS1.3, unchanged production Type 2, verified Type 3/pubKeyAuth, committed server binding, Microsoft `SEC_E_OK`, emitted final authInfo and then failed production verification with `production-authinfo-failure=credential-der-or-fields`. CLANG64 reproduced the same category in Debug and Release; `security.standalone-credssp-authinfo-first-failure-classification` passed in both. The bad-binding control still returns `SEC_E_INVALID_TOKEN` before authInfo. Current-line MSVC job `124124681701` repeats the same failure after R2/R7/R10 follow-ups, and R1 transport qualification is green. R9 now preserves the failed authInfo category in its exact-SHA interop artifact, removing the prior reporting gap.

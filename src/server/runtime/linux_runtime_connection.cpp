@@ -804,6 +804,8 @@ LinuxRuntimeConnection::acceptanceDiagnostics() const noexcept
             : 0U;
     snapshot.standaloneAuthenticationFailureStage =
         standaloneAuthenticationFailureStage_;
+    snapshot.standaloneAuthInfoFailureReason =
+        standaloneAuthInfoFailureReason_;
     snapshot.admissionFailureReason = admissionFailureReason_;
     snapshot.mcsPhase = session_.phase();
     snapshot.shareActivated =
@@ -1878,7 +1880,11 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                     std::size_t bytesWritten = 0U) noexcept {
         using FailureStage = rdp_server::server::security::
             StandaloneAuthenticationFailureStage;
+        using AuthInfoFailureReason = rdp_server::server::security::
+            StandaloneAuthInfoFailureReason;
         const auto failureStage = standaloneCredSspAcceptor_.failureStage();
+        const auto authInfoFailureReason =
+            standaloneCredSspAcceptor_.authInfoFailureReason();
         if (failureStage ==
                 rdp_server::server::security::
                     StandaloneAuthenticationFailureStage::NtlmNegotiation &&
@@ -1923,6 +1929,12 @@ LinuxCredSspStepResult LinuxRuntimeConnection::advanceStandaloneCredSsp() noexce
                       authenticationProgress_)
                 : failureStage;
         recordStandaloneAuthenticationFailure(diagnosticFailureStage);
+        if (diagnosticFailureStage == FailureStage::AuthInfo &&
+            standaloneAuthInfoFailureReason_ == AuthInfoFailureReason::None &&
+            authInfoFailureReason != AuthInfoFailureReason::None)
+        {
+            standaloneAuthInfoFailureReason_ = authInfoFailureReason;
+        }
         credSspDiagnosticTransition_ =
             transportClosedWithoutAuthenticationFailure
                 ? LinuxRuntimeCredSspDiagnosticTransition::Closed

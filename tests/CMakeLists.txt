@@ -672,6 +672,16 @@ if(TARGET rdp-server-linux-host-control)
             SKIP_RETURN_CODE 77
             TIMEOUT 25)
 
+    # R10 typed final-authInfo diagnostics remain one accepted-client lifetime.
+    add_test(NAME runtime.linux-authinfo-diagnostic-replacement-fencing
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-authinfo-diagnostic-replacement-fencing)
+    set_tests_properties(runtime.linux-authinfo-diagnostic-replacement-fencing
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;admission;lifecycle;linux;native-environment"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 30)
+
     # Two consecutive Type-2 deliveries followed by peer EOF before Type 3
     # remain pre-admission on one listener while current owner consent survives;
     # this gate grants no native, MCS, graphics or clipboard authority.

@@ -1,3 +1,22 @@
+## R10 typed final-authInfo diagnostic lifetime gate (2026-10-30)
+
+R10 may retain only the bounded R2 final-authInfo failure category. Protected
+length/sign-seal share one category; invalid credential envelope/password
+fields/unsupported type share one structure/type category; frame/session,
+delegated domain, unavailable/revoked, mismatch and frame-release remain
+separate. Never project R6 empty-field observations, credential text, lengths,
+hashes, protected bytes or token material.
+
+The value is valid only for the exact accepted-client lifetime and its nonzero
+standalone credential generation. A replacement peer, explicit Stop,
+credential replacement and fresh listener generation must not inherit it.
+`runtime.linux-authinfo-diagnostic-replacement-fencing` also requires a valid
+CredSSP exchange that reaches `CredentialsVerified` to remain unable to
+advance MCS, Share, native desktop, graphics or clipboard without genuine
+native R2 Admission. Do not add a scheduler yield, second TLS reader or
+synthetic positive OS lease to manufacture an interleaving production does not
+have.
+
 ## R5 queued native-event retirement isolation (2026-10-30)
 
 The behavior CTest `x11.desktop-resource-authority-retirement-queued-damage-isolation` must run only on an ephemeral Xvfb display. Queue a real XDamage event on the retiring aggregate's XCB connection, synchronize it into that connection's private queue without dispatching it, call `retireAfterAuthorizationLoss()`, and then create a replacement `X11DesktopResources` owner. The replacement must have a different capture generation, reject the retired geometry observation, observe zero stale damage from the retired connection, and accept damage/capture only from work generated after replacement construction. Never fabricate a positive R2 lease or use a logged-in desktop.

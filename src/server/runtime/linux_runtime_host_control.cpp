@@ -1254,6 +1254,39 @@ projectLinuxAcceptedClientPreauthDiagnostics(
         break;
     }
 
+    // The source reason is retained only for one standalone-password
+    // connection generation and only when R2 classified final authInfo.
+    // R6's empty-field observation is intentionally not projected.
+    if (source.standalonePasswordSelected &&
+        source.standaloneCredentialGeneration != 0U &&
+        projected.standaloneFailureStage ==
+            RuntimeAcceptedClientStandaloneFailureStage::AuthInfo)
+    {
+        using SourceAuthInfoFailure = rdp_server::server::security::StandaloneAuthInfoFailureReason;
+        switch (source.standaloneAuthInfoFailureReason)
+        {
+        case SourceAuthInfoFailure::None: break;
+        case SourceAuthInfoFailure::InvalidFrameOrSession:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::FrameOrSessionInvalid; break;
+        case SourceAuthInfoFailure::InvalidProtectedLength:
+        case SourceAuthInfoFailure::SignSeal:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::ProtectedCredentialOrSignSealFailure; break;
+        case SourceAuthInfoFailure::InvalidCredential:
+        case SourceAuthInfoFailure::InvalidCredentialEnvelope:
+        case SourceAuthInfoFailure::InvalidPasswordFields:
+        case SourceAuthInfoFailure::UnsupportedCredentialType:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::CredentialStructureOrTypeFailure; break;
+        case SourceAuthInfoFailure::NonEmptyDelegatedDomain:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::DelegatedDomainRejected; break;
+        case SourceAuthInfoFailure::CredentialUnavailable:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::CredentialUnavailableOrRevoked; break;
+        case SourceAuthInfoFailure::CredentialMismatch:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::CredentialMismatch; break;
+        case SourceAuthInfoFailure::FrameRelease:
+            projected.standaloneAuthInfoFailureReason = RuntimeAcceptedClientAuthInfoFailureReason::FrameReleaseFailure; break;
+        }
+    }
+
     using SourceAdmissionFailure = rdp_server::server::security::
         LinuxConsoleAdmissionFailureReason;
     switch (source.admissionFailureReason)
@@ -2241,6 +2274,11 @@ bool LinuxRuntimeHostControl::configureStandaloneApplicationPassword(
     // Credential configuration is independent of native admission readiness.
     // Replacement always revokes the previous owner-consent generation and
     // consumes/scrubs caller input through the production credential owner.
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    // A terminal accepted-client diagnostic belongs to the prior credential
+    // generation and must never survive into a replacement credential.
+    acceptedClientPreauthDiagnostics_ = {};
+#endif
     standaloneCredentialSessionBinding_.clear();
 #if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
     authenticationMode_ = ConfiguredAuthenticationMode::Unconfigured;
@@ -4258,6 +4296,11 @@ RuntimeHostResult LinuxRuntimeHostControl::stopSharing()
     retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason::Stop,
         StoppedRuntimeCredentialPolicy::KeepCredentials);
+#if defined(RDP_SERVER_HAVE_LINUX_HOST_SECURITY)
+    // Stop ends accepted-client diagnostic ownership even though the approved
+    // memory-only Session Password generation is intentionally retained.
+    acceptedClientPreauthDiagnostics_ = {};
+#endif
     if (stage_ != RuntimeHostStage::Revoked)
     {
         stage_ = RuntimeHostStage::Stopped;

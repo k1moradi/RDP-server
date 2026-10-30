@@ -1,3 +1,36 @@
+## R10 Round 2 — typed final-authInfo diagnostic projection and authority fencing (2026-10-30)
+
+**Authoring parent:** `3040716a0f098f117a0895ed15101824191a0f7c`. R10 now latches R2's existing secret-free
+`StandaloneAuthInfoFailureReason` before CredSSP reset and projects only a
+bounded runtime category: frame/session invalid, protected-credential/sign-seal,
+credential structure/type, delegated-domain rejection, unavailable/revoked,
+credential mismatch, or frame-release failure. R6's empty username/password
+observation is deliberately not projected into R10 or Main UI.
+
+The observation is fenced to the exact accepted-client ID plus standalone
+credential generation. Replacement clients start at None; explicit Stop and
+standalone credential replacement clear accepted-client diagnostic ownership;
+fresh Start already clears before the next listener generation. No scheduler,
+R1 TLS, verifier predicate, MCS, graphics, input or clipboard state machine was
+changed.
+
+New production-backed CTest
+`runtime.linux-authinfo-diagnostic-replacement-fencing` drives real
+listener/X.224/TLS/Direct-NTLM final authInfo with a mismatched delegated
+password, verifies `CredentialMismatch`, accepts a fresh peer without stale
+state, checks Stop/credential/listener retirement, then reaches
+`CredentialsVerified` with valid authInfo and proves genuine R2 native
+Admission still denies before MCS/Share/X11/graphics/clipboard. HostControl
+calls `issueAdmission()` in the same serialized owner step as
+`CredentialsVerified`; there is no R10 owner-thread Stop/credential/listener
+interleaving gap, while R2 independently samples native authority and R3
+revalidates any lease before first MCS. No positive OS lease is fabricated.
+
+Local canonical build/focused/full CTest and sanitizers: **NOT RUN** (no
+approved checkout/build root in this connector environment). Exact publication
+SHA hosted CI: **PENDING**. Physical acceptance remains **BLOCKED / NOT RUN**
+pending R9 qualification and explicit owner authorization.
+
 ## R5 Round 2 — queued XDamage isolation across native authority retirement (2026-10-30)
 
 **Authoring baseline:** `671cae88da7dcb604ced089a9f21c2af9fe78597`. Authority audit reconfirms that owner Sharing consent and authentication are insufficient to construct X11 resources. R10 constructs `X11DesktopResources` only after the accepted client reaches `GraphicsReady` and `LinuxRuntimeConnection::visitNativeDesktopSelection()` successfully passes the concrete R2 lease/principal/R1/native checks. The R2 broker revalidates those facts after the synchronous construction callback, so `CredentialsVerified` alone cannot open XCB/XShm/XDamage/XFixes/XTEST resources.

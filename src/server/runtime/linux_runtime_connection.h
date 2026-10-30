@@ -587,6 +587,9 @@ struct LinuxRuntimeConnectionAcceptanceDiagnostics final
     std::uint64_t preTlsReadReadyToServiceMicroseconds{};
     std::uint64_t preTlsWriteReadyToServiceMicroseconds{};
     bool standaloneCredentialsRejected{};
+    rdp_server::server::security::StandaloneAuthInfoFailureReason
+        standaloneAuthInfoFailureReason{
+            rdp_server::server::security::StandaloneAuthInfoFailureReason::None};
 };
 
 namespace detail
@@ -1447,6 +1450,12 @@ private:
         standaloneAuthenticationFailureStage_{
             rdp_server::server::security::
                 StandaloneAuthenticationFailureStage::None};
+    // Latched before the final-authInfo acceptor is reset. This typed scalar
+    // is read-only diagnostic state; empty delegated-field observations stay
+    // inside the R6 oracle and are deliberately not retained here.
+    rdp_server::server::security::StandaloneAuthInfoFailureReason
+        standaloneAuthInfoFailureReason_{
+            rdp_server::server::security::StandaloneAuthInfoFailureReason::None};
     // Latched from the existing SPNEGO/NTLM verifier before it is reset.
     // This carries only the typed rejection fact, never credential material.
     bool standaloneCredentialsRejected_{};

@@ -1,3 +1,23 @@
+## R10 final-authInfo diagnostic projection and replacement fencing — 2026-10-30
+
+- Authoring parent: `3040716a0f098f117a0895ed15101824191a0f7c`.
+- Latch R2's typed final-authInfo reason before acceptor reset and reduce it to
+  a bounded R10 accepted-client diagnostic enum; R6 empty-field observations
+  remain unprojected.
+- Explicit Stop and standalone credential replacement clear accepted-client
+  diagnostic ownership; replacement clients and fresh listener generations
+  begin with no prior reason.
+- New production-backed CTest:
+  `runtime.linux-authinfo-diagnostic-replacement-fencing`.
+- Authority audit: `CredentialsVerified` and `issueAdmission()` are one
+  serialized HostControl owner step; the native broker independently samples
+  authority and R3 revalidates any issued lease before first MCS. The test
+  reaches valid `CredentialsVerified` and still proves no
+  MCS/Share/native/graphics/clipboard without real native Admission.
+- Local build/focused/full CTest and sanitizers: **NOT RUN** (no approved local
+  checkout/build root). Exact publication-SHA hosted CI: **PENDING**. Physical
+  client/native admission: **BLOCKED / NOT RUN**.
+
 ## R5 queued XDamage authority-retirement regression — 2026-10-30
 
 - Authoring baseline: `671cae88da7dcb604ced089a9f21c2af9fe78597`.

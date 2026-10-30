@@ -99,6 +99,9 @@ struct CredentialFixture final
 constexpr CredentialFixture kDefaultCredentialFixture{
     kStandaloneUser,
     {kStandalonePassword.data(), kStandalonePassword.size()}};
+constexpr std::u16string_view kMismatchedStandalonePassword{u"Different"};
+constexpr CredentialFixture kMismatchedAuthInfoCredentialFixture{
+    kStandaloneUser, kMismatchedStandalonePassword};
 constexpr CredentialFixture kLargeCredentialFixture{
     kLargeStandaloneUser,
     {kLargeStandalonePassword.data(), kLargeStandalonePassword.size()}};
@@ -922,6 +925,12 @@ enum class FinalAuthInfoWritePattern : std::uint8_t
     TruncatedWithTlsClose
 };
 
+enum class FinalAuthInfoCredentialPattern : std::uint8_t
+{
+    Matching,
+    MismatchedPassword,
+};
+
 struct PeerResult final
 {
     bool passed{};
@@ -957,7 +966,9 @@ struct PeerResult final
         FinalAuthInfoWritePattern::Complete,
     PendingAuthInfoGate* pendingAuthInfoGate = nullptr,
     const CredentialFixture& credentialFixture =
-        kDefaultCredentialFixture) noexcept
+        kDefaultCredentialFixture,
+    FinalAuthInfoCredentialPattern authInfoCredentialPattern =
+        FinalAuthInfoCredentialPattern::Matching) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -1056,7 +1067,12 @@ struct PeerResult final
             return result;
     }
 
-    const auto credentials = passwordCredentials(credentialFixture);
+    const CredentialFixture& authInfoCredential =
+        authInfoCredentialPattern ==
+                FinalAuthInfoCredentialPattern::MismatchedPassword
+            ? kMismatchedAuthInfoCredentialFixture
+            : credentialFixture;
+    const auto credentials = passwordCredentials(authInfoCredential);
     const auto protectedCredentials =
         protectClientMessage(clientSecurity, credentials);
     if (!protectedCredentials)
@@ -1704,6 +1720,15 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
            RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
     assert(status.acceptedClientPreauthDiagnostics.standaloneFailureStage ==
            RuntimeAcceptedClientStandaloneFailureStage::Admission);
+    assert(status.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason ==
+           RuntimeAcceptedClientAuthInfoFailureReason::None);
+    assert(status.acceptedClientPreauthDiagnostics.protocolStage ==
+           RuntimeAcceptedClientProtocolStage::PreAdmission);
+    assert(!status.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+    assert(!status.acceptedClientPreauthDiagnostics.shareActivated);
+    assert(!status.nativeDesktopReady);
+    assert(!status.nativeDesktopInitializing);
+    assert(!status.graphicsReady);
     assert(status.acceptedClientPreauthDiagnostics.admissionFailureReason !=
            RuntimeAcceptedClientAdmissionFailureReason::None);
     // Admission rejection is not a TLS failure. A peer EOF observed by the
@@ -1804,6 +1829,40 @@ void assertConnectionLocalStageTimeline(
            consecutiveStageMicroseconds);
 }
 
+void assertAuthInfoFailureProjectionContract()
+{
+    using SourceReason = rdp_server::server::security::StandaloneAuthInfoFailureReason;
+    using RuntimeReason = RuntimeAcceptedClientAuthInfoFailureReason;
+    LinuxRuntimeConnectionAcceptanceDiagnostics source{};
+    source.standalonePasswordSelected = true;
+    source.standaloneCredentialGeneration = 41U;
+    source.standaloneAuthenticationFailureStage =
+        rdp_server::server::security::StandaloneAuthenticationFailureStage::AuthInfo;
+    const auto projectedReason = [&source](SourceReason reason) noexcept {
+        source.standaloneAuthInfoFailureReason = reason;
+        return projectLinuxAcceptedClientPreauthDiagnostics(source).standaloneAuthInfoFailureReason;
+    };
+    assert(projectedReason(SourceReason::None) == RuntimeReason::None);
+    assert(projectedReason(SourceReason::InvalidFrameOrSession) == RuntimeReason::FrameOrSessionInvalid);
+    assert(projectedReason(SourceReason::InvalidProtectedLength) == RuntimeReason::ProtectedCredentialOrSignSealFailure);
+    assert(projectedReason(SourceReason::SignSeal) == RuntimeReason::ProtectedCredentialOrSignSealFailure);
+    assert(projectedReason(SourceReason::InvalidCredential) == RuntimeReason::CredentialStructureOrTypeFailure);
+    assert(projectedReason(SourceReason::InvalidCredentialEnvelope) == RuntimeReason::CredentialStructureOrTypeFailure);
+    assert(projectedReason(SourceReason::InvalidPasswordFields) == RuntimeReason::CredentialStructureOrTypeFailure);
+    assert(projectedReason(SourceReason::UnsupportedCredentialType) == RuntimeReason::CredentialStructureOrTypeFailure);
+    assert(projectedReason(SourceReason::NonEmptyDelegatedDomain) == RuntimeReason::DelegatedDomainRejected);
+    assert(projectedReason(SourceReason::CredentialUnavailable) == RuntimeReason::CredentialUnavailableOrRevoked);
+    assert(projectedReason(SourceReason::CredentialMismatch) == RuntimeReason::CredentialMismatch);
+    assert(projectedReason(SourceReason::FrameRelease) == RuntimeReason::FrameReleaseFailure);
+    source.standaloneAuthInfoFailureReason = SourceReason::CredentialMismatch;
+    source.standaloneCredentialGeneration = 0U;
+    assert(projectLinuxAcceptedClientPreauthDiagnostics(source).standaloneAuthInfoFailureReason == RuntimeReason::None);
+    source.standaloneCredentialGeneration = 41U;
+    source.standaloneAuthenticationFailureStage =
+        rdp_server::server::security::StandaloneAuthenticationFailureStage::Admission;
+    assert(projectLinuxAcceptedClientPreauthDiagnostics(source).standaloneAuthInfoFailureReason == RuntimeReason::None);
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1834,6 +1893,8 @@ int main(int argc, char** argv)
             "direct-ntlm-preauth-zero-timeout-readiness-attribution";
     const bool stopQueuedAuthInfoRetirementOnly =
         testCase == "direct-ntlm-stop-queued-authinfo-retirement";
+    const bool authInfoDiagnosticReplacementOnly =
+        testCase == "direct-ntlm-authinfo-diagnostic-replacement-fencing";
     const bool serviceNoStarvationOnly =
         testCase == "direct-ntlm-preauth-service-no-starvation";
     const bool typeTwoTimingDiagnosticsOnly =
@@ -1884,6 +1945,7 @@ int main(int argc, char** argv)
     if (!fullLifecycle && !admissionRetryOnly && !typeTwoPeerEofOnly &&
         !typeTwoTimingDiagnosticsOnly && !serviceNoStarvationOnly &&
         !stopQueuedAuthInfoRetirementOnly &&
+        !authInfoDiagnosticReplacementOnly &&
         !postTypeTwoTimelineDiagnosticsOnly && !postTypeTwoObservationOnly &&
         !typeTwoTimeoutOnly && !peerCloseClassificationOnly &&
         !invalidCredentialDiagnosticOnly &&
@@ -1973,6 +2035,112 @@ int main(int argc, char** argv)
     assertFixedConnectionTargetIdentity(
         firstListener, recommendation.address, selectedPort,
         firstListenerGeneration);
+
+
+    if (authInfoDiagnosticReplacementOnly)
+    {
+        assertAuthInfoFailureProjectionContract();
+        std::atomic<bool> releaseFailedPeer{false}, failedPeerFinished{false};
+        PeerResult failedPeerResult;
+        std::thread failedPeer([&] {
+            failedPeerResult = runDirectNtlmPeer(
+                recommendation.address, selectedPort, true, 0x51U,
+                releaseFailedPeer, false, FinalAuthInfoWritePattern::Complete,
+                nullptr, kDefaultCredentialFixture,
+                FinalAuthInfoCredentialPattern::MismatchedPassword);
+            failedPeerFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilNewAttemptRetired(control, failedPeerFinished));
+        const RuntimeHostStatus failed = control.status();
+        const auto& failedDiagnostics = failed.acceptedClientPreauthDiagnostics;
+        const std::uint64_t failedClientId = failedDiagnostics.acceptedClientId;
+        assert(failed.listenerAvailable);
+        assert(failed.listenerGeneration == firstListenerGeneration);
+        assert(failed.activeClients.empty());
+        assert(failedDiagnostics.available && failedClientId != 0U);
+        assert(failedDiagnostics.credSspTransition == RuntimeAcceptedClientCredSspTransition::Failed);
+        assert(failedDiagnostics.standaloneFailureStage == RuntimeAcceptedClientStandaloneFailureStage::AuthInfo);
+        assert(failedDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::CredentialMismatch);
+        assert(failedDiagnostics.standaloneCredentialGeneration == credential.generation);
+        assert(failedDiagnostics.protocolStage == RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!failedDiagnostics.mcsSessionAdvanced && !failedDiagnostics.shareActivated);
+        assertClipboardDormant(failed);
+        assertGraphicsDormant(failed);
+        releaseFailedPeer.store(true, std::memory_order_release);
+        failedPeer.join();
+        assert(failedPeerResult.directTypeTwoReceived);
+
+        std::atomic<bool> replacementTypeTwoReceived{false}, releaseReplacementPeer{false}, replacementPeerFinished{false};
+        PeerResult replacementPeerResult;
+        std::thread replacementPeer([&] {
+            replacementPeerResult = runDirectTypeTwoThenClosePeer(
+                recommendation.address, selectedPort,
+                replacementTypeTwoReceived, releaseReplacementPeer);
+            replacementPeerFinished.store(true, std::memory_order_release);
+        });
+        assert(pumpUntilPeerSignal(control, replacementTypeTwoReceived, replacementPeerFinished));
+        const RuntimeHostStatus replacement = control.status();
+        const auto& replacementDiagnostics = replacement.acceptedClientPreauthDiagnostics;
+        assert(replacement.listenerAvailable && replacement.listenerGeneration == firstListenerGeneration);
+        assert(replacement.activeClients.size() == 1U);
+        assert(replacementDiagnostics.acceptedClientId != 0U && replacementDiagnostics.acceptedClientId != failedClientId);
+        assert(replacementDiagnostics.standaloneCredentialGeneration == credential.generation);
+        assert(replacementDiagnostics.standaloneFailureStage == RuntimeAcceptedClientStandaloneFailureStage::None);
+        assert(replacementDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+        assert(replacementDiagnostics.protocolStage == RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!replacementDiagnostics.mcsSessionAdvanced && !replacementDiagnostics.shareActivated);
+        assertClipboardDormant(replacement);
+        assertGraphicsDormant(replacement);
+
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus stopped = control.status();
+        assert(stopped.stage == RuntimeHostStage::Stopped);
+        assert(!stopped.listenerAvailable && stopped.activeClients.empty());
+        assert(!stopped.acceptedClientPreauthDiagnostics.available);
+        assert(stopped.acceptedClientPreauthDiagnostics.acceptedClientId == 0U);
+        assert(stopped.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+        assert(control.standaloneApplicationPasswordObservation().generation == credential.generation);
+        releaseReplacementPeer.store(true, std::memory_order_release);
+        replacementPeer.join();
+        assert(replacementPeerResult.passed && replacementPeerResult.directTypeTwoReceived);
+        assert(!replacementPeerResult.authInfoSent);
+
+        std::array<char16_t, kMaximumStandalonePasswordCodeUnits> replacementPasswordStorage{};
+        auto replacementPassword = copyCredentialPassword(kDefaultCredentialFixture, replacementPasswordStorage);
+        assert(!replacementPassword.empty());
+        assert(control.configureStandaloneApplicationPassword(kDefaultCredentialFixture.username, replacementPassword));
+        assert(std::ranges::all_of(replacementPassword, [](char16_t value) { return value == u'\0'; }));
+        const auto replacementCredential = control.standaloneApplicationPasswordObservation();
+        assert(replacementCredential.configured && replacementCredential.generation != 0U);
+        assert(replacementCredential.generation != credential.generation);
+        const RuntimeHostStatus afterCredentialReplacement = control.status();
+        assert(!afterCredentialReplacement.listenerAvailable);
+        assert(!afterCredentialReplacement.acceptedClientPreauthDiagnostics.available);
+        assert(afterCredentialReplacement.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+
+        assert(control.requestHostPermissionSetup(permission).succeeded());
+        assert(startSharingOnPort(control, recommendation, selectedPort));
+        const RuntimeHostStatus restarted = control.status();
+        assert(restarted.listenerAvailable && restarted.listenerGeneration != 0U);
+        assert(restarted.listenerGeneration != firstListenerGeneration);
+        assert(restarted.activeClients.empty());
+        assert(!restarted.acceptedClientPreauthDiagnostics.available);
+        assert(restarted.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+
+        const PeerResult authenticatedButDenied = runAdmissionDeniedPeer(
+            control, recommendation.address, selectedPort, 0x61U,
+            restarted.listenerGeneration, replacementCredential.generation);
+        assert(authenticatedButDenied.directTypeTwoReceived);
+        const RuntimeHostStatus afterAdmissionDenial = control.status();
+        assert(afterAdmissionDenial.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+        assertClipboardDormant(afterAdmissionDenial);
+        assertGraphicsDormant(afterAdmissionDenial);
+        assert(control.stopSharing().succeeded());
+        const RuntimeHostStatus finalStopped = control.status();
+        assert(!finalStopped.acceptedClientPreauthDiagnostics.available);
+        assert(finalStopped.acceptedClientPreauthDiagnostics.standaloneAuthInfoFailureReason == RuntimeAcceptedClientAuthInfoFailureReason::None);
+        return 0;
+    }
 
     if (stopQueuedAuthInfoRetirementOnly)
     {

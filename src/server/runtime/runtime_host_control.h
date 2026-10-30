@@ -704,6 +704,47 @@ enum class RuntimeAcceptedClientStandaloneFailureStage : std::uint8_t
     Admission,
 };
 
+// R2-owned final-authInfo first-failure classes reduced to a bounded runtime
+// observation. These values are diagnostic only and never authentication,
+// native-admission, R3 or product authority.
+enum class RuntimeAcceptedClientAuthInfoFailureReason : std::uint8_t
+{
+    None,
+    FrameOrSessionInvalid,
+    ProtectedCredentialOrSignSealFailure,
+    CredentialStructureOrTypeFailure,
+    DelegatedDomainRejected,
+    CredentialUnavailableOrRevoked,
+    CredentialMismatch,
+    FrameReleaseFailure,
+};
+
+[[nodiscard]] constexpr std::string_view
+runtimeAcceptedClientAuthInfoFailureReasonName(
+    RuntimeAcceptedClientAuthInfoFailureReason reason) noexcept
+{
+    switch (reason)
+    {
+    case RuntimeAcceptedClientAuthInfoFailureReason::None:
+        return "none";
+    case RuntimeAcceptedClientAuthInfoFailureReason::FrameOrSessionInvalid:
+        return "frame-or-session-invalid";
+    case RuntimeAcceptedClientAuthInfoFailureReason::ProtectedCredentialOrSignSealFailure:
+        return "protected-credential-or-sign-seal-failure";
+    case RuntimeAcceptedClientAuthInfoFailureReason::CredentialStructureOrTypeFailure:
+        return "credential-structure-or-type-failure";
+    case RuntimeAcceptedClientAuthInfoFailureReason::DelegatedDomainRejected:
+        return "delegated-domain-rejected";
+    case RuntimeAcceptedClientAuthInfoFailureReason::CredentialUnavailableOrRevoked:
+        return "credential-unavailable-or-revoked";
+    case RuntimeAcceptedClientAuthInfoFailureReason::CredentialMismatch:
+        return "credential-mismatch";
+    case RuntimeAcceptedClientAuthInfoFailureReason::FrameReleaseFailure:
+        return "frame-release-failure";
+    }
+    return "none";
+}
+
 // Bounded native-admission first-failure classification projected through the
 // runtime owner. Diagnostic only; no value grants native or protocol authority.
 enum class RuntimeAcceptedClientAdmissionFailureReason : std::uint8_t
@@ -981,6 +1022,12 @@ struct RuntimeAcceptedClientPreauthDiagnostics final
     RuntimeAcceptedClientPreauthServiceTiming acceptedToTlsServiceTiming{};
     RuntimeAcceptedClientPreauthServiceTiming
         tlsEstablishedToTypeOneServiceTiming{};
+
+    // R2 final-authInfo first-failure observation for this exact accepted
+    // connection and standaloneCredentialGeneration. It is valid only as
+    // diagnostic correlation with acceptedClientId and cannot grant authority.
+    RuntimeAcceptedClientAuthInfoFailureReason standaloneAuthInfoFailureReason{
+        RuntimeAcceptedClientAuthInfoFailureReason::None};
 };
 
 struct RuntimeHostPermissionRequest final

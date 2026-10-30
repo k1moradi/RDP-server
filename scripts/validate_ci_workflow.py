@@ -241,6 +241,7 @@ REQUIRED_TOKENS = (
     "security.windows-credssp-server-binding-mismatch-negative-control",
     "microsoft-credssp-type2-negative-controls",
     "microsoft-credssp-full-exchange",
+    "credssp-full-production-authinfo-failure=",
     "microsoft-credssp-binding-negative-control",
     "invalid-controls=DETECTED",
     "process-isolation=per-challenge",
@@ -636,6 +637,30 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
         require(
             text.count("ctest --test-dir build --build-config Debug -N") >= 10,
             "missing critical ctest -N sanitizer preflights",
+        )
+        full_exchange_status = text.find("full_exchange_status=0")
+        full_exchange_capture = text.find(
+            "credssp-full-production-authinfo-failure="
+        )
+        full_exchange_success_gate = text.find(
+            'if [[ "$full_exchange_status" -eq 0 ]]; then'
+        )
+        require(
+            -1 not in (
+                full_exchange_status,
+                full_exchange_capture,
+                full_exchange_success_gate,
+            )
+            and full_exchange_status < full_exchange_capture < full_exchange_success_gate,
+            "Microsoft full CredSSP failure-path authInfo category must be "
+            "captured before the success-only gate",
+        )
+        require(
+            'run_case credssp-full-production-exchange '
+            'security.windows-credssp-production-full-exchange '
+            '"$full_exchange_output" || full_exchange_status=$?' in text,
+            "Microsoft full CredSSP failure status must remain observable "
+            "without aborting diagnostic artifact capture",
         )
         require(
             "needs: [ci-workflow-structure, protocol, documentation-policy]"

@@ -513,8 +513,25 @@ jobs:
           fi
 
           full_exchange_output='build/r6-credssp-full-exchange.txt'
-          if run_case credssp-full-production-exchange security.windows-credssp-production-full-exchange "$full_exchange_output"; then
-            full_exchange_line="$(grep -Eo 'microsoft-credssp-full-exchange .*' "$full_exchange_output" | tail -n 1)"
+          full_exchange_status=0
+          run_case credssp-full-production-exchange security.windows-credssp-production-full-exchange "$full_exchange_output" || full_exchange_status=$?
+          full_exchange_line="$(grep -Eo 'microsoft-credssp-full-exchange .*' "$full_exchange_output" | tail -n 1 || true)"
+          if [[ -n "$full_exchange_line" ]]; then
+            authinfo_failure="$(sed -n 's/.* production-authinfo-failure=\([^ ]*\).*/\1/p' <<< "$full_exchange_line")"
+            case "$authinfo_failure" in
+              none|frame-or-session|protected-length|sign-seal|credential-der-or-fields|unsupported-credential-type|nonempty-delegated-domain|credential-unavailable|credential-identity-or-password-mismatch|frame-release)
+                printf 'credssp-full-production-authinfo-failure=%s\n' "$authinfo_failure" | tee -a "$result_file"
+                ;;
+              *)
+                printf 'credssp-full-production-authinfo-failure=INVALID_OR_MISSING\n' | tee -a "$result_file"
+                overall_status=1
+                ;;
+            esac
+          else
+            printf 'credssp-full-production-authinfo-failure=SUMMARY_MISSING\n' | tee -a "$result_file"
+            overall_status=1
+          fi
+          if [[ "$full_exchange_status" -eq 0 ]]; then
             test -n "$full_exchange_line"
             grep -Fq 'status=PASS' <<< "$full_exchange_line"
             grep -Fq 'type3-verified=yes' <<< "$full_exchange_line"
@@ -523,6 +540,7 @@ jobs:
             grep -Fq 'authinfo=yes' <<< "$full_exchange_line"
             grep -Fq 'credentials-verified=yes' <<< "$full_exchange_line"
             grep -Fq 'native-admission=no' <<< "$full_exchange_line"
+            grep -Fq 'production-authinfo-failure=none' <<< "$full_exchange_line"
             printf 'credssp-full-exchange-%s\n' "$full_exchange_line" | tee -a "$result_file"
           else
             overall_status=1
@@ -2429,6 +2447,7 @@ jobs:
           cat "$matrix_file"
           grep -Fxq "interop-matrix-begin=PARTIAL source-sha=$GITHUB_SHA workflow-run=$GITHUB_RUN_ID" "$matrix_file"
           grep -Fxq "interop-matrix-final=COMPLETE_PASS source-sha=$GITHUB_SHA" "$matrix_file"
+          grep -Fxq 'credssp-full-production-authinfo-failure=none' "$matrix_file"
           grep -Fxq 'ntlm-fixed-name=PASS test=security.windows-sspi-production-type2-interop' "$matrix_file"
           grep -Fxq 'ntlm-ip-target=PASS test=security.windows-sspi-production-type2-physical-ip-target' "$matrix_file"
           grep -Fxq 'ntlm-oem-omission=PASS test=security.windows-sspi-production-type2-oem-omission-differential' "$matrix_file"

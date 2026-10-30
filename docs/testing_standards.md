@@ -1,3 +1,19 @@
+## R9 failed Microsoft full-CredSSP receipts remain artifact-visible (2026-10-30)
+
+The exact-SHA Microsoft interoperability artifact must retain one normalized,
+allowlisted final-authInfo failure category even when
+`security.windows-credssp-production-full-exchange` returns nonzero. Full
+verbose CTest output remains job-local; the artifact records only the bounded
+category from production's `authInfoFailureReason()`, never delegated
+credential fields, plaintext, protected authInfo, NTLM/SSPI tokens or keys.
+Missing or unknown categories are qualification failures.
+
+The success path remains stricter: the positive full exchange requires
+normalized category `none`, production `CredentialsVerified`, and every
+existing Microsoft negative/control receipt before `COMPLETE_PASS`.
+Structural workflow validation must prove failure-path capture occurs before
+the success-only gate so a red CTest cannot silently drop its diagnosis.
+
 ## R2 final-authInfo negative classification completion (2026-10-30)
 
 The existing production-backed `security.standalone-credssp-authinfo-first-failure-classification`

@@ -1,3 +1,45 @@
+## R9 P0 Round 2 — preserve failed Microsoft authInfo classification in exact-SHA artifacts (2026-10-30)
+
+**Reviewed parent:** `b5f7301ff1c6f2d223125b1625d9da0362a11a25`. Two former dependencies have moved. R8's
+CLANG64 Release FileContents containment is executable-proven at
+`58ba13d5aa515fda10f7b559b8c5adee28b324e8`, workflow `41073164830`,
+job `124124607506`: ordinary full Debug and Release CTest keep
+`clipboard.file-contents-joined-mcs-envelope` registered and PASS; the only
+remaining CLANG64 full-suite failure there is the positive Microsoft CredSSP
+exchange. R6's typed non-secret final-authInfo observation is executable-proven
+on `975c62cdac3e4008056b24f53bbab6adc43181d5`, workflow `41073410701`,
+MSVC job `124124681701`: Microsoft reaches verified Type 3, pubKeyAuth,
+committed server binding and emits authInfo, while production rejects it with
+`production-authinfo-failure=credential-der-or-fields` and
+`credentials-verified=no`. The bad-binding negative remains PASS.
+
+**R9 CI defect and correction:** the Microsoft matrix previously appended the
+detailed full-exchange receipt only when that CTest returned success, so a
+failing positive row lost the newly available redacted authInfo category from
+the uploaded exact-SHA artifact even though the Actions log contained it. The
+workflow now always extracts the bounded summary after the CTest, allowlists
+only the non-secret authInfo category, and records
+`credssp-full-production-authinfo-failure=<category>` before success-only
+checks. Missing or unknown summaries remain fail-closed. A successful
+candidate additionally requires that normalized category to be exactly
+`none`; existing `CredentialsVerified`, `COMPLETE_PASS`, full
+Debug/Release and negative controls are unchanged. The structural workflow
+validator requires failure-path capture before the success-only gate.
+
+**Dependency state:** R8 is **RESOLVED for the observed Release crash** at the
+qualified post-fix SHA. R6 attribution is **RESOLVED** and now identifies the
+first production category without credential/token disclosure. The actual R2
+positive verifier remains **BLOCKED**: Microsoft authInfo is rejected as
+credential DER/fields, so no exact-SHA `CredentialsVerified`, no
+`COMPLETE_PASS`, no GUI Round 2 convergence and no manual owner candidate are
+possible yet. Agent 2 owns that verifier/credential-policy investigation; R9
+does not change it. Physical testing remains NOT RUN and not authorized.
+
+**Validation:** source/workflow review PASS. Local canonical build/full CTest is
+NOT RUN because this connector environment has no permitted
+`~/rdp-server/` checkout. Publication-SHA structure and Windows matrix
+results remain required before this CI correction itself is accepted.
+
 ## R7 Round 2 qualification follow-up — GUI gates green, authInfo classification still external (2026-10-30)
 
 **Qualified code SHA:** `975c62cdac3e4008056b24f53bbab6adc43181d5` · workflow `41073410701`.

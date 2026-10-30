@@ -1,3 +1,34 @@
+## R9 failed-positive CredSSP artifact capture — 2026-10-30
+
+- Parent reviewed: `b5f7301ff1c6f2d223125b1625d9da0362a11a25`.
+- R8 post-fix executable evidence:
+  `58ba13d5aa515fda10f7b559b8c5adee28b324e8`, workflow `41073164830`,
+  CLANG64 job `124124607506`. Debug and Release ordinary full CTest both
+  PASS `clipboard.file-contents-joined-mcs-envelope`; Release no longer
+  segfaults. The job remains red only because
+  `security.windows-credssp-production-full-exchange` fails.
+- R6 typed-attribution executable evidence:
+  `975c62cdac3e4008056b24f53bbab6adc43181d5`, workflow `41073410701`,
+  MSVC job `124124681701`: `authinfo=yes`,
+  `credentials-verified=no`,
+  `production-authinfo-failure=credential-der-or-fields`; bad-binding
+  negative PASS; matrix `INCOMPLETE_FAIL`.
+- Proven R9 defect: the failed full-exchange branch did not append the detailed
+  redacted receipt to `r9-microsoft-interop-<sha>`; the category existed only
+  in the job log. The corrected workflow records one allowlisted
+  `credssp-full-production-authinfo-failure=<category>` line regardless of
+  positive CTest outcome. Unknown/missing category stays red. Candidate
+  validation requires `...=none` in addition to `COMPLETE_PASS`.
+- Structural guard: `scripts/validate_ci_workflow.py` requires normalized
+  capture before the success-only full-exchange gate and requires the failed
+  CTest to remain observable without shell early-exit.
+- No verifier, R6 oracle, R8 production clipboard, CTest registration,
+  assertion, warning policy or candidate prerequisite is weakened.
+- Owner candidate: **BLOCKED** by the positive Microsoft authInfo verifier.
+  Physical Windows App/mstsc: **NOT RUN / not authorized**.
+- Local build/CTest: **NOT RUN** (no permitted checkout). Exact publication-SHA
+  structure and platform CI: **PENDING**.
+
 ## R7 Round 2 qualification follow-up — 2026-10-30
 
 - Qualified code SHA: `975c62cdac3e4008056b24f53bbab6adc43181d5`; workflow `41073410701`.

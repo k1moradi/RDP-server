@@ -1,3 +1,12 @@
+## R5 exact-SHA hosted X11 qualification — 2026-10-30
+
+- Implementation SHA `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`; structure run `41096120405`: **PASS**.
+- Primary run `41096120483`, Ubuntu `124202413372`: Debug **993/993 PASS**, Release **993/993 PASS**; reentrant XDamage retirement test #893 passes in both full suites.
+- R9 sanitizer `124202412993`: **PASS**; exact R5 inventory **44**, new test-name sentinel present, native X11 ASan/UBSan result **44/44 PASS**.
+- R5 Linux GUI ZIP `124202413138`: **PASS**, including read-only physical-X11 precredential readiness; this is not a physical R2 lease or native acceptance.
+- Global primary workflow remains non-green because macOS `124202413087` **FAILS** Debug compilation in R3 licensing: OpenSSL 4.1 deprecates `ASN1_STRING_length()` and warnings are errors. R5 Linux qualification remains valid; R3/OpenSSL is the unrelated repository-wide blocker.
+- `r9-credssp-owner-candidate` is manual-dispatch-only and **SKIPPED** on push. Physical Linux seat0/input/capture remains **BLOCKED / NOT RUN / unauthorized** pending R9 exact-SHA dispatch, fresh genuine R2 same-UID unlocked-seat0 admission, and explicit owner authorization. Local canonical build and benchmark: **NOT RUN**.
+
 ## R4 current-main dependency check — R4 green, R9 blocked by macOS OpenSSL licensing compile (2026-10-30)
 
 - Exact audited SHA: `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`; primary workflow `41096120483`.

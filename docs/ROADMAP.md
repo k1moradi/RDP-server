@@ -1,3 +1,11 @@
+## R5 hosted X11 qualification complete; physical admission remains gated (2026-10-30)
+
+**Qualified implementation SHA:** `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`. Structure run `41096120405`: **PASS**. In primary run `41096120483`, Ubuntu job `124202413372` reports **993/993 PASS** in both Debug and Release and executes `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` (#893) successfully in each. R9 sanitizer job `124202412993` is **PASS**; its fail-closed R5 inventory is exactly **44**, includes the new exact test name, and finishes **44/44 PASS** under ASan/UBSan. R5 Linux GUI ZIP job `124202413138` is also **PASS**, including the read-only physical-X11 precredential owner-readiness gate. This closes R5's hosted regression qualification.
+
+The repository-wide primary workflow is still non-green for an unrelated R3/macOS compile failure: job `124202413087` resolves OpenSSL 4.1.0 and AppleClang 21 rejects deprecated `ASN1_STRING_length()` in `src/server/transport/rdp_licensing.cpp:1180` under `-Werror`. Downstream SERVER-TEST preview status fails from that producer failure. This does not invalidate the exact Linux R5 receipts above, but it remains the first global-CI blocker until the R3/OpenSSL owner repairs and requalifies it.
+
+**Next R5 gate — BLOCKED / NOT RUN / unauthorized:** `r9-credssp-owner-candidate` is workflow-dispatch-only and requires `r9_credssp_owner_candidate=true`; it is skipped on push. Physical Linux testing additionally requires fresh genuine R2 evidence for an unlocked physical `seat0`, same UID and exact authenticated connection plus explicit owner authorization. Hosted R6 `CredentialsVerified`, Xvfb and read-only precredential readiness never create native admission. Only after those gates may the prepared physical script exercise first capture/ACK, keyboard/mouse, lock/logout/switch-user/Stop revocation and fresh-generation reconnect. Local canonical build remains **NOT RUN** in this connector environment. Benchmark **NOT RUN / not applicable**.
+
 ## R4 current-main dependency check — R4 green, R9 blocked by macOS OpenSSL licensing compile (2026-10-30)
 
 **Audited main:** `434ac8fe600e9aa6fdf7ede842d67d6f662457f3`, workflow `41096120483`.

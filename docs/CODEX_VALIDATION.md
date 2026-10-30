@@ -1,3 +1,11 @@
+## R5 reentrant XDamage callback retirement — 2026-10-30
+
+- Authoring parent: `0143d16613152c349463aae655aa506c5c85b12a`. Audited native R2 lease, R1/principal provenance and pre/post visitor checks behind R10 GraphicsReady; CredentialsVerified alone never constructs native X11.
+- New production-backed ephemeral Xvfb CTest `x11.desktop-resource-reentrant-authority-loss-damage-dispatch`: genuine queued XDamage triggers revocation inside the active event callback; assert terminal event drain, no later callback/native operation, retired XCB/borrow invalidation, replacement generation isolation and fresh capture.
+- R5 sanitizer inventory 43 -> 44 exact-name guarded in CI; no production code or dependencies changed.
+- Private evidence validator already rejects contradictory R1/R10 timing subsets, stage ordering, first-byte/zero-count and private-unknown-field redaction. No authoritative attempt-generation scalar exists; none invented.
+- Source/CTest/CI inspection **PASS**; canonical local build/CTest/Xvfb/ASan/UBSan **NOT RUN** (no approved checkout); hosted exact-publication-SHA CI **PENDING**. Physical Linux seat0/native admission **BLOCKED / NOT RUN / not authorized** pending R6, genuine R2 and R9 approval. Benchmark **NOT RUN / not applicable**.
+
 ## R6 delegation hypothesis proved; terminal context bit classified — 2026-10-30
 
 - Evidence SHA: `671cae88da7dcb604ced089a9f21c2af9fe78597`,

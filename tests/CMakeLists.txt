@@ -4100,6 +4100,18 @@ if(TARGET rdp-server-linux-x11-desktop)
             PROPERTIES
                 LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
                 TIMEOUT 20)
+        # Authority loss during a queued XDamage callback stops the event
+        # batch before it can touch a replacement native owner.
+        add_test(NAME x11.desktop-resource-reentrant-authority-loss-damage-dispatch
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_desktop_resources>
+                reentrant-authority-loss-damage-dispatch)
+        set_tests_properties(
+            x11.desktop-resource-reentrant-authority-loss-damage-dispatch
+            PROPERTIES
+                LABELS "x11;linux-adapter;native;synthetic-display;security;generation"
+                TIMEOUT 20)
         add_test(NAME x11.desktop-resource-capture-terminal-denial
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp"

@@ -1,3 +1,7 @@
+## R5 callback-time XCB authority retirement (2026-10-30)
+
+An owner-thread native X11 event sink may revoke its aggregate while a malloc-backed XCB event is still borrowed by the active event batch. After terminal authority loss, discard held XTEST state without release requests; retire event registrations, XDamage/XShm and the sole XCB owner before another poll. The batch frees only its current event, must not invoke later callbacks on the retired owner and never forwards borrowed pixels/events into a replacement generation. R2's protected synchronous visitor remains the only native authorization gate; geometry or event observations grant none. Preserve serialized event-loop affinity and explicit RAII child-before-XCB destruction.
+
 ## R8 local clipboard generation invalidates earlier route observations (2026-10-30)
 
 A local/native clipboard generation change must clear any previously borrowed

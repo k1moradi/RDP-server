@@ -1418,6 +1418,126 @@ syntheticXvfbRandrStaleDamageIsolation()
     assert(!resources.valid());
 }
 
+// An owner-thread observer may revoke R5 after production has handled Damage,
+// while the malloc-owned event remains on the original XCB dispatch stack.
+class AuthorityLossDuringDamageCallback final : public X11EventSink
+{
+public:
+    AuthorityLossDuringDamageCallback(
+        X11DesktopResources &resources,
+        std::uint64_t previousNotificationCount) noexcept
+        : resources_(resources),
+          previousNotificationCount_(previousNotificationCount)
+    {
+    }
+
+    void handle(const xcb_generic_event_t &) noexcept override
+    {
+        if (retired_)
+        {
+            ++callbacksAfterRetirement_;
+            return;
+        }
+        if (resources_.damageNotificationCount() <= previousNotificationCount_)
+            return;
+
+        resources_.retireAfterAuthorizationLoss();
+        retired_ = true;
+    }
+
+    [[nodiscard]] bool retired() const noexcept { return retired_; }
+    [[nodiscard]] std::size_t callbacksAfterRetirement() const noexcept
+    {
+        return callbacksAfterRetirement_;
+    }
+
+private:
+    X11DesktopResources &resources_;
+    std::uint64_t previousNotificationCount_{};
+    std::size_t callbacksAfterRetirement_{};
+    bool retired_{false};
+};
+
+void
+syntheticXvfbReentrantAuthorityLossDuringDamageDispatch()
+{
+    constexpr std::uint64_t nativeSessionGeneration = 719U;
+    constexpr Rectangle damageRectangle{0, 0, 8, 6};
+    const char *display = syntheticDisplay();
+
+    X11DesktopResources oldOwner(display, kCaptureArenaPixels);
+    requireValidResources(oldOwner, "reentrant authority retirement");
+    const X11NativeGeometryObservation oldGeometry =
+        oldOwner.observeNativeGeometry(nativeSessionGeneration);
+    assert(oldGeometry.valid());
+
+    int helperScreenNumber = -1;
+    XcbConnection helper = connectHelper(display, helperScreenNumber);
+    xcb_screen_t *helperScreen = screenFor(*helper, helperScreenNumber);
+    assert(helperScreen->root_depth == 24U);
+
+    xcb_connection_t *const oldConnection = oldOwner.nativeConnection();
+    assert(oldConnection != nullptr);
+    const std::uint64_t previousNotifications =
+        oldOwner.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, damageRectangle, kFirstPixelPattern);
+    synchronizeXcbConnection(*oldConnection);
+
+    // Revoke from inside the active event dispatch, not before it starts.
+    AuthorityLossDuringDamageCallback revocation(oldOwner, previousNotifications);
+    bool workMayRemain = true;
+    assert(oldOwner.processEvents(128U, &workMayRemain, false, &revocation) ==
+           ConnectionStatus::Failed);
+    assert(revocation.retired());
+    assert(revocation.callbacksAfterRetirement() == 0U);
+    assert(!workMayRemain);
+    assert(!oldOwner.valid());
+    assert(oldOwner.nativeConnection() == nullptr);
+    assert(oldOwner.fileDescriptor() == -1);
+    assert(oldOwner.captureGeneration() == 0U);
+    assert(!oldOwner.capture(
+        oldGeometry.captureGeneration, damageRectangle).valid());
+    assert(!oldOwner.nativeGeometryIsCurrent(
+        oldGeometry, nativeSessionGeneration));
+
+    X11DesktopResources replacement(display, kCaptureArenaPixels);
+    requireValidResources(replacement, "replacement after callback retirement");
+    const X11NativeGeometryObservation replacementGeometry =
+        replacement.observeNativeGeometry(nativeSessionGeneration);
+    assert(replacementGeometry.valid());
+    assert(replacementGeometry.captureGeneration != oldGeometry.captureGeneration);
+    assert(!replacement.nativeGeometryIsCurrent(
+        oldGeometry, nativeSessionGeneration));
+    assert(!replacement.capture(
+        oldGeometry.captureGeneration, damageRectangle).valid());
+
+    xcb_connection_t *const replacementConnection = replacement.nativeConnection();
+    assert(replacementConnection != nullptr);
+    synchronizeXcbConnection(*replacementConnection);
+    bool replacementWorkMayRemain = false;
+    assert(replacement.processEvents(
+               64U, &replacementWorkMayRemain, false) == ConnectionStatus::Ok);
+    assert(!replacementWorkMayRemain);
+    assert(replacement.damageNotificationCount() == 0U);
+    assert(!replacement.damagePending());
+
+    // Only post-replacement native work can become current Damage/XShm.
+    const std::uint64_t replacementNotifications =
+        replacement.damageNotificationCount();
+    drawSyntheticPattern(
+        *helper, helperScreen->root, damageRectangle, kSecondPixelPattern);
+    requireSyntheticDamage(
+        replacement, replacementNotifications, damageRectangle);
+    const FramebufferView replacementFrame = replacement.capture(
+        replacementGeometry.captureGeneration, damageRectangle);
+    requireCapturedPattern(
+        replacementFrame, damageRectangle, damageRectangle,
+        kSecondPixelPattern);
+    replacement.retireAfterAuthorizationLoss();
+    assert(!replacement.valid());
+}
+
 void
 syntheticXvfbAuthorityRetirementQueuedDamageIsolation()
 {
@@ -2287,6 +2407,11 @@ main(int argc, char **argv)
     if (behavior == "randr-stale-damage-isolation")
     {
         syntheticXvfbRandrStaleDamageIsolation();
+        return 0;
+    }
+    if (behavior == "reentrant-authority-loss-damage-dispatch")
+    {
+        syntheticXvfbReentrantAuthorityLossDuringDamageDispatch();
         return 0;
     }
     if (behavior == "authority-retirement-queued-damage-isolation")

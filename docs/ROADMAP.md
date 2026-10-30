@@ -1,3 +1,17 @@
+## R5 Round 3 — reentrant XDamage callback authority retirement (2026-10-30)
+
+**Authoring parent:** `0143d16613152c349463aae655aa506c5c85b12a`. R10 constructs `X11DesktopResources` only after explicit Sharing consent, exact authenticated client, genuine R2 native lease/selection, Share and GraphicsReady. R2 verifies the lease, principal, R1/TLS and native generations before and after the synchronous visitor. `CredentialsVerified` alone cannot create XCB/XShm/XDamage/XFixes/XTEST resources. The R6 Microsoft credential blocker does not relax native authority rules.
+
+**New native regression:** `x11.desktop-resource-reentrant-authority-loss-damage-dispatch` queues real XDamage on ephemeral Xvfb; the extra serialized event sink invokes `retireAfterAuthorizationLoss()` *during* the production Damage callback, before the active XCB event poll returns. Require fail-closed dispatch without later callbacks, retired XCB descriptor/frame/geometry authority denied, and a replacement owner rejecting old capture generation and observing no stale Damage. Only a new post-replacement draw can create current Damage/capture. The existing before-dispatch queued-Damage test remains independent. No synthetic R2 admission or real seat/input is used.
+
+**Teardown audit:** R10 retires prepared clipboard/scheduled capture and native input before accepted R1/R2/R3 connection teardown. Terminal R5 cancellation suppresses any held-key/button XTEST release, destroys pointer event registration, XDamage, XShm and cursor, then the sole XCB connection. The event stack frees its own borrowed event and rechecks the old XCB connection before polling again. Synchronous generation-fenced framebuffer views never survive aggregate retirement or reach a replacement. Owner-thread affinity is unchanged.
+
+**Private evidence validator review:** existing offline negatives cover contradictory R1/R10 timing subsets, stage ordering, first-client-byte with zero count, and unknown private-field redaction. No authoritative attempt-generation field is produced by the private manifest; do not invent one. Shared output excludes usernames, log paths, connection IDs and exact destinations.
+
+**Future physical Linux acceptance — BLOCKED / NOT RUN / unauthorized:** after R6 Microsoft delegated-credential success, genuine R2 and exact-SHA R9 approval, privately collect fresh seat0/unlocked/same-UID evidence; turn Sharing ON; bind the exact authenticated connection to a fresh R2 native lease; first capture/ACK; keyboard/mouse; separate lock, logout/switch-user and Stop revocation; reconnect with fresh XCB/session/capture generations and no stale events, input or frame borrows. Do not execute absent explicit authorization.
+
+**Validation:** source/CTest/CI inspection **PASS**; local canonical build, full CTest, Xvfb and sanitizer runs **NOT RUN** (no approved checkout in connector environment). Hosted exact-publication-SHA tests **PENDING**; sanitizer selection 43 -> 44 with exact-name guard. Benchmark **NOT RUN / not applicable**. Next gate: hosted PASS, then separately authorized physical admission.
+
 ## R8 Round 3 compile-fixture correction (2026-10-30)
 
 Exact parent `aeeb318315db1634068b885f24a103ce06f4d236`, workflow

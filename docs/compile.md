@@ -1,3 +1,7 @@
+## R5 reentrant callback XDamage retirement adds no build surface (2026-10-30)
+
+`x11.desktop-resource-reentrant-authority-loss-damage-dispatch` reuses `test_x11_desktop_resources`, existing XCB/XShm/XDamage/XTEST dependencies, ephemeral `xvfb-run` and one canonical checkout-local `build/`. No new package, target, service, real owner input, thread, or benchmark. R5 sanitizer inventory advances 43 -> 44. Local build/full CTest/Xvfb/ASan/UBSan **NOT RUN** in connector-only environment; exact publication-SHA hosted CI **PENDING**.
+
 ## R1 delegated final-authInfo hosted qualification (2026-10-30)
 
 Exact R1 SHA `10f9c502c3ca97ba93a86cbb5a3428aa40670c4b` uses the existing single hosted `build` root. Ubuntu workflow `41085415452` configures Debug, builds with `cmake --build build --config Debug --parallel 2`, runs `ctest --test-dir build --build-config Debug --timeout 60 --output-on-failure` (**987/987 PASS**), reconfigures the same root for Release, builds Release, and runs the analogous Release CTest (**987/987 PASS**). Sanitizer job `124166024771` compiles the modified lifecycle executable with ASan/UBSan and completes successfully; the new mode itself is not in its explicit direct-run list. No additional target, package or dependency was introduced.

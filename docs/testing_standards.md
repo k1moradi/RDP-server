@@ -1,3 +1,14 @@
+## R4 deferred ACK retirement / replacement-generation regression (2026-10-30)
+
+`graphics.frame-ack-deferred-revocation-generation-reset` fills the single R4
+ACK window to 64, observes a fresh ID as `DeferredForFrameAcknowledge` without
+reserving it, retires that generation, then maps a newer generation and reuses
+a numeric frame ID. A stale retired-generation SUSPEND ACK must not mutate
+current ACK membership, suspension state, queue-depth telemetry or decode
+telemetry. The matching current-generation ACK must retire exactly that frame.
+Keep this ordinary CTest in the existing portable RDPGFX ASan/UBSan selector.
+It creates no scheduler, transport authority, client or native desktop.
+
 ## R3 split-TLS first-MCS revocation boundary (2026-10-30)
 
 `runtime.linux-connection-pre-admission-mcs-split-tls-revocation-denials`

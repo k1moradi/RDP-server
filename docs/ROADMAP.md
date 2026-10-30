@@ -1,3 +1,37 @@
+## R4 Round 2 — deferred ACK retirement across graphics generations (2026-10-30)
+
+**Authoring parent:** `a816c678f6a4d876d187e9a4de9c7892899a61aa`. R5 exposes only a synchronous current
+capture-generation borrow; R10 revalidates native geometry and R2 before
+capture; R3 owns DELETE/CREATE/MAP and exact outer-byte receipts; R4 owns the
+prepared-frame receipt and bounded 64-entry ACK window. Complete segmented-frame
+delivery alone creates ACK membership, while R3/R10 terminal retirement reaches
+R4 through `disconnect()`.
+
+Added `graphics.frame-ack-deferred-revocation-generation-reset`: fill all 64
+ACK entries, prove frame 65 is deferred and unreserved, retire that graphics
+generation, map a newer generation and reuse numeric frame ID 1. A late SUSPEND
+FRAME_ACKNOWLEDGE tagged with the retired generation must not clear the
+replacement frame, disable its ACK tracking, or update queue/decode telemetry;
+only the replacement-generation ACK retires it. No second scheduler or ACK
+owner is introduced.
+
+Fixed-buffer review found no production change to justify: framebuffer
+stride/extent multiplication is checked; ClearCodec bounds u16 dimensions,
+pitch/source extent, residual/wire arithmetic and overlap; X11 capture rechecks
+generation and exact geometry/stride around the synchronous borrow; AVC420
+bounds coded/visible geometry and wire sizes; segmented frames own contiguous
+encoded output. Existing short-output, truncated-source, bad-stride and overlap
+denials remain authoritative.
+
+Local canonical build/full CTest and ASan/UBSan: **NOT RUN** because this
+connector has no owner-approved checkout/build root. Source/test/registry audit:
+**PASS by inspection**. Publication-SHA hosted CI: **PENDING**. Physical
+acceptance remains **BLOCKED / NOT RUN**; a future owner-authorized qualified
+run must show Client Core 0x0100, VERSION8/VERSION81 RDPGFX selection, exact
+CREATE/MAP receipts, first ClearCodec DATA receipt, matching FRAME_ACKNOWLEDGE,
+resize recovery, and disconnect/reconnect with no stale-ACK effect. This fixture
+is correctness evidence only, not performance evidence.
+
 ## R3 Round 2 / Agent 3 — split-TLS first-MCS authority handoff (2026-10-30)
 
 **Source baseline:** `4cb2635175df3610a1221b213dac04c681f1ae7b`. Positive live promotion remains blocked before

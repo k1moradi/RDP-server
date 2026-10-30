@@ -1,3 +1,18 @@
+## R4 deferred ACK retirement across graphics generations — 2026-10-30
+
+- Authoring parent: `a816c678f6a4d876d187e9a4de9c7892899a61aa`.
+- Source audit: R5/R10 synchronous capture-generation borrow -> R3 exact
+  surface/write receipts -> sole R4 prepared-frame/ACK owner; complete delivery
+  creates ACK membership, partial progress is terminal, teardown disconnects R4.
+- Added `graphics.frame-ack-deferred-revocation-generation-reset` for 64-entry
+  saturation, unreserved deferral, generation retirement, numeric ID reuse,
+  stale old-generation SUSPEND denial, and matching new-generation ACK.
+- Fixed-buffer/arithmetic audit: PASS by inspection; no production codec change
+  or new arithmetic negative is justified.
+- Local full CTest and ASan/UBSan: **NOT RUN**; publication-SHA hosted CI:
+  **PENDING**. Physical first-frame acceptance: **BLOCKED / NOT RUN** pending
+  upstream authorization and R9 qualification. No FPS or latency claim is made.
+
 ## R3 Round 2 split-TLS first-MCS authority gate — 2026-10-30
 
 - Baseline reviewed: `4cb2635175df3610a1221b213dac04c681f1ae7b`.

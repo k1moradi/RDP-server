@@ -1854,6 +1854,7 @@ function(add_rdp_test source_file suite behavior)
                 channel-lifecycle-denials
                 surface-resize-revocation
                 frame-publication-backpressure
+                frame-ack-deferred-revocation-generation-reset
                 frame-ack-backpressure-observation
                 frame-ack-decode-progress-observation
                 frame-delivery-receipt-ordering

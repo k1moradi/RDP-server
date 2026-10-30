@@ -473,6 +473,78 @@ void backpressure()
 }
 
 
+void frameAckDeferredRevocationGenerationReset()
+{
+    constexpr std::uint64_t retiredGeneration = 503U;
+    constexpr std::uint64_t replacementGeneration = 504U;
+    constexpr std::uint32_t reusedFrameId = 1U;
+    constexpr std::uint32_t deferredFrameId =
+        static_cast<std::uint32_t>(
+            GfxFrameAckWindow::kMaximumPendingFrames + 1U);
+
+    GfxPresentationLifecycle lifecycle;
+    mapped(lifecycle, retiredGeneration, {1U, 1U});
+    for (std::uint32_t frameId = reusedFrameId;
+         frameId < deferredFrameId; ++frameId)
+    {
+        delivered(lifecycle, retiredGeneration, frameId);
+    }
+    assert(lifecycle.outstandingFrames() ==
+           GfxFrameAckWindow::kMaximumPendingFrames);
+    assert(lifecycle.framePublicationReadiness(
+               retiredGeneration, deferredFrameId) ==
+           GfxFramePublicationReadiness::DeferredForFrameAcknowledge);
+    assert(!lifecycle.hasOutstandingFrame(
+        retiredGeneration, deferredFrameId));
+
+    GfxFrameDeliveryReceipt refused{9U, 8U, 7U, 6U};
+    const auto unchangedRefused = refused;
+    assert(!lifecycle.beginFrameDelivery(
+        retiredGeneration, deferredFrameId, 128U, refused));
+    assert(refused == unchangedRefused);
+
+    // R3/R10 terminal authority retirement reaches this sole R4 owner through
+    // disconnect(). A merely deferred frame must never become ACK membership.
+    lifecycle.disconnect();
+    assert(lifecycle.stage() == GfxPresentationStage::Inactive);
+    assert(lifecycle.outstandingFrames() == 0U);
+    assert(!lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.open(retiredGeneration));
+
+    // A replacement generation may reuse numeric frame IDs. A late SUSPEND
+    // ACK from the retired generation must not clear the replacement frame,
+    // disable current ACK tracking, or update queue/decode telemetry.
+    mapped(lifecycle, replacementGeneration, {1U, 1U});
+    assert(lifecycle.framePublicationReadiness(
+               replacementGeneration, deferredFrameId) ==
+           GfxFramePublicationReadiness::Ready);
+    delivered(lifecycle, replacementGeneration, reusedFrameId);
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(!lifecycle.clientTotalFramesDecodedAvailable());
+
+    GfxFrameAckWindowResult result = GfxFrameAckWindowResult::Unmatched;
+    assert(!lifecycle.onFrameAcknowledge(
+        retiredGeneration,
+        ack(reusedFrameId, kGfxSuspendFrameAcknowledgement, 77U),
+        result));
+    assert(lifecycle.outstandingFrames() == 1U);
+    assert(lifecycle.expectingFrameAcknowledgements());
+    assert(!lifecycle.clientQueueDepthAvailable());
+    assert(!lifecycle.clientTotalFramesDecodedAvailable());
+
+    assert(lifecycle.onFrameAcknowledge(
+        replacementGeneration, ack(reusedFrameId, 4096U, 1U), result));
+    assert(result == GfxFrameAckWindowResult::Acknowledged);
+    assert(lifecycle.outstandingFrames() == 0U);
+    assert(lifecycle.clientQueueDepthAvailable());
+    assert(lifecycle.clientQueueDepthBytes() == 4096U);
+    assert(lifecycle.clientTotalFramesDecodedAvailable());
+    assert(lifecycle.clientTotalFramesDecoded() == 1U);
+    assert(lifecycle.acceptanceStatus().firstGenuineFrameAcknowledge);
+}
+
 void backpressureObservation()
 {
     constexpr std::uint64_t generation = 502;
@@ -935,6 +1007,7 @@ int main(int argc, char **argv)
     if (mode == "channel-lifecycle-denials") { denials(); return 0; }
     if (mode == "surface-resize-revocation") { revocation(); return 0; }
     if (mode == "frame-publication-backpressure") { backpressure(); return 0; }
+    if (mode == "frame-ack-deferred-revocation-generation-reset") { frameAckDeferredRevocationGenerationReset(); return 0; }
     if (mode == "frame-ack-backpressure-observation") { backpressureObservation(); return 0; }
     if (mode == "frame-ack-decode-progress-observation") { decodeProgressObservation(); return 0; }
     if (mode == "frame-delivery-receipt-ordering") { frameReceipts(); return 0; }

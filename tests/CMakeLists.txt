@@ -4941,11 +4941,16 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     add_test(NAME gui.offscreen-authentication-diagnostics-connection-replacement
         COMMAND test_desktop_gui_offline
             authentication-diagnostics-connection-replacement)
+    # A post-Type-3 authInfo failure cannot contaminate another client.
+    add_test(NAME gui.offscreen-authinfo-failure-connection-replacement-redaction
+        COMMAND test_desktop_gui_offline
+            authinfo-failure-connection-replacement-redaction)
     set_tests_properties(
         gui.offscreen-configured-username-runtime-projection
         gui.offscreen-advanced-authentication-diagnostics-export-redaction
         gui.offscreen-authentication-first-failure-classification
         gui.offscreen-authentication-diagnostics-connection-replacement
+        gui.offscreen-authinfo-failure-connection-replacement-redaction
         PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;security;authentication;diagnostics;lifecycle"

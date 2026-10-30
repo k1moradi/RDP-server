@@ -331,6 +331,19 @@ parent is queued. Publication need not wait under AGENTS.md. Local canonical
 one-build compile/full CTest NOT RUN in this connector environment; exact
 publication-SHA hosted CI is the next verification gate.
 
+**R7 Round 2 P2 GUI QA (2026-10-30; original base
+`2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, reconciled to current
+main):** Added one offscreen CTest for final AuthInfo rejection, connection
+replacement and retirement. Main/Activity stay generic without guessing
+password, peer FIN or R2 admission; Advanced/export show only current ID,
+stage, timing, with secret-sentinel redaction. Existing GUI/lifecycle
+features and R9 fixed six-case parity selector remain unchanged; the test
+runs under ordinary full CTest. Source review PASS by inspection; local Qt
+build/focused/full CTest NOT RUN (no checkout/Qt); exact-SHA CI PENDING.
+R2 must independently qualify any future AuthInfo enum. Next gate:
+hosted/offline native package CI and same-SHA owner-native CTest.
+GUI readiness is not physical Microsoft-client desktop acceptance.
+
 ## R5 P0 follow-up — consume R1/R10 pre-auth timing attribution (2026-10-29)
 
 **Initial authoring parent:** `cde24568f8bcb60a69559dae19ac40ba96fbf092`.

@@ -25,6 +25,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QStringList>
 #include <QSpinBox>
 #include <QStackedWidget>
 #include <QStyleOptionFrame>
@@ -34,6 +35,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -2150,6 +2153,193 @@ int main(int argc, char** argv)
             QStringLiteral("Microsoft error 0x204 is a generic client code")));
         assert(!advanced->text().contains(
             QStringLiteral("server unreachable"), Qt::CaseInsensitive));
+        return 0;
+    }
+
+    if (mode == "authinfo-failure-connection-replacement-redaction")
+    {
+        // Post-Type-3 authInfo rejection is not a bad-password diagnosis,
+        // native admission denial, or pre-Type-3 peer close.
+        runtime.snapshot.lastError = RuntimeHostError::AuthenticationRejected;
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        runtime.snapshot.listenerAvailable = true;
+        runtime.snapshot.listenerGeneration = 204U;
+        runtime.snapshot.boundEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.selectedEndpoint = "192.168.0.10:3389";
+        runtime.snapshot.credentialsConfigured = true;
+        runtime.snapshot.product.configuredStandaloneUsername =
+            u"OWNER_USERNAME_ZE9";
+        runtime.snapshot.hostOwnerAuthorized = true;
+        runtime.snapshot.product.sharingPermission = {
+            true, true, true, true, 15U * 60U * 1000U,
+            RuntimeSharingPermissionDenial::None};
+
+        auto& diagnostics =
+            runtime.snapshot.acceptedClientPreauthDiagnostics;
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 741U;
+        diagnostics.ntlmEnvelope =
+            RuntimeAcceptedClientNtlmEnvelope::DirectNtlm;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::CredentialDelegation;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        diagnostics.standaloneFailureStage =
+            RuntimeAcceptedClientStandaloneFailureStage::AuthInfo;
+        diagnostics.termination =
+            RuntimeAcceptedClientTermination::ProtocolError;
+        diagnostics.ntlmTypeOne.observed = true;
+        diagnostics.directNtlmTypeTwoQueued = true;
+        diagnostics.directNtlmTypeTwoDelivered = true;
+        diagnostics.acceptedToTlsEstablishedAvailable = true;
+        diagnostics.acceptedToTlsEstablishedMicroseconds = 741111U;
+        diagnostics.tlsEstablishedToTypeOneAvailable = true;
+        diagnostics.tlsEstablishedToTypeOneMicroseconds = 741222U;
+
+        const auto require = [](bool condition, const char* failure) {
+            if (!condition)
+            {
+                std::fprintf(stderr, "authInfo GUI replacement: %s\n", failure);
+                std::abort();
+            }
+        };
+
+        DesktopWindow window(host);
+        auto* availability =
+            window.findChild<QLabel*>("sharingAvailabilityStatus");
+        auto* mainDiagnostic =
+            window.findChild<QLabel*>("hostErrorExplanation");
+        auto* activity = window.findChild<QLabel*>("clientStatus");
+        auto* advanced =
+            window.findChild<QLabel*>("authenticationDiagnosticsStatus");
+        auto* username =
+            window.findChild<QLineEdit*>("standaloneUsername");
+        auto* password =
+            window.findChild<QLineEdit*>("sessionPassword");
+        auto* confirmation =
+            window.findChild<QLineEdit*>("sessionPasswordConfirm");
+        require(availability && mainDiagnostic && activity && advanced &&
+                    username && password && confirmation,
+                "required offscreen GUI control missing");
+
+        const QStringList secretMarkers{
+            QStringLiteral("OWNER_USERNAME_ZE9"),
+            QStringLiteral("PENDING_USERNAME_ZE9"),
+            QStringLiteral("SESSION_PASSWORD_ZE9"),
+            QStringLiteral("DELEGATED_DOMAIN_ZE9"),
+            QStringLiteral("NTLM_PROOF_ZE9"),
+            QStringLiteral("AUTHINFO_ZE9"),
+            QStringLiteral("MIC_ZE9"),
+            QStringLiteral("BINDING_TOKEN_ZE9"),
+            QStringLiteral("TLS_SESSION_SECRET_ZE9")};
+        username->setText(secretMarkers[1]);
+        const QString enteredSecret =
+            secretMarkers.mid(2).join(QLatin1Char('|'));
+        password->setText(enteredSecret);
+        confirmation->setText(enteredSecret);
+
+        window.refresh();
+        const HostStatus failed = host.status();
+        require(failed.remoteAuthenticationFailed &&
+                    !failed.remoteAuthenticationInvalidCredentials &&
+                    !failed.remoteAuthenticationIncomplete &&
+                    !failed.localDesktopAuthorizationFailed,
+                "authInfo failure was promoted to an unsupported classification");
+        require(availability->text() ==
+                    QStringLiteral("Remote client authentication failed.") &&
+                    activity->text().contains(availability->text()),
+                "Main/Activity did not retain generic post-Type-3 failure");
+        require(mainDiagnostic->text().contains(
+                    QStringLiteral("credential verification failed")) &&
+                    advanced->text().contains(
+                        QStringLiteral("Connection ID: 741")) &&
+                    advanced->text().contains(
+                        QStringLiteral("credential delegation / pre-admission")) &&
+                    advanced->text().contains(QStringLiteral("741111 us")) &&
+                    advanced->text().contains(
+                        QStringLiteral("NTLM Type 3: received")) &&
+                    advanced->text().contains(QStringLiteral(
+                        "First failure: Remote client authentication failed.")),
+                "post-Type-3 diagnostic evidence lost or misclassified");
+
+        const QString previousExport = window.diagnosticExportText();
+        require(previousExport.contains(QStringLiteral("Connection ID: 741")) &&
+                    previousExport.contains(QStringLiteral("741111 us")),
+                "old peer is absent from its own diagnostic snapshot");
+        for (const QString& marker : secretMarkers)
+            require(!previousExport.contains(marker),
+                    "secret sentinel leaked in failed-peer export");
+
+        // R10 replaces the entire typed snapshot; Qt caches no old peer.
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientAuthenticating;
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{742U, "192.168.0.55", true, false, false}};
+        diagnostics = {};
+        diagnostics.available = true;
+        diagnostics.acceptedClientId = 742U;
+        diagnostics.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Tls;
+        diagnostics.protocolStage =
+            RuntimeAcceptedClientProtocolStage::PreAdmission;
+        diagnostics.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::AwaitingToken;
+        diagnostics.termination = RuntimeAcceptedClientTermination::Open;
+        diagnostics.acceptedToTlsEstablishedAvailable = true;
+        diagnostics.acceptedToTlsEstablishedMicroseconds = 742222U;
+        window.refresh();
+
+        const HostStatus replacement = host.status();
+        const QString replacementExport = window.diagnosticExportText();
+        require(!replacement.remoteAuthenticationFailed &&
+                    !replacement.remoteAuthenticationIncomplete &&
+                    !replacement.remoteAuthenticationInvalidCredentials &&
+                    !replacement.localDesktopAuthorizationFailed,
+                "replacement inherited terminal authentication state");
+        require(availability->text().isEmpty() &&
+                    activity->text().contains(QStringLiteral("Connecting:")) &&
+                    !mainDiagnostic->text().contains(
+                        QStringLiteral("credential verification failed")) &&
+                    !mainDiagnostic->text().contains(
+                        QStringLiteral("Client disconnected")),
+                "Main/Activity retained the retired authInfo failure");
+        for (const QString& current :
+             {advanced->text(), replacementExport})
+        {
+            require(current.contains(QStringLiteral("Connection ID: 742")) &&
+                        current.contains(QStringLiteral("742222 us")) &&
+                        current.contains(QStringLiteral("NTLM Type 3: not observed")) &&
+                        current.contains(QStringLiteral(
+                            "First failure: No typed authentication failure observed.")),
+                    "new accepted peer's status is not current");
+            for (const QString& retired :
+                 {QStringLiteral("Connection ID: 741"),
+                  QStringLiteral("741111 us"),
+                  QStringLiteral("741222 us"),
+                  QStringLiteral("credential delegation"),
+                  QStringLiteral("credential verification failed")})
+                require(!current.contains(retired),
+                        "old accepted peer metadata survived replacement");
+        }
+        for (const QString& marker : secretMarkers)
+            require(!replacementExport.contains(marker),
+                    "secret sentinel leaked in replacement export");
+
+        runtime.snapshot.activeClients.clear();
+        runtime.snapshot.stage = RuntimeHostStage::ListenerAvailable;
+        diagnostics = {};
+        window.refresh();
+        const QString emptyExport = window.diagnosticExportText();
+        require(advanced->text().contains(
+                    QStringLiteral("Connection ID: unavailable")) &&
+                    emptyExport.contains(
+                        QStringLiteral("Connection ID: unavailable")) &&
+                    !advanced->text().contains(QStringLiteral("742222 us")) &&
+                    !emptyExport.contains(QStringLiteral("742222 us")) &&
+                    activity->text() == QStringLiteral("No connected devices"),
+                "last accepted peer survived retirement");
         return 0;
     }
 

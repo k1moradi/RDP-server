@@ -185,6 +185,22 @@ DNS resolution failed. This is documentation-only, not a new CI PASS.
 - Next: qualify exact-SHA hosted R4 graphics CTests and sanitizers; obtain
   separately authorized physical R6/R9/R2 admission evidence.
 
+## R7 Round 2 AuthInfo GUI replacement isolation — 2026-10-30
+
+Original authoring SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`;
+published on refreshed main without overwriting concurrent owners.
+New `gui.offscreen-authinfo-failure-connection-replacement-redaction`
+uses the existing HostControl fake for final AuthInfo rejection, a new
+connection and retirement. It verifies generic Main/Activity classification,
+current Advanced status, no old connection ID/stage/timing in display/export,
+and no runtime/pending Username, Session Password, delegated-domain, NTLM
+proof, authInfo, MIC, binding token or TLS-secret sentinels in export.
+No Qt, R1/R2/R10 or platform production source changed. Source/CTest and
+package-policy inspection PASS. Local Qt configure/build/focused/full CTest
+NOT RUN (no checkout/Qt toolchain); publication-SHA hosted CI PENDING.
+R2 owns any new AuthInfo taxonomy; no physical Microsoft-client acceptance
+is claimed. Next gate: exact-SHA CI plus owner-native platform CTest.
+
 ## R4 dependency-graph reconciliation — 2026-10-29
 
 - Reconciled source parent: `cd117cb374042fec463bf64c231e22625bd8bd99`.

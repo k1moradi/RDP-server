@@ -108,9 +108,15 @@ publication head's complete producer set is **PENDING**.
 demonstrated. The next gate is physical and authorization-bound: an
 owner-consented Microsoft client must complete real authentication plus genuine
 R2 native admission, then reach MCS/Share/RDPGFX on the same connection.
-R6's Microsoft-native memory-BIO CredSSP oracle can now reach
-`CredentialsVerified`, but by design it cannot mint native admission and
-therefore cannot substitute for this gate. The physical Windows App evidence
+R6's Microsoft-native memory-BIO CredSSP fixture exercises verified
+Type 3, pubKeyAuth, committed binding and Microsoft-generated `authInfo`.
+Its positive contract **requires** production `CredentialsVerified`, but
+workflow 40860372282 at SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`
+reported `authinfo=yes credentials-verified=no stage=production-authinfo`
+on Windows MSVC and CLANG64; the bad-binding negative passed. The positive
+requirement is **FAIL / NOT PROVED** for that SHA, not a completed graphics
+dependency. Subsequent changes require their own exact-SHA CI. Neither a
+future positive protocol oracle nor its negative mints native admission. The physical Windows App evidence
 still ends after server Type 2 with peer FIN/no Type 3.
 
 **Next R4 action:** make no speculative ClearCodec/AVC/FRAME_ACK/authentication
@@ -1078,6 +1084,42 @@ observed bytes select the corresponding parser/termination boundary. Neither
 outcome authorizes a production wire mutation by itself.
 
 ## Agent 9 P0 PRIMARY — credential-source owner-candidate convergence (2026-10-27)
+
+**R9 Round 2 P0 exact-SHA evidence reconciliation (2026-10-30)**
+
+Baseline `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, workflow
+[40860372282](https://github.com/k1moradi/RDP-server/actions/runs/40860372282):
+**FAIL**. The authoritative individual job/test/artifact ledger is in
+[CODEX_VALIDATION.md](CODEX_VALIDATION.md). Windows MSVC and CLANG64
+positive CredSSP full-exchange controls reached `authinfo=yes` but not
+`CredentialsVerified` (`stage=production-authinfo`); the bad-binding
+negative PASSed. CLANG64 full Debug CTest was **862/863**, Release
+**861/863**, with the separate registered Release
+`clipboard.file-contents-joined-mcs-envelope` SEGFAULT; native Windows
+sanitizers were **60/60 PASS**. Microsoft interoperability was
+`INCOMPLETE_FAIL`; GUI Round 2 correctly FAILed on Windows; manual
+candidate was SKIPPED, not PASS.
+
+**Concurrent ownership:** Agents 2/6 own production authInfo rejection
+attribution and positive CredSSP verification. Agent 8's separate
+FileContents fixture correction is now published on main as
+`2f3e46909051880b6d7342086e20c4625307d13c`, but requires new
+exact-SHA Release CTest evidence. Agent 9 owns CI/selector/artifact and
+candidate gates. The audited workflow preserves full Debug/Release CTest,
+the 60 native sanitizers, child-process failures, and fail-closed GUI
+and manual candidate needs. No demonstrated CI defect warrants weakening
+or rewriting those gates.
+
+**Candidate remains BLOCKED.** New main and this documentation commit
+require their own exact-SHA producer success, including MSVC, CLANG64
+Debug/Release, native sanitizers, positive and negative Microsoft oracle,
+`COMPLETE_PASS` interop artifact, Linux/macOS, GUI parity/Round 2/bootstrap
+and documentation/structure. Only afterward may the owner explicitly
+dispatch `r9_credssp_owner_candidate=true`. M1 still separately requires
+same-SHA owner-native Linux/X11, Windows CLANG64/Clang 23 and macOS 27
+Debug/full CTest receipts. Physical Microsoft-client testing remains
+NOT RUN / not authorized. Canonical local configure/build/full CTest
+NOT RUN: no permitted `~/rdp-server/` checkout is available here.
 
 **R9 qualification follow-up — R1 accounting fixture cross-platform readiness (2026-10-29):**
 `3fdde5748e1c88d2684e13632778d9775eddc36f` failed the ordinary protocol

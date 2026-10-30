@@ -1,3 +1,93 @@
+## R9 Round 2 baseline qualification ledger — 2026-10-30
+
+Source SHA `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` ·
+[workflow 40860372282](https://github.com/k1moradi/RDP-server/actions/runs/40860372282) ·
+`push` · attempt 1 · conclusion **FAILURE**. Every job and artifact
+below belongs to this **historical one SHA**; do not merge with later SHAs.
+
+| Producer (job ID) | Exact Debug/Release coverage or selection | Result, artifact, first failure and owner |
+| --- | --- | --- |
+| Workflow structure (`123401782413`) | 18 job IDs, no duplicates, 3 negative fixtures | **PASS**, R9 |
+| PowerShell parser (`123401782002`) | Offline parser | **PASS**, R9 |
+| Documentation (`123401900430`) | Policy/structure | **PASS**, R9 |
+| Ubuntu protocol (`123401900694`) | Debug 973/973, Release 973/973, consumer 1/1 | **PASS**; protocol SDK artifact `12891207204`, R9 |
+| macOS protocol (`123401900633`) | Debug 761/761, Release 761/761, consumer 1/1 | **PASS**; protocol SDK artifact `12891192902`, R9 |
+| MSVC protocol (`123401900562`) | Native preflight Debug 60/60, Release 60/60; Microsoft focused suite; full suite NOT RUN after prerequisite failure | **FAIL** `security.windows-credssp-production-full-exchange` (R2/R6); interop `r9-microsoft-interop-2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, artifact `12891656145`, `INCOMPLETE_FAIL` |
+| CLANG64 Clang 23 (`123401900577`) | Full Debug 862/863, full Release 861/863; native sanitizer 60/60 PASS; extracted GUI smoke PASS | **FAIL** full CredSSP both configs (R2/R6), plus Release `clipboard.file-contents-joined-mcs-envelope` SEGFAULT (R8). Credential-source diagnostic artifact `12892080305`; unverified Windows GUI artifact `12891712921` is not a qualified bundle |
+| Security/protocol sanitizers (`123401900452`) | Debug security/transport/graphics; clipboard 100/100, R3 CLIPRDR 9/9, portable graphics 43/43 | **PASS**, R9 |
+| Linux runtime security complete (`123401900450`) | Production GSS/PAM/systemd linkage | **PASS**, R2/R10 |
+| Linux runtime security missing-systemd (`123401900560`) | Negative configure | **PASS**, R2/R10 |
+| macOS native lifecycle (`123401900467`) | Focused Debug 21/21, Release 21/21 | **PASS**, R7 |
+| macOS portable GUI (`123401900513`) | Packaging/offline GUI | **PASS**, artifact `12891287757`, R7 |
+| macOS session sanitizers (`123401900529`) | Native sanitizer selection | **PASS**, R7/R9 |
+| Linux GUI ZIP (`123401900589`) | Packaging/offline GUI | **PASS**, artifact `12891491666`, R5 |
+| Portable GUI bootstrap (`123401900573`) | Focused 10/10 | **PASS**, R9/R10 |
+| GUI parity Ubuntu (`123401900626`) | Focused 6/6 | **PASS**, R7/R9 |
+| GUI parity macOS (`123401900693`) | Focused 6/6 | **PASS**, R7/R9 |
+| SERVER-TEST aggregate (`123403949577`) | Required three-platform producers | **FAIL** Windows producer, R9 |
+| GUI Round 2 (`123408311031`) | Linux/macOS GUI, Windows CLANG64, docs all success | **FAIL** Windows producer, R9 |
+| Clean Windows self-hosted (`123408311105`) | Separate release gate, not GUI Round 2 prerequisite | **CANCELLED**, not PASS, R9/owner |
+| Prerelease publisher (`123403951890`) | Required successful matrix | **SKIPPED**, not PASS, R9 |
+| Manual owner candidate (`123408355406`) | Explicit manual input, same-SHA COMPLETE_PASS and producers | **SKIPPED** on push, not PASS, R9/owner |
+
+**R2/R6 separate P0:** The positive MSVC/CLANG64 log reads
+`type3-observed=yes type3-verified=yes pubkeyauth=yes
+server-binding-committed=yes authinfo=yes credentials-verified=no
+stage=production-authinfo`. It proves Microsoft generated authInfo,
+not that R2 accepted it. Only a generic stage, **not a typed first
+production authInfo rejection category**, was logged. Agents 2/6 must
+attribute the exact first failure with bounded non-secret status only;
+never print delegated credentials, keys or raw SSPI tokens. The
+bad-binding negative separately **PASSes** (`SEC_E_INVALID_TOKEN`,
+authinfo=no); keep it independent and mandatory.
+
+**R8 separate P0:** CLANG64 Release's ordinary full 863-case CTest
+keeps `clipboard.file-contents-joined-mcs-envelope` registered as #426;
+it **SEGFAULTS** while Debug passes. Do not hide/filter/skip it or
+weaken assertions. R8 later published a fixture-owned correction in
+[`2f3e4690`](https://github.com/k1moradi/RDP-server/commit/2f3e46909051880b6d7342086e20c4625307d13c);
+its exact-SHA Windows Release result was **NOT VERIFIED** at audit.
+
+**R9 CI findings:** CLANG64 uses verified MSYS2 Clang 23; full Debug and
+Release CTest failures propagate; Windows native sanitizer selection 60/60
+passes; the fresh-process Microsoft credential-source oracle marks child
+crash, missing begin/end marker and nonzero exit as failure. Its verbose
+diagnostic uses `set -euo pipefail` and `tee`. MSVC interoperability
+terminates `INCOMPLETE_FAIL`, not `COMPLETE_PASS`; GUI Round 2 requires
+Windows CLANG64, not the separate clean-Windows VM. Exact-SHA workflow
+structure validation PASS (18 jobs, 0 duplicate keys, 3 negative fixtures).
+No independently verified infrastructure defect warrants modifying
+`ci.yml`, `validate_ci_workflow.py` or centralized CTest registration.
+
+**Concurrent SHA qualification:** R4 then advanced `main` to
+[`3db1bcd9`](https://github.com/k1moradi/RDP-server/commit/3db1bcd9c7aa5818e329dfc6e3fa0c4b0cc7b7f5);
+structure [41071989245](https://github.com/k1moradi/RDP-server/actions/runs/41071989245)
+PASS, primary [41071989194](https://github.com/k1moradi/RDP-server/actions/runs/41071989194)
+QUEUED when reviewed. R8's later `2f3e4690` is a separate SHA.
+Neither queued work nor earlier green jobs qualify a later HEAD.
+
+**Disposition: OWNER CANDIDATE BLOCKED.** The next candidate needs one
+exact SHA with MSVC positive `CredentialsVerified`, deliberately
+bad-binding negative, CLANG64 full Debug/Release including Release
+clipboard, native Windows 60/60 sanitizer, `COMPLETE_PASS` Microsoft
+artifact, Linux/macOS protocol/security, GUI parity/Round 2/bootstrap
+and documentation/structure success. Only then may the owner explicitly
+dispatch `r9_credssp_owner_candidate=true` and require its own PASS.
+Same-SHA owner-native Linux/X11, Windows MSYS2 CLANG64/Clang 23 and
+macOS 27 Debug/full CTest receipts remain **NOT VERIFIED** for M1.
+Physical Windows App/mstsc tests **NOT RUN / not authorized** until manual
+qualification and owner permission. The existing checklist requires
+exact SHA/client builds, identical listener/endpoint/certificate,
+explicit independent Session Password and warning decisions, typed
+stage progression and redacted private evidence.
+
+**Validation:** Remote exact-SHA workflow structure PASS and GitHub
+job logs inspected. Local `scripts/validate_ci_workflow.py` execution,
+configure/build and CTests **NOT RUN**; the only permitted checkout
+`~/rdp-server/` does not exist in this environment, and local GitHub
+DNS resolution failed. This is documentation-only, not a new CI PASS.
+
+---
 ## R1 Round 2 — final CredSSP transport framing / reconnect (2026-10-30)
 
 - Source baseline: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` (`main`). Reviewed `nonblocking_tcp_adapter.*`, `preauth_session.*`, R2 `credssp_tsrequest.cpp`, R10 `linux_runtime_connection.cpp`, and the real-TLS direct-NTLM lifecycle/CTest registry.
@@ -76,10 +166,13 @@
   including `transport.rdpgfx-client-core-capability-gate` and
   `graphics.first-frame-compatibility-contract`; sanitizer job
   `123357097494` portable R4 **43/43 PASS** and ClearCodec **4/4 PASS**.
-- R6 dependency improvement: the Microsoft-native protocol-only CredSSP oracle
-  now extends through Type 3, pubKeyAuth, authInfo and
-  `CredentialsVerified`. It intentionally has no owned connection/native
-  admission capability, so it does not authorize MCS/Share/RDPGFX progression.
+- R6 dependency: the Microsoft-native protocol-only CredSSP fixture now
+  exercises verified Type 3, pubKeyAuth, committed binding and Microsoft-
+  generated `authInfo`, but positive `CredentialsVerified` remains **FAIL /
+  NOT PROVED** at `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`, Actions
+  40860372282 (`authinfo=yes credentials-verified=no stage=production-authinfo`).
+  The bad-binding negative PASSes. Future positive completion still cannot
+  mint native admission or authorize MCS/Share/RDPGFX.
 - Physical Microsoft-client first-frame acceptance: **BLOCKED / NOT RUN**.
   Current physical Windows App evidence still terminates after server Type 2
   with FIN/no Type 3. Genuine owner-consented R2 native admission on a physical

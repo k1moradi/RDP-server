@@ -1,3 +1,16 @@
+## R1 final CredSSP TLS framing/reconnect gate (2026-10-30)
+
+Use the existing real-LAN-listener Direct-NTLM lifecycle fixture for final
+`authInfo` transport coverage. A negative attempt writes an incomplete final
+DER frame and closes TLS; a positive retry sends the complete encrypted
+`authInfo` as 1/2/3/remainder byte-sized TLS application writes after the
+legitimate server binding response. The same listener must admit a fresh
+independent TLS/NTLM retry after either terminal outcome. Inspect R10's
+retained diagnostics for incomplete-frame bytes and `CredentialsVerified`
+before its *separate* native-admission denial; never use synthetic desktop
+admission, extra TLS readers, sleeping transport retries or peer-receipt
+inference from locally accepted writer bytes.
+
 ## R8 CLANG64 Release FileContents fixture precondition and stack ownership (2026-10-30)
 
 The production-backed `clipboard.file-contents-joined-mcs-envelope` CTest must

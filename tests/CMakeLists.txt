@@ -627,6 +627,20 @@ if(TARGET rdp-server-linux-host-control)
         PROPERTIES
             LABELS "clipboard;lifecycle;security;runtime;transport;tls;credssp;authentication;admission;ntlmv2;linux;native-environment"
             SKIP_RETURN_CODE 77)
+    # R1 production-backed final CredSSP framing: a truncated final authInfo
+    # must retire only its peer; fragmenting the complete final authInfo over
+    # separate TLS writes must still verify credentials, fail native admission
+    # and permit a fresh same-listener connection with new TLS/NTLM state.
+    add_test(
+        NAME runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-final-authinfo-tls-fragments-reconnect)
+    set_tests_properties(
+        runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;admission;linux;native-environment"
+            SKIP_RETURN_CODE 77)
+
     # Two consecutive Type-2 deliveries followed by peer EOF before Type 3
     # remain pre-admission on one listener while current owner consent survives;
     # this gate grants no native, MCS, graphics or clipboard authority.

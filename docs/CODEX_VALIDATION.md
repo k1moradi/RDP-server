@@ -1,3 +1,11 @@
+## R1 Round 2 — final CredSSP transport framing / reconnect (2026-10-30)
+
+- Source baseline: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8` (`main`). Reviewed `nonblocking_tcp_adapter.*`, `preauth_session.*`, R2 `credssp_tsrequest.cpp`, R10 `linux_runtime_connection.cpp`, and the real-TLS direct-NTLM lifecycle/CTest registry.
+- Source audit: **READY for focused verification**, not live-client acceptance. One R1 socket/SSL/BIO owns final CredSSP I/O; the R2 reader/writer pin TLS identity, certificate and generation; R10 consumes only complete DER frames. `WANT_READ`/`WANT_WRITE`, incomplete writes and terminal closure do not grant CredentialsVerified or native admission. No production transport behavior changed.
+- New test: `runtime.linux-direct-ntlm-final-authinfo-tls-fragments-reconnect` drives truncated final authInfo + TLS close, a second complete final authInfo over separate 1/2/3/remainder TLS writes, and a third same-listener retry. All positive credentials are expected to fail at genuine R2 native admission; no MCS/desktop capability is synthesized.
+- Command attempted: `git clone --depth 1 --branch main https://github.com/k1moradi/RDP-server.git ~/rdp-server`: **BLOCKED** (`Could not resolve host: github.com`). Canonical `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`, `cmake --build build --config Debug --parallel 2`, `ctest --test-dir build -C Debug --output-on-failure`, and focused sanitizers: **NOT RUN**. No second build root created.
+- Exact publication-SHA hosted CI: **PENDING / NOT VERIFIED**. No claim that transport caused R6's final authInfo failure, that the physical Windows App received Type 2, or that any real desktop was admitted. Next: exact-SHA Linux test/CI qualification, then R9-authorized physical evidence and R6 verification at the first failing protected-authInfo boundary.
+
 ## R8 CLANG64 Release FileContents fixture containment — 2026-10-30
 
 - Source parent: `2c838a57bb30ebeb3db902b399054d4cdff8e1b8`; workflow `40860372282`, CLANG64 job

@@ -854,6 +854,13 @@ private:
     std::uint64_t activeConsoleReadCount_{};
 };
 
+enum class FinalAuthInfoWritePattern : std::uint8_t
+{
+    Complete,
+    Fragmented,
+    TruncatedWithTlsClose
+};
+
 struct PeerResult final
 {
     bool passed{};
@@ -881,7 +888,9 @@ struct PeerResult final
     bool validCredentials,
     std::uint8_t nonceSeed,
     std::atomic<bool>& release,
-    bool rejectCredentialProof = false) noexcept
+    bool rejectCredentialProof = false,
+    FinalAuthInfoWritePattern authInfoWritePattern =
+        FinalAuthInfoWritePattern::Complete) noexcept
 {
     PeerResult result;
     NetworkTlsClient client;
@@ -976,8 +985,38 @@ struct PeerResult final
     if (!protectedCredentials)
         return result;
     const auto authInfo = authInfoRequest(*protectedCredentials);
-    if (!client.writeFrame(authInfo))
+    const ByteSpan authInfoBytes{authInfo};
+    if (authInfoWritePattern ==
+        FinalAuthInfoWritePattern::TruncatedWithTlsClose)
+    {
+        // The DER prefix is a valid beginning, but never a complete final
+        // authInfo. The real R1 reader must discard it on TLS close.
+        if (authInfoBytes.size() <= 6U)
+            return result;
+        result.passed = client.writeFrame(authInfoBytes.first(5U)) &&
+                        client.sendCloseNotify();
         return result;
+    }
+    if (authInfoWritePattern == FinalAuthInfoWritePattern::Fragmented)
+    {
+        // Separate TLS application writes exercise 1-byte, partial DER
+        // length and incomplete payload delivery on the same R1 stream.
+        constexpr std::array<std::size_t, 3> fragmentSizes{1U, 2U, 3U};
+        std::size_t offset = 0U;
+        for (const std::size_t fragmentSize : fragmentSizes)
+        {
+            if (offset + fragmentSize >= authInfoBytes.size() ||
+                !client.writeFrame(authInfoBytes.subspan(offset, fragmentSize)))
+                return result;
+            offset += fragmentSize;
+        }
+        if (!client.writeFrame(authInfoBytes.subspan(offset)))
+            return result;
+    }
+    else if (!client.writeFrame(authInfoBytes))
+    {
+        return result;
+    }
 
     result.authInfoSent = true;
     result.passed = waitForRelease(release);
@@ -1479,14 +1518,17 @@ void assertPhysicalOwnerGrantActive(const RuntimeHostStatus& status) noexcept
     std::uint16_t port,
     std::uint8_t nonceSeed,
     std::uint64_t expectedListenerGeneration,
-    std::uint64_t expectedCredentialGeneration) noexcept
+    std::uint64_t expectedCredentialGeneration,
+    FinalAuthInfoWritePattern authInfoWritePattern =
+        FinalAuthInfoWritePattern::Complete) noexcept
 {
     std::atomic<bool> release{false};
     std::atomic<bool> finished{false};
     PeerResult peerResult;
     std::thread peer([&] {
         peerResult = runDirectNtlmPeer(
-            address, port, true, nonceSeed, release);
+            address, port, true, nonceSeed, release, false,
+            authInfoWritePattern);
         finished.store(true, std::memory_order_release);
     });
 
@@ -1602,11 +1644,14 @@ int main(int argc, char** argv)
     const std::string_view testCase{argv[1]};
     const bool fullLifecycle =
         testCase == "direct-ntlm-reconnect-stop-start-lifecycle";
+    const bool finalAuthInfoFragmentsReconnectOnly =
+        testCase == "direct-ntlm-final-authinfo-tls-fragments-reconnect";
     const bool admissionRetryOnly =
         testCase ==
             "admission-denial-retains-listener-and-accepts-second-tls" ||
         testCase ==
-            "admission-denial-exposes-bounded-reason-and-retries";
+            "admission-denial-exposes-bounded-reason-and-retries" ||
+        finalAuthInfoFragmentsReconnectOnly;
     const bool typeTwoPeerEofOnly =
         testCase ==
             "direct-ntlm-type2-peer-eof-pre-admission-diagnostics";
@@ -2845,13 +2890,62 @@ int main(int argc, char** argv)
                credential.generation);
     }
 
+    PeerResult truncatedAuthInfoResult;
+    if (finalAuthInfoFragmentsReconnectOnly)
+    {
+        // First close after a deliberately incomplete final authInfo, with
+        // the server binding already committed. Neither an R2 proof nor a
+        // second TLS reader is permitted to survive this accepted peer.
+        std::atomic<bool> release{false};
+        std::thread truncatedPeer([&] {
+            truncatedAuthInfoResult = runDirectNtlmPeer(
+                recommendation.address, selectedPort, true, 0x10U,
+                release, false,
+                FinalAuthInfoWritePattern::TruncatedWithTlsClose);
+        });
+        assert(pumpUntilClientRetired(control));
+        truncatedPeer.join();
+        assert(truncatedAuthInfoResult.passed);
+        assert(truncatedAuthInfoResult.directTypeTwoReceived);
+        assert(!truncatedAuthInfoResult.authInfoSent);
+        const auto afterTruncatedAuthInfo = control.status();
+        assert(afterTruncatedAuthInfo.listenerAvailable);
+        assert(afterTruncatedAuthInfo.listenerGeneration ==
+               firstListenerGeneration);
+        assert(afterTruncatedAuthInfo.activeClients.empty());
+        assert(afterTruncatedAuthInfo.acceptedClientPreauthDiagnostics.available);
+        assert(afterTruncatedAuthInfo.acceptedClientPreauthDiagnostics
+                   .postTypeTwoPartialTsRequestBytes > 0U);
+        assert(afterTruncatedAuthInfo.acceptedClientPreauthDiagnostics
+                   .credSspTransition !=
+               RuntimeAcceptedClientCredSspTransition::CredentialsVerified);
+        assert(!afterTruncatedAuthInfo.acceptedClientPreauthDiagnostics
+                    .mcsSessionAdvanced);
+        assert(!afterTruncatedAuthInfo.acceptedClientPreauthDiagnostics
+                    .shareActivated);
+        assertPhysicalOwnerGrantActive(afterTruncatedAuthInfo);
+        assertClipboardDormant(afterTruncatedAuthInfo);
+        assertGraphicsDormant(afterTruncatedAuthInfo);
+        assert(control.standaloneApplicationPasswordObservation().generation ==
+               credential.generation);
+    }
+
     // The first valid peer crosses established TLS and complete DirectNtlm
     // CredSSP credentials, then the production broker denies native admission.
     // Only that accepted peer is retired; listener, owner grant and configured
     // Session Password remain current.
     const PeerResult goodOneResult = runAdmissionDeniedPeer(
         control, recommendation.address, selectedPort, 0x20U,
-        firstListenerGeneration, credential.generation);
+        firstListenerGeneration, credential.generation,
+        finalAuthInfoFragmentsReconnectOnly
+            ? FinalAuthInfoWritePattern::Fragmented
+            : FinalAuthInfoWritePattern::Complete);
+    if (finalAuthInfoFragmentsReconnectOnly)
+    {
+        assert(challengesDiffer(
+            truncatedAuthInfoResult.serverChallenge,
+            goodOneResult.serverChallenge));
+    }
     if (fullLifecycle)
     {
         assert(challengesDiffer(
@@ -2870,6 +2964,12 @@ int main(int argc, char** argv)
     assert(challengesDiffer(
         goodOneResult.serverChallenge,
         sameListenerRetryResult.serverChallenge));
+    if (finalAuthInfoFragmentsReconnectOnly)
+    {
+        assert(challengesDiffer(
+            truncatedAuthInfoResult.serverChallenge,
+            sameListenerRetryResult.serverChallenge));
+    }
     if (fullLifecycle)
     {
         assert(challengesDiffer(

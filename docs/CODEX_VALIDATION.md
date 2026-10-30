@@ -1,3 +1,26 @@
+## R2 P0 Microsoft final-authInfo transition and parser fixture recovery — 2026-10-30
+
+- Source `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`,
+  workflow `41077369304`, MSVC job `124137657394`:
+  Microsoft final-authInfo first failure **changed** from
+  `credential-der-or-fields` to
+  `credential-identity-or-password-mismatch`; credential verification
+  **FAIL**, correctly no R2/native admission. Typed parser barrier fixed.
+- Same-SHA Ubuntu job `124137656961`: full 980/982 PASS, two existing
+  `credssp-password-credential-(strict-fields|utf16-mutation-boundaries)`
+  assertions **FAIL**; macOS job `124137656905` 765/767 PASS,
+  same two FAIL; R9 sanitizer job `124137657124` 93/94 PASS,
+  strict-fields FAIL. New standalone empty-fields-mismatch CTest PASS.
+- Repaired only the outdated expected parser/UTF-16 oracle results.
+  Security policy, production parser, Microsoft fixture, and all other
+  production code are unchanged; malformed fields remain denied.
+- Local canonical Debug/full CTest and ASan/UBSan NOT RUN because this
+  connector environment lacks the owner-approved checkout/build root.
+  Exact publication-SHA hosted regression verification PENDING.
+- Next: Agent 6 establishes why Microsoft SSPI delegates a mismatched
+  or absent identity/password, without exporting secret material.
+  No production credential acceptance relaxation is authorized.
+
 ## R8 Release crash resolution and outbound CLIPRDR seam — 2026-10-30
 
 - Crash-fix SHA: `2f3e46909051880b6d7342086e20c4625307d13c`.

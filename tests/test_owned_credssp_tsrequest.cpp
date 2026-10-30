@@ -289,12 +289,16 @@ void testStrictPasswordCredentialFields()
 
     assert(inspectCredSspCredentials(passwordCredentials(
         utf16Le(u"EXAMPLE"), utf16Le(u"alice"), utf16Le(u"secret"))));
-    assert(inspectCredSspCredentials(
-               passwordCredentials({}, {}, utf16Le(u"secret"))).error ==
-           CredSspCredentialError::InvalidPasswordFields);
-    assert(inspectCredSspCredentials(
-               passwordCredentials({}, utf16Le(u"alice"), {})).error ==
-           CredSspCredentialError::InvalidPasswordFields);
+    // Empty OCTET STRING fields are valid MS-CSSP syntax, but remain
+    // non-authorizing: account selection and credential matching reject
+    // empty identity or password independently of the parser.
+    const Bytes emptyUsername = passwordCredentials(
+        {}, {}, utf16Le(u"secret"));
+    const Bytes emptyPassword = passwordCredentials(
+        {}, utf16Le(u"alice"), {});
+    assertPasswordCredentialAccepted(emptyUsername);
+    assertPasswordCredentialAccepted(emptyPassword);
+    assert(!inspectCredSspDelegatedAccount(emptyUsername));
 
     auto embeddedNulUser = utf16Le(u"alice");
     embeddedNulUser[2] = 0;
@@ -1048,13 +1052,13 @@ void testPasswordCredentialUtf16MutationBoundaries()
         const auto accepted = [&](const Bytes &field)
         {
             ++corpusCaseCount;
-            assert(validUtf16LeForTest(field, fieldIndex == 0));
+            assert(validUtf16LeForTest(field, true));
             assertPasswordCredentialAccepted(inspectField(field));
         };
         const auto denied = [&](const Bytes &field)
         {
             ++corpusCaseCount;
-            assert(!validUtf16LeForTest(field, fieldIndex == 0));
+            assert(!validUtf16LeForTest(field, true));
             assertPasswordCredentialDenied(inspectField(field));
         };
         for (std::size_t position : std::array<std::size_t, 3>{0, 2, 4})
@@ -1113,10 +1117,9 @@ void testPasswordCredentialUtf16MutationBoundaries()
         Bytes odd = baseline;
         odd.pop_back();
         denied(odd);
-        if (fieldIndex == 0)
-            accepted({});
-        else
-            denied({});
+        // All three OCTET STRINGs permit empty UTF-16 text syntactically.
+        // Authentication and native admission remain separate decisions.
+        accepted({});
     }
     assert(corpusCaseCount == 96U);
 }

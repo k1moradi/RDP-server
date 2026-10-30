@@ -1,3 +1,36 @@
+## R2 P0 Round 2 — Microsoft delegated-authInfo parser proof and strict-fixture reconciliation (2026-10-30)
+
+**Verified source:** `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`,
+workflow `41077369304`, MSVC job `124137657394`. The actual Microsoft
+SSPI positive exchange now reaches the standalone credential comparator and
+fails closed with
+`production-authinfo-failure=credential-identity-or-password-mismatch`;
+its earlier `credential-der-or-fields` parse failure is **RESOLVED**.
+Type 3, pubKeyAuth, binding and Microsoft final authInfo remain observed.
+No supported evidence yet proves what credential-field content SSPI
+delegated; `sspi-empty-domain-requested=yes` reports input intent only.
+
+**R2 test repair:** The parser's MS-CSSP OCTET STRING empty-field syntax
+correction was not reflected in two older parser-inspection CTests.
+Linux/macOS full CTest and R9 sanitizer at the same SHA fail only those old
+`security.credssp-password-credential-strict-fields` and
+`security.credssp-password-credential-utf16-mutation-boundaries`
+expectations; newer production-backed standalone empty-field/mismatch
+tests PASS. This increment updates only the existing parser-fixture
+expectations to accept empty user/password *syntax* while retaining
+credential mismatch and separate native-account denial. No production
+verifier, credential-source harness, domain rule, PAM, TLS, R2 admission
+or wire behavior changes.
+
+**Current blocker:** Agent 6/R6 Microsoft SSPI credential-source/delegated
+field behavior must be established from non-secret evidence. Until it
+produces the required configured identity and password, production
+`CredentialsVerified` must remain false. R9 exact-SHA Windows MSVC and
+CLANG64 plus complete full-CTest/sanitizer qualification and owner
+native-admission evidence are still required. New repair commit's local
+Debug CTest and sanitizer NOT RUN in the GitHub-only connector; exact-SHA
+hosted CI PENDING.
+
 ## R8 P0/P1 Round 2 — Release crash cleared; first-party outbound CLIPRDR seam (2026-10-30)
 
 **Authoring parent:** `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`. The R8 P0 Windows CLANG64 Release blocker is

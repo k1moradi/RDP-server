@@ -1,3 +1,20 @@
+## R2 delegated-authInfo empty OCTET STRING syntax — parser regression reconciliation (2026-10-30)
+
+The production parser accepts bounded, well-formed UTF-16LE empty userName
+and password OCTET STRING fields as syntax only, not as credentials.
+`security.credssp-password-credential-strict-fields` and
+`security.credssp-password-credential-utf16-mutation-boundaries`
+must distinguish that syntax contract from an authenticated credential
+decision. Keep malformed tag/order/length, odd UTF-16LE, embedded NUL,
+surrogate and oversize negatives unchanged. Empty username cannot select
+a Unix account; empty password cannot pass the configured standalone
+password matcher or PAM. Reuse existing CTest names and fixtures rather
+than introducing another parser controller. Both previous tests failed
+at exact SHA `2944f354f2cff5074d5dcf492b48a2a21c6ddd64`
+on hosted Ubuntu/macOS and the sanitizer selection. The new test-only
+correction requires exact publication-SHA full CTest and sanitizer
+qualification before declaring the regression closed.
+
 ## R8 outbound server capability/Format List conformance seam (2026-10-30)
 
 The behavior CTest

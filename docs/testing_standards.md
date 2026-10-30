@@ -1,3 +1,16 @@
+## R8 native file destination write-time generation replacement (2026-10-30)
+
+`clipboard.macos-file-destination-write-generation-replacement` and
+`clipboard.windows-file-destination-write-generation-replacement` are the two
+platform instances of one offline lifecycle regression. The injected native
+writer first accepts a positive FileContents RANGE payload and then replaces the
+remote clipboard generation before returning. The destination must reject the
+stale result, leave committed byte count at zero, truncate the owned duplicate,
+close it exactly once, perform no flush and report `SourceReplaced`. No host
+clipboard or real file is touched. Keep both cases under the ordinary
+`clipboard` sanitizer label and advance the fail-closed inventory from
+105 to 107 in the same commit.
+
 ## R6 OpenSSL 4.1 selected CredSSP public-key length regression (2026-10-30)
 
 Keep `security.credssp-active-tls-public-key-length-portability` as an

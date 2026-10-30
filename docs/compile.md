@@ -1,3 +1,13 @@
+## R8 native file destination callback-generation build boundary (2026-10-30)
+
+The write-time generation replacement regression is compiled through the
+existing portable `test_macos_clipboard_file_destination` and
+`test_windows_clipboard_file_destination` targets. Both use injected native
+operations on hosted CI platforms; no new target, dependency, real clipboard,
+real destination file or production activation path is introduced. The
+production change is limited to a post-write ownership revalidation in the two
+callback-driven destination implementations.
+
 ## R6 OpenSSL 4.1 CredSSP selected-certificate compatibility (2026-10-30)
 
 The selected-certificate binding helper keeps the existing OpenSSL dependency

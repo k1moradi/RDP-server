@@ -1,3 +1,18 @@
+## R8 FileContents destination write-time generation retirement (2026-10-30)
+
+Close the next transfer-layer gap after initialization: a FileContents RANGE
+response may be fully correlated to the outstanding stream, yet the remote
+clipboard source can be replaced synchronously while the native destination
+write callback is executing. macOS and Windows destinations must revalidate
+`RemoteTransfer` generation/source-epoch ownership after the callback and
+before advancing committed bytes. The offline regression writes into injected
+buffers only, forces generation replacement inside the callback, and requires
+truncate/close with `SourceReplaced`. Existing single-flight Format Data
+draining, FileContents stream IDs, file-lock `clipDataId`, PNG/DIBV5 bounds and
+path-authority denials remain unchanged.
+`kLinuxProductionClipboardActivationApproved` remains false; live
+clipboard/file/client acceptance is not part of this gate.
+
 ## R6 OpenSSL 4.1 selected CredSSP certificate compile unblock (2026-10-30)
 
 **Failure baseline:** `8249dd3d948b6d598deb4564f4820f8863292c7d`;

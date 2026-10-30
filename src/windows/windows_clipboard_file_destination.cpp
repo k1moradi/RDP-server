@@ -445,6 +445,14 @@ bool WindowsClipboardFileDestination::acceptResult(
         return false;
     }
 
+    // Native operations are synchronous, but the injected/platform boundary
+    // can re-enter source ownership before it returns. Never commit bytes from
+    // a clipboard generation that was replaced during the native write.
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+
     bytesWritten_ += result.bytes.size();
     activeRequest_ = {};
     if (bytesWritten_ == expectedSize_)

@@ -1,3 +1,29 @@
+## R8 FileContents native-write generation replacement authoring evidence — 2026-10-30
+
+- Authoring parent: `dd85139f59b4ef155a8bb544d29e4c2f90c28feb`.
+- Selected uncovered path: a correlated FileContents RANGE result reaches the
+  native destination, whose synchronous write callback replaces the remote
+  clipboard generation before returning. Existing tests covered replacement
+  before destination consumption, stale stream responses, partial R3 writes,
+  destructor cancellation and completed-source-epoch revocation, but not this
+  callback-time transition.
+- Correction: macOS and Windows callback-driven file destinations revalidate
+  the exact generation/source epoch after successful native write and before
+  advancing `bytesWritten_` or completion. Stale bytes are truncated and the
+  owned duplicate is closed; remote file names remain metadata only.
+- New offline CTests:
+  `clipboard.macos-file-destination-write-generation-replacement` and
+  `clipboard.windows-file-destination-write-generation-replacement`. Shared
+  clipboard sanitizer inventory: 105 -> 107 with exact-name sentinels.
+- Source audit: FileContents SIZE/RANGE retains a single outstanding owner,
+  monotonic stream identity, bounded 64 KiB RANGE requests, checked
+  offset/length/file-size arithmetic and generation-scoped draining. PNG/DIBV5
+  stored/decode bounds and UTF-16 name validation are unchanged.
+- Exact publication-SHA focused/full/ASan/UBSan qualification: PENDING.
+  Local canonical build root: NOT RUN in this GitHub-connector environment.
+  Live clipboard, real file-copy and physical-client acceptance: NOT RUN.
+  Linux production clipboard activation remains false.
+
 ## R6 OpenSSL 4.1 CredSSP selected-certificate length compatibility — 2026-10-30
 
 - Failure baseline: `8249dd3d948b6d598deb4564f4820f8863292c7d`;

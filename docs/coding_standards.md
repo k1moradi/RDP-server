@@ -1,3 +1,17 @@
+## R8 native file destination write callbacks must revalidate source ownership (2026-10-30)
+
+The macOS and Windows clipboard file destinations may call an injected native
+write boundary while a FileContents RANGE result is being consumed. A successful
+native write is not permission to advance destination state: before incrementing
+`bytesWritten_` or completing the file, revalidate that `RemoteTransfer` is
+still synchronized and that both the exact clipboard generation and monotonic
+source epoch match the destination. If source ownership changes during the
+callback, truncate and close the owned duplicate and terminalize the destination
+as `SourceReplaced`. Remote FILEDESCRIPTORW names remain bounded metadata only;
+they never authorize or construct a local path. Linux's production destination
+uses direct thread-affine `pwrite` rather than an injected reentrant write
+callback and retains its existing pre-write generation fence.
+
 ## R6 CredSSP selected-certificate ASN.1 length portability (2026-10-30)
 
 CredSSP selected-certificate public-key extraction follows the same OpenSSL

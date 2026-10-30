@@ -232,6 +232,7 @@ struct FakeNative final
     bool failWrite{};
     bool failFlush{};
     bool closed{};
+    RemoteTransfer *replaceSourceOnWrite{};
 
     static bool duplicate(
         void *context, WindowsClipboardFileHandleToken source,
@@ -299,6 +300,17 @@ struct FakeNative final
                 bytes.begin(), bytes.end(),
                 self.bytes.begin() +
                     static_cast<std::size_t>(offset));
+            if (self.replaceSourceOnWrite != nullptr)
+            {
+                RemoteTransfer *const owner = self.replaceSourceOnWrite;
+                self.replaceSourceOnWrite = nullptr;
+                const std::array<std::uint32_t, 1> replacement{
+                    rdp_server::clipboard::kFormatUnicodeText};
+                if (!owner->receiveFormatList(replacement))
+                {
+                    return false;
+                }
+            }
             return true;
         }
         catch (...)
@@ -615,6 +627,49 @@ void windowsFileDestinationDestructorRetirement()
     assert(native.flushCalls == 0U);
     assert(native.closeCalls == 1U);
     assert(native.closed);
+}
+
+void windowsFileDestinationWriteGenerationReplacement()
+{
+    RemoteTransfer owner;
+    installSingleFileOffer(owner, u"replace-during-write.bin", true, 8U);
+    FakeNative native;
+    WindowsClipboardFileDestination destination{
+        owner, native.operations()};
+    assert(destination.begin(0, native.sourceToken));
+
+    const std::uint64_t originalGeneration = destination.generation();
+    const auto intent = destination.nextRequestIntent();
+    assert(intent && intent->requestedBytes == 8U);
+
+    std::vector<std::uint8_t> request;
+    const auto receipt = owner.beginFileRangeRequest(
+        intent->fileIndex, intent->offset,
+        intent->requestedBytes, request);
+    assert(receipt);
+    assert(destination.bindRequest(*receipt));
+
+    const auto bytes = makeChunk(0U, 4U);
+    const auto wire = fileContentsResponsePdu(
+        rdp_server::clipboard::kResponseOk,
+        receipt->streamId, bytes);
+    const auto result = owner.receiveFileContentsResponse(wire);
+    assert(result.status ==
+           RemoteTransfer::FileContentsStatus::ReceivedRange);
+
+    // The native write accepts bytes, then a new clipboard source replaces
+    // this destination's generation before the callback returns.
+    native.replaceSourceOnWrite = &owner;
+    assert(!destination.acceptResult(result));
+    assert(owner.generation() > originalGeneration);
+    assert(destination.status() ==
+           WindowsClipboardFileDestination::Status::SourceReplaced);
+    assert(destination.bytesWritten() == 0U);
+    assert(native.bytes.empty());
+    assert(native.flushCalls == 0U);
+    assert(native.closeCalls == 1U);
+    assert(native.closed);
+    assert(native.replaceSourceOnWrite == nullptr);
 }
 
 void windowsFileDestinationDenials()
@@ -1136,6 +1191,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-file-destination-destructor-retirement")
     {
         windowsFileDestinationDestructorRetirement();
+        return 0;
+    }
+    if (behavior == "windows-file-destination-write-generation-replacement")
+    {
+        windowsFileDestinationWriteGenerationReplacement();
         return 0;
     }
     if (behavior == "windows-file-destination-denials")

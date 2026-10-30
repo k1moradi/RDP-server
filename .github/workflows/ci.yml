@@ -1420,7 +1420,9 @@ jobs:
           selected_tests="$(ctest --test-dir build --build-config Debug -N -L clipboard)"
           printf '%s\n' "$selected_tests"
           grep -Fq 'clipboard.macos-file-destination-destructor-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.macos-file-destination-write-generation-replacement' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-file-destination-destructor-retirement' <<< "$selected_tests"
+          grep -Fq 'clipboard.windows-file-destination-write-generation-replacement' <<< "$selected_tests"
           grep -Fq 'clipboard.macos-completed-file-url-handoff' <<< "$selected_tests"
           grep -Fq 'clipboard.macos-completed-multi-file-url-handoff' <<< "$selected_tests"
           grep -Fq 'clipboard.windows-completed-file-hdrop-handoff' <<< "$selected_tests"
@@ -1459,7 +1461,7 @@ jobs:
           grep -Fq 'clipboard.route-bridge-partial-positive-receipt-retirement' <<< "$selected_tests"
           grep -Fq 'clipboard.route-bridge-filecontents-request-receipt' <<< "$selected_tests"
           grep -Fq 'runtime.linux-host-control-direct-ntlm-reconnect-stop-start-lifecycle' <<< "$selected_tests"
-          readonly clipboard_expected_test_count=105
+          readonly clipboard_expected_test_count=107
           selected_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' <<< "$selected_tests")"
           if [[ "$selected_test_count" -ne "$clipboard_expected_test_count" ]]; then
             printf 'Clipboard registry mismatch: expected %s tests, found %s\n' \

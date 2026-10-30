@@ -1,3 +1,20 @@
+## R3 split-TLS first-MCS revocation boundary (2026-10-30)
+
+`runtime.linux-connection-pre-admission-mcs-split-tls-revocation-denials`
+must use the real Linux runtime connection, loopback HYBRID TLS and checked-in
+Microsoft 416-byte Connect-Initial fixture. The first TLS application write
+appends a bounded MCS prefix after a CredSSP request that the real R2 mechanism
+rejects; R2 must consume exactly the CredSSP DER and no MCS byte. Only after
+rejection does the client write the remaining MCS bytes. Calling the production
+post-admission MCS step without a native lease must return AdmissionDenied with
+zero plaintext bytes read, close R3, retain no lease, and leave MCS/Share
+positive observability false. A stale callback must remain closed.
+
+Keep this case in the existing Linux runtime-security ASan/UBSan selector. The
+selector cardinality is 42 after adding this case. This test is denial-only and
+must never construct a synthetic native lease or call a private positive R3
+admission seam directly.
+
 ## R7 authInfo generation replacement and macOS package no-prompt qualification (2026-10-30)
 
 Keep final-authInfo GUI diagnostics connection-scoped. The existing

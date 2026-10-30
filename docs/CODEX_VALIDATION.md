@@ -1,3 +1,29 @@
+## R3 Round 2 split-TLS first-MCS authority gate — 2026-10-30
+
+- Baseline reviewed: `4cb2635175df3610a1221b213dac04c681f1ae7b`.
+- Microsoft specifications rechecked: MS-RDPBCGR keeps Connect-Initial/Response
+  before Erect/Attach/Join, and MS-RDPELE PersonalDesktop terminates licensing
+  with STATUS_VALID_CLIENT/ST_NO_TRANSITION without removing authentication or
+  native-session authority.
+- Source audit: **PASS by inspection**. Connect-Response, Erect, Attach, Join,
+  Client Info, PersonalDesktop licensing, Share activation and virtual-channel
+  routes all refresh R2 authorization; write completion uses a second
+  accepted-byte authorization. No R3 production defect found.
+- Added production-backed CTest
+  `runtime.linux-connection-pre-admission-mcs-split-tls-revocation-denials`
+  and enrolled it in the existing Linux runtime-security ASan/UBSan selection
+  (41 -> 42).
+- R8 handoff documented: server CLIPRDR serialization remains R8-owned; R3/R2
+  retain activated route generation, authority, queue and write receipts.
+- Local canonical configure/build/focused/full CTest and sanitizers:
+  **NOT RUN** in this connector environment because the approved
+  `~/rdp-server/build/` checkout is unavailable. Exact publication-SHA hosted
+  CI: **PENDING** at authoring.
+- Positive live receipt and physical Microsoft client: **BLOCKED / NOT RUN**.
+  Current upstream R2/R6 evidence still has no positive
+  `CredentialsVerified` and no genuine native admission lease; none is
+  fabricated here.
+
 ## R7 authInfo generation replacement and macOS package no-prompt follow-up — 2026-10-30
 
 - Authoring parent: `9e8ee7807d57455938f8c14d9f2e78f5573f0da4`.

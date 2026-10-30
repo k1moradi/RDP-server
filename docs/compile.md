@@ -1,3 +1,12 @@
+## R3 split-TLS first-MCS denial adds no build dependency (2026-10-30)
+
+The new authority-handoff regression is another mode of the existing
+`test_runtime_linux_security` executable. It reuses the current OpenSSL,
+GSS/Kerberos test dependencies and existing Microsoft Connect-Initial fixture
+definition; no library, package, generated source, build root or production
+compile option is added. The existing sanitizer target already builds this
+executable; only its exact test selection advances from 41 to 42.
+
 ## R8 outbound CLIPRDR serializer build boundary (2026-10-30)
 
 The server-originated capability/Format List seam adds no library, package,

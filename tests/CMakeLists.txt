@@ -2414,6 +2414,7 @@ if(TARGET rdp-server-linux-runtime-security)
             linux-connection-pre-admission-dispatch
             linux-connection-pre-admission-native-poll
             linux-connection-native-poll-expiry-revocation
+            linux-connection-pre-admission-mcs-split-tls-revocation-denials
             linux-connection-mcs-pre-admission-tls-coalesced-denials
             linux-connection-post-admission-mcs-framing-denials
             linux-connection-post-admission-mcs-response-denials

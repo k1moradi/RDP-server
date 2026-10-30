@@ -1,3 +1,44 @@
+## R3 Round 2 / Agent 3 — split-TLS first-MCS authority handoff (2026-10-30)
+
+**Source baseline:** `4cb2635175df3610a1221b213dac04c681f1ae7b`. Positive live promotion remains blocked before
+native admission: current Microsoft SSPI reaches final authInfo but production
+still does not produce `CredentialsVerified`, so a genuine R2 admission lease
+is unavailable. R3 therefore does not fabricate a positive lease or modify
+MCS/GCC wire bytes.
+
+The new production-backed
+`runtime.linux-connection-pre-admission-mcs-split-tls-revocation-denials`
+uses a real loopback HYBRID TLS connection and the checked-in 416-byte
+Microsoft Connect-Initial. One TLS application write contains a rejected
+CredSSP TSRequest plus the first 19 MCS bytes. After the real R2 mechanism has
+rejected authentication, the remaining Connect-Initial bytes arrive in a
+second TLS write. R3 must reject before reading any MCS plaintext, close the
+session, leave no admission lease, and record neither MCS establishment nor
+Share activation. This covers a split/buffered first-packet lifecycle boundary
+without synthetic OS admission.
+
+Post-MCS authority audit: Connect-Response planning and accepted-byte commit,
+Erect Domain, Attach User/confirm, every Channel Join/confirm, Client Info,
+PersonalDesktop licensing, Demand/Confirm Active/Share writes and client
+activation intake all pass through fresh R2 protected-transition authorization.
+PersonalDesktop removes only CAL validation; it does not weaken native-session
+or R1/TLS provenance checks. No production defect was found.
+
+R8 initialization contract: R8 may consume its existing server
+`CB_CLIP_CAPS` / `CB_FORMAT_LIST` serializer only after R3 resolves the exact
+activated `cliprdr` route for the current security provenance. R3 owns the
+activated Share's client user ID, global I/O ID, joined CLIPRDR MCS/static
+channel ID and route generation. The route is exposed only through fresh R2
+view+clipboard authority; R3 owns the sole static-channel queue and accepted
+byte reply/write-slice receipts. R8 owns application PDU serialization only.
+
+Future positive receipt, once R9 authorizes an exact SHA and R2 can genuinely
+admit the native owner, is:
+`CredentialsVerified -> native Admission -> Connect-Initial ->
+Connect-Response -> Erect/Attach/Join -> PersonalDesktop licensing ->
+Demand/Confirm Active -> ShareActivated`. Physical-client execution remains
+**BLOCKED / NOT RUN** until that gate.
+
 ## R7 Round 2 follow-up — authInfo generation redaction and portable no-prompt gate (2026-10-30)
 
 **Authoring parent:** `9e8ee7807d57455938f8c14d9f2e78f5573f0da4`. R10 projection audit confirms

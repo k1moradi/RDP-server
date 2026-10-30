@@ -1,3 +1,22 @@
+## R3 first-MCS buffered plaintext is never admission authority (2026-10-30)
+
+R1/OpenSSL may hold decrypted bytes beyond the current CredSSP frame, including
+a partial or complete MCS Connect-Initial. Those bytes are transport state only.
+R3 must not consume the first MCS byte until the connection owns a current,
+non-revoked native R2 lease and R2 revalidates the exact authenticated proof,
+TLS owner and native generations. Completion of a bounded TPKT requires a
+second authorization at semantic dispatch through
+`authorizeR3McsConnectInitial`; cached readiness, protocol validity, username,
+Connect-Initial content or diagnostic epochs never promote authority. Any
+failure closes the R3 owner before R2/R1 teardown.
+
+Later reads and writes keep the same rule: protected transitions are freshly
+authorized before each bounded read or write plan, and accepted-byte write
+receipts are reauthorized before they can advance state. PersonalDesktop
+changes only the licensing decision. Static-channel serialization remains R8
+application ownership, while R3 retains the joined route generation and
+accepted-byte ledger.
+
 ## R2/R6 fail-only empty delegated-field observability (2026-10-30)
 
 After the actual production CredSSP verifier's canonical parser validates password fields, its borrowed visitor may retain at most a bounded enum describing empty delegated username/password *only when authentication fails*. Never retain the borrowed `std::span` buffers, their sizes, actual UTF-16 values, credentials or raw SSPI tokens; reset the enum with challenge owner reset and successful authentication. The classifier has no effect on the existing comparison, signature/seal, session provenance, credential-generation or R2 native-admission predicate. Windows oracle logging must distinguish an SSPI input empty-domain request from any observed delegated fields; neither is proof of a valid login or a policy exception.

@@ -1,3 +1,35 @@
+## R10 Round 3 — repair complete-type include for final-authInfo lifecycle CTest (2026-10-30)
+
+**Authoring parent:** `a0c4bb0c519d3f840979fed7fa3058dd8262d559`. Production R10 authInfo projection
+`f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1` compiled its runtime
+libraries, but Ubuntu Debug job `124168566609` and R9 sanitizer job
+`124168566727` failed while compiling the R10 lifecycle test at
+`test_linux_runtime_direct_ntlm_lifecycle.cpp:1836`:
+`LinuxRuntimeConnectionAcceptanceDiagnostics` was only forward-declared
+by the included HostControl header. The existing production
+`linux_runtime_connection.h` defines it. R10 now includes the defining
+header directly in the existing CTest; no production scheduler, R1 TLS,
+authentication acceptance, native R2 admission or R3/R5/R7/R8 state
+machine change. Existing failure-category/replacement and denial
+assertions remain unchanged.
+
+R6 Microsoft full CredSSP positive is already **PASS** at exact
+`0143d16613152c349463aae655aa506c5c85b12a` with
+`authinfo=yes credentials-verified=yes`; R2 explicitly confirmed no
+verifier change. R9's descendant commit
+`a1ef7a61afb6e1fefd9cb861fde0092d7c1f6029` reconciles the
+stale R5 43 -> 44 sanitizer inventory expectation in the CI
+structure validator; this new structure change still requires its
+own exact-SHA hosted PASS. Neither receipt authorizes physical client
+runs or creates a native OS admission lease.
+
+Repair exact-SHA hosted configure/build, focused/full CTest, sanitizer
+and workflow structure outcomes: **PENDING**. Local canonical
+`~/rdp-server/build` configure/build/test: **NOT RUN** (no approved
+local checkout accessible). M1/M2 physical native/client qualification:
+**BLOCKED / NOT RUN** until R9 exact-SHA approval and explicit
+owner authorization.
+
 ## R9 Round 3 — R5 44-case sanitizer structure guard reconciliation (2026-10-30)
 
 **Authoring parent:** `98b91f4a1df64f955b63a3e7c78164baffa57429`. The exact-SHA CI structure guards

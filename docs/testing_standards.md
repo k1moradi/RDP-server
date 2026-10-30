@@ -1,3 +1,17 @@
+## R10 lifecycle projection fixture must include the complete production type (2026-10-30)
+
+`runtime.linux-authinfo-diagnostic-replacement-fencing` constructs a
+`LinuxRuntimeConnectionAcceptanceDiagnostics` to verify R2 -> R10
+typed failure projection. `linux_runtime_host_control.h` intentionally
+forward-declares this type, so the test must also include
+`server/runtime/linux_runtime_connection.h` directly. R10 source
+commit `f85ae6ba` passed runtime-library compilation but Ubuntu Debug
+and R9 ASan/UBSan compilation both failed before testing at that
+fixture declaration. Keep all existing credential mismatch,
+accepted-client/lifetime/replacement/Stop and genuine native R2
+denial assertions and rerun the one canonical full CI matrix on
+the repaired exact SHA. Do not suppress/skip the CTest.
+
 ## R9 exact native X11 sanitizer inventory follows R5 registration (2026-10-30)
 
 When an R5 behavior test is newly registered in the existing X11 CTest

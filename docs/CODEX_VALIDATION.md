@@ -1,3 +1,26 @@
+## R10 final-authInfo CTest compilation repair — 2026-10-30
+
+- Parent: `a0c4bb0c519d3f840979fed7fa3058dd8262d559`. Original R10 source:
+  `f85ae6baaa48c110bfcbb95cb433cd0d0945c2b1`.
+- Exact-source Ubuntu Debug `124168566609` and R9 sanitizer
+  `124168566727` both **FAIL** at
+  `test_linux_runtime_direct_ntlm_lifecycle.cpp:1836`: incomplete
+  `LinuxRuntimeConnectionAcceptanceDiagnostics` at new R10 mapping
+  fixture; runtime production libraries compiled.
+- Repair: include the existing defining
+  `server/runtime/linux_runtime_connection.h` directly in the
+  existing test. No changed test assertion or production path.
+- R6 Microsoft `CredentialsVerified` positive and production
+  `authInfo` acceptance: **PASS** at
+  `0143d16613152c349463aae655aa506c5c85b12a`; R2 verifier
+  unchanged. This is offline authentication evidence only.
+- Concurrent R9 `a1ef7a61afb6e1fefd9cb861fde0092d7c1f6029`
+  corrects R5's 43 -> 44 CI validator count; descendant
+  exact-SHA structure validation is still required.
+- Local Debug/Release, full CTest and ASan/UBSan: **NOT RUN** (no
+  approved checkout/build root). Repair exact-SHA hosted CI: **PENDING**.
+  M1/M2 physical native/client acceptance: **BLOCKED / NOT RUN**.
+
 ## R2 current unblock / security handoff — 2026-10-30
 
 - Positive Microsoft CredSSP is **PASS** with no R2 verifier modification:

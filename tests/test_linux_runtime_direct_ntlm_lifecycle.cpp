@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/linux_runtime_host_control.h"
+#include "server/runtime/linux_runtime_connection.h"
 #include "server/security/credssp_binding.h"
 #include "server/security/standalone_credssp.h"
 #include "server/security/standalone_ntlmssp.h"

@@ -14,7 +14,9 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QByteArray>
 #include <QCheckBox>
+#include <QColorSpace>
 #include <QClipboard>
 #include <QComboBox>
 #include <QFont>
@@ -23,6 +25,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QPointF>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStringList>
@@ -446,6 +449,41 @@ void assertNoRoadLabelsInUserText(DesktopWindow& window)
         for (int index = 0; index < combo->count(); ++index)
             assert(!containsRoadLabel(combo->itemText(index)));
     }
+}
+
+void checkQColorSpaceMetadataFixtures()
+{
+    const QColorSpace srgb(QColorSpace::SRgb);
+    assert(srgb.isValid());
+
+    const QByteArray validIccProfile = srgb.iccProfile();
+    assert(!validIccProfile.isEmpty());
+    assert(QColorSpace::fromIccProfile(validIccProfile).isValid());
+
+    // Exercise the same public Qt primary-points validation boundary without
+    // consulting a physical display, ColorSync, EDID or a host ICC profile.
+    const QColorSpace validPrimaries(
+        QPointF(0.3127, 0.3290),
+        QPointF(0.6400, 0.3300),
+        QPointF(0.3000, 0.6000),
+        QPointF(0.1500, 0.0600),
+        QColorSpace::TransferFunction::SRgb);
+    assert(validPrimaries.isValid());
+
+    // A degenerate red/green pair cannot describe a valid RGB gamut. Qt may
+    // emit its diagnostic here; this fixture proves only validation behavior,
+    // never the provenance of an owner's Cocoa/display-profile warning.
+    const QColorSpace malformedPrimaries(
+        QPointF(0.3127, 0.3290),
+        QPointF(0.6400, 0.3300),
+        QPointF(0.6400, 0.3300),
+        QPointF(0.1500, 0.0600),
+        QColorSpace::TransferFunction::SRgb);
+    assert(!malformedPrimaries.isValid());
+
+    const QByteArray malformedIccProfile =
+        QByteArrayLiteral("not-an-icc-profile");
+    assert(!QColorSpace::fromIccProfile(malformedIccProfile).isValid());
 }
 
 void checkRound2TabsAndMainSimplicity(
@@ -911,6 +949,12 @@ int main(int argc, char** argv)
         return 0;
     }
 #endif
+
+    if (mode == "qcolor-metadata")
+    {
+        checkQColorSpaceMetadataFixtures();
+        return 0;
+    }
 
     if (mode == "round2-tabs")
     {

@@ -1,3 +1,35 @@
+## R7 QColorSpace owner-provenance diagnostic artifact (2026-10-30)
+
+- Reconciled authoring parent: `fd612d0a0c80d5582934b44ab39a2310294b507c`.
+  First-party Qt production remains free of `QColorSpace`, `QImage` and
+  `QPixmap` construction. The only Qt GUI image request found is the standard
+  `QStyle::SP_ComputerIcon`; ScreenCaptureKit remains explicit 32-bit BGRA,
+  native display observation is geometry-only, and the native cursor path uses
+  CoreGraphics `CGColorSpaceCreateDeviceRGB` without Qt/ICC translation.
+- Added opt-in `scripts/diagnose_macos_qcolor_provenance.py`. It launches only
+  the exact extracted zero-argument Cocoa executable, verifies no TCP listener,
+  retains at most 256 KiB of private Qt stderr in memory, and emits a redacted
+  summary containing bundled Qt versions, Cocoa-plugin observation, display
+  color model, ICC device-class signature and first matching warning source
+  basename/line/category. It never prints ICC payloads, primaries or host paths
+  and never starts Sharing, capture or input.
+- Added offline `macos.gui-qcolor-provenance-parser-and-redaction` for ICC
+  header bounds, environment isolation and output redaction, plus
+  `gui.offscreen-qcolor-valid-and-malformed-metadata` in the existing Qt
+  harness for valid sRGB/custom primaries and malformed ICC/degenerate-primary
+  rejection. The synthetic malformed case can reproduce Qt's validation
+  boundary but cannot attribute the owner's Cocoa warning.
+- Existing `macos.native-desktop-owner-borrow-callback-retirement` remains the
+  single FrameMailbox reentrant-retirement regression and is not duplicated.
+  R10 still owns the future accepted-client R2->R3/Share/GraphicsReady gate;
+  current macOS HostControl has no positive native attach and R7 adds none.
+- Source/CMake/package/authorization review: **PASS by inspection**. Canonical
+  local compile/focused/full CTest, owner packaged no-Sharing probe and LLDB:
+  **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+  compile/CTest: **PENDING**. Caller attribution remains **BLOCKED** until the
+  owner's packaged Cocoa probe records a matching source/caller; no R4 pixel,
+  monitor profile, warning suppression or production color correction changed.
+
 ## R4 admitted-frame delivery / revocation assurance authoring (2026-10-30)
 
 - Authoring parent: `b76f62917479ff3a1e512d7c6c791157d97d2f2c`; current candidate is not manually approved

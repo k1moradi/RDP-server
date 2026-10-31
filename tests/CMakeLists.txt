@@ -106,6 +106,14 @@ add_test(NAME gui.round2-qcolor-warning-classification
 set_tests_properties(gui.round2-qcolor-warning-classification PROPERTIES
     LABELS "gui;assurance;round2;qt;policy;offline")
 
+# R7 owner-opt-in provenance tooling is parsed and redaction-tested offline.
+# This test never launches AppKit, reads a host display profile or opens a socket.
+add_test(NAME macos.gui-qcolor-provenance-parser-and-redaction
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_qcolor_provenance.py")
+set_tests_properties(macos.gui-qcolor-provenance-parser-and-redaction PROPERTIES
+    LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
+
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
 add_executable(test_standalone_credential_policy
@@ -4857,6 +4865,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-round2-tabs-and-main-simplicity
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;round2;tabs" TIMEOUT 30)
+    # Exercise Qt's own valid/invalid color metadata boundary without Cocoa,
+    # a physical display/profile, ScreenCaptureKit or TCC.
+    add_test(NAME gui.offscreen-qcolor-valid-and-malformed-metadata
+        COMMAND test_desktop_gui_offline qcolor-metadata)
+    set_tests_properties(gui.offscreen-qcolor-valid-and-malformed-metadata
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;qt;color;diagnostics;offline" TIMEOUT 30)
     add_test(NAME gui.offscreen-round2-endpoint-refresh-fail-closed
         COMMAND test_desktop_gui_offline round2-endpoint-refresh)
     set_tests_properties(gui.offscreen-round2-endpoint-refresh-fail-closed

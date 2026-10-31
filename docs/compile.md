@@ -1,3 +1,22 @@
+## R7 QColorSpace provenance diagnostic build contract (2026-10-30)
+
+The QColorSpace investigation adds no production target, framework, platform
+plugin or color-conversion dependency. The existing Qt Widgets offscreen test
+executable exercises Qt's public `QColorSpace` validation API; `Qt6::Widgets`
+already supplies QtGui. The owner provenance artifact is Python-standard-library
+only and loads the fixed macOS CoreGraphics/CoreFoundation system frameworks at
+runtime solely to read the current display color-space model and the first 128
+bytes of its ICC data for the device-class signature. It never links or starts
+ScreenCaptureKit, requests TCC, captures pixels or opens a listener.
+
+Ordinary build evidence remains the one canonical `~/rdp-server/build/` root
+with the existing warning-clean compiler flags. Run
+`ctest --test-dir build -C Debug -R '^(macos[.]gui-qcolor-provenance-parser-and-redaction|gui[.]offscreen-qcolor-valid-and-malformed-metadata|gui[.]round2-qcolor-warning-classification)$' --output-on-failure`
+after building the normal GUI-enabled graph. The owner-only packaged Cocoa probe
+is separately opt-in and is not a CTest. Connector authoring has no approved
+macOS checkout, so local compile/CTest and native probe are NOT RUN; exact-SHA
+hosted compilation/CTest is the next evidence gate.
+
 ## R10 macOS serialized pre-admission compilation (2026-10-30)
 
 The existing `rdp-server-macos-host-control` target consumes the already

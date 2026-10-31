@@ -247,6 +247,21 @@ future proven first-party path needs validation/fallback and one dedicated
 production-backed offline CTest; a proven Qt/platform path needs exact
 version/plugin/profile provenance and safe operator guidance.
 
+**R7 provenance artifact update:** current source audit still finds no
+first-party Qt QColorSpace/QImage/QPixmap conversion path. The opt-in
+`scripts/diagnose_macos_qcolor_provenance.py` now gives the owner a bounded
+zero-argument packaged-Cocoa probe: exact package SHA when available, bundled
+QtCore/QtGui version, observed `libqcocoa.dylib`, main-display color model,
+ICC device-class signature and first warning source basename/line/category,
+with no raw ICC/profile path, primaries, username/session data, capture or TCC.
+It verifies the launched process has no TCP listener before termination.
+Offline `macos.gui-qcolor-provenance-parser-and-redaction` pins that
+redaction/bounds contract; `gui.offscreen-qcolor-valid-and-malformed-metadata`
+reuses the Qt harness to prove valid and malformed metadata behavior without a
+physical display. Owner Cocoa execution/backtrace is still **NOT RUN**, so the
+actual caller remains **BLOCKED/unattributed** and no production color fix is
+authorized.
+
 **macOS native attachment dependency:** `RuntimePlatformNativeDesktop`
 continues to expose `attachAuthenticatedSession()` as an R2-proof consumer,
 but current `MacRuntimeHostControl` has no positive call that attaches it.

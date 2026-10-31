@@ -4270,6 +4270,34 @@ metadata. If Qt/platform-owned, record the tested Qt version, plugin
 and profile provenance, and operator guidance; no production modification
 is justified without a demonstrated first-party defect.
 
+The repository's opt-in operator artifact is
+`scripts/diagnose_macos_qcolor_provenance.py`. Run it only against the exact
+checksum-verified extracted `rdp-server-desktop.app`, with Sharing left OFF:
+`python3 scripts/diagnose_macos_qcolor_provenance.py --app <extracted-app>`.
+It launches the bundled executable with zero arguments for a bounded interval,
+removes external Qt/DYLD overrides for that child only, enables
+`QT_DEBUG_PLUGINS` plus a source-aware `QT_MESSAGE_PATTERN`, and verifies
+that the exact process has no TCP listener. Retain at most 256 KiB of Qt
+diagnostic bytes in memory and emit only the exact server SHA when available,
+bundled QtCore/QtGui versions, whether `libqcocoa.dylib` was observed, the
+main-display color model, the ICC header device-class signature, and the first
+matching warning's basename/category/source line. Never print the ICC payload,
+chromaticity coordinates, display ID, username, native session identity or raw
+plugin/profile paths. Source file/line may be unavailable in a release Qt build;
+that is an attribution limitation, not Qt/platform exoneration.
+
+Keep `macos.gui-qcolor-provenance-parser-and-redaction` as the ordinary
+cross-platform offline regression for the artifact's bounded ICC-header parser,
+environment isolation and path/primary redaction. Keep
+`gui.offscreen-qcolor-valid-and-malformed-metadata` in the existing Qt
+offscreen executable: it proves Qt accepts valid sRGB/custom primaries and
+rejects a malformed ICC blob plus degenerate RGB primaries without consulting
+Cocoa, a physical display/profile, ScreenCaptureKit or TCC. This synthetic
+warning boundary is not evidence that the owner's warning has the same caller.
+The existing `macos.native-desktop-owner-borrow-callback-retirement` remains
+the sole callback-retirement regression; do not duplicate it for color
+diagnostics.
+
 ## R5 compact Linux prerequisite projection regression (2026-10-22)
 
 Keep `gui.linux-readonly-prerequisite-structured-projection` in the ordinary

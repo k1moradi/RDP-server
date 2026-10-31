@@ -37,6 +37,20 @@ a native OS session. Agent 2 must separately register a production-backed
 positive-completion/post-callback-revocation test when it implements its R1/R3
 private issuer handoff. Do not change fixed sanitizer selector inventories.
 
+The first genuine macOS R2 completion regression must use the production
+accepted-R1 TLS path and the broker's protected visitor. Prove the transport
+stage can temporarily advance to AwaitMcsConnectInitial, then a synchronous
+owner-consent/native-session revocation before visitor return causes R2 to
+cancel the exact R1 connection, close R3/proof/framing and leave zero first-MCS
+bytes consumed, even when a whole first-MCS TPKT was already decrypted in the
+same TLS record. Separately deny duplicate completion, retired/replaced R1
+transport, changed selected certificate/listener/credential epoch, pending
+SSL_read/SSL_write WANT operation and CredentialsVerified without native
+admission. Exercise retained R1 socket/BIO teardown and terminal idempotence.
+Existing negative cases may be reused; register a new behavior-named CTest
+only for the genuinely uncovered positive-completion/post-callback-loss case.
+Synthetic native evidence is offline coverage, never a live admission receipt.
+
 ## R3 macOS private-entry generation denial gate (2026-10-30)
 
 Register

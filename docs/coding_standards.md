@@ -11,6 +11,21 @@ authorization are verified. R2 must terminally cancel R1 on any callback-time
 post-check failure before a first-MCS read; R3's private generation binding is
 still mandatory. No R10 friend, alternate TLS reader, or policy/timing change.
 
+The successful `PreauthSession::completeCredSspAdmission()` stage assignment
+is the **transport-only** linearization point. R2's admission linearization is
+later: publish the original-generation native lease only after its protected
+visitor returns with the authenticated proof, selected R1 SSL/BIO/certificate,
+listener/credential/consent epoch and independent OS evidence still current.
+The macOS broker must call the private R1 completion exactly once inside that
+protected visit, with no unfinished application read/write. Check native and
+proof authority again after the callback; failure, Stop or epoch replacement
+must revoke R3/proof/framing and synchronously `connection.cancel()` before
+returning to R10. This retires decrypted `SSL_pending` data as well as a
+partially buffered MCS TPKT. R10 may not read first-MCS bytes or publish an
+admitted state on a merely successful R1 return. Once R2 publishes the lease,
+each first-MCS R1 read and R3 private Connect-Initial transition requires fresh
+R2 revalidation and exact R3 admission/authorization generation binding.
+
 ## R3 private macOS R2 protocol entry (2026-10-30)
 
 The exact macOS production issuer is the R2-owned

@@ -43,10 +43,32 @@ R10-assembled R2->R3->Share/GraphicsReady native attach exists yet.
   resolution is unavailable). Source/CTest registration: **PASS by inspection**.
   Exact-publication-SHA hosted CI: **PENDING**; physical clients and native
   admission: **NOT RUN / unauthorized**.
-- Next gate: Agent 2 extends this existing concrete broker with the successful
-  private R1 call and R3 generation-bound transition inside an independently
-  checked native visitor. Its new positive/post-callback-loss regression must
-  terminally retire R1 before any first-MCS byte on lost authority.
+- Focused R1 follow-up source audit on `main` parent `00da1aa56fc29c7235e7caa95ccde415fda90d42`:
+  `OwnedPreauthTcpConnection::completeCredSspAdmission()` checks the live
+  SSL/BIO, absence of pending TLS application I/O and the exact pinned
+  HYBRID-selected certificate before its single transport-stage transition.
+  Duplicate completion and wrong/closed stage fail terminally. R1 transport
+  success alone does not publish an R2 lease or consume first-MCS plaintext;
+  macOS R10 remains explicitly pre-MCS after CredentialsVerified. The Linux
+  runtime already cancels R1 after broker admission failure and revalidates R2
+  before every first-MCS read. `cancel()` retires adapter state and SSL/BIO
+  before invalidating/closing the socket; a reused descriptor cannot be
+  double-closed by this owner. Existing negative tests cover no admission,
+  certificate/transport replacement, TLS WANT, buffered data, FIN, RST and
+  close_notify. **PASS by source/registration inspection only.** No R1
+  production change or new CTest is justified before Agent 2's positive
+  macOS broker implementation. Canonical local build/full CTest/sanitizers:
+  **NOT RUN** (no cloneable approved checkout); publication-SHA hosted CI:
+  **PENDING**; physical client: **NOT RUN / unauthorized**.
+- Agent 2's protected-completion contract: complete R1 exactly once within
+  fresh, generation-bound native authorization; revalidate original proof,
+  consent epoch, R1 identity and native evidence after any synchronous
+  callback. The R1 stage change is transport-only; R2 lease publication
+  after this check is the admission linearization point. On lost authority,
+  close R3/proof/framing and `connection.cancel()` synchronously before
+  any buffered MCS bytes are read. Only an active R2 lease may authorize
+  first-MCS intake and the separate R3 private generation binding. Agent 2
+  must add a production-linked positive/post-callback-revocation regression.
 
 ## R8 callback-time source fence — exact descendant sanitizer qualification (2026-10-31)
 

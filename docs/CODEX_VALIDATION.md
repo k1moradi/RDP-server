@@ -1,3 +1,37 @@
+## R10 completed macOS CredSSP exact-SHA hosted receipt (2026-10-30)
+
+- Implementation commit: `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`.
+  Its own aggregate CI was blocked by a concurrent stale R3 MCS table cardinality
+  before the macOS regression could qualify.
+- Unchanged-test descendant:
+  `4f1a5931c75daa468996b6a0d6465de197772b21`, primary Actions
+  `41178462215`, macOS protocol job `124470806387`.
+  Debug configure and compile **PASS**. Ordinary full Debug CTest executed the
+  production-backed
+  `runtime.macos-host-control-completed-credssp-without-native-admission-denials`
+  as test 73/801 and it **PASS (0.69 s)** after real X.224 HYBRID/TLS/direct-NTLM
+  CredSSP, final `authInfo` / `CredentialsVerified`, queued checked-in
+  Microsoft Connect-Initial, pre-MCS dormancy and the Stop/consent/session
+  retirement scenarios.
+- The same macOS full Debug CTest is **BLOCKED at 800/801** by unrelated R7
+  `macos.gui-qcolor-provenance-parser-and-redaction` **NOT RUN**. CTest reports
+  an empty executable; source inspection shows that test uses
+  `${Python3_EXECUTABLE}` at `tests/CMakeLists.txt:112` before the existing
+  `find_package(Python3 REQUIRED COMPONENTS Interpreter)` at line 1328.
+  Release is therefore **NOT RUN** in that job. Ubuntu full CTest is blocked by
+  the same registration defect. R9 security/protocol sanitizers, structure,
+  documentation policy and R2 production-security jobs on this descendant are
+  independently **PASS**.
+- This receipt proves **authenticated = yes** for the synthetic standalone
+  credential path and **admitted = no / ShareActivated = no /
+  native-attached = no**. It is not physical-client or native OS admission
+  evidence.
+- Agent 3's private macOS R3 edge is present on this descendant, but Agent 2's
+  current `MacConsoleAdmissionBroker` still exposes only
+  `prepareAdmission/revalidate/visitNativeAuthorization/revoke` and no
+  protected R3 transition. R10 therefore still cannot legally compose the
+  positive pipeline without violating the issuer boundary.
+
 ## R10/R3 macOS gateway registration alignment (2026-10-30)
 
 R3 publication `2a45d7c54c025f21623775d539eb5f107ad08ae5`

@@ -732,8 +732,17 @@ that authenticated/pre-admission owner through Stop, same-permission consent
 epoch replacement and native session replacement; Stop is the required barrier
 before credential replacement, whose new generation cannot revive the retired
 proof. Missing eligible local endpoint/bind/connect is SKIP 77, never PASS.
-Local macOS build/full CTest and exact-publication-SHA hosted qualification are
-NOT RUN/PENDING at authoring; physical clients remain NOT RUN/unauthorized.
+Hosted descendant `4f1a5931c75daa468996b6a0d6465de197772b21`,
+primary Actions `41178462215`, macOS protocol job `124470806387`: Debug
+configure/compile **PASS** and
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`
+**PASS (0.69 s)** as test 73/801. Repository-wide Debug CTest is **BLOCKED**
+at 800/801 by unrelated R7
+`macos.gui-qcolor-provenance-parser-and-redaction` **NOT RUN** because its
+CTest command captured an empty `Python3_EXECUTABLE`; Release therefore did
+not run in that job. Ubuntu full CTest is blocked by the same R7 registration.
+Canonical owner-local build/full CTest remains **NOT RUN**, and physical clients
+remain **NOT RUN/unauthorized**.
 Agent 2's `MacConsoleAdmissionBroker` now provides R2-owned prepared native
 authority for the exact proof/R1 connection, but its `Prepared` state is
 explicitly non-admitting. The R3 private macOS route is now authored; the positive pipeline remains

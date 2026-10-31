@@ -131,13 +131,13 @@ With injected owner evidence and an isolated synthetic local TCP client,
 assert the genuine accepted R1 owner remains pre-MCS for a partial TPKT,
 leaves Share/graphics/native desktop dormant, and Stop cancels the client
 with no retained native authorization. Missing eligible private LAN interface
-or unavailable test bind is SKIP (77), never PASS. This is a pre-admission
-denial test, **not** a successful full standalone CredSSP test. An additional
-production-backed completed-CredSSP macOS accepted-socket test is still needed
-to qualify the requested positive-without-native-lease denial. No physical
-RDP clients, TCC prompts, ScreenCaptureKit, input or clipboard are permitted
-by ordinary CTest. Exact-SHA macOS Debug/Release full CTest and sanitizers
-remain independent evidence gates and are NOT RUN at authoring.
+or unavailable test bind is SKIP (77), never PASS. This partial-TPKT case remains a distinct pre-admission denial.
+Completed standalone CredSSP plus queued first-MCS dormancy is covered by the
+separate production-backed
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`
+regression above. No physical RDP clients, TCC prompts, ScreenCaptureKit, input
+or clipboard are permitted by ordinary CTest. Focused completed-CredSSP PASS
+does not imply full-suite, Release, physical-client or native-admission PASS.
 
 ## R9 canonical-roadmap integrity and manual candidate CI (2026-10-30)
 

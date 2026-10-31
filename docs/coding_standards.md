@@ -1,3 +1,14 @@
+## R10 protected macOS Erect Domain continuation (2026-10-31)
+
+After the R2-protected Connect-Response is fully accepted, reuse the same
+accepted-client fixed TPKT buffer and the sole R1 TLS application reader for
+exactly one Erect Domain request. Preserve R1 WANT direction and buffered
+plaintext, revalidate the original R2 View lease before and after every read,
+and call only `MacConsoleAdmissionBroker::authorizeR3ErectDomain()`.
+Erect has no server reply. A malformed packet, stale proof/native evidence,
+consent/listener/TLS loss or unexpected R3 phase terminally retires R2/R3/R1.
+Do not read Attach User in the same owner tick or create another MCS framer.
+
 ## R5 independent R1 write and inbound R3 ACK provenance (2026-10-31)
 
 A locally prepared R3 frame and R4 ACK-window credit are not client

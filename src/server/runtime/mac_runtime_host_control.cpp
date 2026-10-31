@@ -362,11 +362,15 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
             activeAdmissionStage_ == AcceptedClientAdmissionStage::TransportAdmitted;
         const bool writingConnectResponse =
             activeAdmissionStage_ == AcceptedClientAdmissionStage::Admitted;
-        if (!readingFirstMcs && !writingConnectResponse)
+        const bool readingErectDomain =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ConnectResponseDelivered;
+        if (!readingFirstMcs && !writingConnectResponse && !readingErectDomain)
         {
-            // Later Erect/Attach/Share are separate protected increments.
+            // Attach/Join and later activation remain separate protected
+            // increments. Erect acceptance is the bounded stop for this one.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::ConnectResponseDelivered
+                           AcceptedClientAdmissionStage::ErectDomainAccepted
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
@@ -381,7 +385,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
 
         // Existing R1 SSL/BIO owns every application read/write. A WANT_READ
         // during a pending write must poll Read; new writes start on Write.
-        const Interest interest = readingFirstMcs
+        const Interest interest = (readingFirstMcs || readingErectDomain)
             ? connection.ioInterest()
             : (credSsp.connectResponseWriteNeedsRead
                 ? Interest::Read : Interest::Write);
@@ -410,10 +414,11 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
 
         if (!activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
             return rejectAdmission();
-        if (readingFirstMcs)
+        if (readingFirstMcs || readingErectDomain)
         {
-            // Read only the 4-byte RFC1006 header, then exactly its bounded
-            // declared packet length. Never pull following encrypted PDUs.
+            // Reuse one accepted-client TPKT buffer. Read only the 4-byte
+            // RFC1006 header, then exactly its bounded declared packet length.
+            // A coalesced following PDU remains owned by R1 for a later tick.
             const std::size_t target = credSsp.firstMcsExpectedBytes == 0U
                 ? 4U : credSsp.firstMcsExpectedBytes;
             if (credSsp.firstMcsBytes >= target ||
@@ -449,22 +454,44 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
             if (credSsp.firstMcsExpectedBytes == 0U ||
                 credSsp.firstMcsBytes < credSsp.firstMcsExpectedBytes)
                 return {RuntimeHostError::None, false};
-            const auto admitted = activeAdmissionBroker_->authorizeR3McsConnectInitial(
-                session, std::span(credSsp.firstMcsTpkt)
-                             .first(credSsp.firstMcsExpectedBytes));
-            if (admitted != transport::McsSessionIntake::AdmittedConnectInitial ||
+            const auto completeTpkt =
+                std::span(credSsp.firstMcsTpkt)
+                    .first(credSsp.firstMcsExpectedBytes);
+            if (readingFirstMcs)
+            {
+                const auto admitted =
+                    activeAdmissionBroker_->authorizeR3McsConnectInitial(
+                        session, completeTpkt);
+                if (admitted !=
+                        transport::McsSessionIntake::AdmittedConnectInitial ||
+                    !activeAdmissionBroker_->revalidate(
+                        security::kConsoleViewPermission))
+                    return rejectAdmission();
+                // R3 copied all semantic state; never retain the borrowed TPKT.
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                activeAdmissionStage_ = AcceptedClientAdmissionStage::Admitted;
+                acceptedClientDiagnostics_.authenticationStage =
+                    RuntimeAcceptedClientAuthenticationStage::Mcs;
+                acceptedClientDiagnostics_.protocolStage =
+                    RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived;
+                acceptedClientDiagnostics_.mcsSessionAdvanced = true;
+                return {RuntimeHostError::None, false};
+            }
+
+            const auto erect =
+                activeAdmissionBroker_->authorizeR3ErectDomain(
+                    session, completeTpkt);
+            if (erect != transport::McsSessionIntake::ErectDomainAccepted ||
                 !activeAdmissionBroker_->revalidate(
                     security::kConsoleViewPermission))
                 return rejectAdmission();
-            // R3 copied all semantic state; never retain the borrowed TPKT.
             credSsp.firstMcsBytes = 0U;
             credSsp.firstMcsExpectedBytes = 0U;
-            activeAdmissionStage_ = AcceptedClientAdmissionStage::Admitted;
-            acceptedClientDiagnostics_.authenticationStage =
-                RuntimeAcceptedClientAuthenticationStage::Mcs;
+            activeAdmissionStage_ =
+                AcceptedClientAdmissionStage::ErectDomainAccepted;
             acceptedClientDiagnostics_.protocolStage =
-                RuntimeAcceptedClientProtocolStage::McsConnectInitialReceived;
-            acceptedClientDiagnostics_.mcsSessionAdvanced = true;
+                RuntimeAcceptedClientProtocolStage::McsErectDomainReceived;
             return {RuntimeHostError::None, false};
         }
 

@@ -140,6 +140,7 @@ private:
         TransportAdmitted,
         Admitted,
         ConnectResponseDelivered,
+        ErectDomainAccepted,
     };
 
     const std::thread::id ownerThread_;

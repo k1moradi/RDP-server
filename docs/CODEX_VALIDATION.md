@@ -1,3 +1,21 @@
+## R10 review: first-MCS/Connect-Response retained; Erect integrated (2026-10-31)
+
+Reviewed current descendant `005ba9de48a987eb415be5ac792a239403cfdfa0`.
+No R10 source had changed since `00b4ecc4`. Hosted descendant macOS CTest
+already PASSed the pre-admission dormancy, completed-CredSSP no-native denial,
+first-MCS no-native dormancy, R2 protected transport/receipt regression and
+R3 protected partial Connect-Response/Erect/Attach-ordering test. Concurrent
+full-suite failures were R5 Linux/X11 evidence validators, not this runtime.
+
+The next bounded production increment reuses the sole R1 TLS reader and the
+same fixed TPKT buffer after fully delivered Connect-Response, performs fresh
+R2 validation, and invokes only the protected Erect transition. It stops at
+Erect accepted; Attach/confirm remains separate. Synthetic HostControl evidence
+still cannot construct the issuer. Connector-local compile/CTest/sanitizers:
+**NOT RUN**. Exact publication-SHA hosted qualification: **PENDING**.
+Genuine macOS native Admission and physical Microsoft client: **NOT RUN /
+unauthorized**.
+
 ## R5 independent complete-write / inbound client-ACK receipt pins (2026-10-31)
 
 Inspected parent `0401967b1145267bed7d401160c26db536fa1899`. Independent numeric frame/ACK pins and

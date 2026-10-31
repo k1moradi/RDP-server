@@ -1,3 +1,17 @@
+## R10 protected Erect composition gate (2026-10-31)
+
+The existing production-linked
+`security.macos-protected-mcs-response-partial-resume-and-ordering` test
+already verifies exact Connect-Response partial/suffix receipts and a positive
+R2-protected Erect transition over real accepted HYBRID/TLS R1, followed by
+Attach ordering; its proof/native observations remain synthetic and therefore
+non-authorizing for product admission. Hosted macOS descendant
+`b9df573ba5aa2ad44158b8ba33521353414012a4` ran this case PASS.
+R10's `runtime.macos-host-control-first-mcs-without-native-issuer-dormancy`
+continues to prove injected owner evidence cannot reach MCS or Erect.
+The new HostControl Erect branch requires compilation/full CTest on its own
+exact publication SHA before any later Attach integration claim.
+
 ## R5 independent frame-write / inbound client-ACK denial (2026-10-31)
 
 Dedicated offline Python CTest

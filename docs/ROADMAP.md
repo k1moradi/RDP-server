@@ -1,3 +1,28 @@
+## R10 macOS protected Erect continuation — P0 authored, qualification pending (2026-10-31)
+
+Reviewed descendant `005ba9de48a987eb415be5ac792a239403cfdfa0`: the earlier
+first-MCS and Connect-Response HostControl implementation is unchanged, and
+hosted macOS descendant testing PASSed its three R10 dormancy/denial cases plus
+the R2 protected transport/receipt and R3 partial-response/Erect ordering case.
+The concurrent full-suite red jobs were R5 Linux/X11 evidence validators, not a
+macOS R10 protocol failure; later R5 descendants are handling those independently.
+
+- [x] **Authored:** after exact protected Connect-Response delivery, reuse the
+  same fixed accepted-client TPKT buffer and sole R1 TLS reader for one Erect
+  Domain request; preserve SSL WANT direction and coalesced following plaintext.
+- [x] **Authored:** revalidate the original R2 lease before/after each read and
+  invoke only `authorizeR3ErectDomain()`; malformed/stale state retires
+  R2/R3/R1.
+- [x] **Fail-closed test retained:** injected owner evidence still cannot mint
+  the native issuer or reach first MCS, Connect-Response or Erect.
+- [ ] **Exact-SHA qualification:** compile and full macOS CTest on the new
+  publication SHA, including
+  `security.macos-protected-mcs-response-partial-resume-and-ordering`.
+- [ ] **Next bounded R10 increment:** Attach User plus exact Attach Confirm
+  accepted-byte receipts; ChannelJoin remains later.
+- [ ] **Physical/native acceptance:** NOT RUN / unauthorized. No Share,
+  GraphicsReady, capture, input, clipboard or TCC mutation is enabled.
+
 ## R6 current Microsoft client source-provenance qualification (2026-10-31)
 
 **R6 2026-10-31 exact-head follow-up (source inspected

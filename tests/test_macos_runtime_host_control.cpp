@@ -1389,9 +1389,10 @@ void testStopRevokeRetirement()
     {
     case CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs:
     {
-        // Exercise the new R10 admission dispatcher repeatedly after final
+        // Exercise the R10 admission dispatcher repeatedly after final
         // CredSSP and complete queued MCS. A synthetic evidence source cannot
-        // construct the native R2 issuer or produce Connect-Response bytes.
+        // construct the native R2 issuer, produce Connect-Response bytes or
+        // reach the protected Erect Domain intake.
         for (std::size_t index = 0U; index < 32U; ++index)
         {
             assert(control.serviceOnce().succeeded());
@@ -1403,6 +1404,8 @@ void testStopRevokeRetirement()
         assert(retired.activeClients.empty());
         assert(retired.acceptedClientPreauthDiagnostics.protocolStage ==
                RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(retired.acceptedClientPreauthDiagnostics.protocolStage !=
+               RuntimeAcceptedClientProtocolStage::McsErectDomainReceived);
         assert(!retired.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
         assert(!retired.nativeDesktopReady);
         assert(!retired.graphicsReady);

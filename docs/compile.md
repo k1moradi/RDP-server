@@ -1,3 +1,14 @@
+## R10 macOS protected Erect continuation build boundary (2026-10-31)
+
+No target, dependency, worker or transport owner is added. The existing
+`rdp-server-macos-host-control` reuses its fixed first-MCS buffer for one
+post-Connect-Response Erect TPKT and calls the already-linked R2/R3 API.
+Canonical owner-local build/CTest is **NOT RUN** in this connector environment.
+On the exact publication SHA run the existing macOS HostControl tests plus
+`security.macos-protected-mcs-response-partial-resume-and-ordering`, then
+full Debug CTest and applicable sanitizers. No benchmark or physical client
+execution is authorized or claimed.
+
 ## R5 independent frame-receipt pin build boundary (2026-10-31)
 
 Pin schema v3 changes only Python-standard-library validator/test and one

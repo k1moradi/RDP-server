@@ -824,6 +824,20 @@ bool StandalonePasswordAuthenticatedPrincipalProof::
 }
 
 bool StandalonePasswordAuthenticatedPrincipalProof::
+    revalidatesOwnedR1Connection(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) const noexcept
+{
+    return connection_ == &connection && revalidatesAuthenticatedSession();
+}
+
+std::uint64_t StandalonePasswordAuthenticatedPrincipalProof::
+    configuredCredentialGeneration() const noexcept
+{
+    return credentialGenerationCurrent() ? credentialGeneration_ : 0U;
+}
+
+bool StandalonePasswordAuthenticatedPrincipalProof::
     pendingNativeAdmissionMatches(
         const rdp_server::server::transport::OwnedPreauthTcpConnection
             &connection,

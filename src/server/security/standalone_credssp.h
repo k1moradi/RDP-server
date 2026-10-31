@@ -293,6 +293,11 @@ public:
         const noexcept override;
 
 private:
+    [[nodiscard]] bool revalidatesOwnedR1Connection(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) const noexcept override;
+    [[nodiscard]] std::uint64_t configuredCredentialGeneration()
+        const noexcept override;
     [[nodiscard]] bool credentialGenerationCurrent() const noexcept;
     [[nodiscard]] bool pendingNativeAdmissionMatches(
         const rdp_server::server::transport::OwnedPreauthTcpConnection

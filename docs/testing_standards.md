@@ -1,3 +1,22 @@
+## R2 macOS console admission gateway offline denials (2026-10-30)
+
+The existing cross-platform `test_native_desktop_standalone_authorization`
+executable now exercises the production `MacConsoleAdmissionBroker` with the
+existing synthetic owner/native fixtures. Registered behavior cases cover
+missing/stale authenticated proof, substituted accepted connection, invalid or
+insufficient permission scope, same-permission consent-epoch replacement,
+nested visitor reentry, native audit-session replacement, post-callback owner
+revocation and idempotent explicit listener-replacement retirement. The fake
+proof implements only the R2-private exact-R1 provenance observation needed to
+exercise broker ordering; it does not create a physical native lease, call
+R1/R3 positive methods, touch TCC, capture/input, credentials or a live
+listener.
+
+These cases use labels
+`security;native-authorization;standalone;offline`. They do not enter the
+fixed R5 X11 45-case or R8 clipboard 107-case sanitizer censuses. Full
+Debug/Release CTest and exact-SHA hosted qualification remain separate evidence.
+
 ## R8 X11 callback-time source replacement regression (2026-10-30)
 
 Register the production-backed offline behavior

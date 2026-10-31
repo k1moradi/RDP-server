@@ -346,6 +346,23 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# R2 macOS concrete native-admission preparation gateway. This portable,
+# noninstalled owner adds no macOS framework dependency and deliberately has
+# no R1/R3 private positive call until those friend edges are published.
+add_library(rdp-server-mac-console-admission STATIC
+    src/server/security/mac_console_admission.cpp)
+target_compile_features(rdp-server-mac-console-admission PUBLIC cxx_std_23)
+target_include_directories(rdp-server-mac-console-admission PUBLIC
+    "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src>")
+target_link_libraries(rdp-server-mac-console-admission PUBLIC
+    rdp-server-native-desktop-authorization)
+if(MSVC)
+    target_compile_options(rdp-server-mac-console-admission PRIVATE /W4 /WX)
+else()
+    target_compile_options(rdp-server-mac-console-admission PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+
 # R2 Windows native-session evidence is a read-only, noninstalled adapter.
 # It does not authenticate a client or mint a lease: a future R2 SSPI/CredSSP
 # provider must supply the authenticated SID privately before this evidence can

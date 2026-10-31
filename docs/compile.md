@@ -1,3 +1,15 @@
+## R2 macOS console admission gateway build boundary (2026-10-30)
+
+`rdp-server-mac-console-admission` is a noninstalled portable C++23 static
+target containing only the R2 preparation owner. It links the existing native
+desktop authorization core, adds no Apple framework, socket owner, worker,
+listener, alternate build root or R3 dependency, and has strict warnings on all
+toolchains. The existing standalone native-authorization test executable links
+this target and registers the new offline denial modes. The Linux GSS/logind
+broker and fixed R5/R8 sanitizer inventories are unchanged. Canonical local
+configure/build/full CTest is **NOT RUN** in this connector environment;
+exact-publication-SHA hosted qualification is **PENDING**.
+
 ## R8 X11 callback-retirement build boundary (2026-10-30)
 
 The X11 callback-time source-retirement regression reuses the existing

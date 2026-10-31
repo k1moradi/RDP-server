@@ -1274,6 +1274,7 @@ endforeach()
 add_executable(test_native_desktop_standalone_authorization
     test_native_desktop_standalone_authorization.cpp)
 target_link_libraries(test_native_desktop_standalone_authorization PRIVATE
+    rdp-server-mac-console-admission
     rdp-server-native-desktop-authorization
     rdp-server-standalone-ntlmv2)
 if(MSVC)
@@ -1287,7 +1288,15 @@ foreach(standalone_native_authorization_case IN ITEMS
         standalone-current-owner-without-os-identity
         standalone-provenance-and-revocation-denials
         macos-standalone-reentrant-generation-denials
-        macos-standalone-nested-visitor-denials)
+        macos-standalone-nested-visitor-denials
+        macos-console-admission-missing-stale-proof-denials
+        macos-console-admission-wrong-connection-denial
+        macos-console-admission-permission-scope-denials
+        macos-console-admission-consent-epoch-replacement-denial
+        macos-console-admission-nested-visitor-reentry-denial
+        macos-console-admission-session-replacement-denial
+        macos-console-admission-post-callback-authority-loss-denial
+        macos-console-admission-explicit-terminal-revocation)
     add_test(
         NAME "security.native-authorization-${standalone_native_authorization_case}"
         COMMAND test_native_desktop_standalone_authorization

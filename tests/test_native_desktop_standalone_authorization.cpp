@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "server/security/mac_console_admission.h"
 #include "server/security/native_desktop_authorization.h"
 #include "server/security/standalone_ntlmv2.h"
+#include "server/transport/nonblocking_tcp_adapter.h"
 
 #include <algorithm>
 #include <array>
@@ -21,6 +23,8 @@ static_assert(!std::is_copy_constructible_v<
               NativeDesktopAuthenticatedSessionProof>);
 static_assert(!std::is_move_constructible_v<
               NativeDesktopAuthenticatedSessionProof>);
+static_assert(!std::is_copy_constructible_v<MacConsoleAdmissionBroker>);
+static_assert(!std::is_move_constructible_v<MacConsoleAdmissionBroker>);
 
 class FakeOwnerEvidenceSource final : public ConsoleOsEvidenceSource
 {
@@ -192,6 +196,25 @@ public:
         credentialGeneration = generation;
     }
 
+    [[nodiscard]] bool revalidatesOwnedR1Connection(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            &connection) const noexcept override
+    {
+        return exactConnectionCurrent && acceptedConnection == &connection &&
+               revalidatesAuthenticatedSession();
+    }
+
+    [[nodiscard]] std::uint64_t configuredCredentialGeneration()
+        const noexcept override
+    {
+        return revalidatesAuthenticatedSession()
+            ? credentialGeneration
+            : 0U;
+    }
+
+    const rdp_server::server::transport::OwnedPreauthTcpConnection
+        *acceptedConnection{};
+    bool exactConnectionCurrent{true};
     bool credentialsVerified{true};
     bool connectionCurrent{true};
     bool tlsConnectionCurrent{true};
@@ -647,6 +670,212 @@ void testMacStandaloneNestedVisitorDenials()
         generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
 }
 
+
+class MacConsoleBrokerFixture final
+{
+public:
+    MacConsoleBrokerFixture()
+        : proof(credential),
+          connection(rdp_server::server::transport::OwnedNativeTcpSocket{}),
+          replacementConnection(
+              rdp_server::server::transport::OwnedNativeTcpSocket{}),
+          broker(proof, connection, nativeEvidence, owner.authority)
+    {
+        std::array<char16_t, 8> password{
+            u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+        assert(credential.configure(u"Session", password));
+        const auto observation = credential.observation();
+        assert(observation.configured && observation.generation != 0U);
+        proof.bindCredentialGeneration(observation.generation);
+        proof.acceptedConnection = &connection;
+    }
+
+    void prepare(std::uint32_t permissions =
+                     kConsoleViewPermission | kConsoleInputPermission)
+    {
+        assert(broker.prepareAdmission(permissions) ==
+               MacConsoleAdmissionPrepareResult::Prepared);
+        assert(broker.state() == MacConsoleAdmissionState::Prepared);
+        assert(broker.admissionGeneration() != 0U);
+    }
+
+    OwnerFixture owner{};
+    StandalonePasswordCredentialOwner credential{};
+    FakeMacEvidenceSource nativeEvidence{};
+    FakeStandaloneAuthenticatedSessionProof proof;
+    rdp_server::server::transport::OwnedPreauthTcpConnection connection;
+    rdp_server::server::transport::OwnedPreauthTcpConnection
+        replacementConnection;
+    MacConsoleAdmissionBroker broker;
+};
+
+[[nodiscard]] bool markMacConsoleBrokerVisitor(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &called = *static_cast<bool *>(context);
+    called = true;
+    return true;
+}
+
+void testMacConsoleAdmissionMissingStaleProofDenials()
+{
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.proof.credentialsVerified = false;
+        assert(fixture.broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::AuthenticationUnavailable);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        std::array<char16_t, 3> password{u'N', u'e', u'w'};
+        assert(fixture.credential.configure(u"Session", password));
+        assert(!fixture.broker.revalidate(kConsoleViewPermission));
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        fixture.proof.exactConnectionCurrent = false;
+        assert(!fixture.broker.revalidate(kConsoleViewPermission));
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+}
+
+void testMacConsoleAdmissionWrongConnectionDenial()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.proof.acceptedConnection = &fixture.replacementConnection;
+    assert(fixture.proof.revalidatesAuthenticatedSession());
+    assert(fixture.broker.prepareAdmission(kConsoleViewPermission) ==
+           MacConsoleAdmissionPrepareResult::ConnectionMismatch);
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
+void testMacConsoleAdmissionPermissionScopeDenials()
+{
+    {
+        MacConsoleBrokerFixture fixture;
+        assert(fixture.broker.prepareAdmission(kConsoleInputPermission) ==
+               MacConsoleAdmissionPrepareResult::InvalidPermissions);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        bool called = false;
+        assert(!fixture.broker.visitNativeAuthorization(
+            kConsoleInputPermission, &markMacConsoleBrokerVisitor, &called));
+        assert(!called);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Prepared);
+        assert(fixture.broker.revalidate(kConsoleViewPermission));
+    }
+}
+
+void testMacConsoleAdmissionConsentEpochReplacementDenial()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare();
+    fixture.owner.grant();
+    assert(!fixture.broker.revalidate(kConsoleViewPermission));
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
+struct MacConsoleNestedVisit final
+{
+    MacConsoleAdmissionBroker *broker{};
+    bool outerCalled{};
+    bool nestedCalled{};
+    bool nestedAccepted{};
+};
+
+[[nodiscard]] bool markNestedMacConsoleVisit(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &visit = *static_cast<MacConsoleNestedVisit *>(context);
+    visit.nestedCalled = true;
+    return true;
+}
+
+[[nodiscard]] bool attemptNestedMacConsoleVisit(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &visit = *static_cast<MacConsoleNestedVisit *>(context);
+    visit.outerCalled = true;
+    visit.nestedAccepted = visit.broker->visitNativeAuthorization(
+        kConsoleViewPermission, &markNestedMacConsoleVisit, &visit);
+    return true;
+}
+
+void testMacConsoleAdmissionNestedVisitorReentryDenial()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare();
+    MacConsoleNestedVisit visit{&fixture.broker};
+    assert(fixture.broker.visitNativeAuthorization(
+        kConsoleViewPermission, &attemptNestedMacConsoleVisit, &visit));
+    assert(visit.outerCalled);
+    assert(!visit.nestedCalled);
+    assert(!visit.nestedAccepted);
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Prepared);
+    assert(fixture.broker.revalidate(kConsoleViewPermission));
+}
+
+void testMacConsoleAdmissionSessionReplacementDenial()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare();
+    ++fixture.nativeEvidence.evidence.auditSessionId;
+    assert(!fixture.broker.revalidate(kConsoleViewPermission));
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
+struct MacConsoleCallbackRevocation final
+{
+    OwnerFixture *owner{};
+    bool called{};
+};
+
+[[nodiscard]] bool revokeMacConsoleOwnerDuringCallback(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &revocation = *static_cast<MacConsoleCallbackRevocation *>(context);
+    revocation.called = true;
+    revocation.owner->authority.revoke(OwnerConsentRevocationReason::Stop);
+    return true;
+}
+
+void testMacConsoleAdmissionPostCallbackAuthorityLossDenial()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare();
+    MacConsoleCallbackRevocation revocation{&fixture.owner};
+    assert(!fixture.broker.visitNativeAuthorization(
+        kConsoleViewPermission, &revokeMacConsoleOwnerDuringCallback,
+        &revocation));
+    assert(revocation.called);
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
+void testMacConsoleAdmissionExplicitTerminalRevocation()
+{
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare();
+    fixture.broker.revoke(
+        MacConsoleAdmissionRevocationReason::ListenerReplacement);
+    fixture.broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture.broker.admissionGeneration() == 0U);
+    assert(fixture.broker.revocationReason() ==
+           MacConsoleAdmissionRevocationReason::ListenerReplacement);
+    assert(!fixture.broker.revalidate(kConsoleViewPermission));
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -672,6 +901,47 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-standalone-nested-visitor-denials")
     {
         testMacStandaloneNestedVisitorDenials();
+        return 0;
+    }
+
+    if (testCase == "macos-console-admission-missing-stale-proof-denials")
+    {
+        testMacConsoleAdmissionMissingStaleProofDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-wrong-connection-denial")
+    {
+        testMacConsoleAdmissionWrongConnectionDenial();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-permission-scope-denials")
+    {
+        testMacConsoleAdmissionPermissionScopeDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-consent-epoch-replacement-denial")
+    {
+        testMacConsoleAdmissionConsentEpochReplacementDenial();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-nested-visitor-reentry-denial")
+    {
+        testMacConsoleAdmissionNestedVisitorReentryDenial();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-session-replacement-denial")
+    {
+        testMacConsoleAdmissionSessionReplacementDenial();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-post-callback-authority-loss-denial")
+    {
+        testMacConsoleAdmissionPostCallbackAuthorityLossDenial();
+        return 0;
+    }
+    if (testCase == "macos-console-admission-explicit-terminal-revocation")
+    {
+        testMacConsoleAdmissionExplicitTerminalRevocation();
         return 0;
     }
     return 2;

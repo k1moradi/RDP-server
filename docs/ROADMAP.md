@@ -155,6 +155,29 @@ receipt are **PENDING** for this increment; no physical step or benchmark was
 run.
 ## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
 
+**Concrete gateway first round (2026-10-30):**
+`rdp_server::server::security::MacConsoleAdmissionBroker` is now the named R2
+owner for the macOS standalone admission preparation lifetime. It binds the
+existing authenticated-proof contract to the exact accepted R1 connection,
+configured credential generation, `MacNativeDesktopAuthorization`, original
+owner-consent epoch, requested permissions and fresh audit/Security-session
+evidence. Every protected native borrow revalidates before and after callbacks;
+nested visits deny without retiring a valid outer borrow, while
+credential/proof/consent/native-session loss and explicit Stop/listener
+replacement are terminal. This first commit is intentionally **Prepared-only**
+and contains no R1/R3 private positive call. Eight ordinary cross-platform
+production-backed denial CTests are registered; local build/full CTest is
+**NOT RUN** in the connector environment and exact-SHA hosted qualification is
+**PENDING**. R5 X11 45 and R8 clipboard 107 sanitizer censuses are unchanged.
+
+**Private-edge contract:** the exact future friend type for both private edges is
+`rdp_server::server::security::MacConsoleAdmissionBroker`. R1 must friend only
+this type for `OwnedPreauthTcpConnection::completeCredSspAdmission()`; R3 must
+friend only this type for the existing private verified-R2 transition methods.
+Do not expose those methods publicly and do not make R10 an issuer. After both
+edges land on current `main`, R2 completes positive R1 admission plus protected
+R3 transition wrappers in a second atomic direct-main commit.
+
 **Audited base `c88dc60f9e218797ddcd640af6bba1693adca1d7`.** First-round R2-only correction: the existing
 `MacNativeDesktopAuthorization::visit()` previously stored its borrowed view
 against mutable grant evidence and could report success for a replacement grant

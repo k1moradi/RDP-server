@@ -1,3 +1,30 @@
+## R2 concrete macOS admission gateway first round — 2026-10-30
+
+- Reconciled parent: `bd68b5a063bf33d993854f22f4ff3c8da255a59c`.
+  Concurrent direct-main R3/R5/R7/R8/R9 work was preserved; it did not alter
+  the R1/R3 private friend boundaries or R2 production sources consumed here.
+- Added the noninstalled cross-platform
+  `rdp-server-mac-console-admission` target and production
+  `MacConsoleAdmissionBroker`. The broker owns one prepared
+  `MacNativeDesktopAuthorization`, requires a proof that privately matches the
+  exact accepted R1 connection and configured credential generation, snapshots
+  the original authorization/native lifetime only through a protected visitor,
+  and rechecks proof/connection before and after every downstream native borrow.
+- Added eight behavior-named offline CTests in the existing
+  `test_native_desktop_standalone_authorization` executable: stale proof,
+  wrong connection, permission scope, same-permission consent replacement,
+  nested reentry, native session replacement, post-callback authority loss and
+  explicit listener-replacement retirement. No physical macOS lease, TCC,
+  listener, R3 session, capture/input or clipboard is created by these fixtures.
+- R1 `completeCredSspAdmission()` and R3 verified-R2 methods remain private to
+  the Linux broker at this parent. The agreed concrete future friend type is
+  `rdp_server::server::security::MacConsoleAdmissionBroker`; this first round
+  intentionally changes neither private owner.
+- Source/registration review: **PASS by inspection**. Local configure/build/CTest
+  and sanitizers: **NOT RUN** (no approved canonical checkout in this connector
+  environment). Exact-publication-SHA hosted CI: **PENDING**. Physical
+  client/native acceptance: **NOT RUN / unauthorized**.
+
 ## R8 clipboard authority/finalization audit — X11 callback source fence (2026-10-30)
 
 - Authoring parent: `67f11aafb7825bb02e55084bd29415164ac7bccc`; concurrent R4/R5/R7 work is retained.

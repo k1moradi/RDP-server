@@ -1,3 +1,25 @@
+## R2 concrete macOS admission preparation gateway (2026-10-30)
+
+The R2-owned type is
+`rdp_server::server::security::MacConsoleAdmissionBroker`. Its first-round
+lifetime is deliberately **Prepared**, not R1/R3 admitted: it owns one
+`MacNativeDesktopAuthorization`, the exact authenticated-session proof and
+the exact accepted R1 connection identity, but calls no private R1 or R3
+positive method until those friend edges are independently published.
+
+Preparation accepts only a standalone-password proof that privately revalidates
+the exact R1 owner and configured credential generation. It binds view-containing
+permissions through `MacNativeDesktopAuthorization`, then performs a protected
+visit and retains the original authentication generation, credential generation,
+native-authorization generation, owner-consent epoch and macOS
+audit/Security-session evidence as freshness fences. Those scalars never
+reconstruct authority. Every protected native borrow rechecks the exact
+proof/connection before and after the synchronous callback. Nested broker visits
+deny without destroying a still-current outer borrow; any non-nested
+proof/native/consent loss terminally revokes the broker. Listener replacement is
+an explicit terminal revocation input, never a caller-supplied generation that
+can mint access. Linux admission is unchanged.
+
 ## R8 X11 callback-time source retirement fence (2026-10-30)
 
 The X11 native-operation seam is synchronous. Treat `setSelectionOwner`,

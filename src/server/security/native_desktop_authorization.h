@@ -9,8 +9,15 @@
 #include <span>
 #include <string_view>
 
+namespace rdp_server::server::transport
+{
+class OwnedPreauthTcpConnection;
+}
+
 namespace rdp_server::server::security
 {
+
+class MacConsoleAdmissionBroker;
 
 inline constexpr std::uint32_t kNativeDesktopAuthorizationPermissions =
     kConsoleViewPermission | kConsoleInputPermission;
@@ -72,6 +79,24 @@ public:
         std::uint32_t /* userId */) const noexcept
     {
         return false;
+    }
+
+private:
+    friend class MacConsoleAdmissionBroker;
+
+    // R2-private provenance observations for a concrete admission broker.
+    // Generic proofs deny by default: neither a scalar generation nor an
+    // arbitrary R1 object can be promoted to native authority.
+    [[nodiscard]] virtual bool revalidatesOwnedR1Connection(
+        const rdp_server::server::transport::OwnedPreauthTcpConnection
+            & /* connection */) const noexcept
+    {
+        return false;
+    }
+    [[nodiscard]] virtual std::uint64_t configuredCredentialGeneration()
+        const noexcept
+    {
+        return 0U;
     }
 };
 

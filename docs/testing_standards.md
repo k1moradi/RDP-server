@@ -1,3 +1,13 @@
+## R1 OpenSSL 4.1 typed-stack compile regression (2026-10-30)
+
+The existing production-backed
+`runtime.tls-endpoint-san-only-openssl-compatibility` remains the semantic
+regression for R1 endpoint identity. OpenSSL 4.1 qualification must also compile
+the exact production runtime TLS target and that test executable with 4.1
+headers; a green OpenSSL 4.0.x run is not evidence for 4.1 macro/API source
+compatibility. Keep the same offline SAN/CN/wildcard assertions; do not add a
+second identity controller or trust-chain fixture merely to test compilation.
+
 ## R6 Windows App / mstsc paired evidence offline contradiction tests (2026-10-30)
 
 Run the dedicated cross-platform CTest

@@ -1,3 +1,63 @@
+## R1 OpenSSL 4.1 typed-stack macro compile follow-up — 2026-10-30
+
+- Previous R1 publication `e43414099f5451d59538668445fdcf3764e153b3`:
+  Ubuntu, Windows, CLANG64, R9 sanitizers and macOS protocol jobs **PASS**.
+  macOS job `124406000069` resolved OpenSSL **4.0.3**, and the dedicated
+  `runtime.tls-endpoint-san-only-openssl-compatibility` passed in Debug and
+  Release; this does **not** prove 4.1 source compatibility.
+- Current failing descendant `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f`,
+  macOS protocol job `124407094700`: **FAIL at compile**, OpenSSL **4.1.0**,
+  AppleClang 21, first boundary `runtime_tls_context.cpp:317` where
+  `::sk_GENERAL_NAME_value` expands as an OpenSSL typed-stack macro and is
+  invalid after the C++ scope operator. R7's current dependency audit confirms
+  the same R1-owned boundary; R3/R6/R7 production work is not the cause.
+- Correction removes only the `::` prefix from generated
+  `sk_GENERAL_NAME_num/value/push` macro uses in production and the matching
+  test helper. No SAN policy, wildcard/CN behavior, trust-chain verification,
+  TLS version, Type-2 bytes, polling, timeouts, socket/SSL ownership or native
+  admission changes.
+- Local canonical build/focused/full Debug/Release and sanitizers: **NOT RUN**
+  (approved checkout unavailable). Corrective exact-publication-SHA macOS
+  OpenSSL 4.1, Linux, Windows and R9 sanitizer qualification: **PENDING**.
+  Benchmark **NOT RUN / not applicable**. Physical RDP testing remains
+  **NOT RUN / unauthorized**.
+
+## R7 callback-retirement hosted qualification and dependency recheck — 2026-10-30
+
+- Qualified implementation SHA:
+  `34e508105d7f7f9f503d3d29475949269dd370cf`.
+- Primary workflow `41157153368`: macOS native lifecycle
+  `124407093817` **PASS**, including
+  `macos.native-desktop-owner-borrow-callback-retirement` in Debug and
+  Release focused selections (22/22 each); macOS protocol
+  `124407093927` **PASS** with the new regression in ordinary full CTest;
+  macOS portable GUI `124407094074` **PASS**; macOS session sanitizers
+  `124407093868` **PASS**; R9 security/protocol sanitizer
+  `124407093911` **PASS**; macOS/Ubuntu owner GUI parity
+  `124407093974` / `124407093879` **PASS**.
+- R9 GUI Round 2 job `124410451261` **PASS** and emits
+  `GUI ROUND 2 PASS: 34e508105d7f7f9f503d3d29475949269dd370cf`.
+  The self-hosted clean-Windows job is a distinct release-evidence track and
+  remained queued; it is not a prerequisite for this R7 native/macOS fix.
+- Descendant audit head `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f`: R7 macOS native lifecycle, portable GUI,
+  session sanitizers, owner GUI parity and Round 2 remain **PASS**. The
+  descendant macOS protocol job `124407094700` fails at compile time in
+  R1-owned `runtime_tls_context.cpp` with OpenSSL 4.1 expansion of
+  `::sk_GENERAL_NAME_value`; no R7 source participates.
+- QColorSpace attribution remains negative by source/package inspection:
+  no first-party `QColorSpace`, custom Qt primaries, ICC/profile conversion
+  into Qt, application message handler or global warning suppression was found.
+  No R4 pixel change is authorized without runtime provenance.
+- Current macOS HostControl still does not positively call
+  `RuntimePlatformNativeDesktop::attachAuthenticatedSession()`. Native
+  readiness therefore remains impossible from TCP/TLS/Username/
+  CredentialsVerified/GUI Sharing alone. R10/R2 must supply the future genuine
+  accepted-client authenticated/admitted authority; R7 does not duplicate it.
+- Local canonical build, local offscreen/package warning reproduction and
+  physical native desktop: **NOT RUN**. Hosted R7 implementation evidence is
+  complete; live native attachment remains **BLOCKED** on R10/R2 composition,
+  manual R9 exact-SHA candidate qualification and separate owner permission.
+
 ## R6 private two-client A/B validation authoring — 2026-10-30
 
 - Reviewed current main and existing R5 macOS evidence path, MSVC/CLANG64

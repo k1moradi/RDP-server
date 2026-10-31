@@ -1,3 +1,15 @@
+## R1 OpenSSL 4.1 typed-stack macro compile correction (2026-10-30)
+
+Current-head macOS job `124407094700` resolved OpenSSL **4.1.0** and failed
+Debug compilation of `src/server/runtime/runtime_tls_context.cpp` at the
+scope-qualified `::sk_GENERAL_NAME_value` macro expansion. Remove C++ scope
+qualification from the OpenSSL generated `sk_GENERAL_NAME_*` macros in the
+production path and its test helper; retain the existing version gates,
+`-Werror`, SAN-only semantics and one build root. The prior R1 publication
+job `124406000069` used OpenSSL **4.0.3** and passed Debug/Release full CTest,
+including the dedicated endpoint identity test, so it is older-version evidence
+only. Corrective exact-SHA macOS/OpenSSL 4.1 compile/full CTest remains required.
+
 ## R6 private paired A/B evidence build boundary (2026-10-30)
 
 The new validator uses Python 3 standard library and imports the existing

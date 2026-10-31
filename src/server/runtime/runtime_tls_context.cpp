@@ -310,11 +310,11 @@ struct ParsedNumericIpAddress
     if (!names)
         return RuntimeTlsEndpointIdentityStatus::Mismatch;
 
-    const int nameCount = ::sk_GENERAL_NAME_num(names.get());
+    const int nameCount = sk_GENERAL_NAME_num(names.get());
     for (int index = 0; index < nameCount; ++index)
     {
         const GENERAL_NAME *const name =
-            ::sk_GENERAL_NAME_value(names.get(), index);
+            sk_GENERAL_NAME_value(names.get(), index);
         if (name == nullptr)
             continue;
 
@@ -402,7 +402,7 @@ struct ParsedNumericIpAddress
     // GENERAL_NAME owns ipAddress after set0; GENERAL_NAMES owns name after
     // the successful push. The exact numeric endpoint is the only SAN.
     ::GENERAL_NAME_set0_value(name, GEN_IPADD, ipAddress);
-    if (::sk_GENERAL_NAME_push(names.get(), name) == 0)
+    if (sk_GENERAL_NAME_push(names.get(), name) == 0)
     {
         ::GENERAL_NAME_free(name);
         return false;

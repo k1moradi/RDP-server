@@ -1,3 +1,14 @@
+## R3/R10 coalesced Erect after protected R1 TLS reply (2026-10-31)
+
+Ordinary `security.macos-protected-ssl-buffered-erect-after-response`
+uses a real R1 HYBRID TLS client that coalesces first MCS and Erect in one
+record. After exact R1 plaintext accepted-byte receipts complete the original
+R2/R3 Connect-Response, the Erect TPKT remains decrypted in the sole SSL
+without a new socket event. Fresh protected R2 checks admit that Erect,
+then duplicate Erect terminally closes the original R1/R2/R3.
+Synthetic proof/native evidence is fixture mechanics, not physical macOS
+admission. Preserve fixed 171-case MCS table and all sanitizer selections.
+
 ## R7 tray connected-device count requires native/Share-visible projection (2026-10-31)
 
 The system tray must count only peers in the already filtered R7

@@ -1,3 +1,37 @@
+## R3/R10 coalesced buffered Erect TLS-read liveness correction (2026-10-31)
+
+Authored against `9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102`. The newly landed R10 post-Connect-Response
+Erect state called `poll(POLLIN)` even if R1's sole SSL had already decrypted
+the Erect TPKT during the preceding first-MCS read. A minimal production
+condition reuses the same effective-Read-interest `tlsApplicationReadReady()`
+shortcut for both first MCS and Erect. R1 retains sole socket/TLS/plaintext
+read/write ownership; R2 still revalidates original native proof and consent
+before/after every read; R3 remains sole admission-bound protocol/receipt
+owner.
+
+New ordinary production-linked
+`security.macos-protected-ssl-buffered-erect-after-response` CTest uses
+one real R1 HYBRID/TLS client record with Connect-Initial and Erect. The
+concrete macOS R2 broker enters R3, exact one-byte accepted R1 plaintext
+receipts complete the original Connect-Response, and R1 reads the already
+decrypted Erect without a new socket readiness event. Replayed Erect
+terminally closes R1/R2/R3. Synthetic credential/native fixture proof is
+internal mechanics only, **not** real product macOS admission, Share or
+physical client acceptance. No R3 public admission API or fixed sanitizer
+selection changed.
+
+Source/registration and Microsoft MS-RDPBCGR sequence review: PASS by
+inspection. Connector-local canonical build, focused/full CTest and
+sanitizers: **NOT RUN** (approved owner checkout unavailable).
+Exact publication SHA hosted CI: **PENDING**.
+Owner command: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
+`cmake --build build --config Debug --parallel 2`,
+`ctest --test-dir build -C Debug -R '^security[.]macos-protected-ssl-buffered-erect-after-response$' --output-on-failure`,
+then `ctest --test-dir build -C Debug --output-on-failure`.
+Next R10: private Attach User/Confirm through the same serialized loop,
+with complete TPKT intake, accepted-byte receipts and fresh R2 validation.
+Owner-native macOS admission/client **NOT RUN / unauthorized**.
+
 ## R7 tray verified-client count after R10 Erect integration (2026-10-31)
 
 - Authoring parent `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`. The Main activity already gates

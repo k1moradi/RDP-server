@@ -391,8 +391,11 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                 ? Interest::Read : Interest::Write);
         if (interest != Interest::Read && interest != Interest::Write)
             return rejectAdmission();
-        bool ready = readingFirstMcs && interest == Interest::Read &&
-                     connection.tlsApplicationReadReady();
+        // Erect may already be decrypted in the preceding first-MCS TLS
+        // record; a new socket POLLIN is not required after response delivery.
+        const bool ready = (readingFirstMcs || readingErectDomain) &&
+                           interest == Interest::Read &&
+                           connection.tlsApplicationReadReady();
         if (!ready)
         {
             const std::uintptr_t socket = connection.nativeSocket();

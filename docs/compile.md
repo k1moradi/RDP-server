@@ -1,3 +1,13 @@
+## R3/R10 cached Erect readiness correction build boundary (2026-10-31)
+
+The macOS HostControl uses one corrected R1 readiness condition and an
+ordinary production-linked CTest in the existing test_owned_preauth_session
+target. No new library, native dependency, SSL reader, public R3 API or build
+directory. Reuse only `~/rdp-server/build/` and run
+`security.macos-protected-ssl-buffered-erect-after-response`, full Debug
+CTest and existing R9 sanitizer lanes. Connector-local build/CTest NOT RUN;
+exact publication SHA hosted CI PENDING.
+
 ## R7 tray Share/native-ready count offline regression (2026-10-31)
 
 The existing `rdp-server-desktop-ui` and `test_desktop_gui_offline` targets

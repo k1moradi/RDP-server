@@ -1,3 +1,13 @@
+## R3/R10 buffered Erect TLS plaintext readiness (2026-10-31)
+
+A first-MCS R1 SSL read may leave a coalesced Erect TPKT already decrypted
+in SSL_pending. After an exact R3 Connect-Response delivered receipt,
+R10 must use R1's existing `tlsApplicationReadReady()` under effective
+Read interest for Erect as well as Connect-Initial; an extra native POLLIN
+is not required and may never arrive. Retain one SSL/plaintext owner and
+one R3 protocol state owner, plus the original R2 fresh authorization
+checks before/after every protected read.
+
 ## R7 tray client count reuses per-peer confirmed desktop status (2026-10-31)
 
 An R10 Connected product state plus raw accepted client count is not proof

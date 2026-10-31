@@ -1938,6 +1938,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;admission;offline"
                 TIMEOUT 20)
 
+        # One R1 HYBRID TLS record coalesces first MCS and Erect. Check
+        # original R2/R3 response receipts before already-buffered Erect.
+        add_test(NAME security.macos-protected-ssl-buffered-erect-after-response
+            COMMAND "${test_target}"
+                "macos-protected-ssl-buffered-erect-after-response")
+        set_tests_properties(
+            security.macos-protected-ssl-buffered-erect-after-response
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
+                TIMEOUT 20)
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(

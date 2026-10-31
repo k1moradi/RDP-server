@@ -141,6 +141,8 @@ private:
         Admitted,
         ConnectResponseDelivered,
         ErectDomainAccepted,
+        AttachUserAccepted,
+        AttachConfirmDelivered,
     };
 
     const std::thread::id ownerThread_;

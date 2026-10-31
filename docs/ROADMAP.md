@@ -65,9 +65,13 @@ physical macOS native Admission receipt or manual R9 candidate.
   View-only grant replacement. It never creates native Admission.
 - [ ] **Qualification:** new exact commit's hosted macOS protocol/full
   CTest and sanitizers; canonical owner local runs NOT RUN.
-- [ ] **Next R10 increment:** protected Attach User and exact
-  Attach Confirm receipt. No Share/GraphicsReady/desktop/native input
-  until complete R2/R3 activation and independently current Input.
+- [x] **Attach/Confirm authored:** after protected Erect, consume exactly one
+  Attach User TPKT through the same R1 TLS owner and R2 lifetime, then publish
+  the R3 Attach Confirm only from actual R1 accepted-byte reply/slice receipts.
+  Stop at AwaitChannelJoin; this grants no Share/native desktop/input.
+- [ ] **Next R10 increment:** protected Channel Join/Confirm sequence and
+  Client Info. No Share/GraphicsReady/desktop/native input until complete
+  R2/R3 activation and independently current Input.
 - [ ] **Product/manual:** genuine native macOS lease and physical client
   NOT RUN / unauthorized. Agent 9 candidate gate not nominated.
 

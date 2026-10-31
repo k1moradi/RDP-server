@@ -1,3 +1,38 @@
+## R3/R10 macOS Attach User / exact Attach Confirm composition (2026-10-31)
+
+Authoring parent: `fbbbb22b6226598fd9c99517570944ac70d326c3`. Current main has cleared the prior dependencies:
+R10 reaches protected Erect Domain, the original accepted-client View/Input
+scope is pinned, and R2 already exposes protected Attach User plus
+Attach-Confirm prepare/completion wrappers over R3's sole session owner.
+
+The serialized macOS HostControl now consumes exactly one Attach User TPKT
+after Erect through the original R1 SSL/BIO reader, with the same R2
+permission/proof/native/consent revalidation before and after intake. It then
+borrows the R3 Attach Confirm suffix only through R2 and reports only the
+actual positive byte count accepted by R1. WANT_READ/WANT_WRITE never advances
+R3; partial progress re-borrows the exact remaining R3 reply/slice. Complete
+delivery must place R3 in AwaitChannelJoin, where this increment stops.
+
+Dedicated ordinary production-linked
+`security.macos-protected-buffered-attach-confirm-after-erect` uses a real
+loopback R1 HYBRID TLS owner, concrete macOS R2 broker and R3 lifecycle. Erect
+and Attach are coalesced in one client TLS write; after exact Erect intake the
+test requires Attach to remain R1-decrypted plaintext without a second native
+socket event, then retires Attach Confirm using actual one-byte R1 TLS receipts
+and verifies user 1002/AwaitChannelJoin plus owner-revocation teardown.
+Credential/native fixture observations are synthetic internal mechanics and
+**do not** certify a product-valid macOS admission or physical client.
+
+Source/registry review: PASS by inspection. Connector-local canonical build,
+focused/full CTest and sanitizers: **NOT RUN** (no approved owner checkout).
+Exact-publication-SHA hosted CI: **PENDING**. A direct positive
+`MacRuntimeHostControl` execution still requires the genuine default macOS
+native issuer; the test architecture intentionally forbids an injected
+synthetic owner source from constructing that issuer. Do not weaken that
+security boundary merely to make an offline positive test. Next production
+increment: protected Channel Join/Confirm, then Client Info; Share/native
+desktop/client acceptance remain NOT RUN / unauthorized.
+
 ## R7 descendant qualification after tray connected-count correction (2026-10-31)
 
 - R7 production commit `9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102`

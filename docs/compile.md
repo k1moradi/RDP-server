@@ -1,3 +1,17 @@
+## R3/R10 macOS Attach/Confirm composition build boundary (2026-10-31)
+
+The existing `rdp-server-macos-host-control`, R1 transport, R2 broker and R3
+protocol targets are reused. No new library, public protocol API, worker,
+reader, native dependency or build root is introduced. The ordinary
+`security.macos-protected-buffered-attach-confirm-after-erect` CTest is
+registered in the existing `test_owned_preauth_session` executable.
+
+On the sole `~/rdp-server/build/` root run the focused test, then the full
+Debug CTest and applicable existing R9 sanitizer selectors. Connector-local
+configure/build/CTest is **NOT RUN**; exact publication-SHA Linux/macOS/Windows
+hosted compilation/full CTest remains required. Native/physical-client tests
+remain separate and unauthorized here.
+
 ## R4 buffered-Erect fixture DRY follow-up (2026-10-31)
 
 No target, dependency, registry, production source or build-root change.

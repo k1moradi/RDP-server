@@ -1983,6 +1983,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;mcs;admission;offline"
                 TIMEOUT 20)
 
+        # Erect and Attach may share one R1 TLS record. Consume Attach only
+        # after protected Erect, then retire Attach Confirm solely from actual
+        # R1 TLS accepted-byte receipts.
+        add_test(NAME security.macos-protected-buffered-attach-confirm-after-erect
+            COMMAND "${test_target}"
+                "macos-protected-buffered-attach-confirm-after-erect")
+        set_tests_properties(
+            security.macos-protected-buffered-attach-confirm-after-erect
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;admission;offline"
+                TIMEOUT 20)
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(

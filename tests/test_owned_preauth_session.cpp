@@ -8317,6 +8317,152 @@ void testMacProtectedPostMcsSemanticAuditLoss()
      assert(fixture->connection.stage() == PreauthStage::Closed);
  }
 
+
+void testMacProtectedBufferedAttachConfirmAfterErect()
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Receipt = McsConnectResponseWriteOutcome;
+
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+        0x80U, 0x04U, 0x01U, 0x00U, 0x01U, 0x00U};
+    constexpr std::array<std::uint8_t, 8> attach{
+        0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x28U};
+
+    auto fixture = std::make_unique<MacProtectedTransportFixture>();
+    assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+
+    const auto firstMcs = macProtectedHybridConnectInitial();
+    writeNativeTlsClientAll(fixture->tls.client.get(), firstMcs);
+    std::vector<std::uint8_t> receivedFirstMcs(firstMcs.size());
+    readOwnedRuntimeTlsAll(fixture->connection, receivedFirstMcs);
+    assert(receivedFirstMcs == firstMcs);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.authorizeR3McsConnectInitial(
+               *fixture->session, receivedFirstMcs) ==
+           McsSessionIntake::AdmittedConnectInitial);
+
+    auto deliverProtectedReply =
+        [&](auto borrowReply, auto completeReply) {
+            const auto initial = borrowReply();
+            assert(initial && !initial->bytes.empty());
+            const std::size_t replyBytes = initial->bytes.size();
+            const std::uint64_t replySequence = initial->replySequence;
+
+            for (std::size_t accepted = 0U; accepted < replyBytes; ++accepted)
+            {
+                const auto view = borrowReply();
+                assert(view && view->replySequence == replySequence);
+                assert(view->bytes.size() == replyBytes - accepted);
+                const std::size_t acceptedBytes =
+                    writeOneMacProtectedPlaintextByte(*fixture, view->bytes);
+                assert(acceptedBytes == 1U);
+                const auto receipt = completeReply(
+                    view->replySequence, view->writeSliceSequence,
+                    acceptedBytes);
+                assert(receipt == (accepted + 1U == replyBytes
+                                       ? Receipt::Delivered
+                                       : Receipt::Pending));
+            }
+        };
+
+    deliverProtectedReply(
+        [&]() {
+            return fixture->broker.authorizeR3ConnectResponseWrite(
+                *fixture->session);
+        },
+        [&](std::uint64_t replySequence,
+            std::uint64_t writeSliceSequence,
+            std::size_t acceptedBytes) {
+            return fixture->broker.completeR3ConnectResponseWrite(
+                *fixture->session, replySequence, writeSliceSequence,
+                acceptedBytes);
+        });
+    assert(fixture->session->phase() == McsSessionPhase::AwaitErectDomain);
+
+    // After Connect-Response, Microsoft may pipeline Attach immediately behind
+    // Erect. Put both in one client TLS write so R1 must preserve the second
+    // exact TPKT as decrypted plaintext after protected Erect consumption.
+    std::array<std::uint8_t, erect.size() + attach.size()> domainRequests{};
+    std::copy(erect.begin(), erect.end(), domainRequests.begin());
+    std::copy(
+        attach.begin(), attach.end(),
+        domainRequests.begin() + static_cast<std::ptrdiff_t>(erect.size()));
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+    bool sent = false;
+    for (std::size_t attempt = 0U;
+         attempt < 256U && !sent &&
+         std::chrono::steady_clock::now() < deadline;
+         ++attempt)
+    {
+        std::size_t bytes = 0U;
+        const int result = SSL_write_ex(
+            fixture->tls.client.get(), domainRequests.data(),
+            domainRequests.size(), &bytes);
+        if (result == 1)
+        {
+            assert(bytes == domainRequests.size());
+            sent = true;
+            break;
+        }
+        assert(bytes == 0U);
+        const int error = SSL_get_error(fixture->tls.client.get(), result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        assert(waitForLocalSocketReady(
+            fixture->pair.client.value,
+            error == SSL_ERROR_WANT_READ,
+            error == SSL_ERROR_WANT_WRITE,
+            deadline));
+    }
+    assert(sent);
+
+    std::array<std::uint8_t, erect.size()> receivedErect{};
+    readOwnedRuntimeTlsAll(fixture->connection, receivedErect);
+    assert(receivedErect == erect);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.authorizeR3ErectDomain(
+               *fixture->session, receivedErect) ==
+           McsSessionIntake::ErectDomainAccepted);
+    assert(fixture->session->phase() == McsSessionPhase::AwaitAttachUser);
+
+    // No new native-socket event is required for the coalesced Attach TPKT.
+    assert(fixture->connection.ioInterest() == TcpConnectionIoInterest::Read);
+    assert(fixture->connection.tlsApplicationReadReady());
+    std::array<std::uint8_t, attach.size()> receivedAttach{};
+    const auto attachRead =
+        fixture->connection.readTlsApplicationData(receivedAttach);
+    assert(attachRead.outcome == Outcome::Progress);
+    assert(attachRead.bytes == receivedAttach.size());
+    assert(receivedAttach == attach);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.authorizeR3AttachUser(
+               *fixture->session, receivedAttach) ==
+           McsSessionIntake::AttachUserAccepted);
+
+    deliverProtectedReply(
+        [&]() {
+            return fixture->broker.authorizeR3AttachUserConfirmWrite(
+                *fixture->session);
+        },
+        [&](std::uint64_t replySequence,
+            std::uint64_t writeSliceSequence,
+            std::size_t acceptedBytes) {
+            return fixture->broker.completeR3AttachUserConfirmWrite(
+                *fixture->session, replySequence, writeSliceSequence,
+                acceptedBytes);
+        });
+    assert(fixture->session->phase() == McsSessionPhase::AwaitChannelJoin);
+    assert(fixture->session->allocatedUserId() == 1002U);
+
+    fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(!fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
 void testMacProtectedFirstMcsPartialReadStopRetirement()
 {
     using Outcome = TlsApplicationIoOutcome;
@@ -12883,6 +13029,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
     {"macos-protected-ssl-buffered-erect-after-response",
      &testMacProtectedBufferedErectAfterConnectResponse},
+    {"macos-protected-buffered-attach-confirm-after-erect",
+     &testMacProtectedBufferedAttachConfirmAfterErect},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",

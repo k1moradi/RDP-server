@@ -1,3 +1,19 @@
+## R3/R10 macOS Attach User and Attach Confirm ownership (2026-10-31)
+
+After a protected Erect Domain transition, R10 may read exactly one Attach
+User TPKT only through the original R1 TLS owner and only while the original
+R2 admission lifetime remains current. Coalesced Attach plaintext uses R1's
+existing `tlsApplicationReadReady()` under effective Read interest; it does
+not create another framer or socket-read owner. R2 alone invokes R3 Attach.
+
+The server Attach Confirm is R3-owned state. R10 must borrow its current
+suffix through R2, submit that exact span to the sole R1 TLS writer and report
+only R1's positive accepted-byte count with the original reply/slice tuple.
+WANT_READ/WANT_WRITE is zero protocol progress. Partial progress advances only
+R3's write slice. Complete receipt may transition only to AwaitChannelJoin.
+No Attach or confirmation receipt grants Channel Join, Share, native input,
+graphics or clipboard authority.
+
 ## R10 macOS pinned View/Input consent scope and TLS-buffered Erect (2026-10-31)
 
 When accepting the original R1 client, treat the active owner grant

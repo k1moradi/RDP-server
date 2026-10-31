@@ -1,3 +1,22 @@
+## R3/R10 buffered Attach and exact Attach Confirm receipt (2026-10-31)
+
+Register ordinary production-linked
+`security.macos-protected-buffered-attach-confirm-after-erect`. It reuses
+the real loopback R1 HYBRID SSL/BIO owner plus the concrete macOS R2 broker
+and one R3 lifecycle. After delivered Connect-Response, write Erect+Attach in
+one client TLS record, consume exactly Erect, require Attach to remain visible
+through R1's buffered-plaintext readiness, admit it only through R2, then
+deliver Attach Confirm entirely through actual R1 accepted-byte receipts.
+Assert AwaitChannelJoin/user 1002 and terminal owner-consent revocation.
+
+This fixture's proof/native observations are synthetic and therefore cannot
+establish a product-valid native macOS lease. Do not add a synthetic
+HostControl issuer hook: the production runtime intentionally constructs the
+broker only from its genuine default owner/native evidence source. A positive
+HostControl Attach run therefore remains a separate native-environment gate.
+Keep this regression outside the fixed 171-case MCS and fixed sanitizer
+selector inventories unless R9 explicitly enrolls it.
+
 ## R4 review: one bounded TLS-read fixture helper (2026-10-31)
 
 Do not duplicate nonblocking `OwnedPreauthTcpConnection` exact-read loops in

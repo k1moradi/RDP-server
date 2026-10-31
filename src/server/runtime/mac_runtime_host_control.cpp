@@ -226,6 +226,7 @@ struct MacRuntimeCredSspState final
     std::size_t firstMcsBytes{};
     std::size_t firstMcsExpectedBytes{};
     bool connectResponseWriteNeedsRead{};
+    bool attachConfirmWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -371,12 +372,20 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
         const bool readingErectDomain =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::ConnectResponseDelivered;
-        if (!readingFirstMcs && !writingConnectResponse && !readingErectDomain)
+        const bool readingAttachUser =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ErectDomainAccepted;
+        const bool writingAttachConfirm =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::AttachUserAccepted;
+        if (!readingFirstMcs && !writingConnectResponse &&
+            !readingErectDomain && !readingAttachUser &&
+            !writingAttachConfirm)
         {
-            // Attach/Join and later activation remain separate protected
-            // increments. Erect acceptance is the bounded stop for this one.
+            // Channel Join and later activation remain separate protected
+            // increments. Attach Confirm delivery is the bounded stop here.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::ErectDomainAccepted
+                           AcceptedClientAdmissionStage::AttachConfirmDelivered
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
@@ -391,15 +400,19 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
 
         // Existing R1 SSL/BIO owns every application read/write. A WANT_READ
         // during a pending write must poll Read; new writes start on Write.
-        const Interest interest = (readingFirstMcs || readingErectDomain)
+        const bool readingMcsTpkt =
+            readingFirstMcs || readingErectDomain || readingAttachUser;
+        const bool writeNeedsRead = writingConnectResponse
+            ? credSsp.connectResponseWriteNeedsRead
+            : credSsp.attachConfirmWriteNeedsRead;
+        const Interest interest = readingMcsTpkt
             ? connection.ioInterest()
-            : (credSsp.connectResponseWriteNeedsRead
-                ? Interest::Read : Interest::Write);
+            : (writeNeedsRead ? Interest::Read : Interest::Write);
         if (interest != Interest::Read && interest != Interest::Write)
             return rejectAdmission();
-        // Erect may already be decrypted in the preceding first-MCS TLS
-        // record; a new socket POLLIN is not required after response delivery.
-        const bool ready = (readingFirstMcs || readingErectDomain) &&
+        // Erect or Attach may already be decrypted in a preceding TLS record;
+        // a new socket POLLIN is not required once R1 owns buffered plaintext.
+        const bool ready = readingMcsTpkt &&
                            interest == Interest::Read &&
                            connection.tlsApplicationReadReady();
         if (!ready)
@@ -423,7 +436,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
 
         if (!activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
-        if (readingFirstMcs || readingErectDomain)
+        if (readingMcsTpkt)
         {
             // Reuse one accepted-client TPKT buffer. Read only the 4-byte
             // RFC1006 header, then exactly its bounded declared packet length.
@@ -488,55 +501,89 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                 return {RuntimeHostError::None, false};
             }
 
-            const auto erect =
-                activeAdmissionBroker_->authorizeR3ErectDomain(
+            if (readingErectDomain)
+            {
+                const auto erect =
+                    activeAdmissionBroker_->authorizeR3ErectDomain(
+                        session, completeTpkt);
+                if (erect != transport::McsSessionIntake::ErectDomainAccepted ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::ErectDomainAccepted;
+                acceptedClientDiagnostics_.protocolStage =
+                    RuntimeAcceptedClientProtocolStage::McsErectDomainReceived;
+                return {RuntimeHostError::None, false};
+            }
+
+            const auto attach =
+                activeAdmissionBroker_->authorizeR3AttachUser(
                     session, completeTpkt);
-            if (erect != transport::McsSessionIntake::ErectDomainAccepted ||
+            if (attach != transport::McsSessionIntake::AttachUserAccepted ||
                 !activeAdmissionBroker_->revalidate(
                     activeAdmissionPermissionMask_))
                 return rejectAdmission();
             credSsp.firstMcsBytes = 0U;
             credSsp.firstMcsExpectedBytes = 0U;
             activeAdmissionStage_ =
-                AcceptedClientAdmissionStage::ErectDomainAccepted;
+                AcceptedClientAdmissionStage::AttachUserAccepted;
             acceptedClientDiagnostics_.protocolStage =
-                RuntimeAcceptedClientProtocolStage::McsErectDomainReceived;
+                RuntimeAcceptedClientProtocolStage::McsAttachUserReceived;
             return {RuntimeHostError::None, false};
         }
 
-        const auto pending =
-            activeAdmissionBroker_->authorizeR3ConnectResponseWrite(session);
+        const auto pending = writingConnectResponse
+            ? activeAdmissionBroker_->authorizeR3ConnectResponseWrite(session)
+            : activeAdmissionBroker_->authorizeR3AttachUserConfirmWrite(session);
         if (!pending || !*pending)
             return rejectAdmission();
         const auto sent = connection.writeTlsApplicationData(pending->bytes);
         using TlsOutcome = transport::TlsApplicationIoOutcome;
+        bool& currentWriteNeedsRead = writingConnectResponse
+            ? credSsp.connectResponseWriteNeedsRead
+            : credSsp.attachConfirmWriteNeedsRead;
         if (sent.outcome == TlsOutcome::NeedRead ||
             sent.outcome == TlsOutcome::NeedWrite)
         {
-            credSsp.connectResponseWriteNeedsRead =
-                sent.outcome == TlsOutcome::NeedRead;
+            currentWriteNeedsRead = sent.outcome == TlsOutcome::NeedRead;
             return {RuntimeHostError::None, true};
         }
         if (sent.outcome != TlsOutcome::Progress || sent.bytes == 0U ||
             sent.bytes > pending->bytes.size() ||
             !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
-        credSsp.connectResponseWriteNeedsRead = false;
-        const auto receipt =
-            activeAdmissionBroker_->completeR3ConnectResponseWrite(
-                session, pending->replySequence, pending->writeSliceSequence,
-                sent.bytes);
+        currentWriteNeedsRead = false;
+        const auto receipt = writingConnectResponse
+            ? activeAdmissionBroker_->completeR3ConnectResponseWrite(
+                  session, pending->replySequence, pending->writeSliceSequence,
+                  sent.bytes)
+            : activeAdmissionBroker_->completeR3AttachUserConfirmWrite(
+                  session, pending->replySequence, pending->writeSliceSequence,
+                  sent.bytes);
         if (receipt == transport::McsConnectResponseWriteOutcome::Rejected ||
             !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
         if (receipt == transport::McsConnectResponseWriteOutcome::Delivered)
         {
-            if (session.phase() != transport::McsSessionPhase::AwaitErectDomain)
-                return rejectAdmission();
-            activeAdmissionStage_ =
-                AcceptedClientAdmissionStage::ConnectResponseDelivered;
-            acceptedClientDiagnostics_.protocolStage =
-                RuntimeAcceptedClientProtocolStage::McsConnectResponseSent;
+            if (writingConnectResponse)
+            {
+                if (session.phase() != transport::McsSessionPhase::AwaitErectDomain)
+                    return rejectAdmission();
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::ConnectResponseDelivered;
+                acceptedClientDiagnostics_.protocolStage =
+                    RuntimeAcceptedClientProtocolStage::McsConnectResponseSent;
+            }
+            else
+            {
+                if (session.phase() != transport::McsSessionPhase::AwaitChannelJoin)
+                    return rejectAdmission();
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::AttachConfirmDelivered;
+            }
         }
         return {RuntimeHostError::None, false};
     }

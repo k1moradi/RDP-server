@@ -135,6 +135,9 @@ def profile_class_signature(header: bytes, total_length: int | None = None) -> s
         return "unavailable"
     declared_size = int.from_bytes(header[0:4], byteorder="big", signed=False)
     available = len(header) if total_length is None else total_length
+    # Do not report an ICC device class for a plausible but non-ICC header.
+    if header[36:40] != b"acsp":
+        return "invalid"
     if (
         declared_size < MAX_PROFILE_HEADER_BYTES or
         declared_size > available or
@@ -221,7 +224,13 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
         "platform_plugin_observed": "no",
     }
     for line in text.splitlines():
-        if "libqcocoa.dylib" in line:
+        # A loader lookup/error is not proof that the Cocoa plugin loaded.
+        normalized_line = line.lower()
+        if (
+            "libqcocoa.dylib" in normalized_line
+            and "loaded library" in normalized_line
+            and "cannot load" not in normalized_line
+        ):
             result["platform_plugin_observed"] = "yes"
         if WARNING_SIGNATURE not in line or result["warning"] == "REPRODUCED":
             continue
@@ -232,9 +241,12 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
             result["warning_category"] = _safe_token(fields[2])
             source = fields[3].strip()
             if source:
-                result["warning_source"] = _safe_token(Path(source).name)
+                # Redact Windows as well as POSIX path separators.
+                source_basename = source.replace("\\", "/").rsplit("/", 1)[-1]
+                result["warning_source"] = _safe_token(source_basename)
             line_number = fields[4].strip()
-            if line_number.isdigit():
+            if (line_number.isascii() and line_number.isdecimal()
+                    and len(line_number) <= 8):
                 result["warning_line"] = line_number
     return result
 

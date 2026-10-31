@@ -356,18 +356,30 @@ future proven first-party path needs validation/fallback and one dedicated
 production-backed offline CTest; a proven Qt/platform path needs exact
 version/plugin/profile provenance and safe operator guidance.
 
-**R7 current blocker update (2026-10-31):** R2 preparation, the
-R3 private macOS MCS gateway and R10 completed synthetic CredSSP are now
-present. The missing positive macOS R10/R2 admission-to-R3/Share/GraphicsReady
-attachment remains an external dependency; R7 must deny capture/input until
-that authority exists. Separately, the R7 provenance-parser CTest had an
-empty executable because it was registered before Python3 discovery. Full
-Debug CTest on ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`
-reached 801 macOS and 1023 Ubuntu cases, with only that registration NOT RUN.
-R7 has moved its registration below the existing `find_package(Python3)`
-and added an empty-interpreter configure denial. Corrective exact-SHA hosted
-CTest is **PENDING**. The owner's QColorSpace warning remains unattributed,
-and an owner-only no-Sharing Cocoa run is still **NOT RUN**.
+**R7 exact-head registry qualification (2026-10-31):** At
+`0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`, primary Actions
+`41179872107` has full Debug Ubuntu **1024/1024 PASS**, macOS
+**802/802 PASS**, and Windows **848/848 PASS**, including the repaired
+`macos.gui-qcolor-provenance-parser-and-redaction` CTest in both Debug
+and Release on all three platforms. R7 macOS native lifecycle is
+**22/22 PASS** in Debug/Release, including the original FrameMailbox
+callback-retirement test; portable GUI, session sanitizers, GUI parity
+and independent structure `41179872115` **PASS**. The one existing
+Python interpreter discovery now precedes CTest registration and its
+empty-interpreter configure denial remains source-verified, without a
+separate injected negative configuration run.
+
+The next R7 change is diagnostic-only: reject non-ICC headers without
+the mandatory `acsp` signature, reject unsuccessful Cocoa-plugin
+mentions as load evidence, and bound/redact Windows-style Qt source
+paths and oversized line numbers. Existing ordinary offline CTest
+gets malformed-ICC and redaction cases; its new publication-SHA hosted
+CI is **PENDING**. The owner's repeated QColorSpace warning **remains
+unattributed** without an owner-opt-in no-Sharing Cocoa run/stack.
+R2 preparation, private macOS R3 protocol entry and synthetic R10
+CredSSP do not authorize native Admission, Share, capture or input.
+The positive R10/R2-to-R3/Share/GraphicsReady attachment is still
+**BLOCKED** on independent authorization and owner evidence.
 
 **R7 provenance artifact update:** current source audit still finds no
 first-party Qt QColorSpace/QImage/QPixmap conversion path. The opt-in

@@ -4458,6 +4458,40 @@ chromaticity coordinates, display ID, username, native session identity or raw
 plugin/profile paths. Source file/line may be unavailable in a release Qt build;
 that is an attribution limitation, not Qt/platform exoneration.
 
+For the repeated four-point owner warning, record the bounded fields from
+separate no-Sharing launches of the **same exact packaged SHA**, never the
+chromaticity coordinates. Run the existing offline tests from the single build:
+`ctest --test-dir build -C Debug -R '^(macos[.]gui-qcolor-provenance-parser-and-redaction|gui[.]offscreen-qcolor-valid-and-malformed-metadata|gui[.]round2-qcolor-warning-classification)$' --output-on-failure`.
+Only on the owner's macOS login session, then run
+`python3 scripts/diagnose_macos_qcolor_provenance.py --app <extracted-app>`
+with no credentials or Sharing action. Never redirect private Qt stderr to a
+shared log. Qt's `%{file}`/`%{line}` point to the warning **emitter**, not
+necessarily the originating caller.
+
+Distinguish four hypotheses using evidence rather than the warning alone:
+- **Qt platform plugin:** only a *successful* Cocoa loader line establishes
+  that `libqcocoa.dylib` loaded; a failed lookup is not enough. A matching
+  owner-private warning-site stack is needed to attribute a Qt/QCocoa caller.
+- **OS/display ICC profile:** display model and valid ICC device class are
+  coarse context, not proof of a profile's culpability. Inspect the active
+  ICC profile only on the owner's machine; do not export its name, full path,
+  bytes, chromaticities or monitor identity, or mutate the profile.
+- **First-party image conversion:** require an exact reachable production call
+  site and matching stack, not the synthetic offscreen constructor. Do not
+  alter R4/BGRA/native capture without first-party evidence.
+- **Packaged Qt version/dependency mismatch:** compare bundled QtCore/QtGui
+  version metadata with the actually loaded QtGui/Cocoa modules and package
+  dependency closure. Preserve private module paths only locally. A version
+  difference or failed load is a lead, not attribution of invalid primaries.
+
+Reject ICC headers whose declared size is truncated/out of bounds or whose
+mandatory `acsp` signature is missing before reporting a class. Keep source
+basename and decimal line bounded, including Windows-style separators and
+untrusted Qt messages. A missing warning-site location, truncated output or
+unavailable TCP listener audit cannot establish a clean Cocoa provenance
+result. Do not globally suppress warnings, install/change display profiles,
+request TCC, capture pixels or launch a physical client.
+
 Keep `macos.gui-qcolor-provenance-parser-and-redaction` as the ordinary
 cross-platform offline regression for the artifact's bounded ICC-header parser,
 environment isolation and path/primary redaction. Keep

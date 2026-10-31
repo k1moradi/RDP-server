@@ -33,10 +33,30 @@ the CTest executable field was empty because R7 registered the test before
 `find_package(Python3 REQUIRED COMPONENTS Interpreter)`.
 The same test is now registered after existing Python discovery, with a
 configure-time denial for an empty interpreter. No native/Qt/R4 change.
-Exact corrective-SHA compiler/focused/full CTest: **PENDING**. Owner
-no-Sharing Cocoa warning caller: **UNATTRIBUTED / NOT RUN**. R2 private
-admission, R3 MCS gateway and R10 synthetic CredSSP exist, but no positive
-R10-assembled R2->R3->Share/GraphicsReady native attach exists yet.
+**Exact-head qualification:** `0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`,
+Actions `41179872107`, hosted full Ubuntu Debug **1024/1024 PASS**,
+macOS Debug **802/802 PASS**, Windows Debug **848/848 PASS**. The repaired
+`macos.gui-qcolor-provenance-parser-and-redaction` CTest individually
+**PASSes Debug and Release on all three** (Ubuntu #165, macOS #118,
+Windows #119). The macOS portable GUI selection also PASSes
+`gui.offscreen-qcolor-valid-and-malformed-metadata`. R7 macOS native
+lifecycle **22/22 Debug and Release PASS**, including the existing
+`macos.native-desktop-owner-borrow-callback-retirement`; macOS portable
+GUI, R7 sanitizers, GUI parity and separate structure `41179872115`
+**PASS**. Empty-interpreter configure denial is source-verified; its
+missing-interpreter negative configuration was not separately injected.
+The optional clean-Windows packaged job remained queued at inspection and
+is not counted as PASS.
+
+**Diagnostic-only next increment:** the original offline Python fixture
+gains invalid ICC `acsp` signature, length/truncation, false Cocoa-plugin
+lookup and Windows-path/oversized-line redaction denials. No Qt production
+conversion, native capture/input, CMake registry or listener changes.
+New publication-SHA CTest/hosted CI: **PENDING**; local canonical
+build/CTest **NOT RUN**. The owner's packaged no-Sharing Cocoa warning
+caller is **UNATTRIBUTED / NOT RUN**. R2 prepared authorization, private
+R3 entry and synthetic R10 CredSSP still do not constitute positive
+R10-assembled native Admission/Share/GraphicsReady attachment.
 
 ## R1 macOS concrete private access and prepared-only denial (2026-10-31)
 

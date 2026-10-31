@@ -30,6 +30,7 @@ class MacQColorProvenanceTests(unittest.TestCase):
         header = bytearray(128)
         header[0:4] = (128).to_bytes(4, byteorder="big")
         header[12:16] = b"mntr"
+        header[36:40] = b"acsp"
         self.assertEqual(probe.profile_class_signature(bytes(header)), "mntr")
 
         header[12:16] = b"evil"
@@ -40,6 +41,20 @@ class MacQColorProvenanceTests(unittest.TestCase):
         header[0:4] = (4096).to_bytes(4, byteorder="big")
         self.assertEqual(
             probe.profile_class_signature(bytes(header), 128), "invalid")
+
+        # Reject malformed ICC magic, undersized and oversized profiles,
+        # and a header claiming more bytes than the caller actually has.
+        header[0:4] = (128).to_bytes(4, byteorder="big")
+        header[36:40] = b"NOPE"
+        self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
+        header[36:40] = b"acsp"
+        header[0:4] = (127).to_bytes(4, byteorder="big")
+        self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
+        header[0:4] = (probe.MAX_ICC_PROFILE_BYTES + 1).to_bytes(
+            4, byteorder="big")
+        self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
+        header[0:4] = (128).to_bytes(4, byteorder="big")
+        self.assertEqual(probe.profile_class_signature(bytes(header), 127), "invalid")
 
     def test_qt_warning_summary_drops_paths_and_chromaticity_values(self):
         raw = (
@@ -77,6 +92,30 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertNotIn("0.1", summary)
         self.assertIn("warning-source=qcolorspace.cpp:765", summary)
         self.assertIn("warning-caller=UNATTRIBUTED", summary)
+
+    def test_failed_cocoa_plugin_lookup_is_not_loaded_provenance(self):
+        diagnostics = (
+            'qt.core.plugin: Cannot load library '
+            '"/Users/private-owner/libqcocoa.dylib"\n'
+            'qt.core.plugin: checking directory "/Users/private-owner/platforms"\n'
+        )
+        self.assertEqual(
+            probe.parse_qt_diagnostics(diagnostics)["platform_plugin_observed"],
+            "no")
+
+    def test_windows_path_and_oversized_warning_line_are_redacted(self):
+        diagnostic = (
+            'RDP_QCOLOR|warning|qt.gui.icc|'
+            r'C:\Users\private-owner\qcolorspace.cpp'
+            '|12345678901234567890|'
+            'QColorSpace attempted constructed from invalid primaries\n'
+        )
+        result = probe.parse_qt_diagnostics(diagnostic)
+        self.assertEqual(result["warning"], "REPRODUCED")
+        self.assertEqual(result["warning_source"], "qcolorspace.cpp")
+        self.assertEqual(result["warning_line"], "unavailable")
+        self.assertNotIn("private-owner", str(result))
+        self.assertNotIn("12345678901234567890", str(result))
 
     def test_diagnostic_environment_removes_external_qt_and_dyld_overrides(self):
         environment = probe.diagnostic_environment({

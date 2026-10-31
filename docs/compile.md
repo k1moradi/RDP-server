@@ -4,8 +4,14 @@ The existing `find_package(Python3 REQUIRED COMPONENTS Interpreter)` now
 precedes the offline parser CTest registration, with an empty-interpreter
 configuration denial. No additional package or binary target is added.
 Full Debug CTest on ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`
-failed solely through this empty command on hosted macOS and Ubuntu. Corrective
-hosted compile/focused/full CTest: **PENDING**. Focused verification:
+failed solely through this empty command on hosted macOS and Ubuntu. Corrective exact head `0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`,
+Actions `41179872107`: Ubuntu Debug 1024/1024, macOS Debug 802/802,
+Windows Debug 848/848 **PASS**; the repaired provenance CTest is individually
+PASS in Debug/Release on each host. The empty-interpreter configure-time
+denial is present by inspection but was not separately injection-tested.
+The diagnostic-only parser/fixture follow-up introduces no binary target,
+dependency or new CMake test registration; its publication-SHA CI is pending.
+Focused verification:
 `ctest --test-dir build -C Debug -R '^macos[.]gui-qcolor-provenance-parser-and-redaction$' --output-on-failure`.
 
 ## R1 macOS concrete admission friend access (2026-10-31)

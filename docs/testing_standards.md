@@ -1,3 +1,17 @@
+## R4 review: one bounded TLS-read fixture helper (2026-10-31)
+
+Do not duplicate nonblocking `OwnedPreauthTcpConnection` exact-read loops in
+individual TLS fixtures. Reuse `readOwnedRuntimeTlsAll()`, which already
+preserves pending read size, accepts positive partial progress, follows R1
+WANT direction through bounded `pollSocketOnce()`, and fails on any other
+outcome. A coalesced-Erect test must keep its distinct
+`tlsApplicationReadReady()` assertion after first MCS and Connect-Response;
+using the shared helper for initial delivery must not weaken that buffered
+plaintext requirement.
+
+Parent `586e043d67ff2bd5869356412f05cc2a3697d96e`; source-only DRY correction, local CTest **NOT RUN**,
+exact publication-SHA CI **PENDING**.
+
 ## macOS coalesced-Erect nonblocking fixture readiness (2026-10-31)
 
 A client-side successful `SSL_write_ex` proves that the client TLS owner

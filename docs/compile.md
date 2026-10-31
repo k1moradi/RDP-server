@@ -1,3 +1,14 @@
+## R4 buffered-Erect fixture DRY follow-up (2026-10-31)
+
+No target, dependency, registry, production source or build-root change.
+The existing coalesced-Erect CTest now calls the already-compiled
+`readOwnedRuntimeTlsAll()` helper instead of carrying a second local
+read/poll loop. Reuse the canonical `~/rdp-server/build/` and run the focused
+Debug/Release
+`security.macos-protected-ssl-buffered-erect-after-response` case followed
+by full CTest. Authoring parent `586e043d67ff2bd5869356412f05cc2a3697d96e`; local execution
+**NOT RUN**, publication-SHA hosted CI **PENDING**.
+
 ## R10 macOS original owner permission-scope and Erect readiness correction (2026-10-31)
 
 The existing `rdp-server-macos-host-control` source and test executable

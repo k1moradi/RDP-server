@@ -1,3 +1,22 @@
+## R4 buffered-Erect dependency review — duplicate fixture loop removed (2026-10-31)
+
+Parent `586e043d67ff2bd5869356412f05cc2a3697d96e` already resolves the macOS Release fixture race by
+waiting for initial R1 TLS readiness. R4 review found only one maintainability
+issue in that correction: it duplicated the existing bounded exact-read helper
+inside the test.
+
+- [x] Reuse `readOwnedRuntimeTlsAll()` for initial Connect-Initial header/body.
+- [x] Preserve the post-Connect-Response `tlsApplicationReadReady()` Erect
+  assertion; no production TLS or protocol behavior changes.
+- [ ] Exact correction-SHA hosted Debug/Release/full CTest and unchanged
+  sanitizer qualification; owner-local run remains NOT RUN.
+- [ ] R10 still stops at ErectDomainAccepted. Attach User/Confirm, Join,
+  Client Info, licensing and Share remain upstream of macOS R4 frame work.
+- [ ] The macOS desktop owner still requires a durable borrow of the original
+  R2-owned `MacNativeDesktopAuthorization`; creating a second authorization
+  owner is not an acceptable workaround.
+- [ ] Physical macOS client/capture/input remains NOT RUN / unauthorized.
+
 ## R2/R3 macOS coalesced-Erect fixture readiness correction (2026-10-31)
 
 **Parent:** `3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`. Exact-head Actions `41221183682` showed the new

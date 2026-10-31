@@ -1,3 +1,23 @@
+## R4 review: reuse canonical bounded TLS fixture reader (2026-10-31)
+
+**Authoring parent:** `586e043d67ff2bd5869356412f05cc2a3697d96e`. The concurrent R2/R3 correction for
+the macOS coalesced-Erect Release race is correct, but it introduced a local
+39-line exact-read lambda that duplicates the existing
+`readOwnedRuntimeTlsAll()` helper in the same translation unit. R4 review
+collapses that duplicate to the canonical bounded helper. Behavior is
+unchanged: initial Connect-Initial delivery may drive the sole R1
+`OwnedPreauthTcpConnection::pollSocketOnce()` path on WANT, while the later
+post-Connect-Response `tlsApplicationReadReady()` assertion still proves the
+coalesced Erect requires no second native POLLIN.
+
+No production source, CTest registration, timeout, TLS policy, R2/R3/R4 owner
+or native permission changes. Connector-local configure/build/CTest:
+**NOT RUN**. Parent publication CI was **IN PROGRESS** at review; this
+correction's exact-SHA CI is **PENDING**. Next runtime dependency remains R10
+Attach User/Confirm, followed by Join/Client Info/licensing/Share before R4
+macOS first-frame integration. Physical client/capture/input remains
+**NOT RUN / unauthorized**.
+
 ## macOS coalesced-Erect Release fixture race correction (2026-10-31)
 
 Reviewed exact head `3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9` and Actions `41221183682`.

@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import plistlib
 import tempfile
+import sys
 import unittest
 
 parser = argparse.ArgumentParser()
@@ -15,6 +16,12 @@ args, remaining = parser.parse_known_args()
 spec = importlib.util.spec_from_file_location("macos_windows_app_owner_evidence", args.script)
 evidence = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(evidence)
+
+# Reuse the existing R5 fixture; only the paired validator is new.
+sys.path.insert(0, str(args.script.parent))
+paired_spec = importlib.util.spec_from_file_location("windows_client_ab_evidence", args.script.with_name("windows_client_ab_evidence.py"))
+ab_evidence = importlib.util.module_from_spec(paired_spec)
+paired_spec.loader.exec_module(ab_evidence)
 
 
 class OwnerEvidenceTests(unittest.TestCase):
@@ -413,6 +420,158 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertNotIn("rdp-owner", json.dumps(summary))
         self.assertNotIn("192.0.2.10", json.dumps(summary))
 
+
+    def _paired_record(self, manifest):
+        # Fictitious offline comparison, never a physical admission claim.
+        return {
+            "schema": "rdp-server.windows-client-ab-pair.v1",
+            "macos": {
+                "server_tls_configuration_profile": "same-server-default-tls",
+                "credential_source_claim": "explicit-saved-selected",
+                "deliberately_reentered": False,
+                "server_transport_observation": {
+                    "peer_fin_observed": True,
+                    "tls_alert_observed": False,
+                    "terminal_attribution": "peer-fin",
+                },
+                "native_admission": "NOT_REACHED",
+                "client_type3_claimed": None,
+            },
+            "windows": {
+                "server_sha": manifest["server_sha"],
+                "server_certificate_sha256": manifest["server_certificate_sha256"],
+                "destination_exact": manifest["destination_exact"],
+                "server_tls_configuration_profile": "same-server-default-tls",
+                "windows_11_build": "22631.4317",
+                "mstsc_file_version": "10.0.22621.1",
+                "attempt_time_utc": "2026-10-27T12:32:00+00:00",
+                "credential": {
+                    "source": "explicitly-entered",
+                    "deliberately_reentered": True,
+                    "username_exact": manifest["saved_credential"]["username_exact"],
+                    "session_password_intentionally_matched": True,
+                },
+                "certificate_warning": {"appeared": True, "accepted": "yes"},
+                "first_client_error": {
+                    "normalized_category": "unknown",
+                    "source": "windows-ui",
+                    "provider_category_exact": None,
+                    "provider_code_exact": None,
+                    "event_time_utc": None,
+                },
+                "client_visible_result": "0x204",
+                "linux_correlation": {
+                    "connection_id": "connection-43",
+                    "terminal_time_utc": "2026-10-27T12:32:07+00:00",
+                },
+                "server_stage_matrix": manifest["server_stage_matrix"].copy(),
+                "server_transport_observation": {
+                    "peer_fin_observed": True,
+                    "tls_alert_observed": False,
+                    "terminal_attribution": "peer-fin",
+                },
+                "native_admission": "NOT_REACHED",
+                "client_type3_claimed": None,
+            },
+        }
+
+    def test_paired_valid_redacts_credentials_and_attempt_ids(self):
+        manifest = evidence.build_manifest(self.options)
+        summary = ab_evidence.validate_pair(manifest, self._paired_record(manifest))
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertEqual(summary["comparison"], "NEITHER_TYPE3_RECEIVED")
+        for private_value in ("rdp-owner", "192.0.2.10", "connection-43", "0x204"):
+            self.assertNotIn(private_value, json.dumps(summary))
+
+    def test_paired_type3_without_post_type2_bytes_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_stage_matrix"]["type3_received"] = "PASS"
+        self.assertIn("WINDOWS_TYPE3_WITHOUT_POST_TYPE2_BYTES",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
+
+    def test_paired_client_type3_claim_without_bytes_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["client_type3_claimed"] = True
+        self.assertIn("WINDOWS_CLIENT_TYPE3_UNCORROBORATED",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
+
+    def test_paired_verified_without_authinfo_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_stage_matrix"].update(
+            post_type2_client_bytes=128, type3_received="PASS",
+            credentials_verified="PASS")
+        self.assertIn("WINDOWS_STAGE_ORDER_CONTRADICTORY",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
+
+    def test_paired_native_admission_before_verified_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["native_admission"] = "PASS"
+        self.assertIn("WINDOWS_NATIVE_BEFORE_CREDENTIALS_VERIFIED",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
+
+    def test_paired_server_sha_endpoint_certificate_profile_controls(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_sha"] = "c" * 40
+        pair["windows"]["destination_exact"] = "192.0.2.99"
+        pair["windows"]["server_certificate_sha256"] = "d" * 64
+        pair["windows"]["server_tls_configuration_profile"] = "different"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        for code in ("AB_SERVER_SHA_MISMATCH", "AB_DESTINATION_MISMATCH",
+                     "AB_CERTIFICATE_FINGERPRINT_MISMATCH", "AB_SERVER_PROFILE_MISMATCH"):
+            self.assertIn(code, failures)
+
+    def test_paired_saved_credential_pretending_reentry_is_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["macos"]["deliberately_reentered"] = True
+        pair["windows"]["credential"]["source"] = "saved-or-default"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("MACOS_SAVED_PRESENTED_AS_REENTERED", failures)
+        self.assertIn("WINDOWS_INVALID_CREDENTIAL_CONTROL", failures)
+
+    def test_paired_fin_cannot_be_unobserved_tls_alert(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_transport_observation"]["terminal_attribution"] = "tls-alert"
+        self.assertIn("WINDOWS_TLS_ALERT_NOT_OBSERVED",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
+
+    def test_paired_attempt_correlation_and_order_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["attempt_time_utc"] = "2026-10-27T12:29:00+00:00"
+        pair["windows"]["linux_correlation"]["terminal_time_utc"] = "2026-10-27T13:00:00+00:00"
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        self.assertIn("AB_ATTEMPT_ORDER_INVALID", failures)
+        self.assertIn("WINDOWS_ATTEMPT_CORRELATION_MISMATCH", failures)
+
+    def test_paired_windows_only_type3_stops_before_authinfo(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["server_stage_matrix"].update(
+            type3_received="PASS", post_type2_client_bytes=64)
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "PASS")
+        self.assertEqual(summary["comparison"], "WINDOWS_ONLY_TYPE3_RECEIVED")
+
+    def test_paired_unapproved_private_secret_field_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["credential"]["password"] = "do-not-collect"
+        with self.assertRaises(ValueError):
+            ab_evidence.validate_pair(manifest, pair)
+
+    def test_paired_typed_client_error_requires_provider(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        pair["windows"]["first_client_error"]["normalized_category"] = "trust"
+        self.assertIn("WINDOWS_FIRST_ERROR_UNGROUNDED",
+                      ab_evidence.validate_pair(manifest, pair)["evidence_failures"])
 
 if __name__ == "__main__":
     unittest.main(argv=["owner-evidence-tests", *remaining])

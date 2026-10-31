@@ -1,3 +1,15 @@
+## R6 paired physical Windows client evidence is non-authorizing (2026-10-30)
+
+Preserve the single R5 macOS owner-evidence collector and its private
+schema-v2 manifest. Consume it read-only; accept a separate closed-schema
+Windows mstsc record and only the macOS facts missing from R5. Require
+independent stage facts, credential source and intention to re-enter
+rather than inferring them from an EOF or generic UI error. Reject
+unapproved authentication fields and emit only allowlisted redacted
+diagnostics. No raw credentials, NTLM bytes, tokens, logs, endpoint,
+exact UI text or connection identifiers enter shared summaries.
+Neither A/B success nor hosted SSPI success grants native Admission.
+
 ## R7 borrowed macOS framebuffer callbacks may revoke their native owner (2026-10-30)
 
 The macOS FrameMailbox must never invoke its R4 frame consumer while holding

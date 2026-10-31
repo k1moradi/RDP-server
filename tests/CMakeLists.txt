@@ -1295,6 +1295,15 @@ add_test(NAME macos.windows-app-owner-evidence-timing-subset-denials
 set_tests_properties(macos.windows-app-owner-evidence-timing-subset-denials PROPERTIES
     LABELS "macos;offline;project-policy;evidence" TIMEOUT 15)
 
+# R6 privacy-safe paired Microsoft client evidence; no client launch.
+add_test(NAME interop.windows-client-ab-evidence-contradiction-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_)
+set_tests_properties(interop.windows-client-ab-evidence-contradiction-denials PROPERTIES
+    LABELS "windows;macos;interop;offline;security;evidence" TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

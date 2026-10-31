@@ -1,3 +1,11 @@
+## R6 private paired A/B evidence build boundary (2026-10-30)
+
+The new validator uses Python 3 standard library and imports the existing
+R5 macOS evidence module. It has one dedicated behavior-named offline
+CTest under the already discovered Python3 interpreter. No C++ build
+target, dependency, native API, privilege or extra build root is added.
+Canonical full CTest on the publication SHA remains pending.
+
 ## R3 offline post-Connect-Response ordering test (2026-10-30)
 
 `transport.mcs-session-post-response-domain-ordering-denials` reuses

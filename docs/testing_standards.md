@@ -1,3 +1,18 @@
+## R6 Windows App / mstsc paired evidence offline contradiction tests (2026-10-30)
+
+Run the dedicated cross-platform CTest
+interop.windows-client-ab-evidence-contradiction-denials, which reuses the
+existing synthetic R5 schema-v2 macOS manifest fixture and validates a
+private Windows 11 mstsc row. The closed-schema validator rejects
+unapproved fields, mismatched SHA/IP/certificate/TLS profile,
+saved-versus-reentered contradiction, Type3 without post-Type-2
+server bytes, a client Type3 claim without server observation,
+CredentialsVerified without authInfo, native Admission before verified
+credentials, a TLS alert explanation when none was observed, stale
+attempt time, and ungrounded typed first-client failure. An accepted
+synthetic pair cannot authorize R2 admission. Never run physical
+Windows App/mstsc, capture or SendInput from ordinary CTest.
+
 ## R7 macOS framebuffer callback-time native retirement (2026-10-30)
 
 The Apple-only ordinary CTest

@@ -1,3 +1,25 @@
+## R6 private two-client A/B validation authoring — 2026-10-30
+
+- Reviewed current main and existing R5 macOS evidence path, MSVC/CLANG64
+  SSPI oracle, and WTS/DXGI/SendInput offline negative suites. Existing
+  recorded Windows receipts: delegated positive reaches production
+  CredentialsVerified=yes, authInfo failure=none, empty fields=none,
+  native admission=no, bad binding denied before authInfo and malformed
+  required-AV controls negative. New-head Windows exact-SHA qualification
+  remains PENDING/NOT RUN; prior receipts are not new-sha proof.
+- Added closed-schema read-only scripts/windows_client_ab_evidence.py,
+  12 paired evidence cases on the existing R5 synthetic fixture and the
+  dedicated offline CTest
+  interop.windows-client-ab-evidence-contradiction-denials.
+- New-script Python py_compile PASS; seven local synthetic logic checks
+  using a stub R5 provider PASS (not full integrated tests). Full CTest,
+  Linux/macOS/Windows exact-head jobs and live A/B NOT RUN in this
+  connector-only environment.
+- No protocol Type-2/TLS, Windows WTS/DXGI/SendInput production code,
+  OS credential stores, desktop capture or injection changed.
+  Next: run full CTest and Windows exact-head oracles, reconcile R9
+  candidate and obtain separately authorized private A/B physical proof.
+
 ## R7 macOS frame borrow reentrant owner retirement (2026-10-30)
 
 - Authoring parent: `033061f53cc715368d92eb27ee9cb4d14742caf9`.

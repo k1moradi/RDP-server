@@ -3759,6 +3759,7 @@ if(APPLE)
     foreach(case_name IN ITEMS
             fail-closed-construction
             frame-input-lifecycle
+            borrow-callback-retirement
             input-permission-retirement
             standalone-authenticated-session-lifecycle
             display-session-retirement)

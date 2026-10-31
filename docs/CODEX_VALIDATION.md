@@ -1,3 +1,30 @@
+## R7 macOS frame borrow reentrant owner retirement (2026-10-30)
+
+- Authoring parent: `033061f53cc715368d92eb27ee9cb4d14742caf9`.
+- Source defect: the R4 borrowed-frame callback ran under
+  `FrameMailbox::mutex_`; synchronous owner revoke attempts the same mutex
+  during native retirement. The mailbox now releases the mutex across consumer
+  invocation, holds its arena until any in-flight borrow completes, discards
+  concurrent capture writes and fences a retired generation to denial.
+  `borrowAuthorized()` locally pins the shared mailbox across revocation.
+- New Apple-only offline CTest:
+  `macos.native-desktop-owner-borrow-callback-retirement`, registered in
+  ordinary CTest and both Debug/Release focused macOS lifecycle CI selects;
+  checks original frame bytes remain accessible after callback-time revoke,
+  denied publication, one-time capture/watch retirement and no input post.
+- QColorSpace remains unattributed: no project `QColorSpace`, Qt custom
+  primaries/ICC conversions or warning suppression in inspected GUI/macOS
+  sources/assets; existing CMake policy checks all first-party source.
+  No offscreen/package reproduction here (Qt6/macOS checkout unavailable).
+- Source/CTest/CI review: **PASS by inspection**. Local canonical
+  Debug/Release, offscreen/package, ASan/UBSan, and native execution:
+  **NOT RUN**. Exact-publication-SHA hosted macOS and owner GUI evidence:
+  **PENDING**. Physical desktop/TCC/client: **BLOCKED / NOT RUN**.
+- R10 alone composes accepted-client R2 authenticated/admitted proof into
+  `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` and retires
+  the native generation on authority loss; no R7 direct attachment or R10
+  authentication state machine was added.
+
 ## R3 pure protocol post-Connect-Response domain ordering — 2026-10-30
 
 Source baseline: `e43414099f5451d59538668445fdcf3764e153b3`. Added

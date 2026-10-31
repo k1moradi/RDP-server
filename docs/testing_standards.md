@@ -1,3 +1,15 @@
+## R7 macOS framebuffer callback-time native retirement (2026-10-30)
+
+The Apple-only ordinary CTest
+`macos.native-desktop-owner-borrow-callback-retirement` uses the existing
+synthetic authorized owner, CoreVideo pixel-buffer fixture and capture backend.
+It borrows one real mailbox frame and synchronously revokes the native owner
+inside the consumer callback. The callback must still read the original bytes;
+the borrow returns false, generation becomes zero, capture/watch teardown is
+exactly once, and a held input key causes no native release. The test must run
+in normal macOS Debug/Release CTest and both focused R7 native lifecycle
+selectors, with no live desktop, TCC prompt, listener or OS input.
+
 ## R3 post-Connect-Response domain ordering (2026-10-30)
 
 The ordinary offline

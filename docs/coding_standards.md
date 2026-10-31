@@ -1,3 +1,15 @@
+## R7 borrowed macOS framebuffer callbacks may revoke their native owner (2026-10-30)
+
+The macOS FrameMailbox must never invoke its R4 frame consumer while holding
+the mailbox mutex. A consumer may synchronously revoke the owning native
+desktop, whose retirement calls back into the same mailbox. Keep the borrowed
+BGRA arena alive until the callback returns, including when owner retirement
+resets the shared mailbox pointer; invalidate its generation immediately.
+While one borrow is in flight, discard concurrent capture updates rather than
+mutate borrowed pixels. A callback that caused retirement must return denial,
+not successful publication. Do not add per-frame allocation/copy, a second
+capture owner, an OS permission prompt or an R10 admission shortcut.
+
 ## R1 OpenSSL 4.1 identity-only SAN matching portability (2026-10-30)
 
 `RuntimeServerTlsContext::validateEndpointIdentity()` is only selected-leaf

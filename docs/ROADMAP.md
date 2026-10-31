@@ -1,3 +1,45 @@
+## R7 macOS frame-consumer reentrant retirement and R10 handoff (2026-10-30)
+
+**Authoring parent:** `033061f53cc715368d92eb27ee9cb4d14742caf9`. Source review found a native lifetime
+defect: `FrameMailbox::borrow()` held its mutex through the borrowed R4 consumer,
+while synchronous `MacNativeDesktopOwner::revoke()` tries to retire that
+mailbox under the same mutex. R7 releases the mutex for the callback, pins the
+shared mailbox owner and defers storage destruction until the callback returns;
+concurrent capture is dropped rather than overwriting borrowed bytes. A
+post-retirement callback result cannot publish a frame. Dedicated
+`macos.native-desktop-owner-borrow-callback-retirement` is registered in
+ordinary Apple CTest and both Debug/Release focused native CI lists.
+
+**QColorSpace attribution:** project GUI/capture code and macOS packaging
+assets contain no `QColorSpace` constructor, custom Qt primaries, ICC->Qt
+translation or application warning suppression; the existing
+`gui.round2-qcolor-warning-classification` source guard covers all
+first-party `src/*.{cpp,h,mm}`. No reproducible project-owned source
+of the previously observed Qt warning was found. Local Qt/offscreen and
+extracted macOS package execution **NOT RUN** (no approved local checkout,
+Qt6 installation or macOS GUI in the connector environment). Do not change
+R4 conversion or classify the warning without runtime provenance.
+
+**R7 -> R10 contract:** `RuntimePlatformNativeDesktop` remains an owner-thread
+consumer of a current R2 native authorization bound to the actual authenticated
+client, not TCP acceptance, TLS, configured Username, standalone
+`CredentialsVerified` or GUI Sharing. R10 must join the same accepted-client
+generation and R2 authenticated/admitted lease before invoking native attach,
+must freshly revalidate protected authority for MCS/Share and every native
+borrow/input step, and must revoke routing before native retirement on
+Stop/reconnect, permission/session/display/capture generation loss. R7 must
+not build the R10 accepted-client machine or create a duplicate verifier.
+The current macOS HostControl still has no positive native attach call.
+
+**Validation:** source-level correction and registry review **PASS by
+inspection**. Local canonical build, full Debug/Release CTest, ASan/UBSan,
+offscreen/package reproduction and physical capture/input **NOT RUN**;
+exact-publication-SHA hosted macOS Debug/Release/native and GUI qualification
+**PENDING**. No network listener, native capture/input, TCC prompt or
+OS/firewall state was exercised. Next gate: hosted test/compile receipts,
+then separately authorized R9/R2 genuine native admission before physical
+desktop attachment.
+
 ## R3 protocol-only post-Connect-Response domain ordering fence (2026-10-30)
 
 The 416-byte Microsoft Connect-Initial, HYBRID GCC replay, Connect-Response,

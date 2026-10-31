@@ -1,3 +1,13 @@
+## R8 qualification resumes after R2 compile repair (2026-10-31)
+
+Parent `ec261416f13b2eaa9530f27ff6245a1e56c824e2` resolves the shared R2 macOS Client Info compile blocker.
+R8 can therefore resume exact-SHA qualification once the malformed workflow
+from `c0e518c4` is corrected. The corrective workflow restores the exact
+pre-change file and then selects exactly all three separate X11 callback
+regressions for ASan/UBSan execution. Do not count `c0e518c4` as evidence.
+The broad clipboard selector remains **107** and Linux production clipboard
+activation remains disabled.
+
 ## R2 Client Info callback compile correction (2026-10-31)
 
 **Known failing evidence:** hosted Ubuntu and macOS C++23 compilation

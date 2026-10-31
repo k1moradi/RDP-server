@@ -1,3 +1,14 @@
+## R8 workflow syntax correction before qualification (2026-10-31)
+
+The first selector publication `c0e518c48d5f81c8479d9bfa0aacf8066f6df402`
+was not qualification evidence: its authoring replacement expanded a shell
+`$'` sequence as JavaScript replacement syntax and malformed `ci.yml`.
+This correction restores the exact pre-change workflow blob and applies only
+the intended literal three-X11 selector, including the execution regex.
+R2's former `undefined` compile defect is resolved on this parent. Hosted
+structure/full/sanitizer results remain **PENDING** for the corrective SHA.
+The fixed **107** clipboard census and activation=false policy are unchanged.
+
 ## R2 Client Info C++23 build correction (2026-10-31)
 
 **FAIL** hosted `2b34813974a1062e540c795de097341227238137`,

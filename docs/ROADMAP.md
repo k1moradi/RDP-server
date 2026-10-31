@@ -1,3 +1,46 @@
+## R2 macOS PersonalDesktop licensing via original native issuer (2026-10-31)
+
+One policy-identity-bound R2 increment extends protected Client Info to
+PersonalDesktop licensing: require immutable R10 PersonalDesktop policy,
+native revocation and one-session limit, use R3's private Server License
+Request/receipt, client licensing message and Valid Client/receipt through
+the original R2 visitor. No caller-supplied CAL authority; no AppServer
+shortcut or synthetic product admission. Dedicated offline missing-policy
+CTest registered; legacy R2 CTest name updated to durable transport wording.
+**Still required:** R1 positive TLS/post-callback fixture, native
+Mac Demand Active/Share and protected CLIPRDR/input/Graphics ACK/resize,
+then R10 actual owner composition. CI exact-head PENDING; local canonical
+build/full CTest NOT RUN. Global registry CTest taxonomy conflict is being
+coordinated with R10 in GitHub issue #40.
+
+## R8 X11 destroyed-owner claim callback fence (2026-10-31)
+
+**Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time
+native owner lifetime gap: during injected `setSelectionOwner`, `disconnect()`
+could clear the X11 owner window and atom while leaving `RemoteTransfer`
+generation/source epoch unchanged. The old post-check compared two
+`XCB_WINDOW_NONE` values and could report successful ownership after the
+window was destroyed. The minimal production fence captures the exact native
+window/atom/ownership epoch before the call, rechecks adapter validity and
+the unchanged `RemoteTransfer` source afterward, and refuses the retired
+claim. The new offline production-linked
+`clipboard.x11-native-callback-owner-retirement` CTest checks false return,
+no stale ownership/INCR/pending state, zero selection, and no success notify.
+It is separately labeled; **107** fixed clipboard sanitizer cases and the
+two existing separately named X11 cases remain unchanged.
+
+**Qualification at authoring:** source and CTest registration reviewed; local
+single-root Debug/full CTest and ASan/UBSan **NOT RUN** (GitHub connector
+environment has no approved checkout and cannot resolve GitHub for a clone).
+Exact publication-SHA hosted full and focused CI **PENDING**, to be read from
+Actions before any PASS claim. Linux's direct thread-affine `pwrite`,
+macOS/Windows destination terminalization, R3 and R2 authority, and the
+literal `kLinuxProductionClipboardActivationApproved = false` are untouched.
+Next R10 gate remains a genuine fresh R2 clipboard-permitted native lease,
+activated Share/GraphicsReady, exact joined `cliprdr`, current native owner,
+one R1 writer and bounded accepted-byte receipts; owner/R9 same-SHA
+qualification and explicit physical authorization are still required.
+
 ## R8 X11 destroyed-owner claim callback fence (2026-10-31)
 
 **Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time

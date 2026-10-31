@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/security/mac_console_admission.h"
+#include "server/runtime/runtime_deployment_policy.h"
 #include "server/security/native_desktop_authorization.h"
 #include "server/security/standalone_ntlmv2.h"
 #include "server/transport/nonblocking_tcp_adapter.h"
@@ -1026,6 +1027,35 @@ void testMacConsoleProtectedAttachJoinClientInfoDenials()
     }
 }
 
+// No immutable personal-desktop policy or original native/R1 admission may
+// be replaced with the R10 caller's desire to license a client.
+void testMacConsoleProtectedPersonalDesktopLicensingDenials()
+{
+    using namespace rdp_server::server::transport;
+    rdp_server::server::runtime::RuntimeDeploymentPolicy unconfiguredPolicy;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3PersonalDesktopLicensingMode(
+            session, unconfiguredPolicy));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3PersonalDesktopValidClientWrite(
+            session, unconfiguredPolicy));
+        assert(fixture.broker.completeR3PersonalDesktopValidClientWrite(
+                   session, unconfiguredPolicy, 1U, 1U, 0U) ==
+               RdpPersonalDesktopValidClientWriteOutcome::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+}
+
 void testMacConsoleProtectedIssuerPrematureReceipts()
 {
     using namespace rdp_server::server::transport;
@@ -1112,7 +1142,7 @@ int main(int argumentCount, char **arguments)
         testMacConsoleAdmissionExplicitTerminalRevocation();
         return 0;
     }
-    if (testCase == "macos-console-protected-issuer-live-r1-denials")
+    if (testCase == "macos-console-protected-issuer-live-transport-denials")
     {
         testMacConsoleProtectedIssuerRequiresExactLiveR1();
         return 0;
@@ -1130,6 +1160,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-attach-join-clientinfo-denials")
     {
         testMacConsoleProtectedAttachJoinClientInfoDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-personal-licensing-denials")
+    {
+        testMacConsoleProtectedPersonalDesktopLicensingDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

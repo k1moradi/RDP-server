@@ -14,6 +14,11 @@ namespace rdp_server::server::transport
 class OwnedPreauthTcpConnection;
 }
 
+namespace rdp_server::server::runtime
+{
+class RuntimeDeploymentPolicy;
+}
+
 namespace rdp_server::server::security
 {
 
@@ -148,6 +153,48 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // The immutable PersonalDesktop policy is borrowed by identity: never
+    // let a replacement or AppServer policy alter the admitted R3 branch.
+    [[nodiscard]] bool authorizeR3PersonalDesktopLicensingMode(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpServerLicenseRequestWriteView>
+    authorizeR3PersonalDesktopServerLicenseRequestWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpServerLicenseIdentity &identity,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpServerLicenseRequestWriteOutcome
+    completeR3PersonalDesktopServerLicenseRequestWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpLicensingIntake>
+    authorizeR3PersonalDesktopClientLicensingMessage(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpLicensingServiceCredential
+            &credential,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpPersonalDesktopValidClientWriteView>
+    authorizeR3PersonalDesktopValidClientWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpPersonalDesktopValidClientWriteOutcome
+    completeR3PersonalDesktopValidClientWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
     // Read-only preflight, never a transfer of R3 mutation authority.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -194,6 +241,15 @@ private:
         std::uint64_t authorizationGeneration{};
     };
 
+    [[nodiscard]] bool personalDesktopPolicyMatches(
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) const noexcept;
+    [[nodiscard]] bool visitPersonalDesktopR3Operation(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        MacNativeDesktopAuthorizationVisitor visitor,
+        void *context) noexcept;
     [[nodiscard]] bool authenticatedConnectionCurrent() const noexcept;
     [[nodiscard]] bool preparedAuthenticationCurrent() const noexcept;
     [[nodiscard]] bool viewMatchesPreparedLifetime(
@@ -211,6 +267,10 @@ private:
     NativeDesktopAuthenticatedSessionProof *authenticatedSession_{};
     rdp_server::server::transport::OwnedPreauthTcpConnection *connection_{};
     MacNativeDesktopAuthorization nativeAuthorization_;
+    // Borrowed immutable R10 policy. R10 must outlive/revoke the broker before
+    // replacing or destroying it; no scalar mode or identity is sufficient.
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        *personalDesktopPolicy_{};
     PreparedLifetime prepared_{};
     // R10 guarantees that both borrowed owners outlive the broker; any R1
     // admission attempt enrolls R3 before calling a callback-capable issuer.

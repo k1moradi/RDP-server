@@ -1,3 +1,16 @@
+## R2 macOS immutable PersonalDesktop licensing gate (2026-10-31)
+
+The original R2 macOS broker now selects the R3 PersonalDesktop branch only
+with the same immutable borrowed R10 `RuntimeDeploymentPolicy` object
+and its required personal-terminal-server/no-CAL native-revocation/one-session
+invariants. It rechecks the identical policy object before and after every
+native-visitor protected Server License Request slice and accepted-byte
+receipt, completed client licensing message and Valid Client slice/receipt.
+No CAL is synthesized; R3 owns wire validity, licensing keys and exactly
+accepted write progress. Rejected/missing original policy, view permission,
+proof, R1 TLS or native lifetime closes R3/R1. The policy is non-owning and
+must outlive the broker, which resets its pointer on terminal revocation.
+
 ## R2 macOS protected Attach/Join and Client Info transitions (2026-10-31)
 
 After original R1 completion and the original-generation private R3

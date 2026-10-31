@@ -1,3 +1,15 @@
+## R2 protected personal licensing policy denials (2026-10-31)
+
+The dedicated ordinary offline CTest
+`security.native-authorization-macos-console-protected-personal-licensing-denials`
+reuses the real production R2 broker with no live native/TLS lease. It denies
+a missing immutable R10 policy before R3 licensing mode selection, Valid
+Client preparation and receipt; no CAL, native session or physical OS proof
+is fabricated. A second original R2 transport-denial test name is now
+`security.native-authorization-macos-console-protected-issuer-live-transport-denials`
+instead of a milestone-numbered label. Positive genuine-TLS licensing receipt
+testing remains required; native capture and physical client were not run.
+
 ## R2 Attach/Join/Client Info premature-call denial (2026-10-31)
 
 Dedicated production-linked offline

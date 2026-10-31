@@ -1,3 +1,12 @@
+## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
+
+Three production-linked offline CTests cover missing genuine R1 TLS, stale
+consent/connection and premature R3 Connect-Response/Erect receipts. The
+existing R3 macOS gateway CTest covers zero/partial accepted-byte progress
+and wrong-generation denials without a product-valid lease. Genuine positive
+R1/TLS completion and callback-after-completion revocation test are still
+required; these offline denials do not claim successful macOS native admission.
+
 ## R3 macOS completed Attach/Join receipt replacement fence (2026-10-31)
 
 Ordinary production-linked CTest `transport.mcs-macos-post-attach-join-revocation-denials` reuses

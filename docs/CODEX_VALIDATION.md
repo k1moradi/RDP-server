@@ -1,3 +1,13 @@
+## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
+
+Source/CTest authored against parent `7032eef4d41c9c224be9a99aa2d19424746a1842` via GitHub connector.
+Canonical local configure/build/full/focused CTest and ASan/UBSan: NOT RUN
+(no approved `~/rdp-server/` checkout; container DNS cannot reach GitHub).
+Publication-SHA hosted CI: PENDING. No real macOS native lease, physical
+RDP client, Share, graphics, input or clipboard claim. Next R2 increment:
+protect Attach/joins/Client Info/PersonalDesktop licensing/Share/Graphics
+plus production-backed real TLS completion/post-callback retirement fixture.
+
 ## R3 macOS post-Attach/Join revocation regression (2026-10-31)
 
 - Source review on parent `0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`: R3's positive methods remain private

@@ -908,6 +908,67 @@ void testMacConsolePreparedTransportDormancy()
     assert(!fixture.connection.active());
 }
 
+
+void testMacConsoleProtectedIssuerRequiresExactLiveR1()
+{
+    using namespace rdp_server::server::transport;
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare(kConsoleViewPermission);
+    McsSessionLifecycle session;
+    assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+           McsSessionIntake::AdmissionDenied);
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(fixture.connection.stage() == PreauthStage::Closed);
+    assert(fixture.broker.admissionGeneration() == 0U);
+    assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+           McsSessionIntake::AdmissionDenied);
+}
+
+void testMacConsoleProtectedIssuerConsentAndConnectionDenials()
+{
+    using namespace rdp_server::server::transport;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        fixture.owner.grant(); // same permissions, changed consent epoch
+        McsSessionLifecycle session;
+        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+               McsSessionIntake::AdmissionDenied);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(session.phase() == McsSessionPhase::Closed);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        fixture.proof.acceptedConnection = &fixture.replacementConnection;
+        McsSessionLifecycle session;
+        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+               McsSessionIntake::AdmissionDenied);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(session.phase() == McsSessionPhase::Closed);
+    }
+}
+
+void testMacConsoleProtectedIssuerPrematureReceipts()
+{
+    using namespace rdp_server::server::transport;
+    MacConsoleBrokerFixture fixture;
+    fixture.prepare(kConsoleViewPermission);
+    McsSessionLifecycle session;
+    assert(!fixture.broker.authorizeR3ConnectResponseWrite(session));
+    assert(session.phase() == McsSessionPhase::Closed);
+    assert(fixture.broker.completeR3ConnectResponseWrite(
+               session, 1U, 1U, 0U) ==
+           McsConnectResponseWriteOutcome::Rejected);
+    assert(fixture.broker.authorizeR3ErectDomain(session, {}) ==
+           McsSessionIntake::AdmissionDenied);
+    assert(!fixture.broker.authorizeR3ProtectedTransition(
+        session, kConsoleViewPermission));
+    assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -974,6 +1035,21 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-admission-explicit-terminal-revocation")
     {
         testMacConsoleAdmissionExplicitTerminalRevocation();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-issuer-live-r1-denials")
+    {
+        testMacConsoleProtectedIssuerRequiresExactLiveR1();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-issuer-consent-connection-denials")
+    {
+        testMacConsoleProtectedIssuerConsentAndConnectionDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-issuer-premature-receipts")
+    {
+        testMacConsoleProtectedIssuerPrematureReceipts();
         return 0;
     }
     if (testCase == "macos-console-prepared-transport-dormancy")

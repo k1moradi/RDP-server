@@ -1,3 +1,13 @@
+## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
+
+The sole R2 `MacConsoleAdmissionBroker` enrolls R3 for terminal teardown before
+calling R1's private CredSSP completion within the original native/consent
+visitor. It invokes private R3 Connect-Initial with its captured generations,
+then rechecks authority before any success. The initial Connect-Response write
+and Erect transition also execute within new protected visitors; zero/partial
+receipts remain R3-owned. Remaining private R3 operations have no macOS R2
+wrapper and cannot be called by R10. No native desktop is thereby activated.
+
 ## R1 macOS R2 private transport edge (2026-10-31)
 
 `OwnedPreauthTcpConnection::completeCredSspAdmission()` remains private to

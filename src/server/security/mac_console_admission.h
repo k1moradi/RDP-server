@@ -2,8 +2,12 @@
 #pragma once
 
 #include "native_desktop_authorization.h"
+#include "transport/mcs_channel_connection.h"
 
+#include <cstddef>
 #include <cstdint>
+#include <optional>
+#include <span>
 
 namespace rdp_server::server::transport
 {
@@ -17,6 +21,7 @@ enum class MacConsoleAdmissionState : std::uint8_t
 {
     Ready,
     Prepared,
+    Admitted,
     Revoked,
 };
 
@@ -48,8 +53,9 @@ enum class MacConsoleAdmissionRevocationReason : std::uint8_t
 // R2-owned macOS admission preparation gateway. It owns one native
 // authorization lifetime bound to the exact authenticated proof and accepted
 // R1 connection supplied at construction. Prepared is deliberately not an
-// R1/R3 admitted state: this first-round owner calls no private R1/R3 positive
-// transition. All calls are serialized on the existing host owner thread.
+// R1/R3 admitted state until the protected R1 completion and R3 Connect-Initial
+// both succeed inside the original native visitor. All calls are serialized
+// on the existing host owner thread.
 //
 // The accepted R1 connection, authenticated proof, native evidence source and
 // owner-consent authority are borrowed and MUST outlive this broker. The caller
@@ -78,6 +84,33 @@ public:
         MacNativeDesktopAuthorizationVisitor visitor,
         void *context) noexcept;
 
+    // Sole positive R1->R3 issuer. Callers cannot supply authority generations,
+    // identity booleans, TLS pointers or a native authorization view.
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3McsConnectInitial(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Receipt-bound initial MCS sequence; reauthorize inside each native
+    // visitor and preserve R3's exact accepted-byte sequence ownership.
+    [[nodiscard]] std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3ConnectResponseWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+    [[nodiscard]] rdp_server::server::transport::McsConnectResponseWriteOutcome
+    completeR3ConnectResponseWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3ErectDomain(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
+    // Read-only preflight, never a transfer of R3 mutation authority.
+    [[nodiscard]] bool authorizeR3ProtectedTransition(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint32_t requiredPermissions) noexcept;
+
     // Idempotent terminal retirement. A reason describes the R10 composition
     // event but cannot supply or recreate admission authority.
     void revoke(
@@ -90,7 +123,8 @@ public:
     }
     [[nodiscard]] std::uint64_t admissionGeneration() const noexcept
     {
-        return state_ == MacConsoleAdmissionState::Prepared
+        return (state_ == MacConsoleAdmissionState::Prepared ||
+                state_ == MacConsoleAdmissionState::Admitted)
             ? admissionGeneration_
             : 0U;
     }
@@ -125,11 +159,20 @@ private:
         std::uint32_t requiredPermissions) const noexcept;
     void revokeForAuthorityLoss(
         MacConsoleAdmissionRevocationReason reason) noexcept;
+    [[nodiscard]] bool visitR3ProtectedOperation(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint32_t requiredPermissions,
+        MacNativeDesktopAuthorizationVisitor visitor,
+        void *context) noexcept;
 
     NativeDesktopAuthenticatedSessionProof *authenticatedSession_{};
     rdp_server::server::transport::OwnedPreauthTcpConnection *connection_{};
     MacNativeDesktopAuthorization nativeAuthorization_;
     PreparedLifetime prepared_{};
+    // R10 guarantees that both borrowed owners outlive the broker; any R1
+    // admission attempt enrolls R3 before calling a callback-capable issuer.
+    rdp_server::server::transport::McsSessionLifecycle *admittedSession_{};
+    bool admissionAttempted_{};
     std::uint64_t admissionGeneration_{};
     std::uint64_t nextAdmissionGeneration_{};
     MacConsoleAdmissionState state_{MacConsoleAdmissionState::Ready};

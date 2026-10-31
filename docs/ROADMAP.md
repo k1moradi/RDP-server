@@ -1,3 +1,11 @@
+## R9 current-head CTest taxonomy repair (2026-10-30)
+
+Exact R8 corrective head `ef807b3f37729523be3514d54ba8122ab47c8090` restores the fixed 107-case clipboard sanitizer census and passes both independent/main workflow structure parsing, but hosted configuration fails cross-platform before compilation. The common first boundary is the repository's deliberate durable-label guard: combined test `clipboard.file-destination-finalization-generation-replacement` was registered with internal label `r8-terminalization`, and `tests/CMakeLists.txt` rejects every `r1`–`r10` CTest label.
+
+R9 changes **only that label** to durable `protocol;file-destination;terminalization;offline`. The test name, wrapper, two production-backed platform behavior modes, timeout and separate ASan/UBSan execution are unchanged. The label intentionally does not include `clipboard`, so the established `ctest -L clipboard` count remains **107**. This does not weaken an R8 assertion or modify clipboard production code.
+
+**Candidate state:** `ef807b3f...` is disqualified by the configure failure. The publication SHA containing this taxonomy-only correction becomes the next possible candidate only after its complete hosted matrix is green and no later architectural change lands. Manual owner-candidate dispatch remains NOT RUN; owner-native same-SHA receipts and physical authorization remain separate.
+
 ## R9 current-head qualification dependency repair (2026-10-30)
 
 The structure failures after R8 terminalization work exposed a test-inventory

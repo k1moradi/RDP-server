@@ -1,3 +1,7 @@
+## R9 durable label for separate clipboard terminalization gate (2026-10-30)
+
+The combined `clipboard.file-destination-finalization-generation-replacement` CTest is intentionally outside the fixed `clipboard` label census and must use behavior taxonomy only. Its labels are `protocol;file-destination;terminalization;offline`; never use an internal R1–R10 ownership label. This preserves the 107-case `-L clipboard` sanitizer census while the same ASan/UBSan job still runs the combined terminalization CTest explicitly by exact test name.
+
 ## R9 sanitizer inventory validator follows the fixed R8 census (2026-10-30)
 
 R8 terminalization coverage must not silently change the already-qualified

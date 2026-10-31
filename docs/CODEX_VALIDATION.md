@@ -1,3 +1,10 @@
+## R9 R8-terminalization label failure diagnosis (2026-10-30)
+
+- Exact head `ef807b3f37729523be3514d54ba8122ab47c8090`: independent and primary workflow structure parsing **PASS**, but Ubuntu/Windows protocol, R9 sanitizer, R7 lifecycle/session and bootstrap configure **FAIL** at `tests/CMakeLists.txt:5364`.
+- One common cause: `clipboard.file-destination-finalization-generation-replacement` carries forbidden internal label `r8-terminalization`; the repository's durable-label policy intentionally rejects road identifiers.
+- R9 correction changes that label only to `protocol;file-destination;terminalization;offline`. It does not add `clipboard`, so the fixed 107-case clipboard sanitizer census is unchanged; exact-name terminalization execution is unchanged.
+- Exact correction-SHA hosted matrix **PENDING**. No production code change, manual candidate dispatch, owner-native receipt or physical run.
+
 ## R8 terminalization CI-census reconciliation (2026-10-30)
 
 - Current reconciliation parent: c749f938af9217166ae5e20f0dc6f58156cca137. The independent structure failure

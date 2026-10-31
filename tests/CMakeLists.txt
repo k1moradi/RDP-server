@@ -4512,7 +4512,7 @@ add_test(NAME clipboard.file-destination-finalization-generation-replacement
         -P "${PROJECT_SOURCE_DIR}/tests/run_clipboard_file_destination_finalization.cmake")
 set_tests_properties(
     clipboard.file-destination-finalization-generation-replacement
-    PROPERTIES LABELS "protocol;r8-terminalization;offline" TIMEOUT 20)
+    PROPERTIES LABELS "protocol;file-destination;terminalization;offline" TIMEOUT 20)
 
 # R8 Windows clipboard presentation. Every case uses deterministic injected
 # native operations; no ordinary CTest opens or mutates the host clipboard.

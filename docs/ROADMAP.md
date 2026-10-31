@@ -1,3 +1,11 @@
+## R2 protected owner-thread CTest stage invariant correction (2026-10-31)
+
+The new synthetic R1 fixture begins with an invalid socket and can
+already be Closed at construction. Assert that off-owner R1/R3 calls
+preserve that **original** stage instead of assuming an open socket;
+retain explicit terminal owner-thread denial and the same one CTest.
+No protocol/authorization behavior changed. Exact-head CI pending.
+
 ## R2 macOS owner-thread protected entry enforcement (2026-10-31)
 
 Parent `64d4d0c70e28251b892b3b1b93b42396c4d8c7d0`: the existing noncopyable R2 broker now denies

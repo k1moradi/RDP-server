@@ -1,3 +1,13 @@
+## R2 wrong-thread fixture initial-stage correction (2026-10-31)
+
+After `3dc2cd82022c78d8b3b0e923790731566de3af9f`, the new joined-worker denial test compares the
+synthetic invalid-socket R1 stage with its initial value, not an
+assumed open stage. `OwnedPreauthTcpConnection` legitimately closes
+its adapter at construction when the owned socket is invalid.
+The assertion now checks no cross-thread R1 stage mutation; later
+owner-thread admission still terminally denies this inactive R1.
+Source correction authored; local CTest NOT RUN; exact-head CI pending.
+
 ## R2 macOS owner-thread protected issuer guard (2026-10-31)
 
 Authored on GitHub main parent `64d4d0c70e28251b892b3b1b93b42396c4d8c7d0`:

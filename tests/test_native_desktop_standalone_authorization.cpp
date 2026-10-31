@@ -1224,6 +1224,7 @@ void testMacConsoleProtectedOwnerThreadIsolation()
     using namespace rdp_server::server::transport;
     auto fixture = std::make_unique<MacConsoleBrokerFixture>();
     auto session = std::make_unique<McsSessionLifecycle>();
+    const PreauthStage originalR1Stage = fixture->connection.stage();
     MacConsoleAdmissionPrepareResult offThreadPreparation{
         MacConsoleAdmissionPrepareResult::Prepared};
     bool offThreadR1Accepted{true};
@@ -1243,7 +1244,7 @@ void testMacConsoleProtectedOwnerThreadIsolation()
     assert(offThreadConnectInitial == McsSessionIntake::AdmissionDenied);
     assert(fixture->broker.state() == MacConsoleAdmissionState::Ready);
     assert(session->phase() == McsSessionPhase::AwaitVerifiedR2Admission);
-    assert(fixture->connection.stage() != PreauthStage::Closed);
+    assert(fixture->connection.stage() == originalR1Stage);
 
     fixture->prepare(kConsoleViewPermission);
     bool visitorCalled{false};

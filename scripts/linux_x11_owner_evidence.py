@@ -276,7 +276,8 @@ def validate(record):
 
     frame = require_fields(record["frame"], FRAME_PROOF_FIELDS, "frame")
     validate_frame_proof(frame, stages, "frame")
-    for name in frame:
+    # Frame IDs, byte counts and producer identities have separate validators.
+    for name in ("first_frame_capture_generation", "ack_capture_generation"):
         require_generation(frame[name], f"frame.{name}", nullable=True)
     if (stages["first_frame"] == "PASS") != (frame["first_frame_capture_generation"] is not None):
         raise EvidenceError("frame generation disagrees with first-frame stage")

@@ -72,6 +72,13 @@ client monitor, policy change or physical test performed.
 
 ## R5 real frame ACK, original listener and reconnect pinning (2026-10-31)
 
+**Positive-frame type correction:** After adding v3 R1 accepted-byte
+counts, frame IDs and producer identities, restrict the existing capture-
+generation loop to its two generation fields; otherwise a complete synthetic
+receipt is wrongly rejected. Existing full offline fixture and separate
+frame/ACK CTest exercise this path. Source review only; exact-SHA hosted
+validation PENDING, local tests NOT RUN.
+
 **Post-publication correction:** The initial independent-pin comparison referred
 to the reconnect record before binding it to the local validation scope.
 Bind `reconnect = record["reconnect"]` before iterating the R10/R2/R5/R3/R4

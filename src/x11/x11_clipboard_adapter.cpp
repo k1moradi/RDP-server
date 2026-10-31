@@ -696,16 +696,27 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
         return false;
     }
 
-    const auto sourceStillCurrent = [this, generation, sourceEpoch]() noexcept
+    // Native publication can synchronously retire this adapter without
+    // replacing RemoteTransfer. A destroyed owner window is not authority,
+    // even when both queried and stored XIDs become XCB_WINDOW_NONE.
+    const xcb_window_t claimedOwnerWindow = ownerWindow_;
+    const xcb_atom_t claimedClipboard = atoms_.clipboard;
+    const std::uint64_t previousOwnershipEpoch = ownershipEpoch_;
+    const auto sourceStillCurrent =
+        [this, generation, sourceEpoch, claimedOwnerWindow,
+         claimedClipboard, previousOwnershipEpoch]() noexcept
     {
-        return remoteTransfer_.synchronized() &&
+        return valid() && ownerWindow_ == claimedOwnerWindow &&
+               atoms_.clipboard == claimedClipboard &&
+               ownershipEpoch_ == previousOwnershipEpoch &&
+               remoteTransfer_.synchronized() &&
                remoteTransfer_.generation() == generation &&
                remoteTransfer_.sourceEpoch() == sourceEpoch;
     };
 
     lastOwnershipTransitionSource_ = Source::SelfGeneratedNativeTransition;
     if (!nativeOperations_.setSelectionOwner(
-            nativeOperations_.context, ownerWindow_, atoms_.clipboard))
+            nativeOperations_.context, claimedOwnerWindow, claimedClipboard))
     {
         ownsClipboard_ = false;
         clearPublicationState();
@@ -713,16 +724,17 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
     }
 
     const xcb_window_t nativeOwner = nativeOperations_.selectionOwner(
-        nativeOperations_.context, atoms_.clipboard);
-    if (nativeOwner != ownerWindow_ || !sourceStillCurrent())
+        nativeOperations_.context, claimedClipboard);
+    if (nativeOwner != claimedOwnerWindow || !sourceStillCurrent())
     {
         // The native claim is synchronous but may invoke an injected owner
         // callback. A same-number replacement source cannot inherit this X11
         // ownership transition.
-        if (nativeOwner == ownerWindow_)
+        if (valid() && ownerWindow_ == claimedOwnerWindow &&
+            nativeOwner == claimedOwnerWindow)
         {
             (void)nativeOperations_.setSelectionOwner(
-                nativeOperations_.context, XCB_WINDOW_NONE, atoms_.clipboard);
+                nativeOperations_.context, XCB_WINDOW_NONE, claimedClipboard);
         }
         ownsClipboard_ = false;
         clearPublicationState();

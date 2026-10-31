@@ -175,6 +175,20 @@ These cases use labels
 fixed R5 X11 45-case or R8 clipboard 107-case sanitizer censuses. Full
 Debug/Release CTest and exact-SHA hosted qualification remain separate evidence.
 
+## R8 X11 destroyed-owner claim callback regression (2026-10-31)
+
+Register `clipboard.x11-native-callback-owner-retirement` using the real X11
+adapter and existing injected native table. In `setSelectionOwner`, disconnect
+and destroy the adapter's owner window *without* changing `RemoteTransfer`
+generation or source epoch. Require the outer claim to return false with no
+retained ownership, INCR span, pending fetch, native property, success notify
+or incremented ownership epoch. The regression is distinct from source
+replacement and from notify/INCR retirement. Labels exclude `clipboard`,
+preserving the fixed **107-case** sanitizer inventory; run this exact CTest
+separately under the same ASan/UBSan build with the other two X11 cases and
+the separate macOS/Windows finalization case. No DISPLAY, file creation or
+physical clipboard is used.
+
 ## R8 X11 callback-time source replacement regression (2026-10-30)
 
 Register the production-backed offline behavior

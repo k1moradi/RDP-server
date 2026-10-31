@@ -133,6 +133,18 @@ proof/native/consent loss terminally revokes the broker. Listener replacement is
 an explicit terminal revocation input, never a caller-supplied generation that
 can mint access. Linux admission is unchanged.
 
+## R8 X11 native claim callback may destroy its owner (2026-10-31)
+
+A synchronous `setSelectionOwner` callback may disconnect the adapter and
+destroy its native owner window without replacing the `RemoteTransfer` source.
+The initial claim must capture its nonzero X11 owner window, clipboard atom
+and ownership epoch before the native call; after the callback, require the
+same still-valid adapter/owner plus the live generation and source epoch.
+Never compare two now-zero XIDs to infer success, increment the owner epoch
+or retain stale selection authority. An already-retired adapter must not
+attempt a second native withdraw. This is first-party offline native-owner
+fencing, not R2 admission or production clipboard activation.
+
 ## R8 X11 callback-time source retirement fence (2026-10-30)
 
 The X11 native-operation seam is synchronous. Treat `setSelectionOwner`,

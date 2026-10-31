@@ -85,6 +85,7 @@ struct FakeNative
     bool replaceRemoteSourceOnPropertyWrite{};
     bool replaceRemoteSourceOnTransferEventSelection{};
     bool replaceRemoteSourceOnNotification{};
+    X11ClipboardAdapter *adapterToDisconnectOnOwnerClaim{};
 
     static void replaceRemoteSource(FakeNative &state) noexcept
     {
@@ -148,6 +149,14 @@ struct FakeNative
         {
             state.replaceRemoteSourceOnOwnerClaim = false;
             replaceRemoteSource(state);
+        }
+        if (owner != XCB_WINDOW_NONE &&
+            state.adapterToDisconnectOnOwnerClaim != nullptr)
+        {
+            X11ClipboardAdapter *retiredAdapter =
+                state.adapterToDisconnectOnOwnerClaim;
+            state.adapterToDisconnectOnOwnerClaim = nullptr;
+            retiredAdapter->disconnect();
         }
         return true;
     }
@@ -1170,6 +1179,43 @@ void incrErrorPropertyCleanup()
     assert(native.restoreEventMaskCalls == restoresBeforeDestroy);
 }
 
+void nativeCallbackOwnerRetirement()
+{
+    // The exact RemoteTransfer source remains valid, but the native owner
+    // destroys its X11 window synchronously inside setSelectionOwner().
+    // Before the owner-lifetime fence, both queried and cleared owner XIDs
+    // were NONE and the stale outer publication incorrectly returned success.
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    RemoteTransfer transfer;
+    assert(transfer.receiveFormatList(formats));
+    const std::uint64_t generation = transfer.generation();
+    const std::uint64_t sourceEpoch = transfer.sourceEpoch();
+
+    FakeNative native;
+    X11ClipboardAdapter adapter(transfer, native.operations(), kRootWindow);
+    assert(adapter.valid());
+    native.adapterToDisconnectOnOwnerClaim = &adapter;
+
+    const Clock::time_point now{std::chrono::seconds{11}};
+    assert(!adapter.publishCurrentRemoteOffer(now));
+    assert(transfer.synchronized());
+    assert(transfer.generation() == generation);
+    assert(transfer.sourceEpoch() == sourceEpoch);
+    assert(!adapter.valid());
+    assert(!adapter.ownsClipboard());
+    assert(!adapter.incrTransferActive());
+    assert(!adapter.pendingRemoteFetch());
+    assert(adapter.ownershipEpoch() == 0U);
+    assert(native.currentSelectionOwner == XCB_WINDOW_NONE);
+    assert(native.destroyWindowCalls == 1U);
+    assert(native.setOwnerCalls == 1U);
+    assert(native.propertyWrites.empty());
+    assert(native.notifications.empty());
+    assert(!adapter.publishCurrentRemoteOffer(
+        now + std::chrono::milliseconds{1}));
+}
+
 void nativeCallbackSourceRetirement()
 {
     const std::array<std::uint32_t, 1> formats{
@@ -1845,6 +1891,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-incr-error-property-cleanup")
     {
         incrErrorPropertyCleanup();
+        return 0;
+    }
+    if (behavior == "x11-native-callback-owner-retirement")
+    {
+        nativeCallbackOwnerRetirement();
         return 0;
     }
     if (behavior == "x11-native-callback-source-retirement")

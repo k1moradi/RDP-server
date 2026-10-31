@@ -1,3 +1,31 @@
+## R8 X11 destroyed-owner claim callback fence (2026-10-31)
+
+**Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time
+native owner lifetime gap: during injected `setSelectionOwner`, `disconnect()`
+could clear the X11 owner window and atom while leaving `RemoteTransfer`
+generation/source epoch unchanged. The old post-check compared two
+`XCB_WINDOW_NONE` values and could report successful ownership after the
+window was destroyed. The minimal production fence captures the exact native
+window/atom/ownership epoch before the call, rechecks adapter validity and
+the unchanged `RemoteTransfer` source afterward, and refuses the retired
+claim. The new offline production-linked
+`clipboard.x11-native-callback-owner-retirement` CTest checks false return,
+no stale ownership/INCR/pending state, zero selection, and no success notify.
+It is separately labeled; **107** fixed clipboard sanitizer cases and the
+two existing separately named X11 cases remain unchanged.
+
+**Qualification at authoring:** source and CTest registration reviewed; local
+single-root Debug/full CTest and ASan/UBSan **NOT RUN** (GitHub connector
+environment has no approved checkout and cannot resolve GitHub for a clone).
+Exact publication-SHA hosted full and focused CI **PENDING**, to be read from
+Actions before any PASS claim. Linux's direct thread-affine `pwrite`,
+macOS/Windows destination terminalization, R3 and R2 authority, and the
+literal `kLinuxProductionClipboardActivationApproved = false` are untouched.
+Next R10 gate remains a genuine fresh R2 clipboard-permitted native lease,
+activated Share/GraphicsReady, exact joined `cliprdr`, current native owner,
+one R1 writer and bounded accepted-byte receipts; owner/R9 same-SHA
+qualification and explicit physical authorization are still required.
+
 ## R2 macOS post-Erect private issuer coverage (2026-10-31)
 
 R2 now has original-native-visitor protected private wrappers for Attach

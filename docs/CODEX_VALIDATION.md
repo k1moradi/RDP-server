@@ -1,3 +1,23 @@
+## R8 native owner destruction during X11 claim (2026-10-31)
+
+- Authoring parent: `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Distinct uncovered synchronous
+  `setSelectionOwner` case: injected `disconnect()` retires owner XID/atom,
+  but deliberately leaves RemoteTransfer generation and source epoch current.
+- Production fix: capture/revalidate the original X11 owner identity and
+  owner generation together with actual adapter validity/source epoch; the
+  retired native owner cannot return a successful claim.
+- New production-linked offline gate:
+  `clipboard.x11-native-callback-owner-retirement`, separate from the
+  fixed **107** clipboard-label census and existing X11/source/INCR/
+  macOS-Windows terminalization behaviors.
+- Source/registration review: **PASS by inspection**. Local canonical
+  compile/full CTest/sanitizers: **NOT RUN** (no checkout/network access).
+  Publication-SHA hosted CI and focused sanitizers: **PENDING**. Previous
+  `2f7ee6d033700c7a6bbfa51387de9835bf974358` 107/107 pass is
+  prior-descendant evidence only, not a result for this correction.
+- R2/Share/cliprdr/writer/receipt acceptance remains blocked; clipboard
+  activation stays **false**. No physical client, clipboard or file I/O.
+
 ## R2 protected macOS Attach/Join and Client Info increment (2026-10-31)
 
 Authored private R3 operation wrappers in the original R2 native visitor:

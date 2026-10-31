@@ -4698,6 +4698,16 @@ if(TARGET rdp-server-linux-x11-clipboard)
         clipboard.x11-native-callback-source-retirement PROPERTIES
         LABELS "protocol;x11;linux-adapter;native;terminalization;offline")
 
+    # A native owner may destroy its window inside the synchronous claim,
+    # even when RemoteTransfer generation and source epoch do not change.
+    # Keep this production-backed owner-lifetime test outside the fixed census.
+    add_test(NAME clipboard.x11-native-callback-owner-retirement
+        COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
+            x11-native-callback-owner-retirement)
+    set_tests_properties(
+        clipboard.x11-native-callback-owner-retirement PROPERTIES
+        LABELS "protocol;x11;linux-adapter;native;terminalization;offline")
+
     # Native success notifications and INCR terminal writes are separate
     # callback boundaries, outside the fixed 107-case clipboard selection.
     add_test(NAME clipboard.x11-notification-and-incr-retirement

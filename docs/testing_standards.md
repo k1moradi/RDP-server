@@ -1,3 +1,18 @@
+## R2 post-first-MCS semantic acceptance with post-callback audit loss (2026-10-31)
+
+The dedicated offline behavior `security.macos-protected-post-mcs-semantic-audit-loss`
+reuses one real accepted R1 HYBRID/TLS transport and the original production
+R2 broker/R3 lifecycle. A deterministic test-only macOS evidence source
+observes the unchanged original audit session before the protected R3
+Connect-Initial callback, then changes its audit-session ID during the
+authorization post-check, after the R3 phase has reached
+AwaitConnectResponse. R2 must deny publication, close R3, cancel R1,
+reject any Connect-Response write and never allow reprepare. Credentials
+and macOS native evidence remain explicitly synthetic and never constitute
+product-valid admission. No global sanitizer test inventory is expanded.
+Canonical local full CTest/ASan/UBSan NOT RUN in connector-only environment;
+new exact-SHA hosted CI pending.
+
 ## R1/R10 partial first-MCS Stop retirement regression (2026-10-31)
 
 Dedicated production-backed offline CTest

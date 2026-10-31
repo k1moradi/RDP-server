@@ -7854,12 +7854,38 @@ public:
             observedPostCompletion = true;
             ++output.auditSessionId;
         }
+        if (stableReadsBeforeAuditReplacement !=
+            (std::numeric_limits<std::size_t>::max)())
+        {
+            if (stableReadsBeforeAuditReplacement != 0U)
+            {
+                --stableReadsBeforeAuditReplacement;
+            }
+            else
+            {
+                // R3 already accepted the first MCS inside the visitor,
+                // but R2 has not published successful Admission to R10.
+                observedPostMcsSemanticTransition =
+                    semanticSessionToObserve != nullptr &&
+                    semanticSessionToObserve->phase() ==
+                        McsSessionPhase::AwaitConnectResponse;
+                ++output.auditSessionId;
+            }
+        }
         return MacNativeSessionEvidenceStatus::Observed;
     }
 
     MacNativeSessionEvidence evidence{macProtectedNativeEvidence()};
     bool replaceAfterCredSspCompletion{};
     mutable bool observedPostCompletion{};
+
+    // Test-only deterministic post-visitor audit replacement. A countdown
+    // of one preserves the native precheck, then changes the next observation
+    // after the protected R3 semantic callback has already succeeded.
+    mutable std::size_t stableReadsBeforeAuditReplacement{
+        (std::numeric_limits<std::size_t>::max)()};
+    const McsSessionLifecycle *semanticSessionToObserve{};
+    mutable bool observedPostMcsSemanticTransition{};
 
 private:
     const OwnedPreauthTcpConnection *connection_{};
@@ -8129,6 +8155,44 @@ void testMacProtectedCredSspTransportCompletionAndReceiptRetirement()
         assert(fixture->session->phase() == McsSessionPhase::Closed);
         assert(fixture->connection.stage() == PreauthStage::Closed);
     }
+}
+
+// The native post-callback check must not publish a successful R3 semantic
+// transition to R10 if the original macOS audit session was just replaced.
+// Real accepted R1 HYBRID/TLS; synthetic credential/native sources only.
+void testMacProtectedPostMcsSemanticAuditLoss()
+{
+    auto fixture = std::make_unique<MacProtectedTransportFixture>();
+    assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+    assert(fixture->broker.state() ==
+           MacConsoleAdmissionState::TransportAdmitted);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+
+    fixture->nativeEvidence.semanticSessionToObserve =
+        fixture->session.get();
+    fixture->nativeEvidence.stableReadsBeforeAuditReplacement = 1U;
+    const auto firstMcs = macProtectedHybridConnectInitial();
+    assert(fixture->broker.authorizeR3McsConnectInitial(
+               *fixture->session, firstMcs) ==
+           McsSessionIntake::AdmissionDenied);
+
+    // The first native check allowed the callback to mutate R3. The
+    // second independently sampled a different audit session and forced
+    // terminal retirement before R2 could return positive admission.
+    assert(fixture->nativeEvidence.observedPostMcsSemanticTransition);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->broker.revocationReason() ==
+           MacConsoleAdmissionRevocationReason::ProtectedCallbackLostAuthority);
+    assert(fixture->broker.admissionGeneration() == 0U);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+    assert(!fixture->connection.active());
+    assert(!fixture->broker.revalidate(kConsoleViewPermission));
+    assert(!fixture->broker.authorizeR3ConnectResponseWrite(
+        *fixture->session));
+    assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
+           MacConsoleAdmissionPrepareResult::InvalidState);
 }
 
 // R10 now reads the first MCS TPKT only after protected R1 completion.
@@ -12700,6 +12764,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
+    {"macos-protected-post-mcs-semantic-audit-loss",
+     &testMacProtectedPostMcsSemanticAuditLoss},
     {"macos-transport-admitted-clipboard-permission-denials",
      &testMacProtectedTransportClipboardPermissionDenials},
     {"macos-protected-admission-reprepare-premcs-audit-retirement",

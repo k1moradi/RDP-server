@@ -1,3 +1,23 @@
+## R2 macOS post-MCS semantic callback audit-session replacement (2026-10-31)
+
+**Source parent:** `8c68f687173d7396b4bb77625620bdaee6959987`. Added distinct production-backed offline CTest
+`security.macos-protected-post-mcs-semantic-audit-loss` without changing
+production R2/R3 APIs. A real accepted R1 HYBRID/TLS connection reaches
+TransportAdmitted; the deterministic synthetic macOS native reader keeps the
+original audit evidence for the first authorization check, then changes only
+the audit-session ID when R3 has already accepted its original first-MCS
+Connect-Initial inside the protected visitor. The broker must reject the
+result instead of publishing Admitted, terminally close R3, cancel original
+R1 TLS, invalidate generation and refuse Connect-Response/reprepare.
+This closes the post-semantic/pre-publication race coverage, not a real native
+macOS login. No second issuer, Clipboard scope, Linux behavior or protocol
+wire change. Agent 10's first-MCS/Connect-Response/Erect consumer is now on
+main; next positive runtime stages remain Attach/Join/Client Info/licensing/
+Share, with explicit View+Input scope preservation needed before input.
+**Verification:** source/registry inspected; connector-local build/full CTest
+and sanitizers **NOT RUN**; exact publication-SHA hosted CI **PENDING**.
+Physical macOS admission/Windows App/mstsc **NOT RUN / unauthorized**.
+
 ## R10 macOS protected Erect continuation — P0 authored, qualification pending (2026-10-31)
 
 Reviewed descendant `005ba9de48a987eb415be5ac792a239403cfdfa0`: the earlier

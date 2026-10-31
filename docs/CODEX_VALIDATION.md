@@ -1,3 +1,24 @@
+## R2 post-MCS callback native audit replacement regression (2026-10-31)
+
+Audited exact parent `8c68f687173d7396b4bb77625620bdaee6959987`. R10 now has a protected first-MCS,
+Connect-Response and Erect Domain consumer; the prior R1/R3 primitive gap
+is resolved. R2's `MacNativeDesktopAuthorization::visit` already performs
+native/proof/consent checks before and after the visitor, and its broker
+does not publish Admitted until this whole visit passes. There was no
+separate regression for audit-session change **after** successful R3 first-MCS
+semantic mutation but **before** publishing that result to R10.
+Added `security.macos-protected-post-mcs-semantic-audit-loss` using the
+existing real accepted HYBRID/TLS owner and production R2/R3 code plus
+controlled synthetic macOS evidence. The reader verifies the R3 state is
+AwaitConnectResponse when the second audit sample changes; R2 must return
+AdmissionDenied and terminally close the old R3/R1. This is a test-only
+assurance increment, not a product-valid OS login or standalone proof.
+Connector-local compile, focused/full CTest and sanitizers **NOT RUN**;
+exact-publication hosted CI **PENDING**. R10 still owns View+Input scope
+selection, Attach/Join/Share composition and genuine macOS physical-client
+acceptance. No new admission issuer, public API, permission relaxation or
+measured performance claim.
+
 ## R8 no-route FILECONTENTS sink denial and descendant qualification (2026-10-31)
 
 Reviewed current `main` after R10's protected Erect-Domain integration and the

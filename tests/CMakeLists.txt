@@ -1917,6 +1917,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;admission;offline"
                 TIMEOUT 20)
 
+        # Native audit evidence can change after R3 accepts first MCS but
+        # before R2 returns success to R10. The original R3/R1 must retire.
+        add_test(
+            NAME security.macos-protected-post-mcs-semantic-audit-loss
+            COMMAND "${test_target}"
+                "macos-protected-post-mcs-semantic-audit-loss")
+        set_tests_properties(
+            security.macos-protected-post-mcs-semantic-audit-loss
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;admission;offline"
+                TIMEOUT 20)
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(

@@ -1,3 +1,16 @@
+## R5 independent frame-write / inbound client-ACK denial (2026-10-31)
+
+Dedicated offline Python CTest
+`linux.x11-owner-private-evidence-independent-frame-receipt-denials`
+checks independently pinned R3 frame length, R1 TLS-accepted bytes and
+accepted-client ID, and genuine inbound R3/R4 client ACK and its
+accepted-client ID, initially and after reconnect. Reject partial
+writes, local ACK credit, cross-client receipts, internally consistent
+forged manifest sizes, missing pins and obsolete v2 pins. This is
+separate from R10 connection pinning and the fixed 45-case native
+X11 sanitizer inventory. Local Python/full CTest NOT RUN; exact-SHA
+hosted CI PENDING; physical seat0 NOT RUN/unauthorized.
+
 ## R6 A/B client-event provenance and Type-3 source anti-splice gate (2026-10-31)
 
 The paired `rdp-server.windows-client-ab-pair.v3` evidence validator must

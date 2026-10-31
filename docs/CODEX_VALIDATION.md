@@ -1,3 +1,26 @@
+## R5 independent complete-write / inbound client-ACK receipt pins (2026-10-31)
+
+Inspected parent `0401967b1145267bed7d401160c26db536fa1899`. Independent numeric frame/ACK pins and
+manifest-local R1/R3 producer labels could not disprove a fully staged write
+or R4 local credit spuriously reported as client reception. Pin schema v3
+requires R3 exact frame length, R1 actually accepted bytes plus accepted
+client ID and independently observed inbound R3/R4 client FRAME_ACK plus
+accepted-client ID for both original attempt and reconnect. Dedicated
+offline Python/CTest rejects partial/cross-attempt receipts, coherent
+forged manifest lengths, missing pins and v2 pin schemas. The X11
+aggregate already revalidates the capture generation after synchronous
+XShm borrow, retires XDamage/RandR epochs and suppresses XTEST releases
+on native loss. No new production native owner is needed.
+
+R10 Linux comparison: revoke original R2/native owner consent first,
+retire clipboard and suppress held XTEST releases before retiring X11
+input, optional pointer, XDamage, XShm, cursor and XCB children; then R3,
+R1 SSL/BIO/socket and finally listener. No old pixels, R4 credit, input
+or callback can authorize a successor reconnect. Source/CTest review
+PASS by inspection. Connector-local Python/full CTest/sanitizer NOT RUN;
+exact publication-SHA hosted CI PENDING. Physical seat0/client/graphics
+and native XTEST NOT RUN / unauthorized.
+
 ## R6 exact-head Microsoft interoperability and paired provenance audit (2026-10-31)
 
 **Inspected source head:** `1d95156ea4fd1d1c5a20f4e3754570b44d504299`.

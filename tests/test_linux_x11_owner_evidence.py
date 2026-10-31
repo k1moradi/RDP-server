@@ -89,6 +89,11 @@ def independent_pins(evidence):
         "capture_generation": 40,
         "first_frame_id": 7,
         "matching_ack_frame_id": 7,
+        "frame_expected_bytes": 530,
+        "frame_accepted_bytes": 530,
+        "frame_write_client_id": 100,
+        "client_ack_observed_inbound": True,
+        "client_ack_client_id": 100,
         "reconnect_accepted_client_id": 101,
         "reconnect_owner_consent_generation": 11,
         "reconnect_listener_generation": 5,
@@ -96,6 +101,11 @@ def independent_pins(evidence):
         "reconnect_capture_generation": 42,
         "reconnect_first_frame_id": 8,
         "reconnect_matching_ack_frame_id": 8,
+        "reconnect_frame_expected_bytes": 540,
+        "reconnect_frame_accepted_bytes": 540,
+        "reconnect_frame_write_client_id": 101,
+        "reconnect_client_ack_observed_inbound": True,
+        "reconnect_client_ack_client_id": 101,
     }
 
 
@@ -448,6 +458,44 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         pins["reconnect_matching_ack_frame_id"] = 7
         self.evidence.validate(same_frame_id)
         self.evidence.validate_independent_pins(same_frame_id, pins)
+
+    def test_independent_frame_receipt_authority_denials(self):
+        pins = independent_pins(self.evidence)
+        self.evidence.validate_independent_pins(self.record, pins)
+        for prefix in ("", "reconnect_"):
+            for name, wrong in (
+                ("frame_expected_bytes", 0),
+                ("frame_accepted_bytes", 1),
+                ("frame_write_client_id", 999),
+                ("client_ack_observed_inbound", False),
+                ("client_ack_client_id", 999),
+            ):
+                with self.subTest(prefix=prefix, name=name):
+                    changed = copy.deepcopy(pins)
+                    changed[f"{prefix}{name}"] = wrong
+                    with self.assertRaises(self.evidence.EvidenceError):
+                        self.evidence.validate_independent_pins(self.record, changed)
+        # A coherent manifest claiming a shorter complete frame cannot
+        # override independent R3 length and R1 actually accepted bytes.
+        for part in ("frame", "reconnect"):
+            with self.subTest(part=part):
+                changed = copy.deepcopy(self.record)
+                changed[part]["frame_bytes_expected"] -= 1
+                changed[part]["frame_bytes_accepted"] -= 1
+                self.evidence.validate(changed)
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(changed, pins)
+        for name in ("frame_write_client_id",
+                     "reconnect_client_ack_observed_inbound"):
+            with self.subTest(missing=name):
+                changed = copy.deepcopy(pins)
+                del changed[name]
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(self.record, changed)
+        changed = copy.deepcopy(pins)
+        changed["schema"] = "rdp-server.linux-x11-owner-evidence-pins.v2"
+        with self.assertRaises(self.evidence.EvidenceError):
+            self.evidence.validate_independent_pins(self.record, changed)
 
     def test_cli_denies_duplicate_keys_and_never_echoes_private_values(self):
         with tempfile.TemporaryDirectory() as temporary:

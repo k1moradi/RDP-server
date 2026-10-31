@@ -1457,6 +1457,18 @@ set_tests_properties(
     PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
                TIMEOUT 15)
 
+# Independent R5 R1 accepted-byte and inbound R3 client-ACK provenance.
+# Offline Python; outside the fixed 45-case native X11 sanitizer inventory.
+add_test(NAME linux.x11-owner-private-evidence-independent-frame-receipt-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_linux_x11_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/linux_x11_owner_evidence.py"
+        -k independent_frame_receipt_authority_denials)
+set_tests_properties(
+    linux.x11-owner-private-evidence-independent-frame-receipt-denials
+    PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
+               TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

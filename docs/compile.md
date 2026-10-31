@@ -1,3 +1,13 @@
+## R5 independent frame-receipt pin build boundary (2026-10-31)
+
+Pin schema v3 changes only Python-standard-library validator/test and one
+behavior CTest in the shared registry. There is no C++ target, native X11
+operation, extra build root, dependency or change to the 45-case sanitizer
+inventory. On the authorized `~/rdp-server/build/`, run
+`ctest --test-dir build -C Debug -R '^linux[.]x11-owner-private-evidence-independent-frame-receipt-denials$' --output-on-failure`,
+then full Debug CTest and separately unchanged R5 45-case sanitizers.
+Connector-local CTest NOT RUN; exact publication-SHA CI PENDING.
+
 ## R6 read-only paired evidence v3 build and CTest scope (2026-10-31)
 
 Python-standard-library-only `scripts/windows_client_ab_evidence.py` and the

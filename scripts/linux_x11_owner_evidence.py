@@ -25,7 +25,7 @@ RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphi
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
 MAXIMUM_PIN_BYTES = 4096
-PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v2"
+PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v3"
 FRAME_WRITE_PRODUCER = "r1-tls-complete-frame-write"
 CLIENT_ACK_PRODUCER = "r3-client-frame-ack"
 NATIVE_ADMISSION_PRODUCER = "linux-console-admission-broker"
@@ -445,6 +445,12 @@ def validate_independent_pins(record, pins):
         "reconnect_listener_generation", "reconnect_r2_admission_generation",
         "reconnect_capture_generation", "reconnect_first_frame_id",
         "reconnect_matching_ack_frame_id",
+        "frame_expected_bytes", "frame_accepted_bytes",
+        "frame_write_client_id", "client_ack_observed_inbound",
+        "client_ack_client_id",
+        "reconnect_frame_expected_bytes", "reconnect_frame_accepted_bytes",
+        "reconnect_frame_write_client_id", "reconnect_client_ack_observed_inbound",
+        "reconnect_client_ack_client_id",
     ), "pins")
     if pins["schema"] != PIN_SCHEMA:
         raise EvidenceError("unsupported independent pin schema")
@@ -498,6 +504,44 @@ def validate_independent_pins(record, pins):
         )
         if pinned_value != observed_value:
             raise EvidenceError(f"{pinned_name} differs from independent producer")
+
+    # Numeric frame ID / local ACK-window credit cannot prove R1 accepted
+    # a complete frame or R3 received an inbound client FRAME_ACK.
+    # Pin the R3 length, R1 exact accepted bytes and both origin clients.
+    for prefix, frame, stages, accepted_client_id in (
+        ("", record["frame"], record["stages"], initial_client),
+        ("reconnect_", reconnect, reconnect["stages"], reconnect_client),
+    ):
+        expected_bytes = require_counter(
+            pins[f"{prefix}frame_expected_bytes"], "pins.frame_expected_bytes")
+        accepted_bytes = require_counter(
+            pins[f"{prefix}frame_accepted_bytes"], "pins.frame_accepted_bytes")
+        write_client_id = require_attempt_id(
+            pins[f"{prefix}frame_write_client_id"],
+            "pins.frame_write_client_id", nullable=True)
+        inbound_ack = require_bool(
+            pins[f"{prefix}client_ack_observed_inbound"],
+            "pins.client_ack_observed_inbound")
+        ack_client_id = require_attempt_id(
+            pins[f"{prefix}client_ack_client_id"],
+            "pins.client_ack_client_id", nullable=True)
+        if stages["first_frame"] == "PASS":
+            if (accepted_client_id is None or
+                    write_client_id != accepted_client_id or
+                    expected_bytes == 0 or accepted_bytes != expected_bytes or
+                    expected_bytes != frame["frame_bytes_expected"] or
+                    accepted_bytes != frame["frame_bytes_accepted"]):
+                raise EvidenceError("first frame lacks independent complete R1 receipt")
+        elif (expected_bytes != 0 or accepted_bytes != 0 or
+              write_client_id is not None):
+            raise EvidenceError("unverified frame has independent write claim")
+        if stages["matching_ack"] == "PASS":
+            if (accepted_client_id is None or
+                    inbound_ack is not True or
+                    ack_client_id != accepted_client_id):
+                raise EvidenceError("ACK lacks independent inbound client PDU")
+        elif inbound_ack or ack_client_id is not None:
+            raise EvidenceError("unverified ACK has independent client claim")
 
 
 

@@ -1,3 +1,13 @@
+## R5 independent R1 write and inbound R3 ACK provenance (2026-10-31)
+
+A locally prepared R3 frame and R4 ACK-window credit are not client
+reception. Private independent receipt pins compare R3 expected frame
+bytes with actual R1 TLS-accepted bytes and original accepted-client ID,
+and require an inbound R3/R4 client FRAME_ACK with its original client ID.
+Do this separately for initial and reconnect attempts. Matching numeric
+listener/frame IDs or self-consistent manifests cannot mint these receipts.
+No new R1/R3/R4 controller or R2 native authority is introduced.
+
 ## R5 first-frame and inbound-ACK receipt provenance (2026-10-31)
 
 A prepared R3 frame, local ACK-window credit, R5 capture generation or

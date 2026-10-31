@@ -160,7 +160,15 @@ is scoped to its actual process/listener lifetime: record listener
 Stop/replacement separately and do not infer uniqueness across restarts.
 
 The required independent local-only pins file is closed and bounded to
-4 KiB. Obtain R10 listener generation, R2 admission generation, R5 capture
+4 KiB. **Independent pin schema v3** additionally requires R3 expected
+frame bytes, actual R1 TLS-accepted frame bytes and accepted-client ID,
+and a genuinely inbound R3 client FRAME_ACK plus accepted-client ID,
+separately for first attempt and reconnect. Obtain all these from
+their original producers, not from the manifest. An unobserved/failed
+frame or ACK must have zero independent frame byte counts, null
+associated client IDs and false inbound ACK, never a guessed positive.
+A v2 pins file is rejected; even genuine scalar receipts cannot
+cryptographically authenticate their human reporter. Obtain R10 listener generation, R2 admission generation, R5 capture
 generation, R3 delivered frame ID and inbound R3/R4 client ACK frame ID
 **independently from the exact producer**, not copied from this manifest.
 The accepted-client and listener-generation counters are process-local and
@@ -172,7 +180,7 @@ cryptographic attestations. Example fields and values are **synthetic**, not acc
 
 ```json
 {
-  "schema": "rdp-server.linux-x11-owner-evidence-pins.v2",
+  "schema": "rdp-server.linux-x11-owner-evidence-pins.v3",
   "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "accepted_client_id": 100,
   "owner_consent_generation": 10,
@@ -181,13 +189,23 @@ cryptographic attestations. Example fields and values are **synthetic**, not acc
   "capture_generation": 40,
   "first_frame_id": 7,
   "matching_ack_frame_id": 7,
+  "frame_expected_bytes": 530,
+  "frame_accepted_bytes": 530,
+  "frame_write_client_id": 100,
+  "client_ack_observed_inbound": true,
+  "client_ack_client_id": 100,
   "reconnect_accepted_client_id": 101,
   "reconnect_owner_consent_generation": 11,
   "reconnect_listener_generation": 5,
   "reconnect_r2_admission_generation": 31,
   "reconnect_capture_generation": 42,
   "reconnect_first_frame_id": 8,
-  "reconnect_matching_ack_frame_id": 8
+  "reconnect_matching_ack_frame_id": 8,
+  "reconnect_frame_expected_bytes": 540,
+  "reconnect_frame_accepted_bytes": 540,
+  "reconnect_frame_write_client_id": 101,
+  "reconnect_client_ack_observed_inbound": true,
+  "reconnect_client_ack_client_id": 101
 }
 ```
 
@@ -333,6 +351,12 @@ umask 077
 python3 scripts/linux_x11_owner_evidence.py --input /private/path/attempt.json --pins /private/path/independent-pins.json > /private/path/redacted.json
 python3 tests/test_linux_x11_owner_evidence.py --script scripts/linux_x11_owner_evidence.py
 ```
+
+Independent source receipts must also prove a complete same-client R1
+frame write and actual inbound same-client R3/R4 FRAME_ACK; the local
+R4 ACK window, frame ID or queued bytes cannot establish either fact.
+Original process/listener context must be privately observed because
+numeric listener IDs may repeat after process restart.
 
 The validator cross-checks independently observed R2-bound consent generations
 against owner grant generations at initial Admission and reconnect. It also

@@ -38,6 +38,7 @@ def admitted_attempt(evidence):
         "reconnect": {"observed": True, "owner_grant_recorded": True, "consent_generation": 11,
                       "linux_session_generation": 20, "r2_admission_generation": 31,
                       "native_capture_generation": 42,
+                      "seat": {"graphical": True, "seat0": True, "unlocked": True, "current_session": True, "process_uid_matches_owner": True},
                       "stages": {name: "PASS" for name in evidence.RECONNECT_STAGES},
                       "first_frame_capture_generation": 42, "ack_capture_generation": 42,
                       "posts_after_revocation": 0},
@@ -109,6 +110,11 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                 self.reject(lambda record: record["seat"].update({name: False}))
                 self.reject(lambda record: record["seat"].update({name: None}))
 
+    def test_reconnect_requires_new_credential_proof_and_current_owner_seat(self):
+        self.reject(lambda record: record["reconnect"]["stages"].update(credentials_verified="FAIL"))
+        self.reject(lambda record: record["reconnect"]["seat"].update(unlocked=False))
+        self.reject(lambda record: record["reconnect"]["seat"].update(process_uid_matches_owner=None))
+
     def test_retirement_and_session_change(self):
         self.reject(lambda record: record["retirements"][0].update(capture_retired=False))
         def switch_without_session_change(record):
@@ -140,6 +146,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["reconnect"] = {"observed": False, "owner_grant_recorded": False,
                                "consent_generation": None, "linux_session_generation": None,
                                "r2_admission_generation": None, "native_capture_generation": None,
+                               "seat": {name: None for name in record["seat"]},
                                "stages": {name: "NOT_OBSERVED" for name in self.evidence.RECONNECT_STAGES},
                                "first_frame_capture_generation": None, "ack_capture_generation": None,
                                "posts_after_revocation": 0}

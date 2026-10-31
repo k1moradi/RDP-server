@@ -106,6 +106,26 @@ def independent_pins(evidence):
         "reconnect_frame_write_client_id": 101,
         "reconnect_client_ack_observed_inbound": True,
         "reconnect_client_ack_client_id": 101,
+        "accepted_socket_instance": 501,
+        "r2_socket_instance": 501,
+        "share_socket_instance": 501,
+        "frame_write_socket_instance": 501,
+        "client_ack_socket_instance": 501,
+        "native_authority_instance": 601,
+        "capture_authority_instance": 601,
+        "client_ack_inbound_frame_id": 7,
+        "reconnect_accepted_socket_instance": 502,
+        "reconnect_r2_socket_instance": 502,
+        "reconnect_share_socket_instance": 502,
+        "reconnect_frame_write_socket_instance": 502,
+        "reconnect_client_ack_socket_instance": 502,
+        "reconnect_native_authority_instance": 602,
+        "reconnect_capture_authority_instance": 602,
+        "reconnect_client_ack_inbound_frame_id": 8,
+        "retired_socket_instance": 501,
+        "retired_native_authority_instance": 601,
+        "r1_terminal_cancelled": True,
+        "r3_terminal_cancelled": True,
     }
 
 
@@ -494,6 +514,65 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                     self.evidence.validate_independent_pins(self.record, changed)
         changed = copy.deepcopy(pins)
         changed["schema"] = "rdp-server.linux-x11-owner-evidence-pins.v2"
+        with self.assertRaises(self.evidence.EvidenceError):
+            self.evidence.validate_independent_pins(self.record, changed)
+
+    def test_independent_native_attempt_lifetime_splice_denials(self):
+        pins = independent_pins(self.evidence)
+        self.evidence.validate(self.record)
+        self.evidence.validate_independent_pins(self.record, pins)
+
+        for prefix in ("", "reconnect_"):
+            # Equal listener/client/frame numbers cannot authorize a
+            # different original socket, R2 owner or inbound ACK frame.
+            for name, wrong in (
+                ("r2_socket_instance", 999),
+                ("share_socket_instance", 999),
+                ("frame_write_socket_instance", 999),
+                ("client_ack_socket_instance", 999),
+                ("capture_authority_instance", 999),
+                ("client_ack_inbound_frame_id", 42),
+            ):
+                with self.subTest(prefix=prefix, source=name):
+                    changed = copy.deepcopy(pins)
+                    changed[f"{prefix}{name}"] = wrong
+                    with self.assertRaises(self.evidence.EvidenceError):
+                        self.evidence.validate_independent_pins(self.record, changed)
+
+        # A coherent reuse of process-local IDs still cannot disguise a
+        # recycled accepted socket or a stale native owner.
+        for names in (
+            ("accepted_socket_instance", "r2_socket_instance",
+             "share_socket_instance", "frame_write_socket_instance",
+             "client_ack_socket_instance"),
+            ("native_authority_instance", "capture_authority_instance"),
+        ):
+            changed = copy.deepcopy(pins)
+            for name in names:
+                changed[f"reconnect_{name}"] = pins[name]
+            with self.assertRaises(self.evidence.EvidenceError):
+                self.evidence.validate_independent_pins(self.record, changed)
+
+        # Reconnect needs terminal cancellation of the original R1/R3
+        # session independently of the retired R2/X11 aggregate.
+        for name, wrong in (
+            ("retired_socket_instance", 502),
+            ("retired_native_authority_instance", 602),
+            ("r1_terminal_cancelled", False),
+            ("r3_terminal_cancelled", False),
+        ):
+            with self.subTest(terminal=name):
+                changed = copy.deepcopy(pins)
+                changed[name] = wrong
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(self.record, changed)
+
+        changed = copy.deepcopy(pins)
+        changed["schema"] = "rdp-server.linux-x11-owner-evidence-pins.v3"
+        with self.assertRaises(self.evidence.EvidenceError):
+            self.evidence.validate_independent_pins(self.record, changed)
+        changed = copy.deepcopy(pins)
+        del changed["reconnect_client_ack_inbound_frame_id"]
         with self.assertRaises(self.evidence.EvidenceError):
             self.evidence.validate_independent_pins(self.record, changed)
 

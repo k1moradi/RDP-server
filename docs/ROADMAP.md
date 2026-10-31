@@ -682,6 +682,36 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 **Candidate remains BLOCKED pending this change's own full exact-SHA hosted producer matrix and the manual-candidate prerequisites.** The claimed owner Linux 1060/1060 test is **SHA MISSING**, without independent `git rev-parse HEAD`, toolchain/configuration and command receipt. Recover attribution from the existing run if possible; do not infer it. M1 owner-native Linux/X11, Windows CLANG64/Clang23 and macOS27 same-SHA receipts remain **NOT VERIFIED**. Manual gate and physical client tests remain **NOT RUN/unauthorized**. No M1 freeze was nominated. Any later architectural commit resets the candidate.
 
+## R5 original accepted-socket/native-owner reconnect fence — authored (2026-10-31)
+
+**Review base:** `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`. The Linux R2→R3→R10 path and
+R5 fixed **45-case native X11 sanitizer inventory** are untouched.
+Existing independent pins v3 covered R10 client/listener, R2 lease,
+R5 capture and exact R1 write/inbound R3/R4 ACK, but did not distinguish
+accepted socket or actual R2 authority instances when process-local client,
+listener, session or frame IDs were recycled. Prior R2/X11 retirement alone
+also did not independently prove R1/R3 terminal cancellation before reconnect.
+
+Closed independent **pins v4** requires a separately observed accepted R1
+socket instance and R2 native owner instance per attempt, checks R2 Admission,
+R3 Share, R5 capture, complete R1 frame acceptance and genuine inbound
+same-frame R3/R4 client FRAME_ACK against their actual socket/native lineage,
+and requires the old R1/R3 terminal receipt before a fresh reconnect.
+The offline `linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials`
+CTest exercises cross-socket/owner/ACK splicing and missing retirement,
+separately from preexisting connection-pinning and fixed native sanitizers.
+These labels are noncryptographic operator-provided observations; they
+cannot mint native consent. No new Linux runtime owner or live operation.
+
+**Verification:** source and registration inspection complete; owner-local
+Python/CTest, cross-platform full builds and R5 45-case sanitizer rerun
+**NOT RUN**; exact-publication-SHA hosted CI **PENDING**.
+R9 manual candidate nomination and physical Linux seat0 permission,
+client FRAME_ACK/input/RandR/Stop/lock/logout/reconnect **NOT RUN /
+unauthorized**. Next: one fully green exact main SHA through R9, then
+individual physical-owner authorization for every stage. Agent 10 can
+compare Linux native teardown against macOS without copying its controller.
+
 ## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
 
 **R5 exact-descendant hosted qualification receipt (2026-10-31):**

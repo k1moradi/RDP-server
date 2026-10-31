@@ -160,14 +160,14 @@ is scoped to its actual process/listener lifetime: record listener
 Stop/replacement separately and do not infer uniqueness across restarts.
 
 The required independent local-only pins file is closed and bounded to
-4 KiB. **Independent pin schema v3** additionally requires R3 expected
+4 KiB. **Independent pin schema v4** additionally requires R3 expected
 frame bytes, actual R1 TLS-accepted frame bytes and accepted-client ID,
 and a genuinely inbound R3 client FRAME_ACK plus accepted-client ID,
 separately for first attempt and reconnect. Obtain all these from
 their original producers, not from the manifest. An unobserved/failed
 frame or ACK must have zero independent frame byte counts, null
 associated client IDs and false inbound ACK, never a guessed positive.
-A v2 pins file is rejected; even genuine scalar receipts cannot
+A v2/v3 pins file is rejected; even genuine scalar receipts cannot
 cryptographically authenticate their human reporter. Obtain R10 listener generation, R2 admission generation, R5 capture
 generation, R3 delivered frame ID and inbound R3/R4 client ACK frame ID
 **independently from the exact producer**, not copied from this manifest.
@@ -180,7 +180,7 @@ cryptographic attestations. Example fields and values are **synthetic**, not acc
 
 ```json
 {
-  "schema": "rdp-server.linux-x11-owner-evidence-pins.v3",
+  "schema": "rdp-server.linux-x11-owner-evidence-pins.v4",
   "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "accepted_client_id": 100,
   "owner_consent_generation": 10,
@@ -205,7 +205,27 @@ cryptographic attestations. Example fields and values are **synthetic**, not acc
   "reconnect_frame_accepted_bytes": 540,
   "reconnect_frame_write_client_id": 101,
   "reconnect_client_ack_observed_inbound": true,
-  "reconnect_client_ack_client_id": 101
+  "reconnect_client_ack_client_id": 101,
+  "accepted_socket_instance": 501,
+  "r2_socket_instance": 501,
+  "share_socket_instance": 501,
+  "frame_write_socket_instance": 501,
+  "client_ack_socket_instance": 501,
+  "native_authority_instance": 601,
+  "capture_authority_instance": 601,
+  "client_ack_inbound_frame_id": 7,
+  "reconnect_accepted_socket_instance": 502,
+  "reconnect_r2_socket_instance": 502,
+  "reconnect_share_socket_instance": 502,
+  "reconnect_frame_write_socket_instance": 502,
+  "reconnect_client_ack_socket_instance": 502,
+  "reconnect_native_authority_instance": 602,
+  "reconnect_capture_authority_instance": 602,
+  "reconnect_client_ack_inbound_frame_id": 8,
+  "retired_socket_instance": 501,
+  "retired_native_authority_instance": 601,
+  "r1_terminal_cancelled": true,
+  "r3_terminal_cancelled": true
 }
 ```
 
@@ -215,6 +235,49 @@ SHA, usernames, addresses, audit IDs, XIDs, pixels or input payloads enter
 the public output. The independent receipts help detect accidental
 cross-connection and cross-epoch splices, but cannot cryptographically
 attest a handwritten manifest or authorize an R2 lease.
+
+### Original socket/native owner and frame/ACK evidence contract
+
+For **each separately authorized physical stage** nominate one exact 40-hex
+main SHA with same-SHA required CI and native 45/45 sanitizer evidence. No
+real native seat0 stage has been authorized or observed: mark all **NOT RUN**,
+using `NOT_OBSERVED` in manifests rather than inventing success.
+
+Independent **pins v4** requires an operator-scoped numeric correlation
+label for the *actual accepted R1 socket lifetime* and a separate label for
+the original *R2 native-authority lifetime*. These values are not raw file
+descriptors, OS session IDs, identities, capability tokens or admission
+grants. Record the accepted socket label independently from R10 and beside
+the R2 native Admission, R3 Share activation, fully accepted R1 TLS frame
+write, and genuinely inbound R3/R4 FRAME_ACK. Record the R2 native owner
+label independently beside the R5 XShm capture. Record the inbound ACK's
+original RDPGFX frame ID separately from local R4 window credit. Never copy
+these labels from a self-consistent manifest or mint them merely by matching
+a listener generation, client ID, display/session generation or consent epoch.
+
+For a positive fresh reconnect, independently observe terminal retirement
+of the *old* accepted R1 connection and R3 frame/ACK session, bound to the
+original socket/native owner. Its newly accepted socket and genuine R2
+native owner must be different from the retired ones even if process-local
+listener and client numeric IDs repeat. Without full original-producer
+tracing, record the physical stages **NOT RUN / NOT_OBSERVED**; these private
+pins are noncryptographic and cannot independently attest the reporter.
+A partial original attempt with no reconnect must not claim completed
+R1/R3 terminal receipts just because R2/R5 were retired. Record only
+independently observed stages.
+
+**Agent 10 teardown/reference:** the sole serialized Linux host first revokes
+the original owner-grant epoch; it then retires R8 clipboard and R5's
+`X11DesktopResources::retireAfterAuthorizationLoss()` (clears held keys and
+buttons **without XTEST release posts**). The desktop destroys input,
+optional pointer watcher, XDamage, XShm, cursor, and finally its XCB owner.
+Retire the R3/R2/credential aggregate and sole R1 SSL/BIO/accepted socket
+before listener destruction. Unregister borrowed logind/XCB poll interests
+before their owning resources die; do not persist an XShm span or XCB event
+beyond synchronous callback return. Old frame ACK-window credit never
+authorizes new frame publication. macOS should compare these ownership
+and terminal guarantees against its own native path, **not clone Linux's
+runtime controller**.
 
 ## R10 borrowed-X11 teardown and positive frame handoff
 

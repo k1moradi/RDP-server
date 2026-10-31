@@ -1478,6 +1478,18 @@ set_tests_properties(
     PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
                TIMEOUT 15)
 
+# Independent original R1 socket, R2 native authority, R3 Share/ACK and
+# R1/R3 terminal cancellation; offline, outside the 45-case native selector.
+add_test(NAME linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_linux_x11_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/linux_x11_owner_evidence.py"
+        -k independent_native_attempt_lifetime_splice_denials)
+set_tests_properties(
+    linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials
+    PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
+               TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

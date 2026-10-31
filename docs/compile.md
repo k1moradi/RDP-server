@@ -1,3 +1,12 @@
+## R5 original accepted-socket offline evidence build scope (2026-10-31)
+
+No C++ target, dependency, listener, X11 operation or second build root.
+Within the canonical `~/rdp-server/build/` run
+`ctest --test-dir build -C Debug -R '^linux[.]x11-owner-private-evidence-accepted-socket-native-lifetime-denials$' --output-on-failure`,
+then full Debug/Release CTest and unchanged separate R5 native 45-case
+sanitizers at the **same exact SHA**. Connector-local runs NOT RUN;
+physical owner input/capture NOT RUN / unauthorized.
+
 ## R3/R10 cached Erect readiness correction build boundary (2026-10-31)
 
 The macOS HostControl uses one corrected R1 readiness condition and an

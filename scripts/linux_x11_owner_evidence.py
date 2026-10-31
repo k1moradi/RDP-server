@@ -25,7 +25,7 @@ RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphi
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
 MAXIMUM_PIN_BYTES = 4096
-PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v3"
+PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v4"
 FRAME_WRITE_PRODUCER = "r1-tls-complete-frame-write"
 CLIENT_ACK_PRODUCER = "r3-client-frame-ack"
 NATIVE_ADMISSION_PRODUCER = "linux-console-admission-broker"
@@ -451,6 +451,17 @@ def validate_independent_pins(record, pins):
         "reconnect_frame_expected_bytes", "reconnect_frame_accepted_bytes",
         "reconnect_frame_write_client_id", "reconnect_client_ack_observed_inbound",
         "reconnect_client_ack_client_id",
+        # A process-local numeric client ID cannot identify a new socket.
+        "accepted_socket_instance", "r2_socket_instance",
+        "share_socket_instance", "frame_write_socket_instance",
+        "client_ack_socket_instance", "native_authority_instance",
+        "capture_authority_instance", "client_ack_inbound_frame_id",
+        "reconnect_accepted_socket_instance", "reconnect_r2_socket_instance",
+        "reconnect_share_socket_instance", "reconnect_frame_write_socket_instance",
+        "reconnect_client_ack_socket_instance", "reconnect_native_authority_instance",
+        "reconnect_capture_authority_instance", "reconnect_client_ack_inbound_frame_id",
+        "retired_socket_instance", "retired_native_authority_instance",
+        "r1_terminal_cancelled", "r3_terminal_cancelled",
     ), "pins")
     if pins["schema"] != PIN_SCHEMA:
         raise EvidenceError("unsupported independent pin schema")
@@ -542,6 +553,100 @@ def validate_independent_pins(record, pins):
                 raise EvidenceError("ACK lacks independent inbound client PDU")
         elif inbound_ack or ack_client_id is not None:
             raise EvidenceError("unverified ACK has independent client claim")
+
+    # These owner-private instance labels come independently from R10, R2,
+    # R5, R1 and R3/R4. They are correlation facts, never native authority.
+    initial_socket_instance = None
+    initial_native_authority_instance = None
+    for prefix, stages in (
+        ("", record["stages"]),
+        ("reconnect_", reconnect["stages"]),
+    ):
+        accepted_socket = require_generation(
+            pins[f"{prefix}accepted_socket_instance"],
+            f"pins.{prefix}accepted_socket_instance", nullable=True)
+        r2_socket = require_generation(
+            pins[f"{prefix}r2_socket_instance"],
+            f"pins.{prefix}r2_socket_instance", nullable=True)
+        share_socket = require_generation(
+            pins[f"{prefix}share_socket_instance"],
+            f"pins.{prefix}share_socket_instance", nullable=True)
+        frame_write_socket = require_generation(
+            pins[f"{prefix}frame_write_socket_instance"],
+            f"pins.{prefix}frame_write_socket_instance", nullable=True)
+        client_ack_socket = require_generation(
+            pins[f"{prefix}client_ack_socket_instance"],
+            f"pins.{prefix}client_ack_socket_instance", nullable=True)
+        native_authority = require_generation(
+            pins[f"{prefix}native_authority_instance"],
+            f"pins.{prefix}native_authority_instance", nullable=True)
+        capture_authority = require_generation(
+            pins[f"{prefix}capture_authority_instance"],
+            f"pins.{prefix}capture_authority_instance", nullable=True)
+        inbound_ack_frame = require_frame_id(
+            pins[f"{prefix}client_ack_inbound_frame_id"],
+            f"pins.{prefix}client_ack_inbound_frame_id", nullable=True)
+
+        observed = any(stage != "NOT_OBSERVED" for stage in stages.values())
+        if (accepted_socket is None) != (not observed):
+            raise EvidenceError("observed attempt lacks original socket instance")
+        if stages["native_admission"] == "PASS":
+            if r2_socket is None or r2_socket != accepted_socket or native_authority is None:
+                raise EvidenceError("native Admission crossed accepted socket")
+        elif r2_socket is not None or native_authority is not None:
+            raise EvidenceError("unverified Admission claims native authority")
+        if stages["share"] == "PASS":
+            if share_socket is None or share_socket != accepted_socket:
+                raise EvidenceError("Share crossed accepted socket")
+        elif share_socket is not None:
+            raise EvidenceError("unverified Share claims accepted socket")
+        if stages["first_frame"] == "PASS":
+            if (frame_write_socket is None or frame_write_socket != accepted_socket or
+                    capture_authority is None or
+                    capture_authority != native_authority):
+                raise EvidenceError("frame delivery crossed socket/native owner")
+        elif frame_write_socket is not None or capture_authority is not None:
+            raise EvidenceError("unverified frame claims socket/native owner")
+        if stages["matching_ack"] == "PASS":
+            expected_frame_id = (record["frame"]["first_frame_id"]
+                                 if not prefix else reconnect["first_frame_id"])
+            if (client_ack_socket is None or client_ack_socket != accepted_socket or
+                    inbound_ack_frame != expected_frame_id):
+                raise EvidenceError("client ACK crossed socket/frame lifetime")
+        elif client_ack_socket is not None or inbound_ack_frame is not None:
+            raise EvidenceError("unverified ACK claims socket/frame lifetime")
+
+        if prefix:
+            if (reconnect["observed"] and
+                    (accepted_socket == initial_socket_instance or
+                     native_authority == initial_native_authority_instance)):
+                raise EvidenceError("reconnect reused retired socket/native owner")
+        else:
+            initial_socket_instance = accepted_socket
+            initial_native_authority_instance = native_authority
+
+    retired_socket = require_generation(
+        pins["retired_socket_instance"],
+        "pins.retired_socket_instance", nullable=True)
+    retired_native_authority = require_generation(
+        pins["retired_native_authority_instance"],
+        "pins.retired_native_authority_instance", nullable=True)
+    r1_cancelled = require_bool(
+        pins["r1_terminal_cancelled"], "pins.r1_terminal_cancelled")
+    r3_cancelled = require_bool(
+        pins["r3_terminal_cancelled"], "pins.r3_terminal_cancelled")
+    if reconnect["observed"]:
+        if (retired_socket is None or
+                retired_socket != initial_socket_instance or
+                retired_native_authority is None or
+                retired_native_authority != initial_native_authority_instance or
+                not r1_cancelled or not r3_cancelled):
+            raise EvidenceError("reconnect lacks original R1/R3 terminal retirement")
+    elif (retired_socket is not None or retired_native_authority is not None or
+          r1_cancelled or r3_cancelled):
+        # Partial observations without a reconnect must not claim terminal
+        # receipts, which may not exist when R3 was never constructed.
+        raise EvidenceError("unobserved reconnect claims terminal cancellation")
 
 
 

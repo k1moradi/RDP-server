@@ -1,3 +1,13 @@
+## R5 original accepted-socket / native-authority attempt evidence (2026-10-31)
+
+Owner-private independent pins v4 require original accepted socket and R2
+native owner lifetimes separately from process-local numeric generations.
+R2 Admission, R3 Share, R5 capture, complete R1 TLS write and genuinely
+inbound R3/R4 ACK must pin the same original owner/connection and ACK frame.
+Reconnect requires a fresh socket/native owner and terminal R1/R3 retirement
+of the first attempt; one matching integer or a prepared write is never
+permission. This changes no runtime controller or native access policy.
+
 ## R3/R10 buffered Erect TLS plaintext readiness (2026-10-31)
 
 A first-MCS R1 SSL read may leave a coalesced Erect TPKT already decrypted

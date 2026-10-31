@@ -1,3 +1,74 @@
+## R5 original accepted socket/native owner provenance audit (2026-10-31)
+
+Audited the single R10 Linux accepted-socket/owner lifetime, concrete
+R2 owner-grant epoch and native seat0 revalidation, and R5 XDamage/XShm/
+RandR/XTEST teardown. Callback-return capture-generation checks, queued
+native retirement, suppressed XTEST releases on authorization loss and
+complete R1 frame acceptance/inbound R3/R4 client ACK protections are
+already present; no production Linux X11 mutation is justified.
+
+Distinct offline gap: independent pins v3 could join two process-local
+accepted sockets or R2 native authorities that reused numeric client,
+listener, consent, session or frame IDs. A prior R2/R5 retirement report
+also did not independently prove R1/R3 terminal cancellation before
+reconnect. Pins v4 requires separate original R10 socket/native R2 owner
+instance labels for Admission, R3 Share, R5 capture, complete R1 frame
+write and inbound R3/R4 ACK (including original frame ID), and original
+R1/R3 terminal retirement for a reconnect. The new
+`linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials`
+offline Python CTest exercises crossed producer, native owner, inbound
+ACK and missing-terminal receipts. This does not authenticate handwritten
+evidence or grant native authority; 45 native sanitizer CTests unchanged.
+
+Source-backed audit and CTest registration inspected. Connector-local
+focused/full CTest, Debug/Release builds, native sanitizers and exact
+publication-SHA hosted CI **NOT RUN/PENDING**. Physical Linux seat0,
+Microsoft client, capture, XTEST, RandR and reconnect **NOT RUN /
+unauthorized**. R9 exact-SHA manual candidate and separate owner
+authorization are still required before any physical stage.
+
+## R9 production-source CTest registry co-change policy (2026-10-31)
+
+Audit parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`: `AGENTS.md` requires one new centralized
+behavior-named CTest on each production implementation increment. R10's
+new positive macOS HostControl Erect intake changed source and the fixture
+but omitted `tests/CMakeLists.txt`; the old Markdown-only push check
+could not report the missing registration. Extend that same check narrowly
+to require a centralized registry file change whenever a commit changes
+C/C++ under `src/`, preserving documentation checks and commit-by-commit
+atomicity. Six offline regression cases exercise denial and allowed
+boundaries without Git, credentials, sockets or native UI. A registry
+co-change is necessary but not proof of actual positive branch coverage.
+
+Validation: source review PASS; Python syntax and pure in-memory
+classification PASS; the newly registered offline Python CTest,
+owner canonical Debug/full CTest, native platform qualification and
+ASan/UBSan are NOT RUN in this connector environment. Exact-head CI
+PENDING; owner candidate NOT NOMINATED. R10 still needs a dedicated
+real-production-path Erect/Attach positive test, and macOS Share/Graphics
+composition and owner-approved physical acceptance remain BLOCKED.
+
+## R2 post-MCS callback native audit replacement regression (2026-10-31)
+
+Audited exact parent `8c68f687173d7396b4bb77625620bdaee6959987`. R10 now has a protected first-MCS,
+Connect-Response and Erect Domain consumer; the prior R1/R3 primitive gap
+is resolved. R2's `MacNativeDesktopAuthorization::visit` already performs
+native/proof/consent checks before and after the visitor, and its broker
+does not publish Admitted until this whole visit passes. There was no
+separate regression for audit-session change **after** successful R3 first-MCS
+semantic mutation but **before** publishing that result to R10.
+Added `security.macos-protected-post-mcs-semantic-audit-loss` using the
+existing real accepted HYBRID/TLS owner and production R2/R3 code plus
+controlled synthetic macOS evidence. The reader verifies the R3 state is
+AwaitConnectResponse when the second audit sample changes; R2 must return
+AdmissionDenied and terminally close the old R3/R1. This is a test-only
+assurance increment, not a product-valid OS login or standalone proof.
+Connector-local compile, focused/full CTest and sanitizers **NOT RUN**;
+exact-publication hosted CI **PENDING**. R10 still owns View+Input scope
+selection, Attach/Join/Share composition and genuine macOS physical-client
+acceptance. No new admission issuer, public API, permission relaxation or
+measured performance claim.
+
 ## R3/R10 coalesced buffered Erect TLS-read liveness correction (2026-10-31)
 
 Authored against `9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102`. The newly landed R10 post-Connect-Response

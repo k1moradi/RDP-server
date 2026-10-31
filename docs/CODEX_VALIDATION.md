@@ -1,3 +1,19 @@
+## R8 X11 callback sanitizer selector completion (2026-10-31)
+
+- Audited current main parent `ca4c90aece8c1fc83cf0040f5f39598abca638b6`: the earlier global CTest taxonomy
+  blocker is resolved, but the R9 sanitizer workflow still selected only the
+  source-retirement and notification/INCR X11 regressions.
+- CI now requires and runs all three separate X11 callback cases, adding
+  `clipboard.x11-native-callback-owner-retirement` while preserving the fixed
+  broad clipboard selection at **107** and the separately named native file
+  finalization gate. The independent workflow validator requires all three
+  names so this coverage cannot silently disappear.
+- Source/structure review: **PASS by inspection**. Exact publication-SHA
+  sanitizer/full CI: **PENDING**. Current shared-main compilation is independently
+  blocked by R2 macOS `mac_console_admission.cpp:807` using undeclared
+  `undefined`; R8 does not modify that owner.
+- Clipboard activation remains false; no physical clipboard, client or file I/O.
+
 ## R2 protected macOS Demand Active and Share wrappers (2026-10-31)
 
 Five private R3 Demand/Share methods are now available only inside the

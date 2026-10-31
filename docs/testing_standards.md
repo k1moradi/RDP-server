@@ -210,7 +210,10 @@ replacement and from notify/INCR retirement. Labels exclude `clipboard`,
 preserving the fixed **107-case** sanitizer inventory; run this exact CTest
 separately under the same ASan/UBSan build with the other two X11 cases and
 the separate macOS/Windows finalization case. No DISPLAY, file creation or
-physical clipboard is used.
+physical clipboard is used. The sanitizer workflow must enumerate this owner-
+retirement case together with the source-retirement and notification/INCR
+cases and fail closed unless exactly all three separate X11 tests are present;
+none receives the broad `clipboard` label.
 
 ## R8 X11 callback-time source replacement regression (2026-10-30)
 

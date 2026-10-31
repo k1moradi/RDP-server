@@ -412,6 +412,8 @@ REQUIRED_TOKENS = (
     "clipboard_expected_test_count=107",
     "clipboard.file-destination-finalization-generation-replacement",
     "clipboard.x11-native-callback-source-retirement",
+    "clipboard.x11-native-callback-owner-retirement",
+    "clipboard.x11-notification-and-incr-retirement",
     "Run R3 static CLIPRDR route CTests with sanitizers",
     "transport.cliprdr-pre-share-denial",
     "transport.cliprdr-fragment-reassembly",

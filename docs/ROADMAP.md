@@ -1,3 +1,24 @@
+## R8 sanitizer selector completes destroyed-owner X11 coverage (2026-10-31)
+
+**Authoring main parent:** `ca4c90aece8c1fc83cf0040f5f39598abca638b6`. The prior registry-taxonomy configure
+blocker has been resolved by R2's durable CTest rename, so R8 continued its
+qualification audit. One R8-owned gap remained: the sanitizer job explicitly
+enumerated only the older source-retirement and notification/INCR X11 callback
+tests, so the new destroyed-owner regression could not receive exact-SHA
+ASan/UBSan evidence even if the job was green. The workflow now selects exactly
+all three separate X11 callback-retirement tests, and the independent structure
+validator requires every name. The fixed broad `clipboard` census remains
+**107**, and the macOS/Windows finalization regression remains separately named.
+
+**Current external blocker:** current main's common protocol target still fails
+compilation in R2-owned `src/server/security/mac_console_admission.cpp:807`
+because `undefined` is undeclared. That blocks R9 sanitizer qualification
+before the R8 tests can execute. R8 must not patch R2 macOS admission ownership.
+After that R2 correction lands, rerun exact-head full CI plus **107/107**, the
+separate native finalization case and all three X11 callback cases.
+`kLinuxProductionClipboardActivationApproved = false` remains unchanged;
+physical clipboard/files/client testing is unauthorized.
+
 ## R2 macOS native-authorized Demand Active and Share progression (2026-10-31)
 
 The original broker now has fresh protected R3 macOS Demand Active profile,

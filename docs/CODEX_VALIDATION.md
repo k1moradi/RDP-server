@@ -1,3 +1,33 @@
+## R8 callback-time source fence — exact descendant sanitizer qualification (2026-10-31)
+
+- Published R8 production/test/docs correction: `bd68b5a063bf33d993854f22f4ff3c8da255a59c`.
+- Exact qualifying descendant: `2f7ee6d033700c7a6bbfa51387de9835bf974358`,
+  GitHub Actions run `41179113155`, `r9-security-protocol-sanitizers` job
+  `124472700546`: **PASS**. Reviewed decoded job logs, not just workflow status.
+- Fixed clipboard labeled selector: **107/107 PASS**. Separate combined
+  native file-finalization CTest: **1/1 PASS**. New production-backed
+  `clipboard.x11-native-callback-source-retirement`: **1/1 PASS**.
+  Separately pinned R3 static CLIPRDR route tests: **9/9 PASS**.
+- The new R8 behavior is outside the 107-case `clipboard` label census.
+  No source/CTest/census adjustment is required and no live clipboard is enabled.
+- Ubuntu/macOS/Windows Debug compilation: **PASS** on this descendant.
+  Full Debug CTest is **not green**, solely due to unrelated
+  `macos.gui-qcolor-provenance-parser-and-redaction` **Not Run**:
+  `tests/CMakeLists.txt` registers it at line 111 with
+  `${Python3_EXECUTABLE}` before its `find_package(Python3 REQUIRED
+  COMPONENTS Interpreter)` at line 1328; CTest reports an empty executable.
+  This is R7 test-registration ownership, not an R8 failure.
+- R4's earlier fixed-array compile failure is resolved on this descendant:
+  the 171-case table remains intact and the independent R4 behavior is
+  dispatched separately. No R8 changes were needed for that repair.
+- Future R10 positive native integration is still blocked by the deliberate
+  `kLinuxProductionClipboardActivationApproved = false` gate and the
+  prerequisite of a genuinely current R2 clipboard lease, activated Share,
+  current joined `cliprdr`, GraphicsReady, one native clipboard owner, sole R1
+  writer and exact bounded write receipts. Synthetic tests confer no authority.
+- Physical RDP clients, local clipboard, native file creation, browser paste
+  and file-manager operations remain **NOT RUN / unauthorized**.
+
 ## R3 macOS private protocol edge exact-SHA hosted receipt (2026-10-30)
 
 Corrective descendant `4f1a5931c75daa468996b6a0d6465de197772b21`,

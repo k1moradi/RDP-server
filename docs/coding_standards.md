@@ -1,3 +1,18 @@
+## R2 real R1 HYBRID/TLS completion and receipt retirement fixture (2026-10-31)
+
+The concrete macOS broker's private R1 completion is exercised against a real
+loopback `OwnedPreauthTcpConnection` with HYBRID negotiation, the exact
+R1-owned SSL/BIO and pinned certificate provenance. The offline fixture uses
+synthetic standalone-authentication/native observations only to enter R2
+internal mechanics; they are explicitly not product-valid macOS admission.
+After R1 reaches AwaitMcsConnectInitial, the same broker binds R3, preserves a
+zero-byte Connect-Response receipt, advances exactly one R1-accepted plaintext
+byte, and terminally rejects a later accepted byte after owner-consent
+revocation. A separate case replaces native audit-session evidence during the
+post-R1 protected callback while a whole first-MCS packet is already decrypted;
+R2 closes R3 and cancels R1 before any MCS byte is consumed. Duplicate R1
+completion is terminal. No Linux admission or public R1/R3 API changes.
+
 ## R2 macOS joined CLIPRDR pre-Share protection (2026-10-31)
 
 The concrete macOS broker now mirrors the Linux R2 boundary for the optional

@@ -1,3 +1,18 @@
+## R2 real R1 TLS protected-completion and receipt regression (2026-10-31)
+
+Dedicated ordinary offline CTest
+`security.macos-protected-credssp-transport-completion-receipt-retirement`
+reuses the existing real loopback R1/TLS test executable and adds no second
+listener/session owner. It covers successful private R1 CredSSP-stage
+completion, duplicate-completion retirement, protected R3 Connect-Initial,
+zero-byte Connect-Response retry identity, one-byte R1 TLS plaintext
+acceptance/partial receipt, and consent loss before a later exact receipt. It
+also coalesces a complete synthetic CredSSP DER envelope with a whole first-MCS
+TPKT, leaves that MCS plaintext buffered in OpenSSL, changes native evidence
+only after the R1 completion callback, and proves broker teardown makes the
+buffered first-MCS unreadable. Authentication/native fixtures remain synthetic
+and therefore do not certify a product-valid physical macOS lease.
+
 ## R2 macOS pre-Share joined-clipboard denial (2026-10-31)
 
 Ordinary production-linked offline CTest

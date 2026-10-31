@@ -1,3 +1,21 @@
+## R2 production-R1 transport completion/receipt authoring (2026-10-31)
+
+On parent `2383df14eeed95b1ab90b90ece778b8eb3de59c0`, the existing `test_owned_preauth_session` real loopback
+HYBRID/TLS fixture is now linked to the concrete macOS admission broker for one
+dedicated offline behavior. The test drives the broker's private R1 completion,
+protected R3 Connect-Initial and Connect-Response receipt path through the exact
+R1 SSL/BIO/certificate owner. Zero and partial receipts use the broker's own
+reply/slice tuple; an R1-accepted byte followed by owner revocation cannot
+advance R3. Another case observes R1 reach AwaitMcsConnectInitial, then replaces
+native audit-session evidence during the visitor post-check while first-MCS
+plaintext is already buffered, requiring R3/R1 terminal teardown. Duplicate
+completion is also terminal.
+
+The proof and native sources in this regression are intentionally synthetic
+internal fixtures; no physical macOS lease or real standalone-password
+authentication is claimed. Connector-local compile/focused/full CTest and
+sanitizers: **NOT RUN**. Exact publication-SHA hosted CI: **PENDING**.
+
 ## R2 joined CLIPRDR protected-wrapper completion (2026-10-31)
 
 Source audit on parent `b23951da2708ab431342467dbc3cb176d109a892` found one missing R2 wrapper in the required

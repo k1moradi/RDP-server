@@ -8,6 +8,8 @@
 #include "security/credssp_tsrequest.h"
 #include "security/credssp_tls_certificate.h"
 #include "security/standalone_ntlmssp.h"
+#include "server/security/mac_console_admission.h"
+#include "transport/mcs_connect_initial.h"
 #ifdef RDP_TEST_LINUX_GSSAPI
 #include "server/runtime/linux_runtime_connection.h"
 #include "security/gssapi_spnego_acceptor.h"
@@ -7696,6 +7698,436 @@ void testOwnedBufferedTlsCredSspThenMcsReadiness()
     assert(reader.status() == TsRequestFrameStatus::Closed);
 }
 
+
+[[nodiscard]] OwnedNativeTcpSocket acceptMacProtectedTransportSocket(
+    LoopbackSocketPair &pair)
+{
+    auto accepted = waitForAcceptedLoopbackConnection(
+        static_cast<std::uintptr_t>(pair.listener.value));
+    assert(accepted.outcome == TcpAcceptOutcome::Accepted);
+    return std::move(accepted.connection);
+}
+
+class MacProtectedOwnerEvidence final : public ConsoleOsEvidenceSource
+{
+public:
+    ConsoleSessionObservation session{
+        ConsoleEvidenceReadStatus::Observed,
+        "owner-session",
+        "seat0",
+        ":0",
+        1000U,
+        7U,
+        1000U,
+        true,
+        true,
+        1000U,
+        ConsoleDesktopLockState::Unlocked,
+        false};
+    std::optional<std::uint64_t> now{1000U};
+
+    [[nodiscard]] ConsoleAccountObservation readUnixAccount(
+        std::string_view /* account */) noexcept override
+    {
+        return {};
+    }
+
+    [[nodiscard]] ConsoleSessionObservation readActiveConsole() noexcept override
+    {
+        session.observedAtMonotonicMilliseconds = now.value_or(0U);
+        return session;
+    }
+
+    [[nodiscard]] std::optional<std::uint64_t>
+    readMonotonicMilliseconds() noexcept override
+    {
+        return now;
+    }
+};
+
+[[nodiscard]] MacNativeSessionEvidence macProtectedNativeEvidence() noexcept
+{
+    MacNativeSessionEvidence evidence{};
+    constexpr std::string_view consoleUser{"owner"};
+    std::copy(consoleUser.begin(), consoleUser.end(),
+              evidence.consoleUser.begin());
+    evidence.consoleUserBytes = consoleUser.size();
+    evidence.consoleUserId = 501U;
+    evidence.auditUserId = 501U;
+    evidence.auditSessionId = 77U;
+    evidence.securitySessionId = 88U;
+    evidence.securitySessionAttributes = 0x10U;
+    return evidence;
+}
+
+// Synthetic authentication observation for the R2 broker's internal mechanics.
+// It cannot prove CredSSP credentials or mint a product-valid macOS lease.
+// The R1 transport/TLS owner used below is nevertheless the real production
+// OwnedPreauthTcpConnection and exact HYBRID SSL/BIO/certificate provenance.
+class MacProtectedTransportProof final
+    : public NativeDesktopAuthenticatedSessionProof
+{
+public:
+    MacProtectedTransportProof(
+        const StandalonePasswordCredentialOwner &credentialOwner,
+        const OwnedPreauthTcpConnection &connection) noexcept
+        : credentialOwner_(&credentialOwner), connection_(&connection)
+    {
+    }
+
+    [[nodiscard]] NativeDesktopAuthenticationKind authenticationKind()
+        const noexcept override
+    {
+        return NativeDesktopAuthenticationKind::StandalonePassword;
+    }
+
+    [[nodiscard]] std::uint64_t authenticationGeneration()
+        const noexcept override
+    {
+        return revalidatesAuthenticatedSession() ? authenticationGeneration_ : 0U;
+    }
+
+    [[nodiscard]] bool revalidatesAuthenticatedSession()
+        const noexcept override
+    {
+        if (credentialOwner_ == nullptr || connection_ == nullptr ||
+            !connection_->active() || connection_->establishedTls() == nullptr)
+            return false;
+        const auto stage = connection_->stage();
+        if (stage != PreauthStage::AwaitCredSsp &&
+            stage != PreauthStage::AwaitMcsConnectInitial)
+            return false;
+        const auto provenance = connection_->securityNegotiationProvenance();
+        if (!provenance ||
+            provenance->serverSelectedProtocol != kRdpProtocolHybrid ||
+            (provenance->clientRequestedProtocols & kRdpProtocolHybrid) == 0U)
+            return false;
+        const auto credential = credentialOwner_->observation();
+        return credential.configured &&
+               credential.generation == credentialGeneration_;
+    }
+
+    void bindCredentialGeneration(std::uint64_t generation) noexcept
+    {
+        credentialGeneration_ = generation;
+    }
+
+private:
+    [[nodiscard]] bool revalidatesOwnedR1Connection(
+        const OwnedPreauthTcpConnection &connection) const noexcept override
+    {
+        return connection_ == &connection &&
+               revalidatesAuthenticatedSession();
+    }
+
+    [[nodiscard]] std::uint64_t configuredCredentialGeneration()
+        const noexcept override
+    {
+        return revalidatesAuthenticatedSession() ? credentialGeneration_ : 0U;
+    }
+
+    const StandalonePasswordCredentialOwner *credentialOwner_{};
+    const OwnedPreauthTcpConnection *connection_{};
+    std::uint64_t credentialGeneration_{};
+    std::uint64_t authenticationGeneration_{101U};
+};
+
+class MacProtectedNativeEvidence final : public MacNativeSessionEvidenceSource
+{
+public:
+    explicit MacProtectedNativeEvidence(
+        const OwnedPreauthTcpConnection &connection) noexcept
+        : connection_(&connection)
+    {
+    }
+
+    [[nodiscard]] MacNativeSessionEvidenceStatus readCurrent(
+        MacNativeSessionEvidence &output) const noexcept override
+    {
+        output = evidence;
+        if (replaceAfterCredSspCompletion &&
+            connection_ != nullptr &&
+            connection_->stage() == PreauthStage::AwaitMcsConnectInitial)
+        {
+            observedPostCompletion = true;
+            ++output.auditSessionId;
+        }
+        return MacNativeSessionEvidenceStatus::Observed;
+    }
+
+    MacNativeSessionEvidence evidence{macProtectedNativeEvidence()};
+    bool replaceAfterCredSspCompletion{};
+    mutable bool observedPostCompletion{};
+
+private:
+    const OwnedPreauthTcpConnection *connection_{};
+};
+
+class MacProtectedTransportFixture final
+{
+public:
+    MacProtectedTransportFixture()
+        : pair(false),
+          connection(
+              acceptMacProtectedTransportSocket(pair),
+              SecurityNegotiationPolicy::HybridNla),
+          clientIo(static_cast<std::uintptr_t>(pair.client.value)),
+          tls(false, false),
+          ownerAuthority(ownerEvidence),
+          proof(credential, connection),
+          nativeEvidence(connection),
+          broker(proof, connection, nativeEvidence, ownerAuthority),
+          session(std::make_unique<McsSessionLifecycle>())
+    {
+        assert(SSL_set_max_proto_version(
+                   tls.server.get(), TLS1_2_VERSION) == 1);
+        assert(SSL_set_max_proto_version(
+                   tls.client.get(), TLS1_2_VERSION) == 1);
+        establishOwnedApplicationTlsForRequest(
+            connection, clientIo, tls, tlsAndHybridRequestWire(),
+            SecurityNegotiationPolicy::HybridNla);
+        assert(connection.stage() == PreauthStage::AwaitCredSsp);
+
+        std::array<char16_t, 8> password{
+            u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+        assert(credential.configure(u"Session", password));
+        const auto credentialObservation = credential.observation();
+        assert(credentialObservation.configured &&
+               credentialObservation.generation != 0U);
+        proof.bindCredentialGeneration(credentialObservation.generation);
+
+        assert(ownerAuthority.requestConsent(
+                   {kConsoleViewPermission, 60'000U}) ==
+               OwnerConsentRequestResult::Granted);
+        assert(broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::Prepared);
+        assert(broker.state() == MacConsoleAdmissionState::Prepared);
+    }
+
+    LoopbackSocketPair pair;
+    OwnedPreauthTcpConnection connection;
+    NativeTcpIo clientIo;
+    TlsHandshakeFixture tls;
+    MacProtectedOwnerEvidence ownerEvidence{};
+    CurrentOwnerSharingAuthority ownerAuthority;
+    StandalonePasswordCredentialOwner credential{};
+    MacProtectedTransportProof proof;
+    MacProtectedNativeEvidence nativeEvidence;
+    MacConsoleAdmissionBroker broker;
+    std::unique_ptr<McsSessionLifecycle> session;
+};
+
+[[nodiscard]] std::vector<std::uint8_t> macProtectedHybridConnectInitial()
+{
+    auto packet = validMcsPacket();
+    const auto parsed = parseMcsConnectInitial(packet);
+    assert(parsed);
+
+    constexpr std::array<std::uint8_t, 4> coreHeader{
+        0x01U, 0xc0U, 0xd8U, 0x00U};
+    const auto core = std::search(
+        parsed.value.gccUserData.begin(), parsed.value.gccUserData.end(),
+        coreHeader.begin(), coreHeader.end());
+    assert(core != parsed.value.gccUserData.end());
+
+    const std::size_t selectedProtocolOffset =
+        static_cast<std::size_t>(
+            parsed.value.gccUserData.data() - packet.data()) +
+        static_cast<std::size_t>(
+            core - parsed.value.gccUserData.begin()) + 212U;
+    assert(selectedProtocolOffset + 4U <= packet.size());
+    std::fill_n(
+        packet.begin() + static_cast<std::ptrdiff_t>(selectedProtocolOffset),
+        4U, std::uint8_t{0});
+    packet[selectedProtocolOffset] =
+        static_cast<std::uint8_t>(kRdpProtocolHybrid);
+    return packet;
+}
+
+[[nodiscard]] std::size_t writeOneMacProtectedPlaintextByte(
+    MacProtectedTransportFixture &fixture,
+    std::span<const std::uint8_t> offered)
+{
+    using Outcome = TlsApplicationIoOutcome;
+    using Interest = TcpConnectionIoInterest;
+    using PollOutcome = TcpConnectionPollOutcome;
+    const auto oneByte = offered.first<1>();
+    const auto expectedByte = oneByte.front();
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::seconds{5};
+
+    for (std::size_t attempt = 0U;
+         attempt < 256U && std::chrono::steady_clock::now() < deadline;
+         ++attempt)
+    {
+        const auto write = fixture.connection.writeTlsApplicationData(oneByte);
+        if (write.outcome == Outcome::Progress)
+        {
+            assert(write.bytes == oneByte.size());
+            std::array<std::uint8_t, 1> delivered{};
+            readNativeTlsClientAll(fixture.tls.client.get(), delivered);
+            assert(delivered.front() == expectedByte);
+            return write.bytes;
+        }
+
+        assert(write.bytes == 0U);
+        assert(write.outcome == Outcome::NeedRead ||
+               write.outcome == Outcome::NeedWrite);
+        const auto expectedInterest =
+            write.outcome == Outcome::NeedRead ? Interest::Read : Interest::Write;
+        assert(fixture.connection.ioInterest() == expectedInterest);
+        const auto polled =
+            fixture.connection.pollSocketOnce(deadline, kMaximumTcpPollWait);
+        assert(polled.outcome == PollOutcome::Dispatched ||
+               polled.outcome == PollOutcome::NoEvent);
+        assert(polled.nextInterest == expectedInterest);
+    }
+
+    assert(false && "protected macOS R1 TLS byte was not accepted");
+    return 0U;
+}
+
+void bufferMacProtectedCredSspAndFirstMcs(
+    MacProtectedTransportFixture &fixture)
+{
+    using Clock = std::chrono::steady_clock;
+    TsRequestFrameReader reader;
+    assert(reader.readOneTlsStep(fixture.connection).status ==
+           TsRequestTlsReadStatus::NeedRead);
+
+    const auto firstMcs = macProtectedHybridConnectInitial();
+    std::vector<std::uint8_t> coalesced;
+    coalesced.reserve(kTestCredSspDer.size() + firstMcs.size());
+    coalesced.insert(
+        coalesced.end(), kTestCredSspDer.begin(), kTestCredSspDer.end());
+    coalesced.insert(coalesced.end(), firstMcs.begin(), firstMcs.end());
+
+    const auto deadline = Clock::now() + std::chrono::seconds{5};
+    bool written = false;
+    for (std::size_t attempt = 0U; attempt < 256U && !written; ++attempt)
+    {
+        std::size_t bytes = 0U;
+        const int result = SSL_write_ex(
+            fixture.tls.client.get(), coalesced.data(), coalesced.size(),
+            &bytes);
+        if (result == 1)
+        {
+            assert(bytes == coalesced.size());
+            written = true;
+            break;
+        }
+        assert(bytes == 0U);
+        const int error = SSL_get_error(fixture.tls.client.get(), result);
+        assert(error == SSL_ERROR_WANT_READ ||
+               error == SSL_ERROR_WANT_WRITE);
+        assert(waitForLocalSocketReady(
+            fixture.pair.client.value,
+            error == SSL_ERROR_WANT_READ,
+            error == SSL_ERROR_WANT_WRITE,
+            deadline));
+    }
+    assert(written);
+    assert(drainCredSspFromOwnedTls(
+               reader, fixture.connection,
+               TsRequestTlsReadStatus::Complete) == kTestCredSspDer.size());
+    assert(reader.releaseFrame());
+    assert(fixture.connection.stage() == PreauthStage::AwaitCredSsp);
+    assert(fixture.connection.tlsApplicationReadReady());
+}
+
+// Production R1 HYBRID/TLS/BIO and private completion are real here; the
+// authentication/native sources remain explicit synthetic R2 fixtures. This
+// exercises broker ordering/receipts only and never claims product admission.
+void testMacProtectedCredSspTransportCompletionAndReceiptRetirement()
+{
+    using Receipt = McsConnectResponseWriteOutcome;
+
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->connection.stage() ==
+               PreauthStage::AwaitMcsConnectInitial);
+        assert(fixture->broker.state() ==
+               MacConsoleAdmissionState::TransportAdmitted);
+        assert(fixture->session->phase() ==
+               McsSessionPhase::AwaitVerifiedR2Admission);
+
+        const auto connectInitial = macProtectedHybridConnectInitial();
+        assert(fixture->broker.authorizeR3McsConnectInitial(
+                   *fixture->session, connectInitial) ==
+               McsSessionIntake::AdmittedConnectInitial);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Admitted);
+
+        const auto first =
+            fixture->broker.authorizeR3ConnectResponseWrite(*fixture->session);
+        assert(first && first->bytes.size() > 2U);
+        assert(fixture->broker.completeR3ConnectResponseWrite(
+                   *fixture->session, first->replySequence,
+                   first->writeSliceSequence, 0U) == Receipt::Pending);
+
+        const auto zeroRetry =
+            fixture->broker.authorizeR3ConnectResponseWrite(*fixture->session);
+        assert(zeroRetry);
+        assert(zeroRetry->replySequence == first->replySequence);
+        assert(zeroRetry->writeSliceSequence == first->writeSliceSequence);
+        assert(zeroRetry->bytes.data() == first->bytes.data());
+        assert(zeroRetry->bytes.size() == first->bytes.size());
+
+        const std::size_t firstAccepted =
+            writeOneMacProtectedPlaintextByte(*fixture, zeroRetry->bytes);
+        assert(firstAccepted == 1U);
+        assert(fixture->broker.completeR3ConnectResponseWrite(
+                   *fixture->session, zeroRetry->replySequence,
+                   zeroRetry->writeSliceSequence, firstAccepted) ==
+               Receipt::Pending);
+
+        const auto remaining =
+            fixture->broker.authorizeR3ConnectResponseWrite(*fixture->session);
+        assert(remaining);
+        assert(remaining->replySequence == first->replySequence);
+        assert(remaining->writeSliceSequence != first->writeSliceSequence);
+        assert(remaining->bytes.size() + firstAccepted == first->bytes.size());
+
+        const std::size_t lateAccepted =
+            writeOneMacProtectedPlaintextByte(*fixture, remaining->bytes);
+        assert(lateAccepted == 1U);
+        fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+        assert(fixture->broker.completeR3ConnectResponseWrite(
+                   *fixture->session, remaining->replySequence,
+                   remaining->writeSliceSequence, lateAccepted) ==
+               Receipt::Rejected);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+    }
+
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        bufferMacProtectedCredSspAndFirstMcs(*fixture);
+        fixture->nativeEvidence.replaceAfterCredSspCompletion = true;
+
+        assert(!fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->nativeEvidence.observedPostCompletion);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->broker.admissionGeneration() == 0U);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(!fixture->connection.active());
+        assert(!fixture->connection.tlsApplicationReadReady());
+    }
+
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->connection.stage() ==
+               PreauthStage::AwaitMcsConnectInitial);
+        assert(!fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+    }
+}
+
 void testOwnedHybridNoPrematureMcs()
 {
     using Interest = TcpConnectionIoInterest;
@@ -11925,6 +12357,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testOwnedCredSspTransportGenerationProvenance},
     {"tcp-owned-buffered-tls-credssp-mcs-readiness",
      &testOwnedBufferedTlsCredSspThenMcsReadiness},
+    {"macos-protected-credssp-transport-completion-receipt-retirement",
+     &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
     {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},

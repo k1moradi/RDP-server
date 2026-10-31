@@ -1845,6 +1845,19 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("${functional_transport_test_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+        # Production R1 HYBRID/TLS completion through the concrete macOS R2
+        # broker. Synthetic proof/native evidence is internal-mechanics-only;
+        # keep this outside fixed generic sanitizer inventories.
+        add_test(
+            NAME security.macos-protected-credssp-transport-completion-receipt-retirement
+            COMMAND "${test_target}"
+                "macos-protected-credssp-transport-completion-receipt-retirement")
+        set_tests_properties(
+            security.macos-protected-credssp-transport-completion-receipt-retirement
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;credssp;admission;offline"
+                TIMEOUT 20)
+
         # R1 pre-TLS byte accounting is a focused diagnostic regression.
         # Keep it outside R9's fixed-count generic transport sanitizer
         # inventory until that lane explicitly enrolls this behavior.
@@ -2344,7 +2357,8 @@ add_rdp_test(test_owned_preauth_session.cpp transport preauth-session)
 # than relying on Linux-only transitive runtime-security composition.
 target_link_libraries(test_owned_preauth_session PRIVATE
     rdp-server-runtime-tls
-    rdp-server-standalone-ntlmv2)
+    rdp-server-standalone-ntlmv2
+    rdp-server-mac-console-admission)
 if(TARGET rdp-server-linux-gssapi)
     # Exercise real TLS -> actual MIT GSSAPI handoff using the existing
     # in-memory TLS fixture; no duplicate certificate/test implementation.

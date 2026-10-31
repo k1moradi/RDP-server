@@ -1,3 +1,24 @@
+## R2 production R1 transport completion and broker receipt coverage (2026-10-31)
+
+Parent `2383df14eeed95b1ab90b90ece778b8eb3de59c0`: the remaining broker-internal R1/TLS transition and receipt
+gap now has a dedicated production-transport fixture. It uses a real accepted
+loopback R1 HYBRID connection, exact SSL/BIO/certificate provenance and the
+private `authorizeR1CredSspAdmission()` path; synthetic proof/native sources
+remain test-only and are not a physical Admission receipt. The fixture covers
+successful transport completion, duplicate completion, protected R3
+Connect-Initial, zero/partial Connect-Response receipts backed by actual R1 TLS
+plaintext acceptance, late receipt rejection after consent revocation, and
+native-session replacement after R1 completion while first-MCS plaintext is
+already buffered. R2 must close R3 and cancel R1 before buffered MCS intake.
+
+**Remaining integration gate:** R10 still must compose the real
+`StandalonePasswordAuthenticatedPrincipalProof`, production native evidence,
+single R1 reader/writer and R3 session into the macOS HostControl positive path.
+The R1 and R3 private interfaces are available; this is no longer blocked on
+Agent 1 or Agent 3. Physical macOS/TCC/client evidence remains separately
+unauthorized and is not required for this offline increment. Local validation
+**NOT RUN**; publication-SHA hosted CI **PENDING**.
+
 ## R2 joined CLIPRDR protected operation (2026-10-31)
 
 Parent `b23951da2708ab431342467dbc3cb176d109a892`: dependency review confirmed R1 and R3 private friend edges

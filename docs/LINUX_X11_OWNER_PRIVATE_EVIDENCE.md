@@ -99,7 +99,8 @@ the UID, session ID, username, display/XID, destination or client logs.
    retired session as a replacement. Native loss must suppress XTEST
    cleanup posts; do not store XCB event or XShm pixel references.
 8. **Fresh reconnect:** after session restoration and **another explicit
-   owner grant**, authenticate again and record new consent, R2 admission
+   owner grant**, independently re-check the current unlocked seat0/UID owner,
+   authenticate again through CredentialsVerified, then record new consent, R2 admission
    and X11 capture generations. A valid reconnect must not reuse either
    retired R2 or capture generation. Require new Share/GraphicsReady,
    actual new first frame and matching ACK independently. If not reached,
@@ -147,7 +148,8 @@ The `source_sha` must be the exact tested checkout commit.
     "observed": false, "owner_grant_recorded": false,
     "consent_generation": null, "linux_session_generation": null,
     "r2_admission_generation": null, "native_capture_generation": null,
-    "stages": {"native_admission": "NOT_OBSERVED", "share": "NOT_OBSERVED",
+    "seat": {"graphical": null, "seat0": null, "unlocked": null, "current_session": null, "process_uid_matches_owner": null},
+    "stages": {"credentials_verified": "NOT_OBSERVED", "native_admission": "NOT_OBSERVED", "share": "NOT_OBSERVED",
                "graphics_ready": "NOT_OBSERVED", "first_frame": "NOT_OBSERVED",
                "matching_ack": "NOT_OBSERVED"},
     "first_frame_capture_generation": null, "ack_capture_generation": null,

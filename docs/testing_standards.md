@@ -4116,8 +4116,60 @@ selection affects the next Start request only. `Ambiguous` must show
 Main/tray Copy; `Unavailable` must not fall back to the manual combo.
 
 Color-warning classification remains ownership-based: application source has
-no `QColorSpace` construction or global warning suppression. A Qt/platform
-profile warning is benign unless visible corruption is reproduced.
+no `QColorSpace` construction or global warning suppression. The owner's
+2026-10-30 runtime reproduced `QColorSpace attempted constructed from invalid
+primaries` plus four `QPointF` values, but the warning does not prove which
+component supplied those points. Upstream Qt's
+`src/gui/painting/qcolorspace.cpp` emits that signature when
+`PrimaryPoints::isValid()` rejects white/red/green/blue chromaticities.
+The source of the points and their visible impact are unverified; do not
+automatically call the warning harmless, change R4 pixels, invent sRGB
+coordinates, discard ICC data or install a global warning filter.
+
+For owner-opt-in **offline provenance**, keep Sharing OFF and never enter
+credentials. From the exact SHA, first run the existing
+`gui.round2-qcolor-warning-classification` and
+`gui.offscreen-round2-tabs-and-main-simplicity` CTests on the macOS build
+with `QT_QPA_PLATFORM=offscreen`; an offscreen PASS is not a Cocoa
+reproduction. Verify/extract the exact macOS ZIP with the existing
+`scripts/verify_portable_gui.py` contract, then run the existing
+`scripts/smoke_macos_gui_open.py --app <extracted-app>` unchanged. That
+smoke launches the ordinary zero-argument GUI and fails if it finds a TCP
+listener; it does not grant host consent or start capture. No command in this
+procedure may click Sharing, request TCC, use a remote client or touch a
+physical desktop.
+
+If the warning still occurs, first record `git rev-parse HEAD`,
+`sw_vers`, extracted app identity, actual loaded QtCore/QtGui versions,
+`Contents/PlugIns/platforms/libqcocoa.dylib` identity and active display
+profile identifier **without copying the ICC payload**. A separate,
+owner-controlled terminal launch of the extracted
+`Contents/MacOS/rdp-server-desktop` with only
+`QT_DEBUG_PLUGINS=1` and
+`QT_MESSAGE_PATTERN='[%{type} %{category} %{file}:%{line}] %{message}'`
+can capture the same warning and Qt platform-plugin load facts. Keep raw
+logs private because plugin paths can disclose host information; export
+only redacted warning text, module names, versions and PASS/FAIL/NOT RUN.
+A fatal-warnings setting is not part of this non-mutating check.
+
+If Qt release logging lacks a source/caller, an explicitly owner-opt-in LLDB
+run of the same zero-argument GUI may set a
+`breakpoint set --func-regex 'QColorSpace::QColorSpace'` breakpoint and
+record `thread backtrace -c 16` for the invocation that prints the exact
+warning. Inspect the first project/QtGui/Cocoa/CoreGraphics frame **above**
+the QColorSpace constructor to distinguish first-party conversion from
+Qt/plugin/OS-supplied profile routes; a constructor breakpoint alone is
+not attribution and may hit valid constructions. Without suitable Qt
+symbols or a matching warning-site stack, mark caller **BLOCKED**, not
+Qt/platform PASS. Never infer R2 native Admission from GUI/Qt diagnostics.
+
+If a project-owned metadata-to-QColorSpace path is newly proved, validate
+finite and physically valid primaries before construction, preserve valid
+ICC data, document the colorimetric fallback for invalid data, and add a
+single production-backed offline behavior CTest with valid and invalid
+metadata. If Qt/platform-owned, record the tested Qt version, plugin
+and profile provenance, and operator guidance; no production modification
+is justified without a demonstrated first-party defect.
 
 ## R5 compact Linux prerequisite projection regression (2026-10-22)
 

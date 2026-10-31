@@ -63,12 +63,44 @@ that descendant. Its repository-wide macOS protocol job fails while compiling
 outside R7 and does not involve the R7 native-owner or Qt sources. R7 does not
 modify that R1 owner.
 
-**QColorSpace:** still no first-party `QColorSpace` construction, Qt custom
-primaries, ICC/profile-to-Qt conversion or global warning suppression is
-present in the audited GUI/macOS sources or package assets. Existing
-`gui.round2-qcolor-warning-classification` remains the source guard. No
-project-owned warning source is proved, so R4 pixel conversion remains
-unchanged.
+**QColorSpace first-round attribution (owner observation 2026-10-30):**
+The owner has now reproduced `QColorSpace attempted constructed from invalid
+primaries` with four `QPointF` coordinates in their local runtime. This
+proves a runtime diagnostic, **not its caller**. Upstream Qt6
+`src/gui/painting/qcolorspace.cpp` emits this exact signature when its
+`QColorSpace::PrimaryPoints` validation rejects white/red/green/blue points;
+that identifies the emitter but does not assign the invalid points to R7,
+Qt Cocoa or the OS display profile. The owner's exact Qt build, loaded
+`libqcocoa.dylib`, display/profile provenance and warning-site stack have not
+been recorded. Existing `gui.round2-qcolor-warning-classification` confirms
+there is no first-party `QColorSpace` constructor or Qt message handler in
+`src/`; R7 ScreenCaptureKit explicitly requests BGRA and passes bounded
+pixel/geometry views, not ICC/EDID/Qt color-profile metadata. Qt widget/style
+startup and Cocoa platform-screen/profile discovery remain possible indirect
+routes, not established causes.
+
+**Next R7 provenance gate (opt-in, no Sharing):** On the owner's extracted,
+checksum-verified macOS `.app`, first run the existing
+`scripts/smoke_macos_gui_open.py --app <extracted-app>` (no arguments to
+the GUI; no TCP listener). Record the exact server SHA and macOS/QtCore
+framework and Cocoa-plugin versions/paths. Compare the existing offscreen
+GUI CTests with a direct no-argument Cocoa launch using
+`QT_DEBUG_PLUGINS=1` and
+`QT_MESSAGE_PATTERN='[%{type} %{category} %{file}:%{line}] %{message}'`;
+retain the full output privately and share only a redacted warning result.
+If necessary, use an owner-opt-in LLDB `QColorSpace::QColorSpace` constructor
+breakpoint, record the first relevant module/caller backtrace at the warning,
+then quit without turning Sharing ON. See the exact safe procedure in
+`docs/testing_standards.md` under the existing R7/R9 GUI Round 2 contract.
+No ScreenCaptureKit stream, TCC prompt, physical capture, RDP client, input,
+profile mutation or service mutation is permitted for this gate.
+
+**Decision:** Caller attribution **BLOCKED / NOT RUN** in the connector-only
+environment; source-route audit **PASS by inspection**. Do not invent color
+primaries, strip ICC data, suppress warnings or change R4 conversion. A
+future proven first-party path needs validation/fallback and one dedicated
+production-backed offline CTest; a proven Qt/platform path needs exact
+version/plugin/profile provenance and safe operator guidance.
 
 **macOS native attachment dependency:** `RuntimePlatformNativeDesktop`
 continues to expose `attachAuthenticatedSession()` as an R2-proof consumer,

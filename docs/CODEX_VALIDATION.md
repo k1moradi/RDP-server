@@ -105,10 +105,36 @@
   descendant macOS protocol job `124407094700` fails at compile time in
   R1-owned `runtime_tls_context.cpp` with OpenSSL 4.1 expansion of
   `::sk_GENERAL_NAME_value`; no R7 source participates.
-- QColorSpace attribution remains negative by source/package inspection:
-  no first-party `QColorSpace`, custom Qt primaries, ICC/profile conversion
-  into Qt, application message handler or global warning suppression was found.
-  No R4 pixel change is authorized without runtime provenance.
+- **New local observation, 2026-10-30:** owner-reproduced diagnostic
+  `QColorSpace attempted constructed from invalid primaries` followed by four
+  `QPointF` coordinates. Qt6's `qcolorspace.cpp` contains the emitting
+  failed-`PrimaryPoints::isValid()` branch. The emitter is confirmed in
+  upstream Qt source; the caller, specific Qt build, Cocoa plugin and monitor
+  ICC/EDID provenance are **NOT VERIFIED**, so Qt/driver/project blame is
+  unproved. No raw host trace or profile was supplied to this review.
+- First-party route audit **PASS by inspection** on parent `eade2780c171fc2f9d0292f19bbbf1cba8f6422b`:
+  `QApplication`/widget-style startup can invoke Qt platform internals;
+  the existing `gui.round2-qcolor-warning-classification` guard checks all
+  `src/*.{cpp,h,mm}` for application `QColorSpace` and message-handler
+  construction. The ScreenCaptureKit stream fixes output to BGRA and passes
+  checked pixel buffers, dimensions and geometry, without passing ICC/EDID
+  data to Qt. The extracted package contains the QtGui framework and Cocoa
+  platform plugin; monitor-profile use inside Qt remains an unverified route.
+- Opt-in no-Sharing attribution instructions are recorded in the existing
+  R7/R9 testing-standard section: exact package/SHA and version inventory,
+  offline `QT_QPA_PLATFORM=offscreen` comparison, no-argument Cocoa
+  `QT_DEBUG_PLUGINS`/message-pattern repro, and only if needed LLDB
+  QColorSpace constructor-call stack. Keep raw paths and logs private;
+  record only redacted module names, Qt version and result.
+- Actual owner macOS trace, package/no-listener re-execution, local canonical
+  compile/full CTest, offscreen GUI CTest and LLDB: **NOT RUN** here (no
+  approved macOS checkout/app/runtime). Existing R7 callback-retirement
+  Debug/Release 22/22 qualification remains unchanged. Main's pre-Type-3
+  incomplete-authentication wording and password redaction, and the
+  no-argument/Sharing OFF package smoke tests, were audited by source/test
+  inspection only; no new PASS is claimed. No code, profile, OS state,
+  server, TCC or capture changes were made. Next: private owner trace +
+  same-SHA CI/R9 review before any code-level color intervention.
 - Current macOS HostControl still does not positively call
   `RuntimePlatformNativeDesktop::attachAuthenticatedSession()`. Native
   readiness therefore remains impossible from TCP/TLS/Username/

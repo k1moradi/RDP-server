@@ -1169,15 +1169,33 @@ the owner separately authorizes the attempt.
 only R10-projected native-ready, Share-activated, desktop-visible,
 nonauthenticating clients. The tray previously labeled every accepted peer as
 connected when the product state was Connected, overstating a mixed
-ready/authenticating group. It now uses the same filtered `HostStatus::clients`
-count; the separate raw accepted count remains a "connecting" observation.
-New offline CTest `gui.offscreen-tray-share-native-ready-client-count-denials`
-checks no-native, pre-Share, pre-visibility, mixed readiness, full readiness,
-stale product state and zero accepted peers. No native/R2/R3 authority change.
-Authoring parent `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`; connector-local C++23 compile/CTest **NOT RUN**;
-exact publication-SHA hosted CI **PENDING**. Next gate: full same-SHA
-offscreen GUI/parity and protocol CTest, followed by R10 Attach/Confirm.
-No physical owner test authorized.
+ready/authenticating group. Commit
+`9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102` now uses the same filtered
+`HostStatus::clients` count; the separate raw accepted count remains a
+"connecting" observation. The new offline CTest
+`gui.offscreen-tray-share-native-ready-client-count-denials` checks
+no-native, pre-Share, pre-visibility, mixed readiness, full readiness, stale
+product state and zero accepted peers.
+
+**Hosted qualification resolved:** descendant
+`3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`, Actions
+`41221183682`, ran the new tray case as test 11/54 in macOS
+`r7-macos-portable-gui` job `124596477415`: **PASS**, with the complete
+54/54 offscreen GUI selection **PASS**. The same descendant also has
+`r7-macos-native-lifecycle` job `124596477486` **PASS**,
+`r7-macos-session-sanitizers` job `124596477548` **PASS**, macOS
+owner-GUI parity job `124596477532` **PASS**, and Round 2 acceptance job
+`124599796124` **PASS**. Its macOS protocol Debug suite passed; Release
+failed only the unrelated nonblocking TLS buffered-Erect fixture race, now
+corrected by `586e043d67ff2bd5869356412f05cc2a3697d96e` and DRY follow-up
+`1cc76190f7d4c9a5c4cbf46cf09f27adac4ec340`. No R7 source changed in
+those corrections. Current-head structure guard `41249930828` is **PASS**;
+the corrected full workflow `41249930857` is **PENDING/QUEUED**.
+
+No native/R2/R3 authority changed. The R7 tray source/hosted blocker is
+therefore **RESOLVED**. The next live R7 step remains dependency-bound to
+R10 Attach User/Confirm, joins, licensing, Share and GraphicsReady; no
+physical owner test is authorized.
 
 Local canonical build/CTest, local Qt warning reproduction and physical
 capture/input remain **NOT RUN** in this connector environment. R7 has no

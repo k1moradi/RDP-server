@@ -1,3 +1,32 @@
+## R7 descendant qualification after tray connected-count correction (2026-10-31)
+
+- R7 production commit `9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102`
+  is unchanged in descendant `3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`.
+  Actions `41221183682`, macOS `r7-macos-portable-gui` job
+  `124596477415`, executed
+  `gui.offscreen-tray-share-native-ready-client-count-denials` as test
+  11/54: **PASS**; the complete 54/54 offscreen selection also **PASS**.
+- Same descendant: R7 macOS native lifecycle job `124596477486` **PASS**,
+  session sanitizers `124596477548` **PASS**, macOS owner-GUI parity
+  `124596477532` **PASS**, and Round 2 acceptance `124599796124`
+  **PASS**. The tray now counts only the existing Share/native-visible
+  confirmed-client projection while retaining raw accepted peers as
+  "connecting"; no authentication/native/protocol authority changed.
+- The descendant macOS protocol Release failure was isolated to
+  `security.macos-protected-ssl-buffered-erect-after-response`, an initial
+  nonblocking loopback-read fixture race outside R7. Corrections
+  `586e043d67ff2bd5869356412f05cc2a3697d96e` and
+  `1cc76190f7d4c9a5c4cbf46cf09f27adac4ec340` reuse the bounded R1 TLS
+  fixture reader; no production source changed. Current-head structure
+  guard `41249930828` **PASS**; full corrected workflow
+  `41249930857` **PENDING/QUEUED**.
+- R10 still stops at `ErectDomainAccepted`. Protected Attach/Confirm and
+  all later broker APIs already exist and link in the macOS target, but their
+  serialized HostControl composition through Share/GraphicsReady is not yet
+  implemented. R7 native attachment remains **BLOCKED** on that R10 work,
+  not on a missing R7/R2 build or API dependency. Physical capture/input and
+  owner QColorSpace caller-stack collection remain **NOT RUN / unauthorized**.
+
 ## R4 review: reuse canonical bounded TLS fixture reader (2026-10-31)
 
 **Authoring parent:** `586e043d67ff2bd5869356412f05cc2a3697d96e`. The concurrent R2/R3 correction for

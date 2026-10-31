@@ -143,7 +143,8 @@ A distinct production-linked offline CTest,
 `clipboard.x11-notification-and-incr-retirement`, covers same-numeric-generation
 source replacement during a successful direct SelectionNotify (after a property
 write), INCR event-mask registration, INCR success notification, and the final
-zero-length INCR property write. It asserts direct stale-property withdrawal,
+zero-length INCR property write **after every payload chunk is acknowledged**.
+It asserts direct stale-property withdrawal,
 INCR event-mask restoration, cancellation, native owner release, no stale
 completed stream or payload, and a new owner epoch on fresh publication.
 The already-issued success notify cannot be recalled; no second conflicting

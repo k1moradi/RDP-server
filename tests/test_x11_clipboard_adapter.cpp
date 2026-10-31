@@ -1404,7 +1404,15 @@ void nativeCallbackNotificationAndIncrRetirement()
         dispatchPropertyDelete(
             adapter, 857, start + std::chrono::milliseconds{1});
         assert(adapter.incrTransferActive());
-        assert(adapter.incrBytesSent() != 0U);
+        assert(adapter.incrBytesSent() ==
+               X11ClipboardAdapter::kIncrChunkBytes);
+        // The offered text is one byte larger than the 64-KiB INCR chunk:
+        // consume the final payload byte before testing the zero terminator.
+        dispatchPropertyDelete(
+            adapter, 857, start + std::chrono::milliseconds{2});
+        assert(adapter.incrTransferActive());
+        assert(adapter.incrBytesSent() ==
+               X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U);
 
         const std::uint64_t generation = transfer.generation();
         const std::uint64_t sourceEpoch = transfer.sourceEpoch();
@@ -1412,7 +1420,7 @@ void nativeCallbackNotificationAndIncrRetirement()
         const std::size_t restoresBefore = native.restoreEventMaskCalls;
         native.replaceRemoteSourceOnPropertyWrite = true;
         dispatchPropertyDelete(
-            adapter, 857, start + std::chrono::milliseconds{2});
+            adapter, 857, start + std::chrono::milliseconds{3});
 
         assert(transfer.generation() == generation);
         assert(transfer.sourceEpoch() > sourceEpoch);

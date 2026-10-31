@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <thread>
 
 namespace rdp_server::server::transport
 {
@@ -398,6 +399,7 @@ private:
         MacNativeDesktopAuthorizationVisitor visitor,
         void *context,
         std::uint32_t requiredPermissions = kConsoleViewPermission) noexcept;
+    [[nodiscard]] bool onOwnerThread() const noexcept;
     [[nodiscard]] bool authenticatedConnectionCurrent() const noexcept;
     [[nodiscard]] bool preparedAuthenticationCurrent() const noexcept;
     [[nodiscard]] bool viewMatchesPreparedLifetime(
@@ -412,6 +414,10 @@ private:
         MacNativeDesktopAuthorizationVisitor visitor,
         void *context) noexcept;
 
+    // Every positive R1/R3 transition and native borrow stays on the
+    // constructing R10 owner thread. Cross-thread probes deny without
+    // touching an R1/R3 owner; Stop/revoke remains owner-thread serialized.
+    const std::thread::id ownerThread_{std::this_thread::get_id()};
     NativeDesktopAuthenticatedSessionProof *authenticatedSession_{};
     rdp_server::server::transport::OwnedPreauthTcpConnection *connection_{};
     MacNativeDesktopAuthorization nativeAuthorization_;

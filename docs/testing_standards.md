@@ -1,3 +1,15 @@
+## R2 macOS wrong-thread protected admission denial (2026-10-31)
+
+Ordinary production-linked offline CTest
+`security.native-authorization-macos-console-protected-owner-thread-isolation`
+reuses the existing standalone authorization fixture. It invokes R2 prepare,
+R1 completion and R3 first-MCS/response/erect from a joined worker and
+asserts no native callback, no admitted/closed R3 state and no mutated broker.
+The legitimate owner can still prepare/revalidate and must then terminally
+deny its inactive R1 TLS. No physical macOS native lease, TLS handshake or
+positive client acceptance is claimed. This CTest is outside fixed R3/R8/R5
+sanitizer selector inventories.
+
 ## R2 native-denial Windows test stack regression (2026-10-31)
 
 The hosted `33a601cc` Windows protocol CTest job had two native

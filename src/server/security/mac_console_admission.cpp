@@ -69,6 +69,11 @@ MacConsoleAdmissionBroker::MacConsoleAdmissionBroker(
 {
 }
 
+bool MacConsoleAdmissionBroker::onOwnerThread() const noexcept
+{
+    return std::this_thread::get_id() == ownerThread_;
+}
+
 MacConsoleAdmissionBroker::~MacConsoleAdmissionBroker()
 {
     revoke(MacConsoleAdmissionRevocationReason::Explicit);
@@ -110,6 +115,8 @@ bool MacConsoleAdmissionBroker::validRequiredPermissions(
 MacConsoleAdmissionPrepareResult MacConsoleAdmissionBroker::prepareAdmission(
     std::uint32_t requestedPermissions) noexcept
 {
+    if (!onOwnerThread())
+        return MacConsoleAdmissionPrepareResult::InvalidState;
     if (state_ != MacConsoleAdmissionState::Ready)
         return MacConsoleAdmissionPrepareResult::InvalidState;
     if (requestedPermissions == 0U ||
@@ -246,7 +253,7 @@ bool MacConsoleAdmissionBroker::visitNativeAuthorization(
     MacNativeDesktopAuthorizationVisitor visitor,
     void *context) noexcept
 {
-    if (visitInProgress_)
+    if (!onOwnerThread() || visitInProgress_)
         return false;
     if ((state_ != MacConsoleAdmissionState::Prepared &&
          state_ != MacConsoleAdmissionState::TransportAdmitted &&
@@ -316,6 +323,8 @@ bool MacConsoleAdmissionBroker::authorizeR1CredSspAdmission(
     rdp_server::server::transport::McsSessionLifecycle &session) noexcept
 {
     using namespace rdp_server::server::transport;
+    if (!onOwnerThread())
+        return false;
     if (state_ != MacConsoleAdmissionState::Prepared ||
         admissionAttempted_ || admittedSession_ != nullptr ||
         session.phase() != McsSessionPhase::AwaitVerifiedR2Admission)
@@ -381,6 +390,8 @@ MacConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using namespace rdp_server::server::transport;
+    if (!onOwnerThread())
+        return McsSessionIntake::AdmissionDenied;
     if (state_ != MacConsoleAdmissionState::TransportAdmitted ||
         !admissionAttempted_ || admittedSession_ != &session ||
         session.phase() != McsSessionPhase::AwaitVerifiedR2Admission)
@@ -445,6 +456,8 @@ bool MacConsoleAdmissionBroker::visitR3ProtectedOperation(
     void *context) noexcept
 {
     using namespace rdp_server::server::transport;
+    if (!onOwnerThread())
+        return false;
     if (state_ != MacConsoleAdmissionState::Admitted ||
         admittedSession_ != &session || visitor == nullptr)
     {
@@ -832,6 +845,8 @@ bool MacConsoleAdmissionBroker::visitPersonalDesktopR3Operation(
     void *context,
     std::uint32_t requiredPermissions) noexcept
 {
+    if (!onOwnerThread())
+        return false;
     if (!personalDesktopPolicyMatches(deploymentPolicy) ||
         !visitR3ProtectedOperation(
             session, requiredPermissions, visitor, context) ||
@@ -850,6 +865,8 @@ bool MacConsoleAdmissionBroker::authorizeR3PersonalDesktopLicensingMode(
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy) noexcept
 {
+    if (!onOwnerThread())
+        return false;
     if (personalDesktopPolicy_ != nullptr ||
         !deploymentPolicy.usesPersonalTerminalServerLicensingFlow() ||
         !deploymentPolicy.requiresNativeSessionRevocation() ||

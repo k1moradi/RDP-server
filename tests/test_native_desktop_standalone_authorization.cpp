@@ -14,6 +14,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <thread>
 #include <type_traits>
 
 namespace
@@ -1214,6 +1215,65 @@ void testMacConsoleProtectedIssuerPrematureReceipts()
     assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
 }
 
+
+// A wrong-thread caller may neither prepare a macOS native lifetime nor
+// mutate R1/R3 before or after preparation. Owner-thread operations remain
+// usable afterward; synthetic evidence cannot advance an inactive TLS owner.
+void testMacConsoleProtectedOwnerThreadIsolation()
+{
+    using namespace rdp_server::server::transport;
+    auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+    auto session = std::make_unique<McsSessionLifecycle>();
+    MacConsoleAdmissionPrepareResult offThreadPreparation{
+        MacConsoleAdmissionPrepareResult::Prepared};
+    bool offThreadR1Accepted{true};
+    McsSessionIntake offThreadConnectInitial{McsSessionIntake::AdmittedConnectInitial};
+
+    std::jthread beforePreparation{[&]() noexcept {
+        offThreadPreparation =
+            fixture->broker.prepareAdmission(kConsoleViewPermission);
+        offThreadR1Accepted =
+            fixture->broker.authorizeR1CredSspAdmission(*session);
+        offThreadConnectInitial =
+            fixture->broker.authorizeR3McsConnectInitial(*session, {});
+    }};
+    beforePreparation.join();
+    assert(offThreadPreparation == MacConsoleAdmissionPrepareResult::InvalidState);
+    assert(!offThreadR1Accepted);
+    assert(offThreadConnectInitial == McsSessionIntake::AdmissionDenied);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Ready);
+    assert(session->phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fixture->connection.stage() != PreauthStage::Closed);
+
+    fixture->prepare(kConsoleViewPermission);
+    bool visitorCalled{false};
+    bool offThreadVisitAccepted{true};
+    bool offThreadResponseBorrowed{true};
+    McsSessionIntake offThreadErect{McsSessionIntake::ErectDomainAccepted};
+    std::jthread afterPreparation{[&]() noexcept {
+        offThreadVisitAccepted = fixture->broker.visitNativeAuthorization(
+            kConsoleViewPermission, &markMacConsoleBrokerVisitor, &visitorCalled);
+        offThreadResponseBorrowed =
+            fixture->broker.authorizeR3ConnectResponseWrite(*session).has_value();
+        offThreadErect = fixture->broker.authorizeR3ErectDomain(*session, {});
+    }};
+    afterPreparation.join();
+    assert(!visitorCalled);
+    assert(!offThreadVisitAccepted);
+    assert(!offThreadResponseBorrowed);
+    assert(offThreadErect == McsSessionIntake::AdmissionDenied);
+    assert(session->phase() == McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Prepared);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+
+    // The actual owner still runs the unchanged genuine-R1 prerequisite.
+    // This deliberately inactive fixture must be retired, not admitted.
+    assert(!fixture->broker.authorizeR1CredSspAdmission(*session));
+    assert(session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -1280,6 +1340,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-admission-explicit-terminal-revocation")
     {
         testMacConsoleAdmissionExplicitTerminalRevocation();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-owner-thread-isolation")
+    {
+        testMacConsoleProtectedOwnerThreadIsolation();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-live-transport-denials")

@@ -1,3 +1,17 @@
+## R2 macOS owner-thread protected entry enforcement (2026-10-31)
+
+Parent `64d4d0c70e28251b892b3b1b93b42396c4d8c7d0`: the existing noncopyable R2 broker now denies
+off-owner preparation, native visitation, R1 CredSSP completion, R3
+Connect-Initial, later protected R3 receipt/transition and PersonalDesktop
+policy paths before touching R1/R3 or mutable native grant state. New
+ordinary offline owner-thread-isolation CTest uses the production broker
+with joined worker and inactive TLS fixture; no physical native admission.
+Exact-publication hosted CI pending and local canonical CTest NOT RUN.
+**Remaining R2 P0:** production-backed genuine positive R1/TLS completion,
+callback-time post-completion authority loss, R3 zero/partial broker receipt
+fixture. **R10 dependency:** compose the native-positive owner-thread
+read/write/Connect-Initial loop, which remains deliberately inactive.
+
 ## R2 offline Windows multi-fixture stack correction (2026-10-31)
 
 The Windows 33a601cc hosted CTest job demonstrated 2 crashing

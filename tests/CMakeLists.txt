@@ -1319,6 +1319,7 @@ foreach(standalone_native_authorization_case IN ITEMS
         macos-console-admission-post-callback-authority-loss-denial
         macos-console-admission-explicit-terminal-revocation
         macos-console-prepared-transport-dormancy
+        macos-console-protected-owner-thread-isolation
         macos-console-protected-issuer-live-transport-denials
         macos-console-protected-issuer-consent-connection-denials
         macos-console-protected-issuer-premature-receipts

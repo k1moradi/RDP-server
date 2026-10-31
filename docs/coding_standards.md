@@ -1,3 +1,13 @@
+## R2 macOS owner-thread issuer isolation (2026-10-31)
+
+The existing R2 broker now captures its constructing R10 owner thread and
+rejects non-owner calls **before reading its mutable preparation state,
+borrowing native evidence, completing R1 CredSSP or touching R3**. Every
+PersonalDesktop and post-Share private wrapper reaches the same guard.
+A wrong-thread probe cannot terminalize the legitimate session; the
+owner-thread Stop/revoke contract remains serialized, not cross-thread.
+No public R1/R3 friend or native permission is widened.
+
 ## R2 Windows offline stack-bounded fixture lifetime (2026-10-31)
 
 A macOS R2 denial fixture contains two R1 transport owners and a native

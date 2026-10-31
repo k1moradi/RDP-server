@@ -1,3 +1,17 @@
+## R2 macOS owner-thread protected issuer guard (2026-10-31)
+
+Authored on GitHub main parent `64d4d0c70e28251b892b3b1b93b42396c4d8c7d0`:
+constructor-thread binding and fail-closed non-owner R2 prepare/visitor/R1/R3/
+PersonalDesktop entry guards, with dedicated production-broker offline CTest.
+Cross-thread test uses joined `std::jthread`, scoped heap-backed R1/R2/R3
+fixtures and no live desktop/TCC/credential or OS-login modification.
+Connector-local canonical Debug compile, focused/full CTest and sanitizers:
+**NOT RUN** (no approved checkout; direct GitHub DNS unavailable). Exact
+publication-SHA hosted CI must be checked separately. Genuine TLS R1
+completion and callback-time post-completion retirement, broker-bounded
+zero/partial R3 receipts, and R10 positive runtime composition remain
+**UNVERIFIED**. No synthetic macOS lease has been promoted.
+
 ## R2 Windows CTest stack-capacity diagnostic and correction (2026-10-31)
 
 Hosted `33a601cc` Windows protocol workflow `41189293751`

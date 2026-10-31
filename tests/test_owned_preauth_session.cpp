@@ -8128,6 +8128,59 @@ void testMacProtectedCredSspTransportCompletionAndReceiptRetirement()
     }
 }
 
+// Genuine accepted R1 HYBRID/TLS and one R2/R3 owner; the credentials and
+// native evidence remain deliberately synthetic, never product authority.
+void testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation()
+{
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Prepared);
+        assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::InvalidState);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->broker.admissionGeneration() == 0U);
+        assert(!fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::InvalidState);
+        assert(fixture->broker.revocationReason() ==
+               MacConsoleAdmissionRevocationReason::Explicit);
+    }
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->broker.state() ==
+               MacConsoleAdmissionState::TransportAdmitted);
+        assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::InvalidState);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->broker.admissionGeneration() == 0U);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(!fixture->connection.active());
+        fixture->broker.revoke(MacConsoleAdmissionRevocationReason::OwnerStop);
+        assert(fixture->broker.revocationReason() ==
+               MacConsoleAdmissionRevocationReason::Explicit);
+    }
+    {
+        auto fixture = std::make_unique<MacProtectedTransportFixture>();
+        assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+        assert(fixture->connection.stage() ==
+               PreauthStage::AwaitMcsConnectInitial);
+        ++fixture->nativeEvidence.evidence.auditSessionId;
+        const auto firstMcs = macProtectedHybridConnectInitial();
+        assert(fixture->broker.authorizeR3McsConnectInitial(
+                   *fixture->session, firstMcs) ==
+               McsSessionIntake::AdmissionDenied);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->session->phase() == McsSessionPhase::Closed);
+        assert(fixture->connection.stage() == PreauthStage::Closed);
+        assert(!fixture->connection.active());
+        assert(!fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
+               MacConsoleAdmissionPrepareResult::InvalidState);
+    }
+}
+
 void testOwnedHybridNoPrematureMcs()
 {
     using Interest = TcpConnectionIoInterest;
@@ -12359,6 +12412,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testOwnedBufferedTlsCredSspThenMcsReadiness},
     {"macos-protected-credssp-transport-completion-receipt-retirement",
      &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
+    {"macos-protected-admission-reprepare-premcs-audit-retirement",
+     &testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
     {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},

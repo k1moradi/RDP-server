@@ -1,3 +1,16 @@
+## R2 macOS reprepare and pre-first-MCS native audit change (2026-10-31)
+
+The dedicated production-backed offline CTest
+`security.macos-protected-admission-reprepare-premcs-audit-retirement`
+reuses the accepted-loopback R1 HYBRID/TLS, original broker and R3 owner.
+It asserts terminal same-owner duplicate preparation before and after R1
+completion, precise R1/R3 retirement after the latter, idempotent revoke,
+and denial when the native audit-session ID changes between R1 completion
+and first R3 MCS. Proof and native evidence are still **synthetic**; this
+does not validate a real standalone-password transcript or macOS login.
+Connector-local build/focused/full CTest/sanitizers NOT RUN; publication-SHA
+hosted CI PENDING.
+
 ## R2 real R1 TLS protected-completion and receipt regression (2026-10-31)
 
 Dedicated ordinary offline CTest

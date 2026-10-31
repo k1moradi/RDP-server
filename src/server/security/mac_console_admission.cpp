@@ -118,7 +118,13 @@ MacConsoleAdmissionPrepareResult MacConsoleAdmissionBroker::prepareAdmission(
     if (!onOwnerThread())
         return MacConsoleAdmissionPrepareResult::InvalidState;
     if (state_ != MacConsoleAdmissionState::Ready)
+    {
+        // A repeated owner-thread preparation must retire the original
+        // lifetime. Off-owner probes never mutate, and Revoked stays terminal.
+        if (state_ != MacConsoleAdmissionState::Revoked)
+            revoke(MacConsoleAdmissionRevocationReason::Explicit);
         return MacConsoleAdmissionPrepareResult::InvalidState;
+    }
     if (requestedPermissions == 0U ||
         (requestedPermissions & kConsoleViewPermission) == 0U ||
         (requestedPermissions & ~kNativeDesktopAuthorizationPermissions) != 0U)

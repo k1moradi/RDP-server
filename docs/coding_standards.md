@@ -1,3 +1,14 @@
+## R2 macOS same-owner duplicate preparation retirement (2026-10-31)
+
+The original R2 admission broker accepts preparation exactly once from Ready.
+An owner-thread repeat in Prepared, TransportAdmitted or Admitted must revoke
+the original native lifetime and enrolled R3, plus R1 when an admission
+attempt has begun; returning InvalidState without retirement leaves an
+invalidated issuer usable. Revoked remains terminal with its first reason.
+Cross-thread probes and nested read-only visitor checks remain inert.
+R10 must destroy the broker before its borrowed R3 session, real proof,
+accepted R1 transport, native evidence or owner-consent source.
+
 ## R2 real R1 HYBRID/TLS completion and receipt retirement fixture (2026-10-31)
 
 The concrete macOS broker's private R1 completion is exercised against a real

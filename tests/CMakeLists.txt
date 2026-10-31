@@ -1858,6 +1858,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;credssp;admission;offline"
                 TIMEOUT 20)
 
+        # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
+        # evidence: owner-thread repeat preparation and pre-MCS audit loss.
+        add_test(
+            NAME security.macos-protected-admission-reprepare-premcs-audit-retirement
+            COMMAND "${test_target}"
+                "macos-protected-admission-reprepare-premcs-audit-retirement")
+        set_tests_properties(
+            security.macos-protected-admission-reprepare-premcs-audit-retirement
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;admission;offline"
+                TIMEOUT 20)
+
         # R1 pre-TLS byte accounting is a focused diagnostic regression.
         # Keep it outside R9's fixed-count generic transport sanitizer
         # inventory until that lane explicitly enrolls this behavior.

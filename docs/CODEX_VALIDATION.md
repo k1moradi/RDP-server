@@ -1,3 +1,19 @@
+## R2 macOS duplicate-preparation terminal correction (2026-10-31)
+
+Audited parent `1d95156ea4fd1d1c5a20f4e3754570b44d504299`. A second owner-thread
+`prepareAdmission()` previously returned InvalidState while leaving
+a live Prepared/TransportAdmitted broker eligible for later positive use.
+The correction retires the exact original issuer and preserves harmless
+off-owner and nested visitor denials. Registered one separate real-R1
+HYBRID/TLS production-backed offline CTest, covering preparation reentry,
+post-R1 R3/TLS retirement and independent native audit-session replacement
+before first MCS. Test authentication and native observations are synthetic,
+not a product-positive macOS lease. Source/CMake/test reviewed by inspection;
+owner-local configure/build/CTest/ASan/UBSan **NOT RUN**; publication-SHA CI
+**PENDING**. Next: R10 original real-CredSSP proof + R3 lifetime composition,
+same-origin listener/credential/consent revalidation, and owner-authorized
+physical native/client acceptance.
+
 ## R2 production-R1 transport completion/receipt authoring (2026-10-31)
 
 On parent `2383df14eeed95b1ab90b90ece778b8eb3de59c0`, the existing `test_owned_preauth_session` real loopback

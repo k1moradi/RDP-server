@@ -1,3 +1,23 @@
+## R1 runtime TLS SAN-only OpenSSL 4.1 compatibility (2026-10-30)
+
+Ordinary offline production-backed
+`runtime.tls-endpoint-san-only-openssl-compatibility` executes the actual
+`RuntimeServerTlsContext::fromCredentialFiles` and
+`validateEndpointIdentity` path with existing secure LAN IP/DNS fixture,
+a test-only wildcard/partial-wildcard certificate, and the existing CN-only
+fixture. Assert exact IPv4 and IPv6 SAN matches/mismatches, DNS SAN case
+folding, one-label wildcard match, no partial/multi-label wildcard, matching
+CN without SAN denial, missing applicable SAN denial, malformed IP-like
+mismatch, empty/embedded-NUL/overlong InvalidEndpoint and absent-certificate
+CertificateUnavailable. Fixtures are private, self-signed and offline:
+positive identity results must not require CA trust or open a listener.
+Older OpenSSL/LibreSSL keep the legacy direct X509 matching oracle in the
+existing test, while OpenSSL 4.1 uses the production route plus structural
+SAN assertions and the new no-CN/partial-wildcard tests. Update the test-side
+ASN.1 length accessor at 4.1 as well as production; never hide -Werror.
+Focused/full Debug/Release, cross-platform CI and ASan/UBSan are separate
+exact-SHA evidence gates, not implied by code review.
+
 ## R8 native file destination write-time generation replacement (2026-10-30)
 
 `clipboard.macos-file-destination-write-generation-replacement` and

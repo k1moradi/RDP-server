@@ -1,3 +1,23 @@
+## R1 OpenSSL 4.1 identity-only SAN matching portability (2026-10-30)
+
+`RuntimeServerTlsContext::validateEndpointIdentity()` is only selected-leaf
+identity coverage, not X.509 trust, TLS permission, native Admission or listener
+authority. OpenSSL 4.1 deprecates `X509_check_ip_asc` and `X509_check_host`;
+its recommended `X509_VERIFY_PARAM_set1_host/set1_ip_asc` plus
+`X509_verify_cert` would additionally invoke chain verification and must not
+replace this helper. On OpenSSL 4.1+, inspect the selected certificate's
+bounded decoded subjectAltName entries directly: binary iPAddress (4/16 bytes)
+for valid numeric endpoints, case-insensitive dNSName for DNS endpoints,
+full-label leftmost wildcard only (no partial/multi-label match), and never
+consult Subject Common Name. Handle borrowed ASN.1 buffers within the
+GENERAL_NAMES RAII lifetime; use `ASN1_STRING_get_length` with 4.1+ headers,
+not the deprecated signed-length accessor. Older OpenSSL/LibreSSL retain the
+existing `X509_check_*` branch and flags; keep `-Werror`. Empty/overlong/NUL
+endpoints remain InvalidEndpoint; malformed numeric-looking text retains its
+former DNS mismatch classification. A positive self-signed SAN match is
+not a trust-chain PASS and must never publish R2/Share/desktop authority.
+No Type-2 or socket/TLS I/O behavior changes.
+
 ## R8 native file destination write callbacks must revalidate source ownership (2026-10-30)
 
 The macOS and Windows clipboard file destinations may call an injected native

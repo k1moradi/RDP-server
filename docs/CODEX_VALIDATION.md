@@ -1,3 +1,11 @@
+## R1 OpenSSL 4.1 SAN-only endpoint matching compatibility — 2026-10-30
+
+- Authoring source SHA: `7a065715165b342786f7e8f53c7154572f542e85`; publication SHA must be taken from the atomic main commit. No separate branch, TLS/security policy modification, or physical test.
+- **PASS by inspection only:** version-gated selected-leaf SAN matching replaces deprecated X509_check_ip_asc/X509_check_host only under OpenSSL 4.1+. It never invokes X509_verify_cert, trusts a chain, grants native Admission or opens a listener. Older OpenSSL/LibreSSL retain current X509_check semantics. Test-side deprecated ASN1_STRING_length calls are version-gated.
+- **Dedicated registered CTest:** `runtime.tls-endpoint-san-only-openssl-compatibility` (production runtime TLS executable, offline secure certificate-file fixtures): IPv4/IPv6, exact DNS, wildcard/partial-wildcard, CN-only, malformed/NUL/overlong, missing SAN/certificate status.
+- **Owner-local build/focused/full Debug/Release/ASan/UBSan: NOT RUN** — approved `~/rdp-server/` checkout absent, GitHub DNS unavailable. **Exact publication-SHA hosted macOS/OpenSSL 4.1, Linux/older OpenSSL, Windows, sanitizer: PENDING**, with no receipt asserted. Requested commands: canonical CMake Debug build/full CTest, `ctest --test-dir build -R '^runtime.tls-endpoint-san-only-openssl-compatibility$' --output-on-failure`, applicable Release CTest and CI. Benchmark **NOT RUN / not applicable** (no I/O or hot-path behavior changed).
+- **Physical client evidence: NOT RUN / unauthorized.** TLS Type-2 write remains local transport evidence only, never peer receipt. Next owner R9: record first failing hosted boundary and exact SHA before candidate promotion.
+
 ## R8 FileContents native-write generation replacement authoring evidence — 2026-10-30
 
 - Authoring parent: `dd85139f59b4ef155a8bb544d29e4c2f90c28feb`.

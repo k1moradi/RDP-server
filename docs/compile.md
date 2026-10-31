@@ -1,3 +1,16 @@
+## R1 OpenSSL 4.1 runtime endpoint identity compile gate (2026-10-30)
+
+Build `rdp-server-runtime-tls` and `test_runtime_tls_context` with the
+existing warnings-as-errors C++23 options. OpenSSL 4.1+ must compile without
+deprecated `X509_check_host/X509_check_ip_asc/ASN1_STRING_length` calls;
+older OpenSSL and LibreSSL use their existing compatible APIs. Run
+`ctest --test-dir build -R '^runtime.tls-endpoint-san-only-openssl-compatibility$' --output-on-failure`
+in the sole existing build root before the full Debug and applicable Release
+matrix. No second build root, TLS policy change or public listener. At
+authoring, local compilation and CTest were **NOT RUN** (the approved checkout
+is not present and GitHub DNS is unavailable); hosted exact-SHA Linux/Windows/
+macOS OpenSSL 4.1 qualification remains **PENDING**.
+
 ## R8 native file destination callback-generation build boundary (2026-10-30)
 
 The write-time generation replacement regression is compiled through the

@@ -3252,6 +3252,7 @@ endif()
 foreach(runtime_tls_context_case IN ITEMS
         validates-live-tls-context-construction
         validates-lan-endpoint-certificate-identity
+        tls-endpoint-san-only-openssl-compatibility
         tls-context-read-only-unbound-identity-status
         tls-identity-offline-lifecycle-denials
         tls-context-survives-credential-path-replacement

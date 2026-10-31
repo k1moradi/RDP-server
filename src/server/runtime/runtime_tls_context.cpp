@@ -13,6 +13,7 @@
 #include <memory>
 #include <new>
 #include <optional>
+#include <span>
 #include <string_view>
 
 #include <openssl/bio.h>
@@ -253,6 +254,104 @@ struct ParsedNumericIpAddress
     }
     return std::nullopt;
 }
+
+#if OPENSSL_VERSION_NUMBER >= 0x40100000L && !defined(LIBRESSL_VERSION_NUMBER)
+// OpenSSL 4.1 deprecates X509_check_ip_asc/X509_check_host in favor of
+// X509_verify_cert. This check is deliberately SAN coverage only: running
+// certificate-chain verification here would change its security contract.
+[[nodiscard]] char lowercaseAscii(char character) noexcept
+{
+    return character >= 'A' && character <= 'Z'
+        ? static_cast<char>(character + ('a' - 'A'))
+        : character;
+}
+
+[[nodiscard]] bool equalAsciiIgnoreCase(
+    std::string_view left, std::string_view right) noexcept
+{
+    return left.size() == right.size() &&
+           std::equal(left.begin(), left.end(), right.begin(),
+                      [](char first, char second) noexcept {
+                          return lowercaseAscii(first) == lowercaseAscii(second);
+                      });
+}
+
+[[nodiscard]] bool dnsSanMatchesEndpoint(
+    std::string_view subjectAlternativeName,
+    std::string_view endpoint) noexcept
+{
+    // An embedded NUL in a certificate name must never shorten a match.
+    if (subjectAlternativeName.find('\0') != std::string_view::npos)
+        return false;
+    if (equalAsciiIgnoreCase(subjectAlternativeName, endpoint))
+        return true;
+
+    // Match the existing NO_PARTIAL_WILDCARDS policy: only a complete
+    // leftmost '*' label, exactly one endpoint label, no multi-label match.
+    if (subjectAlternativeName.size() < 3U ||
+        subjectAlternativeName.substr(0U, 2U) != "*." ||
+        subjectAlternativeName.find('*', 1U) != std::string_view::npos)
+        return false;
+    const std::size_t firstDot = endpoint.find('.');
+    return firstDot != std::string_view::npos && firstDot > 0U &&
+           equalAsciiIgnoreCase(endpoint.substr(firstDot + 1U),
+                                subjectAlternativeName.substr(2U));
+}
+
+[[nodiscard]] RuntimeTlsEndpointIdentityStatus matchCertificateSubjectAltName(
+    const X509 *certificate, std::string_view endpoint) noexcept
+{
+    // inet_pton distinguishes genuine numeric literals from DNS references;
+    // malformed IP-looking strings still follow the former DNS-mismatch path.
+    const auto numericAddress = parseNumericIpAddress(endpoint);
+    OwnedGeneralNames names{static_cast<GENERAL_NAMES *>(
+        ::X509_get_ext_d2i(const_cast<X509 *>(certificate),
+                           NID_subject_alt_name, nullptr, nullptr))};
+    if (!names)
+        return RuntimeTlsEndpointIdentityStatus::Mismatch;
+
+    const int nameCount = ::sk_GENERAL_NAME_num(names.get());
+    for (int index = 0; index < nameCount; ++index)
+    {
+        const GENERAL_NAME *const name =
+            ::sk_GENERAL_NAME_value(names.get(), index);
+        if (name == nullptr)
+            continue;
+
+        if (numericAddress)
+        {
+            if (name->type != GEN_IPADD || name->d.iPAddress == nullptr)
+                continue;
+            const ASN1_OCTET_STRING *const ipAddress = name->d.iPAddress;
+            const std::size_t nameBytes = ::ASN1_STRING_get_length(ipAddress);
+            const unsigned char *const nameData =
+                ::ASN1_STRING_get0_data(ipAddress);
+            if (nameData == nullptr || nameBytes != numericAddress->size)
+                continue;
+            const std::span<const unsigned char> certificateIp{nameData, nameBytes};
+            if (std::equal(certificateIp.begin(), certificateIp.end(),
+                           numericAddress->bytes.begin()))
+                return RuntimeTlsEndpointIdentityStatus::Match;
+        }
+        else
+        {
+            if (name->type != GEN_DNS || name->d.dNSName == nullptr)
+                continue;
+            const ASN1_IA5STRING *const dnsName = name->d.dNSName;
+            const std::size_t nameBytes = ::ASN1_STRING_get_length(dnsName);
+            const unsigned char *const nameData =
+                ::ASN1_STRING_get0_data(dnsName);
+            if (nameData == nullptr || nameBytes == 0U || nameBytes > 253U)
+                continue;
+            const std::string_view certificateDnsName{
+                reinterpret_cast<const char *>(nameData), nameBytes};
+            if (dnsSanMatchesEndpoint(certificateDnsName, endpoint))
+                return RuntimeTlsEndpointIdentityStatus::Match;
+        }
+    }
+    return RuntimeTlsEndpointIdentityStatus::Mismatch;
+}
+#endif
 
 [[nodiscard]] bool addStaticCertificateExtension(
     X509 *certificate, int extensionNid, const char *value) noexcept
@@ -508,6 +607,9 @@ RuntimeServerTlsContext::validateEndpointIdentity(
         endpoint.find('\0') != std::string_view::npos)
         return RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
 
+#if OPENSSL_VERSION_NUMBER >= 0x40100000L && !defined(LIBRESSL_VERSION_NUMBER)
+    return matchCertificateSubjectAltName(selectedCertificate, endpoint);
+#else
     std::array<char, 254> endpointText{};
     std::memcpy(endpointText.data(), endpoint.data(), endpoint.size());
 
@@ -534,6 +636,7 @@ RuntimeServerTlsContext::validateEndpointIdentity(
     if (hostMatch == 0)
         return RuntimeTlsEndpointIdentityStatus::Mismatch;
     return RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+#endif
 }
 
 bool RuntimeServerTlsContext::certificateSha256Fingerprint(

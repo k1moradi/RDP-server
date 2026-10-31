@@ -372,6 +372,84 @@ void advanceToConfirmedAttach(
     assert(!session.firstClientAcceptanceObservability().shareActivated);
 }
 
+void testPrematureJoinBeforeAttachConfirmDeliveryIsTerminal()
+{
+    // The first Join is legal only after the entire Attach Confirm has been
+    // accepted. Zero-byte progress retains the exact slice; positive partial
+    // progress advances only that slice and must not configure Join state.
+    constexpr std::uint64_t admissionGeneration = 61U;
+    constexpr std::uint64_t authorizationGeneration = 63U;
+    constexpr auto provenance = hybridProvenance();
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+        0x80U, 0x04U, 0x01U, 0x00U, 0x01U, 0x00U};
+    constexpr std::array<std::uint8_t, 8> attach{
+        0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x28U};
+    constexpr std::array<std::uint8_t, 12> userJoin{
+        0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+        0x80U, 0x38U, 0x00U, 0x01U, 0x03U, 0xeaU};
+    const auto connectInitial = hybridConnectInitial();
+
+    McsSessionLifecycle session;
+    assert(MacConsoleAdmissionR3TestAccess::acceptConnectInitial(
+               session, admissionGeneration, authorizationGeneration,
+               connectInitial) == McsSessionIntake::AdmittedConnectInitial);
+    const auto response = MacConsoleAdmissionR3TestAccess::prepareConnectResponse(
+        session, admissionGeneration, authorizationGeneration, provenance);
+    assert(response);
+    assert(MacConsoleAdmissionR3TestAccess::completeConnectResponse(
+               session, admissionGeneration, authorizationGeneration,
+               response->replySequence, response->writeSliceSequence,
+               response->bytes.size()) ==
+           McsConnectResponseWriteOutcome::Delivered);
+    assert(MacConsoleAdmissionR3TestAccess::acceptErectDomain(
+               session, admissionGeneration, authorizationGeneration,
+               erect) == McsSessionIntake::ErectDomainAccepted);
+    assert(MacConsoleAdmissionR3TestAccess::acceptAttachUser(
+               session, admissionGeneration, authorizationGeneration,
+               provenance, attach) == McsSessionIntake::AttachUserAccepted);
+    assert(session.phase() == McsSessionPhase::AwaitAttachConfirm);
+
+    const auto firstSlice = MacConsoleAdmissionR3TestAccess::prepareAttachConfirm(
+        session, admissionGeneration, authorizationGeneration, provenance);
+    assert(firstSlice && firstSlice->bytes.size() > 1U);
+    assert(MacConsoleAdmissionR3TestAccess::completeAttachConfirm(
+               session, admissionGeneration, authorizationGeneration,
+               provenance, firstSlice->replySequence,
+               firstSlice->writeSliceSequence, 0U) ==
+           McsConnectResponseWriteOutcome::Pending);
+
+    const auto sameSlice = MacConsoleAdmissionR3TestAccess::prepareAttachConfirm(
+        session, admissionGeneration, authorizationGeneration, provenance);
+    assert(sameSlice);
+    assert(sameSlice->replySequence == firstSlice->replySequence);
+    assert(sameSlice->writeSliceSequence == firstSlice->writeSliceSequence);
+    assert(sameSlice->bytes.size() == firstSlice->bytes.size());
+    assert(MacConsoleAdmissionR3TestAccess::completeAttachConfirm(
+               session, admissionGeneration, authorizationGeneration,
+               provenance, sameSlice->replySequence,
+               sameSlice->writeSliceSequence, 1U) ==
+           McsConnectResponseWriteOutcome::Pending);
+
+    const auto remaining = MacConsoleAdmissionR3TestAccess::prepareAttachConfirm(
+        session, admissionGeneration, authorizationGeneration, provenance);
+    assert(remaining);
+    assert(remaining->replySequence == firstSlice->replySequence);
+    assert(remaining->writeSliceSequence != firstSlice->writeSliceSequence);
+    assert(remaining->bytes.size() + 1U == firstSlice->bytes.size());
+
+    assert(MacConsoleAdmissionR3TestAccess::acceptChannelJoin(
+               session, admissionGeneration, authorizationGeneration,
+               provenance, userJoin) == McsJoinStartOutcome::Rejected);
+    assertTerminal(session);
+    assert(MacConsoleAdmissionR3TestAccess::completeAttachConfirm(
+               session, admissionGeneration, authorizationGeneration,
+               provenance, remaining->replySequence,
+               remaining->writeSliceSequence, remaining->bytes.size()) ==
+           McsConnectResponseWriteOutcome::Rejected);
+    assertTerminal(session);
+}
+
 void testPostAttachJoinRevocationAndLateReceipts()
 {
     // Production R3 is exercised through its existing R2-scoped fixture.
@@ -464,6 +542,12 @@ void testPostAttachJoinRevocationAndLateReceipts()
 
 int main(int argc, char *argv[])
 {
+    if (argc == 2 && std::string_view{argv[1]} ==
+            "premature-join-before-attach-confirm")
+    {
+        testPrematureJoinBeforeAttachConfirmDeliveryIsTerminal();
+        return 0;
+    }
     if (argc == 2 && std::string_view{argv[1]} ==
             "post-attach-join-revocation")
     {

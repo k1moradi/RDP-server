@@ -1,3 +1,17 @@
+## R3 Attach-Confirm/Channel-Join ordering test-only build scope (2026-10-31)
+
+This increment changes only the existing `test_macos_r2_mcs_gateway` source,
+its CTest registration and canonical documentation. It adds no production
+source, target, dependency, public R3 method, listener, worker, TLS reader or
+build root. The new ordinary CTest remains outside the fixed 171 MCS selection
+and every fixed sanitizer inventory.
+
+In the sole owner `~/rdp-server/build/`, run
+`ctest --test-dir build -C Debug -R '^(transport[.]mcs-macos-(premature-join-before-attach-confirm-denial|post-attach-join-revocation-denials)|security[.]macos-protected-buffered-attach-confirm-after-erect)$' --output-on-failure`
+and then the full Debug CTest plus the unchanged sanitizer selections.
+Connector-local configure/build/CTest is **NOT RUN**; exact publication-SHA
+hosted CI is **PENDING**.
+
 ## R6 source-binding anti-splice test-only build scope (2026-10-31)
 
 This increment changes only the existing Python evidence fixture plus

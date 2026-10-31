@@ -1,3 +1,41 @@
+## R3 Agent 10 first-positive MCS review and Attach/Join receipt fence (2026-10-31)
+
+Authoring parent `379f05d3ff3a31df5ae80cd7f437b508c23653f9`. Current `main` was re-read through the
+macOS HostControl, concrete R2 broker, R3 MCS/licensing/Share owner and R1
+post-handshake TLS I/O boundary. Agent 10's positive path still has one
+`McsSessionLifecycle` owner and stops only after a fully receipt-committed
+Attach Confirm reaches `AwaitChannelJoin`. R1 guarantees `Progress` is
+strictly positive; WANT_READ/WANT_WRITE carry zero accepted bytes, so R10
+correctly sends no R3 receipt on WANT and reuses the same bounded suffix.
+R2 revalidates the bound native/generation lifetime before and after every
+protected callback; callback-time authority loss invokes terminal broker
+revocation, which closes R3 (joins, licensing, Share and Graphics DVC) and then
+the original R1 SSL/BIO/socket.
+
+Normative ordering was rechecked against MS-RDPBCGR/MS-RDPELE: Channel
+Connection precedes Secure Settings Exchange; Client Info follows all requested
+Channel Join Confirms; the target initiates licensing after Client Info; a
+personal terminal server completes licensing with STATUS_VALID_CLIENT /
+ST_NO_TRANSITION; Demand Active follows successful licensing. RDP 8.1/10.0/10.1
+may batch Channel Join Requests, so the existing bounded batch gate must not be
+replaced with a strictly serial server parser.
+
+Added
+`transport.mcs-macos-premature-join-before-attach-confirm-denial`. It proves
+zero-byte Attach-Confirm completion retains the identical reply/slice view,
+one-byte completion advances only the slice, and a Join before full delivery
+terminally closes R3; the retained late receipt cannot revive it. No production
+source, CAL SignedData logic, channel cardinality, fixed 171-case MCS table,
+user-ID range checks (1001..65536 inclusive), Demand Active macOS
+OSMAJORTYPE_OSX/OSMINORTYPE_UNSPECIFIED profile, or fixed sanitizer selection
+changed.
+
+Focused/local CTest: **NOT RUN** in the connector environment. Exact
+publication-SHA hosted CI: **PENDING**. Next runtime gate is R10 composition of
+the already-protected Channel Join borrow/receipt operations; no missing R3
+public/private operation blocks that increment. A product-positive native
+macOS end-to-end run remains separately owner/environment authorized.
+
 ## R6 Microsoft interop re-audit and nested source-binding anti-splice coverage (2026-10-31)
 
 Authoring parent `07509cc1fdddff646a33bbf3b874ed3be8a42de0`. Independently re-read the completed

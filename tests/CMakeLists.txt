@@ -2350,6 +2350,14 @@ add_test(NAME transport.mcs-macos-post-attach-join-revocation-denials
 set_tests_properties(transport.mcs-macos-post-attach-join-revocation-denials
     PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
+# The first Channel Join must remain fenced until the complete Attach Confirm
+# is receipt-committed. Keep this R3 boundary regression outside 171 MCS cases.
+add_test(NAME transport.mcs-macos-premature-join-before-attach-confirm-denial
+    COMMAND test_macos_r2_mcs_gateway "premature-join-before-attach-confirm")
+set_tests_properties(
+    transport.mcs-macos-premature-join-before-attach-confirm-denial
+    PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
+
 # R3 canonical production Demand Active profile. These cases are pure offline
 # protocol tests and mint no positive R2 admission lease.
 add_executable(test_rdp_demand_active_profile

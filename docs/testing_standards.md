@@ -1,3 +1,23 @@
+## R3 premature Channel Join before complete Attach Confirm regression (2026-10-31)
+
+Dedicated ordinary offline CTest
+`transport.mcs-macos-premature-join-before-attach-confirm-denial` exercises
+the private R2->R3 transition contract without manufacturing native macOS
+authority. It reaches `AwaitAttachConfirm`, reports a zero-byte receipt and
+requires the exact same reply/slice/byte view, reports one accepted byte and
+requires the same reply with a new slice containing only the suffix, then
+submits the user-channel Join before the remaining Attach Confirm is delivered.
+That Join must be rejected terminally, and the retained late Attach receipt must
+also be rejected.
+
+Keep this test outside the fixed **171-case** MCS sanitizer/table inventory.
+The separate
+`security.macos-protected-buffered-attach-confirm-after-erect` test remains
+the production-linked real R1 HYBRID/TLS + concrete R2 positive path. Together
+they cover actual accepted-byte delivery and the independent R3 ordering fence
+without adding a synthetic native issuer, public admission API, second protocol
+owner or second TLS reader.
+
 ## R6 source-binding identity-splice contradiction regression (2026-10-31)
 
 Keep the existing ordinary offline

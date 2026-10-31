@@ -1,3 +1,70 @@
+## R3 review: first macOS Attach-positive path and next Channel Join fence (2026-10-31)
+
+**Authoring parent:** `379f05d3ff3a31df5ae80cd7f437b508c23653f9`. R3 re-audited current Agent 10
+composition after the first positive macOS Erect + Attach/Attach-Confirm path
+landed. The runtime uses the original R1 TLS owner for complete TPKTs, one
+`McsSessionLifecycle`, the concrete R2 protected wrappers and exact
+accepted-byte receipts; it currently stops at `AwaitChannelJoin`.
+
+The required R10 call/receipt sequence from this boundary is unchanged:
+Connect-Initial -> `authorizeR3McsConnectInitial`; Connect-Response ->
+`authorizeR3ConnectResponseWrite` / sole R1 TLS write /
+`completeR3ConnectResponseWrite`; Erect ->
+`authorizeR3ErectDomain`; Attach -> `authorizeR3AttachUser`, then
+`authorizeR3AttachUserConfirmWrite` / R1 /
+`completeR3AttachUserConfirmWrite`; each Join ->
+`authorizeR3ChannelJoin`, then
+`authorizeR3ChannelJoinConfirmWrite` / R1 /
+`completeR3ChannelJoinConfirmWrite`; after all configured joins, Client Info
+-> `authorizeR3ClientInfoPacket`; PersonalDesktop licensing ->
+`authorizeR3PersonalDesktopLicensingMode`, R3-owned Server License Request
+borrow/receipt, `authorizeR3PersonalDesktopClientLicensingMessage`, then the
+R3-owned valid-client borrow/receipt; post-licensing Demand Active/Share ->
+`authorizeR3PersonalDesktopMacDemandActiveProfile`,
+`authorizeR3PersonalDesktopShareActivation`, subsequent Share write
+borrow/receipts and `authorizeR3PersonalDesktopShareActivationPdu`; only after
+activation may R10 use `authorizeR3ApplicationTrafficReady`,
+`classifyR3PostShareTpkt` and the specialized R3 clipboard/input/Graphics
+owners.
+
+R1 `Progress` is always a positive exact plaintext byte count. WANT_READ or
+WANT_WRITE is zero protocol progress and must not call a completion method.
+A zero-byte R3 completion retains the same bounded reply/slice view; a positive
+partial completion keeps the reply sequence and advances only R3's slice.
+Until the complete Connect-Response receipt, Erect/Attach remain illegal; until
+the complete Attach-Confirm receipt, Channel Join remains illegal. Client Info
+is illegal until all requested joins are confirmed. Every R2 protected
+operation rechecks the original generation/native lifetime before and after the
+callback; callback-time loss closes the whole R3 owner including joined
+channels, licensing, Share and Graphics DVC and then retires R1.
+
+Normative review preserves the existing bounded batched-Join behavior: while
+most RDP versions send each Join after the previous Confirm, MS-RDPBCGR notes
+RDP 8.1/10.0/10.1 can send all Channel Join Requests in one batch. The
+PersonalDesktop no-CAL product mode also does not skip Client Info, R2
+authorization, licensing wire exchange or the valid-client receipt: Demand
+Active starts only after licensing completion. Existing macOS Demand Active
+identity remains OSMAJORTYPE_OSX / OSMINORTYPE_UNSPECIFIED; the fixed 171-case
+MCS table and the 1001..65536 inclusive user-ID conformance coverage remain
+unchanged.
+
+New independent R3 regression
+`transport.mcs-macos-premature-join-before-attach-confirm-denial` proves a
+zero-byte Attach-Confirm receipt preserves the exact view, one accepted byte
+advances only the slice, and a premature user-channel Join terminally denies
+the session and any late receipt. No production behavior correction was needed.
+
+**Dependency / next gate:** `rdp-server-macos-host-control` already links the
+portable protocol/R1, runtime TLS/licensing, native-session evidence,
+native-desktop authorization and concrete macOS R2 broker. The protected R3
+Channel Join, Client Info, PersonalDesktop licensing, Demand Active, Share and
+application-traffic wrappers already exist. R10 is therefore blocked only on
+composing the next Channel Join runtime stage, not on a missing R3 interface.
+The genuine product-positive native macOS run remains an explicit
+owner/environment gate and is not manufactured by offline tests.
+
+Connector-local CTest **NOT RUN**; exact publication-SHA hosted CI **PENDING**.
+
 ## R6 current-head Microsoft interop / source-binding anti-splice re-audit (2026-10-31)
 
 **Authoring parent:** `07509cc1fdddff646a33bbf3b874ed3be8a42de0`. The newest independently inspectable

@@ -1,3 +1,21 @@
+## R3/R10 Attach-Confirm delivery fence before Channel Join (2026-10-31)
+
+The first protected MCS Channel Join may be consumed only after R3 has
+receipt-committed the complete Attach User Confirm and entered
+`AwaitChannelJoin`. R1 `NeedRead`/`NeedWrite` is zero protocol progress and
+must retain the original R3 reply/slice view unchanged. A zero-byte R3 receipt
+likewise retains the same reply sequence, write-slice sequence and bytes; a
+positive partial receipt keeps the reply sequence, advances only the write-slice
+sequence and exposes only the unaccepted suffix. No partial Attach Confirm may
+configure channel membership, admit a Join, Client Info, licensing or Share.
+
+Do not strengthen this fence into a one-request-at-a-time Channel Join rule once
+`AwaitChannelJoin` is reached. MS-RDPBCGR documents both sequential join
+clients and RDP 8.1/10.0/10.1 clients that batch all Channel Join Requests.
+R3's existing bounded batch gate therefore remains the single channel-state
+owner; R10 only supplies complete TPKTs and drains R3-owned confirmation
+suffixes through the sole R1 TLS writer.
+
 ## R5 RandR retains the admitted XTEST owner without cleanup input (2026-10-31)
 
 A RandR screen-geometry change does not replace the admitted XCB/root input

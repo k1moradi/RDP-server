@@ -94,7 +94,7 @@ the UID, session ID, username, display/XID, destination or client logs.
 7. **Retirement:** in separate authorized runs exercise Stop, lock, logout
    and switch-user. Record each event, whether R2 lease and X11 capture
    were terminally retired, session-generation change (where observed),
-   and **zero** posts after revocation. A lock or Stop may keep the same
+   and **zero** posts or frames after revocation. A lock or Stop may keep the same
    Linux session generation; logout/switch-user must not claim a live
    retired session as a replacement. Native loss must suppress XTEST
    cleanup posts; do not store XCB event or XShm pixel references.
@@ -160,9 +160,9 @@ The `source_sha` must be the exact tested checkout commit.
 
 An observed retirement is a record such as
 `{"kind":"stop","r2_retired":true,"capture_retired":true,
-"posts_after_revocation":0,"linux_session_generation_after":123}`
+"posts_after_revocation":0,"frames_after_revocation":0,"linux_session_generation_after":123}`
 with **owner-private illustrative** scalar generation (never a public value).
-Allowed kinds: `stop`, `lock`, `logout`, `switch_user`.
+Allowed kinds: `stop`, `lock`, `logout`, `switch_user` (at most one retirement per same-attempt record).
 The template's SHA is deliberately invalid; replace it before validation.
 A syntactically valid all-`NOT_OBSERVED` record proves no physical success.
 

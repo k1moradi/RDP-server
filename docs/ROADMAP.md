@@ -340,6 +340,19 @@ future proven first-party path needs validation/fallback and one dedicated
 production-backed offline CTest; a proven Qt/platform path needs exact
 version/plugin/profile provenance and safe operator guidance.
 
+**R7 current blocker update (2026-10-31):** R2 preparation, the
+R3 private macOS MCS gateway and R10 completed synthetic CredSSP are now
+present. The missing positive macOS R10/R2 admission-to-R3/Share/GraphicsReady
+attachment remains an external dependency; R7 must deny capture/input until
+that authority exists. Separately, the R7 provenance-parser CTest had an
+empty executable because it was registered before Python3 discovery. Full
+Debug CTest on ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`
+reached 801 macOS and 1023 Ubuntu cases, with only that registration NOT RUN.
+R7 has moved its registration below the existing `find_package(Python3)`
+and added an empty-interpreter configure denial. Corrective exact-SHA hosted
+CTest is **PENDING**. The owner's QColorSpace warning remains unattributed,
+and an owner-only no-Sharing Cocoa run is still **NOT RUN**.
+
 **R7 provenance artifact update:** current source audit still finds no
 first-party Qt QColorSpace/QImage/QPixmap conversion path. The opt-in
 `scripts/diagnose_macos_qcolor_provenance.py` now gives the owner a bounded

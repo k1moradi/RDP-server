@@ -1,3 +1,10 @@
+## R7 offline provenance interpreter-registration policy (2026-10-31)
+
+Register `macos.gui-qcolor-provenance-parser-and-redaction` only after
+`find_package(Python3 REQUIRED COMPONENTS Interpreter)`. Fail configuration
+rather than registering an empty CTest executable; preserve the existing
+portable offscreen Qt fixture and do not contact native display profiles.
+
 ## R1 prepared macOS admission never advances transport (2026-10-31)
 
 Ordinary production-linked CTest

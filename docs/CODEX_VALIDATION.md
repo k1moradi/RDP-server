@@ -1,3 +1,17 @@
+## R7 QColorSpace full-CTest interpreter-order correction (2026-10-31)
+
+The full Debug protocol jobs at ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`
+reached **801 macOS** and **1023 Ubuntu** CTests. Their only non-skipped
+failure was `macos.gui-qcolor-provenance-parser-and-redaction` **NOT RUN**:
+the CTest executable field was empty because R7 registered the test before
+`find_package(Python3 REQUIRED COMPONENTS Interpreter)`.
+The same test is now registered after existing Python discovery, with a
+configure-time denial for an empty interpreter. No native/Qt/R4 change.
+Exact corrective-SHA compiler/focused/full CTest: **PENDING**. Owner
+no-Sharing Cocoa warning caller: **UNATTRIBUTED / NOT RUN**. R2 private
+admission, R3 MCS gateway and R10 synthetic CredSSP exist, but no positive
+R10-assembled R2->R3->Share/GraphicsReady native attach exists yet.
+
 ## R1 macOS concrete private access and prepared-only denial (2026-10-31)
 
 - Agent 2's `MacConsoleAdmissionBroker` and Agent 3's private R3 friend edge

@@ -106,14 +106,6 @@ add_test(NAME gui.round2-qcolor-warning-classification
 set_tests_properties(gui.round2-qcolor-warning-classification PROPERTIES
     LABELS "gui;assurance;round2;qt;policy;offline")
 
-# R7 owner-opt-in provenance tooling is parsed and redaction-tested offline.
-# This test never launches AppKit, reads a host display profile or opens a socket.
-add_test(NAME macos.gui-qcolor-provenance-parser-and-redaction
-    COMMAND "${Python3_EXECUTABLE}"
-        "${PROJECT_SOURCE_DIR}/tests/test_macos_qcolor_provenance.py")
-set_tests_properties(macos.gui-qcolor-provenance-parser-and-redaction PROPERTIES
-    LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
-
 # R2 production credential-choice boundary: no secrets, network, OS login or
 # synthetic lease; unsupported GUI passwords cannot enable Share.
 add_executable(test_standalone_credential_policy
@@ -1327,6 +1319,20 @@ foreach(standalone_native_authorization_case IN ITEMS
 endforeach()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Refuse an empty CTest executable if this diagnostic is ever reordered.
+if(NOT Python3_EXECUTABLE)
+    message(FATAL_ERROR
+        "QColorSpace provenance CTest requires a discovered Python3 interpreter")
+endif()
+
+# R7 owner-opt-in provenance tooling is parsed and redaction-tested offline.
+# This test never launches AppKit, reads a host display profile or opens a socket.
+add_test(NAME macos.gui-qcolor-provenance-parser-and-redaction
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_qcolor_provenance.py")
+set_tests_properties(macos.gui-qcolor-provenance-parser-and-redaction PROPERTIES
+    LABELS "macos;gui;qt;diagnostics;security;offline" TIMEOUT 20)
 
 # Agent 5 read-only physical-client evidence helper. The synthetic fixture
 # reads only a temporary .app Info.plist and temporary logs; it never launches

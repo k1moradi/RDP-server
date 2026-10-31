@@ -1,3 +1,13 @@
+## R7 QColorSpace provenance CTest interpreter correction (2026-10-31)
+
+The existing `find_package(Python3 REQUIRED COMPONENTS Interpreter)` now
+precedes the offline parser CTest registration, with an empty-interpreter
+configuration denial. No additional package or binary target is added.
+Full Debug CTest on ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`
+failed solely through this empty command on hosted macOS and Ubuntu. Corrective
+hosted compile/focused/full CTest: **PENDING**. Focused verification:
+`ctest --test-dir build -C Debug -R '^macos[.]gui-qcolor-provenance-parser-and-redaction$' --output-on-failure`.
+
 ## R1 macOS concrete admission friend access (2026-10-31)
 
 A forward declaration and exact R2 broker friend in the existing portable R1

@@ -72,6 +72,36 @@ public:
 class McsSessionLifecycleTestAccess final
 {
 public:
+    // Positive R3 protocol progression is fixture-only here. These scalar
+    // generations do not create or replace an R2 native admission lease.
+    [[nodiscard]] static bool stageDeliveredConnectResponseForProtocolTest(
+        McsSessionLifecycle &session,
+        std::span<const std::uint8_t> connectInitial,
+        const SecurityNegotiationProvenance &provenance) noexcept
+    {
+        if (session.onVerifiedR2ConnectInitial(
+                41U, 43U, connectInitial) !=
+            McsSessionIntake::AdmittedConnectInitial)
+            return false;
+        const auto pending = session.prepareConnectResponseWrite(provenance);
+        if (!pending)
+            return false;
+        const auto replySequence = pending->replySequence;
+        const auto writeSliceSequence = pending->writeSliceSequence;
+        const auto acceptedBytes = pending->bytes.size();
+        return session.completeConnectResponseWrite(
+                   replySequence, writeSliceSequence, acceptedBytes) ==
+                   McsConnectResponseWriteOutcome::Delivered &&
+               session.phase() == McsSessionPhase::AwaitErectDomain;
+    }
+
+    [[nodiscard]] static McsSessionIntake acceptErectDomainForProtocolTest(
+        McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept
+    {
+        return session.onVerifiedR2ErectDomain(completeTpkt);
+    }
+
     [[nodiscard]] static bool stage(
         McsSessionLifecycle &session,
         const RdpServerLicenseIdentity &identity,
@@ -7597,6 +7627,82 @@ void testMcsSessionUnverifiedDomainOrdering()
     assert(bad.pendingJoinConfirmation().empty());
 }
 
+void testMcsSessionPostResponseDomainOrderingDenials()
+{
+    // The private friend exercises real R3 protocol transitions in isolation;
+    // this test never creates an R2 broker, native lease or runtime session.
+    auto connectInitial = publishedFixture();
+    const auto parsed = parseMcsConnectInitial(connectInitial);
+    assert(parsed);
+    constexpr std::array<std::uint8_t, 4> coreHeader{
+        0x01, 0xc0, 0xd8, 0x00};
+    const auto core = std::search(
+        parsed.value.gccUserData.begin(), parsed.value.gccUserData.end(),
+        coreHeader.begin(), coreHeader.end());
+    assert(core != parsed.value.gccUserData.end());
+    const std::size_t selectedProtocolOffset =
+        static_cast<std::size_t>(
+            parsed.value.gccUserData.data() - connectInitial.data()) +
+        static_cast<std::size_t>(
+            core - parsed.value.gccUserData.begin()) + 212U;
+    assert(selectedProtocolOffset + 4U <= connectInitial.size());
+    std::fill_n(connectInitial.begin() + selectedProtocolOffset, 4U, 0U);
+    connectInitial[selectedProtocolOffset] =
+        static_cast<std::uint8_t>(kRdpProtocolHybrid);
+    const SecurityNegotiationProvenance provenance{
+        kRdpProtocolSsl | kRdpProtocolHybrid, kRdpProtocolHybrid};
+
+    constexpr std::array<std::uint8_t, 12> erect{
+        0x03,0x00,0x00,0x0c,0x02,0xf0,0x80,0x04,0x01,0x00,0x01,0x00};
+    constexpr std::array<std::uint8_t, 8> attach{
+        0x03,0x00,0x00,0x08,0x02,0xf0,0x80,0x28};
+    constexpr std::array<std::uint8_t, 12> join{
+        0x03,0x00,0x00,0x0c,0x02,0xf0,0x80,
+        0x38,0x00,0x06,0x03,0xeb};
+
+    const auto assertRetired = [](const McsSessionLifecycle &session)
+    {
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session.licensingPhase() == RdpLicensingPhase::Closed);
+        assert(session.allocatedUserId() == 0U);
+        assert(!session.channelJoinConfirmed(1003U));
+        assert(session.pendingJoinConfirmation().empty());
+        assert(!session.firstClientAcceptanceObservability().shareActivated);
+    };
+
+    // The early Attach and Join are invalid only after completing the
+    // genuine R3 Connect-Response write gate in this protocol-only fixture.
+    for (const auto premature : {
+             std::span<const std::uint8_t>{attach},
+             std::span<const std::uint8_t>{join}})
+    {
+        McsSessionLifecycle session;
+        assert(McsSessionLifecycleTestAccess::
+            stageDeliveredConnectResponseForProtocolTest(
+                session, connectInitial, provenance));
+        assert(McsSessionLifecycleTestAccess::
+            acceptErectDomainForProtocolTest(session, premature) ==
+            McsSessionIntake::InvalidOrdering);
+        assertRetired(session);
+        assert(McsSessionLifecycleTestAccess::
+            acceptErectDomainForProtocolTest(session, erect) ==
+            McsSessionIntake::Closed);
+    }
+
+    McsSessionLifecycle duplicate;
+    assert(McsSessionLifecycleTestAccess::
+        stageDeliveredConnectResponseForProtocolTest(
+            duplicate, connectInitial, provenance));
+    assert(McsSessionLifecycleTestAccess::
+        acceptErectDomainForProtocolTest(duplicate, erect) ==
+        McsSessionIntake::ErectDomainAccepted);
+    assert(duplicate.phase() == McsSessionPhase::AwaitAttachUser);
+    assert(McsSessionLifecycleTestAccess::
+        acceptErectDomainForProtocolTest(duplicate, erect) ==
+        McsSessionIntake::InvalidOrdering);
+    assertRetired(duplicate);
+}
+
 void testMcsSessionFirstEnvelopeSizeBounds()
 {
     // 8 KiB is the project's existing bounded first decrypted TPKT
@@ -12769,7 +12875,7 @@ struct McsTestCase
 
 // No new executable or fixture owner; expose independent behaviors in
 // the canonical CTest registry. Unknown case names must not pass.
-constexpr std::array<McsTestCase, 170> kMcsTestCases{{
+constexpr std::array<McsTestCase, 171> kMcsTestCases{{
     {"mcs-envelope-microsoft", &testRealMicrosoftConnectionEnvelope},
     {"mcs-envelope-tpkt-errors", &testInvalidOuterTransport},
     {"mcs-envelope-ber-errors", &testBerLengthsAndType},
@@ -12811,6 +12917,7 @@ constexpr std::array<McsTestCase, 170> kMcsTestCases{{
     {"mcs-send-indication-joined-denials", &testMcsJoinedSendIndicationDenials},
     {"mcs-session-unverified-connect", &testMcsSessionUnverifiedConnectDenials},
     {"mcs-session-unverified-ordering", &testMcsSessionUnverifiedDomainOrdering},
+    {"mcs-session-post-response-domain-ordering-denials", &testMcsSessionPostResponseDomainOrderingDenials},
     {"mcs-session-first-envelope-size-bounds", &testMcsSessionFirstEnvelopeSizeBounds},
     {"mcs-session-unadmitted-domain-size-bounds", &testMcsSessionUnadmittedDomainSizeBounds},
     {"mcs-session-first-failure-boundaries", &testMcsSessionFirstFailureBoundaries},

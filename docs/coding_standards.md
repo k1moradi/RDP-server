@@ -1,3 +1,47 @@
+## R6 paired physical Windows client evidence is non-authorizing (2026-10-30)
+
+Preserve the single R5 macOS owner-evidence collector and its private
+schema-v2 manifest. Consume it read-only; accept a separate closed-schema
+Windows mstsc record and only the macOS facts missing from R5. Require
+independent stage facts, credential source and intention to re-enter
+rather than inferring them from an EOF or generic UI error. Reject
+unapproved authentication fields and emit only allowlisted redacted
+diagnostics. No raw credentials, NTLM bytes, tokens, logs, endpoint,
+exact UI text or connection identifiers enter shared summaries.
+Neither A/B success nor hosted SSPI success grants native Admission.
+
+## R7 borrowed macOS framebuffer callbacks may revoke their native owner (2026-10-30)
+
+The macOS FrameMailbox must never invoke its R4 frame consumer while holding
+the mailbox mutex. A consumer may synchronously revoke the owning native
+desktop, whose retirement calls back into the same mailbox. Keep the borrowed
+BGRA arena alive until the callback returns, including when owner retirement
+resets the shared mailbox pointer; invalidate its generation immediately.
+While one borrow is in flight, discard concurrent capture updates rather than
+mutate borrowed pixels. A callback that caused retirement must return denial,
+not successful publication. Do not add per-frame allocation/copy, a second
+capture owner, an OS permission prompt or an R10 admission shortcut.
+
+## R1 OpenSSL 4.1 identity-only SAN matching portability (2026-10-30)
+
+`RuntimeServerTlsContext::validateEndpointIdentity()` is only selected-leaf
+identity coverage, not X.509 trust, TLS permission, native Admission or listener
+authority. OpenSSL 4.1 deprecates `X509_check_ip_asc` and `X509_check_host`;
+its recommended `X509_VERIFY_PARAM_set1_host/set1_ip_asc` plus
+`X509_verify_cert` would additionally invoke chain verification and must not
+replace this helper. On OpenSSL 4.1+, inspect the selected certificate's
+bounded decoded subjectAltName entries directly: binary iPAddress (4/16 bytes)
+for valid numeric endpoints, case-insensitive dNSName for DNS endpoints,
+full-label leftmost wildcard only (no partial/multi-label match), and never
+consult Subject Common Name. Handle borrowed ASN.1 buffers within the
+GENERAL_NAMES RAII lifetime; use `ASN1_STRING_get_length` with 4.1+ headers,
+not the deprecated signed-length accessor. Older OpenSSL/LibreSSL retain the
+existing `X509_check_*` branch and flags; keep `-Werror`. Empty/overlong/NUL
+endpoints remain InvalidEndpoint; malformed numeric-looking text retains its
+former DNS mismatch classification. A positive self-signed SAN match is
+not a trust-chain PASS and must never publish R2/Share/desktop authority.
+No Type-2 or socket/TLS I/O behavior changes.
+
 ## R8 native file destination write callbacks must revalidate source ownership (2026-10-30)
 
 The macOS and Windows clipboard file destinations may call an injected native

@@ -1295,6 +1295,15 @@ add_test(NAME macos.windows-app-owner-evidence-timing-subset-denials
 set_tests_properties(macos.windows-app-owner-evidence-timing-subset-denials PROPERTIES
     LABELS "macos;offline;project-policy;evidence" TIMEOUT 15)
 
+# R6 privacy-safe paired Microsoft client evidence; no client launch.
+add_test(NAME interop.windows-client-ab-evidence-contradiction-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_windows_app_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/macos_windows_app_owner_evidence.py"
+        -k paired_)
+set_tests_properties(interop.windows-client-ab-evidence-contradiction-denials PROPERTIES
+    LABELS "windows;macos;interop;offline;security;evidence" TIMEOUT 15)
+
 # R5 separate owner-private Linux/X11 evidence schema and redactor. All
 # behavior cases are offline synthetic scalars: no seat0, client, XTEST, XCB,
 # credential, listener, R2 lease, or live native desktop access.
@@ -1480,6 +1489,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-send-indication-joined-denials
                 mcs-session-unverified-connect
                 mcs-session-unverified-ordering
+                mcs-session-post-response-domain-ordering-denials
                 mcs-session-first-envelope-size-bounds
                 mcs-session-unadmitted-domain-size-bounds
                 mcs-session-first-failure-boundaries
@@ -3262,6 +3272,7 @@ endif()
 foreach(runtime_tls_context_case IN ITEMS
         validates-live-tls-context-construction
         validates-lan-endpoint-certificate-identity
+        tls-endpoint-san-only-openssl-compatibility
         tls-context-read-only-unbound-identity-status
         tls-identity-offline-lifecycle-denials
         tls-context-survives-credential-path-replacement
@@ -3767,6 +3778,7 @@ if(APPLE)
     foreach(case_name IN ITEMS
             fail-closed-construction
             frame-input-lifecycle
+            borrow-callback-retirement
             input-permission-retirement
             standalone-authenticated-session-lifecycle
             display-session-retirement)

@@ -75,7 +75,9 @@ public:
         }
 
         std::scoped_lock lock(mutex_);
-        if (retired_) {
+        // The consumer borrows this arena without holding the mutex. Drop
+        // concurrent capture frames rather than overwrite its borrowed pixels.
+        if (retired_ || borrowInProgress_) {
             return;
         }
         if (latestFrameSequence_ ==
@@ -121,18 +123,37 @@ public:
             return false;
         }
 
-        std::scoped_lock lock(mutex_);
-        if (retired_ || latestFrameSequence_ != expectedFrameSequence ||
-            storage_ == nullptr || byteCount_ == 0 || widthPixels_ == 0 ||
-            heightPixels_ == 0 || strideBytes_ == 0) {
-            return false;
+        FramebufferView frame{};
+        {
+            std::scoped_lock lock(mutex_);
+            if (retired_ || borrowInProgress_ ||
+                latestFrameSequence_ != expectedFrameSequence ||
+                storage_ == nullptr || byteCount_ == 0 || widthPixels_ == 0 ||
+                heightPixels_ == 0 || strideBytes_ == 0) {
+                return false;
+            }
+            frame = {std::span<const std::byte>{storage_.get(), byteCount_},
+                     widthPixels_, heightPixels_, strideBytes_};
+            if (!frame.valid()) {
+                return false;
+            }
+            borrowInProgress_ = true;
         }
-        const FramebufferView frame{
-            std::span<const std::byte>{storage_.get(), byteCount_},
-            widthPixels_, heightPixels_, strideBytes_};
-        return frame.valid() && consumer.consume(
+
+        // The consumer may synchronously revoke the native owner. Never hold
+        // the mailbox mutex across user code; retirement defers freeing these
+        // borrowed pixels until the callback has returned.
+        const bool consumed = consumer.consume(
             consumer.context, frame, geometryGeneration_,
-            admittedSessionGeneration, latestFrameSequence_);
+            admittedSessionGeneration, expectedFrameSequence);
+        std::scoped_lock lock(mutex_);
+        const bool generationCurrent =
+            !retired_ && latestFrameSequence_ == expectedFrameSequence;
+        borrowInProgress_ = false;
+        if (retired_) {
+            retireLocked();
+        }
+        return consumed && generationCurrent;
     }
 
     [[nodiscard]] std::uint64_t latestFrameSequence() const noexcept {
@@ -159,8 +180,12 @@ public:
 private:
     void retireLocked() noexcept {
         retired_ = true;
-        storage_.reset();
-        storageCapacity_ = 0;
+        // Keep the storage alive through a reentrant retirement callback.
+        // All published metadata is invalidated immediately.
+        if (!borrowInProgress_) {
+            storage_.reset();
+            storageCapacity_ = 0;
+        }
         byteCount_ = 0;
         widthPixels_ = 0;
         heightPixels_ = 0;
@@ -179,6 +204,7 @@ private:
     std::size_t strideBytes_{};
     std::uint64_t latestFrameSequence_{};
     bool retired_{};
+    bool borrowInProgress_{};
 };
 
 MacNativeDesktopOwner::~MacNativeDesktopOwner() noexcept {
@@ -640,7 +666,10 @@ bool MacNativeDesktopOwner::borrowAuthorized(
         capture_->state() != MacScreenCaptureLifecycleState::Capturing) {
         return false;
     }
-    return frameMailbox_->borrow(
+    // Callback-time revoke() resets the owner's shared_ptr. Pin the mailbox
+    // locally until borrow() has finished its deferred storage retirement.
+    const auto frameMailbox = frameMailbox_;
+    return frameMailbox->borrow(
         expectedFrameSequence, authorizationGeneration_, consumer);
 }
 

@@ -60,11 +60,38 @@ B8eNhd10TDJVdn1gfFYNvxL1xKI9X7S4MFWsh8/UH0SdFwFKc/dbJig2
 -----END PRIVATE KEY-----
 ]=])
 
+set(common_name_only_certificate_file
+    "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TLS_CONTEXT_CASE}.cn-only.crt")
+set(common_name_only_private_key_file
+    "${RDP_RUNTIME_FIXTURE_DIRECTORY}/${RDP_RUNTIME_TLS_CONTEXT_CASE}.cn-only.key")
+
+set(wildcard_certificate [=[-----BEGIN CERTIFICATE-----
+MIIBoTCCAUigAwIBAgIECCNFZzAKBggqhkjOPQQDAjAfMR0wGwYDVQQDDBRjbi1v
+bmx5LmV4YW1wbGUudGVzdDAgFw0yMDAxMDEwMDAwMDBaGA8yMTIwMDEwMTAwMDAw
+MFowHzEdMBsGA1UEAwwUY24tb25seS5leGFtcGxlLnRlc3QwWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAAT8zlhxRppzklF73J0SWF3c5//PYRV8TU5EfPrcYAy/BYhL
+XWG3I7yFntZBuQhaEx1OajQx5vLvp+73aVioLuRUo3AwbjAMBgNVHRMBAf8EAjAA
+MA4GA1UdDwEB/wQEAwIFoDATBgNVHSUEDDAKBggrBgEFBQcDATA5BgNVHREEMjAw
+ghMqLndpbGQuZXhhbXBsZS50ZXN0ghlmb28qLnBhcnRpYWwuZXhhbXBsZS50ZXN0
+MAoGCCqGSM49BAMCA0cAMEQCIC/GkPF1xFz5KDv7cHhp6uF22G4bTvRT7hFn+PJv
+/8YLAiBBwWvyfrMGG/V3enygPMmII9NA3JTCqRTxBvqzu3Nhew==
+-----END CERTIFICATE-----
+]=])
+set(wildcard_private_key [=[-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgEJs99+0KYhD9za3h
+JomtJIN92lk2aiF8xpIZyeHqeUqhRANCAAT8zlhxRppzklF73J0SWF3c5//PYRV8
+TU5EfPrcYAy/BYhLXWG3I7yFntZBuQhaEx1OajQx5vLvp+73aVioLuRU
+-----END PRIVATE KEY-----
+]=])
+
 file(REMOVE
+    "${common_name_only_certificate_file}" "${common_name_only_private_key_file}"
     "${certificate_file}" "${private_key_file}"
     "${replacement_certificate_file}" "${replacement_private_key_file}")
 if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-   "validates-lan-endpoint-certificate-identity")
+   "validates-lan-endpoint-certificate-identity" OR
+   RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+   "tls-endpoint-san-only-openssl-compatibility")
     file(WRITE "${certificate_file}" "${lan_identity_certificate}")
     file(WRITE "${private_key_file}" "${lan_identity_private_key}")
 elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
@@ -81,7 +108,9 @@ if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
    "rejects-live-tls-context-private-key-mismatch")
     file(WRITE "${private_key_file}" "${lan_identity_private_key}")
 elseif(NOT RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-       "validates-lan-endpoint-certificate-identity")
+       "validates-lan-endpoint-certificate-identity" AND
+       NOT RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "tls-endpoint-san-only-openssl-compatibility")
     file(WRITE "${private_key_file}" "${valid_private_key}")
 endif()
 
@@ -104,13 +133,21 @@ if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
    OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
        "tcp-owned-runtime-tls-identity-continuity"
    OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-       "tls-identity-offline-lifecycle-denials")
+       "tls-identity-offline-lifecycle-denials"
+   OR RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+       "tls-endpoint-san-only-openssl-compatibility")
     if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
        "tls-identity-offline-lifecycle-denials")
         file(WRITE "${replacement_certificate_file}"
             "${lan_identity_certificate}")
         file(WRITE "${replacement_private_key_file}"
             "${lan_identity_private_key}")
+    elseif(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+           "tls-endpoint-san-only-openssl-compatibility")
+        file(WRITE "${replacement_certificate_file}"
+            "${wildcard_certificate}")
+        file(WRITE "${replacement_private_key_file}"
+            "${wildcard_private_key}")
     else()
         file(WRITE "${replacement_certificate_file}" "REPLACED_CERTIFICATE\n")
         file(WRITE "${replacement_private_key_file}" "REPLACED_PRIVATE_KEY\n")
@@ -120,8 +157,11 @@ if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
             OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
         file(CHMOD "${replacement_private_key_file}" PERMISSIONS
             OWNER_READ OWNER_WRITE)
-    elseif(WIN32 AND RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
-           "tls-identity-offline-lifecycle-denials")
+    elseif(WIN32 AND
+           (RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+               "tls-identity-offline-lifecycle-denials" OR
+            RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+               "tls-endpoint-san-only-openssl-compatibility"))
         foreach(material IN ITEMS
                 "${replacement_certificate_file}"
                 "${replacement_private_key_file}")
@@ -130,6 +170,28 @@ if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
     endif()
     list(APPEND test_arguments
         "${replacement_certificate_file}" "${replacement_private_key_file}")
+endif()
+
+if(RDP_RUNTIME_TLS_CONTEXT_CASE STREQUAL
+   "tls-endpoint-san-only-openssl-compatibility")
+    # Existing no-SAN fixture has only the matching legacy Common Name.
+    file(WRITE "${common_name_only_certificate_file}" "${valid_certificate}")
+    file(WRITE "${common_name_only_private_key_file}" "${valid_private_key}")
+    if(UNIX)
+        file(CHMOD "${common_name_only_certificate_file}" PERMISSIONS
+            OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ)
+        file(CHMOD "${common_name_only_private_key_file}" PERMISSIONS
+            OWNER_READ OWNER_WRITE)
+    elseif(WIN32)
+        foreach(material IN ITEMS
+                "${common_name_only_certificate_file}"
+                "${common_name_only_private_key_file}")
+            rdp_windows_make_private_fixture_acl("${material}")
+        endforeach()
+    endif()
+    list(APPEND test_arguments
+        "${common_name_only_certificate_file}"
+        "${common_name_only_private_key_file}")
 endif()
 
 execute_process(

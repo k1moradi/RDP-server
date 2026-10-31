@@ -396,6 +396,32 @@ struct BorrowFixture final {
     }
 };
 
+struct RevokingBorrowFixture final {
+    MacNativeDesktopOwner* owner{};
+    std::array<std::byte, 16> copied{};
+    std::size_t calls{};
+
+    static bool consume(
+        void* const context,
+        const FramebufferView& frame,
+        std::uint64_t,
+        std::uint64_t,
+        std::uint64_t) noexcept {
+        auto& self = *static_cast<RevokingBorrowFixture*>(context);
+        assert(frame.valid() && frame.pixels.size() == self.copied.size());
+        ++self.calls;
+        std::copy_n(frame.pixels.begin(), self.copied.size(), self.copied.begin());
+
+        // Native retirement is synchronous and must neither deadlock on the
+        // mailbox mutex nor free borrowed pixel storage inside this callback.
+        self.owner->revoke();
+        assert(self.owner->state() == MacNativeDesktopOwnerState::Revoked);
+        assert(frame.pixels.front() == std::byte{1});
+        assert(frame.pixels.back() == std::byte{16});
+        return true;
+    }
+};
+
 struct OwnerFixture final {
     std::unique_ptr<SecurityFixture> security{};
     std::unique_ptr<WatchFixture> watch{};
@@ -571,6 +597,50 @@ void testFrameInputAndAuthorizationRetirement() {
     assert(fixture.captureState->closeCalls == 1U);
 }
 
+void testBorrowCallbackRetirement() {
+    auto created = makeOwner();
+    assert(created);
+    OwnerFixture fixture = std::move(*created);
+    advanceReady(fixture);
+
+    // A held input key must never be released into a retired native session.
+    const MacInputEvent keyDown = MacKeyInput{0x3BU, 0x1DU, false, true};
+    assert(fixture.owner->handleInput(keyDown));
+    assert(fixture.desktop->nativeInputCommands == 1U);
+
+    alignas(64) std::array<std::byte, 16> source{};
+    for (std::size_t index = 0; index < source.size(); ++index) {
+        source[index] = static_cast<std::byte>(index + 1U);
+    }
+    auto pixelBuffer = makePixelBuffer(source, 8U);
+    assert(fixture.captureState->callbackState != nullptr);
+    assert(fixture.captureState->callbackState->consumeFrame(
+               pixelBuffer.value,
+               MacScreenCaptureFrameStatus::Complete) ==
+           MacScreenCaptureFrameDisposition::Published);
+    const auto ready = fixture.owner->serviceOnce();
+    assert(ready.state == MacNativeDesktopOwnerState::Ready);
+    assert(ready.latestFrameSequence == 1U);
+
+    RevokingBorrowFixture borrowed{fixture.owner.get()};
+    assert(!fixture.owner->borrowFramebuffer(
+        ready.latestFrameSequence,
+        MacNativeDesktopFrameConsumer{&borrowed, &RevokingBorrowFixture::consume}));
+    assert(borrowed.calls == 1U);
+    assert(borrowed.copied == source);
+    assert(fixture.owner->admittedSessionGeneration() == 0U);
+    assert(fixture.owner->state() == MacNativeDesktopOwnerState::Revoked);
+    assert(!fixture.owner->borrowFramebuffer(
+        ready.latestFrameSequence,
+        MacNativeDesktopFrameConsumer{&borrowed, &RevokingBorrowFixture::consume}));
+    assert(fixture.desktop->nativeInputCommands == 1U);
+    assert(fixture.captureState->closeCalls == 1U);
+    assert(fixture.watch->sessionRemoveCalls == 1U);
+    assert(fixture.watch->displayRemoveCalls == 1U);
+    fixture.owner->revoke();
+    assert(fixture.captureState->closeCalls == 1U);
+}
+
 void testInputPermissionRetirement() {
     auto created = makeOwner();
     assert(created);
@@ -703,6 +773,8 @@ int main(int argc, char** argv) {
         testFailClosedConstruction();
     } else if (selected == "frame-input-lifecycle") {
         testFrameInputAndAuthorizationRetirement();
+    } else if (selected == "borrow-callback-retirement") {
+        testBorrowCallbackRetirement();
     } else if (selected == "input-permission-retirement") {
         testInputPermissionRetirement();
     } else if (selected == "standalone-authenticated-session-lifecycle") {

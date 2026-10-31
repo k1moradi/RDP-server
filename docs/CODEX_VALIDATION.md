@@ -1,3 +1,75 @@
+## R6 private two-client A/B validation authoring — 2026-10-30
+
+- Reviewed current main and existing R5 macOS evidence path, MSVC/CLANG64
+  SSPI oracle, and WTS/DXGI/SendInput offline negative suites. Existing
+  recorded Windows receipts: delegated positive reaches production
+  CredentialsVerified=yes, authInfo failure=none, empty fields=none,
+  native admission=no, bad binding denied before authInfo and malformed
+  required-AV controls negative. New-head Windows exact-SHA qualification
+  remains PENDING/NOT RUN; prior receipts are not new-sha proof.
+- Added closed-schema read-only scripts/windows_client_ab_evidence.py,
+  12 paired evidence cases on the existing R5 synthetic fixture and the
+  dedicated offline CTest
+  interop.windows-client-ab-evidence-contradiction-denials.
+- New-script Python py_compile PASS; seven local synthetic logic checks
+  using a stub R5 provider PASS (not full integrated tests). Full CTest,
+  Linux/macOS/Windows exact-head jobs and live A/B NOT RUN in this
+  connector-only environment.
+- No protocol Type-2/TLS, Windows WTS/DXGI/SendInput production code,
+  OS credential stores, desktop capture or injection changed.
+  Next: run full CTest and Windows exact-head oracles, reconcile R9
+  candidate and obtain separately authorized private A/B physical proof.
+
+## R7 macOS frame borrow reentrant owner retirement (2026-10-30)
+
+- Authoring parent: `033061f53cc715368d92eb27ee9cb4d14742caf9`.
+- Source defect: the R4 borrowed-frame callback ran under
+  `FrameMailbox::mutex_`; synchronous owner revoke attempts the same mutex
+  during native retirement. The mailbox now releases the mutex across consumer
+  invocation, holds its arena until any in-flight borrow completes, discards
+  concurrent capture writes and fences a retired generation to denial.
+  `borrowAuthorized()` locally pins the shared mailbox across revocation.
+- New Apple-only offline CTest:
+  `macos.native-desktop-owner-borrow-callback-retirement`, registered in
+  ordinary CTest and both Debug/Release focused macOS lifecycle CI selects;
+  checks original frame bytes remain accessible after callback-time revoke,
+  denied publication, one-time capture/watch retirement and no input post.
+- QColorSpace remains unattributed: no project `QColorSpace`, Qt custom
+  primaries/ICC conversions or warning suppression in inspected GUI/macOS
+  sources/assets; existing CMake policy checks all first-party source.
+  No offscreen/package reproduction here (Qt6/macOS checkout unavailable).
+- Source/CTest/CI review: **PASS by inspection**. Local canonical
+  Debug/Release, offscreen/package, ASan/UBSan, and native execution:
+  **NOT RUN**. Exact-publication-SHA hosted macOS and owner GUI evidence:
+  **PENDING**. Physical desktop/TCC/client: **BLOCKED / NOT RUN**.
+- R10 alone composes accepted-client R2 authenticated/admitted proof into
+  `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` and retires
+  the native generation on authority loss; no R7 direct attachment or R10
+  authentication state machine was added.
+
+## R3 pure protocol post-Connect-Response domain ordering — 2026-10-30
+
+Source baseline: `e43414099f5451d59538668445fdcf3764e153b3`. Added
+`transport.mcs-session-post-response-domain-ordering-denials` through
+the existing production R3 state machine and private test-only friend.
+Verified MS-RDPBCGR basic-settings/channel ordering and MS-RDPELE personal
+terminal-server CAL decision by normative review. Source and CTest
+registration inspection: **PASS**; compile, focused/full CTest, R9
+sanitizers and macOS/OpenSSL 4.1 CAL suite: **NOT RUN** (no approved
+`~/rdp-server/build` checkout). Exact-publication-SHA hosted CI:
+**PENDING**. Native R2 admission / Microsoft client / graphics:
+**NOT RUN / unauthorized**. No benchmark. Next live proof is one
+genuine native R2 lease revalidated at first MCS read, semantic
+dispatch, protected writes and accepted-byte receipts.
+
+## R1 OpenSSL 4.1 SAN-only endpoint matching compatibility — 2026-10-30
+
+- Authoring source SHA: `7a065715165b342786f7e8f53c7154572f542e85`; publication SHA must be taken from the atomic main commit. No separate branch, TLS/security policy modification, or physical test.
+- **PASS by inspection only:** version-gated selected-leaf SAN matching replaces deprecated X509_check_ip_asc/X509_check_host only under OpenSSL 4.1+. It never invokes X509_verify_cert, trusts a chain, grants native Admission or opens a listener. Older OpenSSL/LibreSSL retain current X509_check semantics. Test-side deprecated ASN1_STRING_length calls are version-gated.
+- **Dedicated registered CTest:** `runtime.tls-endpoint-san-only-openssl-compatibility` (production runtime TLS executable, offline secure certificate-file fixtures): IPv4/IPv6, exact DNS, wildcard/partial-wildcard, CN-only, malformed/NUL/overlong, missing SAN/certificate status.
+- **Owner-local build/focused/full Debug/Release/ASan/UBSan: NOT RUN** — approved `~/rdp-server/` checkout absent, GitHub DNS unavailable. **Exact publication-SHA hosted macOS/OpenSSL 4.1, Linux/older OpenSSL, Windows, sanitizer: PENDING**, with no receipt asserted. Requested commands: canonical CMake Debug build/full CTest, `ctest --test-dir build -R '^runtime.tls-endpoint-san-only-openssl-compatibility$' --output-on-failure`, applicable Release CTest and CI. Benchmark **NOT RUN / not applicable** (no I/O or hot-path behavior changed).
+- **Physical client evidence: NOT RUN / unauthorized.** TLS Type-2 write remains local transport evidence only, never peer receipt. Next owner R9: record first failing hosted boundary and exact SHA before candidate promotion.
+
 ## R8 FileContents native-write generation replacement authoring evidence — 2026-10-30
 
 - Authoring parent: `dd85139f59b4ef155a8bb544d29e4c2f90c28feb`.

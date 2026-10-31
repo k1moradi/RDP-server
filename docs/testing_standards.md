@@ -1,3 +1,64 @@
+## R6 Windows App / mstsc paired evidence offline contradiction tests (2026-10-30)
+
+Run the dedicated cross-platform CTest
+interop.windows-client-ab-evidence-contradiction-denials, which reuses the
+existing synthetic R5 schema-v2 macOS manifest fixture and validates a
+private Windows 11 mstsc row. The closed-schema validator rejects
+unapproved fields, mismatched SHA/IP/certificate/TLS profile,
+saved-versus-reentered contradiction, Type3 without post-Type-2
+server bytes, a client Type3 claim without server observation,
+CredentialsVerified without authInfo, native Admission before verified
+credentials, a TLS alert explanation when none was observed, stale
+attempt time, and ungrounded typed first-client failure. An accepted
+synthetic pair cannot authorize R2 admission. Never run physical
+Windows App/mstsc, capture or SendInput from ordinary CTest.
+
+## R7 macOS framebuffer callback-time native retirement (2026-10-30)
+
+The Apple-only ordinary CTest
+`macos.native-desktop-owner-borrow-callback-retirement` uses the existing
+synthetic authorized owner, CoreVideo pixel-buffer fixture and capture backend.
+It borrows one real mailbox frame and synchronously revokes the native owner
+inside the consumer callback. The callback must still read the original bytes;
+the borrow returns false, generation becomes zero, capture/watch teardown is
+exactly once, and a held input key causes no native release. The test must run
+in normal macOS Debug/Release CTest and both focused R7 native lifecycle
+selectors, with no live desktop, TCC prompt, listener or OS input.
+
+## R3 post-Connect-Response domain ordering (2026-10-30)
+
+The ordinary offline
+`transport.mcs-session-post-response-domain-ordering-denials` CTest
+runs in the existing `test_owned_mcs_connect_initial` executable.
+It HYBRID-replays the checked-in Microsoft 416-byte packet, advances
+the private production R3 state machine through a fully accepted
+Connect-Response, and asserts early Attach, early Join and duplicate Erect
+all terminate without joined user/channel membership, licensing or Share.
+The test-only friend supplies fixture scalar generations, *not* a
+native R2 broker lease. Never use it to simulate runtime admission.
+Keep the shared CMake registry and fixed 171-case MCS dispatch synchronized;
+the existing R9 sanitizer selections remain unchanged.
+
+## R1 runtime TLS SAN-only OpenSSL 4.1 compatibility (2026-10-30)
+
+Ordinary offline production-backed
+`runtime.tls-endpoint-san-only-openssl-compatibility` executes the actual
+`RuntimeServerTlsContext::fromCredentialFiles` and
+`validateEndpointIdentity` path with existing secure LAN IP/DNS fixture,
+a test-only wildcard/partial-wildcard certificate, and the existing CN-only
+fixture. Assert exact IPv4 and IPv6 SAN matches/mismatches, DNS SAN case
+folding, one-label wildcard match, no partial/multi-label wildcard, matching
+CN without SAN denial, missing applicable SAN denial, malformed IP-like
+mismatch, empty/embedded-NUL/overlong InvalidEndpoint and absent-certificate
+CertificateUnavailable. Fixtures are private, self-signed and offline:
+positive identity results must not require CA trust or open a listener.
+Older OpenSSL/LibreSSL keep the legacy direct X509 matching oracle in the
+existing test, while OpenSSL 4.1 uses the production route plus structural
+SAN assertions and the new no-CN/partial-wildcard tests. Update the test-side
+ASN.1 length accessor at 4.1 as well as production; never hide -Werror.
+Focused/full Debug/Release, cross-platform CI and ASan/UBSan are separate
+exact-SHA evidence gates, not implied by code review.
+
 ## R8 native file destination write-time generation replacement (2026-10-30)
 
 `clipboard.macos-file-destination-write-generation-replacement` and

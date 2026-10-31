@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <concepts>
+#include <cstddef>
 #include <cstdio>
 #include <cstdint>
 #include <filesystem>
@@ -16,6 +17,7 @@
 #include <openssl/asn1.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
+#include <openssl/opensslv.h>
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>
@@ -261,6 +263,80 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
 }
 
 
+[[nodiscard]] bool validateEndpointSanOnlyCompatibility(
+    const char *lanCertificatePath, const char *lanKeyPath,
+    const char *wildcardCertificatePath, const char *wildcardKeyPath,
+    const char *commonNameCertificatePath, const char *commonNameKeyPath) noexcept
+{
+    using rdp_server::server::runtime::RuntimeServerTlsContext;
+    using rdp_server::server::runtime::RuntimeTlsEndpointIdentityStatus;
+    constexpr auto match = RuntimeTlsEndpointIdentityStatus::Match;
+    constexpr auto mismatch = RuntimeTlsEndpointIdentityStatus::Mismatch;
+    constexpr auto invalid = RuntimeTlsEndpointIdentityStatus::InvalidEndpoint;
+
+    RuntimeServerTlsContext lan =
+        RuntimeServerTlsContext::fromCredentialFiles(lanCertificatePath, lanKeyPath);
+    RuntimeServerTlsContext wildcard =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            wildcardCertificatePath, wildcardKeyPath);
+    RuntimeServerTlsContext commonNameOnly =
+        RuntimeServerTlsContext::fromCredentialFiles(
+            commonNameCertificatePath, commonNameKeyPath);
+    if (!lan || !wildcard || !commonNameOnly)
+        return fail("SAN-only compatibility certificate fixture unavailable");
+
+    struct IdentityExpectation
+    {
+        const RuntimeServerTlsContext *context;
+        std::string_view endpoint;
+        RuntimeTlsEndpointIdentityStatus expected;
+    };
+    const std::array expectations{
+        IdentityExpectation{&lan, "192.168.50.10", match},
+        IdentityExpectation{&lan, "192.168.50.11", mismatch},
+        IdentityExpectation{&lan, "fd00::1234", match},
+        IdentityExpectation{&lan, "fd00::1235", mismatch},
+        IdentityExpectation{&lan, "rdp-lan.test", match},
+        IdentityExpectation{&lan, "RDP-LAN.TEST", match},
+        IdentityExpectation{&lan, "host.local", match},
+        IdentityExpectation{&lan, "wrong.local", mismatch},
+        // Malformed IP-like strings were DNS mismatches in the old helper.
+        IdentityExpectation{&lan, "192.168.50.999", mismatch},
+        IdentityExpectation{&lan, "fd00:::1234", mismatch},
+        IdentityExpectation{&wildcard, "a.wild.example.test", match},
+        IdentityExpectation{&wildcard, "A.WILD.EXAMPLE.TEST", match},
+        IdentityExpectation{&wildcard, "a.b.wild.example.test", mismatch},
+        IdentityExpectation{&wildcard, "wild.example.test", mismatch},
+        IdentityExpectation{&wildcard, "foobar.partial.example.test", mismatch},
+        IdentityExpectation{&wildcard, "cn-only.example.test", mismatch},
+        IdentityExpectation{&wildcard, "192.168.50.10", mismatch},
+        IdentityExpectation{&commonNameOnly, "rdp-server-r10-time-test", mismatch},
+        IdentityExpectation{&commonNameOnly, "192.168.50.10", mismatch},
+        IdentityExpectation{&lan, "", invalid},
+    };
+    for (const auto &expectation : expectations)
+    {
+        if (expectation.context->validateEndpointIdentity(
+                expectation.endpoint) != expectation.expected)
+            return fail("SAN-only endpoint identity classification changed");
+    }
+
+    constexpr std::string_view embeddedNul{"rdp-lan.test\0evil",
+                                            sizeof("rdp-lan.test\0evil") - 1U};
+    std::array<char, 254U> overlong{};
+    overlong.fill('x');
+    if (lan.validateEndpointIdentity(embeddedNul) != invalid ||
+        lan.validateEndpointIdentity(
+            std::string_view{overlong.data(), overlong.size()}) != invalid ||
+        RuntimeServerTlsContext{}.validateEndpointIdentity("rdp-lan.test") !=
+            RuntimeTlsEndpointIdentityStatus::CertificateUnavailable)
+        return fail("invalid or absent certificate identity was accepted");
+
+    // Self-signed fixture certificates are not CA-trusted; positive results
+    // must remain SAN coverage alone, not X509_verify_cert chain validation.
+    return true;
+}
+
 [[nodiscard]] bool validateOfflineTlsIdentityLifecycle(
     const char *certificatePath, const char *privateKeyPath,
     const char *replacementCertificatePath,
@@ -415,6 +491,18 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     return true;
 }
 
+// OpenSSL 4.1 changes the ASN.1 string length accessor to size_t.
+[[nodiscard]] std::size_t certificateStringLength(
+    const ASN1_STRING *value) noexcept
+{
+#if OPENSSL_VERSION_NUMBER >= 0x40100000L && !defined(LIBRESSL_VERSION_NUMBER)
+    return ::ASN1_STRING_get_length(value);
+#else
+    const int size = ::ASN1_STRING_length(value);
+    return size < 0 ? 0U : static_cast<std::size_t>(size);
+#endif
+}
+
 [[nodiscard]] bool certificateCommonNameEquals(
     const X509 *certificate, std::string_view expected) noexcept
 {
@@ -433,10 +521,10 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
     const X509_NAME_ENTRY *const entry = ::X509_NAME_get_entry(subject, index);
     const ASN1_STRING *const value =
         entry == nullptr ? nullptr : ::X509_NAME_ENTRY_get_data(entry);
-    const int bytes = value == nullptr ? 0 : ::ASN1_STRING_length(value);
+    const std::size_t bytes = value == nullptr ? 0U : certificateStringLength(value);
     const unsigned char *const data =
         value == nullptr ? nullptr : ::ASN1_STRING_get0_data(value);
-    return bytes >= 0 && static_cast<std::size_t>(bytes) == expected.size() &&
+    return bytes == expected.size() &&
            data != nullptr &&
            std::equal(
                expected.begin(), expected.end(),
@@ -518,7 +606,7 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
         return false;
     }
     const ASN1_OCTET_STRING *const ip = name->d.iPAddress;
-    return ::ASN1_STRING_length(ip) == static_cast<int>(expected.size()) &&
+    return certificateStringLength(ip) == expected.size() &&
            std::equal(
                expected.begin(), expected.end(),
                ::ASN1_STRING_get0_data(ip));
@@ -553,17 +641,18 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
         production.certificate(), generic.get(), endpointCommonName.get()};
     for (const X509 *certificate : certificates)
     {
-        if (!certificateHasOnlyExpectedIpv4San(certificate) ||
-            ::X509_check_ip_asc(
+        if (!certificateHasOnlyExpectedIpv4San(certificate))
+            return fail("certificate profile changed exact-IP SAN authority");
+#if OPENSSL_VERSION_NUMBER < 0x40100000L || defined(LIBRESSL_VERSION_NUMBER)
+        // The independent legacy matching oracle is deprecated in OpenSSL 4.1.
+        if (::X509_check_ip_asc(
                 const_cast<X509 *>(certificate), endpoint.data(), 0) != 1 ||
             ::X509_check_host(
                 const_cast<X509 *>(certificate), endpoint.data(),
                 endpoint.size(), X509_CHECK_FLAG_NEVER_CHECK_SUBJECT,
                 nullptr) == 1)
-        {
-            return fail(
-                "certificate profile changed exact-IP SAN authority");
-        }
+            return fail("legacy certificate SAN matching changed");
+#endif
     }
 
     if (production.validateEndpointIdentity(endpoint) !=
@@ -794,8 +883,7 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
         sk_GENERAL_NAME_value(names.get(), 0);
     if (name == nullptr || name->type != GEN_IPADD ||
         name->d.iPAddress == nullptr ||
-        ::ASN1_STRING_length(name->d.iPAddress) !=
-            static_cast<int>(kOwnerIpv4.size()))
+        certificateStringLength(name->d.iPAddress) != kOwnerIpv4.size())
         return fail("owner IPv4 SAN is not one GEN_IPADD");
 
     const unsigned char *const bytes =
@@ -886,6 +974,16 @@ int main(int argumentCount, char **argumentValues)
         return fail("credential fixture arguments missing") ? 0 : 1;
     if (testCase == "validates-live-tls-context-construction") {
         return validateContext(argumentValues[2], argumentValues[3]) ? 0 : 1;
+    }
+    if (testCase == "tls-endpoint-san-only-openssl-compatibility") {
+        if (argumentCount != 8 || argumentValues[4] == nullptr ||
+            argumentValues[5] == nullptr || argumentValues[6] == nullptr ||
+            argumentValues[7] == nullptr)
+            return fail("SAN-only fixture arguments missing") ? 0 : 1;
+        return validateEndpointSanOnlyCompatibility(
+            argumentValues[2], argumentValues[3],
+            argumentValues[4], argumentValues[5],
+            argumentValues[6], argumentValues[7]) ? 0 : 1;
     }
     if (testCase == "validates-lan-endpoint-certificate-identity") {
         return validateLanEndpointIdentity(

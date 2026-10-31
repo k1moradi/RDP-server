@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mac_runtime_host_control.h"
 #include "server/security/standalone_credential_consent.h"
+#include "server/security/standalone_credssp.h"
+#include "server/security/credssp_tsrequest.h"
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <SystemConfiguration/SystemConfiguration.h>
@@ -13,9 +15,14 @@
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <poll.h>
+#include <openssl/crypto.h>
+#include <openssl/rand.h>
+#include <openssl/x509.h>
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cstring>
 #include <limits>
 #include <memory>
@@ -198,6 +205,413 @@ void cleansePassword(std::span<char16_t> password) noexcept
 
 } // namespace
 
+// One R2 verifier/framer attached to the sole R1 accepted socket. This holds
+// no second TLS reader, server listener, R3 session or native authorization.
+struct MacRuntimeCredSspState final
+{
+    rdp_server::server::security::StandaloneCredSspNtlmAcceptor acceptor{};
+    rdp_server::server::security::TsRequestFrameReader reader{};
+    rdp_server::server::security::TsRequestTlsReplyWriter writer{};
+    rdp_server::server::security::StandalonePasswordAuthenticatedPrincipalProof
+        authenticatedProof{};
+    bool replyPending{};
+    bool bindingReplyPending{};
+
+    [[nodiscard]] bool prepareChallenge() noexcept
+    {
+        using namespace rdp_server::server::security;
+        StandaloneSpnegoChallengeConfiguration challenge{};
+        challenge.netbiosDomainName = kStandaloneNtlmPortableDomainName;
+        challenge.netbiosComputerName = kStandaloneNtlmPortableServerName;
+        const auto nanoseconds = std::chrono::duration_cast<
+            std::chrono::nanoseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+        if (nanoseconds <= 0)
+            return false;
+        constexpr std::uint64_t kFileTimeUnixOffset = 116444736000000000ULL;
+        const std::uint64_t ticks =
+            static_cast<std::uint64_t>(nanoseconds) / 100U;
+        if (ticks > (std::numeric_limits<std::uint64_t>::max)() -
+                        kFileTimeUnixOffset)
+            return false;
+        challenge.timestampFileTime = kFileTimeUnixOffset + ticks;
+        if (::RAND_bytes(
+                challenge.serverChallenge.data(),
+                static_cast<int>(challenge.serverChallenge.size())) != 1 ||
+            std::all_of(
+                challenge.serverChallenge.begin(),
+                challenge.serverChallenge.end(),
+                [](std::uint8_t byte) { return byte == 0U; }))
+            return false;
+        return acceptor.configureChallenge(challenge);
+    }
+};
+
+void MacRuntimeHostControl::retireAcceptedClient() noexcept
+{
+    // Proof -> framer/writer -> R1 SSL/BIO -> socket. Never retain a
+    // CredSSP frame, buffered post-auth bytes or a borrowed SSL across Stop.
+    activeCredSsp_.reset();
+    if (activeConnection_ != nullptr)
+    {
+        activeConnection_->cancel();
+        activeConnection_.reset();
+        clientDisconnected_ = true;
+    }
+    activeConsentEpoch_.reset();
+    activeListenerGeneration_ = 0U;
+    activeCredentialsVerified_ = false;
+    if (acceptedClientDiagnostics_.available)
+    {
+        acceptedClientDiagnostics_.preauthStage =
+            RuntimeAcceptedClientPreauthStage::Closed;
+        if (acceptedClientDiagnostics_.termination ==
+            RuntimeAcceptedClientTermination::Open)
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::OwnerCancellation;
+    }
+    activeClientId_ = 0U;
+    activeClientPeer_.clear();
+}
+
+RuntimeHostResult
+MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
+{
+    using namespace rdp_server::server;
+    using Interest = transport::TcpConnectionIoInterest;
+    using PreauthStage = transport::PreauthStage;
+    using WriteStatus = security::TsRequestTlsWriteStatus;
+    using ReadStatus = security::TsRequestTlsReadStatus;
+    using FrameStatus = security::StandaloneCredSspFrameStatus;
+
+    if (activeConnection_ == nullptr || activeCredSsp_ == nullptr ||
+        activeConsentEpoch_ == std::nullopt || tlsContext_ == nullptr ||
+        !activeConnection_->active() ||
+        !selectedStandaloneCredentialReady() ||
+        !ownerSharingAuthority_.authorizesAtEpoch(
+            security::kConsoleViewPermission, *activeConsentEpoch_) ||
+        !listener_.valid() ||
+        listener_.generation() != activeListenerGeneration_ ||
+        !listener_.interfaceStillMatches() ||
+        !tlsContext_->boundIdentityStatus(listener_)
+            .boundIdentityMatchesGeneration(activeListenerGeneration_))
+    {
+        retireAcceptedClient();
+        stage_ = RuntimeHostStage::ListenerAvailable;
+        return deny(RuntimeHostError::HostSessionStale);
+    }
+
+    // A completed standalone CredSSP transcript is only R2 proof, NOT native
+    // admission. Until R2/R3 publish the protected positive API, do not read
+    // even a buffered first-MCS byte, call completeCredSspAdmission(), or
+    // attach RuntimePlatformNativeDesktop. The deadline/Stop still apply.
+    if (activeCredentialsVerified_)
+    {
+        if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession())
+        {
+            retireAcceptedClient();
+            stage_ = RuntimeHostStage::ListenerAvailable;
+            return deny(RuntimeHostError::AuthenticationRejected);
+        }
+        return {RuntimeHostError::None, true};
+    }
+
+    auto fail = [this]() noexcept -> RuntimeHostResult {
+        if (activeCredSsp_ != nullptr)
+        {
+            using Failure = security::StandaloneAuthenticationFailureStage;
+            using Projected = RuntimeAcceptedClientStandaloneFailureStage;
+            const auto failure = activeCredSsp_->acceptor.failureStage();
+            switch (failure)
+            {
+            case Failure::None:
+                break;
+            case Failure::NtlmNegotiation:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::NtlmNegotiation;
+                break;
+            case Failure::Mic:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::Mic;
+                break;
+            case Failure::SignSeal:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::SignSeal;
+                break;
+            case Failure::Spnego:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::Spnego;
+                break;
+            case Failure::PubKeyAuth:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::PubKeyAuth;
+                break;
+            case Failure::AuthInfo:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::AuthInfo;
+                break;
+            case Failure::Admission:
+                acceptedClientDiagnostics_.standaloneFailureStage =
+                    Projected::Admission;
+                break;
+            }
+        }
+        const auto termination = activeConnection_ != nullptr
+            ? activeConnection_->termination()
+            : transport::TcpConnectionTermination::Cancelled;
+        acceptedClientDiagnostics_.preauthStage =
+            RuntimeAcceptedClientPreauthStage::Closed;
+        acceptedClientDiagnostics_.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::Failed;
+        switch (termination)
+        {
+        case transport::TcpConnectionTermination::PeerEof:
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::PeerEof;
+            acceptedClientDiagnostics_.credSspTransition =
+                RuntimeAcceptedClientCredSspTransition::Closed;
+            break;
+        case transport::TcpConnectionTermination::PeerReset:
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::PeerReset;
+            break;
+        case transport::TcpConnectionTermination::PeerTlsAlert:
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::PeerTlsAlert;
+            break;
+        case transport::TcpConnectionTermination::TlsFailure:
+        case transport::TcpConnectionTermination::LocalTlsFailure:
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::TlsFailure;
+            break;
+        default:
+            acceptedClientDiagnostics_.termination =
+                RuntimeAcceptedClientTermination::ProtocolError;
+            break;
+        }
+        retireAcceptedClient();
+        stage_ = RuntimeHostStage::ListenerAvailable;
+        return deny(
+            termination == transport::TcpConnectionTermination::PeerEof
+                ? RuntimeHostError::AuthenticationIncompletePeerClosed
+                : RuntimeHostError::AuthenticationRejected);
+    };
+
+    auto& connection = *activeConnection_;
+    auto& credSsp = *activeCredSsp_;
+    const auto stage = connection.stage();
+    if (stage == PreauthStage::Closed ||
+        stage == PreauthStage::AwaitMcsConnectInitial)
+        return fail();
+
+    Interest interest = connection.ioInterest();
+    if (interest == Interest::ConfigureTls)
+    {
+        // R1 takes unique SSL ownership. Its BIO uses the same accepted socket
+        // and the selected certificate must match the live listener identity.
+        auto serverTls = tlsContext_->createServerTls();
+        RuntimeTlsCertificateFingerprint configuredFingerprint{};
+        RuntimeTlsCertificateFingerprint selectedFingerprint{};
+        unsigned int selectedFingerprintSize = 0U;
+        const bool certificateMatches =
+            serverTls &&
+            tlsContext_->certificateSha256Fingerprint(configuredFingerprint) &&
+            ::SSL_get_certificate(serverTls.get()) != nullptr &&
+            ::X509_digest(
+                ::SSL_get_certificate(serverTls.get()), ::EVP_sha256(),
+                selectedFingerprint.data(), &selectedFingerprintSize) == 1 &&
+            selectedFingerprintSize == selectedFingerprint.size() &&
+            ::CRYPTO_memcmp(
+                configuredFingerprint.data(), selectedFingerprint.data(),
+                configuredFingerprint.size()) == 0;
+        if (!certificateMatches ||
+            !connection.attachServerTls(std::move(serverTls)))
+            return fail();
+        acceptedClientDiagnostics_.preauthStage =
+            RuntimeAcceptedClientPreauthStage::AwaitTls;
+        acceptedClientDiagnostics_.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::Handshaking;
+        return {RuntimeHostError::None, false};
+    }
+    if (interest == Interest::Closed)
+        return fail();
+
+    if (stage == PreauthStage::AwaitCredSsp &&
+        credSsp.replyPending)
+    {
+        switch (credSsp.writer.status())
+        {
+        case WriteStatus::Progress:
+        case WriteStatus::NeedWrite:
+            interest = Interest::Write;
+            break;
+        case WriteStatus::NeedRead:
+            interest = Interest::Read;
+            break;
+        case WriteStatus::Complete:
+        {
+            if (!credSsp.writer.releaseReply())
+                return fail();
+            credSsp.replyPending = false;
+            if (credSsp.bindingReplyPending)
+            {
+                credSsp.bindingReplyPending = false;
+                acceptedClientDiagnostics_.credSspTransition =
+                    RuntimeAcceptedClientCredSspTransition::BindingVerified;
+            }
+            return {RuntimeHostError::None, false};
+        }
+        case WriteStatus::Idle:
+        case WriteStatus::Invalid:
+        case WriteStatus::Closed:
+            return fail();
+        }
+    }
+
+    // Nonblocking, zero-wait readiness: the existing Qt owner-thread service
+    // tick is the scheduler. No worker, sleep or independent 25ms polling loop.
+    bool ready = stage == PreauthStage::AwaitCredSsp &&
+                 !credSsp.replyPending &&
+                 connection.tlsApplicationReadReady() &&
+                 interest == Interest::Read;
+    if (!ready)
+    {
+        const std::uintptr_t socket = connection.nativeSocket();
+        if (socket > static_cast<std::uintptr_t>(
+                         (std::numeric_limits<int>::max)()))
+            return fail();
+        pollfd descriptor{};
+        descriptor.fd = static_cast<int>(socket);
+        descriptor.events = interest == Interest::Read ? POLLIN : POLLOUT;
+        const int count = ::poll(&descriptor, 1U, 0);
+        if (count < 0)
+        {
+            if (errno == EINTR)
+                return {RuntimeHostError::None, true};
+            return fail();
+        }
+        if (count == 0)
+            return {RuntimeHostError::None, true};
+        if ((descriptor.revents & (POLLNVAL | POLLERR)) != 0)
+            return fail();
+        ready = (descriptor.revents & descriptor.events) != 0 ||
+                (descriptor.revents & POLLHUP) != 0;
+        if (!ready)
+            return {RuntimeHostError::None, true};
+    }
+
+    if (stage != PreauthStage::AwaitCredSsp)
+    {
+        (void)connection.onSocketReady(
+            interest == Interest::Read, interest == Interest::Write);
+        if (!connection.active())
+            return fail();
+        if (connection.establishedTls() != nullptr)
+        {
+            acceptedClientDiagnostics_.preauthStage =
+                RuntimeAcceptedClientPreauthStage::AwaitCredSsp;
+            acceptedClientDiagnostics_.tlsHandshakeStage =
+                RuntimeAcceptedClientTlsHandshakeStage::Established;
+            acceptedClientDiagnostics_.credSspTransition =
+                RuntimeAcceptedClientCredSspTransition::AwaitingToken;
+        }
+        return {RuntimeHostError::None, false};
+    }
+
+    if (credSsp.replyPending)
+    {
+        const auto written = credSsp.writer.writeOneTlsStep(connection);
+        switch (written.status)
+        {
+        case WriteStatus::Progress:
+        case WriteStatus::NeedRead:
+        case WriteStatus::NeedWrite:
+            return {RuntimeHostError::None, false};
+        case WriteStatus::Complete:
+            if (!credSsp.writer.releaseReply())
+                return fail();
+            credSsp.replyPending = false;
+            if (credSsp.bindingReplyPending)
+            {
+                credSsp.bindingReplyPending = false;
+                acceptedClientDiagnostics_.credSspTransition =
+                    RuntimeAcceptedClientCredSspTransition::BindingVerified;
+            }
+            return {RuntimeHostError::None, false};
+        case WriteStatus::Idle:
+        case WriteStatus::Invalid:
+        case WriteStatus::Closed:
+            return fail();
+        }
+    }
+
+    const auto read = credSsp.reader.readOneTlsStep(connection);
+    switch (read.status)
+    {
+    case ReadStatus::Progress:
+    case ReadStatus::NeedRead:
+    case ReadStatus::NeedWrite:
+        return {RuntimeHostError::None, false};
+    case ReadStatus::Invalid:
+    case ReadStatus::Closed:
+        return fail();
+    case ReadStatus::Complete:
+        break;
+    }
+
+    struct CredentialVisit final
+    {
+        MacRuntimeCredSspState* credSsp{};
+        transport::OwnedPreauthTcpConnection* connection{};
+        FrameStatus result{FrameStatus::Rejected};
+    } visit{&credSsp, &connection};
+
+    const auto process = +[](
+        const security::EphemeralNtlmV2Credential& credential,
+        void* opaque) noexcept -> bool {
+        auto* const current = static_cast<CredentialVisit*>(opaque);
+        if (current == nullptr || current->credSsp == nullptr ||
+            current->connection == nullptr)
+            return false;
+        current->result =
+            current->credSsp->acceptor.processCompleteOwnedFrame(
+                *current->connection, current->credSsp->reader,
+                current->credSsp->writer, credential);
+        return true;
+    };
+
+    if (!standalonePasswordCredential_.visit(
+            standaloneCredentialGeneration_, process, &visit))
+        return fail();
+
+    switch (visit.result)
+    {
+    case FrameStatus::NegoReplyQueued:
+    case FrameStatus::BindingReplyQueued:
+        if (credSsp.writer.status() != WriteStatus::NeedWrite)
+            return fail();
+        credSsp.replyPending = true;
+        credSsp.bindingReplyPending =
+            visit.result == FrameStatus::BindingReplyQueued;
+        return {RuntimeHostError::None, false};
+    case FrameStatus::CredentialsVerified:
+        if (!credSsp.authenticatedProof.bind(
+                credSsp.acceptor, standalonePasswordCredential_,
+                standaloneCredentialGeneration_, connection))
+            return fail();
+        activeCredentialsVerified_ = true;
+        acceptedClientDiagnostics_.credSspTransition =
+            RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
+        acceptedClientDiagnostics_.authenticationStage =
+            RuntimeAcceptedClientAuthenticationStage::Authenticated;
+        // No native R2 lease exists on macOS; remain pre-MCS.
+        return {RuntimeHostError::None, false};
+    case FrameStatus::Rejected:
+        return fail();
+    }
+    return fail();
+}
+
 MacRuntimeHostControl::MacRuntimeHostControl() noexcept
     : ownerThread_(std::this_thread::get_id()),
       ownerEvidenceSource_(&defaultOwnerEvidence_),
@@ -299,13 +713,7 @@ void MacRuntimeHostControl::retireStoppedRuntime(
         standaloneCredentialGeneration_ = 0U;
         credentialsConfigured_ = false;
     }
-    if (activeConnection_ != nullptr)
-    {
-        activeConnection_->cancel();
-        activeConnection_.reset();
-        activeClientId_ = 0U;
-        clientDisconnected_ = true;
-    }
+    retireAcceptedClient();
     (void)nativeDesktop_.retireAfterAuthorizationLoss();
     listener_.close();
     retireGeneratedTlsIdentity();
@@ -575,7 +983,8 @@ RuntimeHostStatus MacRuntimeHostControl::status() const
 
     snapshot.graphicsReady = nativeDesktop_.ready();
     snapshot.nativeDesktopReady = nativeDesktop_.ready();
-    snapshot.nativeDesktopInitializing = !nativeDesktop_.ready() && activeConnection_ != nullptr;
+    snapshot.nativeDesktopInitializing = false; // No R2-authorized macOS attach yet.
+    snapshot.acceptedClientPreauthDiagnostics = acceptedClientDiagnostics_;
 
     snapshot.clientDisconnected = listenerCurrent && activeConnection_ == nullptr && clientDisconnected_;
     if (activeConnection_ != nullptr && activeClientId_ != 0U)
@@ -711,6 +1120,8 @@ RuntimeHostResult MacRuntimeHostControl::requestCredentialSetup(
 {
     if (!onOwnerThread())
         return {RuntimeHostError::ControlUnavailable, false};
+    if (listener_.valid() || activeConnection_ != nullptr)
+        return deny(RuntimeHostError::InvalidConfiguration);
     ownerSharingAuthority_.revoke(
         rdp_server::server::security::OwnerConsentRevocationReason::CredentialChange);
     standalonePasswordCredential_.revoke();
@@ -1083,16 +1494,38 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
             return {lastError_, true};
         }
 
+        const auto consentEpoch = ownerSharingAuthority_.authorizationEpoch(
+            rdp_server::server::security::kConsoleViewPermission);
+        if (!consentEpoch || !selectedStandaloneCredentialReady() ||
+            tlsContext_ == nullptr || nextClientId_ == 0U ||
+            nextClientId_ == (std::numeric_limits<std::uint64_t>::max)())
+            return deny(RuntimeHostError::HostSessionStale);
+
+        auto credentialState = std::make_unique<MacRuntimeCredSspState>();
+        if (!credentialState->prepareChallenge())
+            return deny(RuntimeHostError::AuthenticationRejected);
         activeClientId_ = nextClientId_++;
         activeClientDeadline_ = now + std::chrono::seconds{30};
-        char peerStr[64]{};
-        std::snprintf(peerStr, sizeof(peerStr), "%u.%u.%u.%u:%u",
-            peer.address[0], peer.address[1], peer.address[2], peer.address[3], peer.port);
-        activeClientPeer_ = peerStr;
-
-        activeConnection_ = std::make_unique<rdp_server::server::transport::OwnedPreauthTcpConnection>(
-            std::move(accepted.connection),
-            rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla);
+        activeClientPeer_ = boundEndpointText(peer);
+        activeListenerGeneration_ = listener_.generation();
+        activeConsentEpoch_ = *consentEpoch;
+        activeCredentialsVerified_ = false;
+        activeCredSsp_ = std::move(credentialState);
+        activeConnection_ = std::make_unique<
+            rdp_server::server::transport::OwnedPreauthTcpConnection>(
+                std::move(accepted.connection),
+                rdp_server::server::transport::SecurityNegotiationPolicy::HybridNla);
+        acceptedClientDiagnostics_ = {};
+        acceptedClientDiagnostics_.available = true;
+        acceptedClientDiagnostics_.termination =
+            RuntimeAcceptedClientTermination::Open;
+        acceptedClientDiagnostics_.preauthStage =
+            RuntimeAcceptedClientPreauthStage::AwaitConnectionRequest;
+        acceptedClientDiagnostics_.tlsHandshakeStage =
+            RuntimeAcceptedClientTlsHandshakeStage::NotStarted;
+        acceptedClientDiagnostics_.standaloneCredentialGeneration =
+            standaloneCredentialGeneration_;
+        acceptedClientDiagnostics_.acceptedClientId = activeClientId_;
         stage_ = RuntimeHostStage::ClientAuthenticating;
     }
 
@@ -1100,14 +1533,16 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
     {
         if (activeConnection_->cancelIfExpired(now, activeClientDeadline_))
         {
-            activeConnection_->cancel();
-            activeConnection_.reset();
-            activeClientId_ = 0U;
-            clientDisconnected_ = true;
+            retireAcceptedClient();
             (void)nativeDesktop_.retireAfterAuthorizationLoss();
             stage_ = RuntimeHostStage::ListenerAvailable;
             return {RuntimeHostError::None, false};
         }
+
+        const RuntimeHostResult preAdmission =
+            advanceAcceptedClientPreAdmissionOnce();
+        if (!preAdmission.succeeded())
+            return preAdmission;
 
         if (nativeDesktop_.ready())
         {
@@ -1141,10 +1576,7 @@ RuntimeHostResult MacRuntimeHostControl::disconnectClient(
         return {RuntimeHostError::ControlUnavailable, false};
     if (activeConnection_ != nullptr && activeClientId_ == opaqueClientId)
     {
-        activeConnection_->cancel();
-        activeConnection_.reset();
-        activeClientId_ = 0U;
-        clientDisconnected_ = true;
+        retireAcceptedClient();
         (void)nativeDesktop_.retireAfterAuthorizationLoss();
         stage_ = RuntimeHostStage::ListenerAvailable;
         return {RuntimeHostError::None, false};

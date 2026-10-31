@@ -1,3 +1,33 @@
+## R10 macOS accepted-client pre-admission increment (2026-10-30)
+
+**Authoring baseline:** `6a79aa113ae959342013853a9c1e51af80042a8a`
+(after reconciling concurrent R2/R8 changes). The existing macOS
+`MacRuntimeHostControl::serviceOnce()` now prepares a per-accepted-client
+R2 standalone CredSSP acceptor with a private random NTLM challenge, pins
+the R10 owner-consent epoch, listener generation and credential generation,
+advances the existing R1 X.224/HYBRID Confirm and selected-certificate TLS
+owner, and reads/answers one bounded TSRequest step through the existing
+R2 framer and writer. It can retain `StandalonePasswordAuthenticatedPrincipalProof`
+only after real owned-connection `CredentialsVerified`. It does not call
+`completeCredSspAdmission()`, read MCS plaintext or attach
+`RuntimePlatformNativeDesktop`; successful authentication remains
+pre-admission pending a genuinely protected R2/R3 positive interface.
+
+The new macOS host-control CTest uses a synthetic accepted LAN peer and
+partial TPKT to assert zero MCS/Share/native publication and terminal
+Stop cleanup. This case is a negative pre-admission regression, **not**
+a production-backed successful-credentials/no-native-admission oracle:
+that required follow-up remains OPEN. No new 25 ms timer, worker-thread
+GUI, second accepted listener, native admission Boolean or desktop route.
+Local canonical macOS build/focused/full CTest, sanitizers, exact-SHA hosted
+macOS CI and physical Windows App/mstsc: **NOT RUN** at authoring. Next:
+hosted same-SHA compile/CTest; R2 publishes a nonforgeable authenticated
+macOS admission lease bound to the exact accepted R1 proof and current owner
+epoch, R3 publishes protected macOS MCS/GCC/Share consumption, then R10
+composes that on the same owner thread and adds a completed-CredSSP
+pre-MCS denial and protected positive path. R9 manually qualifies any
+future owner candidate; Agent 6/owner separately authorize physical tests.
+
 ## R9 same-SHA interop/sanitizer baseline and roadmap guard (2026-10-30)
 
 - Baseline `c88dc60f9e218797ddcd640af6bba1693adca1d7`, [Actions 41167358674](https://github.com/k1moradi/RDP-server/actions/runs/41167358674): Linux **1004/1004** Debug/Release, macOS/OpenSSL4.1 **782/782**, Windows CLANG64 **885/885**; R2/R7/R9/GUI/bootstrap/docs **PASS**. Sanitizer R5 **45/45**, clipboard **107/107**, R3 CAL **9/9**, Graphics DVC **23/23**, R4 x264 **29/29**.

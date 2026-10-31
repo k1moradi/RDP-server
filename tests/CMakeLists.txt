@@ -1105,6 +1105,17 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77)
     endforeach()
 
+    # R10 production macOS pre-admission path with a synthetic local TCP peer.
+    # No real RDP client, R2 native admission, TCC, capture or input is used.
+    # Network/interface unavailable is an explicit skip, not an offline pass.
+    add_test(NAME runtime.macos-host-control-accepted-pre-admission-dormancy
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-accepted-pre-admission-dormancy)
+    set_tests_properties(
+        runtime.macos-host-control-accepted-pre-admission-dormancy PROPERTIES
+        LABELS "runtime;security;transport;tls;macos;native-environment"
+        SKIP_RETURN_CODE 77)
+
     # R6 portable Stop/Start contract: exercise the production macOS listener
     # three times on one immediately reusable port. The injected owner evidence
     # avoids TCC prompts; interface/bind/TLS/listener state remains production.

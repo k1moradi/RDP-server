@@ -29,6 +29,8 @@
 namespace rdp_server::server::runtime
 {
 
+struct MacRuntimeCredSspState;
+
 struct MacRuntimeDefaultRoutePreference final
 {
     std::string interfaceId;
@@ -114,6 +116,8 @@ private:
     [[nodiscard]] bool selectedStandaloneCredentialReady() const noexcept;
     void retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
+    void retireAcceptedClient() noexcept;
+    [[nodiscard]] RuntimeHostResult advanceAcceptedClientPreAdmissionOnce() noexcept;
 
     const std::thread::id ownerThread_;
     rdp_server::server::security::MacConsoleOsEvidenceSource defaultOwnerEvidence_{};
@@ -150,7 +154,15 @@ private:
     std::uint64_t activeClientId_{0U};
     std::string activeClientPeer_{};
     bool clientDisconnected_{false};
+    // The R2 framer/verifier borrows only the current R1 connection. Retire it
+    // before the SSL/BIO/socket; no saved credentials or post-auth bytes survive.
     std::unique_ptr<rdp_server::server::transport::OwnedPreauthTcpConnection> activeConnection_{};
+    std::unique_ptr<MacRuntimeCredSspState> activeCredSsp_{};
+    std::optional<rdp_server::server::security::OwnerSharingAuthorizationEpoch>
+        activeConsentEpoch_{};
+    std::uint64_t activeListenerGeneration_{};
+    bool activeCredentialsVerified_{};
+    RuntimeAcceptedClientPreauthDiagnostics acceptedClientDiagnostics_{};
     std::chrono::steady_clock::time_point activeClientDeadline_{};
 };
 

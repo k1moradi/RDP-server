@@ -1,3 +1,21 @@
+## R10 macOS accepted-client pre-admission ownership (2026-10-30)
+
+The macOS HostControl service tick owns only the existing accepted R1 socket,
+one R2 standalone CredSSP framer/writer/acceptor, and the memory-only
+credential-generation selector. X.224 Confirm must finish before the sole R1
+TLS/BIO owner starts; one zero-wait readiness check may drive at most one
+bounded R1 or TSRequest step. Do not clone LinuxRuntimeConnection, add a Qt
+worker or 25 ms polling loop. Readiness is not authorization.
+
+The active listener generation and R1 selected TLS certificate are validated
+on each step. Pin the exact R10 owner-consent grant/revocation epoch at accept
+and revalidate before I/O, even when a later grant has identical permissions.
+Credential replacement, Stop, expiry, listener replacement or consent loss
+first retires R2 proof/TSRequest frames and replies, then R1 SSL/BIO/socket.
+A successfully bound standalone proof is retained only for future R2, and
+cannot grant native macOS admission, protected R3 MCS/Share or R7 attachment.
+No cached UID, TCC flag, diagnostic state or booleans may supply that authority.
+
 ## R8 native FileContents terminalization callback authority (2026-10-30)
 
 After the existing post-write generation/epoch fence, the macOS and Windows

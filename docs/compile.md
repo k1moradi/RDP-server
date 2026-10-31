@@ -1,3 +1,15 @@
+## R10 macOS serialized pre-admission compilation (2026-10-30)
+
+The existing `rdp-server-macos-host-control` target consumes the already
+linked first-party standalone CredSSP implementation, R1's nonblocking
+accepted TCP/TLS owner, and the existing R2 frame reader/reply writer.
+No additional build target, second socket owner, external dependency or
+build directory is created. Register the added macOS host-control case in
+the existing CTest loop. On an approved Apple checkout, compile the actual
+production target with -Werror, run the focused case and full Debug/Release
+CTest, and record results at the exact publication SHA. In this connector
+environment compile, CTest and physical client runs are NOT RUN.
+
 ## R2 macOS nested visitor denial build scope (2026-10-30)
 
 One owner-thread Boolean + stack-scoped RAII guard in the existing portable

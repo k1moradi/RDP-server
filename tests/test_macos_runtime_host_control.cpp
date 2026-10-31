@@ -9,6 +9,11 @@
 #include <string>
 #include <string_view>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
 using namespace rdp_server::server::runtime;
 using rdp_server::server::security::ConsoleAccountObservation;
 using rdp_server::server::security::ConsoleDesktopLockState;
@@ -385,6 +390,109 @@ void testStopRevokeRetirement()
     return true;
 }
 
+// Only a synthetic local TCP peer is used. The production R10 accepted-client
+// path must never construct a native desktop or consume first-MCS bytes from
+// transport/TLS progress or a configured standalone credential alone.
+// Full CredentialsVerified remains covered by the independent production R2
+// CredSSP oracle; positive macOS R2 admission has not yet been published.
+[[nodiscard]] bool testMacAcceptedClientPreAdmissionDormancy()
+{
+    PortableBootstrapEvidence evidence(501U);
+    MacRuntimeHostControl control(evidence);
+    auto password = standalonePassword();
+    assert(control.configureStandaloneApplicationPassword(u"rdp", password));
+
+    const auto endpoint = control.status().product.recommendedEndpoint;
+    if (!endpoint.valid() || endpoint.address.find(':') != std::string::npos)
+        return false;
+
+    RuntimeHostPermissionRequest permission;
+    permission.allowClipboard = false;
+    permission.allowInput = false;
+    assert(control.requestHostPermissionSetup(permission).succeeded());
+
+    std::uint16_t chosenPort = 0U;
+    for (std::uint16_t port = 34350U; port < 34380U; ++port)
+    {
+        const RuntimeHostOptions options{
+            endpoint.interfaceId, endpoint.address, port, true, false};
+        assert(control.configure(options).succeeded());
+        if (control.startSharing().succeeded())
+        {
+            chosenPort = port;
+            break;
+        }
+    }
+    if (chosenPort == 0U)
+        return false;
+
+    struct ScopedSocket final
+    {
+        int descriptor{-1};
+        ~ScopedSocket()
+        {
+            if (descriptor >= 0)
+                (void)::close(descriptor);
+        }
+    } client{::socket(AF_INET, SOCK_STREAM, 0)};
+    if (client.descriptor < 0)
+        return false;
+
+    sockaddr_in destination{};
+    destination.sin_family = AF_INET;
+    destination.sin_port = htons(chosenPort);
+    if (::inet_pton(AF_INET, endpoint.address.c_str(),
+                    &destination.sin_addr) != 1 ||
+        ::connect(client.descriptor,
+                  reinterpret_cast<const sockaddr*>(&destination),
+                  static_cast<socklen_t>(sizeof(destination))) != 0)
+        return false;
+
+    assert(control.serviceOnce().succeeded());
+    auto accepted = control.status();
+    assert(accepted.stage == RuntimeHostStage::ClientAuthenticating);
+    assert(accepted.activeClients.size() == 1U);
+    assert(accepted.acceptedClientPreauthDiagnostics.available);
+    assert(accepted.acceptedClientPreauthDiagnostics.protocolStage ==
+           RuntimeAcceptedClientProtocolStage::PreAdmission);
+    assert(!accepted.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+    assert(!accepted.nativeDesktopReady);
+    assert(!accepted.graphicsReady);
+
+    // A single incomplete TPKT header cannot advance TLS, MCS or Share.
+    constexpr std::array<std::uint8_t, 1U> partialTpkt{0x03U};
+    assert(::send(client.descriptor, partialTpkt.data(),
+                  partialTpkt.size(), 0) ==
+           static_cast<ssize_t>(partialTpkt.size()));
+    for (std::size_t index = 0U; index < 4U; ++index)
+        assert(control.serviceOnce().succeeded());
+
+    accepted = control.status();
+    assert(accepted.stage == RuntimeHostStage::ClientAuthenticating);
+    assert(accepted.acceptedClientPreauthDiagnostics.preauthStage ==
+           RuntimeAcceptedClientPreauthStage::AwaitConnectionRequest);
+    assert(accepted.acceptedClientPreauthDiagnostics.protocolStage ==
+           RuntimeAcceptedClientProtocolStage::PreAdmission);
+    assert(!accepted.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+    assert(!accepted.acceptedClientPreauthDiagnostics.shareActivated);
+    assert(!accepted.nativeDesktopReady);
+
+    // Stop must free the borrowed R2 frame/SSL in the reverse of their
+    // attachment order and cannot retain a client from the old listener.
+    assert(control.stopSharing().succeeded());
+    const auto stopped = control.status();
+    assert(stopped.stage == RuntimeHostStage::Stopped);
+    assert(!stopped.listenerAvailable);
+    assert(stopped.activeClients.empty());
+    assert(!stopped.nativeDesktopReady);
+    assert(stopped.acceptedClientPreauthDiagnostics.preauthStage ==
+           RuntimeAcceptedClientPreauthStage::Closed);
+    assert(!stopped.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+    assert(stopped.acceptedClientPreauthDiagnostics.protocolStage ==
+           RuntimeAcceptedClientProtocolStage::PreAdmission);
+    return true;
+}
+
 void testPortableGuiBootstrapReadiness()
 {
     MacPortableDesktopRuntime runtime;
@@ -568,6 +676,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-stop-start-retains-standalone-credential")
     {
         if (!testStopStartRetainsStandaloneCredential())
+            return 77;
+    }
+    else if (selected == "macos-host-control-accepted-pre-admission-dormancy")
+    {
+        if (!testMacAcceptedClientPreAdmissionDormancy())
             return 77;
     }
     else if (selected == "macos-portable-gui-bootstrap-readiness")

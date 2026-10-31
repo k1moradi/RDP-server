@@ -489,6 +489,53 @@ not applicable**; only cold-path control state changed.
 
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
 
+**R10 macOS pre-admission owner-thread increment (authoring, 2026-10-30):**
+The existing macOS HostControl now advances one accepted R1 X.224/HYBRID
+Confirm, server-certificate-bound TLS and production standalone CredSSP
+TSRequest frame/reply step from its existing GUI service tick. It pins exact
+listener, credential and current-owner consent epochs and retires the R2
+framer/proof before R1 SSL/BIO/socket. Successful owned-connection
+`CredentialsVerified` leaves the Mac client pre-MCS: no native R2 admission
+lease, R3 positive macOS entry or desktop attachment has been fabricated.
+`runtime.macos-host-control-accepted-pre-admission-dormancy` covers
+synthetic partial-TPKT/Stop pre-MCS denial; a genuine completed-CredSSP
+macOS accepted-client no-lease regression remains OPEN. Local macOS
+build/full CTest, exact-SHA hosted qualification and physical clients:
+NOT RUN. Next: R2 publishes protected macOS native-admission entry for the
+exact accepted R1/standalone proof, R3 publishes authorized MCS/Share
+consumption, R10 integrates those same-owner references (without cloning
+Linux runtime) and adds the full positive-CredSSP no-lease CTest, then R9
+same-SHA candidate and separate owner permission before any live experiment.
+
+**Exact macOS accepted-client state graph and cancellation contract:**
+`Stopped` (R10 owns no listener/client; R2 credential may survive ordinary
+Stop) -> `CredentialsConfigured` (R2 memory-only generation, no listener)
+-> `ListenerAvailable` (R10 owner-grant epoch and R1 bound TLS identity;
+no accepted peer) -> `ClientAuthenticating`:
+R1 `AwaitConnectionRequest` / X.224 HYBRID Confirm queued/delivered
+-> R1 `AwaitTls` / exact R1 SSL/BIO socket handshake
+-> R1 `AwaitCredSsp` + one R2 DER framer/NTLM acceptor/reply writer
+-> R2 `CredentialsVerified` proof (R10 keeps the existing
+`ClientAuthenticating` stage; no MCS authority).
+Stop/revoke, selected-credential or TLS generation loss, owner-consent
+epoch change, listener replacement, EOF, malformed/partial expired frame
+and timeout cancel the active connection, R2 proof/reader/writer, R1
+SSL/BIO/socket and any pending decrypted post-auth data before future
+native attachment. The protected future positive path, NOT IMPLEMENTED
+without R2/R3 APIs: R2 `issueAdmission` on the exact live proof and native
+owner evidence -> authorized first R1 MCS TPKT -> R3 Connect-Response,
+Erect/Attach/Join, Client Info, PersonalDesktop license Valid Client,
+Demand/Confirm Active and Share/GraphicsReady -> R10
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession` with the
+original live R2 proof and `CurrentOwnerSharingAuthority`, followed by
+R4 frames and R5/R7 native operations. Any lifetime change revokes
+R2/R3 routing first, then native children, then R1 transport; no UID/TCC
+scalar, diagnostics or cached generation may substitute for the R2 lease.
+
+
+
+
+
 **Current contract:** R10 remains a coordinator only. R1 owns the sole TCP/BIO/SSL and bounded TLS reader/writer; R2 owns CredSSP principal proof, native authority and the lease; R3 owns MCS/Share/static-channel state and accepted-byte receipts; R4 owns frame/ACK lifecycle; R5 owns X11 capture/input; R7 owns GUI; R8 owns clipboard application state. `kLinuxProductionClipboardActivationApproved = false`.
 
 **Resolved blocker:** Agent 2 landed `e469ce9707965c888988fc27c4134acccfd31b1a`. R2 now captures the exact prepared `OwnerSharingAuthorizationEpoch`, rechecks it after native evidence and after proof/R1 completion, stores it in private lease control and requires the same epoch on protected revalidation. R10 still calls only `issueAdmission()` and `visitNativeDesktopSelection()`; there is no R10 epoch cache, Boolean authority, or duplicate controller.

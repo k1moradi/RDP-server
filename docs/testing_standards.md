@@ -1,3 +1,19 @@
+## R10 macOS pre-admission production regression (2026-10-30)
+
+Register `runtime.macos-host-control-accepted-pre-admission-dormancy` in the
+existing macOS HostControl test executable and shared CTest registry.
+With injected owner evidence and an isolated synthetic local TCP client,
+assert the genuine accepted R1 owner remains pre-MCS for a partial TPKT,
+leaves Share/graphics/native desktop dormant, and Stop cancels the client
+with no retained native authorization. Missing eligible private LAN interface
+or unavailable test bind is SKIP (77), never PASS. This is a pre-admission
+denial test, **not** a successful full standalone CredSSP test. An additional
+production-backed completed-CredSSP macOS accepted-socket test is still needed
+to qualify the requested positive-without-native-lease denial. No physical
+RDP clients, TCC prompts, ScreenCaptureKit, input or clipboard are permitted
+by ordinary CTest. Exact-SHA macOS Debug/Release full CTest and sanitizers
+remain independent evidence gates and are NOT RUN at authoring.
+
 ## R9 canonical-roadmap integrity and manual candidate CI (2026-10-30)
 
 Register the offline behavior-named `project.canonical-roadmap-integrity-and-truncation-denials` CTest and run the canonical checker in independent structure and main structure/documentation CI. Negative fixtures reject empty/25-line, missing M1–M6/R1–R10, missing direct-main/freeze policy and duplicate headings; a substantial legitimate consolidation must still pass. No fixed roadmap byte count or immutable historical status. Co-change remains push-only; documentation-policy must independently succeed on manual dispatch for the R9 candidate's `needs:` graph. A push-skipped candidate is NOT RUN, not PASS.

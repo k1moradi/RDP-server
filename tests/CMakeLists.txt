@@ -1146,6 +1146,19 @@ if(TARGET rdp-server-macos-host-control)
             SKIP_RETURN_CODE 77
             TIMEOUT 45)
 
+    # Original owner grant View|Input|Clipboard is never a native Clipboard
+    # lease. A same-session replacement with only View retires the old
+    # production R1/CredSSP client and buffered MCS without publishing R2.
+    add_test(
+        NAME runtime.macos-host-control-consent-scope-replacement-denials
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-consent-scope-replacement-denials)
+    set_tests_properties(
+        runtime.macos-host-control-consent-scope-replacement-denials PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;admission;owner-consent;macos;native-environment;offline"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 45)
+
     # R10 distinct exact-client retirement after completed production CredSSP.
     add_test(
         NAME runtime.macos-host-control-verified-proof-explicit-client-retirement-denials

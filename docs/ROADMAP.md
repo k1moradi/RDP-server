@@ -1,3 +1,33 @@
+## R10 P0 owner View/Input scope and buffered Erect correctness (2026-10-31)
+
+**Reviewed exact parent:** `8c68f687173d7396b4bb77625620bdaee6959987`.
+The previous R10 `9b1861ec` published Erect composition now has
+hosted Ubuntu/macOS/Windows protocol, R9 sanitizer, structure and
+documentation jobs **PASS** (Actions `41218486520`); the separate
+clean-Windows packaging lane had not yet completed. This is not a
+physical macOS native Admission receipt or manual R9 candidate.
+
+- [x] **Fix source:** select from the current owner grant View plus Input iff
+  owner-granted, but validate the *exact* selected scope with a freshly
+  issued original `authorizationEpoch(scope)`; pin scope and epoch on the
+  accepted client. Use that scope for the one macOS R2 preparation and
+  ongoing owner/R2 checks. Clipboard remains excluded from the native
+  View|Input issuer despite a GUI owner grant requesting Clipboard.
+- [x] **Verified concurrent `6fa9dac4`:** after full Connect-Response, check decrypted R1 TLS
+  plaintext readiness for Erect; do not wait for socket POLLIN when
+  OpenSSL already has a coalesced packet.
+- [x] **Add denial CTest:** a real HostControl accepted HYBRID/TLS
+  completed-CredSSP transcript with queued Microsoft MCS and a synthetic
+  non-authorizing View|Input|Clipboard owner grant must retire after
+  View-only grant replacement. It never creates native Admission.
+- [ ] **Qualification:** new exact commit's hosted macOS protocol/full
+  CTest and sanitizers; canonical owner local runs NOT RUN.
+- [ ] **Next R10 increment:** protected Attach User and exact
+  Attach Confirm receipt. No Share/GraphicsReady/desktop/native input
+  until complete R2/R3 activation and independently current Input.
+- [ ] **Product/manual:** genuine native macOS lease and physical client
+  NOT RUN / unauthorized. Agent 9 candidate gate not nominated.
+
 ## R6 P0 privacy correction for rejected Microsoft client evidence (2026-10-31)
 
 The v3 A/B validator previously mirrored malformed private client stage,

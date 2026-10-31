@@ -192,6 +192,9 @@ private:
         AcceptedClientAdmissionStage::None};
     std::optional<rdp_server::server::security::OwnerSharingAuthorizationEpoch>
         activeConsentEpoch_{};
+    // Selected once from the original owner grant: View, optionally Input.
+    // Clipboard is never part of the current macOS R2 native issuer scope.
+    std::uint32_t activeAdmissionPermissionMask_{};
     std::uint64_t activeListenerGeneration_{};
     bool activeCredentialsVerified_{};
     RuntimeAcceptedClientPreauthDiagnostics acceptedClientDiagnostics_{};

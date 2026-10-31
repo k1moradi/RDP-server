@@ -907,6 +907,7 @@ enum class CompletedCredSspRetirement : std::uint8_t
 {
     Stop,
     ConsentEpochReplacement,
+    ConsentScopeReplacement,
     SessionReplacement,
     ExplicitClientDisconnect,
     NoNativeIssuerAfterQueuedMcs,
@@ -1304,8 +1305,10 @@ void testStopRevokeRetirement()
     }
 
     RuntimeHostPermissionRequest permission;
-    permission.allowClipboard = false;
-    permission.allowInput = false;
+    permission.allowClipboard =
+        retirement == CompletedCredSspRetirement::ConsentScopeReplacement;
+    permission.allowInput =
+        retirement == CompletedCredSspRetirement::ConsentScopeReplacement;
     assert(control.requestHostPermissionSetup(permission).succeeded());
 
     std::uint16_t chosenPort = 0U;
@@ -1504,6 +1507,38 @@ void testStopRevokeRetirement()
         assert(control.stopSharing().succeeded());
         break;
     }
+    case CompletedCredSspRetirement::ConsentScopeReplacement:
+    {
+        // The original consent includes View, Input and Clipboard. Native R2
+        // permits only View and Input; replacing this grant with View alone
+        // must retire the same accepted R1 and never resume queued first MCS.
+        const auto before = control.status();
+        assert((before.ownerGrant.effectivePermissionMask &
+                (kConsoleViewPermission | kConsoleInputPermission |
+                 kConsoleClipboardPermission)) ==
+               (kConsoleViewPermission | kConsoleInputPermission |
+                kConsoleClipboardPermission));
+        RuntimeHostPermissionRequest replacement{};
+        replacement.allowInput = false;
+        replacement.allowClipboard = false;
+        assert(control.requestHostPermissionSetup(replacement).succeeded());
+        const auto afterGrant = control.status();
+        assert(afterGrant.ownerGrant.effectivePermissionMask ==
+               kConsoleViewPermission);
+        const auto step = control.serviceOnce();
+        assert(step.error == RuntimeHostError::HostSessionStale);
+        const auto retired = control.status();
+        assert(retired.stage == RuntimeHostStage::ListenerAvailable);
+        assert(retired.activeClients.empty());
+        assert(retired.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!retired.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!retired.nativeDesktopReady);
+        assert(!retired.graphicsReady);
+        assert(retired.clipboardState == RuntimeClipboardState::Unavailable);
+        assert(control.stopSharing().succeeded());
+        break;
+    }
     case CompletedCredSspRetirement::SessionReplacement:
     {
         evidence.replaceSession();
@@ -1539,6 +1574,12 @@ void testStopRevokeRetirement()
     return runCompletedCredSspRetirementScenario(
         CompletedCredSspRetirement::NoNativeIssuerAfterQueuedMcs,
         34530U, 0xa1U);
+}
+
+[[nodiscard]] bool testMacConsentScopeReplacementDenials()
+{
+    return runCompletedCredSspRetirementScenario(
+        CompletedCredSspRetirement::ConsentScopeReplacement, 34560U, 0xb1U);
 }
 
 [[nodiscard]] bool testMacCompletedCredSspExplicitClientRetirement()
@@ -1866,6 +1907,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-first-mcs-without-native-issuer-dormancy")
     {
         if (!testMacFirstMcsWithoutNativeIssuerRemainsDormant())
+            return 77;
+    }
+    else if (selected == "macos-host-control-consent-scope-replacement-denials")
+    {
+        if (!testMacConsentScopeReplacementDenials())
             return 77;
     }
     else if (selected == "macos-host-control-verified-proof-explicit-client-retirement-denials")

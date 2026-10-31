@@ -1,3 +1,24 @@
+## R10 owner permission-scope replacement and buffered Erect review (2026-10-31)
+
+New `runtime.macos-host-control-consent-scope-replacement-denials`
+uses a real accepted HostControl HYBRID/TLS/direct-NTLM/CredSSP peer
+with queued Microsoft MCS. The injected owner evidence obtains a
+View|Input|Clipboard grant, then replaces it with View-only in the
+same console session; the old client must retire on the original
+grant epoch, publish no MCS/R3/desktop state, and leave clipboard off.
+The injected evidence can never prepare a genuine macOS R2 issuer,
+so this is an owner/credential/consent **denial** regression, not a
+positive native View/Input lease test. The existing
+`security.macos-transport-admitted-clipboard-permission-denials`
+proves broker View|Input preparation with synthetic native evidence
+and deliberate Clipboard rejection; it does not prove physical admission.
+Source review found HostControl's Erect readiness omitted already
+decrypted `SSL_pending` bytes; the production R1 TLS reader now uses
+the same buffered readiness for first MCS and Erect. Positive end-to-end
+HostControl Erect with genuine native lease remains NOT RUN.
+Connector-local compile/focused/full CTest and sanitizer NOT RUN;
+new publication-SHA hosted qualification PENDING.
+
 ## R6 redacted FAIL summary secret-sentinel regression (2026-10-31)
 
 Dedicated offline `interop.windows-client-ab-invalid-private-summary-redaction`

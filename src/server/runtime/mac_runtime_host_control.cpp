@@ -273,6 +273,7 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
         clientDisconnected_ = true;
     }
     activeConsentEpoch_.reset();
+    activeAdmissionPermissionMask_ = 0U;
     activeListenerGeneration_ = 0U;
     activeCredentialsVerified_ = false;
     activeAdmissionStage_ = AcceptedClientAdmissionStage::None;
@@ -300,11 +301,16 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
     using FrameStatus = security::StandaloneCredSspFrameStatus;
 
     if (activeConnection_ == nullptr || activeCredSsp_ == nullptr ||
-        activeConsentEpoch_ == std::nullopt || tlsContext_ == nullptr ||
-        !activeConnection_->active() ||
+        activeConsentEpoch_ == std::nullopt ||
+        (activeAdmissionPermissionMask_ &
+         security::kConsoleViewPermission) == 0U ||
+        (activeAdmissionPermissionMask_ &
+         ~(security::kConsoleViewPermission |
+           security::kConsoleInputPermission)) != 0U ||
+        tlsContext_ == nullptr || !activeConnection_->active() ||
         !selectedStandaloneCredentialReady() ||
         !ownerSharingAuthority_.authorizesAtEpoch(
-            security::kConsoleViewPermission, *activeConsentEpoch_) ||
+            activeAdmissionPermissionMask_, *activeConsentEpoch_) ||
         !listener_.valid() ||
         listener_.generation() != activeListenerGeneration_ ||
         !listener_.interfaceStillMatches() ||
@@ -329,7 +335,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
         };
         if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession() ||
             (activeAdmissionBroker_ != nullptr &&
-             !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission)))
+             !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_)))
             return rejectAdmission();
 
         if (activeAdmissionStage_ == AcceptedClientAdmissionStage::CredentialsVerified)
@@ -346,7 +352,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
             if (!activeAdmissionBroker_->authorizeR1CredSspAdmission(
                     *activeMcsSession_) ||
                 activeConnection_->stage() != PreauthStage::AwaitMcsConnectInitial ||
-                !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+                !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
                 return rejectAdmission();
             activeAdmissionStage_ = AcceptedClientAdmissionStage::TransportAdmitted;
             acceptedClientDiagnostics_.preauthStage =
@@ -415,7 +421,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                 return {RuntimeHostError::None, true};
         }
 
-        if (!activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+        if (!activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
         if (readingFirstMcs || readingErectDomain)
         {
@@ -438,7 +444,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
             if (intake.outcome != TlsOutcome::Progress ||
                 intake.bytes == 0U || intake.bytes > remaining ||
                 !activeAdmissionBroker_->revalidate(
-                    security::kConsoleViewPermission))
+                    activeAdmissionPermissionMask_))
                 return rejectAdmission();
             credSsp.firstMcsBytes += intake.bytes;
             if (credSsp.firstMcsExpectedBytes == 0U &&
@@ -468,7 +474,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                 if (admitted !=
                         transport::McsSessionIntake::AdmittedConnectInitial ||
                     !activeAdmissionBroker_->revalidate(
-                        security::kConsoleViewPermission))
+                        activeAdmissionPermissionMask_))
                     return rejectAdmission();
                 // R3 copied all semantic state; never retain the borrowed TPKT.
                 credSsp.firstMcsBytes = 0U;
@@ -487,7 +493,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                     session, completeTpkt);
             if (erect != transport::McsSessionIntake::ErectDomainAccepted ||
                 !activeAdmissionBroker_->revalidate(
-                    security::kConsoleViewPermission))
+                    activeAdmissionPermissionMask_))
                 return rejectAdmission();
             credSsp.firstMcsBytes = 0U;
             credSsp.firstMcsExpectedBytes = 0U;
@@ -513,7 +519,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
         }
         if (sent.outcome != TlsOutcome::Progress || sent.bytes == 0U ||
             sent.bytes > pending->bytes.size() ||
-            !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+            !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
         credSsp.connectResponseWriteNeedsRead = false;
         const auto receipt =
@@ -521,7 +527,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                 session, pending->replySequence, pending->writeSliceSequence,
                 sent.bytes);
         if (receipt == transport::McsConnectResponseWriteOutcome::Rejected ||
-            !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission))
+            !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
         if (receipt == transport::McsConnectResponseWriteOutcome::Delivered)
         {
@@ -830,7 +836,7 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                     credSsp.authenticatedProof, connection, nativeSessionEvidence_,
                     ownerSharingAuthority_);
             if (preparedBroker->prepareAdmission(
-                    security::kConsoleViewPermission) ==
+                    activeAdmissionPermissionMask_) ==
                 security::MacConsoleAdmissionPrepareResult::Prepared)
             {
                 // Preparation synchronously reads native evidence and consent.
@@ -841,12 +847,12 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
                     !selectedStandaloneCredentialReady() ||
                     !connection.active() ||
                     !ownerSharingAuthority_.authorizesAtEpoch(
-                        security::kConsoleViewPermission, *activeConsentEpoch_) ||
+                        activeAdmissionPermissionMask_, *activeConsentEpoch_) ||
                     !preparedBroker->revalidate(
-                        security::kConsoleViewPermission) ||
+                        activeAdmissionPermissionMask_) ||
                     !activeConsentEpoch_.has_value() ||
                     !ownerSharingAuthority_.authorizesAtEpoch(
-                        security::kConsoleViewPermission, *activeConsentEpoch_))
+                        activeAdmissionPermissionMask_, *activeConsentEpoch_))
                     return fail();
                 activeAdmissionBroker_ = std::move(preparedBroker);
                 activeAdmissionStage_ = AcceptedClientAdmissionStage::Prepared;
@@ -1752,8 +1758,16 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
             return {lastError_, true};
         }
 
+        // Grant observation is only scope selection, never authorization.
+        // The current native macOS issuer supports View and optional Input,
+        // not Clipboard even if requested by the original owner.
+        const auto ownerGrant = ownerSharingAuthority_.grantObservation();
+        const std::uint32_t selectedPermissionMask =
+            rdp_server::server::security::kConsoleViewPermission |
+            (ownerGrant.effectivePermissionMask &
+             rdp_server::server::security::kConsoleInputPermission);
         const auto consentEpoch = ownerSharingAuthority_.authorizationEpoch(
-            rdp_server::server::security::kConsoleViewPermission);
+            selectedPermissionMask);
         if (!consentEpoch || !selectedStandaloneCredentialReady() ||
             tlsContext_ == nullptr || nextClientId_ == 0U ||
             nextClientId_ == (std::numeric_limits<std::uint64_t>::max)())
@@ -1767,6 +1781,7 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
         activeClientPeer_ = boundEndpointText(peer);
         activeListenerGeneration_ = listener_.generation();
         activeConsentEpoch_ = *consentEpoch;
+        activeAdmissionPermissionMask_ = selectedPermissionMask;
         activeCredentialsVerified_ = false;
         activeAdmissionStage_ = AcceptedClientAdmissionStage::None;
         activeCredSsp_ = std::move(credentialState);

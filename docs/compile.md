@@ -1,3 +1,15 @@
+## R10 macOS original owner permission-scope and Erect readiness correction (2026-10-31)
+
+The existing `rdp-server-macos-host-control` source and test executable
+gain only one stored accepted-client permission mask and a dedicated
+existing-executable CTest. No new dependency, listener, worker, SSL
+reader, build directory, native OS permission operation or benchmark.
+In the sole owner `~/rdp-server/build/` reuse the canonical Debug
+configure/build and run focused
+`ctest --test-dir build -C Debug -R '^(runtime[.]macos-host-control-(consent-scope-replacement-denials|first-mcs-without-native-issuer-dormancy)|security[.]macos-(protected-mcs-response-partial-resume-and-ordering|transport-admitted-clipboard-permission-denials))$' --output-on-failure`
+and the full CTest. Local execution NOT RUN; exact publication-SHA
+hosted protocol/macOS and sanitizers PENDING.
+
 ## R5 original accepted-socket offline evidence build scope (2026-10-31)
 
 No C++ target, dependency, listener, X11 operation or second build root.

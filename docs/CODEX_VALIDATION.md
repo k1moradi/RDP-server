@@ -1,3 +1,40 @@
+## R10 follow-up review — macOS View/Input broker scope and buffered Erect (2026-10-31)
+
+Reviewed `main` at `8c68f687173d7396b4bb77625620bdaee6959987`.
+Prior R10 Erect commit `9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e`
+has PASS hosted Ubuntu/macOS/Windows protocol, R9 security-protocol
+sanitizers, documentation and workflow-structure jobs in Actions
+`41218486520`; separate clean-Windows packaging was queued at review.
+The complete GitHub Actions run was not yet entirely green.
+R1/R2/R3 protected Attach/Confirm primitives remain available; no
+missing private interface blocks continued R10 work.
+
+**Concrete defects:** R10 pinned the original owner grant epoch but
+prepared its macOS native R2 broker with View only even when the owner
+authorized Input. Since R2's prepared permission mask is immutable,
+later native Input would be denied. R10 now selects View and optional
+Input once from the owner grant observation, obtains a fresh
+`authorizationEpoch(selectedScope)`, pins/checks that scope at each
+accepted-client tick, prepares R2 exactly once at that scope, and
+clears it at retirement. Clipboard is deliberately excluded from
+macOS's View|Input native issuer. A separate R10 defect had gated
+post-Connect-Response Erect TLS intake on socket POLLIN alone:
+already decrypted R1 SSL plaintext could stall. Concurrent `6fa9dac4` already corrected Erect to use the
+same `tlsApplicationReadReady()` check as first MCS while preserving
+SSL WANT direction.
+
+Added dedicated production HostControl completed-CredSSP grant
+View|Input|Clipboard to View-only replacement denial, with queued
+published Microsoft MCS; no injected test evidence may create the R2
+native issuer. Existing production R2 real-TLS synthetic fixture
+continues to verify private partial receipts and scope denials.
+Owner-local build/CTest/sanitizers **NOT RUN**; exact publication-SHA
+hosted CI **PENDING**. Positive genuine macOS R2 native Admission,
+Connect-Response/Erect on a physical client, Share, GraphicsReady,
+input and clipboard **NOT RUN / unauthorized**. Next R10 protected
+increment: Attach User and exact Attach Confirm receipt after new SHA
+qualification. Agent 9 candidate not nominated.
+
 ## R6 offline A/B FAIL redaction correction (2026-10-31)
 
 A reviewed v3 validator path copied unapproved private strings from malformed

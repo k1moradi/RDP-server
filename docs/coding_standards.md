@@ -1,3 +1,26 @@
+## R10 macOS pinned View/Input consent scope and TLS-buffered Erect (2026-10-31)
+
+When accepting the original R1 client, treat the active owner grant
+observation only as non-authorizing scope selection: request View and
+optionally Input if the grant currently includes it. Never include
+Clipboard in the macOS native broker scope while its only genuine
+native issuer supports View|Input. Obtain the immutable grant epoch by
+`authorizationEpoch(selectedScope)`, retain the selected permission
+mask for the accepted client's entire lifetime, and require
+`authorizesAtEpoch(selectedScope, originalEpoch)` on every owner tick.
+The broker prepares exactly that scope once and revalidates the same scope
+around every protected transport/R3 operation; Stop and replacement zero
+the scope before any next client. Do not infer authority from the grant
+projection or loosen R2's permission validator.
+
+The concurrent R3/R10 commit `6fa9dac4` already corrected Erect
+buffered-read readiness. After full Connect-Response receipt, the next Erect read must check
+R1-owned `tlsApplicationReadReady()` exactly like first MCS. OpenSSL may
+hold already-decrypted coalesced TLS plaintext while the native socket
+has no POLLIN; waiting solely for socket readiness can indefinitely
+stall Erect. Retain R1 WANT_READ/WANT_WRITE precedence, fixed TPKT
+bounds, no second TLS reader and no polling waits.
+
 ## R5 original accepted-socket / native-authority attempt evidence (2026-10-31)
 
 Owner-private independent pins v4 require original accepted socket and R2

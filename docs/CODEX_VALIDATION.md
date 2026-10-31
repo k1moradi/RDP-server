@@ -11,8 +11,9 @@
   retains at most 256 KiB of private Qt stderr in memory, and emits a redacted
   summary containing bundled Qt versions, Cocoa-plugin observation, display
   color model, ICC device-class signature and first matching warning source
-  basename/line/category. It never prints ICC payloads, primaries or host paths
-  and never starts Sharing, capture or input.
+  basename/line/category. It never prints ICC payloads, primaries or host paths,
+  including path-bearing native/subprocess exception text, and never starts
+  Sharing, capture or input.
 - Added offline `macos.gui-qcolor-provenance-parser-and-redaction` for ICC
   header bounds, environment isolation and output redaction, plus
   `gui.offscreen-qcolor-valid-and-malformed-metadata` in the existing Qt

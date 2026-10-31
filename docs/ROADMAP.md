@@ -253,7 +253,8 @@ first-party Qt QColorSpace/QImage/QPixmap conversion path. The opt-in
 zero-argument packaged-Cocoa probe: exact package SHA when available, bundled
 QtCore/QtGui version, observed `libqcocoa.dylib`, main-display color model,
 ICC device-class signature and first warning source basename/line/category,
-with no raw ICC/profile path, primaries, username/session data, capture or TCC.
+with no raw ICC/profile path, primaries, username/session data, capture or TCC;
+path-bearing subprocess/native exceptions are reduced to closed diagnostic text.
 It verifies the launched process has no TCP listener before termination.
 Offline `macos.gui-qcolor-provenance-parser-and-redaction` pins that
 redaction/bounds contract; `gui.offscreen-qcolor-valid-and-malformed-metadata`

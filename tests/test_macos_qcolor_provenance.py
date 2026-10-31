@@ -99,6 +99,20 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(
             environment["QT_MESSAGE_PATTERN"], probe.MESSAGE_PATTERN)
 
+    def test_failure_summary_never_stringifies_private_exception_paths(self):
+        private_error = FileNotFoundError(
+            2, "No such file or directory",
+            "/Users/private-owner/RDP/rdp-server-desktop")
+        self.assertEqual(
+            probe.safe_failure_reason(private_error),
+            "runtime probe operation failed")
+        self.assertNotIn(
+            "/Users/private-owner",
+            probe.safe_failure_reason(private_error))
+        self.assertEqual(
+            probe.safe_failure_reason(probe.ProbeError("app path is unavailable")),
+            "app path is unavailable")
+
     def test_framework_version_and_manifest_sha_have_no_path_fallback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

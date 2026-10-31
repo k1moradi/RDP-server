@@ -324,6 +324,15 @@ def run_probe(app: Path, duration_seconds: float) -> dict[str, str]:
     return diagnostics
 
 
+def safe_failure_reason(error: BaseException) -> str:
+    """Return only controlled diagnostic text; never stringify path-bearing errors."""
+    if isinstance(error, ProbeError):
+        return str(error)
+    if isinstance(error, subprocess.TimeoutExpired):
+        return "bounded subprocess timeout"
+    return "runtime probe operation failed"
+
+
 def print_summary(result: dict[str, str]) -> None:
     print("macos-qcolor-provenance=PASS")
     print(f"server-sha={result['server_sha']}")
@@ -365,7 +374,8 @@ def main() -> int:
         print_summary(run_probe(arguments.app, arguments.duration_seconds))
     except (OSError, ProbeError, subprocess.SubprocessError) as error:
         print(
-            f"macos-qcolor-provenance: rejected: {error}",
+            "macos-qcolor-provenance: rejected: "
+            + safe_failure_reason(error),
             file=sys.stderr)
         return 1
     return 0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Require documentation co-changes in each implementation commit."""
+"""Require documentation and CTest-registry co-changes in source commits."""
 from __future__ import annotations
 import subprocess
 import sys
@@ -12,6 +12,16 @@ def relevant(path: str) -> bool:
         ("src/", "tests/", "cmake/", "scripts/", ".github/workflows/")
     )
 
+PRODUCTION_SOURCE_SUFFIXES = (".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hxx")
+
+def requires_test_registry(paths: list[str]) -> bool:
+    # A changed test fixture alone cannot register production behavior.
+    # The existing CTest registry must be reviewed in the same commit.
+    return any(
+        path.startswith("src/") and path.endswith(PRODUCTION_SOURCE_SUFFIXES)
+        for path in paths
+    )
+
 def main() -> int:
     if len(sys.argv) != 3:
         return 2
@@ -20,6 +30,7 @@ def main() -> int:
         git("rev-list", "--reverse", f"{before}..{after}").splitlines()
     )
     missing = []
+    missing_registry = []
     for commit in commits:
         files = git("diff-tree", "--root", "--no-commit-id",
                     "--name-only", "-r", commit).splitlines()
@@ -27,10 +38,16 @@ def main() -> int:
             path.lower().endswith(".md") for path in files
         ):
             missing.append(commit)
+        if requires_test_registry(files) and "tests/CMakeLists.txt" not in files:
+            missing_registry.append(commit)
     if missing:
         print("Missing Markdown co-change:", *missing, sep="\n", file=sys.stderr)
+    if missing_registry:
+        print("Missing centralized CTest registry co-change:",
+              *missing_registry, sep="\n", file=sys.stderr)
+    if missing or missing_registry:
         return 1
-    print(f"Documentation co-change PASS for {len(commits)} commits")
+    print(f"Documentation and test-registry co-change PASS for {len(commits)} commits")
     return 0
 
 if __name__ == "__main__":

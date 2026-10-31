@@ -1,3 +1,29 @@
+## R9 per-commit production source / central CTest registry gate (2026-10-31)
+
+The existing push-time `scripts/check_documentation_cochange.py` ensured
+a Markdown co-change but did not catch production C/C++ edits without a
+`tests/CMakeLists.txt` registry update. The R10 protected Erect Domain
+increment at `9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e` exposed that
+assurance gap: its pre-existing lower-level R2/R3 Erect test cannot execute
+the newly added positive MacRuntimeHostControl Erect branch. The check now
+fails any affected individual commit touching `src/` C/C++ source/header
+without the central registry file in the same commit; docs-only,
+fixture-only, script-only and non-C/C++ resources keep their previous
+behavior. This co-change rule is a necessary structural guard, **not**
+proof that the registered case really executes the new behavior. R10
+still owes that dedicated positive production-path regression.
+
+Six isolated Python fixtures validate the source/co-change distinction,
+missing Markdown, mixed-commit evasion and unaffected non-production edits.
+The dedicated offline CTest is
+`project.production-source-ctest-registry-cochange-denials`. It does not
+touch the fixed R5 45-case X11, R8 107-case clipboard or other sanitizer
+censuses. Authoring parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`; connector source/syntax and
+in-memory logic checks PASS, full owner-local Python/CTest/ASan NOT RUN,
+new exact-publication-SHA hosted jobs PENDING. Next: hosted same-SHA full
+Linux/macOS/Windows CTest and sanitizer checks; no owner candidate or
+physical desktop/clipboard/client acceptance is authorized.
+
 ## R2 post-first-MCS semantic acceptance with post-callback audit loss (2026-10-31)
 
 The dedicated offline behavior `security.macos-protected-post-mcs-semantic-audit-loss`

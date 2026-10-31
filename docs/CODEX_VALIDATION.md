@@ -1,3 +1,24 @@
+## R9 production-source CTest registry co-change policy (2026-10-31)
+
+Audit parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`: `AGENTS.md` requires one new centralized
+behavior-named CTest on each production implementation increment. R10's
+new positive macOS HostControl Erect intake changed source and the fixture
+but omitted `tests/CMakeLists.txt`; the old Markdown-only push check
+could not report the missing registration. Extend that same check narrowly
+to require a centralized registry file change whenever a commit changes
+C/C++ under `src/`, preserving documentation checks and commit-by-commit
+atomicity. Six offline regression cases exercise denial and allowed
+boundaries without Git, credentials, sockets or native UI. A registry
+co-change is necessary but not proof of actual positive branch coverage.
+
+Validation: source review PASS; Python syntax and pure in-memory
+classification PASS; the newly registered offline Python CTest,
+owner canonical Debug/full CTest, native platform qualification and
+ASan/UBSan are NOT RUN in this connector environment. Exact-head CI
+PENDING; owner candidate NOT NOMINATED. R10 still needs a dedicated
+real-production-path Erect/Attach positive test, and macOS Share/Graphics
+composition and owner-approved physical acceptance remain BLOCKED.
+
 ## R2 post-MCS callback native audit replacement regression (2026-10-31)
 
 Audited exact parent `8c68f687173d7396b4bb77625620bdaee6959987`. R10 now has a protected first-MCS,

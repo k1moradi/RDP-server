@@ -1362,6 +1362,15 @@ if(NOT Python3_EXECUTABLE)
         "QColorSpace provenance CTest requires a discovered Python3 interpreter")
 endif()
 
+# R9 source-commit delivery policy: production changes require a centralized
+# CTest registration co-change in the same commit as the implementation/docs.
+# This is a git-metadata-only regression; no native or network activity.
+add_test(NAME project.production-source-ctest-registry-cochange-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_commit_cochange_policy.py")
+set_tests_properties(project.production-source-ctest-registry-cochange-denials
+    PROPERTIES LABELS "policy;testing;offline" TIMEOUT 15)
+
 # R7 owner-opt-in provenance tooling is parsed and redaction-tested offline.
 # This test never launches AppKit, reads a host display profile or opens a socket.
 add_test(NAME macos.gui-qcolor-provenance-parser-and-redaction

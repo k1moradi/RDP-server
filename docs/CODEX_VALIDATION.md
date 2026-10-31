@@ -1,3 +1,17 @@
+## R10/R3 macOS gateway registration alignment (2026-10-30)
+
+R3 publication `2a45d7c54c025f21623775d539eb5f107ad08ae5`
+failed at configure because its new CTest name contained internal `r2`
+ownership taxonomy. First repair `cded647a1925d675dc9d1da39f216c3ce6509281`
+changed the `set_tests_properties` target only; the
+`add_rdp_test(test_macos_r2_mcs_gateway.cpp ...)` registration still created
+the prohibited old name. This correction changes only that registration suffix
+to `mcs-macos-private-admission-generation-denials`, exactly matching the already-documented durable CTest
+name. No production R2/R3 behavior, assertions, fixed 171-case MCS dispatch,
+Linux runtime path, or R10 HostControl state changes. Canonical local
+build/CTest is **NOT RUN** in this connector environment; corrective
+publication-SHA hosted CI is **PENDING**.
+
 ## R3 macOS concrete R2 private entry authoring (2026-10-30)
 
 - Reconciled authoring parent: `de2c6f79b851a0aabe0ab9dafb13aa13a2e55189`, including Agent 2's concrete

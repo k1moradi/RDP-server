@@ -245,8 +245,15 @@ delivered-frame-retirement regression remains a separate ordinary CTest, not a
 172nd fixed-table initializer.
 
 **Qualification:** source/contract/registry review PASS by inspection.
-Canonical local configure/build/focused/full Debug/Release CTest, ASan/UBSan
-and benchmark are **NOT RUN** in this connector environment. Exact-publication
+Publication `2a45d7c54c025f21623775d539eb5f107ad08ae5` failed at CMake
+configure because the test name still carried prohibited internal `r2`
+taxonomy. First repair `cded647a1925d675dc9d1da39f216c3ce6509281`
+updated the property target but left `add_rdp_test` registering the old
+suffix. This corrective descendant aligns both registrations on
+`transport.mcs-macos-private-admission-generation-denials`; production R3
+behavior and assertions are unchanged. Canonical local
+configure/build/focused/full Debug/Release CTest, ASan/UBSan and benchmark are
+**NOT RUN** in this connector environment. Corrective exact-publication
 Linux/macOS/Windows hosted CI is **PENDING**. R3's private edge is now available;
 Agent 2 still owns the second-round positive wrappers that consume it and R10
 still owns composition. End-to-end macOS native Admission/MCS/Share/graphics/

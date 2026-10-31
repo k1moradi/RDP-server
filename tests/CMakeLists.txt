@@ -2092,7 +2092,7 @@ add_rdp_test(test_owned_rdp_x224.cpp transport x224)
 add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
 add_rdp_test(test_macos_r2_mcs_gateway.cpp transport
-    mcs-macos-r2-private-gateway-generation-denials)
+    mcs-macos-private-admission-generation-denials)
 if(MSVC)
     target_compile_options(test_macos_r2_mcs_gateway PRIVATE /W4)
 else()

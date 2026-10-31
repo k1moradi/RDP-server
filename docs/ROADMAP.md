@@ -1,3 +1,23 @@
+## R2 joined CLIPRDR protected operation (2026-10-31)
+
+Parent `b23951da2708ab431342467dbc3cb176d109a892`: dependency review confirmed R1 and R3 private friend edges
+and all later R3 mechanics are available. One R2-owned sequence gap remained:
+the optional joined CLIPRDR role before Client Info/licensing had no macOS
+broker wrapper. The broker now routes that exact private R3 operation only
+through its original-generation owner-thread protected visit and independent
+Clipboard permission. macOS native authorization remains View|Input, therefore
+Clipboard is deliberately positive-path fail-closed. Dedicated offline denial
+CTest added; no Share/native clipboard/product-valid lease is fabricated.
+Local canonical validation **NOT RUN**; publication-SHA hosted CI **PENDING**.
+
+**Remaining R2 P0:** genuine production R1 HYBRID/TLS/CredSSP successful
+`authorizeR1CredSspAdmission()`, synchronous authority loss after that partial
+transition, and broker-owned zero/partial/late Connect-Response receipt
+coverage. **R10 remaining dependency:** compose the existing broker into the
+single-reader/single-writer macOS runtime after TransportAdmitted; R1/R3
+interfaces are no longer blockers. The concurrent R10 zero-wait dormancy test
+fix on `b23951da` is retained and is not positive R2 admission.
+
 ## R10 macOS zero-wait accepted-client regression correction (2026-10-31)
 
 The existing production-linked `runtime.macos-host-control-accepted-pre-admission-dormancy`

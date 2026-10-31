@@ -1,3 +1,16 @@
+## R2 macOS joined CLIPRDR pre-Share protection (2026-10-31)
+
+The concrete macOS broker now mirrors the Linux R2 boundary for the optional
+joined CLIPRDR role: only the original R3 session, exact R1 HYBRID provenance
+and a fresh native authorization visit with `kConsoleClipboardPermission`
+may call R3's private `resolveVerifiedR2JoinedClipboardChannel()`. This
+observation grants no licensing, Share or clipboard payload authority. A
+valid admitted session with no configured CLIPRDR role may return an empty
+optional without terminalizing R3; malformed/provenance-closed state remains
+terminal. The current macOS native authorization mask is still View|Input, so
+clipboard stays fail-closed until an independently approved native permission
+source exists.
+
 ## R2 macOS owner-thread issuer isolation (2026-10-31)
 
 The existing R2 broker now captures its constructing R10 owner thread and

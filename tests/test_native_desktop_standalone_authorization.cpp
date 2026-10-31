@@ -1031,6 +1031,29 @@ void testMacConsoleProtectedAttachJoinClientInfoDenials()
     }
 }
 
+// The pre-Share joined CLIPRDR role is not a View capability. macOS native
+// authorization currently issues only View/Input, so the broker must keep the
+// early clipboard observation fail-closed without fabricating a native lease.
+void testMacConsoleProtectedJoinedClipboardScopeDenial()
+{
+    using namespace rdp_server::server::transport;
+    auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+    fixture->prepare(kConsoleViewPermission);
+
+    bool visitorCalled = false;
+    assert(!fixture->broker.visitNativeAuthorization(
+        kConsoleClipboardPermission, &markMacConsoleBrokerVisitor,
+        &visitorCalled));
+    assert(!visitorCalled);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Prepared);
+
+    auto session = std::make_unique<McsSessionLifecycle>();
+    assert(!fixture->broker.authorizeR3JoinedClipboardChannel(*session));
+    assert(session->phase() == McsSessionPhase::Closed);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->broker.admissionGeneration() == 0U);
+}
+
 // No immutable personal-desktop policy or original native/R1 admission may
 // be replaced with the R10 caller's desire to license a client.
 void testMacConsoleProtectedPersonalDesktopLicensingDenials()
@@ -1366,6 +1389,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-attach-join-clientinfo-denials")
     {
         testMacConsoleProtectedAttachJoinClientInfoDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-joined-clipboard-scope-denial")
+    {
+        testMacConsoleProtectedJoinedClipboardScopeDenial();
         return 0;
     }
     if (testCase == "macos-console-protected-personal-licensing-denials")

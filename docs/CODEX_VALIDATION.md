@@ -1,3 +1,20 @@
+## R2 joined CLIPRDR protected-wrapper completion (2026-10-31)
+
+Source audit on parent `b23951da2708ab431342467dbc3cb176d109a892` found one missing R2 wrapper in the required
+Join -> Client Info sequence: R3's private
+`resolveVerifiedR2JoinedClipboardChannel()`. The macOS broker now exposes only
+a protected owner-thread wrapper using the exact R1 provenance and fresh
+`kConsoleClipboardPermission` native visit. Current macOS native authorization
+still supports View|Input only, so this positive clipboard observation remains
+fail-closed rather than borrowing View authority. Added one dedicated
+production-broker offline denial CTest. Connector-local canonical Debug
+compile/focused/full CTest and sanitizers: **NOT RUN**. Exact publication-SHA
+CI: **PENDING**. Remaining R2 P0 evidence is the production-owned genuine
+HYBRID/TLS/CredSSP positive R1 completion, callback-time post-completion
+authority loss and broker-level zero/partial/late Connect-Response receipts.
+R10 still owns the separate positive runtime composition. R10's concurrent
+`b23951da` accepted-client zero-wait test correction is preserved unchanged.
+
 ## R10 macOS accepted-client zero-wait tick correction (2026-10-31)
 
 - Authoring parent `8afaced67524add47c847e9cdf3ea486a9a6f9f5`.

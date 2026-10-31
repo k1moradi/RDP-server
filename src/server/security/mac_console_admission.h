@@ -147,6 +147,14 @@ public:
         std::uint64_t replySequence, std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Optional pre-Share CLIPRDR role observation still requires the
+    // independent clipboard permission. It grants no licensing, Share or
+    // payload authority and an absent configured clipboard role is not itself
+    // a protocol failure after that permission exists.
+    [[nodiscard]] std::optional<std::uint16_t>
+    authorizeR3JoinedClipboardChannel(
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
     // Client Info acceptance internally performs R3's syntax-only envelope
     // routing, then consumes its unique bounded packet under the same visit.
     [[nodiscard]] std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>

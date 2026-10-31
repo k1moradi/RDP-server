@@ -1,3 +1,14 @@
+## R2 macOS pre-Share joined-clipboard denial (2026-10-31)
+
+Ordinary production-linked offline CTest
+`security.native-authorization-macos-console-protected-joined-clipboard-scope-denial`
+directly exercises the new broker wrapper. The existing synthetic broker can
+prepare View only, proves a Clipboard native visit is unavailable, then verifies
+a premature joined-clipboard call terminally closes R3 and revokes R2. It does
+not fabricate an Admitted broker, native macOS clipboard lease, Share or
+clipboard payload. Positive optional-channel behavior remains owned by R3's
+existing private mechanics and future genuine native-authority integration.
+
 ## R10 zero-wait accepted-client service-tick qualification (2026-10-31)
 
 In production-backed `runtime.macos-host-control-accepted-pre-admission-dormancy`,

@@ -1325,6 +1325,7 @@ foreach(standalone_native_authorization_case IN ITEMS
         macos-console-protected-issuer-premature-receipts
         macos-console-protected-first-mcs-order-denials
         macos-console-protected-attach-join-clientinfo-denials
+        macos-console-protected-joined-clipboard-scope-denial
         macos-console-protected-personal-licensing-denials
         macos-console-protected-mac-demand-share-denials
         macos-console-protected-post-share-revocation-denials

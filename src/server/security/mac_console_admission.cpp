@@ -793,6 +793,40 @@ MacConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
     return operation.outcome;
 }
 
+std::optional<std::uint16_t>
+MacConsoleAdmissionBroker::authorizeR3JoinedClipboardChannel(
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::optional<std::uint16_t> result{};
+    } operation{this, &session};
+
+    const auto resolve = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.result =
+            operation.session->resolveVerifiedR2JoinedClipboardChannel(
+                *provenance);
+        // No negotiated CLIPRDR role is an ordinary optional absence. Only
+        // R3 terminal closure makes the protected semantic transition fail.
+        return operation.session->phase() != McsSessionPhase::Closed;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleClipboardPermission, resolve, &operation))
+        return std::nullopt;
+    return operation.result;
+}
+
 std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>
 MacConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
     rdp_server::server::transport::McsSessionLifecycle &session,

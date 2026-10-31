@@ -83,6 +83,8 @@ struct FakeNative
     RemoteTransfer *remoteTransfer{};
     bool replaceRemoteSourceOnOwnerClaim{};
     bool replaceRemoteSourceOnPropertyWrite{};
+    bool replaceRemoteSourceOnTransferEventSelection{};
+    bool replaceRemoteSourceOnNotification{};
 
     static void replaceRemoteSource(FakeNative &state) noexcept
     {
@@ -194,6 +196,11 @@ struct FakeNative
         state.currentEventMask |=
             static_cast<std::uint32_t>(XCB_EVENT_MASK_PROPERTY_CHANGE) |
             static_cast<std::uint32_t>(XCB_EVENT_MASK_STRUCTURE_NOTIFY);
+        if (state.replaceRemoteSourceOnTransferEventSelection)
+        {
+            state.replaceRemoteSourceOnTransferEventSelection = false;
+            replaceRemoteSource(state);
+        }
         return true;
     }
 
@@ -229,6 +236,12 @@ struct FakeNative
         catch (...)
         {
             return false;
+        }
+        if (notify.property != XCB_ATOM_NONE &&
+            state.replaceRemoteSourceOnNotification)
+        {
+            state.replaceRemoteSourceOnNotification = false;
+            replaceRemoteSource(state);
         }
         return true;
     }
@@ -1270,6 +1283,149 @@ void nativeCallbackSourceRetirement()
     }
 }
 
+
+void nativeCallbackNotificationAndIncrRetirement()
+{
+    const std::array<std::uint32_t, 1> formats{
+        rdp_server::clipboard::kFormatUnicodeText};
+    const Clock::time_point start{std::chrono::seconds{10}};
+
+    // Direct selection conversion: the success notify is irreversible, but
+    // callback-time source replacement must withdraw its property/selection.
+    {
+        RemoteTransfer transfer;
+        assert(transfer.receiveFormatList(formats));
+        FakeNative native;
+        native.remoteTransfer = &transfer;
+        X11ClipboardAdapter adapter(
+            transfer, native.operations(), kRootWindow);
+        assert(adapter.publishCurrentRemoteOffer(start));
+        storeText(transfer, "retired direct conversion");
+        const std::uint64_t generation = transfer.generation();
+        const std::uint64_t sourceEpoch = transfer.sourceEpoch();
+        const std::uint64_t ownershipEpoch = adapter.ownershipEpoch();
+        native.replaceRemoteSourceOnNotification = true;
+
+        dispatchRequest(adapter, requestFor(kUtf8Atom, 854, 54), start);
+        assert(transfer.generation() == generation);
+        assert(transfer.sourceEpoch() > sourceEpoch);
+        assert(native.notifications.size() == 1U);
+        assert(native.notifications.back().property == 854);
+        assert(native.deletePropertyCalls == 1U);
+        assert(!adapter.ownsClipboard());
+        assert(!adapter.incrTransferActive());
+        assert(!adapter.pendingRemoteFetch());
+        assert(native.currentSelectionOwner == XCB_WINDOW_NONE);
+        assert(!transfer.verifiedUnicodeText());
+
+        // A fresh claim is required; the old epoch cannot be recycled even
+        // though the replacement has the same numeric clipboard generation.
+        assert(adapter.publishCurrentRemoteOffer(
+            start + std::chrono::milliseconds{1}));
+        assert(adapter.ownershipEpoch() == ownershipEpoch + 1U);
+        assert(adapter.ownsClipboard());
+        assert(native.notifications.size() == 1U);
+    }
+
+    // XCB event-mask selection may invoke the same synchronous source-loss
+    // callback before any INCR property has been written.
+    {
+        RemoteTransfer transfer;
+        assert(transfer.receiveFormatList(formats));
+        FakeNative native;
+        native.remoteTransfer = &transfer;
+        X11ClipboardAdapter adapter(
+            transfer, native.operations(), kRootWindow);
+        assert(adapter.publishCurrentRemoteOffer(start));
+        storeText(transfer, std::string(
+            X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'm'));
+        const std::uint64_t generation = transfer.generation();
+        const std::uint64_t sourceEpoch = transfer.sourceEpoch();
+        const std::uint32_t originalEventMask = native.currentEventMask;
+        native.replaceRemoteSourceOnTransferEventSelection = true;
+
+        dispatchRequest(adapter, requestFor(kUtf8Atom, 855, 55), start);
+        assert(transfer.generation() == generation);
+        assert(transfer.sourceEpoch() > sourceEpoch);
+        assert(native.selectTransferEventsCalls == 1U);
+        assert(native.restoreEventMaskCalls == 1U);
+        assert(native.currentEventMask == originalEventMask);
+        assert(native.propertyWrites.empty());
+        assert(native.notifications.back().property == XCB_ATOM_NONE);
+        assert(!adapter.incrTransferActive());
+        assert(!adapter.ownsClipboard());
+        assert(native.currentSelectionOwner == XCB_WINDOW_NONE);
+    }
+
+    // The INCR success notify already has a post-callback fence; confirm it
+    // deletes the INCR marker and restores native event interest on revocation.
+    {
+        RemoteTransfer transfer;
+        assert(transfer.receiveFormatList(formats));
+        FakeNative native;
+        native.remoteTransfer = &transfer;
+        X11ClipboardAdapter adapter(
+            transfer, native.operations(), kRootWindow);
+        assert(adapter.publishCurrentRemoteOffer(start));
+        storeText(transfer, std::string(
+            X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'n'));
+        const std::uint64_t generation = transfer.generation();
+        const std::uint64_t sourceEpoch = transfer.sourceEpoch();
+        const std::uint32_t originalEventMask = native.currentEventMask;
+        native.replaceRemoteSourceOnNotification = true;
+
+        dispatchRequest(adapter, requestFor(kUtf8Atom, 856, 56), start);
+        assert(transfer.generation() == generation);
+        assert(transfer.sourceEpoch() > sourceEpoch);
+        assert(native.notifications.size() == 1U);
+        assert(native.notifications.back().property == 856);
+        assert(native.deletePropertyCalls == 1U);
+        assert(native.restoreEventMaskCalls == 1U);
+        assert(native.currentEventMask == originalEventMask);
+        assert(!adapter.incrTransferActive());
+        assert(!adapter.ownsClipboard());
+        assert(native.currentSelectionOwner == XCB_WINDOW_NONE);
+    }
+
+    // A final zero-byte INCR property write is callback-capable too. The
+    // replacement must not leave an apparent completed stream behind.
+    {
+        RemoteTransfer transfer;
+        assert(transfer.receiveFormatList(formats));
+        FakeNative native;
+        native.remoteTransfer = &transfer;
+        X11ClipboardAdapter adapter(
+            transfer, native.operations(), kRootWindow);
+        assert(adapter.publishCurrentRemoteOffer(start));
+        storeText(transfer, std::string(
+            X11ClipboardAdapter::kMaximumDirectPropertyBytes + 1U, 'z'));
+        dispatchRequest(adapter, requestFor(kUtf8Atom, 857, 57), start);
+        assert(adapter.incrTransferActive());
+        dispatchPropertyDelete(
+            adapter, 857, start + std::chrono::milliseconds{1});
+        assert(adapter.incrTransferActive());
+        assert(adapter.incrBytesSent() != 0U);
+
+        const std::uint64_t generation = transfer.generation();
+        const std::uint64_t sourceEpoch = transfer.sourceEpoch();
+        const std::size_t deletesBefore = native.deletePropertyCalls;
+        const std::size_t restoresBefore = native.restoreEventMaskCalls;
+        native.replaceRemoteSourceOnPropertyWrite = true;
+        dispatchPropertyDelete(
+            adapter, 857, start + std::chrono::milliseconds{2});
+
+        assert(transfer.generation() == generation);
+        assert(transfer.sourceEpoch() > sourceEpoch);
+        assert(!native.propertyWrites.empty());
+        assert(native.propertyWrites.back().bytes.empty());
+        assert(native.deletePropertyCalls == deletesBefore + 1U);
+        assert(native.restoreEventMaskCalls == restoresBefore + 1U);
+        assert(!adapter.incrTransferActive());
+        assert(!adapter.ownsClipboard());
+        assert(native.currentSelectionOwner == XCB_WINDOW_NONE);
+    }
+}
+
 void r3RetirementStaleIncrFence()
 {
     RemoteTransfer transfer;
@@ -1686,6 +1842,11 @@ int main(int argc, char **argv)
     if (behavior == "x11-native-callback-source-retirement")
     {
         nativeCallbackSourceRetirement();
+        return 0;
+    }
+    if (behavior == "x11-notification-and-incr-retirement")
+    {
+        nativeCallbackNotificationAndIncrRetirement();
         return 0;
     }
     if (behavior == "x11-r3-retirement-stale-incr-fence")

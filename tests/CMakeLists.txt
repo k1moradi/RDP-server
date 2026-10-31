@@ -4669,6 +4669,15 @@ if(TARGET rdp-server-linux-x11-clipboard)
         clipboard.x11-native-callback-source-retirement PROPERTIES
         LABELS "protocol;x11;linux-adapter;native;terminalization;offline")
 
+    # Native success notifications and INCR terminal writes are separate
+    # callback boundaries, outside the fixed 107-case clipboard selection.
+    add_test(NAME clipboard.x11-notification-and-incr-retirement
+        COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
+            x11-notification-and-incr-retirement)
+    set_tests_properties(
+        clipboard.x11-notification-and-incr-retirement PROPERTIES
+        LABELS "protocol;x11;linux-adapter;native;terminalization;offline")
+
     add_test(NAME runtime.clipboard-x11-restart-incr-isolation
         COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
             x11-disconnect-restart-stale-incr-isolation)

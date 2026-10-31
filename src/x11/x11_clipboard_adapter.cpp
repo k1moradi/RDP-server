@@ -1315,7 +1315,19 @@ X11ClipboardAdapter::publishPropertyAndNotify(
         releaseNativeOwnership();
         return sendFailureNotify(request);
     }
-    return sendNotify(request, property);
+    const bool notified = sendNotify(request, property);
+    if (!publicationStillCurrent(generation, sourceEpoch, ownershipEpoch))
+    {
+        // SelectionNotify may invoke a native callback that retires this
+        // RemoteTransfer source. An already-sent success cannot be retracted;
+        // withdraw its property and our old selection instead of reporting
+        // a successful publication for a replaced source.
+        (void)nativeOperations_.deleteProperty(
+            nativeOperations_.context, request.requestor, property);
+        releaseNativeOwnership();
+        return false;
+    }
+    return notified;
 }
 
 bool

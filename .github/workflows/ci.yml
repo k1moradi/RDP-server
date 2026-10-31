@@ -1492,22 +1492,25 @@ jobs:
             -R '^clipboard\.file-destination-finalization-generation-replacement$' \
             --output-on-failure
 
-          # Callback-time X11 source retirement stays outside the fixed
-          # clipboard label census but still executes under ASan/UBSan.
+          # Both X11 callback-retirement cases run separately under ASan/UBSan,
+          # outside the unchanged 107-case clipboard label selection.
           x11_callback_tests="$(ctest --test-dir build --build-config Debug -N \
-            -R '^clipboard\.x11-native-callback-source-retirement$')"
+            -R '^clipboard\.x11-(native-callback-source-retirement|notification-and-incr-retirement)$')"
           printf '%s\n' "$x11_callback_tests"
-          grep -Fq 'clipboard.x11-native-callback-source-retirement' \
-            <<< "$x11_callback_tests"
+          for required_test in \
+            clipboard.x11-native-callback-source-retirement \
+            clipboard.x11-notification-and-incr-retirement; do
+            grep -Fq "$required_test" <<< "$x11_callback_tests"
+          done
           x11_callback_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' \
             <<< "$x11_callback_tests")"
-          if [[ "$x11_callback_test_count" -ne 1 ]]; then
-            printf 'R8 X11 callback-retirement registry mismatch: expected 1 test, found %s\n' \
+          if [[ "$x11_callback_test_count" -ne 2 ]]; then
+            printf 'R8 X11 callback-retirement registry mismatch: expected 2 tests, found %s\n' \
               "$x11_callback_test_count" >&2
             exit 1
           fi
           ctest --test-dir build --build-config Debug --timeout 60 \
-            -R '^clipboard\.x11-native-callback-source-retirement$' \
+            -R '^clipboard\.x11-(native-callback-source-retirement|notification-and-incr-retirement)$' \
             --output-on-failure
 
       - name: Run R3 static CLIPRDR route CTests with sanitizers

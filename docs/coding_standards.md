@@ -93,7 +93,12 @@ generation reuse is not authority: a replacement source with the same generation
 but a newer source epoch must withdraw the X11 owner/property and fail closed.
 
 Direct property publication must delete a property written for a retired source
-before sending success. INCR initialization must never retain a borrowed
+before sending success. The subsequent success `sendSelectionNotify` is also
+callback-capable: revalidate the original RemoteTransfer generation/source epoch
+and X11 ownership epoch after it returns. A notification already issued cannot
+be retracted, so delete the now-stale requestor property, withdraw the retired
+selection and return failure without issuing a contradictory second notify.
+INCR initialization must never retain a borrowed
 `RemoteTransfer` span after callback-time retirement; restore the requestor event
 mask and delete the transfer property. Every INCR chunk/terminator revalidates
 before advancing offset or completing. This is native presentation lifetime

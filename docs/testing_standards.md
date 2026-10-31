@@ -130,7 +130,18 @@ clipboard generation with a newer source epoch. The adapter must reject the
 claim/publication, delete stale properties, restore borrowed event masks and
 retain no INCR span or native ownership.
 
-Keep this test outside the fixed `clipboard` label selection so the qualified
+A distinct production-linked offline CTest,
+`clipboard.x11-notification-and-incr-retirement`, covers same-numeric-generation
+source replacement during a successful direct SelectionNotify (after a property
+write), INCR event-mask registration, INCR success notification, and the final
+zero-length INCR property write. It asserts direct stale-property withdrawal,
+INCR event-mask restoration, cancellation, native owner release, no stale
+completed stream or payload, and a new owner epoch on fresh publication.
+The already-issued success notify cannot be recalled; no second conflicting
+failure notify is emitted. This is synthetic callback injection, not physical
+X11 clipboard admission.
+
+Keep both X11 cases outside the fixed `clipboard` label selection so the qualified
 sanitizer census remains exactly **107**. Execute it separately by exact name
 under the same ASan/UBSan build, after the unchanged **107-case** selection and
 the unchanged one-case

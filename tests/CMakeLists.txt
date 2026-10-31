@@ -1310,6 +1310,15 @@ add_test(NAME interop.windows-client-ab-evidence-contradiction-denials
 set_tests_properties(interop.windows-client-ab-evidence-contradiction-denials PROPERTIES
     LABELS "windows;macos;interop;offline;security;evidence" TIMEOUT 15)
 
+# R5 owner-private Linux/X11 evidence validation is offline only. No listener,
+# XTEST/XCB, credentials, native R2 lease or physical desktop is opened.
+add_test(NAME linux.x11-owner-private-evidence-validation-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_linux_x11_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/linux_x11_owner_evidence.py")
+set_tests_properties(linux.x11-owner-private-evidence-validation-denials PROPERTIES
+    LABELS "linux;x11;offline;project-policy;evidence;security" TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

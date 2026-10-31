@@ -1,3 +1,28 @@
+## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
+
+**Current delivery work:** reconcile PR #39 into `main` directly without
+merging its branch or losing the restored roadmap history. The independent
+Linux/X11 read-only evidence validator has a strict closed schema: exact
+source SHA, typed client and credential-match observations, Sharing OFF -> ON,
+owner grant and R2-bound consent epochs, graphical unlocked seat0, UID match,
+R2/session/native capture generations, ordered CredSSP/MCS/Share/frame/ACK,
+XTEST/RandR, and retirement/reconnect. R2-bound consent epochs must equal
+the actual owner grant on initial and reconnect Admission; capture may
+legitimately remain unobserved before graphics.
+
+One new `linux.x11-owner-private-evidence-validation-denials` offline
+CTest is centrally registered. The existing 45-case native X11 sanitizer
+selection, including synchronous XShm-borrow and reentrant XDamage retirement,
+is unchanged; **no 46th native test**. PR checks and an owner-local
+**1060/1060** summary without recorded SHA are not new-main release receipts.
+New publication-SHA ordinary full CTest and 45-case native sanitizers are
+**NOT RUN** in this connector environment. Real seat0/Sharing-ON/native R2
+Admission/frame/ACK/input/RandR/Stop/lock/logout/switch/reconnect remain
+**BLOCKED / NOT RUN**, requiring manual R9 exact-SHA candidate qualification
+and separate owner authorization. Next: current-main exact-SHA CI and
+native sanitizer receipts, then approved private procedure. See
+[Linux owner-private procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md).
+
 ## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
 
 **Audited base `c88dc60f9e218797ddcd640af6bba1693adca1d7`.** First-round R2-only correction: the existing

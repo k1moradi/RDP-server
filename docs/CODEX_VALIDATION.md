@@ -1,3 +1,24 @@
+## R5 direct-main owner-private Linux/X11 evidence reconciliation (2026-10-30)
+
+- Compared PR #39 head `e496230a269c87fac5f151ddbed38c44a3472273`
+  with subsequent main. The three evidence files and central CTest were missing;
+  the R5 native X11 45-case suite, reentrant Damage and synchronous XShm
+  callback-retirement coverage, and R2 consent-epoch work had landed independently.
+- New offline validation records independently the owner-grant and R2-bound
+  consent epochs (including reconnect), rejects mismatches and allows
+  admission-before-capture with later Share/frame still **NOT_OBSERVED**.
+  The redactor exposes only typed stage outcomes and non-identifying booleans.
+- PR historical synthetic 15/15, former hosted 45/45 and R2 evidence are
+  **not** new-main receipts. Current publication-SHA full Debug/Release CTest
+  and native ASan/UBSan: **NOT RUN** in this environment; GitHub checkout
+  DNS resolution unavailable. The owner's 1060/1060 local CTest lacks a
+  recorded Git SHA and cannot be qualified against this publication.
+- Physical seat0, Sharing, native R2 Admission, first frame/ACK, XTEST,
+  RandR, Stop/lock/logout/switch/reconnect **BLOCKED / NOT RUN**; explicit
+  separate owner authorization and R9 exact-SHA candidate required.
+  Next gate: published-SHA hosted full/focused CTest, 45/45 ASan/UBSan,
+  then owner-only physical run following the private procedure.
+
 ## R1 Type-2/FIN source audit and post-Type-2 TCP reset test (2026-10-30)
 
 - Baseline: c88dc60f9e218797ddcd640af6bba1693adca1d7. Read all

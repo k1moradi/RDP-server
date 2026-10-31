@@ -1,3 +1,16 @@
+## R5 offline Linux X11 owner-private evidence contradiction CTest (2026-10-30)
+
+Run `linux.x11-owner-private-evidence-validation-denials` from the one shared
+CTest registry, using only the Python standard library and bounded synthetic
+scalar fixtures. Deny frame-before-Share, ACK-without-frame, unverified
+Admission, R2-consent versus owner-grant mismatch on initial and reconnect,
+locked/stale seat0/UID, XTEST post-revocation, stale native/R2/RandR capture,
+unobserved-stage claims, duplicate/raw JSON keys and private-data publication.
+Also accept a legitimate R2 Admission observation before native capture exists.
+This is separate from the existing **45-case** X11 sanitizer selection, which
+must remain unchanged and run on the exact publication SHA. A PR green run or
+local unpinned total is **not** an exact-main PASS. No live seat0/XTEST/capture.
+
 ## R1 post-Type-2 abortive TCP reset negative gate (2026-10-30)
 
 The ordinary Linux production-backed

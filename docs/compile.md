@@ -1,3 +1,12 @@
+## R5 private evidence pin regression (2026-10-31)
+
+Existing Python3/CTest registers the offline behavior
+`linux.x11-owner-private-evidence-independent-connection-pinning-denials`.
+Run `ctest --test-dir build -C Debug -R '^linux[.]x11-owner-private-evidence-independent-connection-pinning-denials$' --output-on-failure`,
+then the full CTest and unchanged R5 native 45-case sanitizers on
+the exact published SHA. No X11, service or physical owner operations.
+Connector-local build/CTest NOT RUN; hosted exact-SHA CI PENDING.
+
 ## R7 QColorSpace provenance CTest interpreter correction (2026-10-31)
 
 The existing `find_package(Python3 REQUIRED COMPONENTS Interpreter)` now

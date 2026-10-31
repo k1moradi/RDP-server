@@ -1,3 +1,13 @@
+## R5 independent accepted-client and consent evidence (2026-10-31)
+
+The closed Linux v2 owner-private stage provenance is checked against
+independent bounded R9/R10/owner pins before acceptance redaction: nominated
+source SHA, initial/reconnect R10 connection IDs and owner-grant epochs.
+An internally consistent relabel with the same Linux session and native
+generation scalars is not proof of identical accepted ownership. Never
+treat any pinned scalar as R2 authority or R4 frame ACK, and never
+emit raw identifiers or secrets in the redacted projection.
+
 ## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
 
 The sole R2 `MacConsoleAdmissionBroker` enrolls R3 for terminal teardown before

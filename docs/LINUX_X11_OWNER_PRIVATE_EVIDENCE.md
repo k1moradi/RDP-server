@@ -131,6 +131,65 @@ unrelated client/server attempts. Use separate records for separate Stop,
 lock, logout and switch-user runs. No steps above were executed during
 round-one preparation.
 
+## Independently pinned accepted connection and owner grant
+
+The closed private v2 manifest checks stage attempt IDs and consent epochs,
+but cannot detect a *whole* internally consistent relabeling to a different
+R10 accepted client or an independently incorrect owner epoch. Privately
+copy **separate** R9 nominated source SHA, R10 accepted-client ID for each
+attempt and owner sharing-grant generation, rather than copying these from
+the manifest being validated. A matching native logind session number does
+not establish that the accepted connection is the same. An R10 client ID
+is scoped to its actual process/listener lifetime: record listener
+Stop/replacement separately and do not infer uniqueness across restarts.
+
+The required independent local-only pins file is closed and bounded to
+4 KiB. Example fields and values are **synthetic**, not acceptance evidence:
+
+```json
+{
+  "schema": "rdp-server.linux-x11-owner-evidence-pins.v1",
+  "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "accepted_client_id": 100,
+  "owner_consent_generation": 10,
+  "reconnect_accepted_client_id": 101,
+  "reconnect_owner_consent_generation": 11
+}
+```
+
+Use JSON `null` for genuinely unobserved initial/reconnect fields. Both
+files remain private (mode 0600); no client ID, consent generation, source
+SHA, usernames, addresses, audit IDs, XIDs, pixels or input payloads enter
+the public output. The independent receipts help detect accidental
+cross-connection and cross-epoch splices, but cannot cryptographically
+attest a handwritten manifest or authorize an R2 lease.
+
+## R10 borrowed-X11 teardown and positive frame handoff
+
+On the serialized owner thread, revoke owner authority before further
+network or native operations; retire the R8 clipboard first, then
+`X11DesktopResources::retireAfterAuthorizationLoss()` so held XTEST
+keys/buttons are cleared **without** releases into a replaced session.
+Retire input, optional XI2 pointer observer, XDamage, XShm and cursor
+children before the sole XCB connection; only then release the
+R3/R2/authentication aggregate and sole R1 TLS socket, followed by the
+listener. A graceful held-input release is permissible only while native
+authorization is still current. Never retain borrowed pixel spans or
+XCB event references across callback return. Replacement must create
+a fresh R2 lease and capture generation.
+
+For a real accepted Linux frame, separately correlate source SHA, exact
+R10 accepted connection, CredentialsVerified, current R2 seat0 owner
+and explicit consent epoch, R3 Share and joined graphics DVC,
+CREATE_SURFACE/MAP_SURFACE_TO_OUTPUT accepted-byte receipts,
+current XShm geometry/capture generation, complete R1 frame delivery and
+the matching current-generation R4 FRAME_ACK. R10's
+`DesktopVisible` after completing the write is not sufficient for
+client-visible acceptance without the matching ACK. Prove a new
+post-RandR frame/ACK, zero input/frame publication after revocation,
+and a fresh owner on reconnect. Missing evidence is NOT_OBSERVED;
+physical owner testing is still unauthorized.
+
 ## v2 manifest contract
 
 The standalone validator is `scripts/linux_x11_owner_evidence.py`.
@@ -213,7 +272,7 @@ Run **offline only**, with a private input file restricted to the owner:
 
 ```sh
 umask 077
-python3 scripts/linux_x11_owner_evidence.py --input /private/path/attempt.json > /private/path/redacted.json
+python3 scripts/linux_x11_owner_evidence.py --input /private/path/attempt.json --pins /private/path/independent-pins.json > /private/path/redacted.json
 python3 tests/test_linux_x11_owner_evidence.py --script scripts/linux_x11_owner_evidence.py
 ```
 

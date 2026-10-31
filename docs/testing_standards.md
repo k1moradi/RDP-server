@@ -1,3 +1,13 @@
+## R5 independent owner-private connection/consent negative gate (2026-10-31)
+
+Register `linux.x11-owner-private-evidence-independent-connection-pinning-denials`
+as an ordinary production-validator CTest using the shared Python fixture.
+It must deny whole-initial/reconnect coherent attempt-ID relabels,
+mismatched nominated SHA/consent, missing pins and extra fields, while
+redacting output. Keep the private v2/public v1 schema unchanged and
+the native R5 45-case sanitizer census fixed. Offline PASS does not
+prove physical Admission, first frame or XTEST operation.
+
 ## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
 
 Three production-linked offline CTests cover missing genuine R1 TLS, stale

@@ -24,6 +24,8 @@ ADDITIONAL_STAGES = ("keyboard_dispatch", "mouse_dispatch", "randr_replacement")
 RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphics_ready", "first_frame", "matching_ack")
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
+MAXIMUM_PIN_BYTES = 4096
+PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v1"
 NATIVE_ADMISSION_PRODUCER = "linux-console-admission-broker"
 PROVENANCE_FIELDS = (
     "attempt_id", "credentials_verified_attempt_id",
@@ -367,6 +369,53 @@ def validate(record):
     }
 
 
+def validate_independent_pins(record, pins):
+    """Reject internally consistent manifests spliced from another connection.
+
+    Pins must be copied independently from R9, R10 and owner grant receipts.
+    They are evidence only; they never create native R2 authority.
+    """
+    require_fields(pins, (
+        "schema", "source_sha", "accepted_client_id", "owner_consent_generation",
+        "reconnect_accepted_client_id", "reconnect_owner_consent_generation",
+    ), "pins")
+    if pins["schema"] != PIN_SCHEMA:
+        raise EvidenceError("unsupported independent pin schema")
+    if (type(pins["source_sha"]) is not str or
+            not re.fullmatch(r"[0-9a-fA-F]{40}", pins["source_sha"]) or
+            pins["source_sha"].lower() != record["source_sha"].lower()):
+        raise EvidenceError("source SHA differs from independent nomination")
+
+    initial_client = require_generation(
+        pins["accepted_client_id"], "pins.accepted_client_id", nullable=True)
+    initial_consent = require_generation(
+        pins["owner_consent_generation"], "pins.owner_consent_generation",
+        nullable=True)
+    if initial_client != record["provenance"]["attempt_id"]:
+        raise EvidenceError("initial attempt differs from independent R10 connection")
+    if initial_consent != record["sharing"]["consent_generation"]:
+        raise EvidenceError("initial consent differs from independent owner grant")
+
+    reconnect_client = require_generation(
+        pins["reconnect_accepted_client_id"],
+        "pins.reconnect_accepted_client_id", nullable=True)
+    reconnect_consent = require_generation(
+        pins["reconnect_owner_consent_generation"],
+        "pins.reconnect_owner_consent_generation", nullable=True)
+    if reconnect_client != record["reconnect"]["provenance"]["attempt_id"]:
+        raise EvidenceError("reconnect attempt differs from independent R10 connection")
+    if reconnect_consent != record["reconnect"]["consent_generation"]:
+        raise EvidenceError("reconnect consent differs from independent owner grant")
+
+
+def read_bounded_json(path, maximum_bytes):
+    with path.open("rb") as source:
+        data = source.read(maximum_bytes + 1)
+    if len(data) > maximum_bytes:
+        raise EvidenceError("private JSON exceeds size limit")
+    return json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicate_keys)
+
+
 def reject_duplicate_keys(pairs):
     result = {}
     for key, value in pairs:
@@ -379,14 +428,14 @@ def reject_duplicate_keys(pairs):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, type=Path, help="owner-private JSON file (never uploaded)")
+    parser.add_argument("--pins", required=True, type=Path,
+                        help="independent R9/R10/owner receipts (never uploaded)")
     options = parser.parse_args(argv)
     try:
-        with options.input.open("rb") as source:
-            data = source.read(MAXIMUM_MANIFEST_BYTES + 1)
-        if len(data) > MAXIMUM_MANIFEST_BYTES:
-            raise EvidenceError("private record exceeds size limit")
-        record = json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicate_keys)
+        record = read_bounded_json(options.input, MAXIMUM_MANIFEST_BYTES)
+        pins = read_bounded_json(options.pins, MAXIMUM_PIN_BYTES)
         redacted = validate(record)
+        validate_independent_pins(record, pins)
     except (OSError, UnicodeError, json.JSONDecodeError, RecursionError, EvidenceError) as error:
         # Do not echo paths or untrusted record values to stderr.
         if isinstance(error, EvidenceError):

@@ -1,3 +1,21 @@
+## R5 independently pinned Linux connection and consent audit (2026-10-31)
+
+- R5 X11 capture/input/retirement, R2 native visitor, R10 frame service,
+  closed v2 validator, and both prior owner-private CTests inspected.
+  Whole-attempt ID and owner-grant relabeling could pass v2's internal
+  consistency checks with the same underlying Linux session number.
+- Added independent private 4-KiB closed R9/R10/owner pins input to
+  the existing validator CLI; exact source SHA, initial/reconnect
+  accepted-client ID and grant epoch must match the unchanged v2
+  private manifest. Public v1 redaction remains unchanged.
+  Dedicated offline `linux.x11-owner-private-evidence-independent-connection-pinning-denials`
+  CTest is outside the unchanged R5 45-case native sanitizer selector.
+- No R5 X11 or R1/R2/R3/R4/R10 production code changes. Write-complete
+  frame is not a matching FRAME_ACK. Connector-local canonical compile,
+  focused/full CTest and sanitizers NOT RUN; hosted exact-SHA CI PENDING;
+  physical Linux seat0/client/capture/XTEST NOT RUN / unauthorized.
+  Next gate: exact-SHA full CI, 45/45, R9 nomination and owner permission.
+
 ## R2 macOS protected R1-to-R3 issuer increment (2026-10-31)
 
 Source/CTest authored against parent `7032eef4d41c9c224be9a99aa2d19424746a1842` via GitHub connector.

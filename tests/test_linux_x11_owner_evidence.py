@@ -66,6 +66,17 @@ def admitted_attempt(evidence):
     }
 
 
+def independent_pins(evidence):
+    return {
+        "schema": evidence.PIN_SCHEMA,
+        "source_sha": "a" * 40,
+        "accepted_client_id": 100,
+        "owner_consent_generation": 10,
+        "reconnect_accepted_client_id": 101,
+        "reconnect_owner_consent_generation": 11,
+    }
+
+
 class LinuxX11OwnerEvidenceTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -276,17 +287,84 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         self.assertEqual(public["stages"]["native_admission"], "NOT_OBSERVED")
         self.assertEqual(public["input_after_revocation"], "NOT_OBSERVED")
 
+    def test_independent_connection_pinning_denials(self):
+        pins = independent_pins(self.evidence)
+        self.evidence.validate_independent_pins(self.record, pins)
+
+        # All v2 stage IDs can be coherently relabeled to a different R10
+        # accepted connection while native session and grant scalars match.
+        for provenance in ("provenance", "reconnect"):
+            crossed = copy.deepcopy(self.record)
+            fields = (crossed["provenance"] if provenance == "provenance"
+                      else crossed["reconnect"]["provenance"])
+            for field, value in fields.items():
+                if (field == "attempt_id" or field.endswith("_attempt_id")) and value is not None:
+                    fields[field] = 777 if provenance == "provenance" else 888
+            self.evidence.validate(crossed)
+            with self.assertRaises(self.evidence.EvidenceError):
+                self.evidence.validate_independent_pins(crossed, pins)
+
+        for field, changed_value in (
+            ("source_sha", "b" * 40),
+            ("accepted_client_id", 777),
+            ("owner_consent_generation", 9),
+            ("reconnect_accepted_client_id", 888),
+            ("reconnect_owner_consent_generation", 15),
+        ):
+            with self.subTest(field=field):
+                changed = copy.deepcopy(pins)
+                changed[field] = changed_value
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(self.record, changed)
+
+        for field in ("accepted_client_id", "reconnect_accepted_client_id",
+                      "owner_consent_generation", "reconnect_owner_consent_generation"):
+            with self.subTest(missing=field):
+                changed = copy.deepcopy(pins)
+                changed[field] = None
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(self.record, changed)
+
+        changed = copy.deepcopy(pins)
+        changed["accepted_client_id"] = True
+        with self.assertRaises(self.evidence.EvidenceError):
+            self.evidence.validate_independent_pins(self.record, changed)
+        changed = copy.deepcopy(pins)
+        changed["username"] = "PRIVATE_SENTINEL"
+        with self.assertRaises(self.evidence.EvidenceError):
+            self.evidence.validate_independent_pins(self.record, changed)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "private.json"
+            pin_file = Path(temporary) / "independent.json"
+            source.write_text(json.dumps(self.record), encoding="utf-8")
+            pin_file.write_text(json.dumps(pins), encoding="utf-8")
+            command = [sys.executable, str(self.script), "--input", str(source),
+                       "--pins", str(pin_file)]
+            accepted = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            self.assertNotIn("accepted_client_id", accepted.stdout)
+            changed = copy.deepcopy(pins)
+            changed["accepted_client_id"] = 777
+            pin_file.write_text(json.dumps(changed), encoding="utf-8")
+            rejected = subprocess.run(command, capture_output=True, text=True, check=False)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertEqual(rejected.stdout, "")
+            self.assertNotIn("777", rejected.stderr)
+
     def test_cli_denies_duplicate_keys_and_never_echoes_private_values(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / "private.json"
+            pin_file = Path(temporary) / "pins.json"
+            pin_file.write_text(json.dumps(independent_pins(self.evidence)), encoding="utf-8")
+            command = [sys.executable, str(self.script), "--input", str(source),
+                       "--pins", str(pin_file)]
             source.write_text('{"password":"SECRETPAYLOAD", "password":"again"}', encoding="utf-8")
-            result = subprocess.run([sys.executable, str(self.script), "--input", str(source)],
-                                    capture_output=True, text=True, check=False)
+            result = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("SECRETPAYLOAD", result.stderr + result.stdout)
             source.write_text(json.dumps(self.record), encoding="utf-8")
-            accepted = subprocess.run([sys.executable, str(self.script), "--input", str(source)],
-                                      capture_output=True, text=True, check=False)
+            accepted = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(accepted.returncode, 0, accepted.stderr)
             self.assertEqual(json.loads(accepted.stdout)["schema"], self.evidence.PUBLIC_SCHEMA)
             self.assertNotIn("Windows App", accepted.stdout)

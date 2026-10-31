@@ -127,6 +127,33 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 ## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
 
+**Agent 5 independently pinned evidence audit (2026-10-31):** The
+closed private v2 manifest validates stage-local accepted-client attempt
+IDs, owner-consent and R2 generation equality, frame/ACK capture generations,
+and fresh reconnect. A coherent whole-attempt relabel or changed consent
+epoch could nevertheless pass internal tests even when the real accepted
+R10 client differs while Linux session number remains the same. The offline
+validator CLI now requires a separate closed 4-KiB pins file with
+independently copied R9 exact SHA, R10 initial/reconnect client IDs and
+owner grant epochs, rejecting such splices without changing private v2 or
+public v1 manifest schemas. Dedicated ordinary offline CTest
+`linux.x11-owner-private-evidence-independent-connection-pinning-denials`
+remains outside the fixed native 45-case ASan/UBSan selector.
+
+R5 native source already enforces capture-generation retirement, callbacks
+fenced after XShm borrow, queued XDamage/RandR replacement, and suppressing
+XTEST held-state loss; no duplicate native fix or new owner is justified.
+R10's frame-write completion is not a matching client R4 FRAME_ACK.
+Owner-only [Linux evidence procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md)
+specifies SHA, client, Admission, Share, CREATE/MAP, frame/ACK, input, resize,
+reconnect and resource teardown. The independent pins can detect accidental
+mixing, not cryptographically certify copied evidence or mint R2 authority.
+Canonical local/focused/full CTest, 45-case sanitizer and exact-head hosted
+CI **NOT RUN/PENDING**; physical seat0/client/capture/XTEST **NOT RUN /
+unauthorized**. Next: full exact-SHA hosted validation and manual R9
+candidate plus separate owner authorization.
+
+
 **Current R5 re-audit baseline:** `4a6594e29fd2554a2032d5721180782521390090`. The production Linux/X11 hot
 path remains correct after R2's original owner-grant epoch hardening and needs
 no R5 mutation. R10 authorizes current PersonalDesktop application traffic

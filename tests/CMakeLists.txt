@@ -1905,6 +1905,18 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;credssp;admission;offline"
                 TIMEOUT 20)
 
+        # R10 first-MCS sequencing regression: after protected R1 completion,
+        # positive partial plaintext must retire with R2/R3 on owner Stop.
+        add_test(
+            NAME security.macos-protected-first-mcs-partial-read-stop-retirement
+            COMMAND "${test_target}"
+                "macos-protected-first-mcs-partial-read-stop-retirement")
+        set_tests_properties(
+            security.macos-protected-first-mcs-partial-read-stop-retirement
+            PROPERTIES
+                LABELS "security;native-authorization;transport;tls;admission;offline"
+                TIMEOUT 20)
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(

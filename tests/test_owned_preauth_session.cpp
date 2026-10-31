@@ -8131,6 +8131,68 @@ void testMacProtectedCredSspTransportCompletionAndReceiptRetirement()
     }
 }
 
+// R10 now reads the first MCS TPKT only after protected R1 completion.
+// Exercise the uncovered stop boundary after positive partial plaintext
+// consumption while the remainder is still buffered in the same R1 SSL.
+void testMacProtectedFirstMcsPartialReadStopRetirement()
+{
+    using Outcome = TlsApplicationIoOutcome;
+
+    auto fixture = std::make_unique<MacProtectedTransportFixture>();
+    bufferMacProtectedCredSspAndFirstMcs(*fixture);
+    assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+    assert(fixture->broker.state() ==
+           MacConsoleAdmissionState::TransportAdmitted);
+    assert(fixture->connection.stage() ==
+           PreauthStage::AwaitMcsConnectInitial);
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+
+    const auto firstMcs = macProtectedHybridConnectInitial();
+    assert(firstMcs.size() > 9U);
+
+    std::array<std::uint8_t, 4> header{};
+    const auto headerRead =
+        fixture->connection.readTlsApplicationData(header);
+    assert(headerRead.outcome == Outcome::Progress);
+    assert(headerRead.bytes == header.size());
+    assert(std::equal(header.begin(), header.end(), firstMcs.begin()));
+    const std::size_t declaredBytes =
+        (static_cast<std::size_t>(header[2]) << 8U) |
+        static_cast<std::size_t>(header[3]);
+    assert(declaredBytes == firstMcs.size());
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->connection.tlsApplicationReadReady());
+
+    constexpr std::size_t kBodyPrefixBytes = 5U;
+    std::array<std::uint8_t, kBodyPrefixBytes> bodyPrefix{};
+    const auto bodyRead =
+        fixture->connection.readTlsApplicationData(bodyPrefix);
+    assert(bodyRead.outcome == Outcome::Progress);
+    assert(bodyRead.bytes == bodyPrefix.size());
+    assert(std::equal(
+        bodyPrefix.begin(), bodyPrefix.end(), firstMcs.begin() + 4));
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitVerifiedR2Admission);
+    assert(fixture->connection.tlsApplicationReadReady());
+
+    fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(!fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+    assert(!fixture->connection.active());
+    assert(!fixture->connection.tlsApplicationReadReady());
+
+    std::array<std::uint8_t, 1> late{};
+    const auto lateRead =
+        fixture->connection.readTlsApplicationData(late);
+    assert(lateRead.outcome == Outcome::TransportClosed);
+    assert(lateRead.bytes == 0U);
+}
+
 // Genuine accepted R1 HYBRID/TLS and one R2/R3 owner; the credentials and
 // native evidence remain deliberately synthetic, never product authority.
 void testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation()
@@ -12636,6 +12698,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testOwnedBufferedTlsCredSspThenMcsReadiness},
     {"macos-protected-credssp-transport-completion-receipt-retirement",
      &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
+    {"macos-protected-first-mcs-partial-read-stop-retirement",
+     &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-transport-admitted-clipboard-permission-denials",
      &testMacProtectedTransportClipboardPermissionDenials},
     {"macos-protected-admission-reprepare-premcs-audit-retirement",

@@ -1,3 +1,18 @@
+## R1/R10 partial first-MCS Stop retirement regression (2026-10-31)
+
+Dedicated production-backed offline CTest
+`security.macos-protected-first-mcs-partial-read-stop-retirement` closes the
+interleaving exposed by R10's landed first-MCS composition. It reuses the
+existing real accepted loopback R1 HYBRID/TLS owner and concrete macOS R2/R3
+broker, reaches `TransportAdmitted`, reads the exact four-byte TPKT header and
+five positive body bytes through the sole R1 TLS application reader with fresh
+R2 revalidation, then revokes owner consent before R3 receives a complete
+Connect-Initial. The remaining decrypted SSL plaintext must become unreadable,
+R3 must close, R1 must be inactive, and a late application read returns zero
+`TransportClosed` bytes. Synthetic authentication/native observations remain
+internal-only and do not certify a physical macOS Admission. This adds no
+second SSL reader, socket owner, timeout, TLS/certificate or NTLM change.
+
 ## R10 protected Erect composition gate (2026-10-31)
 
 The existing production-linked

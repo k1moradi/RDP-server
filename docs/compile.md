@@ -1,3 +1,17 @@
+## R1/R10 partial first-MCS Stop regression build scope (2026-10-31)
+
+The new
+`security.macos-protected-first-mcs-partial-read-stop-retirement` behavior
+reuses `test_owned_preauth_session`, `rdp-server-runtime-tls` and the existing
+macOS admission target. It adds no production target, dependency, listener,
+worker, build root or native permission. Run it in the sole
+`~/rdp-server/build/` root, then full Debug CTest; keep it outside fixed
+sanitizer-count inventories unless R9 explicitly enrolls it. Connector-local
+configure/build/CTest is **NOT RUN**. Existing descendant `9403bdc5` macOS
+protocol/full CTest and R9 sanitizer jobs are **PASS** for the landed first-MCS
+R10/R2 dependencies; R10 `9b1861ec` Erect composition and this new behavior
+still require their own publication-SHA CI.
+
 ## R10 macOS protected Erect continuation build boundary (2026-10-31)
 
 No target, dependency, worker or transport owner is added. The existing

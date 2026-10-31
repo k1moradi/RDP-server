@@ -1,3 +1,31 @@
+## R1 review after R10 macOS first-MCS/Erect integration (2026-10-31)
+
+Authoring parent `9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e`. R10
+`00b4ecc41cb73e892115b66ed88dfb6afb937ddd` resolved the prior
+first-MCS/Connect-Response production-composition dependency, and
+`9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e` now continues through
+protected Erect Domain. Both use the serialized HostControl's one R3 session,
+original R1 SSL/BIO reader-writer, fixed bounded TPKT buffer and fresh R2
+revalidation. Source audit found no second socket/SSL reader, duplicate
+accepted owner or blocking poll; Erect adds no reply/write path.
+
+One uncovered transport interleaving remained from the first-MCS handoff:
+positive partial plaintext after `TransportAdmitted`, followed by owner Stop
+before complete R3 Connect-Initial. Add ordinary production-backed offline
+CTest `security.macos-protected-first-mcs-partial-read-stop-retirement`; it
+reads the four-byte TPKT header plus five body bytes from already-decrypted R1
+plaintext, revalidates R2 around each read, then requires Stop to close R3/R1
+and make the remaining SSL plaintext unavailable. No production R1/R10 code,
+NTLM flags, TLS versions, certificate policy, timeout or scheduling changes.
+
+Independent descendant `9403bdc5351eeb43fbd66c543d9e512c621ec88a`
+Actions `41216913165` has macOS protocol **PASS**, including
+`runtime.macos-host-control-first-mcs-without-native-issuer-dormancy` and
+`security.macos-protected-credssp-transport-completion-receipt-retirement`,
+and its R9 sanitizer job **PASS**. Connector-local compile/focused/full CTest
+for the newly added behavior is **NOT RUN**; publication-SHA hosted CI is
+**PENDING**. Physical native macOS admission/client evidence remains NOT RUN.
+
 ## R10 review: first-MCS/Connect-Response retained; Erect integrated (2026-10-31)
 
 Reviewed current descendant `005ba9de48a987eb415be5ac792a239403cfdfa0`.

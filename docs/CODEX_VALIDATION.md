@@ -1,3 +1,36 @@
+## R8 clipboard authority/finalization audit — X11 callback source fence (2026-10-30)
+
+- Authoring parent: `67f11aafb7825bb02e55084bd29415164ac7bccc`; concurrent R4/R5/R7 work is retained.
+- **R3/R2 route audit PASS by inspection:** every R8 bridge dispatch/queue is
+  preceded by the protected current-route visit; route generation, reply/slice
+  receipts and local source generation invalidate stale observations. No
+  Clipboard Enabled projection was found; Linux production activation remains
+  `kLinuxProductionClipboardActivationApproved = false`.
+- **Distinct gap found:** X11 native owner/property callbacks could synchronously
+  retire and replace `RemoteTransfer` while reusing the same numeric clipboard
+  generation. The adapter could then commit native ownership, emit direct
+  property success or retain/advance an INCR span for the retired source epoch.
+- Correction revalidates generation + monotonic source epoch + X11 ownership
+  epoch after owner/property callbacks, withdraws stale properties/ownership,
+  restores INCR event masks and never advances stale INCR progress.
+- New ordinary production-backed CTest:
+  `clipboard.x11-native-callback-source-retirement`. It is intentionally
+  outside the fixed clipboard label census and is executed separately under the
+  existing sanitizer build. The inherited `b76f629...` baseline remains
+  **107/107 clipboard + 1/1 combined native finalization PASS**; this publication
+  must revalidate those unchanged selectors plus the new exact-name test.
+- macOS/Windows write/resize/flush/close callback fences are unchanged. Linux
+  file materialization remains direct thread-affine `pwrite`/resize/fsync/close
+  with exact source checks; no injected-callback assumption was added.
+- FileContents audit retained the 64 KiB RANGE ceiling, checked offset/size
+  arithmetic, monotonic nonrecycled stream/receipt identities, metadata-only
+  FILEDESCRIPTORW names/hierarchy, cancellation and caller-selected local path
+  ownership. Remote names still grant no filesystem path authority.
+- Local canonical configure/build/full CTest, ASan/UBSan and benchmark:
+  **NOT RUN** in this connector environment. Exact-publication-SHA hosted
+  structure/full/sanitizer: **PENDING**. Live clipboard, file creation, browser
+  paste, file manager and physical clients: **NOT RUN / unauthorized**.
+
 ## R5 Linux/X11 generation-safety and producer-provenance re-audit (2026-10-30)
 
 - Authoring parent: `4a6594e29fd2554a2032d5721180782521390090`. Source audit **PASS by inspection**: R10 performs fresh R2 application-traffic authorization before X11 event service and again before input/frame work; R2 revalidation includes the exact prepared owner-consent epoch; per-event input dispatch reauthorizes immediately before the native sink; R5 post-callback capture/geometry checks remain intact. No production X11 change is justified.

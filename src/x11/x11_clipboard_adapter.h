@@ -236,6 +236,9 @@ private:
     makeXcbOperations(xcb_connection_t &connection) noexcept;
     [[nodiscard]] bool nativeOperationsValid() const noexcept;
     [[nodiscard]] bool currentPublicationValid() const noexcept;
+    [[nodiscard]] bool publicationStillCurrent(
+        std::uint64_t generation, std::uint64_t sourceEpoch,
+        std::uint64_t ownershipEpoch) const noexcept;
     [[nodiscard]] bool fileHandoffAvailable() const noexcept;
     [[nodiscard]] bool remoteTextOffered() const noexcept;
     [[nodiscard]] std::uint32_t remotePngFormatId() const noexcept;

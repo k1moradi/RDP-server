@@ -4610,6 +4610,15 @@ if(TARGET rdp-server-linux-x11-clipboard)
         clipboard.x11-selection-ownership-generation
         PROPERTIES LABELS "protocol;clipboard;x11;linux-adapter;native;offline")
 
+    # Callback-time retirement is ordinary production-backed coverage but stays
+    # outside the fixed 107-case clipboard label census.
+    add_test(NAME clipboard.x11-native-callback-source-retirement
+        COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
+            x11-native-callback-source-retirement)
+    set_tests_properties(
+        clipboard.x11-native-callback-source-retirement PROPERTIES
+        LABELS "protocol;x11;linux-adapter;native;terminalization;offline")
+
     add_test(NAME runtime.clipboard-x11-restart-incr-isolation
         COMMAND $<TARGET_FILE:test_x11_clipboard_adapter>
             x11-disconnect-restart-stale-incr-isolation)

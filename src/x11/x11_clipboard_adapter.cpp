@@ -456,6 +456,18 @@ X11ClipboardAdapter::lastOwnershipTransitionSource() const noexcept
 }
 
 bool
+X11ClipboardAdapter::publicationStillCurrent(
+    const std::uint64_t generation, const std::uint64_t sourceEpoch,
+    const std::uint64_t ownershipEpoch) const noexcept
+{
+    return generation != 0U && sourceEpoch != 0U && ownershipEpoch != 0U &&
+           currentPublicationValid() &&
+           publicationGeneration_ == generation &&
+           publicationSourceEpoch_ == sourceEpoch &&
+           ownershipEpoch_ == ownershipEpoch;
+}
+
+bool
 X11ClipboardAdapter::fileHandoffAvailable() const noexcept
 {
     return fileUriListLength_ != 0U &&
@@ -684,12 +696,34 @@ X11ClipboardAdapter::publishCurrentRemoteOffer(
         return false;
     }
 
+    const auto sourceStillCurrent = [this, generation, sourceEpoch]() noexcept
+    {
+        return remoteTransfer_.synchronized() &&
+               remoteTransfer_.generation() == generation &&
+               remoteTransfer_.sourceEpoch() == sourceEpoch;
+    };
+
     lastOwnershipTransitionSource_ = Source::SelfGeneratedNativeTransition;
     if (!nativeOperations_.setSelectionOwner(
-            nativeOperations_.context, ownerWindow_, atoms_.clipboard) ||
-        nativeOperations_.selectionOwner(
-            nativeOperations_.context, atoms_.clipboard) != ownerWindow_)
+            nativeOperations_.context, ownerWindow_, atoms_.clipboard))
     {
+        ownsClipboard_ = false;
+        clearPublicationState();
+        return false;
+    }
+
+    const xcb_window_t nativeOwner = nativeOperations_.selectionOwner(
+        nativeOperations_.context, atoms_.clipboard);
+    if (nativeOwner != ownerWindow_ || !sourceStillCurrent())
+    {
+        // The native claim is synchronous but may invoke an injected owner
+        // callback. A same-number replacement source cannot inherit this X11
+        // ownership transition.
+        if (nativeOwner == ownerWindow_)
+        {
+            (void)nativeOperations_.setSelectionOwner(
+                nativeOperations_.context, XCB_WINDOW_NONE, atoms_.clipboard);
+        }
         ownsClipboard_ = false;
         clearPublicationState();
         return false;
@@ -1046,10 +1080,21 @@ X11ClipboardAdapter::beginIncrTransfer(
         return sendFailureNotify(request);
     }
 
+    const std::uint64_t generation = publicationGeneration_;
+    const std::uint64_t sourceEpoch = publicationSourceEpoch_;
+    const std::uint64_t ownershipEpoch = ownershipEpoch_;
+
     std::uint32_t previousEventMask = 0;
     if (!nativeOperations_.selectTransferEvents(
             nativeOperations_.context, request.requestor, previousEventMask))
     {
+        return sendFailureNotify(request);
+    }
+    if (!publicationStillCurrent(generation, sourceEpoch, ownershipEpoch))
+    {
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, request.requestor, previousEventMask);
+        releaseNativeOwnership();
         return sendFailureNotify(request);
     }
 
@@ -1064,12 +1109,32 @@ X11ClipboardAdapter::beginIncrTransfer(
             nativeOperations_.context, request.requestor, previousEventMask);
         return sendFailureNotify(request);
     }
+    if (!publicationStillCurrent(generation, sourceEpoch, ownershipEpoch))
+    {
+        (void)nativeOperations_.deleteProperty(
+            nativeOperations_.context, request.requestor, property);
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, request.requestor, previousEventMask);
+        releaseNativeOwnership();
+        return sendFailureNotify(request);
+    }
     if (!sendNotify(request, property))
     {
         (void)nativeOperations_.deleteProperty(
             nativeOperations_.context, request.requestor, property);
         (void)nativeOperations_.restoreEventMask(
             nativeOperations_.context, request.requestor, previousEventMask);
+        return false;
+    }
+    if (!publicationStillCurrent(generation, sourceEpoch, ownershipEpoch))
+    {
+        // The success notification is already committed to X11 and cannot be
+        // retracted. Do not retain its borrowed source span after retirement.
+        (void)nativeOperations_.deleteProperty(
+            nativeOperations_.context, request.requestor, property);
+        (void)nativeOperations_.restoreEventMask(
+            nativeOperations_.context, request.requestor, previousEventMask);
+        releaseNativeOwnership();
         return false;
     }
 
@@ -1080,9 +1145,9 @@ X11ClipboardAdapter::beginIncrTransfer(
     incr_.offset = 0;
     incr_.previousEventMask = previousEventMask;
     incr_.deadline = now + kIncrTimeout;
-    incr_.publicationGeneration = publicationGeneration_;
-    incr_.publicationSourceEpoch = publicationSourceEpoch_;
-    incr_.ownershipEpoch = ownershipEpoch_;
+    incr_.publicationGeneration = generation;
+    incr_.publicationSourceEpoch = sourceEpoch;
+    incr_.ownershipEpoch = ownershipEpoch;
     incr_.active = true;
     return true;
 }
@@ -1124,6 +1189,9 @@ X11ClipboardAdapter::handlePropertyNotify(
 
     if (incr_.offset < incr_.bytes.size())
     {
+        const std::uint64_t generation = incr_.publicationGeneration;
+        const std::uint64_t sourceEpoch = incr_.publicationSourceEpoch;
+        const std::uint64_t ownershipEpoch = incr_.ownershipEpoch;
         const std::size_t remaining = incr_.bytes.size() - incr_.offset;
         const std::size_t chunkBytes =
             (std::min)(remaining, kIncrChunkBytes);
@@ -1135,16 +1203,45 @@ X11ClipboardAdapter::handlePropertyNotify(
             cancelIncrTransfer(false, true);
             return;
         }
+        if (!incr_.active ||
+            !publicationStillCurrent(generation, sourceEpoch, ownershipEpoch) ||
+            incr_.publicationGeneration != generation ||
+            incr_.publicationSourceEpoch != sourceEpoch ||
+            incr_.ownershipEpoch != ownershipEpoch)
+        {
+            if (incr_.active)
+            {
+                cancelIncrTransfer(false, true);
+            }
+            releaseNativeOwnership();
+            return;
+        }
         incr_.offset += chunkBytes;
         incr_.deadline = now + kIncrTimeout;
         return;
     }
 
+    const std::uint64_t generation = incr_.publicationGeneration;
+    const std::uint64_t sourceEpoch = incr_.publicationSourceEpoch;
+    const std::uint64_t ownershipEpoch = incr_.ownershipEpoch;
     if (!nativeOperations_.changeProperty(
             nativeOperations_.context, incr_.request.requestor,
             incr_.property, incr_.propertyType, 8, {}))
     {
         cancelIncrTransfer(false, true);
+        return;
+    }
+    if (!incr_.active ||
+        !publicationStillCurrent(generation, sourceEpoch, ownershipEpoch) ||
+        incr_.publicationGeneration != generation ||
+        incr_.publicationSourceEpoch != sourceEpoch ||
+        incr_.ownershipEpoch != ownershipEpoch)
+    {
+        if (incr_.active)
+        {
+            cancelIncrTransfer(false, true);
+        }
+        releaseNativeOwnership();
         return;
     }
     cancelIncrTransfer(false, false);
@@ -1195,10 +1292,27 @@ X11ClipboardAdapter::publishPropertyAndNotify(
     std::span<const std::byte> bytes) noexcept
 {
     if (bytes.size() > kMaximumDirectPropertyBytes ||
-        !nativeOperations_.changeProperty(
+        !currentPublicationValid())
+    {
+        return sendFailureNotify(request);
+    }
+
+    const std::uint64_t generation = publicationGeneration_;
+    const std::uint64_t sourceEpoch = publicationSourceEpoch_;
+    const std::uint64_t ownershipEpoch = ownershipEpoch_;
+    if (!nativeOperations_.changeProperty(
             nativeOperations_.context, request.requestor, property,
             propertyType, format, bytes))
     {
+        return sendFailureNotify(request);
+    }
+    if (!publicationStillCurrent(generation, sourceEpoch, ownershipEpoch))
+    {
+        // The property write consumed its borrowed bytes synchronously. Remove
+        // that stale publication before emitting an X11 success notification.
+        (void)nativeOperations_.deleteProperty(
+            nativeOperations_.context, request.requestor, property);
+        releaseNativeOwnership();
         return sendFailureNotify(request);
     }
     return sendNotify(request, property);

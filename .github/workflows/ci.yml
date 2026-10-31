@@ -1492,6 +1492,24 @@ jobs:
             -R '^clipboard\.file-destination-finalization-generation-replacement$' \
             --output-on-failure
 
+          # Callback-time X11 source retirement stays outside the fixed
+          # clipboard label census but still executes under ASan/UBSan.
+          x11_callback_tests="$(ctest --test-dir build --build-config Debug -N \
+            -R '^clipboard\.x11-native-callback-source-retirement$')"
+          printf '%s\n' "$x11_callback_tests"
+          grep -Fq 'clipboard.x11-native-callback-source-retirement' \
+            <<< "$x11_callback_tests"
+          x11_callback_test_count="$(awk '/^[[:space:]]*Test[[:space:]]+#[0-9]+:/ { ++count } END { print count + 0 }' \
+            <<< "$x11_callback_tests")"
+          if [[ "$x11_callback_test_count" -ne 1 ]]; then
+            printf 'R8 X11 callback-retirement registry mismatch: expected 1 test, found %s\n' \
+              "$x11_callback_test_count" >&2
+            exit 1
+          fi
+          ctest --test-dir build --build-config Debug --timeout 60 \
+            -R '^clipboard\.x11-native-callback-source-retirement$' \
+            --output-on-failure
+
       - name: Run R3 static CLIPRDR route CTests with sanitizers
         if: ${{ always() && steps.compile_protocol_tests.outcome == 'success' }}
         env:

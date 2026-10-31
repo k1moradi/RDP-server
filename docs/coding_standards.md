@@ -1,3 +1,23 @@
+## R8 X11 callback-time source retirement fence (2026-10-30)
+
+The X11 native-operation seam is synchronous. Treat `setSelectionOwner`,
+`selectTransferEvents` and `changeProperty` as callback-capable boundaries even
+though the production XCB implementation is thread-affine. Snapshot the exact
+`RemoteTransfer` generation/source epoch and X11 ownership epoch before a native
+publication call and revalidate them immediately after it. Numeric clipboard
+generation reuse is not authority: a replacement source with the same generation
+but a newer source epoch must withdraw the X11 owner/property and fail closed.
+
+Direct property publication must delete a property written for a retired source
+before sending success. INCR initialization must never retain a borrowed
+`RemoteTransfer` span after callback-time retirement; restore the requestor event
+mask and delete the transfer property. Every INCR chunk/terminator revalidates
+before advancing offset or completing. This is native presentation lifetime
+only and cannot create R2 admission, R3 Share/channel authority or Linux product
+activation. The Linux file destination remains a separate direct, thread-affine
+`pwrite` path with its existing pre-write source fence; do not impose injected
+macOS/Windows callback semantics on it.
+
 ## R10 macOS accepted-client pre-admission ownership (2026-10-30)
 
 The macOS HostControl service tick owns only the existing accepted R1 socket,

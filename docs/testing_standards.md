@@ -1,3 +1,22 @@
+## R8 X11 callback-time source replacement regression (2026-10-30)
+
+Register the production-backed offline behavior
+`clipboard.x11-native-callback-source-retirement` using the existing X11
+clipboard adapter executable and injected native operation table. Replace the
+R3 source synchronously during the native owner claim, direct property write,
+initial INCR marker and later INCR chunk, then re-offer the same numeric
+clipboard generation with a newer source epoch. The adapter must reject the
+claim/publication, delete stale properties, restore borrowed event masks and
+retain no INCR span or native ownership.
+
+Keep this test outside the fixed `clipboard` label selection so the qualified
+sanitizer census remains exactly **107**. Execute it separately by exact name
+under the same ASan/UBSan build, after the unchanged **107-case** selection and
+the unchanged one-case
+`clipboard.file-destination-finalization-generation-replacement` gate.
+Ordinary CTest remains synthetic: no DISPLAY/Xvfb, live clipboard, native file
+creation, browser paste or file-manager action.
+
 ## R4 fully delivered frame retirement-before-ACK offline gate (2026-10-30)
 
 Register `graphics.frame-delivery-session-retirement-before-ack` as one

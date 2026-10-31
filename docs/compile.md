@@ -1,3 +1,14 @@
+## R8 X11 callback-retirement build boundary (2026-10-30)
+
+The X11 callback-time source-retirement regression reuses the existing
+`rdp-server-linux-x11-clipboard` library and
+`test_x11_clipboard_adapter` executable. It adds no target, package, X server,
+native file, service, build root or installed SDK surface. Its durable labels
+exclude `clipboard`, preserving the fixed 107-case sanitizer census; CI runs
+the new behavior separately by exact name under the same sanitizer build while
+the existing combined native file-finalization CTest remains exactly one case.
+Use the canonical single `~/rdp-server/build/` root for owner execution.
+
 ## R7 QColorSpace provenance diagnostic build contract (2026-10-30)
 
 The QColorSpace investigation adds no production target, framework, platform

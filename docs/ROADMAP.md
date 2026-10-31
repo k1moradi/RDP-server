@@ -1,3 +1,43 @@
+## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
+
+**Audited base `c88dc60f9e218797ddcd640af6bba1693adca1d7`.** First-round R2-only correction: the existing
+`MacNativeDesktopAuthorization::visit()` previously stored its borrowed view
+against mutable grant evidence and could report success for a replacement grant
+created synchronously within the callback. It now snapshots evidence for the
+callback, compares the exact original authorization generation before and after
+the visitor/native sampling, denies the stale operation without clearing a new
+grant, and repeats the owner-consent epoch check after fresh native evidence.
+Dedicated ordinary offline production-backed CTest:
+`security.native-authorization-macos-standalone-reentrant-generation-denials`.
+No Linux broker, prepared consent-epoch/GSSAPI friend fixture, R1 transport,
+R3 wire/visibility, GUI or physical OS behavior is changed.
+
+**Exact missing private R3 integration:** at the audited base, the private
+`McsSessionLifecycle::onVerifiedR2ConnectInitial()` and admission-binding
+methods friend `LinuxConsoleAdmissionBroker`, not a macOS R2 issuer.
+Agent 3 must coordinate the narrow R3 friend/private gate before R2 can
+implement a protected macOS first-MCS and subsequent transition wrapper. R10
+must own one accepted R1 TLS/socket connection and synchronously borrow the
+real `StandalonePasswordAuthenticatedPrincipalProof` bound to that exact
+connection and credential generation; independent macOS native console/audit/
+Security-session evidence, lock/session-change revocation and fresh owner
+consent must be checked by R2. Only R2 may mint/retain private admission and
+session identity, invoke R3's private Connect-Initial and all subsequent R3
+semantic/accepted-byte receipt transitions, and terminally revoke on either
+pre/post callback authority loss. R10 receives a serialized permitted call
+graph, never an authorization bool or numeric generation capability.
+
+**Qualification:** source/contract/registry review only. Canonical owner
+`~/rdp-server/build` configure/build/focused/full Debug/Release CTest and
+ASan/UBSan **NOT RUN** in this connector environment (approved checkout absent).
+Same-SHA Linux/GCC, macOS/Clang, Windows/MSVC and R9 sanitizer evidence
+**PENDING**. Agent 3 private macOS R3 gate **UNAVAILABLE** at audited base;
+end-to-end macOS native Admission/MCS/Share/graphics/clipboard **BLOCKED /
+NOT RUN**. No physical test, listener or OS permission was exercised.
+**Next gate:** Agent 3 private interface review and direct-to-main integration,
+then exact-SHA CI/R9 and separately authorized owner-native acceptance.
+Benchmark **NOT RUN**.
+
 ## R7 callback-retirement exact-SHA qualification and current dependency audit (2026-10-30)
 
 **Qualified R7 implementation:** `34e508105d7f7f9f503d3d29475949269dd370cf`.

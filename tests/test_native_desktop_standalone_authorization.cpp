@@ -393,6 +393,210 @@ void testProvenanceAndRevocationDenials()
     }
 }
 
+
+// Offline-only macOS R2 visitor regression. Synthetic evidence cannot mint an
+// R3 native admission lease; these checks enforce the reusable R2 grant lifetime.
+class StandaloneMacFixture final
+{
+public:
+    StandaloneMacFixture()
+        : proof(credential),
+          authorization(proof, nativeEvidence, owner.authority)
+    {
+        std::array<char16_t, 8> password{
+            u'P', u'a', u's', u's', u'w', u'o', u'r', u'd'};
+        assert(credential.configure(u"Session", password));
+        const auto observation = credential.observation();
+        assert(observation.configured && observation.generation != 0U);
+        proof.bindCredentialGeneration(observation.generation);
+    }
+
+    [[nodiscard]] std::uint64_t bind(std::uint32_t permissions =
+                                      kConsoleViewPermission |
+                                          kConsoleInputPermission) noexcept
+    {
+        assert(authorization.bindAuthenticatedSession(permissions) ==
+               NativeDesktopAuthorizationBindResult::Bound);
+        const auto generation = authorization.authorizationGeneration();
+        assert(generation != 0U);
+        return generation;
+    }
+
+    OwnerFixture owner{};
+    StandalonePasswordCredentialOwner credential{};
+    FakeMacEvidenceSource nativeEvidence{};
+    FakeStandaloneAuthenticatedSessionProof proof;
+    MacNativeDesktopAuthorization authorization;
+};
+
+[[nodiscard]] bool acceptStandaloneMac(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void * /* context */) noexcept
+{
+    return true;
+}
+
+struct MacRevocationDuringVisit final
+{
+    OwnerFixture *owner{};
+    bool invoked{};
+};
+
+[[nodiscard]] bool revokeMacOwnerDuringVisit(
+    const MacNativeDesktopAuthorizationView & /* authorization */,
+    void *context) noexcept
+{
+    auto &mutation = *static_cast<MacRevocationDuringVisit *>(context);
+    mutation.invoked = true;
+    mutation.owner->authority.revoke(OwnerConsentRevocationReason::Stop);
+    return true;
+}
+
+struct MacGrantReplacementDuringVisit final
+{
+    StandaloneMacFixture *fixture{};
+    std::uint64_t originalGeneration{};
+    std::uint64_t replacementGeneration{};
+    bool viewStayedOnOriginalEvidence{};
+};
+
+[[nodiscard]] bool replaceMacGrantDuringVisit(
+    const MacNativeDesktopAuthorizationView &authorization,
+    void *context) noexcept
+{
+    auto &replacement = *static_cast<MacGrantReplacementDuringVisit *>(context);
+    const auto previousAuditSessionId = authorization.auditSessionId();
+
+    replacement.fixture->authorization.revoke();
+    ++replacement.fixture->nativeEvidence.evidence.auditSessionId;
+    assert(replacement.fixture->authorization.bindAuthenticatedSession(
+               kConsoleViewPermission | kConsoleInputPermission) ==
+           NativeDesktopAuthorizationBindResult::Bound);
+    replacement.replacementGeneration =
+        replacement.fixture->authorization.authorizationGeneration();
+    replacement.viewStayedOnOriginalEvidence =
+        authorization.auditSessionId() == previousAuditSessionId &&
+        authorization.authorizationGeneration() == replacement.originalGeneration &&
+        replacement.replacementGeneration != replacement.originalGeneration;
+    return true;
+}
+
+void testMacStandaloneReentrantGenerationDenials()
+{
+    {
+        StandaloneMacFixture fixture;
+        fixture.proof.credentialsVerified = false;
+        assert(fixture.authorization.bindAuthenticatedSession(
+                   kConsoleViewPermission) ==
+               NativeDesktopAuthorizationBindResult::
+                   AuthenticatedIdentityUnavailable);
+        assert(fixture.authorization.authorizationGeneration() == 0U);
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind(kConsoleViewPermission);
+        assert(!fixture.authorization.visit(
+            generation, kConsoleInputPermission, &acceptStandaloneMac, nullptr));
+        assert(fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.owner.grant(); // Same permission, different consent epoch.
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        ++fixture.proof.proofGeneration;
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        std::array<char16_t, 3> password{u'N', u'e', u'w'};
+        assert(fixture.credential.configure(u"Session", password));
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.proof.connectionCurrent = false; // Accepted R1 owner replaced.
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.proof.tlsConnectionCurrent = false; // TLS owner retired.
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    for (const auto reason : {
+             OwnerConsentRevocationReason::Stop,
+             OwnerConsentRevocationReason::Logout,
+             OwnerConsentRevocationReason::SessionReplacement})
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.owner.authority.revoke(reason);
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.owner.evidence.session.lockState = ConsoleDesktopLockState::Locked;
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        fixture.nativeEvidence.status = MacNativeSessionEvidenceStatus::Unavailable;
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        ++fixture.nativeEvidence.evidence.auditSessionId;
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        MacRevocationDuringVisit mutation{&fixture.owner};
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &revokeMacOwnerDuringVisit,
+            &mutation));
+        assert(mutation.invoked);
+        assert(fixture.authorization.authorizationGeneration() == 0U);
+    }
+    {
+        StandaloneMacFixture fixture;
+        const auto generation = fixture.bind();
+        MacGrantReplacementDuringVisit replacement{&fixture, generation};
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &replaceMacGrantDuringVisit,
+            &replacement));
+        assert(replacement.viewStayedOnOriginalEvidence);
+        assert(replacement.replacementGeneration != 0U);
+        assert(fixture.authorization.authorizationGeneration() ==
+               replacement.replacementGeneration);
+        assert(fixture.authorization.visit(
+            replacement.replacementGeneration, kConsoleViewPermission,
+            &acceptStandaloneMac, nullptr));
+        assert(!fixture.authorization.visit(
+            generation, kConsoleViewPermission, &acceptStandaloneMac, nullptr));
+    }
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -408,6 +612,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "standalone-provenance-and-revocation-denials")
     {
         testProvenanceAndRevocationDenials();
+        return 0;
+    }
+    if (testCase == "macos-standalone-reentrant-generation-denials")
+    {
+        testMacStandaloneReentrantGenerationDenials();
         return 0;
     }
     return 2;

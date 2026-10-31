@@ -1,3 +1,28 @@
+## R2 macOS authorization visitor reentrancy and original-grant lifetime (2026-10-30)
+
+The existing `MacNativeDesktopAuthorization` is R2's single grant owner, not
+an R3 admission token. `visit(expectedAuthorizationGeneration, permissions, ...)`
+must retain the original grant generation across native evidence sampling,
+the synchronous visitor and post-visitor revalidation. Native evidence exposed
+through `MacNativeDesktopAuthorizationView` is a callback-local snapshot,
+never a pointer to mutable grant storage that can be cleared or rebound inside
+the callback. A reentrant replacement may install a newer generation, but the
+older visit must return denial without revoking that newer grant. Reinspect
+the exact `CurrentOwnerSharingAuthority` epoch after native evidence reads,
+which can synchronously revoke consent. Generations, UIDs, TCC status and GUI
+Sharing are never standalone authority.
+
+The real `StandalonePasswordAuthenticatedPrincipalProof` derives its private
+authentication generation from the verified CredSSP acceptor, exact accepted
+`OwnedPreauthTcpConnection`/TLS owner and configured credential generation.
+No caller-supplied principal, credential bytes, generation or raw `SSL*`
+can replace it. Credential change, Stop, lock, logout, native session/owner
+replacement or listener/connection retirement must invalidate the R2 visit.
+Do not treat this narrower visitor hardening as macOS native Admission or R3
+integration: an Agent-3-reviewed private R3 gate and a concrete R10 owner for
+the accepted connection, independently verified native session/lock evidence
+and terminal revocation are still required.
+
 ## R1 OpenSSL typed-stack macro qualification (2026-10-30)
 
 OpenSSL's typed STACK_OF accessors such as `sk_GENERAL_NAME_num`,

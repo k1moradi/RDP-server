@@ -1,3 +1,19 @@
+## R2 macOS standalone original-generation visitor denials (2026-10-30)
+
+Ordinary offline CTest
+`security.native-authorization-macos-standalone-reentrant-generation-denials`
+reuses the production `MacNativeDesktopAuthorization`, real
+`CurrentOwnerSharingAuthority` and credential owner, and synthetic session
+and authentication evidence. It denies missing proof, wrong permissions,
+same-permission owner-consent epoch replacement, credential/proof generation
+change, accepted-connection/TLS retirement, Stop, lock, logout, native session
+replacement/unavailability and synchronous owner revocation inside the visitor.
+A reentrant revoke/rebind must leave the original borrowed view on its
+original evidence and generation, deny the old visit and preserve the separately
+valid new grant. It must run under ordinary Linux/macOS/Windows CTest, without
+physical OS admission, host TCC, credentials, listener or R3 positive lease.
+This is a security-negative gate only, not production macOS RDP acceptance.
+
 ## R1 OpenSSL 4.1 typed-stack compile regression (2026-10-30)
 
 The existing production-backed

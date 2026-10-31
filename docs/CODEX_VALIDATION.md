@@ -1,3 +1,23 @@
+## R2 macOS grant reentry hardening, R3 private-gate audit — 2026-10-30
+
+- Audited main base `c88dc60f9e218797ddcd640af6bba1693adca1d7` and existing R2 native authorization,
+  standalone credential proof, Linux R2 broker and R3 private-friend boundary.
+- R2 visitor now pins its original generation and callback-local evidence
+  across synchronous revocation/rebinding; consent epoch is checked after
+  the native evidence callback. A later independent grant is not retired by
+  the stale visitor.
+- Dedicated ordinary CTest:
+  `security.native-authorization-macos-standalone-reentrant-generation-denials`.
+  Production-backed R2 with synthetic fixtures; no native OS lease or R3
+  authority is manufactured.
+- Local canonical Debug/Release build, CTest and sanitizer: **NOT RUN** (no
+  approved checkout/build root in connector runtime). Exact publication-SHA
+  hosted qualification **PENDING**; no CI PASS is claimed.
+- Private R3 first-MCS friend is Linux-only at this base; macOS protected
+  transitions remain **BLOCKED**, and physical native admission **NOT RUN /
+  unauthorized**. Next: Agent 3 interface agreement, R10 accepted-client
+  composition, same-SHA CI/R9 and separate owner authorization.
+
 ## R1 OpenSSL 4.1 typed-stack macro compile follow-up — 2026-10-30
 
 - Previous R1 publication `e43414099f5451d59538668445fdcf3764e153b3`:

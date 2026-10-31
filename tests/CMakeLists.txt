@@ -1261,7 +1261,8 @@ else()
 endif()
 foreach(standalone_native_authorization_case IN ITEMS
         standalone-current-owner-without-os-identity
-        standalone-provenance-and-revocation-denials)
+        standalone-provenance-and-revocation-denials
+        macos-standalone-reentrant-generation-denials)
     add_test(
         NAME "security.native-authorization-${standalone_native_authorization_case}"
         COMMAND test_native_desktop_standalone_authorization

@@ -599,7 +599,11 @@ bool MacNativeDesktopAuthorization::revalidatesCurrentGrant() const noexcept
         return false;
     }
 
-    return authenticatedSession_->authenticationKind() == authenticationKind_ &&
+    // Evidence collection may synchronously revoke owner consent. Inspect the
+    // exact epoch again after the native callback, not only before it.
+    return ownerSharingAuthority_->authorizesAtEpoch(
+               permissionMask_, ownerAuthorizationEpoch_) &&
+           authenticatedSession_->authenticationKind() == authenticationKind_ &&
            authenticatedSession_->authenticationGeneration() ==
                authenticationGeneration_ &&
            authenticatedSession_->revalidatesAuthenticatedSession() &&
@@ -623,18 +627,32 @@ bool MacNativeDesktopAuthorization::visit(
     {
         return false;
     }
-    if (!revalidatesCurrentGrant())
+    if (!revalidatesCurrentGrant() ||
+        expectedAuthorizationGeneration != activeAuthorizationGeneration_)
     {
-        clearGrant();
+        // A reentrant native evidence probe may have installed a later grant.
+        // Deny the original visit without retiring that independent lifetime.
+        if (expectedAuthorizationGeneration == activeAuthorizationGeneration_)
+            clearGrant();
         return false;
     }
 
+    // Keep the synchronous borrowed view stable if the visitor itself revokes
+    // or replaces the grant. The view must not outlive this callback.
+    const MacNativeSessionEvidence authorizedEvidence = evidence_;
     const MacNativeDesktopAuthorizationView authorization{
-        evidence_, authenticationKind_, permissionMask_, authenticationGeneration_,
-        activeAuthorizationGeneration_, ownerAuthorizationEpoch_};
-    if (!visitor(authorization, context) || !revalidatesCurrentGrant())
+        authorizedEvidence, authenticationKind_, permissionMask_,
+        authenticationGeneration_, activeAuthorizationGeneration_,
+        ownerAuthorizationEpoch_};
+    const bool visitorAccepted = visitor(authorization, context);
+    if (expectedAuthorizationGeneration != activeAuthorizationGeneration_)
+        return false;
+
+    if (!visitorAccepted || !revalidatesCurrentGrant() ||
+        expectedAuthorizationGeneration != activeAuthorizationGeneration_)
     {
-        clearGrant();
+        if (expectedAuthorizationGeneration == activeAuthorizationGeneration_)
+            clearGrant();
         return false;
     }
     return true;

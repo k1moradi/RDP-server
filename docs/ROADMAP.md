@@ -118,12 +118,27 @@ selection/INCR keep their sole existing ownership; do not add adapters.
 The fixed 107-case clipboard ASan/UBSan census and separate finalization
 and three X11 callback-retirement regressions are unchanged.
 
-**Evidence:** source/registration review **PASS**. Canonical owner build/full
-CTest **NOT RUN**; exact-publication-SHA hosted CI/sanitizers **PENDING**.
-Ancestor `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6` alone has
-107/107 clipboard + 1/1 finalization + 3/3 X11 sanitizer **PASS**.
-Next: qualify the newly published SHA before physical permission-gated
-R10 composition. Physical client, native clipboard and file tests **NOT RUN**.
+**Review/qualification update:** descendant
+`0401967b1145267bed7d401160c26db536fa1899`, Actions
+`41217333141`, macOS protocol job `124586003783` completed full
+Debug and Release CTest **824/824 PASS**; this R8 permission test passed in
+both configurations. The same descendant's R9 sanitizer job
+`124586003338` reports fixed clipboard **107/107 PASS**, separate native
+destination finalization **1/1 PASS** and the three X11 callback-retirement
+tests **3/3 PASS**. This resolves the prior R8 qualification blocker caused by
+the macOS accepted-client dormancy test. The existing
+`clipboard.route-bridge-missing-activated-route-denial` behavior is now
+strengthened in-place to feed a complete FILECONTENTS response and prove the
+native file sink remains untouched when no fresh R2/R3 route exists; no CTest
+or sanitizer count changes. Exact CI for this newest test-only publication is
+**PENDING** and owner-local build/full CTest remains **NOT RUN**.
+
+**Remaining blocker:** R10 macOS runtime now reaches protected Erect Domain
+after Connect-Response, but still stops before Attach/ChannelJoin/Client Info/
+PersonalDesktop/Share. R2 macOS native authorization also still exposes only
+View|Input rather than Clipboard. Therefore R8 cannot truthfully construct a
+native owner or report Enabled. Physical client, native clipboard and file
+tests remain **NOT RUN / unauthorized**.
 
 ## R2 production R1 transport completion and broker receipt coverage (2026-10-31)
 

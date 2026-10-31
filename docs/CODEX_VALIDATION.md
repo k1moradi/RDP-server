@@ -1,3 +1,39 @@
+## R8 no-route FILECONTENTS sink denial and descendant qualification (2026-10-31)
+
+Reviewed current `main` after R10's protected Erect-Domain integration and the
+original R8 macOS Clipboard-scope regression. No production clipboard bug or
+measured optimization opportunity was found: R3 remains the exact route/write
+receipt owner, R8 keeps generation/source-epoch fencing, FILECONTENTS RANGE is
+bounded to 64 KiB with checked offsets/stream IDs, X11 publication rechecks
+source and ownership after callbacks, macOS/Windows finalization terminalizes
+before native callbacks, and Linux retains direct thread-affine `pwrite`.
+
+The prior R8 test is now qualified on descendant
+`0401967b1145267bed7d401160c26db536fa1899`, Actions
+`41217333141`: macOS protocol job `124586003783` full Debug and Release
+CTest **824/824 PASS**, with
+`security.macos-transport-admitted-clipboard-permission-denials` PASS in
+both configurations. R9 sanitizer job `124586003338` is **PASS** with fixed
+clipboard **107/107**, native finalization **1/1** and X11 callback-retirement
+**3/3**. Ubuntu/Windows ordinary jobs were still in progress at the review
+snapshot; do not infer their result.
+
+One missing negative assertion is added to the existing
+`clipboard.route-bridge-missing-activated-route-denial` behavior: a complete
+FILECONTENTS response presented without a fresh R2/R3 route must be rejected
+before the native file sink is called. This changes no production code,
+target, label, CTest count, sanitizer census or native adapter.
+
+The positive macOS R8 path remains **BLOCKED** for two independent reasons:
+R10 now reaches protected Erect Domain after Connect-Response but still stops
+before Attach/ChannelJoin/Client Info/licensing/Share, and
+`kNativeDesktopAuthorizationPermissions` remains View|Input so no macOS
+Clipboard native permission can be issued. `RuntimeClipboardState::Enabled`
+therefore has no truthful producer; macOS status remains Unavailable.
+`kLinuxProductionClipboardActivationApproved = false` is unchanged.
+Newest publication-SHA hosted CI **PENDING**; owner-local build/CTest and all
+physical clipboard/file/client tests **NOT RUN / unauthorized**.
+
 ## R1 review after R10 macOS first-MCS/Erect integration (2026-10-31)
 
 Authoring parent `9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e`. R10

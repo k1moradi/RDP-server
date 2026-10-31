@@ -708,7 +708,17 @@ void sourceRequestReceipt()
 
 void missingActivatedRouteDenial()
 {
-    R3ClipboardTransferBridge bridge(0U, true);
+    bool fileContentsSinkCalled = false;
+    const R3ClipboardFileContentsSink fileContentsSink{
+        &fileContentsSinkCalled,
+        +[](void *context,
+            const RemoteTransfer::FileContentsResult & /* result */) noexcept {
+            if (context == nullptr)
+                return false;
+            *static_cast<bool *>(context) = true;
+            return true;
+        }};
+    R3ClipboardTransferBridge bridge(0U, true, fileContentsSink);
     auto sink = bridge.completePduSink();
 
     // The R2 post-Share visitor is the only source of an R3 route generation.
@@ -716,6 +726,17 @@ void missingActivatedRouteDenial()
     assert(!sink.consume(sink.context, shortUnicodeFormatListPdu()));
     assert(!bridge.active());
     assert(bridge.transfer().generation() == 0U);
+
+    // FILECONTENTS bytes are equally non-authorizing. Without a fresh
+    // protected R2/R3 route they must not reach the native destination sink,
+    // even when the application PDU itself is structurally complete.
+    constexpr std::array<std::uint8_t, 1> fileBytes{0x5aU};
+    const auto fileResponse = fileContentsResponse(1U, fileBytes);
+    assert(!sink.consume(sink.context, fileResponse));
+    assert(!fileContentsSinkCalled);
+    assert(!bridge.active());
+    assert(bridge.transfer().generation() == 0U);
+
     assert(!bridge.beginFormatDataRequest(
         rdp_server::clipboard::kFormatUnicodeText));
 }

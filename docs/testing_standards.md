@@ -99,9 +99,15 @@ R1/R2/R3 owners. Later CLIPRDR route, PDU and accepted-byte receipt calls
 remain rejected without exposing a completed payload/FileContents. This is
 not a product-valid native lease, Share, file publication or a real client.
 Register the ordinary test outside the fixed 107-case `clipboard` label.
-Source and registration review **PASS**; owner Debug/full CTest **NOT RUN**,
-exact-publication CI and sanitizers **PENDING**. Existing R8 bridge/X11/native
-destination regressions are unchanged.
+Descendant `0401967b1145267bed7d401160c26db536fa1899` macOS
+Debug/Release full CTest **824/824 PASS** executes this denial twice, while its
+R9 sanitizer job preserves clipboard **107/107**, native finalization **1/1**
+and X11 callback retirement **3/3 PASS**. The existing
+`clipboard.route-bridge-missing-activated-route-denial` case additionally
+feeds one structurally complete FILECONTENTS response without a protected
+route and requires the file sink to remain uncalled; extend that existing case
+rather than adding a new clipboard-labeled test. Exact CI for the newest
+test-only edit is **PENDING**; owner Debug/full CTest remains **NOT RUN**.
 
 ## R2 macOS reprepare and pre-first-MCS native audit change (2026-10-31)
 

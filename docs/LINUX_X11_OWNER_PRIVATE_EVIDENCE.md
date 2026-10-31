@@ -129,6 +129,7 @@ The `source_sha` must be the exact tested checkout commit.
   "credentials": {"username_matches": null, "session_password_matches": null, "selected_credential_matches": null},
   "seat": {"graphical": null, "seat0": null, "unlocked": null, "current_session": null, "process_uid_matches_owner": null},
   "generations": {"linux_session": null, "r2_admission": null, "native_capture": null},
+  "frame": {"first_frame_capture_generation": null, "ack_capture_generation": null},
   "stages": {
     "tls": "NOT_OBSERVED", "type1": "NOT_OBSERVED", "type2": "NOT_OBSERVED",
     "type3": "NOT_OBSERVED", "pubkeyauth": "NOT_OBSERVED",
@@ -149,6 +150,7 @@ The `source_sha` must be the exact tested checkout commit.
     "stages": {"native_admission": "NOT_OBSERVED", "share": "NOT_OBSERVED",
                "graphics_ready": "NOT_OBSERVED", "first_frame": "NOT_OBSERVED",
                "matching_ack": "NOT_OBSERVED"},
+    "first_frame_capture_generation": null, "ack_capture_generation": null,
     "posts_after_revocation": 0
   }
 }
@@ -170,7 +172,7 @@ python3 scripts/linux_x11_owner_evidence.py --input /private/path/attempt.json >
 python3 tests/test_linux_x11_owner_evidence.py --script scripts/linux_x11_owner_evidence.py
 ```
 
-The validator rejects contradictory status/generation/input claims, extra
+The validator requires each reported first-frame generation to equal its active native capture generation and each matching ACK generation to equal that first-frame generation (including reconnect). It rejects contradictory status/generation/input claims, extra
 keys (including any raw UID, session ID, Username, destination, XIDs, pixels
 or input payloads), duplicate JSON keys and oversized input. Its stdout is
 allowlisted to typed stages/retirement outcomes and non-identifying

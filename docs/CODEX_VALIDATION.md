@@ -1,3 +1,77 @@
+## R3 macOS private protocol edge exact-SHA hosted receipt (2026-10-30)
+
+Corrective descendant `4f1a5931c75daa468996b6a0d6465de197772b21`,
+primary Actions `41178462215`, preserves R3 implementation
+`2a45d7c54c025f21623775d539eb5f107ad08ae5` and aligns the new CTest on the
+durable name `transport.mcs-macos-private-admission-generation-denials`.
+The dedicated production-linked test compiles and **PASSes** on all three
+hosted protocol toolchains: Ubuntu/GCC job `124470806328`, test 357/1023
+**PASS (0.00 s)**; macOS/Clang job `124470806387`, test 311/801
+**PASS (0.01 s)**; Windows/MSVC job `124470806360`, test 312/847
+**PASS (0.02 s)**. R9 security/protocol ASan+UBSan job `124470806274`
+**PASS**. Structure, documentation policy, both R2 Linux production-security
+lanes, macOS session sanitizers, GUI parity and bootstrap gates on the same SHA
+also **PASS**.
+
+The repository-wide Ubuntu, macOS and Windows protocol jobs are not aggregate
+PASSes: each reaches ordinary CTest and is blocked only by unrelated
+`macos.gui-qcolor-provenance-parser-and-redaction` **NOT RUN** because its
+CTest command captured an empty Python executable before the later
+`find_package(Python3 ...)`. The R3 gate itself built and passed before that
+failure. Canonical owner-local build/full CTest and benchmark remain **NOT
+RUN**; physical macOS admission/client tests remain **NOT RUN / unauthorized**.
+
+**Agent-2 protected R3 handoff.** `MacConsoleAdmissionBroker` is the only new
+production friend. Its first positive call is
+`onVerifiedR2ConnectInitial(admissionGeneration_, prepared_.authorizationGeneration, ...)`.
+Before every later call below, R2 must first
+`revokeUnlessAdmissionBindingMatches(admissionGeneration_,
+prepared_.authorizationGeneration)`, perform its fresh proof/R1/native/owner
+checks, and after any callback revalidate the protected native visitor before
+reporting success to R10:
+
+- Connect Response: `prepareConnectResponseWrite`,
+  `completeConnectResponseWrite`; Erect/Attach:
+  `onVerifiedR2ErectDomain`, `onVerifiedR2AttachUser`,
+  `prepareAttachUserConfirmWrite`, `completeAttachUserConfirmWrite`.
+- Joins/Client Info: `onVerifiedR2ChannelJoin`,
+  `prepareChannelJoinConfirmWrite`, `completeChannelJoinConfirmWrite`,
+  `resolveVerifiedR2JoinedClipboardChannel`,
+  `acceptVerifiedR2ClientInfoPacket`.
+- PersonalDesktop licensing: `selectVerifiedR2PersonalDesktopLicensingMode`,
+  `prepareServerLicenseRequestWrite`, `completeServerLicenseRequestWrite`,
+  `acceptVerifiedR2ClientLicensingMessage`,
+  `preparePersonalDesktopValidClientWrite`,
+  `completePersonalDesktopValidClientWrite`.
+- Activation: `prepareVerifiedR2MacDemandActiveProfile`,
+  `beginVerifiedR2ShareActivation`,
+  `pendingVerifiedR2ShareActivationWrite`,
+  `completeVerifiedR2ShareActivationWrite`,
+  `acceptVerifiedR2ShareActivationPdu`,
+  `verifiedR2ApplicationTrafficReady`.
+- Post-Share: `classifyVerifiedR2PostShareTpkt`,
+  `resolveVerifiedR2ActivatedClipboardChannel`,
+  `acceptVerifiedR2ClipboardTpkt`, `queueVerifiedR2ClipboardPdu`,
+  `pendingVerifiedR2ClipboardWrite`, `completeVerifiedR2ClipboardWrite`,
+  `routeVerifiedR2SlowPathInputPdu`,
+  `resolveVerifiedR2ActivatedDynamicVirtualChannel`.
+- Graphics: `beginVerifiedR2GraphicsDynamicVirtualChannel`,
+  `pendingVerifiedR2GraphicsDynamicVirtualChannelWrite`,
+  `completeVerifiedR2GraphicsDynamicVirtualChannelWrite`,
+  `acceptVerifiedR2GraphicsDynamicVirtualChannelPdu`,
+  `consumeVerifiedR2GraphicsFrameAcknowledge`,
+  `preflightVerifiedR2GraphicsFramePublication`,
+  `beginVerifiedR2GraphicsSurfaceReconfiguration`,
+  `beginVerifiedR2GraphicsClearCodecFramePublication`,
+  `cancelVerifiedR2UnwrittenGraphicsFrame`,
+  `abortVerifiedR2GraphicsFrame`.
+
+Every prepare/retry/completion and every accepted-byte receipt remains inside
+the same R2 generation pair. Zero-byte or partial progress does not confer a
+new capability. R2 revocation/replacement closes R3 before a later receipt can
+advance and thereby retires joins, licensing, Share, routes and graphics
+credit. R10 receives neither these private methods nor generation scalars.
+
 ## R10 completed macOS CredSSP exact-SHA hosted receipt (2026-10-30)
 
 - Implementation commit: `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`.

@@ -244,24 +244,24 @@ stale-generation rejection without fabricating native proof. The concurrent R4
 delivered-frame-retirement regression remains a separate ordinary CTest, not a
 172nd fixed-table initializer.
 
-**Qualification:** source/contract/registry review PASS by inspection.
-Publication `2a45d7c54c025f21623775d539eb5f107ad08ae5` failed at CMake
-configure because the test name still carried prohibited internal `r2`
-taxonomy. First repair `cded647a1925d675dc9d1da39f216c3ce6509281`
-updated the property target but left `add_rdp_test` registering the old
-suffix. This corrective descendant aligns both registrations on
-`transport.mcs-macos-private-admission-generation-denials`; production R3
-behavior and assertions are unchanged. Canonical local
-configure/build/focused/full Debug/Release CTest, ASan/UBSan and benchmark are
-**NOT RUN** in this connector environment. Corrective exact-publication
-Linux/macOS/Windows hosted CI is **PENDING**. R3's private edge is now available;
-Agent 2 still owns the second-round positive wrappers that consume it and R10
+**Qualification:** corrective descendant
+`4f1a5931c75daa468996b6a0d6465de197772b21`, primary Actions
+`41178462215`. The dedicated
+`transport.mcs-macos-private-admission-generation-denials` builds and
+**PASSes** on Ubuntu/GCC (357/1023), macOS/Clang (311/801) and Windows/MSVC
+(312/847); R9 security/protocol ASan+UBSan also **PASSes**. All three ordinary
+protocol jobs are aggregate **BLOCKED**, not R3 failures: the same unrelated
+`macos.gui-qcolor-provenance-parser-and-redaction` test is **NOT RUN** after
+its CTest command captures an empty Python executable. The R3 gate compiled and
+passed before that boundary. Canonical owner-local full Debug/Release CTest and
+benchmark remain **NOT RUN**. R3's private edge is compile-tested and available;
+Agent 2 still owns the protected positive wrappers that consume it and R10
 still owns composition. End-to-end macOS native Admission/MCS/Share/graphics/
 clipboard and physical client testing remain **BLOCKED / NOT RUN /
-unauthorized**. **Next gate:** Agent 2 lands those protected wrappers against
-this exact private edge, then Agent 10 composes them without receiving
-authority scalars, followed by R9 exact-SHA qualification and separately
-authorized owner-native acceptance.
+unauthorized**. **Next gate:** Agent 2 lands those wrappers using the exact
+method/revalidation contract recorded in CODEX_VALIDATION, then Agent 10
+composes them without receiving authority scalars, followed by R9 exact-SHA
+qualification and separately authorized owner-native acceptance.
 
 **Complementary R2 nested-visit fence (2026-10-30):** The existing
 original-generation/snapshot fix now guards against recursive protected

@@ -166,12 +166,12 @@ def validate(record):
         raise EvidenceError("RandR replacement reused old capture generation")
 
     retirements = record["retirements"]
-    if type(retirements) is not list or len(retirements) > 4:
+    if type(retirements) is not list or len(retirements) > 1:
         raise EvidenceError("invalid retirement sequence")
     seen_kinds = set()
     for event in retirements:
         require_fields(event, (
-            "kind", "r2_retired", "capture_retired", "posts_after_revocation",
+            "kind", "r2_retired", "capture_retired", "posts_after_revocation", "frames_after_revocation",
             "linux_session_generation_after",
         ), "retirement")
         kind = event["kind"]
@@ -181,9 +181,12 @@ def validate(record):
         for name in ("r2_retired", "capture_retired"):
             require_bool(event[name], f"retirement.{name}")
         require_counter(event["posts_after_revocation"], "retirement.posts_after_revocation")
+        require_counter(event["frames_after_revocation"], "retirement.frames_after_revocation")
         require_generation(event["linux_session_generation_after"], "retirement.linux_session_generation_after", nullable=True)
         if event["posts_after_revocation"] != 0:
             raise EvidenceError("retired owner received input posts")
+        if event["frames_after_revocation"] != 0:
+            raise EvidenceError("retired owner published frames")
         if stages["native_admission"] == "PASS" and not (event["r2_retired"] and event["capture_retired"]):
             raise EvidenceError("retirement must invalidate R2 and capture")
         if kind in ("logout", "switch_user") and event["linux_session_generation_after"] == generations["linux_session"]:
@@ -285,7 +288,7 @@ def main(argv=None):
             raise EvidenceError("private record exceeds size limit")
         record = json.loads(data.decode("utf-8"), object_pairs_hook=reject_duplicate_keys)
         redacted = validate(record)
-    except (OSError, UnicodeError, json.JSONDecodeError, EvidenceError) as error:
+    except (OSError, UnicodeError, json.JSONDecodeError, RecursionError, EvidenceError) as error:
         # Do not echo paths or untrusted record values to stderr.
         if isinstance(error, EvidenceError):
             print(f"rejected: {error}", file=sys.stderr)

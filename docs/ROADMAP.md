@@ -822,12 +822,15 @@ Python interpreter discovery now precedes CTest registration and its
 empty-interpreter configure denial remains source-verified, without a
 separate injected negative configuration run.
 
-The next R7 change is diagnostic-only: reject non-ICC headers without
-the mandatory `acsp` signature, reject unsuccessful Cocoa-plugin
-mentions as load evidence, and bound/redact Windows-style Qt source
-paths and oversized line numbers. Existing ordinary offline CTest
-gets malformed-ICC and redaction cases; its new publication-SHA hosted
-CI is **PENDING**. The owner's repeated QColorSpace warning **remains
+The R7 diagnostic-only follow-up distinguishes truncated ICC headers,
+invalid `acsp` signatures and declared-length truncation from an unrecognized
+ICC device class. It reports the Qt warning **emitter**, not the caller,
+and whether a successful Cocoa-plugin load line preceded the warning;
+neither a plausible 128-byte profile header nor load-line order proves a
+ColorSync/QCocoa origin. The same registered offline Python CTest now covers
+these discrete classes and the reverse warning/load order. No production Qt,
+color or native behavior changes. Local canonical tests **NOT RUN**;
+publication-SHA hosted CI **PENDING**. The owner's repeated QColorSpace warning **remains
 unattributed** without an owner-opt-in no-Sharing Cocoa run/stack.
 R2 preparation, private macOS R3 protocol entry and synthetic R10
 CredSSP do not authorize native Admission, Share, capture or input.

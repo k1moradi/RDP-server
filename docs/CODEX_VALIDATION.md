@@ -3059,6 +3059,25 @@ and M2 physical-client acceptance NOT RUN; independent R6/R8 blockers remain.
 
 # Validation evidence
 
+## R7 ICC-header distinctions and warning-emitter chronology (2026-10-31)
+
+- Source parent `e21e96dc8f8cf0bc1864c09a8846a1cc6cb5b08a`. The opt-in Sharing-OFF collector now reports
+  separate bounded ICC header signature, declared-length/truncation and
+  unknown-class outcomes while preserving the original redacted class summary.
+  A matching Qt source filename is labeled **emitter only**; successful Cocoa
+  plugin-load chronology is reported separately and grants no attribution.
+- Existing registered `macos.gui-qcolor-provenance-parser-and-redaction`
+  gains discrete malformed-header, truncated-metadata, unknown-class and
+  warning-before-plugin-load fixtures. The Qt offscreen invalid-primary
+  fixture, R7 native callback-retirement and GUI/status tests are reused;
+  no new test executable, dependency or CMake registration.
+- Source inspection: no first-party QColorSpace misuse or genuine positive
+  R2/R3 Share/GraphicsReady macOS attachment demonstrated. Local syntax,
+  unittest, Debug/Release/full CTest: **NOT RUN** (connector-only).
+  Exact publication-SHA hosted CI: **PENDING**. Owner packaged warning stack,
+  physical macOS capture/input: **NOT RUN / unauthorized**. Next: owner-safe
+  probe and matching caller stack; Agent 10 to compose original R2/R3 lifetimes.
+
 ## R1 pre-TLS accounting fixture CI correction — 2026-10-29
 
 - Initial publication: `3fdde5748e1c88d2684e13632778d9775eddc36f`.

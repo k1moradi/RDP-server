@@ -4718,7 +4718,14 @@ Distinguish four hypotheses using evidence rather than the warning alone:
   difference or failed load is a lead, not attribution of invalid primaries.
 
 Reject ICC headers whose declared size is truncated/out of bounds or whose
-mandatory `acsp` signature is missing before reporting a class. Keep source
+mandatory `acsp` signature is missing before reporting a class. The bounded
+collector separately reports `truncated-header`, `invalid-signature`,
+`invalid-length`, `truncated-profile`, `unknown-class` or
+`recognized-header`; the last is only a plausible **128-byte header**, not
+proof of a usable ICC profile or correct chromaticity. A successful Cocoa
+loader observation preceding the warning is only chronological evidence, not
+proof that QCocoa/ColorSync provided the points. The emitter filename is not
+the caller; a matching private stack remains required for attribution. Keep source
 basename and decimal line bounded, including Windows-style separators and
 untrusted Qt messages. A missing warning-site location, truncated output or
 unavailable TCP listener audit cannot establish a clean Cocoa provenance

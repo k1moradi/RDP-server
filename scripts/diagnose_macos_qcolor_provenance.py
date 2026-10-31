@@ -129,28 +129,41 @@ def _manifest_sha(app: Path) -> str:
     return "unavailable"
 
 
-def profile_class_signature(header: bytes, total_length: int | None = None) -> str:
-    """Return only the ICC device-class signature from a bounded header."""
+def inspect_profile_header(
+    header: bytes, total_length: int | None = None
+) -> tuple[str, str]:
+    """Inspect only bounded ICC header metadata; never claim a valid profile."""
     if len(header) < MAX_PROFILE_HEADER_BYTES:
-        return "unavailable"
+        return ("unavailable", "truncated-header")
     declared_size = int.from_bytes(header[0:4], byteorder="big", signed=False)
     available = len(header) if total_length is None else total_length
-    # Do not report an ICC device class for a plausible but non-ICC header.
     if header[36:40] != b"acsp":
-        return "invalid"
+        return ("invalid", "invalid-signature")
     if (
         declared_size < MAX_PROFILE_HEADER_BYTES or
-        declared_size > available or
-        declared_size > MAX_ICC_PROFILE_BYTES
+        declared_size > MAX_ICC_PROFILE_BYTES or
+        available < MAX_PROFILE_HEADER_BYTES or
+        available > MAX_ICC_PROFILE_BYTES
     ):
-        return "invalid"
-    return KNOWN_PROFILE_CLASSES.get(header[12:16], "unknown")
+        return ("invalid", "invalid-length")
+    if declared_size > available:
+        return ("invalid", "truncated-profile")
+    device_class = KNOWN_PROFILE_CLASSES.get(header[12:16], "unknown")
+    return (
+        device_class,
+        "recognized-header" if device_class != "unknown" else "unknown-class",
+    )
 
 
-def query_display_profile_class() -> tuple[str, str]:
+def profile_class_signature(header: bytes, total_length: int | None = None) -> str:
+    """Return only a plausible ICC header device class, never its payload."""
+    return inspect_profile_header(header, total_length)[0]
+
+
+def query_display_profile_class() -> tuple[str, str, str]:
     """Read only the main display's color model and ICC header class."""
     if sys.platform != "darwin":
-        return ("unavailable", "unavailable")
+        return ("unavailable", "unavailable", "query-unavailable")
 
     try:
         core_graphics = ctypes.CDLL(
@@ -176,33 +189,35 @@ def query_display_profile_class() -> tuple[str, str]:
         core_foundation.CFRelease.restype = None
 
         display_id = core_graphics.CGMainDisplayID()
+        if display_id == 0:
+            return ("unavailable", "unavailable", "display-unavailable")
         color_space = core_graphics.CGDisplayCopyColorSpace(display_id)
         if not color_space:
-            return ("unavailable", "unavailable")
+            return ("unavailable", "unavailable", "color-space-unavailable")
         try:
             model = COLOR_MODELS.get(
                 int(core_graphics.CGColorSpaceGetModel(color_space)), "unknown")
             profile_data = core_graphics.CGColorSpaceCopyICCData(color_space)
             if not profile_data:
-                return (model, "unavailable")
+                return (model, "unavailable", "profile-unavailable")
             try:
                 length = int(core_foundation.CFDataGetLength(profile_data))
-                if (
-                    length < MAX_PROFILE_HEADER_BYTES or
-                    length > MAX_ICC_PROFILE_BYTES
-                ):
-                    return (model, "invalid")
+                if length < MAX_PROFILE_HEADER_BYTES:
+                    return (model, "unavailable", "truncated-header")
+                if length > MAX_ICC_PROFILE_BYTES:
+                    return (model, "invalid", "invalid-length")
                 pointer = core_foundation.CFDataGetBytePtr(profile_data)
                 if not pointer:
-                    return (model, "unavailable")
+                    return (model, "unavailable", "profile-unavailable")
                 header = ctypes.string_at(pointer, MAX_PROFILE_HEADER_BYTES)
-                return (model, profile_class_signature(header, length))
+                profile_class, header_status = inspect_profile_header(header, length)
+                return (model, profile_class, header_status)
             finally:
                 core_foundation.CFRelease(profile_data)
         finally:
             core_graphics.CGColorSpaceRelease(color_space)
     except (AttributeError, OSError, TypeError, ValueError):
-        return ("unavailable", "unavailable")
+        return ("unavailable", "unavailable", "query-unavailable")
 
 
 def diagnostic_environment(source: dict[str, str] | None = None) -> dict[str, str]:
@@ -222,6 +237,8 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
         "warning_line": "unavailable",
         "warning_category": "unavailable",
         "platform_plugin_observed": "no",
+        "cocoa_load_before_warning": "not-observed",
+        "warning_emitter": "unavailable",
     }
     for line in text.splitlines():
         # A loader lookup/error is not proof that the Cocoa plugin loaded.
@@ -236,6 +253,10 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
             continue
 
         result["warning"] = "REPRODUCED"
+        result["cocoa_load_before_warning"] = (
+            "observed" if result["platform_plugin_observed"] == "yes"
+            else "not-observed"
+        )
         fields = line.split("|", 5)
         if len(fields) == 6 and fields[0].strip().endswith(MESSAGE_PREFIX):
             result["warning_category"] = _safe_token(fields[2])
@@ -244,6 +265,11 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
                 # Redact Windows as well as POSIX path separators.
                 source_basename = source.replace("\\", "/").rsplit("/", 1)[-1]
                 result["warning_source"] = _safe_token(source_basename)
+                result["warning_emitter"] = (
+                    "qt-qcolorspace-reported"
+                    if source_basename.lower() == "qcolorspace.cpp"
+                    else "other-source-reported"
+                )
             line_number = fields[4].strip()
             if (line_number.isascii() and line_number.isdecimal()
                     and len(line_number) <= 8):
@@ -282,7 +308,7 @@ def _no_tcp_listener(pid: int) -> bool:
 def run_probe(app: Path, duration_seconds: float) -> dict[str, str]:
     app = _validate_app(app)
     executable = app / "Contents/MacOS" / EXECUTABLE_NAME
-    model, profile_class = query_display_profile_class()
+    model, profile_class, profile_header_status = query_display_profile_class()
 
     process = subprocess.Popen(
         [str(executable)],
@@ -331,6 +357,7 @@ def run_probe(app: Path, duration_seconds: float) -> dict[str, str]:
         "qt_gui_version": _framework_version(app, "QtGui"),
         "display_color_model": model,
         "display_profile_class": profile_class,
+        "display_profile_header_status": profile_header_status,
         "stderr_capture_truncated": "yes" if capture.truncated else "no",
     })
     return diagnostics
@@ -354,11 +381,14 @@ def print_summary(result: dict[str, str]) -> None:
     print(f"platform-plugin-observed={result['platform_plugin_observed']}")
     print(f"display-color-model={result['display_color_model']}")
     print(f"display-profile-class={result['display_profile_class']}")
+    print(f"display-profile-header-status={result['display_profile_header_status']}")
     print(f"qcolor-warning={result['warning']}")
     print(
         "warning-source="
         f"{result['warning_source']}:{result['warning_line']}")
     print(f"warning-category={result['warning_category']}")
+    print(f"warning-emitter={result['warning_emitter']}")
+    print(f"cocoa-load-before-warning={result['cocoa_load_before_warning']}")
     print("warning-caller=UNATTRIBUTED")
     print(f"stderr-capture-truncated={result['stderr_capture_truncated']}")
     print("sharing=OFF")

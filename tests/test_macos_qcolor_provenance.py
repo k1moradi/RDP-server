@@ -32,24 +32,36 @@ class MacQColorProvenanceTests(unittest.TestCase):
         header[12:16] = b"mntr"
         header[36:40] = b"acsp"
         self.assertEqual(probe.profile_class_signature(bytes(header)), "mntr")
+        self.assertEqual(probe.inspect_profile_header(bytes(header)),
+                         ("mntr", "recognized-header"))
 
         header[12:16] = b"evil"
         self.assertEqual(probe.profile_class_signature(bytes(header)), "unknown")
+        self.assertEqual(probe.inspect_profile_header(bytes(header)),
+                         ("unknown", "unknown-class"))
         self.assertEqual(
             probe.profile_class_signature(bytes(header[:64])), "unavailable")
+        self.assertEqual(probe.inspect_profile_header(bytes(header[:64])),
+                         ("unavailable", "truncated-header"))
 
         header[0:4] = (4096).to_bytes(4, byteorder="big")
         self.assertEqual(
             probe.profile_class_signature(bytes(header), 128), "invalid")
+        self.assertEqual(probe.inspect_profile_header(bytes(header), 128),
+                         ("invalid", "truncated-profile"))
 
         # Reject malformed ICC magic, undersized and oversized profiles,
         # and a header claiming more bytes than the caller actually has.
         header[0:4] = (128).to_bytes(4, byteorder="big")
         header[36:40] = b"NOPE"
         self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
+        self.assertEqual(probe.inspect_profile_header(bytes(header)),
+                         ("invalid", "invalid-signature"))
         header[36:40] = b"acsp"
         header[0:4] = (127).to_bytes(4, byteorder="big")
         self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
+        self.assertEqual(probe.inspect_profile_header(bytes(header)),
+                         ("invalid", "invalid-length"))
         header[0:4] = (probe.MAX_ICC_PROFILE_BYTES + 1).to_bytes(
             4, byteorder="big")
         self.assertEqual(probe.profile_class_signature(bytes(header)), "invalid")
@@ -71,6 +83,8 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(result["warning_source"], "qcolorspace.cpp")
         self.assertEqual(result["warning_line"], "765")
         self.assertEqual(result["warning_category"], "qt.gui.icc")
+        self.assertEqual(result["warning_emitter"], "qt-qcolorspace-reported")
+        self.assertEqual(result["cocoa_load_before_warning"], "observed")
 
         result.update({
             "server_sha": "a" * 40,
@@ -78,6 +92,7 @@ class MacQColorProvenanceTests(unittest.TestCase):
             "qt_gui_version": "6.12.0",
             "display_color_model": "rgb",
             "display_profile_class": "mntr",
+            "display_profile_header_status": "recognized-header",
             "stderr_capture_truncated": "no",
         })
         import contextlib
@@ -92,6 +107,9 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertNotIn("0.1", summary)
         self.assertIn("warning-source=qcolorspace.cpp:765", summary)
         self.assertIn("warning-caller=UNATTRIBUTED", summary)
+        self.assertIn("warning-emitter=qt-qcolorspace-reported", summary)
+        self.assertIn("cocoa-load-before-warning=observed", summary)
+        self.assertIn("display-profile-header-status=recognized-header", summary)
 
     def test_failed_cocoa_plugin_lookup_is_not_loaded_provenance(self):
         diagnostics = (
@@ -102,6 +120,17 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(
             probe.parse_qt_diagnostics(diagnostics)["platform_plugin_observed"],
             "no")
+
+    def test_warning_before_cocoa_load_does_not_assign_platform_caller(self):
+        diagnostics = (
+            "RDP_QCOLOR|warning|qt.gui|/private/qt/qcolorspace.cpp|15|"
+            "QColorSpace attempted constructed from invalid primaries\n"
+            'qt.core.plugin: loaded library "/private/libqcocoa.dylib"\n'
+        )
+        result = probe.parse_qt_diagnostics(diagnostics)
+        self.assertEqual(result["platform_plugin_observed"], "yes")
+        self.assertEqual(result["cocoa_load_before_warning"], "not-observed")
+        self.assertEqual(result["warning_emitter"], "qt-qcolorspace-reported")
 
     def test_windows_path_and_oversized_warning_line_are_redacted(self):
         diagnostic = (

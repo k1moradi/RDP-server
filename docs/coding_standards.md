@@ -38,13 +38,20 @@ The owner-private Linux X11 manifest is a closed schema of copied scalar
 observations, not an R2 admission controller, X11 owner or GUI entry point.
 Both initial and reconnect positive native Admission must independently
 record an R2-bound owner-consent generation equal to the explicit owner grant;
-a matching scalar alone does not prove genuine R2 authority. Admit a valid
+a matching scalar alone does not prove genuine R2 authority. Private schema v2
+also requires one bounded same-attempt correlation ID for each observed
+CredentialsVerified, native Admission, Share, first frame, matching ACK, input
+and RandR result. Native Admission additionally records the fixed
+`linux-console-admission-broker` producer class; reconnect uses a different
+attempt ID. These fields are evidence provenance only: they must be copied from
+the actual producer chain and never authorize R2/R3/R5 work. Admit a valid
 pre-graphics record without inventing native capture. Reject missing/extra
-fields, source-SHA failures, stale/replaced epochs, input after revocation,
-frame before Share, unmatched ACK and reconnect-generation reuse. The
-public projection must never contain UID, Username, endpoint/address,
-credentials, audit session or native IDs, XIDs, pixels or key/button payloads.
-No duplicated R2/R10 control or 46th native X11 test is permitted.
+fields, source-SHA failures, crossed attempt IDs, missing producer provenance,
+stale/replaced epochs, input after revocation, frame before Share, unmatched
+ACK and reconnect-generation reuse. The public projection must never contain
+attempt IDs, UID, Username, endpoint/address, credentials, audit session or
+native IDs, XIDs, pixels or key/button payloads. No duplicated R2/R10 control
+or 46th native X11 test is permitted.
 
 ## R2 macOS authorization visitor reentrancy and original-grant lifetime (2026-10-30)
 

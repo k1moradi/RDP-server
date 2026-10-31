@@ -24,6 +24,17 @@ def admitted_attempt(evidence):
     return {
         "schema": evidence.PRIVATE_SCHEMA,
         "source_sha": "a" * 40,
+        "provenance": {
+            "attempt_id": 100,
+            "credentials_verified_attempt_id": 100,
+            "native_admission_attempt_id": 100,
+            "native_admission_producer": evidence.NATIVE_ADMISSION_PRODUCER,
+            "share_attempt_id": 100,
+            "first_frame_attempt_id": 100,
+            "matching_ack_attempt_id": 100,
+            "input_attempt_id": 100,
+            "randr_attempt_id": 100,
+        },
         "client": {"type": "Windows App", "version": "11.4"},
         "sharing": {"initial": "OFF", "enabled": True, "owner_grant_recorded": True, "consent_generation": 10},
         "credentials": {"username_matches": True, "session_password_matches": True, "selected_credential_matches": True},
@@ -39,6 +50,15 @@ def admitted_attempt(evidence):
                       "admission_consent_generation": 11,
                       "linux_session_generation": 20, "r2_admission_generation": 31,
                       "native_capture_generation": 42,
+                      "provenance": {
+                          "attempt_id": 101,
+                          "credentials_verified_attempt_id": 101,
+                          "native_admission_attempt_id": 101,
+                          "native_admission_producer": evidence.NATIVE_ADMISSION_PRODUCER,
+                          "share_attempt_id": 101,
+                          "first_frame_attempt_id": 101,
+                          "matching_ack_attempt_id": 101,
+                      },
                       "seat": {"graphical": True, "seat0": True, "unlocked": True, "current_session": True, "process_uid_matches_owner": True},
                       "stages": {name: "PASS" for name in evidence.RECONNECT_STAGES},
                       "first_frame_capture_generation": 42, "ack_capture_generation": 42,
@@ -66,7 +86,12 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["client"]["version"] = "SECRET_VERSION_MARKER"
         public = self.evidence.validate(record)
         serialized = json.dumps(public)
-        for secret in ("e" * 40, "SECRET_VERSION_MARKER", "Windows App", "keyboard_posts", "consent_generation", "source_sha"):
+        for secret in (
+            "e" * 40, "SECRET_VERSION_MARKER", "Windows App",
+            "keyboard_posts", "consent_generation", "source_sha",
+            "attempt_id", "native_admission_producer",
+            self.evidence.NATIVE_ADMISSION_PRODUCER,
+        ):
             self.assertNotIn(secret, serialized)
         self.assertTrue(public["generation_matches"]["reconnect_r2_changed"])
         self.assertTrue(public["generation_matches"]["randr_capture_replaced"])
@@ -88,6 +113,39 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         self.reject(lambda record: record["frame"].update(ack_capture_generation=41))
         self.reject(lambda record: record["reconnect"].update(first_frame_capture_generation=40))
         self.reject(lambda record: record["reconnect"].update(ack_capture_generation=41))
+
+    def test_same_attempt_producer_provenance_denials(self):
+        initial_fields = (
+            "credentials_verified_attempt_id", "native_admission_attempt_id",
+            "share_attempt_id", "first_frame_attempt_id",
+            "matching_ack_attempt_id", "input_attempt_id", "randr_attempt_id",
+        )
+        for field in initial_fields:
+            with self.subTest(initial=field):
+                self.reject(
+                    lambda record, field=field:
+                        record["provenance"].update({field: 999}))
+        self.reject(
+            lambda record:
+                record["provenance"].update(
+                    native_admission_producer="matched-scalars"))
+        self.reject(
+            lambda record:
+                record["reconnect"]["provenance"].update(attempt_id=100))
+        reconnect_fields = (
+            "credentials_verified_attempt_id", "native_admission_attempt_id",
+            "share_attempt_id", "first_frame_attempt_id",
+            "matching_ack_attempt_id",
+        )
+        for field in reconnect_fields:
+            with self.subTest(reconnect=field):
+                self.reject(
+                    lambda record, field=field:
+                        record["reconnect"]["provenance"].update({field: 100}))
+        self.reject(
+            lambda record:
+                record["reconnect"]["provenance"].update(
+                    native_admission_producer=None))
 
     def test_input_post_after_revocation(self):
         self.reject(lambda record: record["input"].update(posts_after_revocation=1))
@@ -114,6 +172,10 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["stages"].update({name: "NOT_OBSERVED" for name in
                                  ("mcs", "share", "graphics_ready", "first_frame", "matching_ack",
                                   "keyboard_dispatch", "mouse_dispatch", "randr_replacement")})
+        record["provenance"].update(
+            share_attempt_id=None, first_frame_attempt_id=None,
+            matching_ack_attempt_id=None, input_attempt_id=None,
+            randr_attempt_id=None)
         record["generations"]["native_capture"] = None
         record["frame"] = {"first_frame_capture_generation": None, "ack_capture_generation": None}
         record["input"] = {"keyboard_posts": 0, "mouse_posts": 0, "posts_after_revocation": 0}
@@ -124,6 +186,15 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                    linux_session_generation=None, r2_admission_generation=None,
                                    native_capture_generation=None, first_frame_capture_generation=None,
                                    ack_capture_generation=None)
+        record["reconnect"]["provenance"] = {
+            "attempt_id": None,
+            "credentials_verified_attempt_id": None,
+            "native_admission_attempt_id": None,
+            "native_admission_producer": None,
+            "share_attempt_id": None,
+            "first_frame_attempt_id": None,
+            "matching_ack_attempt_id": None,
+        }
         record["reconnect"]["seat"] = {name: None for name in record["seat"]}
         record["reconnect"]["stages"] = {name: "NOT_OBSERVED" for name in self.evidence.RECONNECT_STAGES}
         self.assertEqual(self.evidence.validate(record)["stages"]["native_admission"], "PASS")
@@ -168,6 +239,17 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["credentials"] = {name: None for name in record["credentials"]}
         record["seat"] = {name: None for name in record["seat"]}
         record["generations"] = {name: None for name in record["generations"]}
+        record["provenance"] = {
+            "attempt_id": None,
+            "credentials_verified_attempt_id": None,
+            "native_admission_attempt_id": None,
+            "native_admission_producer": None,
+            "share_attempt_id": None,
+            "first_frame_attempt_id": None,
+            "matching_ack_attempt_id": None,
+            "input_attempt_id": None,
+            "randr_attempt_id": None,
+        }
         record["stages"] = {name: "NOT_OBSERVED" for name in record["stages"]}
         record["frame"] = {name: None for name in record["frame"]}
         record["input"] = {name: 0 for name in record["input"]}
@@ -177,6 +259,15 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                "consent_generation": None, "admission_consent_generation": None,
                                "linux_session_generation": None,
                                "r2_admission_generation": None, "native_capture_generation": None,
+                               "provenance": {
+                                   "attempt_id": None,
+                                   "credentials_verified_attempt_id": None,
+                                   "native_admission_attempt_id": None,
+                                   "native_admission_producer": None,
+                                   "share_attempt_id": None,
+                                   "first_frame_attempt_id": None,
+                                   "matching_ack_attempt_id": None,
+                               },
                                "seat": {name: None for name in record["seat"]},
                                "stages": {name: "NOT_OBSERVED" for name in self.evidence.RECONNECT_STAGES},
                                "first_frame_capture_generation": None, "ack_capture_generation": None,

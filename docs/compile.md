@@ -56,11 +56,14 @@ exact-publication SHA hosted validation **PENDING**.
 
 The Python standard-library validator and offline unittest are registered
 only in the existing `tests/CMakeLists.txt` and use the existing canonical
-`~/rdp-server/build/` CTest root. No new native target, dependency,
-listener, synthetic seat0 owner, workspace or alternate build root. Run full
-Debug/Release CTest and the unchanged 45-case native ASan/UBSan selection
-against the published SHA; previous PR artifacts do not qualify new main.
-Connector environment has no cloneable checkout: local build/CTest NOT RUN.
+`~/rdp-server/build/` CTest root. Private schema v2 and the focused
+`linux.x11-owner-private-evidence-attempt-provenance-denials` CTest add no
+native target, dependency, listener, synthetic seat0 owner, workspace or
+alternate build root. The focused provenance test remains outside the native
+X11 sanitizer selector. Run full Debug/Release CTest and the unchanged
+45-case native ASan/UBSan selection against the published SHA; previous PR
+artifacts do not qualify new main. Connector environment has no cloneable
+checkout: local build/CTest NOT RUN.
 
 ## R1 OpenSSL 4.1 typed-stack macro compile correction (2026-10-30)
 

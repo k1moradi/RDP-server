@@ -1,4 +1,4 @@
-# Linux/X11 owner-private native acceptance — R5/R2 (round one)
+# Linux/X11 owner-private native acceptance — R5/R2
 
 **Status: NOT RUN.** This is an owner-only procedure and a separate schema;
 it does not extend the macOS Windows-App evidence tool. A green offline test,
@@ -73,26 +73,38 @@ the UID, session ID, username, display/XID, destination or client logs.
    PASS. Record whether selected/saved Username, Session Password and
    credential entry intentionally match (`true`, `false` or `null`).
 3. **Remote authentication:** from the separately authorized client (Windows
-   App or mstsc), observe TLS, Type 1, Type 2, Type 3, pubKeyAuth, authInfo
-   and `CredentialsVerified` for the **same connection**. A client FIN
-   before Type 3 is not a credential failure or successful admission.
+   App or mstsc), privately record the bounded R10 accepted-client correlation
+   ID as `provenance.attempt_id`, then observe TLS, Type 1, Type 2, Type 3,
+   pubKeyAuth, authInfo and `CredentialsVerified` for that **same
+   connection**. Every observed downstream producer receipt must carry that
+   same attempt ID. A client FIN before Type 3 is not a credential failure or
+   successful admission.
 4. **Independent R2:** observe genuine native Admission using the real R2
    protected visitor, exact principal/TLS binding, graphical seat0,
    current/unlocked session, process/native UID equality, fresh Linux
    session generation and current consent epoch. Record independent
    R2 admission generation and independently observed R2-bound consent
    generation (`generations.admission_consent`), equal to the owner grant.
-   Never invent a positive lease
-   from client credentials, geometry or XIDs.
+   A positive Admission must also record the same accepted-client attempt ID
+   in `provenance.native_admission_attempt_id` and the fixed producer class
+   `linux-console-admission-broker`. Those values document where the
+   observation came from; they are never authorization. Never invent a
+   positive lease from client credentials, matched generations, geometry or
+   XIDs.
 5. **Graphics:** after R2 PASS, observe R3 MCS/GCC/licensing, Share and
    GraphicsReady separately, then actual native XShm first-frame delivery
-   and its **matching** R4 ACK in the same capture generation. Record only
-   typed PASS/FAIL/NOT_OBSERVED; do not store pixels or borrow buffers.
+   and its **matching** R4 ACK in the same capture generation. Copy the same
+   private attempt ID beside the observed Share, first-frame and ACK producer
+   receipts; a crossed ID is a contradiction even when all generations match.
+   Record only typed PASS/FAIL/NOT_OBSERVED; do not store pixels or borrow
+   buffers.
 6. **Input and resize:** with owner-authorized input, count committed
-   keyboard and mouse posts (no key/button payloads). Confirm XFixes cursor
-   observation privately. Trigger an authorized RandR resize, record the
-   strictly replacement capture generation and rejection of the retired
-   frame/ACK/geometry. No event/XID becomes admission authority.
+   keyboard and mouse posts (no key/button payloads). Correlate the observed
+   input dispatch and RandR replacement with the same private attempt ID.
+   Confirm XFixes cursor observation privately. Trigger an authorized RandR
+   resize, record the strictly replacement capture generation and rejection
+   of the retired frame/ACK/geometry. No event/XID or correlation scalar
+   becomes admission authority.
 7. **Retirement:** in separate authorized runs exercise Stop, lock, logout
    and switch-user. Record each event, whether R2 lease and X11 capture
    were terminally retired, session-generation change (where observed),
@@ -102,23 +114,30 @@ the UID, session ID, username, display/XID, destination or client logs.
    cleanup posts; do not store XCB event or XShm pixel references.
 8. **Fresh reconnect:** after session restoration and **another explicit
    owner grant**, independently re-check the current unlocked seat0/UID owner,
-   authenticate again through CredentialsVerified, then record new consent, R2 admission
-   and X11 capture generations. Record the new R2-bound
+   authenticate again through CredentialsVerified, then record new consent, R2
+   admission and X11 capture generations. The reconnect must have a new
+   private `reconnect.provenance.attempt_id`; copy that same ID beside its
+   CredentialsVerified, native Admission, Share, first-frame and ACK producer
+   observations, and record the same fixed R2 admission producer class.
+   Record the new R2-bound
    `reconnect.admission_consent_generation` equal to the fresh owner grant.
-   A valid reconnect must not reuse either
-   retired R2 or capture generation. Require new Share/GraphicsReady,
-   actual new first frame and matching ACK independently. If not reached,
-   record `NOT_OBSERVED`, never an inferred PASS.
+   A valid reconnect must not reuse the retired attempt ID, R2 admission or
+   capture generation. Require new Share/GraphicsReady, actual new first frame
+   and matching ACK independently. If not reached, record `NOT_OBSERVED`,
+   never an inferred PASS.
 
 A private record is one **same-attempt** observation, not a merger of
 unrelated client/server attempts. Use separate records for separate Stop,
 lock, logout and switch-user runs. No steps above were executed during
 round-one preparation.
 
-## v1 manifest contract
+## v2 manifest contract
 
 The standalone validator is `scripts/linux_x11_owner_evidence.py`.
-Its sole input is JSON of schema `rdp-server.linux-x11-owner-evidence.v1`;
+Its sole input is JSON of schema `rdp-server.linux-x11-owner-evidence.v2`;
+v1 is intentionally rejected because it cannot prove same-attempt producer
+correlation. The public redacted projection remains v1 because its shape is
+unchanged and contains no attempt IDs.
 the complete required key set is shown below. All missing/unobserved
 generations must be JSON `null`; all stage values are exactly
 `PASS`, `FAIL`, or `NOT_OBSERVED`. Private generations are
@@ -127,8 +146,19 @@ The `source_sha` must be the exact tested checkout commit.
 
 ```json
 {
-  "schema": "rdp-server.linux-x11-owner-evidence.v1",
+  "schema": "rdp-server.linux-x11-owner-evidence.v2",
   "source_sha": "<replace-with-exact-40-hex-sha>",
+  "provenance": {
+    "attempt_id": null,
+    "credentials_verified_attempt_id": null,
+    "native_admission_attempt_id": null,
+    "native_admission_producer": null,
+    "share_attempt_id": null,
+    "first_frame_attempt_id": null,
+    "matching_ack_attempt_id": null,
+    "input_attempt_id": null,
+    "randr_attempt_id": null
+  },
   "client": {"type": "unobserved", "version": "unobserved"},
   "sharing": {"initial": "OFF", "enabled": false, "owner_grant_recorded": false, "consent_generation": null},
   "credentials": {"username_matches": null, "session_password_matches": null, "selected_credential_matches": null},
@@ -152,6 +182,15 @@ The `source_sha` must be the exact tested checkout commit.
     "observed": false, "owner_grant_recorded": false,
     "consent_generation": null, "admission_consent_generation": null, "linux_session_generation": null,
     "r2_admission_generation": null, "native_capture_generation": null,
+    "provenance": {
+      "attempt_id": null,
+      "credentials_verified_attempt_id": null,
+      "native_admission_attempt_id": null,
+      "native_admission_producer": null,
+      "share_attempt_id": null,
+      "first_frame_attempt_id": null,
+      "matching_ack_attempt_id": null
+    },
     "seat": {"graphical": null, "seat0": null, "unlocked": null, "current_session": null, "process_uid_matches_owner": null},
     "stages": {"credentials_verified": "NOT_OBSERVED", "native_admission": "NOT_OBSERVED", "share": "NOT_OBSERVED",
                "graphics_ready": "NOT_OBSERVED", "first_frame": "NOT_OBSERVED",
@@ -179,11 +218,16 @@ python3 tests/test_linux_x11_owner_evidence.py --script scripts/linux_x11_owner_
 ```
 
 The validator cross-checks independently observed R2-bound consent generations
-against owner grant generations at initial Admission and reconnect. An
+against owner grant generations at initial Admission and reconnect. It also
+requires each observed CredentialsVerified/native Admission/Share/frame/ACK
+producer receipt to match its containing attempt ID, requires input/RandR
+observations to match the initial attempt, requires the native Admission
+producer class to be `linux-console-admission-broker`, and rejects reconnect
+attempt-ID reuse. These are provenance checks, not authority checks. An
 admitted session may legitimately have no capture generation until graphics
 begins; admission alone never proves Share, first frame or input.
 
-The validator requires each reported first-frame generation to equal its active native capture generation and each matching ACK generation to equal that first-frame generation (including reconnect). It rejects contradictory status/generation/input claims, extra
+The validator requires each reported first-frame generation to equal its active native capture generation and each matching ACK generation to equal that first-frame generation (including reconnect). It rejects crossed producer-attempt IDs, contradictory status/generation/input claims, extra
 keys (including any raw UID, session ID, Username, destination, XIDs, pixels
 or input payloads), duplicate JSON keys and oversized input. Its stdout is
 allowlisted to typed stages/retirement outcomes and non-identifying

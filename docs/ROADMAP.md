@@ -108,29 +108,51 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 ## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
 
-**Current delivery work:** reconcile PR #39 into `main` directly without
-merging its branch or losing the restored roadmap history. The independent
-Linux/X11 read-only evidence validator has a strict closed schema: exact
-source SHA, typed client and credential-match observations, Sharing OFF -> ON,
-owner grant and R2-bound consent epochs, graphical unlocked seat0, UID match,
-R2/session/native capture generations, ordered CredSSP/MCS/Share/frame/ACK,
-XTEST/RandR, and retirement/reconnect. R2-bound consent epochs must equal
-the actual owner grant on initial and reconnect Admission; capture may
-legitimately remain unobserved before graphics.
+**Current R5 re-audit baseline:** `4a6594e29fd2554a2032d5721180782521390090`. The production Linux/X11 hot
+path remains correct after R2's original owner-grant epoch hardening and needs
+no R5 mutation. R10 authorizes current PersonalDesktop application traffic
+before native X11 event service and repeats that R2 check before network input
+or framebuffer work. Each decoded input event re-enters R2 immediately before
+the native sink; framebuffer publication retains the current R2/R3 preflight
+plus R5 capture-generation/geometry checks before and after the synchronous
+XShm borrow. R2's protected revalidation includes the exact prepared
+`OwnerSharingAuthorizationEpoch`, so equal Linux session-generation scalars
+cannot revive a replaced owner grant.
 
-One new `linux.x11-owner-private-evidence-validation-denials` offline
-CTest is centrally registered. The existing 45-case native X11 sanitizer
-selection, including synchronous XShm-borrow and reentrant XDamage retirement,
-is unchanged; **no 46th native test**. PR checks and an owner-local
-**1060/1060** summary without recorded SHA are not new-main release receipts.
-New publication-SHA ordinary full CTest and 45-case native sanitizers are
-**NOT RUN** in this connector environment. Real seat0/Sharing-ON/native R2
-Admission/frame/ACK/input/RandR/Stop/lock/logout/switch/reconnect remain
-**BLOCKED / NOT RUN**, requiring manual R9 exact-SHA candidate qualification
-and separate owner authorization. Next: current-main exact-SHA CI and
-native sanitizer receipts, then approved private procedure. See
-[Linux owner-private procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md).
+Existing Xvfb regressions already cover queued and reentrant XDamage retirement,
+same-pixel/RandR generation replacement, in-flight XShm callback retirement,
+same numeric native-session generation across replacement owners, graceful
+held-input release and terminal no-post XTEST retirement. The fixed native X11
+ASan/UBSan selector therefore remains exactly **45 cases**; no production X11
+hot-path change and no 46th native test are justified.
 
+**Distinct evidence gap:** private manifest v1 said “same attempt” but did not
+machine-check producer correlation. Private schema v2 adds one bounded
+owner-private attempt ID and requires observed CredentialsVerified, native
+Admission, Share, first frame, matching ACK, input and RandR receipts to match
+that attempt. Native Admission additionally names the fixed
+`linux-console-admission-broker` producer class. Reconnect requires a
+different attempt ID while retaining fresh owner-consent, R2 admission and
+capture generations. Matching scalars alone still never prove Admission.
+The focused offline
+`linux.x11-owner-private-evidence-attempt-provenance-denials` CTest exercises
+crossed IDs and missing/wrong R2 producer provenance; it is outside the 45-case
+native sanitizer inventory and carries no internal road label.
+
+The repository contains an owner-local **1060/1060** summary, not a verifiable
+1066/1066 receipt. It has no independently recorded `git rev-parse HEAD`,
+toolchain/configuration and command receipt, so it remains **SHA MISSING /
+UNPINNED** and does not count toward M1. Do not infer a SHA from nearby CI,
+roadmap text or current main.
+
+Real seat0/Sharing-ON/native R2 Admission/frame/ACK/input/RandR/Stop/lock/
+logout/switch/reconnect remain **BLOCKED / NOT RUN**. The maintained
+[Linux owner-private procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md) requires
+one R9-nominated exact main SHA, same-SHA hosted/native qualification and
+separate owner authorization before any physical step. Publication-SHA
+ordinary CTest, the focused provenance test and unchanged 45/45 sanitizer
+receipt are **PENDING** for this increment; no physical step or benchmark was
+run.
 ## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
 
 **Audited base `c88dc60f9e218797ddcd640af6bba1693adca1d7`.** First-round R2-only correction: the existing

@@ -84,6 +84,13 @@ Admission, R2-consent versus owner-grant mismatch on initial and reconnect,
 locked/stale seat0/UID, XTEST post-revocation, stale native/R2/RandR capture,
 unobserved-stage claims, duplicate/raw JSON keys and private-data publication.
 Also accept a legitimate R2 Admission observation before native capture exists.
+Private schema v2 must fail closed when an observed CredentialsVerified,
+native Admission, Share, first frame, matching ACK, input or RandR stage carries
+an attempt ID different from the containing attempt, when native Admission
+does not name the `linux-console-admission-broker` producer class, or when a
+reconnect reuses the retired attempt ID. Register the focused offline
+`linux.x11-owner-private-evidence-attempt-provenance-denials` CTest with
+behavior labels only; it must not enter the native X11 sanitizer selection.
 This is separate from the existing **45-case** X11 sanitizer selection, which
 must remain unchanged and run on the exact publication SHA. A PR green run or
 local unpinned total is **not** an exact-main PASS. No live seat0/XTEST/capture.

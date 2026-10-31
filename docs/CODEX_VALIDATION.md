@@ -1,3 +1,12 @@
+## R5 Linux/X11 generation-safety and producer-provenance re-audit (2026-10-30)
+
+- Authoring parent: `4a6594e29fd2554a2032d5721180782521390090`. Source audit **PASS by inspection**: R10 performs fresh R2 application-traffic authorization before X11 event service and again before input/frame work; R2 revalidation includes the exact prepared owner-consent epoch; per-event input dispatch reauthorizes immediately before the native sink; R5 post-callback capture/geometry checks remain intact. No production X11 change is justified.
+- Existing production-backed Xvfb coverage already exercises queued/reentrant XDamage, RandR/same-pixel generation turnover, same-session-generation replacement owners, in-flight XShm retirement, graceful held-input release and terminal no-post XTEST retirement. Keep the native sanitizer inventory exactly **45**.
+- Found validator-only gap: private schema v1 could not prove that otherwise consistent Admission/Share/frame/ACK scalars came from one producer-correlated attempt. Private schema v2 adds same-attempt IDs for observed credential/admission/Share/frame/ACK/input/RandR evidence, the fixed `linux-console-admission-broker` Admission producer class, and a distinct reconnect attempt ID. The redacted public schema remains unchanged and contains no attempt IDs.
+- Focused offline CTest `linux.x11-owner-private-evidence-attempt-provenance-denials` uses the existing Python validator test executable and is outside the native X11 sanitizer selector; no internal R5 label, listener, desktop, XTEST or credential use.
+- Repository evidence records only an owner-local **1060/1060** summary with SHA/toolchain/configuration/command missing. No 1066/1066 exact-SHA receipt was found. M1 owner Linux evidence remains **UNPINNED / NOT VERIFIED**.
+- Isolated exact proposed Python blobs: syntax compile **PASS**, full validator unittest **18/18 PASS**, focused same-attempt provenance unittest **1/1 PASS**. Connector-local canonical CMake build/CTest and ASan/UBSan: **NOT RUN**. Exact publication-SHA hosted full/focused CTest and unchanged 45/45 native sanitizer selection: **PENDING**. Physical seat0/client/capture/input: **NOT RUN / unauthorized**. Benchmark: **NOT RUN**.
+
 ## R7 QColorSpace owner-provenance diagnostic artifact (2026-10-30)
 
 - Reconciled authoring parent: `fd612d0a0c80d5582934b44ab39a2310294b507c`.

@@ -1339,6 +1339,21 @@ add_test(NAME linux.x11-owner-private-evidence-validation-denials
 set_tests_properties(linux.x11-owner-private-evidence-validation-denials PROPERTIES
     LABELS "linux;x11;offline;project-policy;evidence;security" TIMEOUT 15)
 
+# Distinct R5 evidence boundary: a positive native Admission/Share/frame/ACK
+# receipt must come from one producer-correlated attempt, not matched scalars
+# copied across attempts. This remains offline and outside the 45 native X11
+# sanitizer census.
+add_test(NAME linux.x11-owner-private-evidence-attempt-provenance-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_linux_x11_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/linux_x11_owner_evidence.py"
+        -k same_attempt_producer_provenance_denials)
+set_tests_properties(
+    linux.x11-owner-private-evidence-attempt-provenance-denials
+    PROPERTIES
+        LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
+        TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

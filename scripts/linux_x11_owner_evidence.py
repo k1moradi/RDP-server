@@ -12,7 +12,7 @@ import re
 import sys
 from pathlib import Path
 
-PRIVATE_SCHEMA = "rdp-server.linux-x11-owner-evidence.v1"
+PRIVATE_SCHEMA = "rdp-server.linux-x11-owner-evidence.v2"
 PUBLIC_SCHEMA = "rdp-server.linux-x11-owner-evidence-redacted.v1"
 STAGE_OUTCOMES = frozenset({"PASS", "FAIL", "NOT_OBSERVED"})
 STAGE_ORDER = (
@@ -24,6 +24,18 @@ ADDITIONAL_STAGES = ("keyboard_dispatch", "mouse_dispatch", "randr_replacement")
 RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphics_ready", "first_frame", "matching_ack")
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
+NATIVE_ADMISSION_PRODUCER = "linux-console-admission-broker"
+PROVENANCE_FIELDS = (
+    "attempt_id", "credentials_verified_attempt_id",
+    "native_admission_attempt_id", "native_admission_producer",
+    "share_attempt_id", "first_frame_attempt_id", "matching_ack_attempt_id",
+    "input_attempt_id", "randr_attempt_id",
+)
+RECONNECT_PROVENANCE_FIELDS = (
+    "attempt_id", "credentials_verified_attempt_id",
+    "native_admission_attempt_id", "native_admission_producer",
+    "share_attempt_id", "first_frame_attempt_id", "matching_ack_attempt_id",
+)
 
 
 class EvidenceError(ValueError):
@@ -56,6 +68,68 @@ def require_counter(value, location):
     return value
 
 
+def require_attempt_id(value, location, nullable=False):
+    if nullable and value is None:
+        return None
+    if type(value) is not int or not 0 < value <= (1 << 64) - 1:
+        raise EvidenceError(f"invalid attempt provenance at {location}")
+    return value
+
+
+def require_stage_attempt(provenance, stages, stage_name, field_name,
+                          attempt_id, location):
+    stage_observed = stages[stage_name] != "NOT_OBSERVED"
+    stage_attempt = require_attempt_id(
+        provenance[field_name], f"{location}.{field_name}", nullable=True)
+    if stage_observed:
+        if attempt_id is None or stage_attempt != attempt_id:
+            raise EvidenceError(f"{stage_name} crossed attempt provenance")
+    elif stage_attempt is not None:
+        raise EvidenceError(f"{stage_name} has unobserved attempt provenance")
+
+
+def validate_attempt_provenance(provenance, stages, location, reconnect=False):
+    expected_fields = RECONNECT_PROVENANCE_FIELDS if reconnect else PROVENANCE_FIELDS
+    require_fields(provenance, expected_fields, location)
+    attempt_id = require_attempt_id(
+        provenance["attempt_id"], f"{location}.attempt_id", nullable=True)
+    for stage_name, field_name in (
+        ("credentials_verified", "credentials_verified_attempt_id"),
+        ("native_admission", "native_admission_attempt_id"),
+        ("share", "share_attempt_id"),
+        ("first_frame", "first_frame_attempt_id"),
+        ("matching_ack", "matching_ack_attempt_id"),
+    ):
+        require_stage_attempt(
+            provenance, stages, stage_name, field_name, attempt_id, location)
+
+    producer = provenance["native_admission_producer"]
+    if stages["native_admission"] != "NOT_OBSERVED":
+        if producer != NATIVE_ADMISSION_PRODUCER:
+            raise EvidenceError("native Admission lacks real R2 producer provenance")
+    elif producer is not None:
+        raise EvidenceError("unobserved native Admission claims producer provenance")
+
+    if not reconnect:
+        input_observed = any(
+            stages[name] != "NOT_OBSERVED"
+            for name in ("keyboard_dispatch", "mouse_dispatch"))
+        input_attempt = require_attempt_id(
+            provenance["input_attempt_id"],
+            f"{location}.input_attempt_id", nullable=True)
+        if input_observed:
+            if attempt_id is None or input_attempt != attempt_id:
+                raise EvidenceError("input crossed attempt provenance")
+        elif input_attempt is not None:
+            raise EvidenceError("unobserved input claims attempt provenance")
+
+        require_stage_attempt(
+            provenance, stages, "randr_replacement", "randr_attempt_id",
+            attempt_id, location)
+
+    return attempt_id
+
+
 def require_stages(stages, names, location):
     require_fields(stages, names, location)
     for name in names:
@@ -71,7 +145,7 @@ def require_pass(stages, prerequisite, dependent):
 def validate(record):
     """Return a safe public projection, or raise without leaking private data."""
     require_fields(record, (
-        "schema", "source_sha", "client", "sharing", "credentials", "seat",
+        "schema", "source_sha", "provenance", "client", "sharing", "credentials", "seat",
         "generations", "stages", "frame", "input", "randr", "retirements", "reconnect",
     ), "record")
     if record["schema"] != PRIVATE_SCHEMA:
@@ -118,6 +192,8 @@ def validate(record):
 
     stages = record["stages"]
     require_stages(stages, STAGE_ORDER + ADDITIONAL_STAGES, "stages")
+    attempt_id = validate_attempt_provenance(
+        record["provenance"], stages, "provenance")
     for prerequisite, dependent in zip(STAGE_ORDER, STAGE_ORDER[1:]):
         require_pass(stages, prerequisite, dependent)
     for name in ADDITIONAL_STAGES:
@@ -200,7 +276,7 @@ def validate(record):
 
     reconnect = require_fields(record["reconnect"], (
         "observed", "owner_grant_recorded", "consent_generation", "admission_consent_generation", "linux_session_generation",
-        "r2_admission_generation", "native_capture_generation", "seat", "stages",
+        "r2_admission_generation", "native_capture_generation", "provenance", "seat", "stages",
         "first_frame_capture_generation", "ack_capture_generation", "posts_after_revocation",
     ), "reconnect")
     for name in ("observed", "owner_grant_recorded"):
@@ -211,6 +287,9 @@ def validate(record):
     for name, value in reconnect_seat.items():
         require_bool(value, f"reconnect.seat.{name}", nullable=True)
     require_stages(reconnect["stages"], RECONNECT_STAGES, "reconnect.stages")
+    reconnect_attempt_id = validate_attempt_provenance(
+        reconnect["provenance"], reconnect["stages"],
+        "reconnect.provenance", reconnect=True)
     for name, stage in (("first_frame_capture_generation", "first_frame"), ("ack_capture_generation", "matching_ack")):
         require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
         if (reconnect["stages"][stage] == "PASS") != (reconnect[name] is not None):
@@ -238,6 +317,10 @@ def validate(record):
     if reconnect["observed"]:
         if not retirements or stages["native_admission"] != "PASS":
             raise EvidenceError("reconnect requires previously admitted retired owner")
+        if attempt_id is None or reconnect_attempt_id is None:
+            raise EvidenceError("reconnect requires same-attempt producer provenance")
+        if reconnect_attempt_id == attempt_id:
+            raise EvidenceError("reconnect reused initial attempt provenance")
         if not reconnect["owner_grant_recorded"]:
             raise EvidenceError("reconnect needs fresh explicit owner grant")
         if any(reconnect[name] is None for name in (
@@ -256,6 +339,9 @@ def validate(record):
           reconnect["owner_grant_recorded"] or
           any(reconnect[name] is not None for name in (
               "consent_generation", "admission_consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation", "first_frame_capture_generation", "ack_capture_generation")) or
+          reconnect_attempt_id is not None or
+          any(value is not None for name, value in reconnect["provenance"].items()
+              if name != "attempt_id") or
           any(stage != "NOT_OBSERVED" for stage in reconnect["stages"].values())):
         raise EvidenceError("unobserved reconnect contains claimed evidence")
 

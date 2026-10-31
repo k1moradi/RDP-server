@@ -1,3 +1,18 @@
+## R10 zero-wait accepted-client service-tick qualification (2026-10-31)
+
+In production-backed `runtime.macos-host-control-accepted-pre-admission-dormancy`,
+a completed synthetic client TCP `connect()` does not entitle the
+nonblocking server `accept()` to succeed on the **first** zero-wait owner
+tick. Bound test progress to at most 32 serialized owner calls, yielding
+only between legitimate `ListenerAvailable` steps and failing immediately
+on other states; retain the exact client ID, incomplete TPKT, no MCS,
+no Share, no graphics/native and final Stop assertions.
+Never add a secondary poller/reader, blocking sleep or arbitrary reconnect;
+network failure after successful TCP connect must fail, not SKIP.
+The observed `8e0dc8e6` macOS test failure occurred at the
+single-tick stage assertion; a publication-SHA macOS test result is
+still required and is not interchangeable with an ancestor pass.
+
 ## R4 partial-DATA retirement and successor graphics-credit isolation (2026-10-31)
 
 The separate production-backed offline CTest

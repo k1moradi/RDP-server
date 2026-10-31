@@ -1,3 +1,25 @@
+## R10 macOS zero-wait accepted-client regression correction (2026-10-31)
+
+The existing production-linked `runtime.macos-host-control-accepted-pre-admission-dormancy`
+case incorrectly required one zero-wait owner tick to observe a kernel
+nonblocking TCP accept immediately after synthetic local `connect()`.
+At R10 authoring parent `8afaced67524add47c847e9cdf3ea486a9a6f9f5`,
+hosted `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6` macOS Debug 814/815
+passed, with this test aborting specifically on
+`accepted.stage == ClientAuthenticating` before its incomplete first TPKT;
+the Ubuntu and Windows protocol jobs and R9 sanitizers passed.
+The corrected test performs at most 32 **serial, zero-wait owner ticks**
+until exact `ClientAuthenticating`, failing on any other stage and never
+sleeping, reconnecting, weakening the protocol assertions or converting
+a post-connect failure to SKIP. The incomplete TPKT, pre-MCS, no-Share,
+no-native-attachment and Stop denials stay unchanged.
+Local canonical compile/CTest: **NOT RUN** (no owner checkout).
+Publication-SHA macOS full CI: **PENDING**; prior SHA is not its PASS.
+R10 positive native/first-MCS composition remains **BLOCKED** pending
+R2 genuine accepted production-R1 HYBRID/TLS/CredSSP completion,
+native/proof callback-loss and zero/partial/late broker receipt evidence;
+no physical authorization or real desktop is claimed.
+
 ## R4 partial-DATA retirement / successor-frame acceptance (2026-10-31)
 
 Parent inspected: `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`. Upstream

@@ -1582,8 +1582,21 @@ void testStopRevokeRetirement()
                   static_cast<socklen_t>(sizeof(destination))) != 0)
         return false;
 
-    assert(control.serviceOnce().succeeded());
+    // The listener uses a zero-wait nonblocking accept on each serialized
+    // owner tick. A successful client connect does not require the first
+    // tick to observe POLLIN; advance only a bounded number of owner steps.
+    // Never sleep, reconnect, or classify a post-connect failure as SKIP.
     auto accepted = control.status();
+    for (std::size_t ownerStep = 0U;
+         ownerStep < 32U &&
+             accepted.stage == RuntimeHostStage::ListenerAvailable;
+         ++ownerStep)
+    {
+        assert(control.serviceOnce().succeeded());
+        accepted = control.status();
+        if (accepted.stage == RuntimeHostStage::ListenerAvailable)
+            std::this_thread::yield();
+    }
     assert(accepted.stage == RuntimeHostStage::ClientAuthenticating);
     assert(accepted.activeClients.size() == 1U);
     assert(accepted.acceptedClientPreauthDiagnostics.available);

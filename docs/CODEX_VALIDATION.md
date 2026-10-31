@@ -1,3 +1,24 @@
+## R10 macOS accepted-client zero-wait tick correction (2026-10-31)
+
+- Authoring parent `8afaced67524add47c847e9cdf3ea486a9a6f9f5`.
+  Examined exact `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`
+  GitHub Actions `41191351163`: Ubuntu protocol **PASS**,
+  Windows protocol **PASS**, R9 sanitizers **PASS**,
+  macOS Debug **FAIL** 814/815 solely at
+  `runtime.macos-host-control-accepted-pre-admission-dormancy`:
+  `accepted.stage == ClientAuthenticating` after one owner tick.
+- Existing production HostControl accepts at most one socket per zero-wait
+  tick and explicitly allows `WouldBlock`. Test-only correction bounds
+  serialized progress to 32 owner ticks, preserving all existing incomplete
+  TPKT, pre-MCS, Stop and native-denial assertions. No production code,
+  worker, socket reader or TLS/credential lifetime changed.
+- Canonical local Debug configure/build/focused and full CTest:
+  **NOT RUN** (owner checkout unavailable); publication-SHA hosted
+  macOS focused/full CTest and all-platform acceptance **PENDING**.
+  R2 real-positive accepted-TLS/native-callback/partial-receipt evidence
+  remains **BLOCKED**, so R10 does not yet invoke R2's private positive
+  issuer or report Share/native/desktop success.
+
 ## R4 partial accepted-DATA revocation / successor generation (2026-10-31)
 
 Inspection base `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`:

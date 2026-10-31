@@ -427,6 +427,37 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 ## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
 
+**R5 exact-descendant hosted qualification receipt (2026-10-31):**
+At exact source SHA `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
+[CI run 41191351163](https://github.com/k1moradi/RDP-server/actions/runs/41191351163),
+Linux protocol Debug **1038/1038 PASS** and Release **1038/1038 PASS**;
+Windows protocol Debug **860/860 PASS** and Release **860/860 PASS**.
+The three ordinary offline owner-private CTests (validation, attempt-provenance,
+independent-connection-pinning) **3/3 PASS** on Linux, Windows and macOS
+(in the macOS full Debug suite, even though its unrelated test failed).
+R9 Clang ASan/UBSan `Run all R5 native X11 CTests with sanitizers`
+**45/45 PASS** including reentrant XDamage and in-flight XShm
+retirement; the fixed sanitizer selection was not widened.
+Recorded exact CI commands: `ctest --test-dir build --build-config Debug
+--timeout 60 --output-on-failure` and corresponding `Release`
+on Linux/Windows, plus the R9 native X11 sanitizer selection in the
+same Actions run. No physical X11/input/client was run.
+
+**First remaining cross-road gate at this SHA:** macOS Debug
+**814/815 PASS, one FAIL**:
+`runtime.macos-host-control-accepted-pre-admission-dormancy`
+(`tests/test_macos_runtime_host_control.cpp:1587`, expected
+`RuntimeHostStage::ClientAuthenticating`); macOS Release therefore
+**NOT RUN**. This is R10/R2 macOS HostControl, **not R5**.
+The primary exact-SHA CI was not wholly green, the R9 owner-candidate
+manual gate was **SKIPPED** on push, and three owner-local same-SHA
+Debug receipts remain **NOT VERIFIED**. This receipt describes the
+tested descendant only, not any later documentation/implementation SHA.
+**Next:** R2/R10 correct the first macOS runtime boundary, R9 verify
+fully green same-SHA CI, R10 coordinate candidate and owner-local receipts;
+owner-private seat0 physical run remains **NOT RUN / unauthorized**.
+
+
 **Agent 5 independently pinned evidence audit (2026-10-31):** The
 closed private v2 manifest validates stage-local accepted-client attempt
 IDs, owner-consent and R2 generation equality, frame/ACK capture generations,

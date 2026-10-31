@@ -144,6 +144,9 @@ private:
         ErectDomainAccepted,
         AttachUserAccepted,
         AttachConfirmDelivered,
+        ChannelJoinConfirmPending,
+        ClientInfoExpected,
+        ClientInfoAccepted,
     };
 
     const std::thread::id ownerThread_;

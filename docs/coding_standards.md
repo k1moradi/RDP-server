@@ -1,3 +1,25 @@
+## R10 macOS Channel Join/Client Info owner composition (2026-10-31)
+
+After the complete Attach Confirm receipt, R10 may consume Channel Join TPKTs
+only through the original R1 TLS reader and current concrete R2 broker. Keep
+one pending R3-owned Join Confirm at a time: borrow its exact suffix through
+R2, submit only that span to R1 and report only positive accepted-byte
+progress with the original reply/slice tuple. WANT_READ/WANT_WRITE is zero
+protocol progress. R10 must not parse or own channel membership.
+
+Microsoft clients may batch complete Join requests. R10 may still process one
+already-buffered TPKT per bounded owner transition: later requests remain in
+the sole R1/OpenSSL plaintext buffer while the current confirmation is
+receipt-committed. R3 remains the only bounded join-state owner. R10 may read
+R3's allocated user/I/O/static-channel confirmation observations only to
+schedule whether the next protected packet can be Client Info; those
+observations confer no authority, and R2/R3 independently require every
+configured join before accepting Client Info.
+
+A protected Client Info success must leave the same R3 owner at
+`AwaitServerLicenseRequest`. It grants no PersonalDesktop licensing,
+Share/GraphicsReady, native desktop, Input or Clipboard authority.
+
 ## R3/R10 Attach-Confirm delivery fence before Channel Join (2026-10-31)
 
 The first protected MCS Channel Join may be consumed only after R3 has

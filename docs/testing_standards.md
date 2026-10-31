@@ -1,3 +1,23 @@
+## R10 protected Channel Join/Client Info production-linked regression (2026-10-31)
+
+Register ordinary
+`security.macos-protected-channel-join-client-info-after-attach` in the
+existing `test_owned_preauth_session` executable. It reuses a real loopback
+R1 HYBRID TLS/BIO owner, the concrete macOS R2 broker and one production R3
+lifecycle. After the existing protected Connect-Response/Erect/Attach path,
+it sends every R3-allocated user/I/O/static Channel Join through client TLS,
+reads each through the sole R1 application reader, admits it only through R2
+and retires each Join Confirm one actual R1 accepted byte at a time. It then
+sends a structurally valid Unicode Client Info TPKT through the same R1/R2
+owner and requires `AwaitServerLicenseRequest` with Share still inactive.
+
+The proof/native observations remain deterministic synthetic test evidence:
+they test mechanics only and cannot create a product-valid native macOS lease.
+Do not add a synthetic positive HostControl issuer. Keep this ordinary test
+outside fixed MCS/sanitizer censuses unless R9 explicitly enrolls it. Agent
+3's separate premature-Join regression continues to cover zero/partial Attach
+Confirm ordering before this positive boundary.
+
 ## R3 premature Channel Join before complete Attach Confirm regression (2026-10-31)
 
 Dedicated ordinary offline CTest

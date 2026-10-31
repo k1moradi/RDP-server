@@ -2006,6 +2006,17 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "protocol;security;transport;tls;mcs;admission;offline"
                 TIMEOUT 20)
 
+        # Continue the same production-linked R1/R2/R3 owner through every
+        # allocated Channel Join confirmation and one protected Client Info.
+        add_test(NAME security.macos-protected-channel-join-client-info-after-attach
+            COMMAND "${test_target}"
+                "macos-protected-channel-join-client-info-after-attach")
+        set_tests_properties(
+            security.macos-protected-channel-join-client-info-after-attach
+            PROPERTIES
+                LABELS "protocol;security;transport;tls;mcs;admission;offline"
+                TIMEOUT 20)
+
         # Genuine accepted R1 HYBRID/TLS with synthetic authentication/native
         # evidence: owner-thread repeat preparation and pre-MCS audit loss.
         add_test(

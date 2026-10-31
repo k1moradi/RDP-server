@@ -1,3 +1,17 @@
+## R10 Channel Join/Client Info composition build boundary (2026-10-31)
+
+This increment reuses `rdp-server-macos-host-control`, the existing R1
+transport, concrete R2 broker, R3 lifecycle and
+`test_owned_preauth_session` executable. It adds no target, dependency,
+worker, listener, TLS reader, public protocol API, native operation or build
+root. The new ordinary CTest stays outside fixed sanitizer/MCS inventories.
+
+In the sole owner `~/rdp-server/build/`, run
+`ctest --test-dir build -C Debug -R '^(security[.]macos-protected-(buffered-attach-confirm-after-erect|channel-join-client-info-after-attach)|transport[.]mcs-macos-premature-join-before-attach-confirm-denial)$' --output-on-failure`,
+then full Debug CTest and the unchanged applicable sanitizer selections.
+Connector-local configure/build/CTest is **NOT RUN**; exact publication-SHA
+hosted CI is **PENDING**.
+
 ## R3 Attach-Confirm/Channel-Join ordering test-only build scope (2026-10-31)
 
 This increment changes only the existing `test_macos_r2_mcs_gateway` source,

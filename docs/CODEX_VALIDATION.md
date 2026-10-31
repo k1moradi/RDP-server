@@ -1,3 +1,35 @@
+## R10 protected Channel Join/Client Info composition (2026-10-31)
+
+Authoring parent `8075abac48a6d5d0ca0bf582b61d96413a8dfe70`. The current dependency audit finds no missing
+R1/R2/R3 primitive: R2 already protects Channel Join intake, Join Confirm
+borrow/completion and consuming Client Info; Agent 3's parent commit also
+pins the complete Attach-Confirm receipt fence and batched-Join semantics.
+
+The serialized macOS HostControl now continues from delivered Attach Confirm
+through one bounded complete Join TPKT at a time, exact R1 accepted-byte Join
+Confirm receipts, all R3-allocated channel memberships and one protected
+Client Info, then stops at `AwaitServerLicenseRequest`. The scheduler reads
+only R3's existing bounded allocated/confirmed channel observations to choose
+the Client Info boundary; R2/R3 independently revalidate proof/native/consent
+and all configured joins before any state change. No second SSL reader, MCS
+parser, membership owner, worker or unbounded allocation was added.
+
+Dedicated
+`security.macos-protected-channel-join-client-info-after-attach` reuses real
+loopback R1 HYBRID/TLS, concrete R2 and production R3. Synthetic proof/native
+test observations remain non-authorizing and the genuine HostControl issuer
+boundary is unchanged. Source/registry review **PASS**. Connector-local build,
+focused/full CTest and sanitizers **NOT RUN** because this environment has no
+networked owner checkout. Exact publication-SHA hosted CI is **PENDING**.
+
+For baseline only, descendant `379f05d3ff3a31df5ae80cd7f437b508c23653f9`
+Actions `41250520319` had macOS protocol/full CTest and R9 security/protocol
+sanitizers **PASS**; its Ubuntu protocol red was the unrelated R5
+`x11.input-native-failure-terminal-retirement-no-xtest` policy fixture.
+No physical macOS client/native Admission, capture, input, Clipboard or TCC
+operation is authorized or run by this increment. Next R10 boundary is
+PersonalDesktop licensing.
+
 ## R3 Agent 10 first-positive MCS review and Attach/Join receipt fence (2026-10-31)
 
 Authoring parent `379f05d3ff3a31df5ae80cd7f437b508c23653f9`. Current `main` was re-read through the

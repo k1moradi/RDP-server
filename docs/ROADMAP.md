@@ -1,3 +1,38 @@
+## R10 protected Channel Join/Confirm and Client Info integration — P0 authored (2026-10-31)
+
+**Authoring parent:** `8075abac48a6d5d0ca0bf582b61d96413a8dfe70`. Agent 3's immediately preceding review
+confirms no missing R3 interface and independently fences Channel Join behind
+a fully receipt-committed Attach Confirm while retaining batched Microsoft
+Join compatibility.
+
+- [x] Continue the serialized macOS HostControl from
+  `AttachConfirmDelivered` through R2-protected Channel Join intake and
+  R3-owned Join Confirm borrow/completion using only the sole R1 TLS reader/
+  writer and exact positive accepted-byte receipts.
+- [x] Preserve bounded batching without a second queue/parser: complete Join
+  TPKTs already sent by the client stay in R1/OpenSSL plaintext while R10
+  commits one current R3 confirmation, then the next owner tick consumes the
+  next TPKT.
+- [x] Use only R3's existing allocated user/I/O/static-channel confirmation
+  observations to schedule the transition; they are non-authorizing, and the
+  protected R2/R3 Client Info operation independently requires all configured
+  joins plus current proof/native/consent/R1 provenance.
+- [x] Consume one complete Client Info through the same bounded TPKT buffer and
+  stop at `AwaitServerLicenseRequest`; no licensing, Share, graphics,
+  clipboard, input or native desktop attachment is enabled.
+- [x] Add ordinary production-linked
+  `security.macos-protected-channel-join-client-info-after-attach` using a
+  real loopback R1 HYBRID/TLS connection, concrete R2 broker and production R3
+  lifecycle. Synthetic proof/native observations test mechanics only.
+- [ ] Exact publication-SHA hosted Linux/macOS/Windows/full CTest and sanitizer
+  qualification. Connector-local owner build/CTest is **NOT RUN**.
+- [ ] Next R10 atomic increment: PersonalDesktop licensing request/client
+  response/STATUS_VALID_CLIENT receipts through the existing R2/R3 wrappers,
+  then Demand/Confirm Active and Share in later bounded increments.
+- [ ] Genuine native macOS Admission, physical Microsoft client, desktop
+  capture, TCC mutation, Clipboard and input remain **NOT RUN / unauthorized**.
+  No R9 manual candidate is nominated.
+
 ## R3 review: first macOS Attach-positive path and next Channel Join fence (2026-10-31)
 
 **Authoring parent:** `379f05d3ff3a31df5ae80cd7f437b508c23653f9`. R3 re-audited current Agent 10

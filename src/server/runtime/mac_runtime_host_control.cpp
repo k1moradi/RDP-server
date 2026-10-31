@@ -164,6 +164,35 @@ void cleansePassword(std::span<char16_t> password) noexcept
     return endpointText(buffer.data(), endpoint.port);
 }
 
+[[nodiscard]] bool allAllocatedMcsChannelsJoined(
+    const rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    const std::uint32_t allocatedUserId = session.allocatedUserId();
+    if (allocatedUserId == 0U ||
+        allocatedUserId >
+            static_cast<std::uint32_t>(
+                (std::numeric_limits<std::uint16_t>::max)()))
+        return false;
+
+    const auto userChannelId = static_cast<std::uint16_t>(allocatedUserId);
+    const std::uint16_t ioChannelId = session.allocatedIoChannelId();
+    if (ioChannelId == 0U ||
+        !session.channelJoinConfirmed(userChannelId) ||
+        !session.channelJoinConfirmed(ioChannelId))
+        return false;
+
+    // R3 owns the allocated join set and independently rechecks it before
+    // Client Info. R10 reads this bounded snapshot only to schedule the next
+    // protected broker operation; it never confers channel authority.
+    const auto staticChannelIds = session.allocatedStaticChannelIds();
+    return std::all_of(
+        staticChannelIds.begin(), staticChannelIds.end(),
+        [&session](std::uint16_t channelId) noexcept {
+            return channelId != 0U &&
+                   session.channelJoinConfirmed(channelId);
+        });
+}
+
 [[nodiscard]] RuntimeSharingPermissionStatus sharingPermissionStatus(
     const rdp_server::server::security::OwnerSharingPermissionObservation&
         observation) noexcept
@@ -228,6 +257,7 @@ struct MacRuntimeCredSspState final
     std::size_t firstMcsExpectedBytes{};
     bool connectResponseWriteNeedsRead{};
     bool attachConfirmWriteNeedsRead{};
+    bool channelJoinConfirmWriteNeedsRead{};
 
     [[nodiscard]] bool prepareChallenge() noexcept
     {
@@ -397,14 +427,24 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         const bool writingAttachConfirm =
             activeAdmissionStage_ ==
                 AcceptedClientAdmissionStage::AttachUserAccepted;
+        const bool readingChannelJoin =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::AttachConfirmDelivered;
+        const bool writingChannelJoinConfirm =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ChannelJoinConfirmPending;
+        const bool readingClientInfo =
+            activeAdmissionStage_ ==
+                AcceptedClientAdmissionStage::ClientInfoExpected;
         if (!readingFirstMcs && !writingConnectResponse &&
             !readingErectDomain && !readingAttachUser &&
-            !writingAttachConfirm)
+            !writingAttachConfirm && !readingChannelJoin &&
+            !writingChannelJoinConfirm && !readingClientInfo)
         {
-            // Channel Join and later activation remain separate protected
-            // increments. Attach Confirm delivery is the bounded stop here.
+            // Licensing and later Share/graphics activation remain separate
+            // protected increments. Client Info acceptance is the bounded stop.
             return activeAdmissionStage_ ==
-                           AcceptedClientAdmissionStage::AttachConfirmDelivered
+                           AcceptedClientAdmissionStage::ClientInfoAccepted
                 ? RuntimeHostResult{RuntimeHostError::None, true}
                 : rejectAdmission();
         }
@@ -420,10 +460,13 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
         // Existing R1 SSL/BIO owns every application read/write. A WANT_READ
         // during a pending write must poll Read; new writes start on Write.
         const bool readingMcsTpkt =
-            readingFirstMcs || readingErectDomain || readingAttachUser;
+            readingFirstMcs || readingErectDomain || readingAttachUser ||
+            readingChannelJoin || readingClientInfo;
         const bool writeNeedsRead = writingConnectResponse
             ? credSsp.connectResponseWriteNeedsRead
-            : credSsp.attachConfirmWriteNeedsRead;
+            : (writingAttachConfirm
+                   ? credSsp.attachConfirmWriteNeedsRead
+                   : credSsp.channelJoinConfirmWriteNeedsRead);
         const Interest interest = readingMcsTpkt
             ? connection.ioInterest()
             : (writeNeedsRead ? Interest::Read : Interest::Write);
@@ -538,32 +581,82 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
                 return {RuntimeHostError::None, false};
             }
 
-            const auto attach =
-                activeAdmissionBroker_->authorizeR3AttachUser(
+            if (readingAttachUser)
+            {
+                const auto attach =
+                    activeAdmissionBroker_->authorizeR3AttachUser(
+                        session, completeTpkt);
+                if (attach != transport::McsSessionIntake::AttachUserAccepted ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                activeAdmissionStage_ =
+                    AcceptedClientAdmissionStage::AttachUserAccepted;
+                acceptedClientDiagnostics_.protocolStage =
+                    RuntimeAcceptedClientProtocolStage::McsAttachUserReceived;
+                return {RuntimeHostError::None, false};
+            }
+
+            if (readingChannelJoin)
+            {
+                const auto join =
+                    activeAdmissionBroker_->authorizeR3ChannelJoin(
+                        session, completeTpkt);
+                if (join == transport::McsJoinStartOutcome::Rejected ||
+                    !activeAdmissionBroker_->revalidate(
+                        activeAdmissionPermissionMask_))
+                    return rejectAdmission();
+                credSsp.firstMcsBytes = 0U;
+                credSsp.firstMcsExpectedBytes = 0U;
+                if (join == transport::McsJoinStartOutcome::ReplyPending)
+                {
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::ChannelJoinConfirmPending;
+                }
+                else if (join != transport::McsJoinStartOutcome::AlreadyJoined)
+                {
+                    // R10 never consumes another Join while a confirmation is
+                    // pending. Buffered/AlreadyPending therefore indicate
+                    // owner-state divergence and retire fail closed.
+                    return rejectAdmission();
+                }
+                return {RuntimeHostError::None, false};
+            }
+
+            const auto clientInfo =
+                activeAdmissionBroker_->authorizeR3ClientInfoPacket(
                     session, completeTpkt);
-            if (attach != transport::McsSessionIntake::AttachUserAccepted ||
+            if (!clientInfo ||
+                session.phase() !=
+                    transport::McsSessionPhase::AwaitServerLicenseRequest ||
                 !activeAdmissionBroker_->revalidate(
                     activeAdmissionPermissionMask_))
                 return rejectAdmission();
             credSsp.firstMcsBytes = 0U;
             credSsp.firstMcsExpectedBytes = 0U;
             activeAdmissionStage_ =
-                AcceptedClientAdmissionStage::AttachUserAccepted;
-            acceptedClientDiagnostics_.protocolStage =
-                RuntimeAcceptedClientProtocolStage::McsAttachUserReceived;
+                AcceptedClientAdmissionStage::ClientInfoAccepted;
             return {RuntimeHostError::None, false};
         }
 
         const auto pending = writingConnectResponse
             ? activeAdmissionBroker_->authorizeR3ConnectResponseWrite(session)
-            : activeAdmissionBroker_->authorizeR3AttachUserConfirmWrite(session);
+            : (writingAttachConfirm
+                   ? activeAdmissionBroker_->authorizeR3AttachUserConfirmWrite(
+                         session)
+                   : activeAdmissionBroker_->authorizeR3ChannelJoinConfirmWrite(
+                         session));
         if (!pending || !*pending)
             return rejectAdmission();
         const auto sent = connection.writeTlsApplicationData(pending->bytes);
         using TlsOutcome = transport::TlsApplicationIoOutcome;
         bool& currentWriteNeedsRead = writingConnectResponse
             ? credSsp.connectResponseWriteNeedsRead
-            : credSsp.attachConfirmWriteNeedsRead;
+            : (writingAttachConfirm
+                   ? credSsp.attachConfirmWriteNeedsRead
+                   : credSsp.channelJoinConfirmWriteNeedsRead);
         if (sent.outcome == TlsOutcome::NeedRead ||
             sent.outcome == TlsOutcome::NeedWrite)
         {
@@ -575,6 +668,39 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
             !activeAdmissionBroker_->revalidate(activeAdmissionPermissionMask_))
             return rejectAdmission();
         currentWriteNeedsRead = false;
+        if (writingChannelJoinConfirm)
+        {
+            const auto receipt =
+                activeAdmissionBroker_->completeR3ChannelJoinConfirmWrite(
+                    session, pending->replySequence,
+                    pending->writeSliceSequence, sent.bytes);
+            if (receipt == transport::McsJoinWriteOutcome::Rejected ||
+                !activeAdmissionBroker_->revalidate(
+                    activeAdmissionPermissionMask_))
+                return rejectAdmission();
+            if (receipt == transport::McsJoinWriteOutcome::Confirmed)
+            {
+                if (session.phase() !=
+                    transport::McsSessionPhase::AwaitChannelJoin)
+                    return rejectAdmission();
+                if (allAllocatedMcsChannelsJoined(session))
+                {
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::ClientInfoExpected;
+                    acceptedClientDiagnostics_.protocolStage =
+                        RuntimeAcceptedClientProtocolStage::McsEstablished;
+                }
+                else
+                {
+                    activeAdmissionStage_ =
+                        AcceptedClientAdmissionStage::AttachConfirmDelivered;
+                    acceptedClientDiagnostics_.protocolStage =
+                        RuntimeAcceptedClientProtocolStage::McsChannelJoin;
+                }
+            }
+            return {RuntimeHostError::None, false};
+        }
+
         const auto receipt = writingConnectResponse
             ? activeAdmissionBroker_->completeR3ConnectResponseWrite(
                   session, pending->replySequence, pending->writeSliceSequence,

@@ -7973,6 +7973,61 @@ public:
     return packet;
 }
 
+[[nodiscard]] std::array<std::uint8_t, 12>
+macProtectedChannelJoinTpkt(
+    std::uint32_t allocatedUserId, std::uint16_t channelId)
+{
+    assert(allocatedUserId >= 1001U && allocatedUserId <= 65536U);
+    const std::uint32_t encodedInitiator = allocatedUserId - 1001U;
+    assert(encodedInitiator <=
+           (std::numeric_limits<std::uint16_t>::max)());
+    assert(channelId != 0U);
+
+    std::array<std::uint8_t, 12> packet{
+        0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+        0x80U, 0x38U, 0x00U, 0x00U, 0x00U, 0x00U};
+    packet[8] = static_cast<std::uint8_t>(encodedInitiator >> 8U);
+    packet[9] = static_cast<std::uint8_t>(encodedInitiator);
+    packet[10] = static_cast<std::uint8_t>(channelId >> 8U);
+    packet[11] = static_cast<std::uint8_t>(channelId);
+    return packet;
+}
+
+[[nodiscard]] std::array<std::uint8_t, 46>
+macProtectedClientInfoTpkt(
+    std::uint32_t allocatedUserId, std::uint16_t ioChannelId)
+{
+    assert(allocatedUserId >= 1001U && allocatedUserId <= 65536U);
+    const std::uint32_t encodedInitiator = allocatedUserId - 1001U;
+    assert(encodedInitiator <=
+           (std::numeric_limits<std::uint16_t>::max)());
+    assert(ioChannelId != 0U);
+
+    // TPKT/X.224 + SendDataRequest + Basic Security Header +
+    // structurally valid Unicode TS_INFO_PACKET with five empty strings.
+    std::array<std::uint8_t, 46> packet{};
+    packet[0] = 0x03U;
+    packet[3] = static_cast<std::uint8_t>(packet.size());
+    packet[4] = 0x02U;
+    packet[5] = 0xf0U;
+    packet[6] = 0x80U;
+
+    constexpr std::size_t kMcsOffset = 7U;
+    packet[kMcsOffset] = 0x64U;
+    packet[kMcsOffset + 1U] =
+        static_cast<std::uint8_t>(encodedInitiator >> 8U);
+    packet[kMcsOffset + 2U] =
+        static_cast<std::uint8_t>(encodedInitiator);
+    packet[kMcsOffset + 3U] =
+        static_cast<std::uint8_t>(ioChannelId >> 8U);
+    packet[kMcsOffset + 4U] = static_cast<std::uint8_t>(ioChannelId);
+    packet[kMcsOffset + 5U] = 0x70U; // high priority, begin|end
+    packet[kMcsOffset + 6U] = 32U;   // 4 security + 28 TS_INFO bytes
+    packet[kMcsOffset + 7U] = 0x40U; // SEC_INFO_PKT, little endian
+    packet[kMcsOffset + 15U] = 0x10U; // INFO_UNICODE
+    return packet;
+}
+
 [[nodiscard]] std::size_t writeOneMacProtectedPlaintextByte(
     MacProtectedTransportFixture &fixture,
     std::span<const std::uint8_t> offered)
@@ -8318,7 +8373,8 @@ void testMacProtectedPostMcsSemanticAuditLoss()
  }
 
 
-void testMacProtectedBufferedAttachConfirmAfterErect()
+[[nodiscard]] std::unique_ptr<MacProtectedTransportFixture>
+makeMacProtectedAwaitChannelJoinFixture()
 {
     using Outcome = TlsApplicationIoOutcome;
     using Receipt = McsConnectResponseWriteOutcome;
@@ -8455,6 +8511,100 @@ void testMacProtectedBufferedAttachConfirmAfterErect()
         });
     assert(fixture->session->phase() == McsSessionPhase::AwaitChannelJoin);
     assert(fixture->session->allocatedUserId() == 1002U);
+    return fixture;
+}
+
+void testMacProtectedBufferedAttachConfirmAfterErect()
+{
+    auto fixture = makeMacProtectedAwaitChannelJoinFixture();
+    fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
+    assert(!fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+}
+
+void testMacProtectedChannelJoinClientInfoAfterAttach()
+{
+    auto fixture = makeMacProtectedAwaitChannelJoinFixture();
+    const std::uint32_t allocatedUserId = fixture->session->allocatedUserId();
+    const std::uint16_t ioChannelId = fixture->session->allocatedIoChannelId();
+    assert(allocatedUserId == 1002U);
+    assert(ioChannelId == 1003U);
+
+    // Copy the bounded R3 allocation before mutating Join state. R3 remains
+    // the sole membership owner; this list only drives distinct client PDUs.
+    std::vector<std::uint16_t> channelsToJoin;
+    const auto staticChannelIds = fixture->session->allocatedStaticChannelIds();
+    channelsToJoin.reserve(2U + staticChannelIds.size());
+    channelsToJoin.push_back(static_cast<std::uint16_t>(allocatedUserId));
+    channelsToJoin.push_back(ioChannelId);
+    channelsToJoin.insert(
+        channelsToJoin.end(),
+        staticChannelIds.begin(), staticChannelIds.end());
+
+    for (const std::uint16_t channelId : channelsToJoin)
+    {
+        const auto join =
+            macProtectedChannelJoinTpkt(allocatedUserId, channelId);
+        writeNativeTlsClientAll(fixture->tls.client.get(), join);
+        std::array<std::uint8_t, 12> receivedJoin{};
+        readOwnedRuntimeTlsAll(fixture->connection, receivedJoin);
+        assert(receivedJoin == join);
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->broker.authorizeR3ChannelJoin(
+                   *fixture->session, receivedJoin) ==
+               McsJoinStartOutcome::ReplyPending);
+
+        const auto initial =
+            fixture->broker.authorizeR3ChannelJoinConfirmWrite(
+                *fixture->session);
+        assert(initial && !initial->bytes.empty());
+        const std::size_t replyBytes = initial->bytes.size();
+        const std::uint64_t replySequence = initial->replySequence;
+        for (std::size_t accepted = 0U; accepted < replyBytes; ++accepted)
+        {
+            const auto view =
+                fixture->broker.authorizeR3ChannelJoinConfirmWrite(
+                    *fixture->session);
+            assert(view && view->replySequence == replySequence);
+            assert(view->bytes.size() == replyBytes - accepted);
+            const std::size_t acceptedBytes =
+                writeOneMacProtectedPlaintextByte(*fixture, view->bytes);
+            assert(acceptedBytes == 1U);
+            const auto receipt =
+                fixture->broker.completeR3ChannelJoinConfirmWrite(
+                    *fixture->session, view->replySequence,
+                    view->writeSliceSequence, acceptedBytes);
+            assert(receipt ==
+                   (accepted + 1U == replyBytes
+                        ? McsJoinWriteOutcome::Confirmed
+                        : McsJoinWriteOutcome::Pending));
+        }
+        assert(fixture->broker.revalidate(kConsoleViewPermission));
+        assert(fixture->session->channelJoinConfirmed(channelId));
+    }
+
+    const auto acceptance =
+        fixture->session->firstClientAcceptanceObservability();
+    assert(acceptance.mcsEstablished);
+    assert(!acceptance.shareActivated);
+
+    const auto clientInfo =
+        macProtectedClientInfoTpkt(allocatedUserId, ioChannelId);
+    writeNativeTlsClientAll(fixture->tls.client.get(), clientInfo);
+    std::array<std::uint8_t, 46> receivedClientInfo{};
+    readOwnedRuntimeTlsAll(fixture->connection, receivedClientInfo);
+    assert(receivedClientInfo == clientInfo);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    const auto summary =
+        fixture->broker.authorizeR3ClientInfoPacket(
+            *fixture->session, receivedClientInfo);
+    assert(summary && summary->unicode && !summary->hasExtendedInfo);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->session->phase() ==
+           McsSessionPhase::AwaitServerLicenseRequest);
+    assert(!fixture->session->firstClientAcceptanceObservability().shareActivated);
 
     fixture->ownerAuthority.revoke(OwnerConsentRevocationReason::Stop);
     assert(!fixture->broker.revalidate(kConsoleViewPermission));
@@ -13031,6 +13181,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedBufferedErectAfterConnectResponse},
     {"macos-protected-buffered-attach-confirm-after-erect",
      &testMacProtectedBufferedAttachConfirmAfterErect},
+    {"macos-protected-channel-join-client-info-after-attach",
+     &testMacProtectedChannelJoinClientInfoAfterAttach},
     {"macos-protected-first-mcs-partial-read-stop-retirement",
      &testMacProtectedFirstMcsPartialReadStopRetirement},
     {"macos-protected-post-mcs-semantic-audit-loss",

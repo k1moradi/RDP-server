@@ -91,9 +91,19 @@ the UID, session ID, username, display/XID, destination or client logs.
    observation came from; they are never authorization. Never invent a
    positive lease from client credentials, matched generations, geometry or
    XIDs.
-5. **Graphics:** after R2 PASS, observe R3 MCS/GCC/licensing, Share and
+5. **Graphics:** after R2 PASS, independently pin the live R10 listener
+   generation and R2/R5 native generations to the accepted connection, then
+   observe R3 MCS/GCC/licensing, Share and
    GraphicsReady separately, then actual native XShm first-frame delivery
-   and its **matching** R4 ACK in the same capture generation. Copy the same
+   and its **matching** R4 ACK in the same capture generation. To claim
+   `first_frame=PASS`, record the current R3 frame ID, positive exact R1
+   frame-write byte count and equal R1 TLS-accepted bytes, with
+   `frame_delivery_producer="r1-tls-complete-frame-write"`. Neither a
+   prepared frame, queued suffix, partial write nor R4 local ACK credit
+   qualifies. For `matching_ack=PASS`, independently observe an inbound
+   client FRAME_ACK via R3/R4 for that very frame ID and record
+   `client_ack_producer="r3-client-frame-ack"`. Pin the frame and client ACK
+   IDs separately from producer receipts. Copy the same
    private attempt ID beside the observed Share, first-frame and ACK producer
    receipts; a crossed ID is a contradiction even when all generations match.
    Record only typed PASS/FAIL/NOT_OBSERVED; do not store pixels or borrow
@@ -122,7 +132,11 @@ the UID, session ID, username, display/XID, destination or client logs.
    Record the new R2-bound
    `reconnect.admission_consent_generation` equal to the fresh owner grant.
    A valid reconnect must not reuse the retired attempt ID, R2 admission or
-   capture generation. Require new Share/GraphicsReady, actual new first frame
+   capture generation. A continuing listener generation and a reused numeric
+   frame ID may be legitimate; the independent pins must still correlate
+   the current accepted socket, owner grant, R2 authority, R5 capture,
+   complete write and inbound client ACK. Never infer a fresh listener
+   instance from recycled IDs. Require new Share/GraphicsReady, actual new first frame
    and matching ACK independently. If not reached, record `NOT_OBSERVED`,
    never an inferred PASS.
 
@@ -133,7 +147,9 @@ round-one preparation.
 
 ## Independently pinned accepted connection and owner grant
 
-The closed private v2 manifest checks stage attempt IDs and consent epochs,
+The closed private v3 manifest checks stage attempt IDs, R10 listener,
+complete R1 TLS-write and inbound R3 client-FRAME_ACK identity, with
+independently pinned R2/native provenance and consent epochs.
 but cannot detect a *whole* internally consistent relabeling to a different
 R10 accepted client or an independently incorrect owner epoch. Privately
 copy **separate** R9 nominated source SHA, R10 accepted-client ID for each
@@ -144,16 +160,34 @@ is scoped to its actual process/listener lifetime: record listener
 Stop/replacement separately and do not infer uniqueness across restarts.
 
 The required independent local-only pins file is closed and bounded to
-4 KiB. Example fields and values are **synthetic**, not acceptance evidence:
+4 KiB. Obtain R10 listener generation, R2 admission generation, R5 capture
+generation, R3 delivered frame ID and inbound R3/R4 client ACK frame ID
+**independently from the exact producer**, not copied from this manifest.
+The accepted-client and listener-generation counters are process-local and
+may repeat after a process restart. The physical operator must independently
+identify the original process/listener and accepted R1 socket ownership;
+without that context, mark the affected stages NOT_OBSERVED instead of
+joining similarly numbered attempts. These scalar receipts are not
+cryptographic attestations. Example fields and values are **synthetic**, not acceptance evidence:
 
 ```json
 {
-  "schema": "rdp-server.linux-x11-owner-evidence-pins.v1",
+  "schema": "rdp-server.linux-x11-owner-evidence-pins.v2",
   "source_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   "accepted_client_id": 100,
   "owner_consent_generation": 10,
+  "listener_generation": 5,
+  "r2_admission_generation": 30,
+  "capture_generation": 40,
+  "first_frame_id": 7,
+  "matching_ack_frame_id": 7,
   "reconnect_accepted_client_id": 101,
-  "reconnect_owner_consent_generation": 11
+  "reconnect_owner_consent_generation": 11,
+  "reconnect_listener_generation": 5,
+  "reconnect_r2_admission_generation": 31,
+  "reconnect_capture_generation": 42,
+  "reconnect_first_frame_id": 8,
+  "reconnect_matching_ack_frame_id": 8
 }
 ```
 
@@ -190,11 +224,25 @@ post-RandR frame/ACK, zero input/frame publication after revocation,
 and a fresh owner on reconnect. Missing evidence is NOT_OBSERVED;
 physical owner testing is still unauthorized.
 
-## v2 manifest contract
+**R10 cross-platform teardown comparison:** the single serialized R10 owner
+must revalidate original R2/native consent before each native operation.
+On Stop, lock, logout, seat change or failed callback, prevent further R3
+input/Graphics/clipboard publication, revoke the live R2 lease, retire
+R8 clipboard, then retire the R5 aggregate with XTEST releases suppressed.
+Unregister borrowed logind/XCB poll interests before destroying their owner;
+retire XI2, XDamage, XShm and cursor before the sole XCB connection, then
+R3 and R1 SSL/BIO/socket, then the listener. Any outstanding R1 write or
+R3/R4 borrowed frame/ACK identity is terminal. Graceful held-input releases
+are allowed only while freshly authorized; after native loss they must be
+suppressed so a successor seat cannot receive them. No copied pixel spans,
+XCB events, R2 borrowed views or generation-only permission checks survive a
+callback. This is a comparison contract, not a second Linux/macOS controller.
+
+## v3 manifest contract
 
 The standalone validator is `scripts/linux_x11_owner_evidence.py`.
-Its sole input is JSON of schema `rdp-server.linux-x11-owner-evidence.v2`;
-v1 is intentionally rejected because it cannot prove same-attempt producer
+Its sole input is JSON of schema `rdp-server.linux-x11-owner-evidence.v3`;
+v1/v2 are intentionally rejected because it cannot prove same-attempt producer
 correlation. The public redacted projection remains v1 because its shape is
 unchanged and contains no attempt IDs.
 the complete required key set is shown below. All missing/unobserved
@@ -205,10 +253,11 @@ The `source_sha` must be the exact tested checkout commit.
 
 ```json
 {
-  "schema": "rdp-server.linux-x11-owner-evidence.v2",
+  "schema": "rdp-server.linux-x11-owner-evidence.v3",
   "source_sha": "<replace-with-exact-40-hex-sha>",
   "provenance": {
     "attempt_id": null,
+    "listener_generation": null,
     "credentials_verified_attempt_id": null,
     "native_admission_attempt_id": null,
     "native_admission_producer": null,
@@ -223,7 +272,12 @@ The `source_sha` must be the exact tested checkout commit.
   "credentials": {"username_matches": null, "session_password_matches": null, "selected_credential_matches": null},
   "seat": {"graphical": null, "seat0": null, "unlocked": null, "current_session": null, "process_uid_matches_owner": null},
   "generations": {"linux_session": null, "r2_admission": null, "native_capture": null, "admission_consent": null},
-  "frame": {"first_frame_capture_generation": null, "ack_capture_generation": null},
+  "frame": {
+    "first_frame_capture_generation": null, "ack_capture_generation": null,
+    "first_frame_id": null, "frame_bytes_expected": 0,
+    "frame_bytes_accepted": 0, "frame_delivery_producer": null,
+    "client_frame_ack_id": null, "client_ack_producer": null
+  },
   "stages": {
     "tls": "NOT_OBSERVED", "type1": "NOT_OBSERVED", "type2": "NOT_OBSERVED",
     "type3": "NOT_OBSERVED", "pubkeyauth": "NOT_OBSERVED",
@@ -243,6 +297,7 @@ The `source_sha` must be the exact tested checkout commit.
     "r2_admission_generation": null, "native_capture_generation": null,
     "provenance": {
       "attempt_id": null,
+      "listener_generation": null,
       "credentials_verified_attempt_id": null,
       "native_admission_attempt_id": null,
       "native_admission_producer": null,
@@ -255,6 +310,9 @@ The `source_sha` must be the exact tested checkout commit.
                "graphics_ready": "NOT_OBSERVED", "first_frame": "NOT_OBSERVED",
                "matching_ack": "NOT_OBSERVED"},
     "first_frame_capture_generation": null, "ack_capture_generation": null,
+    "first_frame_id": null, "frame_bytes_expected": 0,
+    "frame_bytes_accepted": 0, "frame_delivery_producer": null,
+    "client_frame_ack_id": null, "client_ack_producer": null,
     "posts_after_revocation": 0
   }
 }
@@ -286,7 +344,7 @@ attempt-ID reuse. These are provenance checks, not authority checks. An
 admitted session may legitimately have no capture generation until graphics
 begins; admission alone never proves Share, first frame or input.
 
-The validator requires each reported first-frame generation to equal its active native capture generation and each matching ACK generation to equal that first-frame generation (including reconnect). It rejects crossed producer-attempt IDs, contradictory status/generation/input claims, extra
+The validator requires each reported first-frame generation to equal its active native capture generation and each matching ACK generation to equal that first-frame generation (including reconnect). Complete R1 write-receipt equality and actual inbound R3 client-ACK identity are mandatory for their respective PASS stages. Independent R10/R2/R5/R3/R4 pins check listener, native owner, frame and ACK provenance across both attempts, without elevating self-reported evidence to native authority. It rejects crossed producer-attempt IDs, contradictory status/generation/input claims, extra
 keys (including any raw UID, session ID, Username, destination, XIDs, pixels
 or input payloads), duplicate JSON keys and oversized input. Its stdout is
 allowlisted to typed stages/retirement outcomes and non-identifying

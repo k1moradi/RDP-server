@@ -1,3 +1,16 @@
+## R5 complete-frame ACK/reconnect evidence denial (2026-10-31)
+
+Separate offline CTest
+`linux.x11-owner-private-evidence-frame-delivery-ack-reconnect-denials`
+rejects missing/partial R1 write receipt, local R4 ACK-window credit
+masquerading as a client FRAME_ACK, wrong frame ID/producer, missing
+listener identity and independently pinned listener, R2, capture,
+frame/ACK splices. It permits reused numeric IDs only under distinct
+pinned accepted connection and fresh native authority. Existing
+connection-pin regression remains; fixed 45-case R5 X11 sanitizer
+inventory unchanged. Python-only; no live X11, R2 or sockets.
+Local/full/sanitizer results NOT RUN; exact-SHA CI PENDING.
+
 ## R10 production HostControl MCS-denial and protected receipts (2026-10-31)
 
 Register `runtime.macos-host-control-first-mcs-without-native-issuer-dormancy`

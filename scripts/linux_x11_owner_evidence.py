@@ -12,7 +12,7 @@ import re
 import sys
 from pathlib import Path
 
-PRIVATE_SCHEMA = "rdp-server.linux-x11-owner-evidence.v2"
+PRIVATE_SCHEMA = "rdp-server.linux-x11-owner-evidence.v3"
 PUBLIC_SCHEMA = "rdp-server.linux-x11-owner-evidence-redacted.v1"
 STAGE_OUTCOMES = frozenset({"PASS", "FAIL", "NOT_OBSERVED"})
 STAGE_ORDER = (
@@ -25,16 +25,18 @@ RECONNECT_STAGES = ("credentials_verified", "native_admission", "share", "graphi
 RETIREMENT_KINDS = frozenset({"stop", "lock", "logout", "switch_user"})
 MAXIMUM_MANIFEST_BYTES = 256 * 1024
 MAXIMUM_PIN_BYTES = 4096
-PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v1"
+PIN_SCHEMA = "rdp-server.linux-x11-owner-evidence-pins.v2"
+FRAME_WRITE_PRODUCER = "r1-tls-complete-frame-write"
+CLIENT_ACK_PRODUCER = "r3-client-frame-ack"
 NATIVE_ADMISSION_PRODUCER = "linux-console-admission-broker"
 PROVENANCE_FIELDS = (
-    "attempt_id", "credentials_verified_attempt_id",
+    "attempt_id", "listener_generation", "credentials_verified_attempt_id",
     "native_admission_attempt_id", "native_admission_producer",
     "share_attempt_id", "first_frame_attempt_id", "matching_ack_attempt_id",
     "input_attempt_id", "randr_attempt_id",
 )
 RECONNECT_PROVENANCE_FIELDS = (
-    "attempt_id", "credentials_verified_attempt_id",
+    "attempt_id", "listener_generation", "credentials_verified_attempt_id",
     "native_admission_attempt_id", "native_admission_producer",
     "share_attempt_id", "first_frame_attempt_id", "matching_ack_attempt_id",
 )
@@ -70,6 +72,51 @@ def require_counter(value, location):
     return value
 
 
+def require_frame_id(value, location, nullable=False):
+    # RDPGFX frame IDs are 32-bit; zero is a legitimate identity.
+    if nullable and value is None:
+        return None
+    if type(value) is not int or not 0 <= value <= (1 << 32) - 1:
+        raise EvidenceError(f"invalid frame identity at {location}")
+    return value
+
+
+FRAME_PROOF_FIELDS = (
+    "first_frame_capture_generation", "ack_capture_generation",
+    "first_frame_id", "frame_bytes_expected", "frame_bytes_accepted",
+    "frame_delivery_producer", "client_frame_ack_id", "client_ack_producer",
+)
+
+
+def validate_frame_proof(frame, stages, location):
+    """A queued frame and local ACK credit are not client presentation."""
+    first_frame_id = require_frame_id(
+        frame["first_frame_id"], f"{location}.first_frame_id", nullable=True)
+    expected_bytes = require_counter(
+        frame["frame_bytes_expected"], f"{location}.frame_bytes_expected")
+    accepted_bytes = require_counter(
+        frame["frame_bytes_accepted"], f"{location}.frame_bytes_accepted")
+    client_ack_id = require_frame_id(
+        frame["client_frame_ack_id"], f"{location}.client_frame_ack_id",
+        nullable=True)
+
+    if stages["first_frame"] == "PASS":
+        if (first_frame_id is None or expected_bytes == 0 or
+                accepted_bytes != expected_bytes or
+                frame["frame_delivery_producer"] != FRAME_WRITE_PRODUCER):
+            raise EvidenceError("first frame lacks complete R1 TLS write receipt")
+    elif (first_frame_id is not None or expected_bytes != 0 or
+          accepted_bytes != 0 or frame["frame_delivery_producer"] is not None):
+        raise EvidenceError("unverified first frame claims delivery")
+
+    if stages["matching_ack"] == "PASS":
+        if (client_ack_id is None or client_ack_id != first_frame_id or
+                frame["client_ack_producer"] != CLIENT_ACK_PRODUCER):
+            raise EvidenceError("matching ACK lacks inbound R3 client receipt")
+    elif client_ack_id is not None or frame["client_ack_producer"] is not None:
+        raise EvidenceError("unverified ACK claims client receipt")
+
+
 def require_attempt_id(value, location, nullable=False):
     if nullable and value is None:
         return None
@@ -95,6 +142,14 @@ def validate_attempt_provenance(provenance, stages, location, reconnect=False):
     require_fields(provenance, expected_fields, location)
     attempt_id = require_attempt_id(
         provenance["attempt_id"], f"{location}.attempt_id", nullable=True)
+    listener_generation = require_generation(
+        provenance["listener_generation"],
+        f"{location}.listener_generation", nullable=True)
+    if any(stage != "NOT_OBSERVED" for stage in stages.values()):
+        if listener_generation is None or attempt_id is None:
+            raise EvidenceError("observed attempt lacks original R10 listener")
+    elif listener_generation is not None and attempt_id is None:
+        raise EvidenceError("listener identity without accepted attempt")
     for stage_name, field_name in (
         ("credentials_verified", "credentials_verified_attempt_id"),
         ("native_admission", "native_admission_attempt_id"),
@@ -219,7 +274,8 @@ def validate(record):
     if stages["first_frame"] == "PASS" and generations["native_capture"] is None:
         raise EvidenceError("first frame requires native capture generation")
 
-    frame = require_fields(record["frame"], ("first_frame_capture_generation", "ack_capture_generation"), "frame")
+    frame = require_fields(record["frame"], FRAME_PROOF_FIELDS, "frame")
+    validate_frame_proof(frame, stages, "frame")
     for name in frame:
         require_generation(frame[name], f"frame.{name}", nullable=True)
     if (stages["first_frame"] == "PASS") != (frame["first_frame_capture_generation"] is not None):
@@ -279,7 +335,7 @@ def validate(record):
     reconnect = require_fields(record["reconnect"], (
         "observed", "owner_grant_recorded", "consent_generation", "admission_consent_generation", "linux_session_generation",
         "r2_admission_generation", "native_capture_generation", "provenance", "seat", "stages",
-        "first_frame_capture_generation", "ack_capture_generation", "posts_after_revocation",
+        *FRAME_PROOF_FIELDS, "posts_after_revocation",
     ), "reconnect")
     for name in ("observed", "owner_grant_recorded"):
         require_bool(reconnect[name], f"reconnect.{name}")
@@ -292,6 +348,7 @@ def validate(record):
     reconnect_attempt_id = validate_attempt_provenance(
         reconnect["provenance"], reconnect["stages"],
         "reconnect.provenance", reconnect=True)
+    validate_frame_proof(reconnect, reconnect["stages"], "reconnect")
     for name, stage in (("first_frame_capture_generation", "first_frame"), ("ack_capture_generation", "matching_ack")):
         require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
         if (reconnect["stages"][stage] == "PASS") != (reconnect[name] is not None):
@@ -340,7 +397,11 @@ def validate(record):
     elif (any(value is not None for value in reconnect_seat.values()) or
           reconnect["owner_grant_recorded"] or
           any(reconnect[name] is not None for name in (
-              "consent_generation", "admission_consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation", "first_frame_capture_generation", "ack_capture_generation")) or
+              "consent_generation", "admission_consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation", "first_frame_capture_generation", "ack_capture_generation", "first_frame_id", "client_frame_ack_id")) or
+          reconnect["frame_bytes_expected"] != 0 or
+          reconnect["frame_bytes_accepted"] != 0 or
+          reconnect["frame_delivery_producer"] is not None or
+          reconnect["client_ack_producer"] is not None or
           reconnect_attempt_id is not None or
           any(value is not None for name, value in reconnect["provenance"].items()
               if name != "attempt_id") or
@@ -377,7 +438,12 @@ def validate_independent_pins(record, pins):
     """
     require_fields(pins, (
         "schema", "source_sha", "accepted_client_id", "owner_consent_generation",
+        "listener_generation", "r2_admission_generation", "capture_generation",
+        "first_frame_id", "matching_ack_frame_id",
         "reconnect_accepted_client_id", "reconnect_owner_consent_generation",
+        "reconnect_listener_generation", "reconnect_r2_admission_generation",
+        "reconnect_capture_generation", "reconnect_first_frame_id",
+        "reconnect_matching_ack_frame_id",
     ), "pins")
     if pins["schema"] != PIN_SCHEMA:
         raise EvidenceError("unsupported independent pin schema")
@@ -406,6 +472,30 @@ def validate_independent_pins(record, pins):
         raise EvidenceError("reconnect attempt differs from independent R10 connection")
     if reconnect_consent != record["reconnect"]["consent_generation"]:
         raise EvidenceError("reconnect consent differs from independent owner grant")
+
+    # Listener generations are process-local. Reuse across attempts is valid
+    # only for the same still-live listener, confirmed independently by R10.
+    # R2 lease, R5 capture and R3/R4 frame/ACK facts come from their owners.
+    for pinned_name, observed_value in (
+        ("listener_generation", record["provenance"]["listener_generation"]),
+        ("r2_admission_generation", record["generations"]["r2_admission"]),
+        ("capture_generation", record["generations"]["native_capture"]),
+        ("first_frame_id", record["frame"]["first_frame_id"]),
+        ("matching_ack_frame_id", record["frame"]["client_frame_ack_id"]),
+        ("reconnect_listener_generation", reconnect["provenance"]["listener_generation"]),
+        ("reconnect_r2_admission_generation", reconnect["r2_admission_generation"]),
+        ("reconnect_capture_generation", reconnect["native_capture_generation"]),
+        ("reconnect_first_frame_id", reconnect["first_frame_id"]),
+        ("reconnect_matching_ack_frame_id", reconnect["client_frame_ack_id"]),
+    ):
+        pinned_value = (
+            require_frame_id(pins[pinned_name], f"pins.{pinned_name}", nullable=True)
+            if pinned_name.endswith("frame_id") else
+            require_generation(pins[pinned_name], f"pins.{pinned_name}", nullable=True)
+        )
+        if pinned_value != observed_value:
+            raise EvidenceError(f"{pinned_name} differs from independent producer")
+
 
 
 def read_bounded_json(path, maximum_bytes):

@@ -1435,6 +1435,18 @@ set_tests_properties(
     PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
                TIMEOUT 15)
 
+# Offline R5 R1 full write and client-frame-ACK evidence across reconnect.
+# Deliberately separate from the fixed 45 native X11 sanitizer cases.
+add_test(NAME linux.x11-owner-private-evidence-frame-delivery-ack-reconnect-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_linux_x11_owner_evidence.py"
+        --script "${PROJECT_SOURCE_DIR}/scripts/linux_x11_owner_evidence.py"
+        -k frame_delivery_and_ack_reconnect_provenance_denials)
+set_tests_properties(
+    linux.x11-owner-private-evidence-frame-delivery-ack-reconnect-denials
+    PROPERTIES LABELS "linux;x11;offline;project-policy;evidence;security;provenance"
+               TIMEOUT 15)
+
 # R9 cross-platform SERVER-TEST package contract. This synthetic archive test
 # never executes a server, opens a socket, touches a service manager or uses a
 # native desktop. Real executable CLI/ABI/dependency smoke runs in the matrix.

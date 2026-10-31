@@ -26,6 +26,7 @@ def admitted_attempt(evidence):
         "source_sha": "a" * 40,
         "provenance": {
             "attempt_id": 100,
+            "listener_generation": 5,
             "credentials_verified_attempt_id": 100,
             "native_admission_attempt_id": 100,
             "native_admission_producer": evidence.NATIVE_ADMISSION_PRODUCER,
@@ -41,7 +42,12 @@ def admitted_attempt(evidence):
         "seat": {"graphical": True, "seat0": True, "unlocked": True, "current_session": True, "process_uid_matches_owner": True},
         "generations": {"linux_session": 20, "r2_admission": 30, "native_capture": 40, "admission_consent": 10},
         "stages": {name: "PASS" for name in evidence.STAGE_ORDER + evidence.ADDITIONAL_STAGES},
-        "frame": {"first_frame_capture_generation": 40, "ack_capture_generation": 40},
+        "frame": {"first_frame_capture_generation": 40, "ack_capture_generation": 40,
+                  "first_frame_id": 7, "frame_bytes_expected": 530,
+                  "frame_bytes_accepted": 530,
+                  "frame_delivery_producer": evidence.FRAME_WRITE_PRODUCER,
+                  "client_frame_ack_id": 7,
+                  "client_ack_producer": evidence.CLIENT_ACK_PRODUCER},
         "input": {"keyboard_posts": 1, "mouse_posts": 2, "posts_after_revocation": 0},
         "randr": {"replacement_capture_generation": 41},
         "retirements": [{"kind": "stop", "r2_retired": True, "capture_retired": True,
@@ -52,6 +58,7 @@ def admitted_attempt(evidence):
                       "native_capture_generation": 42,
                       "provenance": {
                           "attempt_id": 101,
+                          "listener_generation": 5,
                           "credentials_verified_attempt_id": 101,
                           "native_admission_attempt_id": 101,
                           "native_admission_producer": evidence.NATIVE_ADMISSION_PRODUCER,
@@ -62,6 +69,11 @@ def admitted_attempt(evidence):
                       "seat": {"graphical": True, "seat0": True, "unlocked": True, "current_session": True, "process_uid_matches_owner": True},
                       "stages": {name: "PASS" for name in evidence.RECONNECT_STAGES},
                       "first_frame_capture_generation": 42, "ack_capture_generation": 42,
+                      "first_frame_id": 8, "frame_bytes_expected": 540,
+                      "frame_bytes_accepted": 540,
+                      "frame_delivery_producer": evidence.FRAME_WRITE_PRODUCER,
+                      "client_frame_ack_id": 8,
+                      "client_ack_producer": evidence.CLIENT_ACK_PRODUCER,
                       "posts_after_revocation": 0},
     }
 
@@ -72,8 +84,18 @@ def independent_pins(evidence):
         "source_sha": "a" * 40,
         "accepted_client_id": 100,
         "owner_consent_generation": 10,
+        "listener_generation": 5,
+        "r2_admission_generation": 30,
+        "capture_generation": 40,
+        "first_frame_id": 7,
+        "matching_ack_frame_id": 7,
         "reconnect_accepted_client_id": 101,
         "reconnect_owner_consent_generation": 11,
+        "reconnect_listener_generation": 5,
+        "reconnect_r2_admission_generation": 31,
+        "reconnect_capture_generation": 42,
+        "reconnect_first_frame_id": 8,
+        "reconnect_matching_ack_frame_id": 8,
     }
 
 
@@ -188,7 +210,12 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
             matching_ack_attempt_id=None, input_attempt_id=None,
             randr_attempt_id=None)
         record["generations"]["native_capture"] = None
-        record["frame"] = {"first_frame_capture_generation": None, "ack_capture_generation": None}
+        record["frame"] = {
+            "first_frame_capture_generation": None, "ack_capture_generation": None,
+            "first_frame_id": None, "frame_bytes_expected": 0,
+            "frame_bytes_accepted": 0, "frame_delivery_producer": None,
+            "client_frame_ack_id": None, "client_ack_producer": None,
+        }
         record["input"] = {"keyboard_posts": 0, "mouse_posts": 0, "posts_after_revocation": 0}
         record["randr"]["replacement_capture_generation"] = None
         record["retirements"] = []
@@ -196,9 +223,13 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                    consent_generation=None, admission_consent_generation=None,
                                    linux_session_generation=None, r2_admission_generation=None,
                                    native_capture_generation=None, first_frame_capture_generation=None,
-                                   ack_capture_generation=None)
+                                   ack_capture_generation=None,
+                                   first_frame_id=None, frame_bytes_expected=0,
+                                   frame_bytes_accepted=0, frame_delivery_producer=None,
+                                   client_frame_ack_id=None, client_ack_producer=None)
         record["reconnect"]["provenance"] = {
             "attempt_id": None,
+            "listener_generation": None,
             "credentials_verified_attempt_id": None,
             "native_admission_attempt_id": None,
             "native_admission_producer": None,
@@ -252,6 +283,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         record["generations"] = {name: None for name in record["generations"]}
         record["provenance"] = {
             "attempt_id": None,
+            "listener_generation": None,
             "credentials_verified_attempt_id": None,
             "native_admission_attempt_id": None,
             "native_admission_producer": None,
@@ -262,7 +294,8 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
             "randr_attempt_id": None,
         }
         record["stages"] = {name: "NOT_OBSERVED" for name in record["stages"]}
-        record["frame"] = {name: None for name in record["frame"]}
+        record["frame"] = {name: (0 if name.startswith("frame_bytes_") else None)
+                           for name in record["frame"]}
         record["input"] = {name: 0 for name in record["input"]}
         record["randr"] = {"replacement_capture_generation": None}
         record["retirements"] = []
@@ -272,6 +305,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                "r2_admission_generation": None, "native_capture_generation": None,
                                "provenance": {
                                    "attempt_id": None,
+                                   "listener_generation": None,
                                    "credentials_verified_attempt_id": None,
                                    "native_admission_attempt_id": None,
                                    "native_admission_producer": None,
@@ -282,6 +316,9 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
                                "seat": {name: None for name in record["seat"]},
                                "stages": {name: "NOT_OBSERVED" for name in self.evidence.RECONNECT_STAGES},
                                "first_frame_capture_generation": None, "ack_capture_generation": None,
+                               "first_frame_id": None, "frame_bytes_expected": 0,
+                               "frame_bytes_accepted": 0, "frame_delivery_producer": None,
+                               "client_frame_ack_id": None, "client_ack_producer": None,
                                "posts_after_revocation": 0}
         public = self.evidence.validate(record)
         self.assertEqual(public["stages"]["native_admission"], "NOT_OBSERVED")
@@ -351,6 +388,66 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
             self.assertNotEqual(rejected.returncode, 0)
             self.assertEqual(rejected.stdout, "")
             self.assertNotIn("777", rejected.stderr)
+
+    def test_frame_delivery_and_ack_reconnect_provenance_denials(self):
+        # A prepared frame / local ACK window is not R1 delivery or a client ACK.
+        self.evidence.validate_independent_pins(
+            self.record, independent_pins(self.evidence))
+        for field, value in (
+            ("frame_bytes_accepted", 0),
+            ("frame_bytes_accepted", 529),
+            ("frame_bytes_expected", 0),
+            ("frame_delivery_producer", "r3-prepared-frame"),
+            ("client_frame_ack_id", None),
+            ("client_frame_ack_id", 8),
+            ("client_ack_producer", "r4-local-credit"),
+        ):
+            with self.subTest(initial=field, value=value):
+                self.reject(lambda record, field=field, value=value:
+                            record["frame"].update({field: value}))
+        for field, value in (
+            ("frame_bytes_accepted", 539),
+            ("frame_delivery_producer", "r4-queue"),
+            ("client_frame_ack_id", None),
+            ("client_ack_producer", "r4-local-credit"),
+        ):
+            with self.subTest(reconnect=field, value=value):
+                self.reject(lambda record, field=field, value=value:
+                            record["reconnect"].update({field: value}))
+        self.reject(lambda record: record["provenance"].update(listener_generation=None))
+        self.reject(lambda record: record["reconnect"]["provenance"].update(
+            listener_generation=None))
+
+        # Separate independently sourced R10/R2/R5/R3/R4 observations must
+        # reject a coherent manifest splice even when numeric IDs can repeat.
+        for field, wrong in (
+            ("listener_generation", 6),
+            ("r2_admission_generation", 31),
+            ("capture_generation", 42),
+            ("first_frame_id", 8),
+            ("matching_ack_frame_id", 8),
+            ("reconnect_listener_generation", 6),
+            ("reconnect_r2_admission_generation", 30),
+            ("reconnect_capture_generation", 40),
+            ("reconnect_first_frame_id", 7),
+            ("reconnect_matching_ack_frame_id", 7),
+        ):
+            with self.subTest(pin=field):
+                pins = independent_pins(self.evidence)
+                pins[field] = wrong
+                with self.assertRaises(self.evidence.EvidenceError):
+                    self.evidence.validate_independent_pins(self.record, pins)
+
+        # Frame ID reuse is permitted across independently admitted sessions,
+        # but only with its own exact current-generation client ACK receipt.
+        same_frame_id = copy.deepcopy(self.record)
+        same_frame_id["reconnect"]["first_frame_id"] = 7
+        same_frame_id["reconnect"]["client_frame_ack_id"] = 7
+        pins = independent_pins(self.evidence)
+        pins["reconnect_first_frame_id"] = 7
+        pins["reconnect_matching_ack_frame_id"] = 7
+        self.evidence.validate(same_frame_id)
+        self.evidence.validate_independent_pins(same_frame_id, pins)
 
     def test_cli_denies_duplicate_keys_and_never_echoes_private_values(self):
         with tempfile.TemporaryDirectory() as temporary:

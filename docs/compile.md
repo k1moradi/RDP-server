@@ -1,3 +1,12 @@
+## R5 offline frame/ACK evidence build boundary (2026-10-31)
+
+New Python-only CTest
+`linux.x11-owner-private-evidence-frame-delivery-ack-reconnect-denials`
+uses existing registry and interpreter; run focused/full CTest within
+`~/rdp-server/build/` and separately unchanged R9 native 45-case
+ASan/UBSan selector. No C++ target, new build root, native fixture,
+socket or desktop operation. Connector-local verification NOT RUN.
+
 ## R10 macOS bounded first-MCS transport integration (2026-10-31)
 
 The existing `rdp-server-macos-host-control` target now owns exactly one

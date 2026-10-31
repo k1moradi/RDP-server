@@ -1,3 +1,19 @@
+## R5 real frame ACK, original listener and reconnect pinning (2026-10-31)
+
+Starting source `1d95156ea4fd1d1c5a20f4e3754570b44d504299`.
+Existing private v2 could claim first frame or matching ACK with capture
+generations alone; independent pins omitted R10 listener, R2 admission,
+R5 capture and R3/R4 frame identity. v3 requires full R1 TLS-accepted
+frame bytes and actual inbound client FRAME_ACK, with per-attempt
+independent R10/R2/R5/R3/R4 pins. A separate offline CTest keeps the
+45 R5 native sanitizer cases unchanged. Source review: XDamage/RandR
+retirement, synchronous XShm lifetime/generation checks and terminal
+XTEST release suppression already implemented. No X11 production change.
+Connector-local focused/full/sanitizer: **NOT RUN**. Publication-SHA
+hosted CI: **PENDING**. Physical seat0/client/capture/input:
+**NOT RUN / unauthorized**. Next: exact-SHA focused/full CI and 45
+native sanitizer evidence, then separately authorized owner attempt.
+
 ## R10 first macOS HostControl R2/R3 integration (2026-10-31)
 
 Authored from `1d95156ea4fd1d1c5a20f4e3754570b44d504299` and reconciled

@@ -1,3 +1,14 @@
+## R5 first-frame and inbound-ACK receipt provenance (2026-10-31)
+
+A prepared R3 frame, local ACK-window credit, R5 capture generation or
+repeated numeric listener/frame ID never proves client presentation.
+Private v3 evidence must carry original R10 listener/accepted-client lineage,
+complete R1 accepted frame-byte receipt, and actual inbound R3/R4 client
+FRAME_ACK; independent R10/R2/R5/R3/R4 producer pins must agree on each
+attempt. Native source audit found XShm callback-return generation fences,
+queued XDamage/RandR retirement and suppressed XTEST releases on authority
+loss already present; no new production X11 owner is justified.
+
 ## R10 original-owner macOS first-MCS admission and exact receipt (2026-10-31)
 
 After final standalone CredSSP, only the real default macOS owner/native

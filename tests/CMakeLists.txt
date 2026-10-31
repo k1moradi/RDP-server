@@ -1651,6 +1651,16 @@ function(add_rdp_test source_file suite behavior)
             set_tests_properties("${functional_transport_test_name}" PROPERTIES
                 LABELS "protocol;transport")
         endforeach()
+
+        # Focused R4/R3 receipt-order assurance. Keep this ordinary full-CTest
+        # regression outside the fixed 23-case transport.dvc-graphics
+        # sanitizer census; it exercises the same production DVC lifecycle.
+        add_test(NAME graphics.frame-delivery-session-retirement-before-ack
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-delivered-session-retirement-before-ack")
+        set_tests_properties(
+            graphics.frame-delivery-session-retirement-before-ack
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
     elseif(test_target STREQUAL "test_owned_preauth_session")
         # Behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.

@@ -1,3 +1,68 @@
+## R4 admitted-frame delivery and pre-ACK retirement assurance (2026-10-30)
+
+**Authoring parent:** `b76f62917479ff3a1e512d7c6c791157d97d2f2c`. The first-round R4 audit traced the current
+production route from a current R2 lease and `GraphicsReady` through joined
+`drdynvc`, RDPGFX CAPS/CREATE, exact CREATE_SURFACE/MAP_SURFACE_TO_OUTPUT
+accepted-byte receipts, synchronous native framebuffer borrow, ClearCodec
+preparation, bounded DATA_FIRST/DATA publication and R4 ACK membership. R2 is
+revalidated before every graphics write slice, when accepted bytes are committed
+into R3, before client Graphics DATA intake and before/after ACK consumption.
+Only the last fully accepted frame record calls R4
+`completeFrameDelivery(..., deliveredWireBytes)`; zero progress, deferred
+credit, conclusively unwritten cancellation and partial publication do not create
+ACK membership.
+
+**Uncovered assurance boundary:** existing tests separately covered complete
+DATA -> ACK, pending DATA -> Share/DVC loss, and isolated R4 delivered-credit ->
+generation retirement, but did not exercise the production R3 DVC order
+**fully delivered frame -> one R4 ACK credit -> session/DVC retirement -> late
+FRAME_ACK**. Add ordinary production-backed CTest
+`graphics.frame-delivery-session-retirement-before-ack` using the existing
+`test_owned_mcs_connect_initial` executable. It fully accepts every outer
+frame record, proves one outstanding R4 frame, invokes the same DVC
+`close()` reached by `McsSessionLifecycle::close()` and R2 session
+retirement, then proves a late ACK returns `Closed` with zero outstanding
+credit and no buffered Graphics DATA. This is a test-only assurance increment:
+**no production source, codec, frame scheduling or ACK policy changes**.
+
+**Agent 10 frame-acceptance contract:** a frame is eligible only while the exact
+R2 lease is current, MCS/PersonalDesktop Share is activated, the advertised
+Client Core 0x0100 RDPGFX capability is present, the joined `drdynvc` route
+owns a current DVC generation, RDPGFX VERSION8/VERSION81 negotiation is
+confirmed, and CREATE_SURFACE plus MAP_SURFACE_TO_OUTPUT have completed for the
+current geometry. Native geometry/capture generation must still match at the
+synchronous borrow. R3 may report frame publication complete only after every
+outer TLS plaintext slice is positively accepted and the mapped frame payload
+equals the prepared owned wire extent; only then may R4 add the exact frame ID
+to its bounded 64-entry ACK window. Resize must drain or explicitly suspend old
+ACK membership before DELETE/CREATE/MAP; same-DVC remap fences retired frame
+IDs. Share/R2/native-owner retirement closes R3/R4 before later ACK callbacks.
+A genuine first-frame acceptance claim requires both the exact frame write
+receipt and a matching current-generation FRAME_ACK; the former alone is not
+client-visible presentation evidence.
+
+**Future owner-private physical checklist:** on one R9-approved exact SHA and
+only after separate owner authorization, record the admitted connection/session
+generation, verified R2 native lease, Share activation and joined `drdynvc`;
+Client Core 0x0100 and selected RDPGFX VERSION8/VERSION81; exact CREATE/MAP
+receipts and mapped geometry; native capture generation/stride/extent; first
+ClearCodec frame ID and total prepared wire bytes; every positive R1 accepted
+slice through the final DATA record; R4 outstanding credit changing 0 -> 1;
+matching client FRAME_ACK changing 1 -> 0; resize DELETE/CREATE/MAP and first
+post-remap frame/ACK; then Stop/lock/logout/session replacement and reconnect
+with a fresh R2/DVC generation and no stale ACK effect. Stop at the first
+missing boundary and mark later stages NOT REACHED. Do not record pixels,
+credentials or other private identifiers.
+
+The fixed sanitizer inventories remain unchanged: R3 Graphics DVC **23**, R4
+portable graphics **45**, x264/BGRA **29**, ClearCodec **4**, and R5 X11 **45**.
+The new CTest name is intentionally outside the fixed
+`^transport\.dvc-graphics-` selector while still running under ordinary full
+CTest. Source/registration audit: **PASS by inspection**. Local canonical
+build/focused/full CTest and sanitizers: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. Physical client,
+native Admission and desktop capture: **NOT RUN / unauthorized**.
+
 ## R9 current-head CTest taxonomy repair (2026-10-30)
 
 Exact R8 corrective head `ef807b3f37729523be3514d54ba8122ab47c8090` restores the fixed 107-case clipboard sanitizer census and passes both independent/main workflow structure parsing, but hosted configuration fails cross-platform before compilation. The common first boundary is the repository's deliberate durable-label guard: combined test `clipboard.file-destination-finalization-generation-replacement` was registered with internal label `r8-terminalization`, and `tests/CMakeLists.txt` rejects every `r1`–`r10` CTest label.

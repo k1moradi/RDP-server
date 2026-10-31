@@ -1,3 +1,28 @@
+## R4 admitted-frame delivery / revocation assurance authoring (2026-10-30)
+
+- Authoring parent: `b76f62917479ff3a1e512d7c6c791157d97d2f2c`; current candidate is not manually approved
+  for physical testing, so this increment remains offline only.
+- Production trace: current R2 authority is checked before graphics write
+  authorization/receipt and before/after ACK consumption; R3 maps exact outer
+  accepted bytes to frame payload bytes; only the final complete record calls
+  R4 delivery completion and creates ACK membership. R3/R2 retirement reaches
+  Graphics DVC `close()`, which disconnects R4 and clears its ACK window.
+- Coverage gap found: full R3 DATA delivery followed by retirement before ACK
+  was not directly composed in one production-lifecycle regression. Existing
+  cases covered full delivery -> ACK, pending delivery -> close, and isolated
+  R4 generation retirement.
+- Added
+  `graphics.frame-delivery-session-retirement-before-ack`: exact full frame
+  delivery creates one outstanding ACK, DVC retirement clears it, and a late
+  ACK is inert/Closed. No production C++ behavior changed.
+- Fixed sanitizer census is intentionally unchanged: R3 Graphics DVC 23,
+  portable graphics 45, x264/BGRA 29, ClearCodec 4, R5 X11 45. The new
+  behavior is ordinary full CTest outside the fixed R3 selector.
+- Source/registration review: **PASS by inspection**. Local configure/build,
+  focused/full CTest, ASan/UBSan and benchmark: **NOT RUN**. Hosted
+  exact-publication-SHA CI: **PENDING**. Physical RDP client/native desktop:
+  **NOT RUN / unauthorized**.
+
 ## R9 R8-terminalization label failure diagnosis (2026-10-30)
 
 - Exact head `ef807b3f37729523be3514d54ba8122ab47c8090`: independent and primary workflow structure parsing **PASS**, but Ubuntu/Windows protocol, R9 sanitizer, R7 lifecycle/session and bootstrap configure **FAIL** at `tests/CMakeLists.txt:5364`.

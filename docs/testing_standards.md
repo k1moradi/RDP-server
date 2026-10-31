@@ -1,3 +1,23 @@
+## R4 fully delivered frame retirement-before-ACK offline gate (2026-10-30)
+
+Register `graphics.frame-delivery-session-retirement-before-ack` as one
+ordinary production-backed CTest using the existing R3
+`test_owned_mcs_connect_initial` executable. The behavior must fully accept
+all frame DATA_FIRST/DATA outer records until R3 reports `Delivered`, assert
+that R4 then owns exactly one ACK entry, retire the production Graphics DVC
+through `close()`, and prove a late FRAME_ACK is returned as `Closed`
+without buffered client Graphics DATA or outstanding credit. This covers the
+receipt-order gap between complete frame delivery and ACK processing; it does
+not fabricate a positive R2 lease and is not physical admission evidence.
+
+Keep this focused test outside the fixed
+`^transport\.dvc-graphics-` sanitizer census so the existing **23-case**
+R3 Graphics DVC selection remains unchanged. It also must not alter the
+portable R4 **45-case**, x264/BGRA **29-case**, ClearCodec **4-case** or R5 X11
+**45-case** inventories. Ordinary full CTest still executes the regression.
+A future sanitizer enrollment requires an explicit owner-approved census
+change rather than silently widening a qualified selector.
+
 ## R9 durable label for separate clipboard terminalization gate (2026-10-30)
 
 The combined `clipboard.file-destination-finalization-generation-replacement` CTest is intentionally outside the fixed `clipboard` label census and must use behavior taxonomy only. Its labels are `protocol;file-destination;terminalization;offline`; never use an internal R1–R10 ownership label. This preserves the 107-case `-L clipboard` sanitizer census while the same ASan/UBSan job still runs the combined terminalization CTest explicitly by exact test name.

@@ -5941,6 +5941,70 @@ void testGraphicsFrameStaleReceiptAbort()
     assert(!dvc.presentationMapped());
 }
 
+
+void testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge()
+{
+    constexpr RdpDynamicVirtualChannelAllocation allocation{13U, 209U};
+    constexpr std::uint32_t frameId = 107U;
+
+    RdpGraphicsDynamicVirtualChannelLifecycle dvc;
+    completeGraphicsDynamicVirtualChannelReady(
+        dvc, allocation, 1007U, 1005U);
+
+    rdp_server::rdp::GfxAvc420SegmentedFrame frame;
+    prepareTestClearCodecFrame(dvc, frameId, frame);
+    assert(dvc.beginFramePublication(
+        std::move(frame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    RdpGraphicsDvcWriteOutcome completion =
+        RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U &&
+             completion == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto write = dvc.pendingServerWrite();
+        assert(write &&
+               write.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData);
+        completion = dvc.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+
+    // Exact final accepted-byte accounting is the only point at which R4
+    // may create ACK membership. This is deliberately after every R3
+    // DATA_FIRST/DATA record has been accepted.
+    assert(completion == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.frameRecordMap().empty());
+    assert(dvc.presentationMapped());
+    assert(dvc.outstandingGraphicsFrames() == 1U);
+
+    const auto lateAcknowledge = makeR3GraphicsFrameAcknowledgeTpkt(
+        allocation.channelId, frameId, 4096U, 1U);
+
+    // McsSessionLifecycle::close(), including R2 authority retirement,
+    // reaches this production DVC close path. Retirement must clear the R4
+    // ACK window before any later client callback can observe it.
+    dvc.close();
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!dvc.presentationMapped());
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(!dvc.pendingServerWrite());
+    assert(dvc.pendingClientGraphicsData().empty());
+
+    // A packet that was already in flight on the retired transport cannot
+    // resurrect display state or free credit belonging to any future
+    // generation. Closed intake is side-effect free.
+    assert(dvc.onClientTpkt(
+               allocation.generation, lateAcknowledge) ==
+           RdpGraphicsDvcClientIntake::Closed);
+    assert(dvc.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(dvc.outstandingGraphicsFrames() == 0U);
+    assert(dvc.pendingClientGraphicsData().empty());
+}
+
 void testGraphicsFrameShareLossAbort()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{6U, 86U};
@@ -13041,6 +13105,8 @@ constexpr std::array<McsTestCase, 171> kMcsTestCases{{
     {"dvc-graphics-frame-header-partial-abort", &testGraphicsFrameHeaderPartialAbort},
     {"dvc-graphics-frame-payload-partial-abort", &testGraphicsFramePayloadPartialAbort},
     {"dvc-graphics-frame-stale-receipt", &testGraphicsFrameStaleReceiptAbort},
+    {"dvc-graphics-frame-delivered-session-retirement-before-ack",
+     &testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge},
     {"dvc-graphics-frame-share-loss-abort", &testGraphicsFrameShareLossAbort},
     {"dvc-graphics-data-malformed-first", &testGraphicsDataFirstMalformed},
     {"dvc-graphics-data-wrong-channel", &testGraphicsDataWrongChannel},

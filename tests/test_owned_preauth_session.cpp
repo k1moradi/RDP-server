@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "server/runtime/runtime_tls_context.h"
+#include "server/runtime/runtime_deployment_policy.h"
 #include "transport/preauth_session.h"
 #include "transport/nonblocking_tcp_adapter.h"
 #include "transport/mcs_connect_response.h"
@@ -32,6 +33,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <span>
 
 #include <openssl/crypto.h>
 #include <openssl/evp.h>
@@ -7866,7 +7868,8 @@ private:
 class MacProtectedTransportFixture final
 {
 public:
-    MacProtectedTransportFixture()
+    explicit MacProtectedTransportFixture(
+        const std::uint32_t grantedPermissions = kConsoleViewPermission)
         : pair(false),
           connection(
               acceptMacProtectedTransportSocket(pair),
@@ -7897,9 +7900,9 @@ public:
         proof.bindCredentialGeneration(credentialObservation.generation);
 
         assert(ownerAuthority.requestConsent(
-                   {kConsoleViewPermission, 60'000U}) ==
+                   {grantedPermissions, 60'000U}) ==
                OwnerConsentRequestResult::Granted);
-        assert(broker.prepareAdmission(kConsoleViewPermission) ==
+        assert(broker.prepareAdmission(grantedPermissions) ==
                MacConsoleAdmissionPrepareResult::Prepared);
         assert(broker.state() == MacConsoleAdmissionState::Prepared);
     }
@@ -8179,6 +8182,70 @@ void testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation()
         assert(fixture->broker.prepareAdmission(kConsoleViewPermission) ==
                MacConsoleAdmissionPrepareResult::InvalidState);
     }
+}
+
+// Real accepted HYBRID/TLS belongs to the original R1 owner. Synthetic
+// principal/native sources exercise R2's private gates only, not physical
+// macOS clipboard permission or product-valid desktop admission.
+void testMacProtectedTransportClipboardPermissionDenials()
+{
+    using rdp_server::server::runtime::RuntimeDeploymentPolicy;
+
+    auto fixture = std::make_unique<MacProtectedTransportFixture>(
+        kConsoleViewPermission | kConsoleInputPermission);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.revalidate(kConsoleInputPermission));
+    assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Prepared);
+
+    assert(fixture->broker.authorizeR1CredSspAdmission(*fixture->session));
+    assert(fixture->broker.state() ==
+           MacConsoleAdmissionState::TransportAdmitted);
+    assert(fixture->connection.stage() ==
+           PreauthStage::AwaitMcsConnectInitial);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.revalidate(kConsoleInputPermission));
+    assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+    assert(fixture->broker.state() ==
+           MacConsoleAdmissionState::TransportAdmitted);
+
+    const auto connectInitial = macProtectedHybridConnectInitial();
+    assert(fixture->broker.authorizeR3McsConnectInitial(
+               *fixture->session, connectInitial) ==
+           McsSessionIntake::AdmittedConnectInitial);
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Admitted);
+    assert(fixture->broker.revalidate(kConsoleViewPermission));
+    assert(fixture->broker.revalidate(kConsoleInputPermission));
+    assert(!fixture->broker.revalidate(kConsoleClipboardPermission));
+
+    // A joined-channel ID is a wire observation, never Clipboard authority.
+    assert(!fixture->broker.authorizeR3JoinedClipboardChannel(
+        *fixture->session));
+    assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+    assert(fixture->broker.admissionGeneration() == 0U);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
+
+    // A closed session cannot deliver clipboard/FileContents data, recover
+    // a route, or turn a fabricated late accepted-byte count into success.
+    RuntimeDeploymentPolicy unconfiguredPolicy;
+    std::span<const std::uint8_t> completePdu{};
+    assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+        *fixture->session, unconfiguredPolicy));
+    assert(fixture->broker.authorizeR3ClipboardTpkt(
+               *fixture->session, unconfiguredPolicy, {}, completePdu) ==
+           RdpClipboardChunkIntake::Rejected);
+    assert(completePdu.empty());
+    assert(!fixture->broker.queueR3ClipboardPdu(
+        *fixture->session, unconfiguredPolicy, {}));
+    assert(!fixture->broker.pendingR3ClipboardWrite(
+        *fixture->session, unconfiguredPolicy));
+    assert(fixture->broker.completeR3ClipboardWrite(
+               *fixture->session, unconfiguredPolicy,
+               1U, 1U, 1U, 1U) ==
+           RdpClipboardWriteOutcome::Rejected);
+    assert(fixture->session->phase() == McsSessionPhase::Closed);
+    assert(fixture->connection.stage() == PreauthStage::Closed);
 }
 
 void testOwnedHybridNoPrematureMcs()
@@ -12412,6 +12479,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testOwnedBufferedTlsCredSspThenMcsReadiness},
     {"macos-protected-credssp-transport-completion-receipt-retirement",
      &testMacProtectedCredSspTransportCompletionAndReceiptRetirement},
+    {"macos-transport-admitted-clipboard-permission-denials",
+     &testMacProtectedTransportClipboardPermissionDenials},
     {"macos-protected-admission-reprepare-premcs-audit-retirement",
      &testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},

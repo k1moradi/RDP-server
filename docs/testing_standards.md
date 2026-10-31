@@ -1,3 +1,18 @@
+## R8 macOS Clipboard scope after production R1 TLS (2026-10-31)
+
+`security.macos-transport-admitted-clipboard-permission-denials`
+reuses the one real loopback R1 HYBRID/TLS and original production macOS
+R2/R3 broker. The synthetic native proof permits View/Input but never
+Clipboard at Prepared, TransportAdmitted and after first MCS Admitted;
+the pre-Share joined-channel request must terminally retire the exact
+R1/R2/R3 owners. Later CLIPRDR route, PDU and accepted-byte receipt calls
+remain rejected without exposing a completed payload/FileContents. This is
+not a product-valid native lease, Share, file publication or a real client.
+Register the ordinary test outside the fixed 107-case `clipboard` label.
+Source and registration review **PASS**; owner Debug/full CTest **NOT RUN**,
+exact-publication CI and sanitizers **PENDING**. Existing R8 bridge/X11/native
+destination regressions are unchanged.
+
 ## R2 macOS reprepare and pre-first-MCS native audit change (2026-10-31)
 
 The dedicated production-backed offline CTest

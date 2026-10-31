@@ -1,3 +1,28 @@
+## R8 independently denied macOS joined CLIPRDR after R1 TLS (2026-10-31)
+
+- **Authoring parent:** `6282f6f151c7c67524cb6dca68d36b839fa25b2b`. The separate
+  `security.macos-transport-admitted-clipboard-permission-denials`
+  CTest reuses one accepted real HYBRID/TLS R1/SSL/BIO and production
+  R2/R3 macOS broker, with intentionally synthetic principal/native evidence.
+  View and Input succeed through Prepared, TransportAdmitted and R3 Admitted;
+  Clipboard remains denied at all three states. A pre-Share joined CLIPRDR
+  request terminally revokes R1/R2/R3, and stale route/intake/queued write/
+  fabricated positive accepted-byte receipt calls cannot revive it.
+- **Existing evidence unaffected:** R3ClipboardTransferBridge scalar accepted
+  generation/reply/slice receipts and replacement isolation, X11 same-numeric
+  generation sourceEpoch/ownershipEpoch claims, INCR cleanup, macOS/Windows
+  reentrant resize/flush/close generation finalization, and Linux thread-affine
+  direct `pwrite` remain unchanged. No native clipboard activation/adapter,
+  file creation, Share or real Microsoft client execution.
+- **Verification:** source and test-registration review **PASS**.
+  Owner canonical Debug build and full CTest **NOT RUN**. Exact-publication
+  hosted CI/ASan/UBSan **PENDING**. The 107/107 + separate finalization 1/1 +
+  three X11 callback 3/3 sanitizer **PASS** receipt belongs solely to
+  ancestor `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`.
+  `kLinuxProductionClipboardActivationApproved = false` remains intact.
+  Next: exact-SHA full CTest and sanitizer check; R10 native permission/Share/
+  owner and sole R1 writer remain a separate unapproved integration gate.
+
 ## R2 macOS duplicate-preparation terminal correction (2026-10-31)
 
 Audited parent `1d95156ea4fd1d1c5a20f4e3754570b44d504299`. A second owner-thread

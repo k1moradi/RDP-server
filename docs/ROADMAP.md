@@ -1,3 +1,35 @@
+## R8 macOS independent Clipboard scope after R1 transport admission (2026-10-31)
+
+**Authoring parent:** `6282f6f151c7c67524cb6dca68d36b839fa25b2b`. A new separate ordinary,
+production-linked `security.macos-transport-admitted-clipboard-permission-denials`
+CTest reuses real accepted R1 loopback HYBRID/TLS and the original R2/R3 macOS
+broker. The synthetic native/credential fixture positively revalidates
+View/Input, but not independent Clipboard, at Prepared, TransportAdmitted and
+R3 Admitted. Trying `authorizeR3JoinedClipboardChannel()` retires R1/R2/R3;
+post-retirement activated-route, CLIPRDR intake, queued/pending bytes and a
+fabricated late positive write receipt cannot expose data or FileContents.
+This proves an internal fail-closed boundary, **not** physical native admission,
+ShareActivated, Enabled, successful native files or client clipboard.
+
+**R10 future integration gate:** check at the actual publication boundary
+the same current R1 TLS/CredSSP identity, original revocable R2 lease/consent,
+separate Clipboard native permission, R3 ShareActivated and exact joined
+`cliprdr` route, current native owner/source epoch, R1's sole writer and
+complete bounded generation/reply/slice/accepted-byte receipt. Numeric IDs,
+pre-Share join, View/Input and partial/late receipts grant no publication.
+R3ClipboardTransferBridge, RemoteTransfer, native destinations and X11
+selection/INCR keep their sole existing ownership; do not add adapters.
+`kLinuxProductionClipboardActivationApproved = false` remains literal.
+The fixed 107-case clipboard ASan/UBSan census and separate finalization
+and three X11 callback-retirement regressions are unchanged.
+
+**Evidence:** source/registration review **PASS**. Canonical owner build/full
+CTest **NOT RUN**; exact-publication-SHA hosted CI/sanitizers **PENDING**.
+Ancestor `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6` alone has
+107/107 clipboard + 1/1 finalization + 3/3 X11 sanitizer **PASS**.
+Next: qualify the newly published SHA before physical permission-gated
+R10 composition. Physical client, native clipboard and file tests **NOT RUN**.
+
 ## R2 production R1 transport completion and broker receipt coverage (2026-10-31)
 
 Parent `2383df14eeed95b1ab90b90ece778b8eb3de59c0`: the remaining broker-internal R1/TLS transition and receipt

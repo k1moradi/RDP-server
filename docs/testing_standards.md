@@ -1,3 +1,20 @@
+## R6 source-binding identity-splice contradiction regression (2026-10-31)
+
+Keep the existing ordinary offline
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest selector
+over every `paired_provenance_` case. In addition to the local-Type-2 and
+cross-attempt Type-3 contradictions, it must mutate the Windows row's nested
+source binding so the source server SHA, service endpoint, attempt ID and
+original client application disagree with the original attempt. Require the
+typed `WINDOWS_SOURCE_SHA_MISMATCH`,
+`WINDOWS_SOURCE_SERVICE_ENDPOINT_MISMATCH`,
+`WINDOWS_SOURCE_ATTEMPT_ID_MISMATCH` and
+`WINDOWS_SOURCE_CLIENT_APPLICATION_MISMATCH` denials. Do not repair or
+normalize those fields from the outer row: the purpose is to prove an
+independently collected neighboring record cannot be spliced into the pair.
+This remains Python-standard-library-only, offline and non-authorizing; it
+opens no socket, reads no credential and enables no client capture.
+
 ## R5 RandR held-input cleanup race regression (2026-10-31)
 
 Dedicated ephemeral-Xvfb CTest

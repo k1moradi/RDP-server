@@ -1,3 +1,29 @@
+## R6 current-head A/B provenance recheck (2026-10-31)
+
+The closed paired schema remains `rdp-server.windows-client-ab-pair.v3`;
+no new field is warranted. A usable Windows App versus Windows 11 mstsc pair
+must keep the same exact server SHA, destination/service endpoint, certificate
+fingerprint, server TLS profile and target identity while separately recording
+the original client application/version, attempt ID, connection ID, bounded
+observation interval and credential-source choice. Username and Session
+Password must be deliberately entered as specified for each row without
+logging the password or NTLM/CredSSP secrets; a pre-existing/default saved
+credential is not an acceptable substitute.
+
+Client-side provenance is stage-specific. The earliest discriminating
+observations are, in order, receipt/decryption of server TLS application data,
+parsing/acceptance or rejection of the CredSSP/NTLM Type 2, Type-3
+construction, and submission of the next client TLS record. A server-local
+Type-2 commit or peer FIN cannot populate any of those client fields. The
+existing v3 validator already enforces this; the companion offline regression
+now also explicitly rejects a nested source record whose server SHA, service
+endpoint, attempt ID and original client application came from another
+attempt. Supported same-attempt client Core/UI/provider evidence may be used
+read-only if owner-authorized. Do not enable packet capture/monitoring, alter
+certificate trust, Group Policy or credentials, or perform the physical A/B
+until the R9 exact-SHA manual candidate and separate owner authorization both
+exist.
+
 ## R6 rejected-private-summary fixed-output contract (2026-10-31)
 
 A v3 pair with invalid client-stage, Type-3, native-admission or Windows

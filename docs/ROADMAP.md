@@ -1,3 +1,64 @@
+## R6 current-head Microsoft interop / source-binding anti-splice re-audit (2026-10-31)
+
+**Authoring parent:** `07509cc1fdddff646a33bbf3b874ed3be8a42de0`. The newest independently inspectable
+canonical Microsoft SSPI matrix remains the completed ancestor
+`1d95156ea4fd1d1c5a20f4e3754570b44d504299`, Actions
+`41193667805`, Windows job `124515689345`, artifact `13039773537`
+(SHA-256 `649888fa8d80bfb3e04ec7e76b3c4737642a3e4a3285cfbbb17e39516619ed9d`).
+It reports `COMPLETE_PASS`: system-default and TLS-1.2 paths reach Type 3
+under TLS 1.2; the modern Schannel TLS-1.3 path reaches Type 3 under TLS 1.3;
+fixed-name, IP-SPN and bare-IP target controls pass; the production full
+exchange reaches pubKeyAuth, protected authInfo and
+`CredentialsVerified` with neither delegated username nor password empty;
+the deliberately invalid server binding is rejected; and Type-2 challenges
+missing either MsvAvNbComputerName or MsvAvNbDomainName are consumed but
+produce no Type 3. The artifact does not emit a certificate fingerprint.
+Current source still creates the harness server TLS identity for the selected
+IP endpoint and the production CredSSP acceptor fingerprints the active
+selected TLS certificate, rechecking it before pubKeyAuth and authInfo and
+deriving the binding from that same active SSL object. This proves harness
+certificate/binding continuity, not physical Windows App receipt.
+
+The owner terminal record remains an incomplete physical exchange: TLS 1.3,
+Direct NTLM Type 1, a 126-byte Type 2 locally committed by the server and peer
+FIN about 10.009 ms later, with zero server-observed post-Type-2 TLS bytes and
+no Type 3, later TSRequest, TLS alert or close_notify. Local commit does not
+prove client receipt/decryption or CredSSP acceptance, and the changed
+certificate fingerprint alone does not identify the cause. The hosted SSPI
+oracle is comparable only on explicitly recorded protocol/TLS fields and must
+not be substituted for the physical Windows App implementation.
+
+Paired schema v3 was rechecked against the current validator. It binds exact
+server SHA, certificate fingerprint, destination/service endpoint, attempt and
+connection IDs, original client application/version, target identity,
+credential-source choice and bounded observation interval. Existing
+provenance regressions already reject a claimed client Type-2 receipt without
+a client-origin event and Type-3 evidence from another attempt/connection.
+This increment adds the previously unexercised nested source-binding splice
+combination for server SHA, service endpoint, attempt ID and original client
+application; the existing
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest selector
+executes it. The validator schema and production RDP/TLS/native code are
+unchanged.
+
+The closed-schema Windows App versus Windows 11 mstsc plan remains
+owner-gated: same server SHA, endpoint, certificate identity and target,
+manual Username, independently entered Session Password, no ambiguous saved
+credential source, and no secret/token logging. Client receipt/decryption,
+Type-2 parse/acceptance, Type-3 construction and next TLS-record submission are
+separate client-side observations; server peer FIN proves none of them.
+Read-only, same-attempt supported client diagnostics may supply provenance
+without changing trust, Group Policy or credentials. Packet capture/monitor
+enablement remains NOT RUN / unauthorized. Windows native positive activation
+remains false; WTS/LSA identity, DXGI generation retirement and SendInput
+post-revocation denials remain independent fail-closed gates.
+
+Connector source/artifact review: **PASS**. Canonical owner-local focused/full
+CTest: **NOT RUN** in this connector environment. Exact publication-SHA hosted
+CI: **PENDING**. The R9 manual exact-SHA candidate and separate owner
+authorization remain required before any physical A/B or Windows native
+activation.
+
 ## R9/R10 fail-closed macOS owner allocation boundary (2026-10-31)
 
 Parent `5fc73bb9fcd3a332a5f619cfe310f64a8897fa68` already carries protected Attach User and exact Attach

@@ -1,3 +1,42 @@
+## R6 Microsoft interop re-audit and nested source-binding anti-splice coverage (2026-10-31)
+
+Authoring parent `07509cc1fdddff646a33bbf3b874ed3be8a42de0`. Independently re-read the completed
+Microsoft SSPI artifact from source
+`1d95156ea4fd1d1c5a20f4e3754570b44d504299`, Actions
+`41193667805`, Windows job `124515689345`, artifact `13039773537`,
+artifact SHA-256
+`649888fa8d80bfb3e04ec7e76b3c4737642a3e4a3285cfbbb17e39516619ed9d`.
+The matrix final is `COMPLETE_PASS`; TLS 1.2/system-default, TLS 1.3 modern
+Schannel, fixed/IP/bare-IP targets, production pubKeyAuth/authInfo with
+nonempty delegated username/password, invalid-binding rejection and both
+required-AV Type-2 negative controls are present. The current artifact text
+does **not** publish an authInfo byte length or certificate fingerprint, so
+neither is invented here. Current production source pins the selected active
+TLS certificate and uses that same SSL object's certificate for CredSSP
+binding verification.
+
+Compared only on common fields, the hosted SSPI exchange proves a Microsoft
+SSPI client can consume the production Type 2 and complete Type 3/pubKeyAuth/
+authInfo against the harness. The owner terminal record proves only server
+local Type-2 commit followed by FIN with no server-observed post-Type-2 TLS
+bytes. It cannot establish Windows App Type-2 receipt, parsing, Type-3
+construction, password failure, certificate rejection or TLS alert.
+
+Schema-v3 source-binding validation already enforces SHA, endpoint,
+certificate, attempt/connection, client app/version, target, credential source
+and time window. Existing tests cover missing client Type-2 provenance and
+cross-attempt Type-3. Added
+`test_paired_provenance_source_binding_identity_splices_are_denied` to
+exercise the previously implicit nested SHA/endpoint/attempt/application
+mismatch combination under the existing
+`interop.windows-client-ab-stage-provenance-splice-denials` CTest. No
+validator or production behavior changed. Source/registry inspection
+**PASS**; connector-local CTest **NOT RUN**; publication-SHA CI **PENDING**.
+Physical Windows App/mstsc, capture/monitor enablement, trust/Group Policy/
+credential mutation and Windows native activation remain **NOT RUN /
+unauthorized** pending the manual R9 exact-SHA candidate and separate owner
+authorization.
+
 ## R5 RandR/XTEST owner-retention audit (2026-10-31)
 
 Reviewed exact parent `4e29a77e2735695b956ce9e777ff9bf14e4407d7`.

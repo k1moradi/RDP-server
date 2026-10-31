@@ -1,3 +1,15 @@
+## R6 source-binding anti-splice test-only build scope (2026-10-31)
+
+This increment changes only the existing Python evidence fixture plus
+canonical documentation. It adds no C++ target, package, native API, listener,
+certificate operation, credential source or build directory. The existing
+`interop.windows-client-ab-stage-provenance-splice-denials` registration
+already selects the new `paired_provenance_` behavior, so no CMake registry
+change is required. In the sole owner build root run
+`ctest --test-dir build -C Debug -R '^interop[.]windows-client-ab-(evidence-contradiction|stage-provenance-splice)-denials$' --output-on-failure`
+and then full Debug CTest. Connector-local CTest is **NOT RUN**; exact
+publication-SHA hosted CI is **PENDING**.
+
 ## R5 RandR input-owner retention build scope (2026-10-31)
 
 The change reuses the existing Linux XCB/XTEST desktop and native-input targets;

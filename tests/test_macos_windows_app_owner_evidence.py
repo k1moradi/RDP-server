@@ -737,6 +737,28 @@ class OwnerEvidenceTests(unittest.TestCase):
         failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
         self.assertIn("WINDOWS_CLIENT_TYPE3_GENERATED_ATTEMPT_MISMATCH", failures)
 
+    def test_paired_provenance_source_binding_identity_splices_are_denied(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        binding = pair["windows"]["source_binding"]
+
+        # These fields identify the original client attempt. A neighboring
+        # source record cannot satisfy this row even when its stage values look
+        # otherwise plausible.
+        binding["server_sha"] = "c" * 40
+        binding["service_endpoint_exact"] = "192.0.2.10:3390"
+        binding["attempt_id_exact"] = "previous-attempt"
+        binding["client_application_exact"] = "Windows App"
+
+        failures = ab_evidence.validate_pair(manifest, pair)["evidence_failures"]
+        for failure in (
+            "WINDOWS_SOURCE_SHA_MISMATCH",
+            "WINDOWS_SOURCE_SERVICE_ENDPOINT_MISMATCH",
+            "WINDOWS_SOURCE_ATTEMPT_ID_MISMATCH",
+            "WINDOWS_SOURCE_CLIENT_APPLICATION_MISMATCH",
+        ):
+            self.assertIn(failure, failures)
+
     def test_paired_provenance_target_version_and_credential_mix_is_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

@@ -1,3 +1,12 @@
+## R1 OpenSSL typed-stack macro qualification (2026-10-30)
+
+OpenSSL's typed STACK_OF accessors such as `sk_GENERAL_NAME_num`,
+`sk_GENERAL_NAME_value` and `sk_GENERAL_NAME_push` are generated macros,
+not namespace-scope C++ functions. Do not prefix them with `::`: OpenSSL
+4.1's macro expansion makes that form ill-formed C++ under warnings-as-errors.
+This is a source-compatibility rule only and does not change SAN matching,
+certificate trust, TLS policy, socket ownership or R2 admission.
+
 ## R6 paired physical Windows client evidence is non-authorizing (2026-10-30)
 
 Preserve the single R5 macOS owner-evidence collector and its private

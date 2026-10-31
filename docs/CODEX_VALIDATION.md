@@ -1,3 +1,27 @@
+## R1 OpenSSL 4.1 typed-stack macro compile follow-up — 2026-10-30
+
+- Previous R1 publication `e43414099f5451d59538668445fdcf3764e153b3`:
+  Ubuntu, Windows, CLANG64, R9 sanitizers and macOS protocol jobs **PASS**.
+  macOS job `124406000069` resolved OpenSSL **4.0.3**, and the dedicated
+  `runtime.tls-endpoint-san-only-openssl-compatibility` passed in Debug and
+  Release; this does **not** prove 4.1 source compatibility.
+- Current failing descendant `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f`,
+  macOS protocol job `124407094700`: **FAIL at compile**, OpenSSL **4.1.0**,
+  AppleClang 21, first boundary `runtime_tls_context.cpp:317` where
+  `::sk_GENERAL_NAME_value` expands as an OpenSSL typed-stack macro and is
+  invalid after the C++ scope operator. R7's current dependency audit confirms
+  the same R1-owned boundary; R3/R6/R7 production work is not the cause.
+- Correction removes only the `::` prefix from generated
+  `sk_GENERAL_NAME_num/value/push` macro uses in production and the matching
+  test helper. No SAN policy, wildcard/CN behavior, trust-chain verification,
+  TLS version, Type-2 bytes, polling, timeouts, socket/SSL ownership or native
+  admission changes.
+- Local canonical build/focused/full Debug/Release and sanitizers: **NOT RUN**
+  (approved checkout unavailable). Corrective exact-publication-SHA macOS
+  OpenSSL 4.1, Linux, Windows and R9 sanitizer qualification: **PENDING**.
+  Benchmark **NOT RUN / not applicable**. Physical RDP testing remains
+  **NOT RUN / unauthorized**.
+
 ## R7 callback-retirement hosted qualification and dependency recheck — 2026-10-30
 
 - Qualified implementation SHA:

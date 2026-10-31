@@ -596,7 +596,7 @@ constexpr std::uintmax_t kMaximumFixtureCertificateBytes = 1024U * 1024U;
             NID_subject_alt_name, nullptr, nullptr));
     std::unique_ptr<GENERAL_NAMES, decltype(&GENERAL_NAMES_free)>
         names{rawNames, GENERAL_NAMES_free};
-    if (!names || ::sk_GENERAL_NAME_num(names.get()) != 1)
+    if (!names || sk_GENERAL_NAME_num(names.get()) != 1)
         return false;
     const GENERAL_NAME *const name =
         sk_GENERAL_NAME_value(names.get(), 0);

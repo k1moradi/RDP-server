@@ -1,3 +1,18 @@
+## R2 protected macOS Attach/Join and Client Info increment (2026-10-31)
+
+Authored private R3 operation wrappers in the original R2 native visitor:
+Attach intake/confirm prepare+receipt, Channel Join intake/confirm
+prepare+receipt, and Client Info accept. Seven new methods use R1 HYBRID
+provenance, original R3 binding, fresh proof/consent/native authorization
+and terminal retirement on rejection. Registered distinct production-backed
+offline denial CTest. No licensing/Share/graphics/channel publication, no
+synthetic admission and no Linux/R10 rewrite. Connector-local canonical
+compile/focused/full CTest and sanitizers: **NOT RUN** (approved checkout
+unavailable; GitHub DNS blocked locally). Exact-publication-SHA hosted CI:
+**PENDING**. Next R2 gate: PersonalDesktop licensing, Mac Demand/Share,
+post-Share and channel operations; genuine R1 accepted-TLS positive/callback
+revocation/partial-receipt testing.
+
 ## R2 first-MCS sequencing correction (2026-10-31)
 
 Authoring parent: GitHub current `main` at publication time. Source

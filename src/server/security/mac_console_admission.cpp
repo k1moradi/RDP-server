@@ -577,6 +577,241 @@ MacConsoleAdmissionBroker::authorizeR3ErectDomain(
     return McsSessionIntake::ErectDomainAccepted;
 }
 
+rdp_server::server::transport::McsSessionIntake
+MacConsoleAdmissionBroker::authorizeR3AttachUser(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::span<const std::uint8_t> completeTpkt{};
+        McsSessionIntake outcome{McsSessionIntake::AdmissionDenied};
+    } operation{this, &session, completeTpkt};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->onVerifiedR2AttachUser(
+            *provenance, operation.completeTpkt);
+        return operation.outcome == McsSessionIntake::AttachUserAccepted;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return McsSessionIntake::AdmissionDenied;
+    return operation.outcome;
+}
+
+std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+MacConsoleAdmissionBroker::authorizeR3AttachUserConfirmWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::optional<McsConnectResponseWriteView> outcome{};
+    } operation{this, &session};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->prepareAttachUserConfirmWrite(
+            *provenance);
+        return operation.outcome.has_value();
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return std::nullopt;
+    return operation.outcome;
+}
+
+rdp_server::server::transport::McsConnectResponseWriteOutcome
+MacConsoleAdmissionBroker::completeR3AttachUserConfirmWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::uint64_t replySequence{};
+        std::uint64_t writeSliceSequence{};
+        std::size_t acceptedBytes{};
+        McsConnectResponseWriteOutcome outcome{McsConnectResponseWriteOutcome::Rejected};
+    } operation{this, &session, replySequence, writeSliceSequence, acceptedBytes};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->completeAttachUserConfirmWrite(
+            *provenance, operation.replySequence,
+            operation.writeSliceSequence, operation.acceptedBytes);
+        return operation.outcome != McsConnectResponseWriteOutcome::Rejected;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return McsConnectResponseWriteOutcome::Rejected;
+    return operation.outcome;
+}
+
+rdp_server::server::transport::McsJoinStartOutcome
+MacConsoleAdmissionBroker::authorizeR3ChannelJoin(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::span<const std::uint8_t> completeTpkt{};
+        McsJoinStartOutcome outcome{McsJoinStartOutcome::Rejected};
+    } operation{this, &session, completeTpkt};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->onVerifiedR2ChannelJoin(
+            *provenance, operation.completeTpkt);
+        return operation.outcome != McsJoinStartOutcome::Rejected;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return McsJoinStartOutcome::Rejected;
+    return operation.outcome;
+}
+
+std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+MacConsoleAdmissionBroker::authorizeR3ChannelJoinConfirmWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::optional<McsConnectResponseWriteView> outcome{};
+    } operation{this, &session};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->prepareChannelJoinConfirmWrite(
+            *provenance);
+        return operation.outcome.has_value();
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return std::nullopt;
+    return operation.outcome;
+}
+
+rdp_server::server::transport::McsJoinWriteOutcome
+MacConsoleAdmissionBroker::completeR3ChannelJoinConfirmWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::uint64_t replySequence{};
+        std::uint64_t writeSliceSequence{};
+        std::size_t acceptedBytes{};
+        McsJoinWriteOutcome outcome{McsJoinWriteOutcome::Rejected};
+    } operation{this, &session, replySequence, writeSliceSequence, acceptedBytes};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->completeChannelJoinConfirmWrite(
+            *provenance, operation.replySequence,
+            operation.writeSliceSequence, operation.acceptedBytes);
+        return operation.outcome != McsJoinWriteOutcome::Rejected;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return McsJoinWriteOutcome::Rejected;
+    return operation.outcome;
+}
+
+std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>
+MacConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct OperationContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::span<const std::uint8_t> completeTpkt{};
+        std::optional<RdpClientInfoPacketSummary> outcome{std::nullopt};
+    } operation{this, &session, completeTpkt};
+
+    const auto invoke = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<OperationContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->acceptVerifiedR2ClientInfoPacket(
+            *provenance, operation.completeTpkt);
+        return undefined;
+    };
+
+    if (!visitR3ProtectedOperation(
+            session, kConsoleViewPermission, invoke, &operation))
+        return std::nullopt;
+    return operation.outcome;
+}
+
 void MacConsoleAdmissionBroker::revokeForAuthorityLoss(
     MacConsoleAdmissionRevocationReason reason) noexcept
 {

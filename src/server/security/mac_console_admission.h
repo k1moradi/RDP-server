@@ -113,6 +113,41 @@ public:
         rdp_server::server::transport::McsSessionLifecycle &session,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // Ordered post-Erect Attach and channel join. Every transition and
+    // borrowed reply suffix stays inside the original R2 native visitor;
+    // receipt tuples are accepted only by R3's sole bounded write owners.
+    [[nodiscard]] rdp_server::server::transport::McsSessionIntake
+    authorizeR3AttachUser(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3AttachUserConfirmWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+    [[nodiscard]] rdp_server::server::transport::McsConnectResponseWriteOutcome
+    completeR3AttachUserConfirmWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] rdp_server::server::transport::McsJoinStartOutcome
+    authorizeR3ChannelJoin(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::McsConnectResponseWriteView>
+    authorizeR3ChannelJoinConfirmWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+    [[nodiscard]] rdp_server::server::transport::McsJoinWriteOutcome
+    completeR3ChannelJoinConfirmWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+
+    // Client Info acceptance internally performs R3's syntax-only envelope
+    // routing, then consumes its unique bounded packet under the same visit.
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpClientInfoPacketSummary>
+    authorizeR3ClientInfoPacket(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Read-only preflight, never a transfer of R3 mutation authority.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         rdp_server::server::transport::McsSessionLifecycle &session,

@@ -1,3 +1,14 @@
+## R2 Attach/Join/Client Info premature-call denial (2026-10-31)
+
+Dedicated production-linked offline
+`security.native-authorization-macos-console-protected-attach-join-clientinfo-denials`
+uses the existing R2 broker and original inactive R1 test fixture.
+Premature Attach, Attach reply borrow/receipt, Join, Join reply borrow/receipt,
+and Client Info are terminally refused and cannot continue after R2 revoke.
+This test does not simulate a product-valid macOS lease, positive MCS
+membership or client Share. A genuine native/real-TLS R1 completion and
+broker-mediated positive receipt regression remain a separate required gate.
+
 ## R2 first-MCS protected admission order denial (2026-10-31)
 
 Ordinary production-linked

@@ -978,6 +978,54 @@ void testMacConsoleProtectedFirstMcsOrderingDenials()
     }
 }
 
+// The borrowed Prepared-only fixture is deliberately unable to cross R1
+// TLS completion. The entire Attach/Join/ClientInfo API must retire R3 when
+// invoked without the earlier independently admitted native transport.
+void testMacConsoleProtectedAttachJoinClientInfoDenials()
+{
+    using namespace rdp_server::server::transport;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(fixture.broker.authorizeR3AttachUser(session, {}) ==
+               McsSessionIntake::AdmissionDenied);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3AttachUserConfirmWrite(session));
+        assert(fixture.broker.completeR3AttachUserConfirmWrite(
+                   session, 1U, 1U, 0U) ==
+               McsConnectResponseWriteOutcome::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(fixture.broker.authorizeR3ChannelJoin(session, {}) ==
+               McsJoinStartOutcome::Rejected);
+        assert(!fixture.broker.authorizeR3ChannelJoinConfirmWrite(session));
+        assert(fixture.broker.completeR3ChannelJoinConfirmWrite(
+                   session, 1U, 1U, 0U) == McsJoinWriteOutcome::Rejected);
+        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+}
+
 void testMacConsoleProtectedIssuerPrematureReceipts()
 {
     using namespace rdp_server::server::transport;
@@ -1077,6 +1125,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-first-mcs-order-denials")
     {
         testMacConsoleProtectedFirstMcsOrderingDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-attach-join-clientinfo-denials")
+    {
+        testMacConsoleProtectedAttachJoinClientInfoDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

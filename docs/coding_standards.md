@@ -1,3 +1,20 @@
+## R2 macOS protected Attach/Join and Client Info transitions (2026-10-31)
+
+After original R1 completion and the original-generation private R3
+Connect-Initial/Response/Erect sequence, only the concrete
+`MacConsoleAdmissionBroker` may invoke R3's private Attach User,
+Attach Confirm prepare/accepted-byte completion, Channel Join and Join Confirm
+prepare/accepted-byte completion, and stateful Client Info acceptance. Every
+operation runs **inside** the original R2 native/consent visitor with a fresh
+original-generation R3 binding check and R1 certificate/proof/credential
+revalidation before and after. Derive HYBRID provenance from the same R1
+owner, never a caller scalar; use the exact R3 write slice and accepted-byte
+tuple. R3 owns zero/partial receipt progress and configured join membership.
+Client Info acceptance internally invokes R3's syntax-only envelope router
+and does not grant licensing/Share. Missing native authority or rejected
+private operation terminally retires the broker, R3 and R1. These methods
+grant no unguarded R10 operations or public MCS access.
+
 ## R2 macOS protected R1 completion before first MCS (2026-10-31)
 
 The R2 broker's positive issuer is now two owner-thread-only native visits:

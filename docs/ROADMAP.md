@@ -1,3 +1,21 @@
+## R2 macOS post-Erect private issuer coverage (2026-10-31)
+
+R2 now has original-native-visitor protected private wrappers for Attach
+User/Confirm and every bounded Channel Join/Confirm receipt, plus the
+single consuming Client Info method (which internally validates the
+syntax-only R3 envelope route). Each performs fresh exact-generation
+R3 binding and native/proof/consent/R1 provenance checks before/after,
+and refuses a stale or Prepared-only operation terminally. A dedicated
+production-linked offline denial CTest covers premature calls, stale
+completion and no Client Info advancement. This is one incremental
+positive *code path*, **not** a product-valid physical macOS authority
+lease or end-to-end client. **R2 remaining:** original R1 positive
+completion/post-callback revocation and broker-level accepted-byte receipt
+integration fixture; PersonalDesktop license/Valid Client, Demand/Share,
+CLIPRDR/input, Graphics DVC/ACK/resize publication wrappers. **R10
+remaining:** single-reader/session/lease assembly after these paths. Hosted
+exact-head CI PENDING; connector-only local build/CTest NOT RUN.
+
 ## R2 macOS first-MCS permission ordering correction (2026-10-31)
 
 **P0 dependency resolved by this increment:** the previous positive issuer

@@ -1,3 +1,7 @@
+## R9 sanitizer inventory validator follows the current registered selector (2026-10-30)
+
+When an owning road intentionally advances a fail-closed sanitizer inventory and updates the primary workflow atomically, R9's structural validator must advance to that exact count after independently confirming the new registered cases and selector. R8 commit `92f25e6362848c2fb28a397e1f1672a94f2eebdc` adds the macOS and Windows file-destination finalization-generation replacement cases and changes the clipboard selector count **107 -> 109**. Keeping the validator at 107 is a CI-policy defect, not evidence that R8 should drop tests. Preserve all existing R3 CAL, R3 Graphics DVC, R4 x264 and R5 X11 selector/count contracts.
+
 ## R10 macOS pre-admission production regression (2026-10-30)
 
 Register `runtime.macos-host-control-accepted-pre-admission-dormancy` in the

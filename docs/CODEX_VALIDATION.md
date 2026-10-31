@@ -1,3 +1,10 @@
+## R9 current-head structure diagnosis — R8 clipboard inventory 109 (2026-10-30)
+
+- Current audited architectural head: `1042d62715900b585e82da8178715172177728f8`; R10's production commit resets prior candidate qualification.
+- Independent structure run `41169537267` fails at the first R9 validator boundary: missing stale required token `clipboard_expected_test_count=107`.
+- R8 `92f25e6362848c2fb28a397e1f1672a94f2eebdc` correctly changed primary workflow inventory to **109** and registered two finalization-generation replacement tests. Current workflow contains `clipboard_expected_test_count=109`; both test names are in the registry.
+- R9 compared all 376 required workflow tokens against current `ci.yml`; **only** the stale 107 token is absent. Correction changes the validator to 109 only. Exact publication-SHA structure/full hosted CI **PENDING**; owner-local full CTest **NOT RUN** here. Manual candidate and physical testing remain **NOT RUN**.
+
 ## R10 macOS accepted-client pre-admission increment (2026-10-30)
 
 **Authoring baseline:** `6a79aa113ae959342013853a9c1e51af80042a8a`

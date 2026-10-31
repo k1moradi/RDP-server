@@ -409,7 +409,7 @@ REQUIRED_TOKENS = (
     "ntlmssp-challenge-target-name-conformance",
     "test_standalone_ntlmssp",
     "same-port-rebind-after-server-close",
-    "clipboard_expected_test_count=107",
+    "clipboard_expected_test_count=109",
     "Run R3 static CLIPRDR route CTests with sanitizers",
     "transport.cliprdr-pre-share-denial",
     "transport.cliprdr-fragment-reassembly",

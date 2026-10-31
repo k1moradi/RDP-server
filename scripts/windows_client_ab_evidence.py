@@ -17,14 +17,25 @@ import sys
 
 import macos_windows_app_owner_evidence as macos
 
-SCHEMA = "rdp-server.windows-client-ab-pair.v1"
-SUMMARY_SCHEMA = "rdp-server.windows-client-ab-redacted.v1"
+SCHEMA = "rdp-server.windows-client-ab-pair.v2"
+SUMMARY_SCHEMA = "rdp-server.windows-client-ab-redacted.v2"
 STAGES = (
     "tls_established", "type1_received", "type2_fully_committed",
     "type3_received", "pubkeyauth_reached", "authinfo_reached",
     "credentials_verified",
 )
 STAGE_STATES = {"PASS", "FAIL", "NOT_REACHED"}
+CLIENT_SECURITY_STAGES = (
+    "type2_received", "type2_accepted_by_credssp",
+    "type3_generated", "type3_delivered",
+)
+CLIENT_STAGE_STATES = {"PASS", "FAIL", "NOT_OBSERVED"}
+SOURCE_BINDING_FIELDS = {
+    "server_sha", "server_certificate_sha256", "destination_exact",
+    "service_endpoint_exact", "attempt_time_utc", "connection_id",
+    "terminal_time_utc", "observation_window_start_utc",
+    "observation_window_end_utc",
+}
 ERROR_CATEGORIES = {
     "credential", "trust", "negotiation", "cancellation", "transport",
     "unknown", "not-observed",
@@ -59,7 +70,7 @@ def _utc(value: object, name: str) -> datetime:
 
 
 def _stage_failures(stage: object, native_admission: object,
-                    transport: object, client_type3_claimed: object, prefix: str) -> list[str]:
+                    transport: object, prefix: str) -> list[str]:
     failures: list[str] = []
     if (not isinstance(stage, dict) or set(stage) != set(STAGES) | {"post_type2_client_bytes", "typed_terminal_outcome"}
             or any(stage.get(name) not in STAGE_STATES for name in STAGES)):
@@ -77,13 +88,6 @@ def _stage_failures(stage: object, native_admission: object,
         failures.append(f"{prefix}_POST_TYPE2_BEFORE_COMMIT")
     if stage["type3_received"] == "PASS" and bytes_after_type2 == 0:
         failures.append(f"{prefix}_TYPE3_WITHOUT_POST_TYPE2_BYTES")
-    if client_type3_claimed is not None and type(client_type3_claimed) is not bool:
-        failures.append(f"{prefix}_CLIENT_TYPE3_CLAIM_INVALID")
-    elif client_type3_claimed is True and (
-            stage["type3_received"] != "PASS" or bytes_after_type2 == 0):
-        failures.append(f"{prefix}_CLIENT_TYPE3_UNCORROBORATED")
-    elif client_type3_claimed is False and stage["type3_received"] == "PASS":
-        failures.append(f"{prefix}_SERVER_TYPE3_CONTRADICTS_CLIENT_CLAIM")
     if native_admission not in STAGE_STATES:
         failures.append(f"{prefix}_NATIVE_ADMISSION_INVALID")
     elif native_admission != "NOT_REACHED" and stage["credentials_verified"] != "PASS":
@@ -105,6 +109,74 @@ def _stage_failures(stage: object, native_admission: object,
             failures.append(f"{prefix}_PEER_FIN_NOT_OBSERVED")
     return failures
 
+
+def _client_stage_failures(stages: object, prefix: str) -> list[str]:
+    if (not isinstance(stages, dict) or set(stages) != set(CLIENT_SECURITY_STAGES)
+            or any(stages.get(name) not in CLIENT_STAGE_STATES
+                   for name in CLIENT_SECURITY_STAGES)):
+        return [f"{prefix}_CLIENT_STAGES_INCOMPLETE"]
+
+    # NOT_OBSERVED is deliberately not treated as failure. Client-side receipt,
+    # CredSSP acceptance, token generation and local delivery are independent
+    # evidence. Server FIN or server-side silence must not fill these fields.
+    for index in range(1, len(CLIENT_SECURITY_STAGES)):
+        if (stages[CLIENT_SECURITY_STAGES[index]] == "PASS" and
+                any(stages[earlier] == "FAIL"
+                    for earlier in CLIENT_SECURITY_STAGES[:index])):
+            return [f"{prefix}_CLIENT_STAGE_ORDER_CONTRADICTORY"]
+    return []
+
+
+def _source_binding_failures(binding: object, expected: dict, prefix: str) -> list[str]:
+    if not isinstance(binding, dict) or set(binding) != SOURCE_BINDING_FIELDS:
+        return [f"{prefix}_SOURCE_BINDING_INCOMPLETE"]
+
+    failures: list[str] = []
+    server_sha = binding["server_sha"]
+    if not isinstance(server_sha, str) or not SHA40.fullmatch(server_sha):
+        failures.append(f"{prefix}_SOURCE_SHA_INVALID")
+    elif server_sha.lower() != str(expected["server_sha"]).lower():
+        failures.append(f"{prefix}_SOURCE_SHA_MISMATCH")
+
+    fingerprint = binding["server_certificate_sha256"]
+    if not isinstance(fingerprint, str) or not SHA256.fullmatch(fingerprint):
+        failures.append(f"{prefix}_SOURCE_CERTIFICATE_INVALID")
+    elif fingerprint.lower() != str(expected["server_certificate_sha256"]).lower():
+        failures.append(f"{prefix}_SOURCE_CERTIFICATE_MISMATCH")
+
+    for field, code in (
+        ("destination_exact", "DESTINATION"),
+        ("service_endpoint_exact", "SERVICE_ENDPOINT"),
+        ("connection_id", "CONNECTION"),
+    ):
+        try:
+            observed = _text(binding[field], f"{prefix} source {field}", 256)
+            required = _text(expected[field], f"{prefix} expected {field}", 256)
+            if observed != required:
+                failures.append(f"{prefix}_SOURCE_{code}_MISMATCH")
+        except ValueError:
+            failures.append(f"{prefix}_SOURCE_{code}_INVALID")
+
+    try:
+        attempt = _utc(binding["attempt_time_utc"], f"{prefix} source attempt")
+        expected_attempt = _utc(expected["attempt_time_utc"], f"{prefix} expected attempt")
+        terminal = _utc(binding["terminal_time_utc"], f"{prefix} source terminal")
+        expected_terminal = _utc(expected["terminal_time_utc"], f"{prefix} expected terminal")
+        window_start = _utc(
+            binding["observation_window_start_utc"], f"{prefix} source window start")
+        window_end = _utc(
+            binding["observation_window_end_utc"], f"{prefix} source window end")
+        if attempt != expected_attempt:
+            failures.append(f"{prefix}_SOURCE_ATTEMPT_TIME_MISMATCH")
+        if terminal != expected_terminal:
+            failures.append(f"{prefix}_SOURCE_TERMINAL_TIME_MISMATCH")
+        if (window_start > attempt or attempt > terminal or terminal > window_end or
+                (window_end - window_start).total_seconds() >
+                macos.MAX_CORRELATION_DELTA_SECONDS):
+            failures.append(f"{prefix}_SOURCE_OBSERVATION_WINDOW_MISMATCH")
+    except ValueError:
+        failures.append(f"{prefix}_SOURCE_TIME_INVALID")
+    return failures
 
 def _first_error_failures(first_error: object) -> list[str]:
     if not isinstance(first_error, dict):
@@ -144,21 +216,24 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
     _fields(pair, {"schema", "macos", "windows"}, "pair")
     if pair["schema"] != SCHEMA:
         failures.append("PAIR_SCHEMA_UNSUPPORTED")
-    macos_row = _fields(pair["macos"], {"server_tls_configuration_profile",
-                         "credential_source_claim", "deliberately_reentered",
-                         "server_transport_observation", "native_admission",
-                         "client_type3_claimed"}, "macOS supplement")
+    macos_row = _fields(pair["macos"], {
+        "server_tls_configuration_profile", "service_endpoint_exact",
+        "credential_source_claim", "deliberately_reentered", "source_binding",
+        "client_security_stages", "server_transport_observation",
+        "native_admission",
+    }, "macOS supplement")
     windows = _fields(pair["windows"], {
         "server_sha", "server_certificate_sha256", "destination_exact",
-        "server_tls_configuration_profile", "windows_11_build", "mstsc_file_version",
-        "attempt_time_utc", "credential", "certificate_warning", "first_client_error",
-        "client_visible_result", "linux_correlation", "server_stage_matrix",
+        "service_endpoint_exact", "server_tls_configuration_profile",
+        "windows_11_build", "mstsc_file_version", "attempt_time_utc",
+        "credential", "certificate_warning", "first_client_error",
+        "client_visible_result", "linux_correlation", "source_binding",
+        "client_security_stages", "server_stage_matrix",
         "server_transport_observation", "native_admission",
-        "client_type3_claimed"
     }, "Windows row")
     credential = _fields(windows["credential"], {
-        "source", "deliberately_reentered", "username_exact",
-        "session_password_intentionally_matched"
+        "source", "deliberately_reentered", "saved_credential_use",
+        "username_exact", "session_password_intentionally_matched"
     }, "Windows credential control")
     warning = _fields(windows["certificate_warning"], {"appeared", "accepted"}, "Windows warning")
     correlation = _fields(windows["linux_correlation"], {"connection_id", "terminal_time_utc"}, "Windows correlation")
@@ -170,6 +245,15 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("SERVER_PROFILE_INVALID")
     if macos_row["server_tls_configuration_profile"] != windows["server_tls_configuration_profile"]:
         failures.append("AB_SERVER_PROFILE_MISMATCH")
+    try:
+        macos_endpoint = _text(
+            macos_row["service_endpoint_exact"], "macOS service endpoint", 256)
+        windows_endpoint = _text(
+            windows["service_endpoint_exact"], "Windows service endpoint", 256)
+        if macos_endpoint != windows_endpoint:
+            failures.append("AB_SERVICE_ENDPOINT_MISMATCH")
+    except ValueError:
+        failures.append("AB_SERVICE_ENDPOINT_INVALID")
     if not isinstance(windows["server_sha"], str) or not SHA40.fullmatch(windows["server_sha"]):
         failures.append("WINDOWS_SERVER_SHA_INVALID")
     elif windows["server_sha"].lower() != macos_manifest.get("server_sha", "").lower():
@@ -180,14 +264,21 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("AB_CERTIFICATE_FINGERPRINT_MISMATCH")
     if windows["destination_exact"] != macos_manifest.get("destination_exact"):
         failures.append("AB_DESTINATION_MISMATCH")
-    if (macos_row["credential_source_claim"] != macos_manifest.get("saved_credential", {}).get("state") or
-            type(macos_row["deliberately_reentered"]) is not bool or
-            macos_row["deliberately_reentered"]):
-        failures.append("MACOS_SAVED_PRESENTED_AS_REENTERED")
+    macos_saved = macos_manifest.get("saved_credential", {})
+    if (macos_row["credential_source_claim"] != macos_saved.get("state") or
+            type(macos_row["deliberately_reentered"]) is not bool):
+        failures.append("MACOS_CREDENTIAL_CONTROL_INVALID")
+    elif macos_row["deliberately_reentered"] is not True:
+        failures.append("MACOS_CREDENTIAL_NOT_REENTERED")
+    if (macos_saved.get("state") != "explicit-saved-selected" or
+            macos_saved.get("newly_created_for_attempt") != "yes" or
+            macos_saved.get("server_client_credentials_intentionally_matched") != "yes"):
+        failures.append("MACOS_INVALID_CREDENTIAL_CONTROL")
     if (credential["source"] != "explicitly-entered" or
-            credential["deliberately_reentered"] is not True):
+            credential["deliberately_reentered"] is not True or
+            credential["saved_credential_use"] != "none"):
         failures.append("WINDOWS_INVALID_CREDENTIAL_CONTROL")
-    if (credential["username_exact"] != macos_manifest.get("saved_credential", {}).get("username_exact") or
+    if (credential["username_exact"] != macos_saved.get("username_exact") or
             credential["session_password_intentionally_matched"] is not True):
         failures.append("AB_STANDALONE_CREDENTIAL_MISMATCH")
     macos_warning = macos_manifest.get("certificate_warning", {})
@@ -200,12 +291,46 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("CERTIFICATE_DECISION_NOT_COMPARABLE")
     failures.extend(_first_error_failures(windows["first_client_error"]))
 
+    macos_correlation = macos_manifest.get("linux_correlation", {})
+    failures.extend(_source_binding_failures(
+        macos_row["source_binding"],
+        {
+            "server_sha": macos_manifest.get("server_sha"),
+            "server_certificate_sha256": macos_manifest.get("server_certificate_sha256"),
+            "destination_exact": macos_manifest.get("destination_exact"),
+            "service_endpoint_exact": macos_row["service_endpoint_exact"],
+            "attempt_time_utc": macos_manifest.get("attempt_time_utc"),
+            "connection_id": macos_correlation.get("connection_id"),
+            "terminal_time_utc": macos_correlation.get("terminal_time_utc"),
+        },
+        "MACOS",
+    ))
+    failures.extend(_source_binding_failures(
+        windows["source_binding"],
+        {
+            "server_sha": windows["server_sha"],
+            "server_certificate_sha256": windows["server_certificate_sha256"],
+            "destination_exact": windows["destination_exact"],
+            "service_endpoint_exact": windows["service_endpoint_exact"],
+            "attempt_time_utc": windows["attempt_time_utc"],
+            "connection_id": correlation["connection_id"],
+            "terminal_time_utc": correlation["terminal_time_utc"],
+        },
+        "WINDOWS",
+    ))
+    failures.extend(_client_stage_failures(
+        macos_row["client_security_stages"], "MACOS"))
+    failures.extend(_client_stage_failures(
+        windows["client_security_stages"], "WINDOWS"))
+
     windows_stage = windows["server_stage_matrix"]
-    failures.extend(_stage_failures(macos_manifest.get("server_stage_matrix"),
-                    macos_row["native_admission"], macos_row["server_transport_observation"],
-                    macos_row["client_type3_claimed"], "MACOS"))
-    failures.extend(_stage_failures(windows_stage, windows["native_admission"],
-                    windows["server_transport_observation"], windows["client_type3_claimed"], "WINDOWS"))
+    failures.extend(_stage_failures(
+        macos_manifest.get("server_stage_matrix"),
+        macos_row["native_admission"], macos_row["server_transport_observation"],
+        "MACOS"))
+    failures.extend(_stage_failures(
+        windows_stage, windows["native_admission"],
+        windows["server_transport_observation"], "WINDOWS"))
 
     try:
         start = _utc(windows["attempt_time_utc"], "Windows attempt")
@@ -250,13 +375,23 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         "macos": {
             "app": "Windows App", "version": macos_summary.get("windows_app"),
             "first_client_error_category": macos_summary.get("client_error", {}).get("first_typed_category"),
-            "type3_received": macos_type3, "native_admission": macos_row["native_admission"],
+            "type3_received": macos_type3,
+            "client_security_stages": {
+                name: macos_row["client_security_stages"][name]
+                for name in CLIENT_SECURITY_STAGES
+            },
+            "native_admission": macos_row["native_admission"],
         },
         "windows": {
             "app": "mstsc.exe", "windows_11_build": windows["windows_11_build"],
             "mstsc_file_version": windows["mstsc_file_version"],
             "first_client_error_category": windows["first_client_error"].get("normalized_category"),
-            "type3_received": windows_type3, "native_admission": windows["native_admission"],
+            "type3_received": windows_type3,
+            "client_security_stages": {
+                name: windows["client_security_stages"][name]
+                for name in CLIENT_SECURITY_STAGES
+            },
+            "native_admission": windows["native_admission"],
         },
     }
 

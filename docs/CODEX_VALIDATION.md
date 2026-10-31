@@ -1,3 +1,43 @@
+## R6 paired Microsoft interop/evidence qualification — 2026-10-30
+
+**Authoring parent:** `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`. No new physical or hosted R6 qualification
+is claimed for this head.
+
+Downloaded artifact 13029796352,
+`r9-microsoft-interop-c88dc60f9e218797ddcd640af6bba1693adca1d7`,
+digest
+`sha256:65b3d87c269111d6a6f3b5e44dca63d083dbeefe8332c25e313ec7fbfe15a428`.
+Its embedded result is exact-source `c88dc60f...` and ends
+`interop-matrix-final=COMPLETE_PASS`: fixed/IP NTLM, OEM differential,
+credential semantic controls, required-AV negatives, full production CredSSP,
+mismatched binding, and fixed/IP-SPN/bare-IP target rows pass. Full exchange
+separately records `authinfo=yes`, `credentials-verified=yes`,
+`production-authinfo-empty-fields=none`, `delegation-returned=no` and
+`native-admission=no`; delegation neither negates nonempty authInfo nor
+creates an R2 lease. This is ancestor exact-SHA evidence, not current-head
+qualification.
+
+Paired schema v2 binds supplemental facts to exact
+SHA/certificate/destination/service-endpoint/attempt/connection/terminal/window
+provenance and independently records client Type2-received, CredSSP-accepted,
+Type3-generated and Type3-delivered observations. Offline negatives reject
+mixed attempt IDs, fingerprints, credential controls, targets and windows; a
+positive case proves client-side Type3 delivery does not manufacture
+server-side Type3 receipt.
+
+Existing `windows.capture-session-change-callback-revocation` and
+`windows.sendinput-authority-retirement-no-native-post` already cover
+authority loss during in-flight DXGI map/SendInput with terminal retirement and
+no post-revocation native input; no duplicate native regression is warranted.
+
+The current owner record (about 68 ms Type-2-to-FIN, zero post-Type-2 server
+bytes) remains distinct from the earlier roughly 9.5 ms attempt with a
+different certificate fingerprint. Neither proves client Type2 receipt,
+CredSSP acceptance or Type3 generation/delivery. Physical A/B remains
+**BLOCKED / NOT RUN** pending exact-SHA R9 candidate PASS and separate owner
+authorization. Canonical build/full CTest and publication-SHA hosted CI for
+this increment are **NOT RUN / PENDING** at authoring.
+
 ## R10 completed macOS CredSSP pre-MCS denial authoring (2026-10-30)
 
 - Initial authoring base: `b76f62917479ff3a1e512d7c6c791157d97d2f2c`.

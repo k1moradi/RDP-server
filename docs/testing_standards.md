@@ -215,17 +215,21 @@ second identity controller or trust-chain fixture merely to test compilation.
 ## R6 Windows App / mstsc paired evidence offline contradiction tests (2026-10-30)
 
 Run the dedicated cross-platform CTest
-interop.windows-client-ab-evidence-contradiction-denials, which reuses the
-existing synthetic R5 schema-v2 macOS manifest fixture and validates a
-private Windows 11 mstsc row. The closed-schema validator rejects
-unapproved fields, mismatched SHA/IP/certificate/TLS profile,
-saved-versus-reentered contradiction, Type3 without post-Type-2
-server bytes, a client Type3 claim without server observation,
-CredentialsVerified without authInfo, native Admission before verified
-credentials, a TLS alert explanation when none was observed, stale
-attempt time, and ungrounded typed first-client failure. An accepted
-synthetic pair cannot authorize R2 admission. Never run physical
-Windows App/mstsc, capture or SendInput from ordinary CTest.
+`interop.windows-client-ab-evidence-contradiction-denials`, which reuses the
+existing synthetic R5 schema-v2 macOS manifest fixture and validates paired
+schema v2. Reject unapproved fields and mixing of different SHA, certificate
+fingerprint, destination/service endpoint, credential source, accepted
+connection, attempt/terminal timestamp or bounded observation window.
+
+Server and client stages are independent: server Type 3 receipt still requires
+positive post-Type-2 server bytes, while client Type 2 receipt/CredSSP
+acceptance/Type 3 generation/local delivery may remain PASS with zero
+server-observed post-Type-2 bytes without creating a server Type 3 PASS.
+Reject impossible client ordering only after an explicit earlier FAIL, not
+NOT_OBSERVED. Preserve CredentialsVerified-before-authInfo,
+native-Admission-before-verified, unobserved TLS-alert, stale-correlation and
+ungrounded-client-error negatives. Ordinary CTest never runs a physical client,
+capture or SendInput and cannot authorize R2 admission.
 
 ## R7 macOS framebuffer callback-time native retirement (2026-10-30)
 

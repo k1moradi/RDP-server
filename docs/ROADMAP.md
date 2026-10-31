@@ -1,3 +1,22 @@
+## R6 paired-client anti-splice evidence and exact interop audit (2026-10-30)
+
+**Authoring parent:** `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`. No new R6 physical or hosted qualification
+is inferred from this batch. Artifact 13029796352 remains exact-source
+`c88dc60f...` and `COMPLETE_PASS` for the Microsoft interop matrix; its
+nonempty authInfo/CredentialsVerified result remains separate from
+`delegation-returned=no` and `native-admission=no`.
+
+Paired schema v2 binds supplemental server facts to exact SHA, certificate,
+destination/service endpoint, attempt, connection, terminal time and bounded
+observation window, and keeps client Type2 receipt/CredSSP acceptance/Type3
+generation/local delivery independent of server stages. The current
+approximately 68 ms Type-2-to-FIN record and earlier approximately 9.5 ms
+attempt with a different certificate remain separate. Existing WTS/DXGI/
+SendInput regressions already cover in-flight authority loss, so no duplicate
+native regression is justified. Physical A/B/native Admission remain
+**BLOCKED / NOT RUN** pending R9 same-SHA candidate PASS and separate owner
+authorization; exact-publication test/CI is **PENDING**.
+
 ## R4 admitted-frame delivery and pre-ACK retirement assurance (2026-10-30)
 
 **Authoring parent:** `b76f62917479ff3a1e512d7c6c791157d97d2f2c`. The first-round R4 audit traced the current

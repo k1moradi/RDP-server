@@ -1,75 +1,54 @@
 ## R6 executable paired Windows App vs mstsc evidence contract (2026-10-30)
 
-The existing R5 private macOS schema-v2 manifest is row A and remains unchanged.
-Create a second *private* JSON pair supplement with schema
-"rdp-server.windows-client-ab-pair.v1", and exactly "macos" and "windows"
-objects. This is an offline owner-authorized comparison, not a test-client
-launcher or authentication authority.
+The existing R5 private macOS schema-v2 manifest remains row A's primary
+collector record. The paired supplement is now closed schema
+`rdp-server.windows-client-ab-pair.v2`; it is evidence correlation only,
+never a client launcher, credential verifier or R2 native-Admission authority.
 
-The macos supplement contains: server_tls_configuration_profile (unchanged
-nonsecret identifier, ASCII letters/digits/dot/underscore/dash),
-credential_source_claim="explicit-saved-selected",
-deliberately_reentered=false, client_type3_claimed=true/false/null,
-native_admission=PASS/FAIL/NOT_REACHED, and server_transport_observation.
-Null means no client token-emission observation, not evidence of no emission.
+Each row records the exact nonsecret service endpoint in addition to the
+destination, TLS configuration profile and certificate fingerprint. Every
+supplemental server fact is bound to one `source_binding` containing the exact
+server SHA, certificate fingerprint, destination, service endpoint, client
+attempt time, Linux connection ID, terminal time and bounded observation
+window. A mismatch is an invalid pair rather than permission to splice facts
+from a nearby attempt. In particular, the approximately 68 ms current
+Type-2-to-FIN observation and the earlier approximately 9.5 ms observation with
+a different certificate fingerprint are different attempts and must remain
+separate.
 
-The windows object contains: server_sha (exact 40-hex source SHA),
-server_certificate_sha256 (exact 64-hex certificate fingerprint),
-destination_exact (same literal numeric IP as macOS),
-server_tls_configuration_profile (same value as macOS),
-windows_11_build and mstsc_file_version (read from the actual client),
-attempt_time_utc (offset-aware), client_visible_result (private UI text or code),
-client_type3_claimed=true/false/null, native_admission=PASS/FAIL/NOT_REACHED;
-credential={source:"explicitly-entered", deliberately_reentered:true,
-username_exact:private exact Username,
-session_password_intentionally_matched:true};
-certificate_warning={appeared:boolean,accepted:"yes"/"no"/"not-applicable"};
-first_client_error={normalized_category:"credential"/"trust"/"negotiation"/
-"cancellation"/"transport"/"unknown"/"not-observed",
-source:"windows-ui"/"owner-approved-diagnostic"/"not-observed" or a
-recognized R5 source, provider_category_exact:string/null,
-provider_code_exact:string/null, event_time_utc:offset-aware string/null};
-linux_correlation={connection_id:private opaque ID,
-terminal_time_utc:offset-aware string};
-server_stage_matrix={tls_established,type1_received,type2_fully_committed,
-type3_received,pubkeyauth_reached,authinfo_reached,credentials_verified:
-each PASS/FAIL/NOT_REACHED; post_type2_client_bytes:integer;
-typed_terminal_outcome:private typed string}.
-For each row, server_transport_observation is exactly
-{peer_fin_observed:boolean,tls_alert_observed:boolean,
-terminal_attribution:"peer-fin"/"tls-alert"/"other"/"unknown"}.
-Never assert that a peer FIN is a TLS alert without an observed alert.
+Client-side security evidence is independent of the server stage matrix. Record
+exactly these four client observations as `PASS`, `FAIL` or
+`NOT_OBSERVED`: `type2_received`, `type2_accepted_by_credssp`,
+`type3_generated`, and `type3_delivered`. Local server Type 2 commit,
+zero post-Type-2 server bytes, TCP FIN, TLS silence or a generic UI error cannot
+fill any of those client fields. Conversely, a client-side token-generation or
+local-delivery observation does not manufacture server-side Type 3 receipt.
 
-Run only on locally controlled private inputs:
+For the controlled macOS row, the R5 private manifest must explicitly record
+the selected credential and whether it was created/replaced for that attempt;
+the pair supplement sets `deliberately_reentered=true` only when the owner
+actually re-entered the independent Session Password. For Windows 11
+`mstsc.exe`, the private credential object is
+`{source:"explicitly-entered", deliberately_reentered:true,
+saved_credential_use:"none", username_exact:<private>,
+session_password_intentionally_matched:true}`. If a saved/default Windows
+credential is used or cannot be ruled out without changing the credential
+store, record that fact privately and mark the controlled B row invalid; do not
+delete or rewrite the store. Passwords, NTLM/token bytes and delegated
+credentials are never copied into either manifest.
+
+Run only on locally controlled private inputs after the R9 candidate and
+separate owner authorization:
 
     python3 scripts/macos_windows_app_owner_evidence.py validate private-macos-v2.json
-    python3 scripts/windows_client_ab_evidence.py private-macos-v2.json private-ab-pair.json > redacted-ab.json
+    python3 scripts/windows_client_ab_evidence.py private-macos-v2.json private-ab-pair-v2.json > redacted-ab.json
 
-The second command invokes the full R5 macOS logging/timing validator,
-compares SHA, endpoint, fingerprint, server TLS configuration profile,
-Username and intentional standalone Session Password match, warning
-decisions, attempt correlation and independent stage ordering, and emits
-a redacted-only result. Extra fields (including secret/token/log payloads)
-are rejected. Never commit either private input. The resulting output
-contains no private Username, exact destination, visible error text,
-provider code, connection ID, NTLM payload or Session Password.
-Across distinct machines, event ordering remains ORDER_UNDETERMINED
-even when timestamp correlation passes.
-
-Minimum read-only owner discriminators: (1) inspect the client-selected saved
-or explicitly entered standalone credential and record only match facts;
-(2) record certificate warning and owner's actual trust UI choice without
-altering stores; (3) collect an existing typed client CredSSP/delegation
-category if any, using Windows App Help -> Troubleshooting -> Logging for
-Core/UI and only owner-approved Windows diagnostics; (4) record an actual
-client Type-2 receipt/next-token observation if available, or null rather
-than guess; (5) if server-observed post-Type-2 TLS bytes appear, assign the
-first actual TSRequest/Type3/pubKeyAuth/authInfo/parser boundary to R1/R2.
-Generic 0x204 and peer EOF are not a credential/trust/policy diagnosis.
-Do not alter Group Policy, registry, trust stores, Keychain/Credential
-Manager, TermService, firewall, or password stores as an experiment.
-R9 exact-head owner-candidate PASS and separate owner permission remain
-required before any physical A/B.
+The paired validator invokes the full R5 macOS validator, rejects unapproved
+fields and cross-attempt/source contradictions, and emits only allowlisted
+redacted facts. It deliberately keeps cross-source event order
+`ORDER_UNDETERMINED`. Physical A/B remains **BLOCKED / NOT RUN** until the
+manual R9 exact-SHA owner-candidate gate passes and the owner separately
+authorizes both clients.
 
 ## R6 round-one controlled physical A/B execution worksheet (2026-10-30)
 
@@ -142,17 +121,20 @@ offset-aware correlation, with any separately owner-approved client diagnostics
 when available; do not invent a private mstsc log path.
 
 **For both rows, preserve separately:** exact server SHA and certificate
-fingerprint; listener/destination; client/OS versions; saved credential
-existed/selected/re-entered-or-replaced facts; Username and Session Password
-matching booleans; client UI warning/result and first *actually observed*
-provider/category/time; Linux connection ID and offset-aware terminal time;
-TLS/cipher, Type 1 flags, Type 2 flags and fully committed status,
-post-Type-2 server-observed TLS byte count, first-byte/EOF/alert facts,
-Type 3, pubKeyAuth, authInfo, CredentialsVerified, native Admission and
-first terminal stage. **Local Type 2 write completion is not peer-consumption
-proof**, a zero server-observed post-Type-2 byte count is not proof that the
-client emitted nothing, and FIN or generic `0x204` never identifies a
-credential, policy or certificate root cause.
+fingerprint; exact service endpoint and destination; client/OS versions; saved
+credential existed/selected/re-entered-or-replaced facts; Username and Session
+Password matching booleans; client UI warning/result and first *actually
+observed* provider/category/time; Linux connection ID, offset-aware terminal
+time and the exact observation window; TLS/cipher, Type 1 flags, Type 2 flags
+and fully committed status, post-Type-2 server-observed TLS byte count,
+first-byte/EOF/alert facts, Type 3, pubKeyAuth, authInfo,
+CredentialsVerified, native Admission and first terminal stage. Separately
+record client-side Type 2 received, Type 2 accepted by CredSSP, Type 3
+generated and Type 3 locally delivered without inferring any one from the
+server. **Local Type 2 write completion is not peer-consumption proof**, a zero
+server-observed post-Type-2 byte count is not proof that the client emitted
+nothing, and FIN or generic `0x204` never identifies a credential, policy or
+certificate root cause.
 
 | Priority | Candidate cause (not established) | Required discriminator / owner |
 | --- | --- | --- |

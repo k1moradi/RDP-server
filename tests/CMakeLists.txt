@@ -1375,6 +1375,17 @@ if(NOT Python3_EXECUTABLE)
         "QColorSpace provenance CTest requires a discovered Python3 interpreter")
 endif()
 
+# macOS HostControl's owner scheduler is noexcept but uses bounded dynamic
+# state during client acceptance/admission. Allocation failure must retire the
+# accepted/native lifetime and report InternalFailure rather than terminate.
+add_test(NAME runtime.macos-host-control-allocation-failure-retirement-contract
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/tests/test_macos_host_control_allocation_failure_policy.py"
+        --source "${PROJECT_SOURCE_DIR}/src/server/runtime/mac_runtime_host_control.cpp")
+set_tests_properties(
+    runtime.macos-host-control-allocation-failure-retirement-contract
+    PROPERTIES LABELS "runtime;macos;security;policy;offline" TIMEOUT 15)
+
 # R9 source-commit delivery policy: production changes require a centralized
 # CTest registration co-change in the same commit as the implementation/docs.
 # This is a git-metadata-only regression; no native or network activity.

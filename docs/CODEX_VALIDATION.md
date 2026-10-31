@@ -1,3 +1,23 @@
+## R9/R10 macOS noexcept allocation-failure review (2026-10-31)
+
+Reviewed parent `5fc73bb9fcd3a332a5f619cfe310f64a8897fa68`. Concurrent R3/R10 work has now advanced the
+production macOS path through protected Attach User and exact Attach Confirm
+receipts; the next protocol dependency is Channel Join/Confirm and Client Info.
+
+A separate production robustness defect remained: both
+`serviceOnce()` and `advanceAcceptedClientPreAdmissionOnce()` are
+`noexcept`, while accepted-peer formatting and R1/R2/R3 owner construction
+may allocate. A `std::bad_alloc` inside the nested pre-admission method would
+therefore terminate before an outer caller could recover. Both boundaries now
+catch only `std::bad_alloc` and reuse one fail-closed helper that retires the
+accepted R2/R3/R1/native lifetime and reports `InternalFailure`. Successful
+allocation, protocol bytes, TLS readiness, permission scope and scheduling are
+unchanged. The dedicated offline source-contract CTest is registered.
+
+Source/ownership review **PASS**. Connector-local compile, focused CTest, full
+CTest and sanitizers **NOT RUN**; exact publication CI **PENDING**. No owner
+candidate or physical macOS/client action is authorized by this change.
+
 ## R3/R10 macOS Attach User / exact Attach Confirm composition (2026-10-31)
 
 Authoring parent: `fbbbb22b6226598fd9c99517570944ac70d326c3`. Current main has cleared the prior dependencies:

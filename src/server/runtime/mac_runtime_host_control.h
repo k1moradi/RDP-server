@@ -128,6 +128,7 @@ private:
     void retireStoppedRuntime(
         rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept;
     void retireAcceptedClient() noexcept;
+    [[nodiscard]] RuntimeHostResult failClosedAfterAllocationFailure() noexcept;
     [[nodiscard]] RuntimeHostResult advanceAcceptedClientPreAdmissionOnce() noexcept;
 
     // One serialized accepted-client admission path. These stages are not

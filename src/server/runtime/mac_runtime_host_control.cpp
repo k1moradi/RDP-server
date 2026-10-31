@@ -28,6 +28,7 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <new>
 #include <utility>
 
 namespace rdp_server::server::runtime
@@ -292,7 +293,25 @@ void MacRuntimeHostControl::retireAcceptedClient() noexcept
 }
 
 RuntimeHostResult
-MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
+MacRuntimeHostControl::failClosedAfterAllocationFailure() noexcept
+{
+    // Both serialized scheduler boundaries are noexcept. Allocation failure
+    // must retire every borrowed client/native owner before reporting the
+    // internal failure rather than crossing noexcept and terminating.
+    retireAcceptedClient();
+    (void)nativeDesktop_.retireAfterAuthorizationLoss();
+    if (stage_ != RuntimeHostStage::Revoked)
+    {
+        stage_ = listener_.valid()
+            ? RuntimeHostStage::ListenerAvailable
+            : RuntimeHostStage::Stopped;
+    }
+    customErrorMessage_.clear();
+    return deny(RuntimeHostError::InternalFailure);
+}
+
+RuntimeHostResult
+MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept try
 {
     using namespace rdp_server::server;
     using Interest = transport::TcpConnectionIoInterest;
@@ -920,6 +939,10 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
         return fail();
     }
     return fail();
+}
+catch (const std::bad_alloc&)
+{
+    return failClosedAfterAllocationFailure();
 }
 
 MacRuntimeHostControl::MacRuntimeHostControl() noexcept
@@ -1696,7 +1719,7 @@ RuntimeHostResult MacRuntimeHostControl::startSharing()
     return {RuntimeHostError::None, false};
 }
 
-RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
+RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept try
 {
     if (!onOwnerThread())
         return deny(RuntimeHostError::ControlUnavailable);
@@ -1876,6 +1899,10 @@ RuntimeHostResult MacRuntimeHostControl::serviceOnce() noexcept
     }
 
     return {RuntimeHostError::None, false};
+}
+catch (const std::bad_alloc&)
+{
+    return failClosedAfterAllocationFailure();
 }
 
 RuntimeHostResult MacRuntimeHostControl::stopSharing()

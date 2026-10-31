@@ -1,3 +1,16 @@
+## R10 macOS noexcept allocation-failure retirement boundary (2026-10-31)
+
+Serialized HostControl scheduler methods declared `noexcept` must not allow
+`std::bad_alloc` from accepted-client strings or owned R1/R2/R3 allocations
+to cross that boundary and terminate the process. Keep ordinary
+`std::unique_ptr` ownership and successful-path behavior unchanged; use a
+function-try-block at each nested `noexcept` scheduler boundary and catch
+only `std::bad_alloc`. The shared failure path retires R2/R3/R1 and native
+desktop state first, preserves an already-Revoked host stage, otherwise
+returns to ListenerAvailable only when the listener still exists, clears
+stale custom error text and reports `InternalFailure`. Do not use a catch-all
+to conceal protocol or programmer errors.
+
 ## R3/R10 macOS Attach User and Attach Confirm ownership (2026-10-31)
 
 After a protected Erect Domain transition, R10 may read exactly one Attach

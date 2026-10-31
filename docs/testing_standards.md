@@ -1,3 +1,14 @@
+## macOS HostControl allocation-failure fail-closed regression (2026-10-31)
+
+Dedicated offline CTest
+`runtime.macos-host-control-allocation-failure-retirement-contract` pins the
+two `noexcept` scheduler boundaries, their explicit `std::bad_alloc`
+handlers and the shared R2/R3/R1/native retirement path. It is a source
+contract rather than synthetic OOM injection; compilation/full CTest remains
+authoritative for C++ syntax and ordinary behavior. The regression opens no
+listener, native desktop, credentials or physical client and does not alter
+any fixed sanitizer inventory.
+
 ## R3/R10 buffered Attach and exact Attach Confirm receipt (2026-10-31)
 
 Register ordinary production-linked

@@ -1,3 +1,23 @@
+## R9/R10 fail-closed macOS owner allocation boundary (2026-10-31)
+
+Parent `5fc73bb9fcd3a332a5f619cfe310f64a8897fa68` already carries protected Attach User and exact Attach
+Confirm composition. Review found that R10's two serialized `noexcept`
+scheduler boundaries could still terminate on `std::bad_alloc` from
+accepted-client/owner state construction. Add explicit bad-allocation
+function-try-blocks and one shared retirement path: R2 broker, R3, R1
+proof/TLS/socket and native desktop are retired before `InternalFailure`; an
+already Revoked host remains Revoked. Successful protocol/TLS/permission
+behavior is unchanged.
+
+Dedicated offline
+`runtime.macos-host-control-allocation-failure-retirement-contract` is
+registered outside fixed sanitizer censuses. Source review PASS;
+connector-local/full CTest/sanitizers NOT RUN; publication-SHA hosted CI
+PENDING. This robustness increment advances no RDP protocol stage. The next
+R10 protocol dependency remains protected Channel Join/Confirm and Client
+Info, followed by licensing/Share/Graphics readiness. Physical macOS/client
+acceptance remains NOT RUN / unauthorized.
+
 ## R4 buffered-Erect dependency review — duplicate fixture loop removed (2026-10-31)
 
 Parent `586e043d67ff2bd5869356412f05cc2a3697d96e` already resolves the macOS Release fixture race by

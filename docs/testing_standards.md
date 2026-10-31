@@ -1,3 +1,30 @@
+## R10 completed macOS CredSSP without native-admission regression (2026-10-30)
+
+The ordinary production-backed
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`
+CTest drives the existing `MacRuntimeHostControl` accepted socket through
+X.224 HYBRID, the selected R1 TLS owner and the real standalone direct-NTLM
+CredSSP implementation through final `authInfo` and
+`CredentialsVerified`. The synthetic client then queues the checked-in
+Microsoft Connect-Initial. Repeated R10 owner steps must leave that packet
+unconsumed while no genuine macOS R2 native admission exists:
+`protocolStage=PreAdmission`, no MCS advancement/Connect-Response, no Share,
+no graphics/native attachment and no clipboard.
+
+The same behavior test exercises three retirement barriers after completed
+CredSSP: ordinary Stop; replacement of the exact owner-consent epoch with the
+same permissions; and native session-generation replacement. Each must close
+the accepted-client pre-auth owner before queued MCS can advance. Production
+forbids credential replacement while a listener/client is live, so Stop is the
+required destruction barrier; replacement afterward must advance the
+credential generation and the old generation must be unvisitable. An
+unavailable eligible local IPv4 endpoint, bind range or initial TCP connection
+is SKIP (77); once TCP connects, failure to complete the production
+X.224/TLS/CredSSP boundary is FAIL, not SKIP. No physical client, TCC prompt,
+ScreenCaptureKit capture, native input or positive R2/R3 authority is used.
+Agent 2's prepared `MacConsoleAdmissionBroker` is intentionally not invoked
+by this denial test: `Prepared` is non-admitting and cannot authorize MCS.
+
 ## R2 macOS console admission gateway offline denials (2026-10-30)
 
 The existing cross-platform `test_native_desktop_standalone_authorization`

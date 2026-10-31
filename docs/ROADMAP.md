@@ -664,15 +664,27 @@ listener, credential and current-owner consent epochs and retires the R2
 framer/proof before R1 SSL/BIO/socket. Successful owned-connection
 `CredentialsVerified` leaves the Mac client pre-MCS: no native R2 admission
 lease, R3 positive macOS entry or desktop attachment has been fabricated.
-`runtime.macos-host-control-accepted-pre-admission-dormancy` covers
-synthetic partial-TPKT/Stop pre-MCS denial; a genuine completed-CredSSP
-macOS accepted-client no-lease regression remains OPEN. Local macOS
-build/full CTest, exact-SHA hosted qualification and physical clients:
-NOT RUN. Next: R2 publishes protected macOS native-admission entry for the
-exact accepted R1/standalone proof, R3 publishes authorized MCS/Share
-consumption, R10 integrates those same-owner references (without cloning
-Linux runtime) and adds the full positive-CredSSP no-lease CTest, then R9
-same-SHA candidate and separate owner permission before any live experiment.
+`runtime.macos-host-control-accepted-pre-admission-dormancy` retains the
+partial-TPKT/Stop boundary. Reconciled publication base
+`c2be669ed8044ef4188d13279d5a6e535da1e769` adds
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`:
+a production HostControl + real local HYBRID/TLS/direct-NTLM CredSSP peer
+reaches exact `CredentialsVerified`, queues the checked-in Microsoft
+Connect-Initial and proves repeated owner steps remain pre-MCS with no Share,
+graphics, native attachment or clipboard. The same CTest separately retires
+that authenticated/pre-admission owner through Stop, same-permission consent
+epoch replacement and native session replacement; Stop is the required barrier
+before credential replacement, whose new generation cannot revive the retired
+proof. Missing eligible local endpoint/bind/connect is SKIP 77, never PASS.
+Local macOS build/full CTest and exact-publication-SHA hosted qualification are
+NOT RUN/PENDING at authoring; physical clients remain NOT RUN/unauthorized.
+Agent 2's `MacConsoleAdmissionBroker` now provides R2-owned prepared native
+authority for the exact proof/R1 connection, but its `Prepared` state is
+explicitly non-admitting. The positive pipeline remains BLOCKED until Agent 3
+publishes the private macOS R3 positive route and R2 exposes the corresponding
+protected transition. R10 must consume those APIs without becoming an R3 friend
+or minting scalar authority, then compose R7 only after genuine R2 admission
+and R3 Share.
 
 **Exact macOS accepted-client state graph and cancellation contract:**
 `Stopped` (R10 owns no listener/client; R2 credential may survive ordinary

@@ -1092,7 +1092,10 @@ if(TARGET rdp-server-macos-host-control)
     add_executable(test_macos_runtime_host_control
         test_macos_runtime_host_control.cpp)
     target_link_libraries(test_macos_runtime_host_control PRIVATE
-        rdp-server-macos-host-control)
+        rdp-server-macos-host-control OpenSSL::SSL OpenSSL::Crypto)
+    target_compile_definitions(
+        test_macos_runtime_host_control PRIVATE
+        "RDP_R3_MICROSOFT_MCS_FIXTURE_PATH=\"${PROJECT_SOURCE_DIR}/tests/fixtures/ms_rdpbcgr_4_1_3_mcs_connect_initial.hex\"")
     target_compile_options(test_macos_runtime_host_control PRIVATE
         -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
     foreach(mac_host_control_case IN ITEMS
@@ -1123,6 +1126,20 @@ if(TARGET rdp-server-macos-host-control)
         runtime.macos-host-control-accepted-pre-admission-dormancy PROPERTIES
         LABELS "runtime;security;transport;tls;macos;native-environment"
         SKIP_RETURN_CODE 77)
+
+    # R10 production-backed completed CredSSP boundary. The synthetic local
+    # peer queues the published Microsoft Connect-Initial after final authInfo,
+    # but no native R2 admission exists, so first MCS/R3/native state is denied.
+    add_test(
+        NAME runtime.macos-host-control-completed-credssp-without-native-admission-denials
+        COMMAND test_macos_runtime_host_control
+            macos-host-control-completed-credssp-without-native-admission-denials)
+    set_tests_properties(
+        runtime.macos-host-control-completed-credssp-without-native-admission-denials
+        PROPERTIES
+            LABELS "runtime;security;transport;tls;credssp;authentication;admission;protocol;macos;native-environment;offline"
+            SKIP_RETURN_CODE 77
+            TIMEOUT 45)
 
     # R6 portable Stop/Start contract: exercise the production macOS listener
     # three times on one immediately reusable port. The injected owner evidence

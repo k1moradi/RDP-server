@@ -1,3 +1,40 @@
+## R10 completed macOS CredSSP pre-MCS denial authoring (2026-10-30)
+
+- Initial authoring base: `b76f62917479ff3a1e512d7c6c791157d97d2f2c`.
+  Concurrent main advanced through R8/R9, Agent 2's macOS admission-preparation
+  commit and the R7 QColorSpace fixture correction; the atomic increment was
+  reconciled onto `c2be669ed8044ef4188d13279d5a6e535da1e769` without
+  overwriting those changes. The canonical roadmap still records no nominated
+  M1 publication freeze.
+- Added one distinct production-backed macOS HostControl behavior:
+  `runtime.macos-host-control-completed-credssp-without-native-admission-denials`.
+  Its synthetic local peer uses real X.224 HYBRID, R1 TLS and standalone
+  direct-NTLM CredSSP through final `authInfo` / `CredentialsVerified`,
+  then queues the checked-in Microsoft 416-byte Connect-Initial. The server
+  remains pre-MCS and proves no Share, graphics, native attachment or clipboard.
+- Retirement coverage after completed CredSSP includes Stop, same-permission
+  owner-consent epoch replacement and native session replacement. Stop is also
+  the production barrier before credential replacement; the replacement
+  generation cannot be visited through the retired generation.
+- R2/R3 integration audit: Agent 2's new `MacConsoleAdmissionBroker` is a real
+  R2-owned preparation gateway bound to the exact proof/R1 connection, but its
+  contract explicitly says `Prepared` is not an R1/R3 admitted state.
+  `McsSessionLifecycle` is unchanged and still exposes no macOS private
+  positive route. R10 therefore does not call `completeCredSspAdmission()`,
+  become an R3 friend, fabricate admission generations or attach R7. Positive
+  macOS MCS/Share remains BLOCKED on Agent 3's private R3 route plus the R2
+  protected transition that consumes it.
+- Linux source-level review: the existing direct-NTLM lifecycle remains the
+  behavioral oracle for the synthetic peer; no Linux runtime source or API is
+  changed by this increment.
+- Canonical local `~/rdp-server/build` configure/build/focused/full CTest:
+  **NOT RUN** in this connector environment because the approved owner checkout
+  is unavailable and direct GitHub clone DNS resolution failed. Benchmark:
+  **NOT RUN / not applicable** to this denial-only test increment. Exact
+  publication-SHA hosted macOS/full/R9 qualification: **PENDING** until the
+  atomic direct-main publication exists. Physical client/native desktop:
+  **NOT RUN / unauthorized**.
+
 ## R2 concrete macOS admission gateway first round — 2026-10-30
 
 - Reconciled parent: `bd68b5a063bf33d993854f22f4ff3c8da255a59c`.

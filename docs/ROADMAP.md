@@ -1,3 +1,47 @@
+## R8 hosted X11 callback sanitizer qualification on current descendant (2026-10-31)
+
+**Verified exact descendant:** `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
+[Actions 41191351163](https://github.com/k1moradi/RDP-server/actions/runs/41191351163),
+R9 sanitizer job `124508630924` **PASS**. The shared-main R2
+CTest taxonomy and Client Info compile blockers are now resolved. The
+R8 destroyed-owner production fix `d99360ec` and corrected workflow
+`184a140c` are ancestors; no new X11 production modification was required.
+
+**Executed R8 sanitizer results:** fixed `clipboard` census
+**107/107 PASS**, separately named macOS/Windows destination finalization
+**1/1 PASS**, and **3/3 PASS** for X11 synchronous source retirement,
+native owner destruction during `setSelectionOwner`, and
+notification/INCR callback retirement. Each of the three X11 tests
+was actually selected and executed under the same sanitizer build,
+without expanding the 107-case census or enabling a real clipboard.
+Ubuntu and Windows full protocol jobs PASS on this exact SHA.
+
+**Different whole-project blocker:** macOS full Debug CTest
+**814/815 PASS**, with
+`runtime.macos-host-control-accepted-pre-admission-dormancy`
+aborting at `tests/test_macos_runtime_host_control.cpp:1587` because
+the observed `accepted.stage` did not match
+`RuntimeHostStage::ClientAuthenticating`. This pre-admission
+HostControl failure is not a failed R8 clipboard test and prevents
+declaring the overall workflow green. Coordinate with the macOS
+HostControl owner; do not modify another road's runtime on R8's behalf.
+
+**Remaining activation dependency graph:** genuine fresh R2 original
+accepted R1/HYBRID/TLS admission/proof and independent Clipboard
+permission -> native authorization/consent owner epoch ->
+ShareActivated/GraphicsReady and exact joined `cliprdr` route ->
+current R8 native publication owner and RemoteTransfer source epoch ->
+single R1 TLS writer and complete bounded R3 accepted-byte receipts ->
+R9 same-SHA qualification and explicit physical authorization. R2
+macOS wrappers now protect post-Share CLIPRDR and Graphics transitions,
+but View|Input-only native macOS scope still denies Clipboard, and
+R2 positive TLS completion/callback revocation/partial receipt proof
+and R10 real owner composition are not complete. R8 has no warrant
+to enable production Clipboard. Keep
+`kLinuxProductionClipboardActivationApproved = false`. Local
+canonical build/CTest and physical clipboard/native files remain
+**NOT RUN** in the connector-only environment.
+
 ## R2 protected owner-thread CTest stage invariant correction (2026-10-31)
 
 The new synthetic R1 fixture begins with an invalid socket and can

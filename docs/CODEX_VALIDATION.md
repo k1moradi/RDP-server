@@ -1,3 +1,36 @@
+## R8 exact-descendant X11 clipboard sanitizer qualification (2026-10-31)
+
+- **Audited exact SHA:** `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
+  hosted [Actions 41191351163](https://github.com/k1moradi/RDP-server/actions/runs/41191351163),
+  `r9-security-protocol-sanitizers` job `124508630924`: **PASS**.
+  This is a descendant of the production X11 destroyed-owner fence
+  `d99360ec7aae6b3f78bf1b6a561cf3913e22df34` and its corrected
+  three-X11 sanitizer selector `184a140c01e3fc0bb39bfb91a5096f624115b305`.
+- Exact sanitizer stdout: fixed `ctest -L clipboard` **107/107 PASS**;
+  separate `clipboard.file-destination-finalization-generation-replacement`
+  **1/1 PASS**; separate `clipboard.x11-native-callback-source-retirement`,
+  `clipboard.x11-native-callback-owner-retirement` and
+  `clipboard.x11-notification-and-incr-retirement` **3/3 PASS**.
+  All three were actually executed, not merely registered. The workflow
+  structure guard, documentation policy, and Ubuntu/Windows full protocol
+  jobs also **PASS** at that exact SHA.
+- **Whole-project CI remains red for a different owner:** macOS protocol
+  job `124508630892` passed **814/815** CTests, failing
+  `runtime.macos-host-control-accepted-pre-admission-dormancy` with an
+  assertion in `tests/test_macos_runtime_host_control.cpp:1587` that
+  `accepted.stage == RuntimeHostStage::ClientAuthenticating`. The failure
+  is in macOS accepted-client pre-admission HostControl behavior, not the
+  R8 X11/clipboard sanitizer selector; do not report the overall run PASS.
+- The R2 protected macOS operation wrappers now reach CLIPRDR/Graphics, but
+  native macOS Clipboard permission is still denied by the current
+  View|Input scope. R2 genuine original-R1 TLS positive/revocation/partial
+  receipt evidence and R10 serialized actual owner composition remain
+  separate gates. `kLinuxProductionClipboardActivationApproved = false`
+  remains literal; no physical clipboard/native files/client testing.
+- Local canonical checkout/Debug/Release/sanitizers: **NOT RUN** in the
+  connector-only environment. The statements above derive from named
+  GitHub-hosted exact-SHA job logs, not local execution.
+
 ## R2 wrong-thread fixture initial-stage correction (2026-10-31)
 
 After `3dc2cd82022c78d8b3b0e923790731566de3af9f`, the new joined-worker denial test compares the

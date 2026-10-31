@@ -1,3 +1,20 @@
+## R3 protected macOS MCS partial-response continuation and second Attach (2026-10-31)
+
+Authoring parent `b0bd3a213cf6163afbd36ae64cc515966d0cdab1`. An ordinary offline production-linked test
+`security.macos-protected-mcs-response-partial-resume-and-ordering` uses the concrete macOS R2 broker, real R1 HYBRID
+loopback TLS writer and original R3 reply/slice owners. It verifies zero-byte
+same-view retries, actual accepted one-byte and subsequent resumed response
+slices, protected Erect/Attach, exact Attach Confirm delivery, premature Erect
+rejection with an incomplete response, and duplicate second Attach retirement.
+Both denial cases must close R3 and the original R1 SSL/BIO/socket. The native
+and credential proofs remain synthetic fixture mechanics, never product-valid
+macOS admission. No R3 production API, 171-case MCS table, CAL SignedData or
+existing sanitizer census changed. Source/CTest registration inspection done;
+local compile, CTest, sanitizers **NOT RUN** (connector environment has no
+approved checkout), publication-SHA hosted CI **PENDING**; physical clients
+**NOT RUN**. Next: R10 must compose real R2 admission and complete R1 TPKT
+reader/receipt loop, then seek separately authorized native-client evidence.
+
 ## R8 independently denied macOS joined CLIPRDR after R1 TLS (2026-10-31)
 
 - **Authoring parent:** `6282f6f151c7c67524cb6dca68d36b839fa25b2b`. The separate

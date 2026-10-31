@@ -8248,6 +8248,163 @@ void testMacProtectedTransportClipboardPermissionDenials()
     assert(fixture->connection.stage() == PreauthStage::Closed);
 }
 
+
+ // R1 is a real loopback SSL/BIO owner; synthetic macOS proof/native evidence
+ // authorizes internal broker mechanics only, never a product desktop.
+ void testMacProtectedMcsResponsePartialResumeAndOrdering()
+ {
+     using Receipt = McsConnectResponseWriteOutcome;
+     using Outcome = TlsApplicationIoOutcome;
+     using Interest = TcpConnectionIoInterest;
+     using PollOutcome = TcpConnectionPollOutcome;
+     constexpr std::array<std::uint8_t, 12> erect{
+         0x03U, 0x00U, 0x00U, 0x0cU, 0x02U, 0xf0U,
+         0x80U, 0x04U, 0x01U, 0x00U, 0x01U, 0x00U};
+     constexpr std::array<std::uint8_t, 8> attach{
+         0x03U, 0x00U, 0x00U, 0x08U, 0x02U, 0xf0U, 0x80U, 0x28U};
+
+     auto authorizeFirstMcs = [](MacProtectedTransportFixture &fixture) {
+         assert(fixture.broker.authorizeR1CredSspAdmission(*fixture.session));
+         assert(fixture.connection.stage() == PreauthStage::AwaitMcsConnectInitial);
+         const auto connectInitial = macProtectedHybridConnectInitial();
+         assert(fixture.broker.authorizeR3McsConnectInitial(
+                    *fixture.session, connectInitial) ==
+                McsSessionIntake::AdmittedConnectInitial);
+     };
+
+     // Each reported receipt corresponds to bytes accepted by R1's real TLS
+     // writer and read back by the client. The sole R3 writer owns the offset.
+     auto sendReply = [](MacProtectedTransportFixture &fixture,
+                         auto borrowReply, auto completeReply) {
+         const auto first = borrowReply();
+         assert(first && first->bytes.size() > 2U);
+         assert(completeReply(first->replySequence, first->writeSliceSequence,
+                              0U) == Receipt::Pending);
+         const auto zeroRetry = borrowReply();
+         assert(zeroRetry && zeroRetry->bytes.data() == first->bytes.data());
+         assert(zeroRetry->replySequence == first->replySequence);
+         assert(zeroRetry->writeSliceSequence == first->writeSliceSequence);
+         assert(zeroRetry->bytes.size() == first->bytes.size());
+
+         std::size_t acceptedTotal = 0U;
+         bool firstShortWrite = true;
+         bool delivered = false;
+         const auto deadline = std::chrono::steady_clock::now() +
+                               std::chrono::seconds{5};
+         for (std::size_t attempt = 0U; attempt < 512U && !delivered &&
+              std::chrono::steady_clock::now() < deadline; ++attempt)
+         {
+             const auto pending = borrowReply();
+             assert(pending);
+             assert(pending->replySequence == first->replySequence);
+             assert(pending->bytes.size() == first->bytes.size() - acceptedTotal);
+             const auto offered = firstShortWrite
+                 ? pending->bytes.first(1U) : pending->bytes;
+             const auto written = fixture.connection.writeTlsApplicationData(offered);
+             if (written.outcome == Outcome::Progress)
+             {
+                 assert(written.bytes > 0U && written.bytes <= offered.size());
+                 std::vector<std::uint8_t> peerBytes(written.bytes);
+                 readNativeTlsClientAll(fixture.tls.client.get(), peerBytes);
+                 assert(std::equal(peerBytes.begin(), peerBytes.end(),
+                                   offered.begin()));
+                 acceptedTotal += written.bytes;
+                 firstShortWrite = false;
+                 const auto receipt = completeReply(
+                     pending->replySequence, pending->writeSliceSequence,
+                     written.bytes);
+                 assert(receipt == Receipt::Pending ||
+                        receipt == Receipt::Delivered);
+                 delivered = receipt == Receipt::Delivered;
+                 if (!delivered)
+                 {
+                     const auto suffix = borrowReply();
+                     assert(suffix);
+                     assert(suffix->replySequence == first->replySequence);
+                     assert(suffix->writeSliceSequence !=
+                            pending->writeSliceSequence);
+                     assert(suffix->bytes.size() ==
+                            first->bytes.size() - acceptedTotal);
+                 }
+                 continue;
+             }
+             assert(written.bytes == 0U);
+             assert(written.outcome == Outcome::NeedRead ||
+                    written.outcome == Outcome::NeedWrite);
+             const auto expectedInterest = written.outcome == Outcome::NeedRead
+                 ? Interest::Read : Interest::Write;
+             assert(fixture.connection.ioInterest() == expectedInterest);
+             assert(completeReply(pending->replySequence,
+                                  pending->writeSliceSequence, 0U) ==
+                    Receipt::Pending);
+             const auto retry = borrowReply();
+             assert(retry);
+             assert(retry->replySequence == pending->replySequence);
+             assert(retry->writeSliceSequence == pending->writeSliceSequence);
+             assert(retry->bytes.data() == pending->bytes.data());
+             assert(retry->bytes.size() == pending->bytes.size());
+             const auto polled = fixture.connection.pollSocketOnce(
+                 deadline, kMaximumTcpPollWait);
+             assert(polled.outcome == PollOutcome::Dispatched ||
+                    polled.outcome == PollOutcome::NoEvent);
+             assert(polled.nextInterest == expectedInterest);
+         }
+         assert(delivered && acceptedTotal == first->bytes.size());
+     };
+
+     {
+         auto fixture = std::make_unique<MacProtectedTransportFixture>();
+         authorizeFirstMcs(*fixture);
+         sendReply(*fixture,
+                   [&]() { return fixture->broker.authorizeR3ConnectResponseWrite(
+                       *fixture->session); },
+                   [&](std::uint64_t reply, std::uint64_t slice, std::size_t count) {
+                       return fixture->broker.completeR3ConnectResponseWrite(
+                           *fixture->session, reply, slice, count);
+                   });
+         assert(fixture->session->phase() == McsSessionPhase::AwaitErectDomain);
+         assert(fixture->broker.authorizeR3ErectDomain(
+                    *fixture->session, erect) == McsSessionIntake::ErectDomainAccepted);
+         assert(fixture->broker.authorizeR3AttachUser(
+                    *fixture->session, attach) == McsSessionIntake::AttachUserAccepted);
+         sendReply(*fixture,
+                   [&]() { return fixture->broker.authorizeR3AttachUserConfirmWrite(
+                       *fixture->session); },
+                   [&](std::uint64_t reply, std::uint64_t slice, std::size_t count) {
+                       return fixture->broker.completeR3AttachUserConfirmWrite(
+                           *fixture->session, reply, slice, count);
+                   });
+         assert(fixture->session->phase() == McsSessionPhase::AwaitChannelJoin);
+         assert(fixture->session->allocatedUserId() == 1002U);
+         // The same connection cannot attach another user after confirmation.
+         assert(fixture->broker.authorizeR3AttachUser(
+                    *fixture->session, attach) != McsSessionIntake::AttachUserAccepted);
+         assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+         assert(fixture->session->phase() == McsSessionPhase::Closed);
+         assert(fixture->session->allocatedStaticChannelIds().empty());
+         assert(fixture->connection.stage() == PreauthStage::Closed);
+     }
+     {
+         auto fixture = std::make_unique<MacProtectedTransportFixture>();
+         authorizeFirstMcs(*fixture);
+         const auto pending = fixture->broker.authorizeR3ConnectResponseWrite(
+             *fixture->session);
+         assert(pending && pending->bytes.size() > 1U);
+         const auto accepted =
+             writeOneMacProtectedPlaintextByte(*fixture, pending->bytes);
+         assert(accepted == 1U);
+         assert(fixture->broker.completeR3ConnectResponseWrite(
+                    *fixture->session, pending->replySequence,
+                    pending->writeSliceSequence, accepted) == Receipt::Pending);
+         assert(fixture->session->phase() == McsSessionPhase::AwaitConnectResponse);
+         assert(fixture->broker.authorizeR3ErectDomain(
+                    *fixture->session, erect) != McsSessionIntake::ErectDomainAccepted);
+         assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+         assert(fixture->session->phase() == McsSessionPhase::Closed);
+         assert(fixture->connection.stage() == PreauthStage::Closed);
+     }
+ }
+
 void testOwnedHybridNoPrematureMcs()
 {
     using Interest = TcpConnectionIoInterest;
@@ -12483,6 +12640,8 @@ constexpr auto kPreauthTestCases = std::to_array<PreauthTestCase>({
      &testMacProtectedTransportClipboardPermissionDenials},
     {"macos-protected-admission-reprepare-premcs-audit-retirement",
      &testMacProtectedAdmissionReprepareAndPreMcsAuditRevocation},
+    {"macos-protected-mcs-response-partial-resume-and-ordering",
+     &testMacProtectedMcsResponsePartialResumeAndOrdering},
     {"tcp-owned-hybrid-no-premature-mcs", &testOwnedHybridNoPrematureMcs},
     {"tcp-owned-hybrid-provenance-revocation", &testOwnedHybridProvenanceRevocation},
     {"tcp-owned-tls-application-io", &testOwnedTlsApplicationIo},

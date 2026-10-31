@@ -1881,6 +1881,15 @@ function(add_rdp_test source_file suite behavior)
                 LABELS "security;native-authorization;transport;tls;admission;offline"
                 TIMEOUT 20)
 
+        # Real R1 HYBRID/TLS and concrete R2 broker exact partial writes;
+        # synthetic evidence is internal-only, not native desktop admission.
+        add_test(NAME security.macos-protected-mcs-response-partial-resume-and-ordering
+            COMMAND "${test_target}"
+                "macos-protected-mcs-response-partial-resume-and-ordering")
+        set_tests_properties(security.macos-protected-mcs-response-partial-resume-and-ordering
+            PROPERTIES LABELS "protocol;security;transport;tls;admission;offline"
+                TIMEOUT 20)
+
         # R1 pre-TLS byte accounting is a focused diagnostic regression.
         # Keep it outside R9's fixed-count generic transport sanitizer
         # inventory until that lane explicitly enrolls this behavior.

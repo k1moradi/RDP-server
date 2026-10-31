@@ -284,6 +284,64 @@ public:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy) noexcept;
 
+    // All Graphics DVC, ACK credit and frame/surface transitions are private
+    // R3 operations reauthorized through the original R2 native visitor.
+    // R4 remains the sole frame credit and ACK owner.
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    authorizeR3GraphicsDynamicVirtualChannel(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    pendingR3GraphicsDynamicVirtualChannelWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcWriteOutcome
+    completeR3GraphicsDynamicVirtualChannelWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsDvcClientIntake
+    authorizeR3GraphicsDynamicVirtualChannelPdu(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsFrameAcknowledgeIntake
+    consumeR3GraphicsFrameAcknowledge(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsFramePublicationReadiness
+    preflightR3GraphicsFramePublication(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint32_t frameId) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpGraphicsSurfaceReconfiguration
+    beginR3GraphicsSurfaceReconfiguration(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        ::PixelSize desktopGeometry) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpGraphicsDvcWriteView>
+    beginR3GraphicsClearCodecFramePublication(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint32_t frameId, ::FramebufferView framebuffer) noexcept;
+    [[nodiscard]] bool cancelR3UnwrittenGraphicsFrame(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] bool abortR3GraphicsFrame(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+
     // Read-only preflight, never a transfer of R3 mutation authority.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         rdp_server::server::transport::McsSessionLifecycle &session,

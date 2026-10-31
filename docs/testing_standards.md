@@ -1,3 +1,15 @@
+## R2 macOS Graphics DVC/ACK scope rejection (2026-10-31)
+
+Ordinary production-linked
+`security.native-authorization-macos-console-protected-graphics-dvc-ack-denials`
+checks that an inactive R1 and Prepared-only R2 with an unconfigured
+PersonalDesktop policy cannot begin Graphics DVC, borrow or complete its
+write, consume Graphics PDUs or ACKs, preflight frames, mutate geometry,
+publish ClearCodec, or cancel/abort frames. It checks terminal R3 closure,
+broker revocation and erased generation. This does not manufacture
+product-valid macOS consent or a positive R1 TLS completion and does
+not qualify real graphics publication.
+
 ## R2 protected macOS post-Share premature-call and clipboard scope denials (2026-10-31)
 
 `security.native-authorization-macos-console-protected-post-share-revocation-denials`

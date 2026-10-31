@@ -1,3 +1,18 @@
+## R2 protected macOS Graphics DVC/ACK and resize (2026-10-31)
+
+The original macOS broker now privately wraps R3 Graphics DVC start,
+pending write and exact accepted-byte receipt, inbound DVC traffic, R4
+frame ACK consumption, frame publication preflight, native geometry-based
+surface reconfiguration, synchronous ClearCodec fallback publication, and
+cancel/abort retirement. Every operation derives HYBRID from the original
+R1 owner and passes through the original R2 fresh native/consent/proof
+visitor plus immutable PersonalDesktop policy before and after callback
+boundaries. R3/R4 remain sole Graphics DVC and ACK-credit owners; no
+secondary scheduler, synthetic token, raw pixel retention or public R3
+entry is introduced. Deferred ACK pressure and unchanged geometry
+remain nonterminal only while the original lifetime is still valid;
+any private Rejected result closes R1/R3 and the broker.
+
 ## R2 protected macOS post-Share and clipboard fail-closed scope (2026-10-31)
 
 Only the existing `MacConsoleAdmissionBroker` can issue R3 private

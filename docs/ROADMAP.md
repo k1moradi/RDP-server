@@ -1,3 +1,21 @@
+## R2 protected macOS Graphics DVC/ACK and surface closure (2026-10-31)
+
+The original R2 broker now covers the complete private R3 protected
+sequence through post-Share application readiness, static clipboard
+fail-closed routing, input, DRDYNVC/Graphics DVC, ACK credit,
+geometry reconfiguration, ClearCodec frame and cancel/abort. Every
+transition and exact accepted-byte receipt revalidates original R1
+HYBRID proof/certificate/credential, owner-consent epoch and current
+native authorization before and after visitor callbacks. No public
+R3 issuer or secondary TLS/presentation owner was created.
+Dedicated production-broker offline Graphics DVC/ACK rejection CTest
+is registered; no synthetic native lease was promoted. **P0 remaining:**
+positive genuine R1 TLS completion/postcallback native revocation and
+partial Connect-Response broker receipt CTest; independent Clipboard
+native scope must be approved before positive Clipboard. R10 must
+assemble exact R1/R3/native/consent lifetime and owner-thread first-MCS
+read. Hosted exact-publication-SHA CI PENDING; local CTest NOT RUN.
+
 ## R2 macOS post-Share protected channel first increment (2026-10-31)
 
 The existing noncopyable broker now wraps all R3 private post-Share

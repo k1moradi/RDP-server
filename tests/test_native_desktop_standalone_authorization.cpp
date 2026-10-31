@@ -1147,6 +1147,54 @@ void testMacConsoleProtectedPostShareRevocationDenials()
     }
 }
 
+// Graphics DVC and ACK/surface/frame credit always require the same
+// original admitted R1/native/PersonalDesktop lease. No synthetic native
+// authority can turn a Prepared-only session into a live Graphics route.
+void testMacConsoleProtectedGraphicsDvcAckDenials()
+{
+    using namespace rdp_server::server::transport;
+    rdp_server::server::runtime::RuntimeDeploymentPolicy policy;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3GraphicsDynamicVirtualChannel(
+            session, policy));
+        assert(!fixture.broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+            session, policy));
+        assert(fixture.broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                   session, policy, 1U, 1U, 0U) ==
+               RdpGraphicsDvcWriteOutcome::Rejected);
+        assert(fixture.broker.authorizeR3GraphicsDynamicVirtualChannelPdu(
+                   session, policy, {}) ==
+               RdpGraphicsDvcClientIntake::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(fixture.broker.consumeR3GraphicsFrameAcknowledge(
+                   session, policy) ==
+               RdpGraphicsFrameAcknowledgeIntake::Rejected);
+        assert(fixture.broker.preflightR3GraphicsFramePublication(
+                   session, policy, 1U) ==
+               RdpGraphicsFramePublicationReadiness::Rejected);
+        assert(fixture.broker.beginR3GraphicsSurfaceReconfiguration(
+                   session, policy, ::PixelSize{}) ==
+               RdpGraphicsSurfaceReconfiguration::Rejected);
+        assert(!fixture.broker.beginR3GraphicsClearCodecFramePublication(
+            session, policy, 1U, ::FramebufferView{}));
+        assert(!fixture.broker.cancelR3UnwrittenGraphicsFrame(
+            session, policy));
+        assert(!fixture.broker.abortR3GraphicsFrame(session, policy));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture.broker.admissionGeneration() == 0U);
+    }
+}
+
 void testMacConsoleProtectedIssuerPrematureReceipts()
 {
     using namespace rdp_server::server::transport;
@@ -1266,6 +1314,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-post-share-revocation-denials")
     {
         testMacConsoleProtectedPostShareRevocationDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-graphics-dvc-ack-denials")
+    {
+        testMacConsoleProtectedGraphicsDvcAckDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

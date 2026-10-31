@@ -1326,7 +1326,8 @@ foreach(standalone_native_authorization_case IN ITEMS
         macos-console-protected-attach-join-clientinfo-denials
         macos-console-protected-personal-licensing-denials
         macos-console-protected-mac-demand-share-denials
-        macos-console-protected-post-share-revocation-denials)
+        macos-console-protected-post-share-revocation-denials
+        macos-console-protected-graphics-dvc-ack-denials)
     add_test(
         NAME "security.native-authorization-${standalone_native_authorization_case}"
         COMMAND test_native_desktop_standalone_authorization

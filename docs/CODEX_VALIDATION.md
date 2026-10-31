@@ -1,3 +1,19 @@
+## R2 macOS protected Graphics DVC, ACK and frame surface increment (2026-10-31)
+
+Ten original R2 native visitor-protected private R3 methods now cover
+Graphics DVC negotiation, pending/accepted-byte writes, incoming PDU,
+ACK consumption, read-only frame credit, geometry reconfiguration,
+mandatory ClearCodec first-frame publication and cancel/abort. The
+single R4 ACK window remains the only frame credit. Registered a
+dedicated production-linked offline prepared/inactive-R1 denial CTest.
+No physical macOS authority, capture, TCC or graphics client is
+simulated. Connector-local canonical build/full/focused CTest,
+sanitizers and benchmarks **NOT RUN**. Exact-head hosted CI **PENDING**.
+Remaining nonphysical evidence: a genuine accepted production-R1
+HYBRID/TLS/CredSSP successful R2 completion, post-completion callback
+authority loss, and broker-level zero/partial/late reply receipts;
+R10 must compose the same owner thread and lifetime.
+
 ## R2 post-Share/protected-input/clipboard first increment (2026-10-31)
 
 Original R2 now protects R3 application-ready, post-Share classification,

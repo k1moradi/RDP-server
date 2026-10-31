@@ -1,3 +1,20 @@
+## R7 tray connected-device count requires native/Share-visible projection (2026-10-31)
+
+The system tray must count only peers in the already filtered R7
+`HostStatus::clients`: R10 product state Connected, native desktop ready,
+client Share activated, desktop visible and no outstanding authentication.
+`RuntimeProductHostStatus::clientCount` counts accepted peers, including
+peers still authenticating, and cannot be presented as confirmed connected
+devices. A mixed ready/pending group counts only its confirmed peers; with no
+confirmed peers, accepted peers are "connecting". Terminal or non-Connected
+product states may not retain a tray connected claim. Reuse the existing
+projection, never recreate authorization or second protocol authority.
+
+Run the existing Qt offscreen fixture
+`gui.offscreen-tray-share-native-ready-client-count-denials`; it drives the
+production `DesktopWindow` and typed `HostControl` with contradictory/mixed
+runtime status, requiring no listener, authentication, TCC, capture or input.
+
 ## R9 per-commit production source / central CTest registry gate (2026-10-31)
 
 The existing push-time `scripts/check_documentation_cochange.py` ensured

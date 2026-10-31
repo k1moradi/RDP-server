@@ -1,3 +1,12 @@
+## R7 tray client count reuses per-peer confirmed desktop status (2026-10-31)
+
+An R10 Connected product state plus raw accepted client count is not proof
+that every peer finished Share and native desktop readiness. Qt must use its
+existing filtered `HostStatus::clients` list for the tray connected count
+and retain the raw R10 count only for the "connecting" observation. Cache
+the filtered count once per refresh; do not create GUI authority or session
+state and do not change native/worker thread ownership.
+
 ## R10 protected macOS Erect Domain continuation (2026-10-31)
 
 After the R2-protected Connect-Response is fully accepted, reuse the same

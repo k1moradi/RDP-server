@@ -5169,6 +5169,13 @@ if(RDP_SERVER_BUILD_DESKTOP_GUI)
     set_tests_properties(gui.offscreen-tray-close-hide-and-explicit-quit
         PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         LABELS "gui;offline;product;tray;lifecycle" TIMEOUT 30)
+    # Mixed ready/authenticating peers may count only Share/native-visible
+    # desktop sessions as connected in the tray.
+    add_test(NAME gui.offscreen-tray-share-native-ready-client-count-denials
+        COMMAND test_desktop_gui_offline tray-ready-client-projection)
+    set_tests_properties(gui.offscreen-tray-share-native-ready-client-count-denials
+        PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        LABELS "gui;offline;security;runtime;status;tray" TIMEOUT 30)
     add_test(NAME gui.offscreen-automatic-tls-preparation-order
         COMMAND test_desktop_gui_offline automatic-tls-preparation-order)
     set_tests_properties(gui.offscreen-automatic-tls-preparation-order

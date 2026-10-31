@@ -1,3 +1,23 @@
+## R7 tray verified-client count after R10 Erect integration (2026-10-31)
+
+- Authoring parent `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`. The Main activity already gates
+  `HostStatus::clients` on product Connected, native desktop ready,
+  ShareActivated, desktopVisible and nonauthenticating per-peer flags.
+  The tray instead used the total accepted client count whenever product
+  Connected, mislabeling a ready/authenticating mix as all connected.
+- Fixed the tray to reuse the filtered list size and retain accepted count
+  for the separate "connecting" label. One new CTest
+  `gui.offscreen-tray-share-native-ready-client-count-denials` reuses the
+  existing GUI test binary to exercise no-native, pre-Share, pre-visibility,
+  mixed/all-ready, stale product-state and empty-client conditions.
+  No R1/R2/R3/R4/runtime/native/color behavior changes.
+- Dependency audit: R10 now reaches genuine broker-protected Erect Domain;
+  Attach/Confirm, joins, Client Info, licensing, Share/GraphicsReady remain
+  R10-owned and are not yet wired into live macOS HostControl.
+- Local canonical build/focused/full CTest **NOT RUN** (connector-only, no
+  checkout). Exact-publication hosted CI **PENDING**. Physical capture/input,
+  client test and owner QColorSpace warning-site stack **NOT RUN / unauthorized**.
+
 ## R9 production-source CTest registry co-change policy (2026-10-31)
 
 Audit parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`: `AGENTS.md` requires one new centralized

@@ -1,3 +1,18 @@
+## R7 tray Share/native-ready count offline regression (2026-10-31)
+
+The existing `rdp-server-desktop-ui` and `test_desktop_gui_offline` targets
+remain unchanged. A single behavior-named offscreen CTest exercises the same
+Qt target; no new package, framework, dependency, socket, screen capture or
+build directory is introduced. With the sole canonical `~/rdp-server/build/`:
+
+```sh
+ctest --test-dir build -C Debug -R '^gui[.]offscreen-tray-share-native-ready-client-count-denials$' --output-on-failure
+```
+
+Then rerun warning-clean Debug build, full CTest and existing GUI parity on
+the exact publication SHA. Connector-local compile/CTest **NOT RUN**;
+publication-SHA hosted CI **PENDING**.
+
 ## R1/R10 partial first-MCS Stop regression build scope (2026-10-31)
 
 The new

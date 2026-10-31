@@ -1030,17 +1030,32 @@ is still **NOT RUN**, so the actual warning caller remains
 continues to expose `attachAuthenticatedSession()` as the downstream R2-proof
 consumer. R10 has now resolved the earlier admission/first-MCS gap: current
 `MacRuntimeHostControl` invokes the original broker for protected R1 completion,
-first bounded MCS Connect-Initial and exact Connect-Response receipts. It then
-deliberately stops at `ConnectResponseDelivered`; no positive native attach is
-performed. R2 already exposes protected Erect/Attach/Join, Client Info,
-PersonalDesktop licensing, Share/application-ready and Graphics operations, so
-the remaining code dependency is specifically R10 serialization of that
-post-Connect-Response sequence through genuine `ShareActivated` and
+first bounded MCS Connect-Initial and exact Connect-Response receipts. R10
+has since landed protected Erect Domain, then stops at
+`ErectDomainAccepted`; no positive native attach is performed. R2 already
+exposes protected Attach/Join, Client Info, PersonalDesktop licensing,
+Share/application-ready and Graphics operations, so the remaining code
+dependency is specifically R10 serialization of Attach/Confirm and each
+subsequent post-Erect step through genuine `ShareActivated` and
 `GraphicsReady`. Only then may R10 call `attachAuthenticatedSession()` with the
 original proof/current-owner authority; R7 must not duplicate that state
 machine. Physical native attachment remains **BLOCKED / NOT RUN** until that
 composition exists, an R9 exact-SHA owner candidate is manually qualified, and
 the owner separately authorizes the attempt.
+
+**R7 tray connected-count correction (2026-10-31):** Main already lists
+only R10-projected native-ready, Share-activated, desktop-visible,
+nonauthenticating clients. The tray previously labeled every accepted peer as
+connected when the product state was Connected, overstating a mixed
+ready/authenticating group. It now uses the same filtered `HostStatus::clients`
+count; the separate raw accepted count remains a "connecting" observation.
+New offline CTest `gui.offscreen-tray-share-native-ready-client-count-denials`
+checks no-native, pre-Share, pre-visibility, mixed readiness, full readiness,
+stale product state and zero accepted peers. No native/R2/R3 authority change.
+Authoring parent `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`; connector-local C++23 compile/CTest **NOT RUN**;
+exact publication-SHA hosted CI **PENDING**. Next gate: full same-SHA
+offscreen GUI/parity and protocol CTest, followed by R10 Attach/Confirm.
+No physical owner test authorized.
 
 Local canonical build/CTest, local Qt warning reproduction and physical
 capture/input remain **NOT RUN** in this connector environment. R7 has no

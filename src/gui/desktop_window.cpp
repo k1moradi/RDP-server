@@ -1434,15 +1434,19 @@ void DesktopWindow::updateTray(
         snapshot.productState != ProductState::Stopping &&
         (sharingToggleOn(snapshot) || canStart()));
 
+    // Accepted peers may still be authenticating while another peer has
+    // a visible desktop. Reuse Main's already-authorized client projection,
+    // not the raw accepted-client count, for a connected tray label.
+    const auto confirmedDesktopClientCount = snapshot.clients.size();
     if (snapshot.clientCount != 0U &&
-        snapshot.productState ==
-            rdp_server::server::runtime::RuntimeProductHostState::Connected)
+        confirmedDesktopClientCount != 0 &&
+        snapshot.productState == ProductState::Connected)
     {
         trayClients_->setText(
-            snapshot.clientCount == 1U
+            confirmedDesktopClientCount == 1
                 ? QStringLiteral("1 connected device")
                 : QStringLiteral("%1 connected devices")
-                      .arg(static_cast<qulonglong>(snapshot.clientCount)));
+                      .arg(static_cast<qulonglong>(confirmedDesktopClientCount)));
     }
     else if (snapshot.clientCount != 0U)
     {

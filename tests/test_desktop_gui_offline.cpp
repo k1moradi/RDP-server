@@ -1083,6 +1083,60 @@ int main(int argc, char** argv)
         return 0;
     }
 
+    if (mode == "tray-ready-client-projection")
+    {
+        runtime.deriveProductStatusFromLegacy = false;
+        runtime.snapshot.lastError = RuntimeHostError::None;
+        runtime.snapshot.stage = RuntimeHostStage::ClientConnected;
+        runtime.snapshot.product.controlAvailable = true;
+        runtime.snapshot.product.state = RuntimeProductHostState::Connected;
+        runtime.snapshot.product.clientCount = 2U;
+        runtime.snapshot.product.activeClientIds = {17U, 18U};
+        runtime.snapshot.activeClients = {
+            RuntimeHostClient{17U, "192.168.0.17", true, false, false},
+            RuntimeHostClient{18U, "192.168.0.18", false, true, true}};
+
+        DesktopWindow window(host);
+        auto* trayClients = requiredAction(window, "trayConnectedClients");
+        // Product Connected or an accepted-client count never authorizes
+        // a pre-Share or not-yet-visible desktop peer.
+        assert(trayClients->text() == QStringLiteral("2 devices connecting"));
+
+        runtime.snapshot.nativeDesktopReady = true;
+        runtime.snapshot.activeClients[1].shareActivated = false;
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("2 devices connecting"));
+
+        runtime.snapshot.activeClients[1].shareActivated = true;
+        runtime.snapshot.activeClients[1].desktopVisible = false;
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("2 devices connecting"));
+
+        runtime.snapshot.activeClients[1].desktopVisible = true;
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("1 connected device"));
+        assert(requiredLabel(window, "clientStatus")->text().contains(
+            QStringLiteral("Connected: 192.168.0.18")));
+
+        // An additional genuine desktop-ready peer alone increments
+        // the connected count; R10 retains the total accepted count.
+        runtime.snapshot.activeClients[0].authenticating = false;
+        runtime.snapshot.activeClients[0].shareActivated = true;
+        runtime.snapshot.activeClients[0].desktopVisible = true;
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("2 connected devices"));
+
+        runtime.snapshot.product.state = RuntimeProductHostState::Authenticating;
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("2 devices connecting"));
+
+        runtime.snapshot.product.clientCount = 0U;
+        runtime.snapshot.product.activeClientIds.clear();
+        window.refresh();
+        assert(trayClients->text() == QStringLiteral("No connected devices"));
+        return 0;
+    }
+
     if (mode == "hide-preserves-sharing")
     {
         prepareReadyHost(runtime);

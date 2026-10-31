@@ -4336,9 +4336,11 @@ cross-platform offline regression for the artifact's bounded ICC-header parser,
 environment isolation and path/primary redaction. Keep
 `gui.offscreen-qcolor-valid-and-malformed-metadata` in the existing Qt
 offscreen executable: it proves Qt accepts valid sRGB/custom primaries and
-rejects a malformed ICC blob plus degenerate RGB primaries without consulting
-Cocoa, a physical display/profile, ScreenCaptureKit or TCC. This synthetic
-warning boundary is not evidence that the owner's warning has the same caller.
+rejects a malformed ICC blob plus a chromaticity whose `x + y > 1`, without
+consulting Cocoa, a physical display/profile, ScreenCaptureKit or TCC. Qt's
+primary-point sanity check validates each point independently, so duplicate
+red/green coordinates are not a valid negative fixture. This synthetic warning
+boundary is not evidence that the owner's warning has the same caller.
 The existing `macos.native-desktop-owner-borrow-callback-retirement` remains
 the sole callback-retirement regression; do not duplicate it for color
 diagnostics.

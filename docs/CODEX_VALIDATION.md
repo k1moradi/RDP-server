@@ -89,6 +89,13 @@
   harness for valid sRGB/custom primaries and malformed ICC/degenerate-primary
   rejection. The synthetic malformed case can reproduce Qt's validation
   boundary but cannot attribute the owner's Cocoa warning.
+- Initial exact-SHA GUI evidence at `4a6594e29fd2554a2032d5721180782521390090`
+  compiled `test_desktop_gui_offline` with Apple Clang 21.0.0, then
+  `gui.offscreen-qcolor-valid-and-malformed-metadata` **FAILED** because the
+  attempted duplicate red/green negative remained valid in Qt 6.12. Qt's
+  chromaticity sanity rule validates each point independently. The corrective
+  fixture now uses an unambiguously invalid blue point with `x + y > 1`;
+  corrective exact-SHA GUI execution is **PENDING**.
 - Existing `macos.native-desktop-owner-borrow-callback-retirement` remains the
   single FrameMailbox reentrant-retirement regression and is not duplicated.
   R10 still owns the future accepted-client R2->R3/Share/GraphicsReady gate;

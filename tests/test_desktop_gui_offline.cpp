@@ -470,14 +470,16 @@ void checkQColorSpaceMetadataFixtures()
         QColorSpace::TransferFunction::SRgb);
     assert(validPrimaries.isValid());
 
-    // A degenerate red/green pair cannot describe a valid RGB gamut. Qt may
-    // emit its diagnostic here; this fixture proves only validation behavior,
-    // never the provenance of an owner's Cocoa/display-profile warning.
+    // Qt validates each chromaticity independently. Make one point
+    // unambiguously invalid (x + y > 1) rather than assuming duplicate
+    // primaries are rejected. This may emit Qt's diagnostic here; the fixture
+    // proves only validation behavior, never the provenance of an owner's
+    // Cocoa/display-profile warning.
     const QColorSpace malformedPrimaries(
         QPointF(0.3127, 0.3290),
         QPointF(0.6400, 0.3300),
-        QPointF(0.6400, 0.3300),
-        QPointF(0.1500, 0.0600),
+        QPointF(0.3000, 0.6000),
+        QPointF(0.8000, 0.4000),
         QColorSpace::TransferFunction::SRgb);
     assert(!malformedPrimaries.isValid());
 

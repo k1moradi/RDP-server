@@ -304,7 +304,10 @@ It verifies the launched process has no TCP listener before termination.
 Offline `macos.gui-qcolor-provenance-parser-and-redaction` pins that
 redaction/bounds contract; `gui.offscreen-qcolor-valid-and-malformed-metadata`
 reuses the Qt harness to prove valid and malformed metadata behavior without a
-physical display. Owner Cocoa execution/backtrace is still **NOT RUN**, so the
+physical display. Initial exact-SHA macOS GUI execution at `4a6594e29fd2...`
+showed that duplicate red/green points are still individually valid under Qt
+6.12's chromaticity sanity rule; the corrected negative uses `x + y > 1` and
+its exact-SHA GUI rerun is **PENDING**. Owner Cocoa execution/backtrace is still **NOT RUN**, so the
 actual caller remains **BLOCKED/unattributed** and no production color fix is
 authorized.
 

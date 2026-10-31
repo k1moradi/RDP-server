@@ -119,10 +119,16 @@ Debug/Release full CTest **824/824 PASS** executes this denial twice, while its
 R9 sanitizer job preserves clipboard **107/107**, native finalization **1/1**
 and X11 callback retirement **3/3 PASS**. The existing
 `clipboard.route-bridge-missing-activated-route-denial` case additionally
-feeds one structurally complete FILECONTENTS response without a protected
-route and requires the file sink to remain uncalled; extend that existing case
-rather than adding a new clipboard-labeled test. Exact CI for the newest
-test-only edit is **PENDING**; owner Debug/full CTest remains **NOT RUN**.
+feeds one structurally complete FILECONTENTS response into an independently
+fresh dormant bridge without a protected route, requiring the native sink to
+remain uncalled. Do not reuse the bridge already terminalized by Format List
+denial, which can mask a missing FileContents-only guard. Keep the same case
+and 107-count label inventory. Prior `8c68f687` full macOS Debug/Release
+**826/826 PASS**, Ubuntu Debug/Release **1048/1048 PASS**, and R9 fixed
+clipboard sanitizer **107/107 PASS** (Actions `41218899785`). Run focused
+`ctest --test-dir build -C Debug -R '^clipboard[.]route-bridge-missing-activated-route-denial$' --output-on-failure`
+and full Debug CTest in the one canonical build root. Follow-up exact-SHA CI
+**PENDING**; owner-local Debug/full CTest **NOT RUN**.
 
 ## R2 macOS reprepare and pre-first-MCS native audit change (2026-10-31)
 

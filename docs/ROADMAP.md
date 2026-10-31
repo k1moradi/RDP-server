@@ -149,9 +149,15 @@ tests **3/3 PASS**. This resolves the prior R8 qualification blocker caused by
 the macOS accepted-client dormancy test. The existing
 `clipboard.route-bridge-missing-activated-route-denial` behavior is now
 strengthened in-place to feed a complete FILECONTENTS response and prove the
-native file sink remains untouched when no fresh R2/R3 route exists; no CTest
-or sanitizer count changes. Exact CI for this newest test-only publication is
-**PENDING** and owner-local build/full CTest remains **NOT RUN**.
+native file sink remains untouched when no fresh R2/R3 route exists. Follow-up
+audit caught a test weakness: Format List denial had already terminalized that
+same bridge. The FileContents check now uses an **independently fresh dormant**
+bridge and tests sink non-invocation without relying on earlier retirement.
+Prior publication `8c68f687173d7396b4bb77625620bdaee6959987`, Actions
+`41218899785`, macOS Debug/Release **826/826 PASS**, Ubuntu Debug/Release
+**1048/1048 PASS**, R9 clipboard sanitizer **107/107 PASS**. No production
+code, CTest or sanitizer count changed. This follow-up's publication-SHA CI
+**PENDING**; owner-local build/full CTest **NOT RUN**.
 
 **Remaining blocker:** R10 macOS runtime now reaches protected Erect Domain
 after Connect-Response, but still stops before Attach/ChannelJoin/Client Info/

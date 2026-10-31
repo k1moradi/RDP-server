@@ -39,11 +39,19 @@ clipboard **107/107**, native finalization **1/1** and X11 callback-retirement
 **3/3**. Ubuntu/Windows ordinary jobs were still in progress at the review
 snapshot; do not infer their result.
 
-One missing negative assertion is added to the existing
-`clipboard.route-bridge-missing-activated-route-denial` behavior: a complete
-FILECONTENTS response presented without a fresh R2/R3 route must be rejected
-before the native file sink is called. This changes no production code,
-target, label, CTest count, sanitizer census or native adapter.
+Follow-up review exposed an offline coverage weakness in
+`clipboard.route-bridge-missing-activated-route-denial`: the FILECONTENTS
+response was asserted only **after** Format List denial had closed the same
+bridge, so the earlier terminal state could hide a missing independent check.
+The same CTest now supplies the structurally valid FILECONTENTS response to a
+**second, fresh dormant** `R3ClipboardTransferBridge` with a counting native
+sink, requiring denial and no callback on that first attempted intake.
+Prior `8c68f687173d7396b4bb77625620bdaee6959987` Actions
+`41218899785`: macOS Debug/Release **826/826 PASS**, Ubuntu Debug/Release
+**1048/1048 PASS**, R9 clipboard sanitizer **107/107 PASS**. Follow-up
+publication-SHA CI **PENDING**, connector-local focused/full CTest **NOT RUN**.
+This changes no production code, target, label, CTest count, sanitizer census
+or native adapter.
 
 The positive macOS R8 path remains **BLOCKED** for two independent reasons:
 R10 now reaches protected Erect Domain after Connect-Response but still stops

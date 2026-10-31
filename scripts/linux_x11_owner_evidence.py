@@ -473,6 +473,8 @@ def validate_independent_pins(record, pins):
     if reconnect_consent != record["reconnect"]["consent_generation"]:
         raise EvidenceError("reconnect consent differs from independent owner grant")
 
+    reconnect = record["reconnect"]
+
     # Listener generations are process-local. Reuse across attempts is valid
     # only for the same still-live listener, confirmed independently by R10.
     # R2 lease, R5 capture and R3/R4 frame/ACK facts come from their owners.

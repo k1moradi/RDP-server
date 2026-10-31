@@ -1,5 +1,15 @@
 ## R5 real frame ACK, original listener and reconnect pinning (2026-10-31)
 
+**Post-publication correction:** The initial independent-pin comparison referred
+to the reconnect record before binding it to the local validation scope.
+Bind `reconnect = record["reconnect"]` before iterating the R10/R2/R5/R3/R4
+pin comparisons. The already-registered
+`linux.x11-owner-private-evidence-independent-connection-pinning-denials`
+and new frame/ACK reconnect CTest both exercise this path. The initial
+`2af040ae` is not accepted test evidence; exact corrective SHA
+focused/full hosted CI remains PENDING. Connector-local CTest NOT RUN.
+
+
 Starting source `1d95156ea4fd1d1c5a20f4e3754570b44d504299`.
 Existing private v2 could claim first frame or matching ACK with capture
 generations alone; independent pins omitted R10 listener, R2 admission,

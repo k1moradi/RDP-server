@@ -230,6 +230,60 @@ public:
             &deploymentPolicy,
         std::span<const std::uint8_t> completeTpkt) noexcept;
 
+    // One revocable post-Share classification; no readiness/view observation
+    // transfers ownership of protected input, clipboard or Graphics actions.
+    [[nodiscard]] bool authorizeR3ApplicationTrafficReady(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpPostShareTpktRoute
+    classifyR3PostShareTpkt(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpClipboardStaticChannelView>
+    authorizeR3ActivatedClipboardChannel(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpClipboardChunkIntake
+    authorizeR3ClipboardTpkt(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt,
+        std::span<const std::uint8_t> &completePdu) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    queueR3ClipboardPdu(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completePdu) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpClipboardStaticChannelWriteView>
+    pendingR3ClipboardWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpClipboardWriteOutcome
+    completeR3ClipboardWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t generation, std::uint64_t replySequence,
+        std::uint64_t writeSliceSequence, std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpSlowPathInputPdu>
+    routeR3SlowPathInputPdu(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+    [[nodiscard]] std::optional<std::uint16_t>
+    authorizeR3ActivatedDynamicVirtualChannel(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+
     // Read-only preflight, never a transfer of R3 mutation authority.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         rdp_server::server::transport::McsSessionLifecycle &session,

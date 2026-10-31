@@ -1,3 +1,20 @@
+## R2 protected macOS post-Share and clipboard fail-closed scope (2026-10-31)
+
+Only the existing `MacConsoleAdmissionBroker` can issue R3 private
+application-ready, post-Share classification, activated static clipboard
+channel, incoming clipboard VC fragments, outgoing CLIPRDR PDU/borrow/receipt,
+protected slow-path input or activated dynamic channel resolution.
+Each operation runs within a fresh exact-generation/native/proof/consent
+visitor, deriving HYBRID provenance from the original R1 owner, and retires
+R1/R3 on rejection. An outbound CLIPRDR receipt consumes only the exact
+R3 generation/reply/slice tuple and R1-accepted byte count. Input requires
+`kConsoleInputPermission`. **Clipboard is intentionally fail-closed**:
+the current `kNativeDesktopAuthorizationPermissions` allows only View/Input
+and cannot mint `kConsoleClipboardPermission`; no private clipboard
+operation is positive until an independently reviewed original owner-consent
+and native scope exists. The completed PDU borrowed span is cleared unless
+the original visitor revalidates after R3 intake.
+
 ## R2 callback return type must preserve positive Client Info (2026-10-31)
 
 The macOS broker's Client Info checked-visitor returns

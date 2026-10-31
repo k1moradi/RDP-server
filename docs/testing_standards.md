@@ -1,3 +1,16 @@
+## R2 protected macOS post-Share premature-call and clipboard scope denials (2026-10-31)
+
+`security.native-authorization-macos-console-protected-post-share-revocation-denials`
+reuses the real R2 broker without a product-valid native or TLS lease to
+deny premature application readiness, post-Share classification, CLIPRDR
+route/fragment/write/receipt, protected slow-path input and dynamic-channel
+resolution. It asserts zero retained completed-PDU view and R1/R3 terminal
+revocation. The fixture prepares View-only deliberately: macOS native
+authorization does not yet support explicit Clipboard permission, so no
+positive clipboard routing/Share shortcut is allowed. A production-owned
+real-TLS positive completion and callback-time native loss test remains
+mandatory and separate.
+
 ## R2 Client Info callback compile and terminal replay correction (2026-10-31)
 
 Hosted Ubuntu/macOS protocol compilation of `2b348139` reported the

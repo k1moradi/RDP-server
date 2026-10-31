@@ -1090,6 +1090,63 @@ void testMacConsoleProtectedMacDemandShareDenials()
     }
 }
 
+// Post-Share endpoints cannot be re-entered by a Prepared-only owner. The
+// native/transport/consent grant is never inferred from packet syntax.
+void testMacConsoleProtectedPostShareRevocationDenials()
+{
+    using namespace rdp_server::server::transport;
+    rdp_server::server::runtime::RuntimeDeploymentPolicy policy;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3ApplicationTrafficReady(
+            session, policy));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        const auto route = fixture.broker.classifyR3PostShareTpkt(
+            session, policy, {});
+        assert(route.kind == RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
+        assert(session.phase() == McsSessionPhase::Closed);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        // Clipboard remains outside the current macOS native permission mask.
+        // A valid View-only preparation cannot promote it to native authority.
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        std::span<const std::uint8_t> completePdu{};
+        assert(!fixture.broker.authorizeR3ActivatedClipboardChannel(
+            session, policy));
+        assert(fixture.broker.authorizeR3ClipboardTpkt(
+                   session, policy, {}, completePdu) ==
+               RdpClipboardChunkIntake::Rejected);
+        assert(completePdu.empty());
+        assert(!fixture.broker.queueR3ClipboardPdu(session, policy, {}));
+        assert(!fixture.broker.pendingR3ClipboardWrite(session, policy));
+        assert(fixture.broker.completeR3ClipboardWrite(
+                   session, policy, 1U, 1U, 1U, 0U) ==
+               RdpClipboardWriteOutcome::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission | kConsoleInputPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.routeR3SlowPathInputPdu(
+            session, policy, {}));
+        assert(!fixture.broker.authorizeR3ActivatedDynamicVirtualChannel(
+            session, policy));
+        assert(session.phase() == McsSessionPhase::Closed);
+    }
+}
+
 void testMacConsoleProtectedIssuerPrematureReceipts()
 {
     using namespace rdp_server::server::transport;
@@ -1204,6 +1261,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-mac-demand-share-denials")
     {
         testMacConsoleProtectedMacDemandShareDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-post-share-revocation-denials")
+    {
+        testMacConsoleProtectedPostShareRevocationDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

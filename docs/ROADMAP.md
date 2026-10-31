@@ -1,3 +1,18 @@
+## R2 macOS post-Share protected channel first increment (2026-10-31)
+
+The existing noncopyable broker now wraps all R3 private post-Share
+application readiness/classification, static CLIPRDR input/output/receipts,
+slow-path Input and static DRDYNVC channel resolution inside independently
+fresh original native authorization/proof/consent/SSL generation visits.
+Unsupported macOS Clipboard native permission is explicitly terminal
+fail-closed; it does not become authority from Share or a View-only token.
+Dedicated offline premature/callback-time revocation denial CTest added,
+without inventing a physical macOS lease. Remaining R2 P0 is Graphics
+DVC/ACK/resize/frame publication, a real accepted TLS/CredSSP positive R1
+completion and subsequent authority loss/partial receipt fixture. R10
+must preserve one TLS reader/writer and borrowed broker lifetime.
+Exact publication SHA CI PENDING; local CTest NOT RUN.
+
 ## R8 qualification resumes after R2 compile repair (2026-10-31)
 
 Parent `ec261416f13b2eaa9530f27ff6245a1e56c824e2` resolves the shared R2 macOS Client Info compile blocker.

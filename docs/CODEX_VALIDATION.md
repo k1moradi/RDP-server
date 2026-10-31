@@ -1,3 +1,18 @@
+## R2 post-Share/protected-input/clipboard first increment (2026-10-31)
+
+Original R2 now protects R3 application-ready, post-Share classification,
+activated CLIPRDR route, incoming PDU, outbound PDU/write/receipt, slow-path
+input and DRDYNVC static route, with immediate original-generation/native
+visitor checks and per-receipt exact accepted R1 bytes. Clipboard remains
+**fail-closed** because current native permission binding is View/Input only:
+do not synthesize a Clipboard grant, and use View-only in the offline
+denial fixture. Added dedicated production-broker ordinary CTest; no
+positive native lease or new TLS reader. Connector-local canonical
+build/focused/full CTest, sanitizer and benchmark **NOT RUN**.
+Publication-SHA hosted CI **PENDING**. Remaining R2: Graphics DVC/ACK/
+resize/frame publication and accepted production R1 TLS positive/callback
+revocation/partial receipt fixture; R10 serial owner composition.
+
 ## R8 workflow syntax correction before qualification (2026-10-31)
 
 The first selector publication `c0e518c48d5f81c8479d9bfa0aacf8066f6df402`

@@ -1,3 +1,15 @@
+## R8 terminalization callback regression build contract (2026-10-30)
+
+The two native file-destination implementations and their existing
+cross-platform injected-operation CTest executables receive only scoped
+finalization checks and two behavior modes. No new library, target, OS file,
+clipboard, build root or live activation is introduced. R9's explicit
+clipboard sanitizer inventory preserves its previous 107 cases and adds two,
+for 109 selected cases. Keep C++23 strict warnings and the sole canonical
+`~/rdp-server/build/` root. Local build/full CTest and sanitizer:
+**NOT RUN** (approved checkout unavailable in connector environment);
+exact-publication SHA hosted validation **PENDING**.
+
 ## R5 Linux/X11 owner-private evidence offline delivery (2026-10-30)
 
 The Python standard-library validator and offline unittest are registered

@@ -120,14 +120,20 @@ void WindowsClipboardFileDestination::closeDestination() noexcept
     {
         return;
     }
-    nativeOperations_.closeFile(
-        nativeOperations_.context, destinationHandle_);
+    // Detach the owned duplicate before calling out. A synchronous native
+    // close callback may revoke the source and re-enter destination cleanup.
+    const WindowsClipboardFileHandleToken ownedToken = destinationHandle_;
     destinationHandle_ = 0U;
+    nativeOperations_.closeFile(
+        nativeOperations_.context, ownedToken);
 }
 
 void WindowsClipboardFileDestination::discardPartial(
     const Status terminalStatus) noexcept
 {
+    // Terminal state precedes native callbacks so their synchronous
+    // generation notifications cannot recursively truncate/close this owner.
+    status_ = terminalStatus;
     bool discarded = true;
     if (destinationHandle_ != 0U)
     {
@@ -162,23 +168,50 @@ bool WindowsClipboardFileDestination::ensureSourceCurrent() noexcept
 
 bool WindowsClipboardFileDestination::finishComplete() noexcept
 {
-    if (destinationHandle_ == 0U || !expectedSizeKnown_ ||
-        bytesWritten_ != expectedSize_)
+    if (destinationHandle_ == 0U ||
+        !expectedSizeKnown_ || bytesWritten_ != expectedSize_)
     {
         discardPartial(Status::ProtocolError);
         return false;
     }
-    if (!nativeOperations_.resizeFile(
-            nativeOperations_.context,
-            destinationHandle_, expectedSize_) ||
-        !nativeOperations_.flushFile(
-            nativeOperations_.context, destinationHandle_))
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+
+    // Resize, flush and close are distinct synchronous callback boundaries.
+    // A successful write check is not terminal publication authority.
+    const bool resized = nativeOperations_.resizeFile(
+        nativeOperations_.context, destinationHandle_, expectedSize_);
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+    if (!resized)
+    {
+        discardPartial(Status::NativeError);
+        return false;
+    }
+
+    const bool flushed = nativeOperations_.flushFile(
+        nativeOperations_.context, destinationHandle_);
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+    if (!flushed)
     {
         discardPartial(Status::NativeError);
         return false;
     }
 
     closeDestination();
+    // A reentrant close notification cannot make a retired generation
+    // Complete. The duplicate is already closed; no local path is published.
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
     activeRequest_ = {};
     status_ = Status::Complete;
     return true;

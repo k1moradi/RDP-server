@@ -236,6 +236,46 @@ client was used.
 
 ## R8 FileContents destination write-time generation retirement (2026-10-30)
 
+**R8 terminalization follow-up (2026-10-30; source audit):** Mac and Windows
+finishComplete() may synchronously reenter RemoteTransfer generation changes
+from the final resize, flush or close boundary after the previously qualified
+write-time check. The correction revalidates exact generation/source epoch
+after each callback, terminalizes before recursive cleanup, detaches the native
+duplicate before close, and never reports Complete or exposes a local path for
+a replaced source. A close-time replacement cannot retroactively truncate
+an already-closed duplicate; local publication remains denied. Two separate
+portable fake-native CTests exercise current-source completion and all three
+replacement boundaries, without host files or clipboard. R9 explicit
+clipboard sanitizer selector retains its 107 existing names plus two new
+ones (expected 109); 109 is not the prior owner's unrelated broad label count.
+Canonical local build/CTest/sanitizer **NOT RUN** (connector-only environment);
+hosted exact-SHA evidence **PENDING**, so no claimed PASS for the new cases.
+Linux direct pwrite/fsync is unchanged; production activation remains false.
+
+**R8 -> R10 dormant activation contract (written, not permission):** R10 alone
+owns the accepted client, live R1 TCP/TLS writer, R2 genuine authenticated
+native admission lease and protected visitor, R3 Share/GraphicsReady lifecycle
+and route/writer receipts. Never construct or invoke R8 merely because a GUI
+Sharing switch, configured Username, CredentialsVerified or a synthetic fixture
+exists. On ShareActivated + GraphicsReady, R10 must freshly revalidate the
+same R2 lease and exact joined cliprdr static channel (user ID, channel ID,
+route generation), then let the dormant bridge stage server CB_CLIP_CAPS;
+R3's sole accepted-byte writer must deliver it before CB_MONITOR_READY.
+Client capabilities/optional temporary directory and initial Format List
+must be admitted in protocol order, with the initial CB_FORMAT_LIST_RESPONSE
+fully Delivered before any server-local generation/Format List publication.
+Every later local generation invalidates the prior borrowed route observation
+and requires a fresh R2/R3 protected route visit; R3 remains sole owner of
+queued write slices and (routeGeneration, replySequence, writeSliceSequence,
+acceptedBytes) receipts. Any missing/partial/uncertain receipt, lost Share,
+R2 revocation, remote/local clipboard ownership replacement, reconnect or
+Stop retires the exact route and late callbacks; never mint R2 admission from
+R8 or publish native clipboard bytes without current R2 + Share + R3 authority.
+Keep `kLinuxProductionClipboardActivationApproved = false` until R10/R9
+separately qualify and the owner explicitly approves physical activation.
+
+
+
 Close the next transfer-layer gap after initialization: a FileContents RANGE
 response may be fully correlated to the outstanding stream, yet the remote
 clipboard source can be replaced synchronously while the native destination

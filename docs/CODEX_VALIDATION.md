@@ -1,3 +1,35 @@
+## R8 terminal FileContents callback reentrancy authoring (2026-10-30)
+
+- Parent SHA: `871c2d34ff5d40344b262483a02c96613cf9c10a`. Audit of current macOS/Windows finishComplete()
+  found the unchecked final resize/flush/close callback gap after the
+  already-qualified post-write authority check. Source-level counterexample:
+  injected callback replaces RemoteTransfer generation and calls
+  onRemoteGenerationChanged(); prior outer finishComplete() still assigned
+  Complete after callback return, and close could reenter cleanup before
+  clearing the owned token. No preexisting regression covered this boundary.
+- Minimal production correction: check generation/source epoch before and
+  after each terminal callback, mark terminal status before cleanup callbacks,
+  and detach owned native token before close. Replacement during resize/flush
+  truncates the duplicate; close callback replacement denies completion and
+  local path publication without pretending already-closed storage can be
+  reopened for truncate.
+- Two ordinary production-backed fake-native CTests (macOS/Windows) separately
+  cover current-owner success and resize/flush/close replacement with
+  reentrant notification. Existing write-time regressions unchanged.
+  R9 exact sanitizer inventory 107 -> 109; preserve the original 107.
+- Linux direct pwrite/fsync is owner-thread synchronous with no injected
+  native reentrant callbacks; unchanged. Single-flight Format Data and
+  FileContents requests, monotonic bounded stream IDs, 64 KiB RANGE,
+  checked offsets/sizes, bounded PNG/DIBV5 conversion, remote-name/path
+  separation and R3-only route/accepted-byte receipt ownership: source audit
+  only, no permission changes. R10 activation contract recorded in ROADMAP;
+  `kLinuxProductionClipboardActivationApproved` remains false.
+- Source/registration review: **PASS by inspection**; local configure,
+  compile, focused/full CTest, ASan/UBSan and benchmark: **NOT RUN**.
+  Exact-publication SHA hosted CI: **PENDING** until verified artifacts.
+  Real clipboard, filesystem copy, native desktop and physical clients:
+  **NOT RUN / unauthorized**.
+
 ## R5 direct-main owner-private Linux/X11 evidence reconciliation (2026-10-30)
 
 - Compared PR #39 head `e496230a269c87fac5f151ddbed38c44a3472273`

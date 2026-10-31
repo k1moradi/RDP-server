@@ -4396,6 +4396,7 @@ foreach(case_name IN ITEMS
         macos-file-destination-size-cancel
         macos-file-destination-destructor-retirement
         macos-file-destination-write-generation-replacement
+        macos-file-destination-finalization-generation-replacement
         macos-file-destination-denials
         macos-completed-file-url-handoff
         macos-completed-multi-file-url-handoff)
@@ -4462,6 +4463,7 @@ foreach(case_name IN ITEMS
         windows-file-destination-size-cancel
         windows-file-destination-destructor-retirement
         windows-file-destination-write-generation-replacement
+        windows-file-destination-finalization-generation-replacement
         windows-file-destination-denials
         windows-completed-file-hdrop-handoff
         windows-completed-multi-file-hdrop-handoff

@@ -1,3 +1,21 @@
+## R8 macOS/Windows file terminalization callback authority (2026-10-30)
+
+Ordinary production-backed portable CTests
+`clipboard.macos-file-destination-finalization-generation-replacement` and
+`clipboard.windows-file-destination-finalization-generation-replacement`
+exercise genuine destination finishComplete() against injected native
+resize/flush/close callbacks. A current source completes exactly once;
+replacing the generation in any finalization callback, including synchronous
+onRemoteGenerationChanged() reentry, must deny Complete and any completed
+local URL/path; resize/flush replacements must truncate the owned duplicate,
+and all replacements must close it exactly once. Close-time revocation cannot
+reopen a duplicate to truncate after native close; assert terminal denial and
+single close, not a fictitious rollback. This is separate from both existing
+write-time replacement cases. Add both behavior names to the R9 clipboard
+ASan/UBSan selector, preserving all 107 prior cases and updating its expected
+inventory to 109. Focused/full hosted execution at publication SHA must be
+recorded separately; source review is not a test PASS.
+
 ## R5 offline Linux X11 owner-private evidence contradiction CTest (2026-10-30)
 
 Run `linux.x11-owner-private-evidence-validation-denials` from the one shared

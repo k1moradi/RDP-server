@@ -234,6 +234,31 @@ struct FakeNative final
     bool closed{};
     RemoteTransfer *replaceSourceOnWrite{};
 
+    enum class FinalizationCallback : std::uint8_t
+    {
+        None, Resize, Flush, Close,
+    };
+    FinalizationCallback replaceOnFinalization{FinalizationCallback::None};
+    RemoteTransfer *finalizationOwner{};
+    WindowsClipboardFileDestination *finalizationDestination{};
+
+    void replaceSourceDuringFinalization(
+        const FinalizationCallback boundary) noexcept
+    {
+        if (replaceOnFinalization != boundary || finalizationOwner == nullptr)
+        {
+            return;
+        }
+        replaceOnFinalization = FinalizationCallback::None;
+        const std::array<std::uint32_t, 1> replacement{
+            rdp_server::clipboard::kFormatUnicodeText};
+        if (finalizationOwner->receiveFormatList(replacement) &&
+            finalizationDestination != nullptr)
+        {
+            finalizationDestination->onRemoteGenerationChanged();
+        }
+    }
+
     static bool duplicate(
         void *context, WindowsClipboardFileHandleToken source,
         WindowsClipboardFileHandleToken &owned) noexcept
@@ -265,6 +290,11 @@ struct FakeNative final
         try
         {
             self.bytes.resize(static_cast<std::size_t>(size));
+            if (self.resizeCalls > 1U)
+            {
+                self.replaceSourceDuringFinalization(
+                    FinalizationCallback::Resize);
+            }
             return true;
         }
         catch (...)
@@ -325,7 +355,12 @@ struct FakeNative final
     {
         auto &self = *static_cast<FakeNative *>(context);
         ++self.flushCalls;
-        return !self.failFlush && token == self.ownedToken;
+        const bool succeeded = !self.failFlush && token == self.ownedToken;
+        if (succeeded)
+        {
+            self.replaceSourceDuringFinalization(FinalizationCallback::Flush);
+        }
+        return succeeded;
     }
 
     static void close(
@@ -336,6 +371,7 @@ struct FakeNative final
         ++self.closeCalls;
         assert(token == self.ownedToken);
         self.closed = true;
+        self.replaceSourceDuringFinalization(FinalizationCallback::Close);
     }
 
     [[nodiscard]] WindowsClipboardFileNativeOperations
@@ -670,6 +706,79 @@ void windowsFileDestinationWriteGenerationReplacement()
     assert(native.closeCalls == 1U);
     assert(native.closed);
     assert(native.replaceSourceOnWrite == nullptr);
+}
+
+void windowsFileDestinationFinalizationGenerationReplacement()
+{
+    using FinalizationCallback = FakeNative::FinalizationCallback;
+    constexpr std::array boundaries{
+        FinalizationCallback::None,
+        FinalizationCallback::Resize,
+        FinalizationCallback::Flush,
+        FinalizationCallback::Close,
+    };
+
+    for (const FinalizationCallback boundary : boundaries)
+    {
+        RemoteTransfer owner;
+        installSingleFileOffer(owner, u"finalization.bin", true, 4U);
+        FakeNative native;
+        WindowsClipboardFileDestination destination{owner, native.operations()};
+        assert(destination.begin(0, native.sourceToken, u"C:\\selected-destination.bin"));
+
+        const auto intent = destination.nextRequestIntent();
+        assert(intent && intent->requestedBytes == 4U);
+        std::vector<std::uint8_t> request;
+        const auto receipt = owner.beginFileRangeRequest(
+            intent->fileIndex, intent->offset, intent->requestedBytes,
+            request);
+        assert(receipt);
+        assert(destination.bindRequest(*receipt));
+        const auto bytes = makeChunk(0U, 4U);
+        const auto wire = fileContentsResponsePdu(
+            rdp_server::clipboard::kResponseOk, receipt->streamId, bytes);
+        const auto result = owner.receiveFileContentsResponse(wire);
+        assert(result.status ==
+               RemoteTransfer::FileContentsStatus::ReceivedRange);
+
+        const std::uint64_t startingGeneration = owner.generation();
+        native.replaceOnFinalization = boundary;
+        native.finalizationOwner = &owner;
+        native.finalizationDestination = &destination;
+        const bool accepted = destination.acceptResult(result);
+        const bool expectedSuccess = boundary == FinalizationCallback::None;
+        assert(accepted == expectedSuccess);
+        assert(destination.bytesWritten() == 4U);
+        assert(native.closeCalls == 1U);
+        assert(native.closed);
+        assert(!destination.active());
+        if (expectedSuccess)
+        {
+            assert(owner.generation() == startingGeneration);
+            assert(destination.status() == WindowsClipboardFileDestination::Status::Complete);
+            assert(destination.completedFilePath().has_value());
+            assert(native.bytes.size() == 4U);
+        }
+        else
+        {
+            assert(owner.generation() > startingGeneration);
+            assert(destination.status() ==
+                   WindowsClipboardFileDestination::Status::SourceReplaced);
+            assert(!destination.completedFilePath());
+            assert(native.replaceOnFinalization ==
+                   FinalizationCallback::None);
+            if (boundary != FinalizationCallback::Close)
+            {
+                // The owned duplicate was still open for rollback.
+                assert(native.bytes.empty());
+            }
+            // Close callbacks cannot reopen an already-closed duplicate;
+            // the terminal status nevertheless prevents local publication.
+        }
+        destination.onRemoteGenerationChanged();
+        destination.cancel();
+        assert(native.closeCalls == 1U);
+    }
 }
 
 void windowsFileDestinationDenials()
@@ -1196,6 +1305,11 @@ int main(int argc, char **argv)
     if (behavior == "windows-file-destination-write-generation-replacement")
     {
         windowsFileDestinationWriteGenerationReplacement();
+        return 0;
+    }
+    if (behavior == "windows-file-destination-finalization-generation-replacement")
+    {
+        windowsFileDestinationFinalizationGenerationReplacement();
         return 0;
     }
     if (behavior == "windows-file-destination-denials")

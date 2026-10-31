@@ -1,3 +1,19 @@
+## R8 native FileContents terminalization callback authority (2026-10-30)
+
+After the existing post-write generation/epoch fence, the macOS and Windows
+file destinations must revalidate the same exact synchronized RemoteTransfer
+authority after final resize, flush and close callbacks before publishing
+Complete. Fail closed as SourceReplaced, even when an injected finalization
+callback synchronously calls onRemoteGenerationChanged(). Terminal cleanup
+marks status before callback entry, and close detaches its owned duplicate
+before invoking the native closer, preventing recursive cleanup and double
+close. If revocation occurs inside close, the duplicate may already be closed:
+never reopen an owner-selected path or claim rollback after close; suppress
+completed local URL/path handoff instead. No change to Linux thread-affine
+direct pwrite/fsync, R2/R3 authorization, file path provenance or live R8
+activation. The offline fake-native tests cover success and resize/flush/close
+replacement without host file or clipboard access.
+
 ## R5 Linux/X11 private acceptance evidence never grants authority (2026-10-30)
 
 The owner-private Linux X11 manifest is a closed schema of copied scalar

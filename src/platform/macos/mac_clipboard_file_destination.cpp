@@ -118,14 +118,20 @@ void MacClipboardFileDestination::closeDestination() noexcept
     {
         return;
     }
-    nativeOperations_.closeFile(
-        nativeOperations_.context, destinationDescriptor_);
+    // Detach the owned duplicate before calling out. A synchronous native
+    // close callback may revoke the source and re-enter destination cleanup.
+    const MacClipboardFileDescriptorToken ownedToken = destinationDescriptor_;
     destinationDescriptor_ = kInvalidMacClipboardFileDescriptor;
+    nativeOperations_.closeFile(
+        nativeOperations_.context, ownedToken);
 }
 
 void MacClipboardFileDestination::discardPartial(
     const Status terminalStatus) noexcept
 {
+    // Terminal state precedes native callbacks so their synchronous
+    // generation notifications cannot recursively truncate/close this owner.
+    status_ = terminalStatus;
     bool discarded = true;
     if (destinationDescriptor_ != kInvalidMacClipboardFileDescriptor)
     {
@@ -167,17 +173,44 @@ bool MacClipboardFileDestination::finishComplete() noexcept
         discardPartial(Status::ProtocolError);
         return false;
     }
-    if (!nativeOperations_.resizeFile(
-            nativeOperations_.context,
-            destinationDescriptor_, expectedSize_) ||
-        !nativeOperations_.flushFile(
-            nativeOperations_.context, destinationDescriptor_))
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+
+    // Resize, flush and close are distinct synchronous callback boundaries.
+    // A successful write check is not terminal publication authority.
+    const bool resized = nativeOperations_.resizeFile(
+        nativeOperations_.context, destinationDescriptor_, expectedSize_);
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+    if (!resized)
+    {
+        discardPartial(Status::NativeError);
+        return false;
+    }
+
+    const bool flushed = nativeOperations_.flushFile(
+        nativeOperations_.context, destinationDescriptor_);
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
+    if (!flushed)
     {
         discardPartial(Status::NativeError);
         return false;
     }
 
     closeDestination();
+    // A reentrant close notification cannot make a retired generation
+    // Complete. The duplicate is already closed; no local path is published.
+    if (!ensureSourceCurrent())
+    {
+        return false;
+    }
     activeRequest_ = {};
     status_ = Status::Complete;
     return true;

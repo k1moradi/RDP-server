@@ -238,7 +238,7 @@ MS-RDPBCGR OSMAJORTYPE_OSX with unspecified minor; Linux/X11 exact wire stays
 unchanged. PersonalDesktop remains no-CAL only after genuine native Admission.
 
 Dedicated ordinary offline CTest
-`transport.mcs-macos-r2-private-gateway-generation-denials` is outside the
+`transport.mcs-macos-private-admission-generation-denials` is outside the
 fixed 171-case MCS table and proves public denial plus zero/partial receipt and
 stale-generation rejection without fabricating native proof. The concurrent R4
 delivered-frame-retirement regression remains a separate ordinary CTest, not a

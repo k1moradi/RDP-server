@@ -1,7 +1,7 @@
 ## R3 macOS private-entry generation denial gate (2026-10-30)
 
 Register
-`transport.mcs-macos-r2-private-gateway-generation-denials` as an ordinary
+`transport.mcs-macos-private-admission-generation-denials` as an ordinary
 production-linked offline CTest outside the fixed 171-case MCS table. Its
 R2-scoped `MacConsoleAdmissionR3TestAccess` fixture may invoke the same private
 R3 methods as the concrete broker but fabricates no macOS native proof. It must

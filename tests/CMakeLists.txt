@@ -2100,7 +2100,7 @@ else()
         -Wall -Wextra -Wpedantic -Werror)
 endif()
 set_tests_properties(
-    transport.mcs-macos-r2-private-gateway-generation-denials
+    transport.mcs-macos-private-admission-generation-denials
     PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
 # R3 canonical production Demand Active profile. These cases are pure offline

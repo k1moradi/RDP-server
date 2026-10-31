@@ -1,3 +1,16 @@
+## R5 RandR retains the admitted XTEST owner without cleanup input (2026-10-31)
+
+A RandR screen-geometry change does not replace the admitted XCB/root input
+authority. Rebuild only geometry-bound capture, damage and optional pointer
+observation; keep the existing XTEST controller and update its pointer bounds
+without an X request. Preserve held key/button bookkeeping so a later explicit
+remote release remains attributable to the same owner. Never call graceful
+held-input cleanup from the RandR callback interval: native authority may
+change after the surrounding R2 precheck and before its postcheck. Terminal
+failure or authorization loss still discards held bookkeeping with zero XTEST
+cleanup. This also avoids repeating XTEST version and keyboard/modifier mapping
+queries on every resize.
+
 ## R10 macOS noexcept allocation-failure retirement boundary (2026-10-31)
 
 Serialized HostControl scheduler methods declared `noexcept` must not allow

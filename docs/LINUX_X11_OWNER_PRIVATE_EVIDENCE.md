@@ -288,7 +288,11 @@ Retire input, optional XI2 pointer observer, XDamage, XShm and cursor
 children before the sole XCB connection; only then release the
 R3/R2/authentication aggregate and sole R1 TLS socket, followed by the
 listener. A graceful held-input release is permissible only while native
-authorization is still current. Never retain borrowed pixel spans or
+authorization is still current. RandR is **not** such a release boundary:
+it preserves the same admitted XTEST owner and held-state bookkeeping while
+updating pointer bounds; only capture/damage/pointer geometry children are
+replaced. This prevents resize-time cleanup XTEST from racing native
+authorization loss between R10's surrounding R2 checks. Never retain borrowed pixel spans or
 XCB event references across callback return. Replacement must create
 a fresh R2 lease and capture generation.
 

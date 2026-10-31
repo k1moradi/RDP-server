@@ -243,6 +243,21 @@ X11InputController::failureReason() const noexcept
 }
 
 bool
+X11InputController::updateBounds(PixelSize bounds) noexcept
+{
+    if (!valid() || bounds.widthPixels == 0 || bounds.heightPixels == 0)
+    {
+        return false;
+    }
+
+    // Same XCB/root owner and keyboard mapping: only future pointer coordinate
+    // clipping changes. Preserve held input so RandR cannot synthesize cleanup
+    // releases between R2 authorization checks.
+    bounds_ = bounds;
+    return true;
+}
+
+bool
 X11InputController::handle(const X11InputEvent &event) noexcept
 {
     if (!valid())

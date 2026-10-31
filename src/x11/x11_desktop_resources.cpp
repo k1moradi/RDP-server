@@ -756,9 +756,28 @@ X11DesktopResources::rebuildGeometryBoundResources(
         return false;
     }
 
-    // Commit-or-revoke transaction: no public call can observe the interval
-    // between old-generation cancellation and complete new construction.
-    cancelGeometryBoundResources();
+    // RandR does not replace the admitted XCB/root input owner. Retain the
+    // XTEST controller and its held-state bookkeeping; releasing/recreating it
+    // here could post cleanup input after native authority changed between the
+    // surrounding R2 checks. Geometry-only children are safe to replace.
+#if defined(RDP_SERVER_X11_XINPUT_POINTER)
+    if (pointerPosition_)
+    {
+        pointerPosition_->disconnect();
+    }
+#endif
+    pointerPosition_.reset();
+    if (damage_)
+    {
+        damage_->disconnect();
+        damage_.reset();
+    }
+    if (capture_)
+    {
+        capture_->disconnect();
+        capture_.reset();
+    }
+    resourceGeometry_ = {};
 
     capture_.emplace(*connection, display_.rootWindow(), display_.rootVisual(),
                      display_.rootDepth(), geometry, maximumCapturePixels_);
@@ -777,10 +796,10 @@ X11DesktopResources::rebuildGeometryBoundResources(
         return false;
     }
 
-    input_.emplace(*connection, display_.rootWindow(), geometry);
-    if (!input_->valid())
+    if (!input_ || !input_->updateBounds(geometry))
     {
-        fail(input_->failureReason());
+        fail(input_ ? input_->failureReason()
+                    : "X11 input owner is unavailable during resize");
         cancelNativeResources();
         return false;
     }

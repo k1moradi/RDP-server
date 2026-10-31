@@ -4325,6 +4325,13 @@ if(TARGET rdp-server-linux-xtest-input)
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
                 $<TARGET_FILE:test_x11_native_input>
                 destructor-held-input-release)
+        # RandR keeps one admitted XTEST owner. This distinct production-gap
+        # regression stays outside the fixed 45-case native sanitizer selector.
+        add_test(NAME x11.input-randr-bounds-update-held-state-no-cleanup
+            COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
+                "-screen 0 1280x720x24 -nolisten tcp -noreset"
+                $<TARGET_FILE:test_x11_native_input>
+                randr-bounds-update-preserves-held-state)
         add_test(NAME x11.input-native-keyboard-sequence-and-reconnect
             COMMAND "${RDP_SERVER_XVFB_RUN_EXECUTABLE}" -a -s
                 "-screen 0 1280x720x24 -nolisten tcp -noreset"
@@ -4347,6 +4354,7 @@ if(TARGET rdp-server-linux-xtest-input)
                 pointer-button-owner-held-transitions)
         set_tests_properties(
             x11.input-native-destructor-held-input-release
+            x11.input-randr-bounds-update-held-state-no-cleanup
             x11.input-native-authority-retirement-no-native-post
             x11.input-native-keyboard-sequence-and-reconnect
             x11.input-native-keyboard-logout-no-native-post

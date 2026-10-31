@@ -28,6 +28,10 @@ public:
     // not make or cache an authorization decision of its own.
     [[nodiscard]] bool handle(const X11InputEvent &event) noexcept;
 
+    // RandR keeps the same XCB/root/input authority. Updating pointer bounds
+    // must not emit XTEST or discard held key/button bookkeeping.
+    [[nodiscard]] bool updateBounds(PixelSize bounds) noexcept;
+
     // Graceful retirement while input authority is still current: release held
     // native state before invalidating the borrowed XCB owner.
     void disconnect() noexcept;

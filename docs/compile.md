@@ -1,3 +1,13 @@
+## R5 RandR input-owner retention build scope (2026-10-31)
+
+The change reuses the existing Linux XCB/XTEST desktop and native-input targets;
+no dependency, worker, listener or build root is added. In the canonical
+`~/rdp-server/build/`, run
+`ctest --test-dir build -C Debug -R '^x11[.]input-randr-bounds-update-held-state-no-cleanup$' --output-on-failure`,
+then full Debug/Release CTest. Run the unchanged R9 native X11 sanitizer
+selector separately and require exactly **45/45**; the new focused test is not
+added to that fixed inventory. Connector-local compile/CTest is NOT RUN.
+
 ## R3/R10 macOS Attach/Confirm composition build boundary (2026-10-31)
 
 The existing `rdp-server-macos-host-control`, R1 transport, R2 broker and R3

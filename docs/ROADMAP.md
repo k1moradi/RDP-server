@@ -796,6 +796,38 @@ Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda84
 
 **Candidate remains BLOCKED pending this change's own full exact-SHA hosted producer matrix and the manual-candidate prerequisites.** The claimed owner Linux 1060/1060 test is **SHA MISSING**, without independent `git rev-parse HEAD`, toolchain/configuration and command receipt. Recover attribution from the existing run if possible; do not infer it. M1 owner-native Linux/X11, Windows CLANG64/Clang23 and macOS27 same-SHA receipts remain **NOT VERIFIED**. Manual gate and physical client tests remain **NOT RUN/unauthorized**. No M1 freeze was nominated. Any later architectural commit resets the candidate.
 
+## R5 RandR input-owner cleanup race — fix authored (2026-10-31)
+
+**Audit parent:** `4e29a77e2735695b956ce9e777ff9bf14e4407d7`.
+The previous evidence increment is source-qualified on
+`3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`: Ubuntu Debug/Release
+**1053/1053 PASS**, Windows Debug/Release **875/875 PASS**, all six
+owner-private evidence tests PASS on macOS too, and R9 native X11 sanitizers
+remain exactly **45/45 PASS**. That SHA's global macOS failure was in the
+R2/R3 buffered-Erect fixture; `586e043d67ff2bd5869356412f05cc2a3697d96e`
+has landed its readiness correction. Later R10 macOS scope/allocation work
+does not modify Linux R5 source, so the dependency no longer blocks this fix.
+
+**Concrete R5 gap:** `X11DesktopResources::rebuildGeometryBoundResources()`
+used graceful geometry cancellation, which disconnected the XTEST controller
+and emitted held-key/button releases. R10 checks R2 immediately before and
+after X11 event service, but lock/logout/seat replacement can occur inside that
+interval. A RandR rebuild could therefore inject cleanup into a desktop whose
+native authority had just changed.
+
+**Fix:** retain the same XTEST controller and held-state owner across RandR;
+update only its pointer bounds without an X request, while replacing XShm,
+XDamage and optional pointer observation and advancing capture generation.
+Terminal failure/native loss still uses suppressing teardown. Dedicated
+`x11.input-randr-bounds-update-held-state-no-cleanup` uses only ephemeral
+Xvfb and stays outside the fixed 45-case sanitizer inventory.
+
+**Validation:** source/test registration review PASS; connector-local build,
+focused/full CTest and publication-SHA CI **NOT RUN/PENDING**. Physical
+seat0/client/capture/XTEST and lock/logout/reconnect remain **NOT RUN /
+unauthorized**. Next R5 gate is exact-SHA hosted qualification plus the manual
+R9 owner-candidate and separate owner permission for every physical stage.
+
 ## R5 original accepted-socket/native-owner reconnect fence — authored (2026-10-31)
 
 **Review base:** `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`. The Linux R2→R3→R10 path and

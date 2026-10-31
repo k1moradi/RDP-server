@@ -1,3 +1,31 @@
+## R5 RandR/XTEST owner-retention audit (2026-10-31)
+
+Reviewed exact parent `4e29a77e2735695b956ce9e777ff9bf14e4407d7`.
+The previous R5 provenance work is independently exercised on
+`3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`: Ubuntu full Debug/Release
+**1053/1053 PASS**, Windows full Debug/Release **875/875 PASS**, all six
+owner-private evidence CTests PASS on Ubuntu/Windows/macOS, and R9's fixed
+native X11 ASan/UBSan selector **45/45 PASS**. The repository-wide run was
+red only at a macOS R2/R3 buffered-Erect fixture; follow-up
+`586e043d67ff2bd5869356412f05cc2a3697d96e` corrected that fixture boundary.
+Later R10 macOS allocation/scope commits do not touch this Linux owner.
+
+A separate R5 source audit found a native race: successful RandR rebuild called
+`cancelGeometryBoundResources()` with graceful input retirement, so
+`X11InputController::disconnect()` could emit held-key/button XTEST releases
+after R10's pre-event R2 check but before its post-event recheck. RandR keeps
+the same XCB/root owner, so those releases are unnecessary and can target a
+newly unauthorized desktop. The production fix retains the existing XTEST
+controller across RandR and updates only its pointer bounds without any native
+request; capture/damage/pointer children still receive fresh geometry
+generations. Failure/authorization-loss teardown remains no-post. The focused
+ephemeral-Xvfb CTest proves held state survives the bounds update until explicit
+release and stays outside the fixed 45-case sanitizer inventory.
+
+Publication-SHA hosted CI, owner-local focused/full CTest and the new focused
+test are **PENDING / NOT RUN**. Physical seat0, real capture/input, lock/logout
+and reconnect remain **NOT RUN / unauthorized**.
+
 ## R9/R10 macOS noexcept allocation-failure review (2026-10-31)
 
 Reviewed parent `5fc73bb9fcd3a332a5f619cfe310f64a8897fa68`. Concurrent R3/R10 work has now advanced the

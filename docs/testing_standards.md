@@ -1,3 +1,16 @@
+## R5 RandR held-input cleanup race regression (2026-10-31)
+
+Dedicated ephemeral-Xvfb CTest
+`x11.input-randr-bounds-update-held-state-no-cleanup` holds one key and one
+button through the production XTEST controller, changes only the controller's
+geometry bounds, and requires native held state to remain unchanged until the
+explicit remote releases arrive. An invalid zero-width update is inert.
+This proves the new no-cleanup bounds-update primitive independently from the
+existing desktop RandR rebuild/generation tests. Keep it **outside** the fixed
+45-case R5 native sanitizer selector; run it separately plus the unchanged
+45/45 selection. No logged-in desktop, R2 lease, listener or physical input is
+used.
+
 ## macOS HostControl allocation-failure fail-closed regression (2026-10-31)
 
 Dedicated offline CTest
@@ -8334,10 +8347,13 @@ logged-in display, or infer R4/RDP delivery from this native lifetime proof.
 
 
 Authority-loss retirement is distinct from graceful disconnect. A graceful
-shutdown or RandR replacement may best-effort release held keys/buttons while
-the same input authority is still current. Once R2/R3 input authority has
-failed, R5 must discard its held-state bookkeeping and invalidate the borrowed
-XCB endpoint without issuing any XTEST request. The dedicated
+shutdown may best-effort release held keys/buttons only while the same input
+authority is still current. **RandR replacement is not a cleanup boundary**:
+it retains the admitted XTEST controller, updates only pointer bounds and must
+not emit releases, because authority can change between R10's surrounding R2
+checks. Once R2/R3 input authority has failed, R5 must discard its held-state
+bookkeeping and invalidate the borrowed XCB endpoint without issuing any XTEST
+request. The dedicated
 `x11.input-native-authority-retirement-no-native-post` fixture uses only a
 fresh Xvfb server: establish controlled held key/button state, snapshot it,
 invoke the production no-post retirement, and require the X server state to

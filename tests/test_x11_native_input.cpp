@@ -191,6 +191,74 @@ destructorHeldInputRelease()
 }
 
 void
+randrBoundsUpdatePreservesHeldState()
+{
+    const char *display = std::getenv("DISPLAY");
+    assert(display != nullptr && display[0] != '\0');
+
+    int screenNumber = -1;
+    XcbConnection connection = connectDisplay(display, screenNumber);
+    xcb_screen_t *screen = screenFor(*connection, screenNumber);
+    const PixelSize originalBounds{
+        screen->width_in_pixels, screen->height_in_pixels};
+    const std::array<std::uint8_t, 32> baselineKeys =
+        keymapSnapshot(*connection);
+    const std::uint16_t baselinePointerMask =
+        pointerMask(*connection, screen->root);
+    assert((baselinePointerMask & XCB_BUTTON_MASK_1) == 0U);
+
+    X11InputController input(*connection, screen->root, originalBounds);
+    assert(input.valid());
+    assert(input.handle(X11KeyInput{
+        /*keySymbol=*/0x61U,
+        /*scanCode=*/0x1eU,
+        /*extended=*/false,
+        /*pressed=*/true}));
+    assert(input.handle(X11PointerButtonInput{
+        /*x=*/140,
+        /*y=*/140,
+        /*button=*/1,
+        /*pressed=*/true}));
+
+    const std::array<std::uint8_t, 32> heldKeys =
+        keymapSnapshot(*connection);
+    const std::uint16_t heldPointerMask =
+        pointerMask(*connection, screen->root);
+    assert(heldKeys != baselineKeys);
+    assert((heldPointerMask & XCB_BUTTON_MASK_1) != 0U);
+
+    // Invalid geometry cannot mutate the live owner or release native state.
+    assert(!input.updateBounds({0U, originalBounds.heightPixels}));
+    assert(input.valid());
+    assert(keymapSnapshot(*connection) == heldKeys);
+    assert(pointerMask(*connection, screen->root) == heldPointerMask);
+
+    // A same-owner RandR resize is metadata-only for XTEST. No cleanup
+    // release occurs, and the original held-state owner can consume the
+    // subsequent explicit remote releases against the new bounds.
+    constexpr PixelSize resizedBounds{1024U, 600U};
+    assert(input.updateBounds(resizedBounds));
+    assert(input.valid());
+    assert(keymapSnapshot(*connection) == heldKeys);
+    assert(pointerMask(*connection, screen->root) == heldPointerMask);
+
+    assert(input.handle(X11KeyInput{
+        /*keySymbol=*/0x61U,
+        /*scanCode=*/0x1eU,
+        /*extended=*/false,
+        /*pressed=*/false}));
+    assert(input.handle(X11PointerButtonInput{
+        /*x=*/1000,
+        /*y=*/580,
+        /*button=*/1,
+        /*pressed=*/false}));
+    assert(keymapSnapshot(*connection) == baselineKeys);
+    assert((pointerMask(*connection, screen->root) & XCB_BUTTON_MASK_1) ==
+           (baselinePointerMask & XCB_BUTTON_MASK_1));
+    input.disconnect();
+}
+
+void
 keyboardSequenceAndReconnect()
 {
     const char *display = std::getenv("DISPLAY");
@@ -405,6 +473,11 @@ main(int argc, char **argv)
     if (behavior == "destructor-held-input-release")
     {
         destructorHeldInputRelease();
+        return 0;
+    }
+    if (behavior == "randr-bounds-update-preserves-held-state")
+    {
+        randrBoundsUpdatePreservesHeldState();
         return 0;
     }
     if (behavior == "keyboard-sequence-and-reconnect")

@@ -1,3 +1,15 @@
+## R2 first-MCS protected admission order denial (2026-10-31)
+
+Ordinary production-linked
+`security.native-authorization-macos-console-protected-first-mcs-order-denials`
+exercises the existing broker with an inactive R1 and synthetic proof: R3
+Connect-Initial on Prepared is terminally denied, the new R1 completion attempt
+without live TLS retires both owners, and duplicate attempts cannot revive R3.
+Existing same-permission consent and replaced-connection denials now enter the
+actual R1 completion guard. These are offline negative tests, **not** a
+successful native lease or positive real-TLS completion. Real R1 post-callback
+completion and broker-level positive/partial receipts remain required.
+
 ## R5 independent owner-private connection/consent negative gate (2026-10-31)
 
 Register `linux.x11-owner-private-evidence-independent-connection-pinning-denials`

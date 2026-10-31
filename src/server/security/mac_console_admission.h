@@ -21,6 +21,7 @@ enum class MacConsoleAdmissionState : std::uint8_t
 {
     Ready,
     Prepared,
+    TransportAdmitted,
     Admitted,
     Revoked,
 };
@@ -53,8 +54,8 @@ enum class MacConsoleAdmissionRevocationReason : std::uint8_t
 // R2-owned macOS admission preparation gateway. It owns one native
 // authorization lifetime bound to the exact authenticated proof and accepted
 // R1 connection supplied at construction. Prepared is deliberately not an
-// R1/R3 admitted state until the protected R1 completion and R3 Connect-Initial
-// both succeed inside the original native visitor. All calls are serialized
+// R1/R3 admitted state. R1 completion is protected first; R3 admission
+// requires a later, distinct fresh native visit after the first MCS read. All calls are serialized
 // on the existing host owner thread.
 //
 // The accepted R1 connection, authenticated proof, native evidence source and
@@ -84,8 +85,14 @@ public:
         MacNativeDesktopAuthorizationVisitor visitor,
         void *context) noexcept;
 
-    // Sole positive R1->R3 issuer. Callers cannot supply authority generations,
-    // identity booleans, TLS pointers or a native authorization view.
+    // Finish R1 CredSSP inside the original native/consent visitor before
+    // borrowing even the first MCS byte. This enrolls and binds the one R3
+    // owner for terminal teardown but does not grant R3 protocol progression.
+    [[nodiscard]] bool authorizeR1CredSspAdmission(
+        rdp_server::server::transport::McsSessionLifecycle &session) noexcept;
+
+    // Sole positive R3 Connect-Initial issuer after R1 admission and a fresh
+    // native visit. Callers cannot supply generations, booleans or TLS owners.
     [[nodiscard]] rdp_server::server::transport::McsSessionIntake
     authorizeR3McsConnectInitial(
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -124,6 +131,7 @@ public:
     [[nodiscard]] std::uint64_t admissionGeneration() const noexcept
     {
         return (state_ == MacConsoleAdmissionState::Prepared ||
+                state_ == MacConsoleAdmissionState::TransportAdmitted ||
                 state_ == MacConsoleAdmissionState::Admitted)
             ? admissionGeneration_
             : 0U;

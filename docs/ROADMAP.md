@@ -1,3 +1,24 @@
+## R2 macOS first-MCS permission ordering correction (2026-10-31)
+
+**P0 dependency resolved by this increment:** the previous positive issuer
+required R10 to provide a complete first-MCS TPKT *before* R1 completion,
+contradicting the no-MCS-read-on-Prepared rule. Existing
+`MacConsoleAdmissionBroker` now calls its private R1 completion in a distinct
+native-authorized `authorizeR1CredSspAdmission(session)` step, enrolls the
+same R3 owner for terminal cleanup, and publishes `TransportAdmitted` only
+after fresh original proof/consent/native revalidation. A later independent
+native-authorized `authorizeR3McsConnectInitial(session, completeTpkt)`
+binds original generations after R10 has read the TPKT with fresh R2
+authorization. Failure at either step closes R3 and cancels R1; zero new
+public R3 issuers or TLS readers. Offline first-MCS ordering/double-attempt
+CTest is added, but no real-TLS positive test or physical lease is claimed.
+**Remaining R2 P0:** finish protected Attach/Join, Client Info, personal
+licensing, macOS Demand/Share and post-Share/channel/Graphics wrappers;
+exercise a production R1 TLS successful completion and synchronous authority
+loss after that completion with exact accepted-byte receipts. R10 must preserve
+one reader/writer and never consume MCS under Prepared alone. Canonical local
+build/CTest/sanitizers **NOT RUN** (connector-only); exact-head CI **PENDING**.
+
 ## R6 paired-client anti-splice evidence and exact interop audit (2026-10-30)
 
 **Authoring parent:** `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`. No new R6 physical or hosted qualification
@@ -779,29 +800,6 @@ files, physical clients **NOT RUN / unauthorized**. Benchmark **NOT RUN /
 not applicable**; only cold-path control state changed.
 
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
-
-**R10 prepared-only macOS HostControl composition (2026-10-31):**
-After production `CredentialsVerified`, R10 now owns the concrete
-`MacConsoleAdmissionBroker` prepared with the exact accepted R1 socket,
-R2 proof, genuine macOS native reader and original owner-consent grant.
-Injected synthetic owner evidence never constructs this broker.
-R10 retires it before its borrowed proof/framer, R1 TLS and socket on
-Stop, client disconnect, expired consent or credential retirement.
-This is **not native Admission** and does not read buffered MCS, invoke a
-private R1/R3 positive method, activate Share/GraphicsReady or attach R7.
-New ordinary production-linked negative CTest
-`runtime.macos-host-control-verified-proof-explicit-client-retirement-denials`
-covers explicit client-ID cancellation with Microsoft first MCS queued;
-prior completed CredSSP Stop/consent/native-session tests remain intact.
-MacOS local Debug build/CTest **NOT RUN** (owner checkout unavailable);
-publication-SHA CI **PENDING**, physical clients **NOT RUN**.
-**Dependent integration:** Agent 2 has now published the private
-`authorizeR3McsConnectInitial`, Connect-Response receipt and Erect wrappers;
-R10 still needs their exact-SHA qualification, a single protected R1
-first-MCS reader/writer handoff and new positive/partial-reply revocation
-CTest before it may consume them. Later Share/GraphicsReady and R7
-attachment require independent qualification and explicit authorization.
-
 
 **R10 macOS pre-admission owner-thread increment (authoring, 2026-10-30):**
 The existing macOS HostControl now advances one accepted R1 X.224/HYBRID

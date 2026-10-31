@@ -1,3 +1,18 @@
+## R2 first-MCS sequencing correction (2026-10-31)
+
+Authoring parent: GitHub current `main` at publication time. Source
+contract: R1 private completion now precedes first-MCS read in a distinct,
+original-native-authorized call; later protected R3 Connect-Initial requires
+`TransportAdmitted` and the unchanged original R2 generation pair. A new
+production-linked offline denial CTest checks ordering, refused inactive R1
+TLS, terminal teardown and double call. Existing R2 consent/connection tests
+now exercise the R1 completion preflight. No Linux or R10 runtime edit and no
+synthetic native lease. Connector-local canonical Debug build, full/focused
+CTest, sanitizer and benchmark: **NOT RUN** (approved checkout unavailable and
+network clone DNS unavailable). Publication-SHA hosted CI: **PENDING**.
+Next gates: Attach/Join/Client Info, licensing/Share/channels and a genuine
+accepted R1 TLS positive-completion/post-callback-denial fixture.
+
 ## R5 independently pinned Linux connection and consent audit (2026-10-31)
 
 - R5 X11 capture/input/retirement, R2 native visitor, R10 frame service,

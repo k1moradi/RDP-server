@@ -88,6 +88,7 @@ bool MacConsoleAdmissionBroker::authenticatedConnectionCurrent() const noexcept
 bool MacConsoleAdmissionBroker::preparedAuthenticationCurrent() const noexcept
 {
     return (state_ == MacConsoleAdmissionState::Prepared ||
+            state_ == MacConsoleAdmissionState::TransportAdmitted ||
             state_ == MacConsoleAdmissionState::Admitted) &&
            authenticatedConnectionCurrent() &&
            authenticatedSession_->authenticationGeneration() ==
@@ -213,6 +214,7 @@ bool MacConsoleAdmissionBroker::viewMatchesPreparedLifetime(
     const MacNativeDesktopAuthorizationView &authorization) const noexcept
 {
     return (state_ == MacConsoleAdmissionState::Prepared ||
+            state_ == MacConsoleAdmissionState::TransportAdmitted ||
             state_ == MacConsoleAdmissionState::Admitted) &&
            authorization.authenticationKind() == prepared_.authenticationKind &&
            authorization.permissionMask() == prepared_.permissionMask &&
@@ -246,6 +248,7 @@ bool MacConsoleAdmissionBroker::visitNativeAuthorization(
     if (visitInProgress_)
         return false;
     if ((state_ != MacConsoleAdmissionState::Prepared &&
+         state_ != MacConsoleAdmissionState::TransportAdmitted &&
          state_ != MacConsoleAdmissionState::Admitted) ||
         visitor == nullptr ||
         !validRequiredPermissions(requiredPermissions))
@@ -308,14 +311,77 @@ bool MacConsoleAdmissionBroker::visitNativeAuthorization(
 }
 
 
+bool MacConsoleAdmissionBroker::authorizeR1CredSspAdmission(
+    rdp_server::server::transport::McsSessionLifecycle &session) noexcept
+{
+    using namespace rdp_server::server::transport;
+    if (state_ != MacConsoleAdmissionState::Prepared ||
+        admissionAttempted_ || admittedSession_ != nullptr ||
+        session.phase() != McsSessionPhase::AwaitVerifiedR2Admission)
+    {
+        session.close();
+        revokeForAuthorityLoss(MacConsoleAdmissionRevocationReason::Explicit);
+        return false;
+    }
+
+    // Enroll R3 before the partial R1 transition. After this point any
+    // failure retires the exact R1 socket and R3 owner; no retry is possible.
+    admittedSession_ = &session;
+    admissionAttempted_ = true;
+    struct CompletionContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        bool completed{};
+    } completion{this};
+
+    const auto complete = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<CompletionContext *>(context);
+        auto &broker = *operation.broker;
+        auto &connection = *broker.connection_;
+        if (!broker.preparedAuthenticationCurrent() ||
+            !connection.active() ||
+            connection.stage() != PreauthStage::AwaitCredSsp ||
+            connection.establishedTls() == nullptr ||
+            !connection.securityNegotiationProvenance())
+            return false;
+
+        // The sole R1 owner verifies HYBRID/TLS/BIO, selected certificate
+        // and absence of an unfinished SSL read/write. This is transport
+        // linearization only, not a right to consume first-MCS bytes.
+        operation.completed = connection.completeCredSspAdmission();
+        return operation.completed &&
+               broker.preparedAuthenticationCurrent();
+    };
+
+    if (!visitNativeAuthorization(kConsoleViewPermission, complete, &completion) ||
+        !completion.completed ||
+        state_ != MacConsoleAdmissionState::Prepared ||
+        session.phase() != McsSessionPhase::AwaitVerifiedR2Admission ||
+        !preparedAuthenticationCurrent() ||
+        !connection_->active() ||
+        connection_->stage() != PreauthStage::AwaitMcsConnectInitial)
+    {
+        revokeForAuthorityLoss(
+            MacConsoleAdmissionRevocationReason::ProtectedCallbackLostAuthority);
+        return false;
+    }
+
+    // R10 may now borrow first-MCS bytes from the same R1 TLS reader, only
+    // after a fresh R2 revalidate() before each read. R3 remains unbound.
+    state_ = MacConsoleAdmissionState::TransportAdmitted;
+    return true;
+}
+
 rdp_server::server::transport::McsSessionIntake
 MacConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     rdp_server::server::transport::McsSessionLifecycle &session,
     std::span<const std::uint8_t> completeTpkt) noexcept
 {
     using namespace rdp_server::server::transport;
-    if (state_ != MacConsoleAdmissionState::Prepared ||
-        admittedSession_ != nullptr ||
+    if (state_ != MacConsoleAdmissionState::TransportAdmitted ||
+        !admissionAttempted_ || admittedSession_ != &session ||
         session.phase() != McsSessionPhase::AwaitVerifiedR2Admission)
     {
         session.close();
@@ -323,10 +389,6 @@ MacConsoleAdmissionBroker::authorizeR3McsConnectInitial(
         return McsSessionIntake::AdmissionDenied;
     }
 
-    // Enroll the original R3 and R1 terminal owners before any visitor or
-    // partial R1 admission. A denied attempt is never retryable.
-    admittedSession_ = &session;
-    admissionAttempted_ = true;
     struct InitialContext final
     {
         MacConsoleAdmissionBroker *broker{};
@@ -343,16 +405,13 @@ MacConsoleAdmissionBroker::authorizeR3McsConnectInitial(
         auto &connection = *broker.connection_;
         if (!broker.preparedAuthenticationCurrent() ||
             !connection.active() ||
-            connection.stage() != PreauthStage::AwaitCredSsp ||
+            connection.stage() != PreauthStage::AwaitMcsConnectInitial ||
             connection.establishedTls() == nullptr ||
             !connection.securityNegotiationProvenance())
             return false;
 
-        // R1 checks exact SSL/BIO/HYBRID provenance. R3 is entered before
-        // leaving this same fresh R2 native/consent authority visitor.
-        if (!connection.completeCredSspAdmission() ||
-            !broker.preparedAuthenticationCurrent())
-            return false;
+        // Bind exactly the original R2 native generation pair, once, inside
+        // a fresh authorization visit. No caller can supply those scalars.
         operation.outcome = operation.session->onVerifiedR2ConnectInitial(
             broker.admissionGeneration_,
             broker.prepared_.authorizationGeneration,
@@ -361,9 +420,11 @@ MacConsoleAdmissionBroker::authorizeR3McsConnectInitial(
     };
 
     if (!visitNativeAuthorization(kConsoleViewPermission, issue, &initial) ||
-        state_ != MacConsoleAdmissionState::Prepared ||
+        state_ != MacConsoleAdmissionState::TransportAdmitted ||
         session.phase() != McsSessionPhase::AwaitConnectResponse ||
-        !preparedAuthenticationCurrent())
+        !preparedAuthenticationCurrent() ||
+        !connection_->active() ||
+        connection_->stage() != PreauthStage::AwaitMcsConnectInitial)
     {
         revokeForAuthorityLoss(
             MacConsoleAdmissionRevocationReason::ProtectedCallbackLostAuthority);

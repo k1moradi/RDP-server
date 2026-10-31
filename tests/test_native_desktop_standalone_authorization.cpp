@@ -916,12 +916,12 @@ void testMacConsoleProtectedIssuerRequiresExactLiveR1()
     fixture.prepare(kConsoleViewPermission);
     McsSessionLifecycle session;
     assert(session.phase() == McsSessionPhase::AwaitVerifiedR2Admission);
-    assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
-           McsSessionIntake::AdmissionDenied);
+    assert(!fixture.broker.authorizeR1CredSspAdmission(session));
     assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
     assert(session.phase() == McsSessionPhase::Closed);
     assert(fixture.connection.stage() == PreauthStage::Closed);
     assert(fixture.broker.admissionGeneration() == 0U);
+    assert(!fixture.broker.authorizeR1CredSspAdmission(session));
     assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
            McsSessionIntake::AdmissionDenied);
 }
@@ -934,8 +934,7 @@ void testMacConsoleProtectedIssuerConsentAndConnectionDenials()
         fixture.prepare(kConsoleViewPermission);
         fixture.owner.grant(); // same permissions, changed consent epoch
         McsSessionLifecycle session;
-        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
-               McsSessionIntake::AdmissionDenied);
+        assert(!fixture.broker.authorizeR1CredSspAdmission(session));
         assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
         assert(session.phase() == McsSessionPhase::Closed);
     }
@@ -944,10 +943,38 @@ void testMacConsoleProtectedIssuerConsentAndConnectionDenials()
         fixture.prepare(kConsoleViewPermission);
         fixture.proof.acceptedConnection = &fixture.replacementConnection;
         McsSessionLifecycle session;
-        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
-               McsSessionIntake::AdmissionDenied);
+        assert(!fixture.broker.authorizeR1CredSspAdmission(session));
         assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
         assert(session.phase() == McsSessionPhase::Closed);
+    }
+}
+
+// R1 must be promoted under native authority before R10 reads even a
+// complete first-MCS TPKT. Synthetic fixtures can test the denial/ordering
+// contract but cannot impersonate a real TLS socket or native macOS lease.
+void testMacConsoleProtectedFirstMcsOrderingDenials()
+{
+    using namespace rdp_server::server::transport;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+               McsSessionIntake::AdmissionDenied);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture.connection.establishedTls() == nullptr);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR1CredSspAdmission(session));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.connection.stage() == PreauthStage::Closed);
+        assert(!fixture.broker.authorizeR1CredSspAdmission(session));
+        assert(fixture.broker.authorizeR3McsConnectInitial(session, {}) ==
+               McsSessionIntake::AdmissionDenied);
     }
 }
 
@@ -1045,6 +1072,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-issuer-consent-connection-denials")
     {
         testMacConsoleProtectedIssuerConsentAndConnectionDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-first-mcs-order-denials")
+    {
+        testMacConsoleProtectedFirstMcsOrderingDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

@@ -1,3 +1,17 @@
+## R2 macOS protected R1 completion before first MCS (2026-10-31)
+
+The R2 broker's positive issuer is now two owner-thread-only native visits:
+`authorizeR1CredSspAdmission(session)` completes the one exact R1 CredSSP
+transition, terminally enrolls R3 and publishes only `TransportAdmitted`
+after fresh proof/consent/native/certificate checks. Only this state can allow
+R10 to borrow first-MCS TLS bytes, with fresh `revalidate()` before every read;
+it is not R3 admission. The separate
+`authorizeR3McsConnectInitial(session, completeTpkt)` rechecks the *same*
+original lifetime and privately binds R3's two broker-owned generations.
+Any failure between them retires R3 and cancels R1, including buffered TLS
+plaintext, without retry. R10 integration remains a separate owner-thread
+composition task; never read MCS on Prepared alone.
+
 ## R5 independent accepted-client and consent evidence (2026-10-31)
 
 The closed Linux v2 owner-private stage provenance is checked against

@@ -1321,7 +1321,8 @@ foreach(standalone_native_authorization_case IN ITEMS
         macos-console-prepared-transport-dormancy
         macos-console-protected-issuer-live-r1-denials
         macos-console-protected-issuer-consent-connection-denials
-        macos-console-protected-issuer-premature-receipts)
+        macos-console-protected-issuer-premature-receipts
+        macos-console-protected-first-mcs-order-denials)
     add_test(
         NAME "security.native-authorization-${standalone_native_authorization_case}"
         COMMAND test_native_desktop_standalone_authorization

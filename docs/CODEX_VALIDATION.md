@@ -42,6 +42,24 @@ plus production-backed real TLS completion/post-callback retirement fixture.
 - Agent 2 must separately implement and qualify the actual protected R1/R3
   issuer and post-callback authority-loss retirement before R10 composition.
 
+## R10 prepared-only macOS owner lifetime (2026-10-31)
+
+- Read issue #40, current AGENTS, standards, vision, roadmap, compile,
+  benchmark, validation and R1/R2/R3 private contracts.
+- R10 now constructs the concrete R2 broker only from genuine native
+  evidence, the exact production CredSSP proof and accepted R1 socket.
+  Injected synthetic owner evidence cannot construct it. Broker teardown
+  precedes its borrowed proof/framer, SSL/BIO and socket.
+- New production-backed owner-loop negative:
+  `runtime.macos-host-control-verified-proof-explicit-client-retirement-denials`.
+  Existing completed-CredSSP Stop/consent/session cases unchanged.
+- Local macOS Debug configure/build/focused/full CTest and sanitizers:
+  **NOT RUN**, owner checkout and GitHub DNS unavailable here.
+  Exact-publication-SHA CI **PENDING**; protected positive broker API
+  published concurrently by Agent 2 but R10 has not invoked it.
+  NativeAdmitted, ShareActivated, GraphicsReady and DesktopVisible
+  **NOT RUN / not claimed**; owner physical tests unauthorized.
+
 ## R7 QColorSpace full-CTest interpreter-order correction (2026-10-31)
 
 The full Debug protocol jobs at ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`

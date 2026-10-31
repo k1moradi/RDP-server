@@ -780,6 +780,29 @@ not applicable**; only cold-path control state changed.
 
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
 
+**R10 prepared-only macOS HostControl composition (2026-10-31):**
+After production `CredentialsVerified`, R10 now owns the concrete
+`MacConsoleAdmissionBroker` prepared with the exact accepted R1 socket,
+R2 proof, genuine macOS native reader and original owner-consent grant.
+Injected synthetic owner evidence never constructs this broker.
+R10 retires it before its borrowed proof/framer, R1 TLS and socket on
+Stop, client disconnect, expired consent or credential retirement.
+This is **not native Admission** and does not read buffered MCS, invoke a
+private R1/R3 positive method, activate Share/GraphicsReady or attach R7.
+New ordinary production-linked negative CTest
+`runtime.macos-host-control-verified-proof-explicit-client-retirement-denials`
+covers explicit client-ID cancellation with Microsoft first MCS queued;
+prior completed CredSSP Stop/consent/native-session tests remain intact.
+MacOS local Debug build/CTest **NOT RUN** (owner checkout unavailable);
+publication-SHA CI **PENDING**, physical clients **NOT RUN**.
+**Dependent integration:** Agent 2 has now published the private
+`authorizeR3McsConnectInitial`, Connect-Response receipt and Erect wrappers;
+R10 still needs their exact-SHA qualification, a single protected R1
+first-MCS reader/writer handoff and new positive/partial-reply revocation
+CTest before it may consume them. Later Share/GraphicsReady and R7
+attachment require independent qualification and explicit authorization.
+
+
 **R10 macOS pre-admission owner-thread increment (authoring, 2026-10-30):**
 The existing macOS HostControl now advances one accepted R1 X.224/HYBRID
 Confirm, server-certificate-bound TLS and production standalone CredSSP

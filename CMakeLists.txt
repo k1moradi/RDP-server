@@ -1262,6 +1262,7 @@ if(APPLE)
         rdp-server-macos-capture
         rdp-server-runtime-platform-native-desktop
         rdp-server-native-desktop-authorization
+        rdp-server-mac-console-admission
         "${RDP_SERVER_COREFOUNDATION_FRAMEWORK}"
         "${RDP_SERVER_SYSTEMCONFIGURATION_FRAMEWORK}"
         "${RDP_SERVER_COREGRAPHICS_FRAMEWORK}"

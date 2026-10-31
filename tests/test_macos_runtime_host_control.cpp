@@ -908,6 +908,7 @@ enum class CompletedCredSspRetirement : std::uint8_t
     Stop,
     ConsentEpochReplacement,
     SessionReplacement,
+    ExplicitClientDisconnect,
 };
 
 class PortableBootstrapEvidence final : public ConsoleOsEvidenceSource
@@ -1385,6 +1386,41 @@ void testStopRevokeRetirement()
 
     switch (retirement)
     {
+    case CompletedCredSspRetirement::ExplicitClientDisconnect:
+    {
+        // Unlike Stop, this retires the exact accepted R1/R2 connection
+        // while keeping its listener and memory-only credential available.
+        const auto before = control.status();
+        assert(before.activeClients.size() == 1U);
+        const std::uint64_t clientId = before.activeClients.front().opaqueId;
+        assert(clientId != 0U);
+        assert(control.disconnectClient(clientId).succeeded());
+        const auto retired = control.status();
+        assert(retired.stage == RuntimeHostStage::ListenerAvailable);
+        assert(retired.listenerAvailable);
+        assert(retired.credentialsConfigured);
+        assert(retired.activeClients.empty());
+        assert(retired.acceptedClientPreauthDiagnostics.preauthStage ==
+               RuntimeAcceptedClientPreauthStage::Closed);
+        assert(retired.acceptedClientPreauthDiagnostics.protocolStage ==
+               RuntimeAcceptedClientProtocolStage::PreAdmission);
+        assert(!retired.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        assert(!retired.acceptedClientPreauthDiagnostics.shareActivated);
+        assert(!retired.graphicsReady);
+        assert(!retired.nativeDesktopReady);
+        assert(retired.clipboardState == RuntimeClipboardState::Unavailable);
+        assert(control.disconnectClient(clientId).error ==
+               RuntimeHostError::ClientNotFound);
+        for (std::size_t index = 0U; index < 8U; ++index)
+        {
+            assert(control.serviceOnce().succeeded());
+            const auto after = control.status();
+            assert(after.activeClients.empty());
+            assert(!after.acceptedClientPreauthDiagnostics.mcsSessionAdvanced);
+        }
+        assert(control.stopSharing().succeeded());
+        break;
+    }
     case CompletedCredSspRetirement::Stop:
     {
         assert(control.stopSharing().succeeded());
@@ -1470,6 +1506,12 @@ void testStopRevokeRetirement()
     assert(gate.authInfoSent.load(std::memory_order_acquire));
     assert(gate.firstMcsQueued.load(std::memory_order_acquire));
     return true;
+}
+
+[[nodiscard]] bool testMacCompletedCredSspExplicitClientRetirement()
+{
+    return runCompletedCredSspRetirementScenario(
+        CompletedCredSspRetirement::ExplicitClientDisconnect, 34500U, 0x91U);
 }
 
 [[nodiscard]] bool testMacCompletedCredSspWithoutNativeAdmissionDenials()
@@ -1773,6 +1815,11 @@ int main(int argc, char** argv)
     else if (selected == "macos-host-control-accepted-pre-admission-dormancy")
     {
         if (!testMacAcceptedClientPreAdmissionDormancy())
+            return 77;
+    }
+    else if (selected == "macos-host-control-verified-proof-explicit-client-retirement-denials")
+    {
+        if (!testMacCompletedCredSspExplicitClientRetirement())
             return 77;
     }
     else if (selected == "macos-host-control-completed-credssp-without-native-admission-denials")

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "mac_runtime_host_control.h"
 #include "server/security/standalone_credential_consent.h"
+#include "server/security/mac_console_admission.h"
 #include "server/security/standalone_credssp.h"
 #include "server/security/credssp_tsrequest.h"
 
@@ -249,8 +250,9 @@ struct MacRuntimeCredSspState final
 
 void MacRuntimeHostControl::retireAcceptedClient() noexcept
 {
-    // Proof -> framer/writer -> R1 SSL/BIO -> socket. Never retain a
-    // CredSSP frame, buffered post-auth bytes or a borrowed SSL across Stop.
+    // The prepared-only R2 broker borrows the proof and exact R1 connection.
+    // Release it before proof/framer, SSL/BIO, and the accepted socket.
+    activeAdmissionBroker_.reset();
     activeCredSsp_.reset();
     if (activeConnection_ != nullptr)
     {
@@ -307,7 +309,9 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
     // attach RuntimePlatformNativeDesktop. The deadline/Stop still apply.
     if (activeCredentialsVerified_)
     {
-        if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession())
+        if (!activeCredSsp_->authenticatedProof.revalidatesAuthenticatedSession() ||
+            (activeAdmissionBroker_ != nullptr &&
+             !activeAdmissionBroker_->revalidate(security::kConsoleViewPermission)))
         {
             retireAcceptedClient();
             stage_ = RuntimeHostStage::ListenerAvailable;
@@ -595,17 +599,51 @@ MacRuntimeHostControl::advanceAcceptedClientPreAdmissionOnce() noexcept
             visit.result == FrameStatus::BindingReplyQueued;
         return {RuntimeHostError::None, false};
     case FrameStatus::CredentialsVerified:
+    {
         if (!credSsp.authenticatedProof.bind(
                 credSsp.acceptor, standalonePasswordCredential_,
                 standaloneCredentialGeneration_, connection))
             return fail();
+
+        // R10 retains only a prepared R2 lifetime; R2 alone may later
+        // invoke private R1/R3 positive operations. Synthetic owner evidence
+        // is permitted for denial tests, never for broker construction.
+        if (ownerEvidenceSource_ == &defaultOwnerEvidence_)
+        {
+            auto preparedBroker =
+                std::make_unique<security::MacConsoleAdmissionBroker>(
+                    credSsp.authenticatedProof, connection, nativeSessionEvidence_,
+                    ownerSharingAuthority_);
+            if (preparedBroker->prepareAdmission(
+                    security::kConsoleViewPermission) ==
+                security::MacConsoleAdmissionPrepareResult::Prepared)
+            {
+                // Preparation synchronously reads native evidence and consent.
+                // Check original owner identity before retaining any borrow.
+                if (activeConnection_.get() != &connection ||
+                    activeCredSsp_.get() != &credSsp ||
+                    !activeConsentEpoch_.has_value() ||
+                    !selectedStandaloneCredentialReady() ||
+                    !connection.active() ||
+                    !ownerSharingAuthority_.authorizesAtEpoch(
+                        security::kConsoleViewPermission, *activeConsentEpoch_) ||
+                    !preparedBroker->revalidate(
+                        security::kConsoleViewPermission) ||
+                    !activeConsentEpoch_.has_value() ||
+                    !ownerSharingAuthority_.authorizesAtEpoch(
+                        security::kConsoleViewPermission, *activeConsentEpoch_))
+                    return fail();
+                activeAdmissionBroker_ = std::move(preparedBroker);
+            }
+        }
         activeCredentialsVerified_ = true;
         acceptedClientDiagnostics_.credSspTransition =
             RuntimeAcceptedClientCredSspTransition::CredentialsVerified;
         acceptedClientDiagnostics_.authenticationStage =
             RuntimeAcceptedClientAuthenticationStage::Authenticated;
-        // No native R2 lease exists on macOS; remain pre-MCS.
+        // Prepared R2 is not native Admission; leave first MCS unread.
         return {RuntimeHostError::None, false};
+    }
     case FrameStatus::Rejected:
         return fail();
     }
@@ -702,6 +740,8 @@ void MacRuntimeHostControl::retireStoppedRuntime(
     rdp_server::server::security::OwnerConsentRevocationReason reason) noexcept
 {
     ownerSharingAuthority_.revoke(reason);
+    // Borrowed R2 state must be destroyed before terminal credential teardown.
+    retireAcceptedClient();
     // Match Linux service-lifetime semantics: ordinary Stop retains the
     // memory-only credential, while terminal authority loss/destruction
     // securely retires the exact generation.
@@ -713,7 +753,6 @@ void MacRuntimeHostControl::retireStoppedRuntime(
         standaloneCredentialGeneration_ = 0U;
         credentialsConfigured_ = false;
     }
-    retireAcceptedClient();
     (void)nativeDesktop_.retireAfterAuthorizationLoss();
     listener_.close();
     retireGeneratedTlsIdentity();

@@ -35,6 +35,20 @@ distinct ordinary CTest, **not** a 172nd fixed MCS-table entry or a new
 positive R2 issuer. The existing `transport.mcs-macos-private-admission-generation-denials`
 remains unchanged. No new sanitizer selector census is authorized.
 
+## R10 exact-client prepared-only retirement (2026-10-31)
+
+Add `runtime.macos-host-control-verified-proof-explicit-client-retirement-denials`
+as one separate production-linked macOS HostControl CTest. A synthetic
+loopback peer reaches the genuine standalone CredSSP `CredentialsVerified`
+boundary and queues published Microsoft MCS Connect-Initial. R10 must
+disconnect the exact accepted-client ID while keeping listener and
+memory-only credential; reusing that ID denies, and subsequent owner ticks
+cannot consume old MCS, activate Share/graphics, attach a desktop or expose
+clipboard. Keep existing completed CredSSP Stop, owner-consent epoch and
+native-session replacement tests unchanged. Missing eligible network
+interface/bind/pre-TCP connect is SKIP 77, but post-TCP failure is FAIL.
+No prepared broker or synthetic test creates native admission.
+
 ## R7 offline provenance interpreter-registration policy (2026-10-31)
 
 Register `macos.gui-qcolor-provenance-parser-and-redaction` only after

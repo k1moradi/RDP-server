@@ -1,3 +1,18 @@
+## R2 native-denial Windows test stack regression (2026-10-31)
+
+The hosted `33a601cc` Windows protocol CTest job had two native
+macOS R2 denial subprocess crashes:
+`security.native-authorization-macos-console-protected-attach-join-clientinfo-denials`
+and `security.native-authorization-macos-console-protected-post-share-revocation-denials`.
+Both test functions declared four complete broker/R3-session pairs in
+different lexical blocks. A Windows stack-capacity explanation is plausible
+but not yet verified. Their existing production-backed assertions and the
+new Graphics denial fixtures now allocate each large, noncopyable pair
+with `std::make_unique`, preserving ownership and test behavior while
+eliminating aggregate per-function stack reservation. Exact-head
+Windows focused/full CTest **PENDING**; do not report a fix as proven
+until it passes. No product-valid macOS native lease fabricated.
+
 ## R2 macOS Graphics DVC/ACK scope rejection (2026-10-31)
 
 Ordinary production-linked

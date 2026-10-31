@@ -1,3 +1,19 @@
+## R2 Windows CTest stack-capacity diagnostic and correction (2026-10-31)
+
+Hosted `33a601cc` Windows protocol workflow `41189293751`
+compiled but failed 2 of 858 tests: protected Attach/Join/ClientInfo
+and post-Share R2 denials crashed as subprocesses. Ubuntu 858-test
+suite and R9 sanitizer job passed; macOS had 1 unrelated
+`transport.tcp-owned-pre-tls-transport-byte-accounting` abort of 813.
+The two Windows failing test functions each stacked four bulky native
+broker/R1 fixtures plus four R3 state machines; suspected cumulative
+stack exhaustion, not proven native authority escalation. Converted
+those pairs plus the two-scope Graphics case to RAII
+`std::make_unique` in the same existing ordinary CTests. Assertions
+and fail-closed production entrypoints unchanged. Connector-local
+canonical build/full/focused CTest **NOT RUN**. Corrective
+exact-publication-SHA hosted Windows/macos/Ubuntu CI **PENDING**.
+
 ## R2 macOS protected Graphics DVC, ACK and frame surface increment (2026-10-31)
 
 Ten original R2 native visitor-protected private R3 methods now cover

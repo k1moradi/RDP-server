@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -986,46 +987,46 @@ void testMacConsoleProtectedAttachJoinClientInfoDenials()
 {
     using namespace rdp_server::server::transport;
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(fixture.broker.authorizeR3AttachUser(session, {}) ==
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(fixture->broker.authorizeR3AttachUser(*session, {}) ==
                McsSessionIntake::AdmissionDenied);
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(!fixture.broker.authorizeR3AttachUserConfirmWrite(session));
-        assert(fixture.broker.completeR3AttachUserConfirmWrite(
-                   session, 1U, 1U, 0U) ==
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(!fixture->broker.authorizeR3AttachUserConfirmWrite(*session));
+        assert(fixture->broker.completeR3AttachUserConfirmWrite(
+                   *session, 1U, 1U, 0U) ==
                McsConnectResponseWriteOutcome::Rejected);
-        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session->phase() == McsSessionPhase::Closed);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(fixture.broker.authorizeR3ChannelJoin(session, {}) ==
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(fixture->broker.authorizeR3ChannelJoin(*session, {}) ==
                McsJoinStartOutcome::Rejected);
-        assert(!fixture.broker.authorizeR3ChannelJoinConfirmWrite(session));
-        assert(fixture.broker.completeR3ChannelJoinConfirmWrite(
-                   session, 1U, 1U, 0U) == McsJoinWriteOutcome::Rejected);
-        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(!fixture->broker.authorizeR3ChannelJoinConfirmWrite(*session));
+        assert(fixture->broker.completeR3ChannelJoinConfirmWrite(
+                   *session, 1U, 1U, 0U) == McsJoinWriteOutcome::Rejected);
+        assert(!fixture->broker.authorizeR3ClientInfoPacket(*session, {}));
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
-        assert(fixture.broker.admissionGeneration() == 0U);
-        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(!fixture->broker.authorizeR3ClientInfoPacket(*session, {}));
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->broker.admissionGeneration() == 0U);
+        assert(!fixture->broker.authorizeR3ClientInfoPacket(*session, {}));
     }
 }
 
@@ -1097,53 +1098,53 @@ void testMacConsoleProtectedPostShareRevocationDenials()
     using namespace rdp_server::server::transport;
     rdp_server::server::runtime::RuntimeDeploymentPolicy policy;
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(!fixture.broker.authorizeR3ApplicationTrafficReady(
-            session, policy));
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(!fixture->broker.authorizeR3ApplicationTrafficReady(
+            *session, policy));
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        const auto route = fixture.broker.classifyR3PostShareTpkt(
-            session, policy, {});
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        const auto route = fixture->broker.classifyR3PostShareTpkt(
+            *session, policy, {});
         assert(route.kind == RdpPostShareTpktRouteKind::UnsupportedOrMalformed);
-        assert(session.phase() == McsSessionPhase::Closed);
+        assert(session->phase() == McsSessionPhase::Closed);
     }
     {
-        MacConsoleBrokerFixture fixture;
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
         // Clipboard remains outside the current macOS native permission mask.
         // A valid View-only preparation cannot promote it to native authority.
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
         std::span<const std::uint8_t> completePdu{};
-        assert(!fixture.broker.authorizeR3ActivatedClipboardChannel(
-            session, policy));
-        assert(fixture.broker.authorizeR3ClipboardTpkt(
-                   session, policy, {}, completePdu) ==
+        assert(!fixture->broker.authorizeR3ActivatedClipboardChannel(
+            *session, policy));
+        assert(fixture->broker.authorizeR3ClipboardTpkt(
+                   *session, policy, {}, completePdu) ==
                RdpClipboardChunkIntake::Rejected);
         assert(completePdu.empty());
-        assert(!fixture.broker.queueR3ClipboardPdu(session, policy, {}));
-        assert(!fixture.broker.pendingR3ClipboardWrite(session, policy));
-        assert(fixture.broker.completeR3ClipboardWrite(
-                   session, policy, 1U, 1U, 1U, 0U) ==
+        assert(!fixture->broker.queueR3ClipboardPdu(*session, policy, {}));
+        assert(!fixture->broker.pendingR3ClipboardWrite(*session, policy));
+        assert(fixture->broker.completeR3ClipboardWrite(
+                   *session, policy, 1U, 1U, 1U, 0U) ==
                RdpClipboardWriteOutcome::Rejected);
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission | kConsoleInputPermission);
-        McsSessionLifecycle session;
-        assert(!fixture.broker.routeR3SlowPathInputPdu(
-            session, policy, {}));
-        assert(!fixture.broker.authorizeR3ActivatedDynamicVirtualChannel(
-            session, policy));
-        assert(session.phase() == McsSessionPhase::Closed);
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission | kConsoleInputPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(!fixture->broker.routeR3SlowPathInputPdu(
+            *session, policy, {}));
+        assert(!fixture->broker.authorizeR3ActivatedDynamicVirtualChannel(
+            *session, policy));
+        assert(session->phase() == McsSessionPhase::Closed);
     }
 }
 
@@ -1155,43 +1156,43 @@ void testMacConsoleProtectedGraphicsDvcAckDenials()
     using namespace rdp_server::server::transport;
     rdp_server::server::runtime::RuntimeDeploymentPolicy policy;
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(!fixture.broker.authorizeR3GraphicsDynamicVirtualChannel(
-            session, policy));
-        assert(!fixture.broker.pendingR3GraphicsDynamicVirtualChannelWrite(
-            session, policy));
-        assert(fixture.broker.completeR3GraphicsDynamicVirtualChannelWrite(
-                   session, policy, 1U, 1U, 0U) ==
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(!fixture->broker.authorizeR3GraphicsDynamicVirtualChannel(
+            *session, policy));
+        assert(!fixture->broker.pendingR3GraphicsDynamicVirtualChannelWrite(
+            *session, policy));
+        assert(fixture->broker.completeR3GraphicsDynamicVirtualChannelWrite(
+                   *session, policy, 1U, 1U, 0U) ==
                RdpGraphicsDvcWriteOutcome::Rejected);
-        assert(fixture.broker.authorizeR3GraphicsDynamicVirtualChannelPdu(
-                   session, policy, {}) ==
+        assert(fixture->broker.authorizeR3GraphicsDynamicVirtualChannelPdu(
+                   *session, policy, {}) ==
                RdpGraphicsDvcClientIntake::Rejected);
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
     }
     {
-        MacConsoleBrokerFixture fixture;
-        fixture.prepare(kConsoleViewPermission);
-        McsSessionLifecycle session;
-        assert(fixture.broker.consumeR3GraphicsFrameAcknowledge(
-                   session, policy) ==
+        auto fixture = std::make_unique<MacConsoleBrokerFixture>();
+        fixture->prepare(kConsoleViewPermission);
+        auto session = std::make_unique<McsSessionLifecycle>();
+        assert(fixture->broker.consumeR3GraphicsFrameAcknowledge(
+                   *session, policy) ==
                RdpGraphicsFrameAcknowledgeIntake::Rejected);
-        assert(fixture.broker.preflightR3GraphicsFramePublication(
-                   session, policy, 1U) ==
+        assert(fixture->broker.preflightR3GraphicsFramePublication(
+                   *session, policy, 1U) ==
                RdpGraphicsFramePublicationReadiness::Rejected);
-        assert(fixture.broker.beginR3GraphicsSurfaceReconfiguration(
-                   session, policy, ::PixelSize{}) ==
+        assert(fixture->broker.beginR3GraphicsSurfaceReconfiguration(
+                   *session, policy, ::PixelSize{}) ==
                RdpGraphicsSurfaceReconfiguration::Rejected);
-        assert(!fixture.broker.beginR3GraphicsClearCodecFramePublication(
-            session, policy, 1U, ::FramebufferView{}));
-        assert(!fixture.broker.cancelR3UnwrittenGraphicsFrame(
-            session, policy));
-        assert(!fixture.broker.abortR3GraphicsFrame(session, policy));
-        assert(session.phase() == McsSessionPhase::Closed);
-        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
-        assert(fixture.broker.admissionGeneration() == 0U);
+        assert(!fixture->broker.beginR3GraphicsClearCodecFramePublication(
+            *session, policy, 1U, ::FramebufferView{}));
+        assert(!fixture->broker.cancelR3UnwrittenGraphicsFrame(
+            *session, policy));
+        assert(!fixture->broker.abortR3GraphicsFrame(*session, policy));
+        assert(session->phase() == McsSessionPhase::Closed);
+        assert(fixture->broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture->broker.admissionGeneration() == 0U);
     }
 }
 

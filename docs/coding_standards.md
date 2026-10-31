@@ -1,3 +1,16 @@
+## R2 Windows offline stack-bounded fixture lifetime (2026-10-31)
+
+A macOS R2 denial fixture contains two R1 transport owners and a native
+authorization broker; R3 session lifecycles own substantial contiguous
+reply/Graphics buffers. In offline CTests that instantiate more than one
+fixture/session pair within one test function, use scoped
+`std::make_unique<MacConsoleBrokerFixture>()` and
+`std::make_unique<McsSessionLifecycle>()` so Windows' limited test-thread
+stack never reserves the aggregate of several large automatic objects.
+Maintain RAII and declaration/destruction order: session is destroyed
+before fixture/broker, and broker before its borrowed R1/proof owners.
+This changes no production allocation or native permission behavior.
+
 ## R2 protected macOS Graphics DVC/ACK and resize (2026-10-31)
 
 The original macOS broker now privately wraps R3 Graphics DVC start,

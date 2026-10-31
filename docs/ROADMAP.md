@@ -1,3 +1,16 @@
+## R2 offline Windows multi-fixture stack correction (2026-10-31)
+
+The Windows 33a601cc hosted CTest job demonstrated 2 crashing
+multi-scope R2 native-denial tests (Attach/Join/ClientInfo and
+post-Share), while Ubuntu tests and R9 sanitizers passed. They now
+heap-own each large noncopyable broker/R1 fixture and R3 session
+through scoped RAII rather than asking one Windows test stack to
+reserve four copies of large contiguous protocol state; Graphics
+two-scope test is likewise guarded. This is an unverified hypothesis
+until exact-head Windows CI passes, not a positive native admission
+or TLS proof. Separate remaining R2 positive R1/TLS callback/
+receipt fixture and R10 integration still required.
+
 ## R2 protected macOS Graphics DVC/ACK and surface closure (2026-10-31)
 
 The original R2 broker now covers the complete private R3 protected

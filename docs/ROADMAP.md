@@ -174,6 +174,22 @@ receipt are **PENDING** for this increment; no physical step or benchmark was
 run.
 ## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
 
+**R3 protected post-Attach/Join gate (2026-10-31):** Existing private R3
+entry and all receipt-capable lifecycle primitives remain sufficient for the
+concrete R2 issuer; no new public entry, friend, native proof owner or TLS
+writer is justified. R3 adds ordinary production-linked
+`transport.mcs-macos-post-attach-join-revocation-denials` outside the fixed 171-case MCS table.
+It checks the uncovered boundary after fully delivered Attach/Join receipts:
+R2 authorization-generation replacement before the next Join retires prior
+membership, and zero/partial confirmation receipts cannot advance after
+generation loss. This is **offline R3 protocol evidence**, never native
+macOS Admission. Agent 2 still owns a fresh, protected R1/R3 handoff within
+`MacConsoleAdmissionBroker`; Agent 10 must not activate a positive macOS
+HostControl route before that broker and its callback-time revocation gates
+are landed. R3 local build/CTest/sanitizers **NOT RUN** (no owner checkout);
+publication-SHA hosted CI **PENDING**, physical clients **NOT RUN**.
+
+
 **Concrete gateway first round (2026-10-30):**
 `rdp_server::server::security::MacConsoleAdmissionBroker` is now the named R2
 owner for the macOS standalone admission preparation lifetime. It binds the

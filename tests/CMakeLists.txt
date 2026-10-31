@@ -2109,6 +2109,12 @@ endif()
 set_tests_properties(
     transport.mcs-macos-private-admission-generation-denials
     PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
+# A separate post-Attach/join receipt fence, outside the fixed 171 MCS cases.
+# Reuse the same production-linked fixture; it grants no native R2 lease.
+add_test(NAME transport.mcs-macos-post-attach-join-revocation-denials
+    COMMAND test_macos_r2_mcs_gateway "post-attach-join-revocation")
+set_tests_properties(transport.mcs-macos-post-attach-join-revocation-denials
+    PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
 # R3 canonical production Demand Active profile. These cases are pure offline
 # protocol tests and mint no positive R2 admission lease.

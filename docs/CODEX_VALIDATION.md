@@ -1,3 +1,19 @@
+## R3 macOS post-Attach/Join revocation regression (2026-10-31)
+
+- Source review on parent `0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`: R3's positive methods remain private
+  to the existing concrete R2 brokers and test friend. No production R3
+  primitive or additional friend is necessary for Agent 2's handoff.
+- Added distinct ordinary production-backed `transport.mcs-macos-post-attach-join-revocation-denials`,
+  reusing `test_macos_r2_mcs_gateway` and the R3 lifecycle (no native lease).
+  The earlier macOS private-entry generation-denial CTest and the fixed
+  171-case MCS table are unchanged.
+- No checkout/build root is available in this GitHub connector environment
+  (direct GitHub DNS resolution fails). Canonical local Debug configure/build,
+  focused/full CTest, ASan/UBSan: **NOT RUN**. Exact-publication-SHA hosted CI:
+  **PENDING**. No live desktop/client/clipboard tests were authorized.
+- Agent 2 must separately implement and qualify the actual protected R1/R3
+  issuer and post-callback authority-loss retirement before R10 composition.
+
 ## R7 QColorSpace full-CTest interpreter-order correction (2026-10-31)
 
 The full Debug protocol jobs at ancestor `2f7ee6d033700c7a6bbfa51387de9835bf974358`

@@ -1,3 +1,21 @@
+## R3 macOS completed Attach/Join receipt replacement fence (2026-10-31)
+
+Ordinary production-linked CTest `transport.mcs-macos-post-attach-join-revocation-denials` reuses
+`test_macos_r2_mcs_gateway` with a distinct behavior argument and the already
+authorized R2-scoped test friend. It exercises the real private Connect-Initial,
+Connect-Response, Erect, Attach/Confirm and joined-channel methods against the
+checked-in Microsoft Connect-Initial fixture. After a fully accepted Attach
+Confirm and a fully accepted user Join Confirm, changing the original R2
+authorization generation before the next I/O Join must terminally close R3,
+retire the confirmed user channel and reject the late reply receipt. A second
+case proves zero-byte Join confirmation keeps the exact reply/slice identity,
+partial positive acceptance changes only the slice sequence, and a stale
+generation before completion cannot confirm membership. Neither case reaches
+licensing, Share, dynamic channels or native macOS admission. This is a
+distinct ordinary CTest, **not** a 172nd fixed MCS-table entry or a new
+positive R2 issuer. The existing `transport.mcs-macos-private-admission-generation-denials`
+remains unchanged. No new sanitizer selector census is authorized.
+
 ## R7 offline provenance interpreter-registration policy (2026-10-31)
 
 Register `macos.gui-qcolor-provenance-parser-and-redaction` only after

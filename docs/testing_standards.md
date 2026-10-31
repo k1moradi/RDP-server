@@ -4786,9 +4786,12 @@ collector separately reports `truncated-header`, `invalid-signature`,
 proof of a usable ICC profile or correct chromaticity. A successful Cocoa
 loader observation preceding the warning is only chronological evidence, not
 proof that QCocoa/ColorSync provided the points. The emitter filename is not
-the caller; a matching private stack remains required for attribution. Keep source
-basename and decimal line bounded, including Windows-style separators and
-untrusted Qt messages. A missing warning-site location, truncated output or
+the caller; a matching private stack remains required for attribution. Parse
+source/category/line fields only when the structured record begins with the
+exact controlled `RDP_QCOLOR` marker; lookalike prefixes may prove the raw
+warning reproduced but cannot supply provenance metadata. Keep source basename
+and decimal line bounded, including Windows-style separators and untrusted Qt
+messages. A missing warning-site location, truncated output or
 unavailable TCP listener audit cannot establish a clean Cocoa provenance
 result. Do not globally suppress warnings, install/change display profiles,
 request TCC, capture pixels or launch a physical client.

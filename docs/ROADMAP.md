@@ -935,15 +935,20 @@ is still **NOT RUN**, so the actual warning caller remains
 **BLOCKED/unattributed** and no production color fix is authorized.
 
 **macOS native attachment dependency:** `RuntimePlatformNativeDesktop`
-continues to expose `attachAuthenticatedSession()` as an R2-proof consumer,
-but current `MacRuntimeHostControl` has no positive call that attaches it.
-Accepted TCP, TLS, configured Username, standalone `CredentialsVerified` and
-GUI Sharing therefore still cannot make the macOS native desktop ready. The
-remaining live-desktop dependency is R10 composition of the exact accepted
-client with genuine R2 authenticated/admitted authority; R7 must not implement
-that state machine. Physical native attachment remains **BLOCKED / NOT RUN**
-until that composition exists, an R9 exact-SHA owner candidate is manually
-qualified, and the owner separately authorizes the attempt.
+continues to expose `attachAuthenticatedSession()` as the downstream R2-proof
+consumer. R10 has now resolved the earlier admission/first-MCS gap: current
+`MacRuntimeHostControl` invokes the original broker for protected R1 completion,
+first bounded MCS Connect-Initial and exact Connect-Response receipts. It then
+deliberately stops at `ConnectResponseDelivered`; no positive native attach is
+performed. R2 already exposes protected Erect/Attach/Join, Client Info,
+PersonalDesktop licensing, Share/application-ready and Graphics operations, so
+the remaining code dependency is specifically R10 serialization of that
+post-Connect-Response sequence through genuine `ShareActivated` and
+`GraphicsReady`. Only then may R10 call `attachAuthenticatedSession()` with the
+original proof/current-owner authority; R7 must not duplicate that state
+machine. Physical native attachment remains **BLOCKED / NOT RUN** until that
+composition exists, an R9 exact-SHA owner candidate is manually qualified, and
+the owner separately authorizes the attempt.
 
 Local canonical build/CTest, local Qt warning reproduction and physical
 capture/input remain **NOT RUN** in this connector environment. R7 has no

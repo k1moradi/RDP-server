@@ -132,6 +132,19 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertEqual(result["cocoa_load_before_warning"], "not-observed")
         self.assertEqual(result["warning_emitter"], "qt-qcolorspace-reported")
 
+    def test_lookalike_structured_prefix_does_not_claim_emitter_metadata(self):
+        diagnostic = (
+            "NOT_RDP_QCOLOR|warning|qt.gui.icc|"
+            "/private/qt/qcolorspace.cpp|765|"
+            "QColorSpace attempted constructed from invalid primaries\n"
+        )
+        result = probe.parse_qt_diagnostics(diagnostic)
+        self.assertEqual(result["warning"], "REPRODUCED")
+        self.assertEqual(result["warning_source"], "unavailable")
+        self.assertEqual(result["warning_line"], "unavailable")
+        self.assertEqual(result["warning_category"], "unavailable")
+        self.assertEqual(result["warning_emitter"], "unavailable")
+
     def test_windows_path_and_oversized_warning_line_are_redacted(self):
         diagnostic = (
             'RDP_QCOLOR|warning|qt.gui.icc|'

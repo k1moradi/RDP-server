@@ -258,7 +258,7 @@ def parse_qt_diagnostics(text: str) -> dict[str, str]:
             else "not-observed"
         )
         fields = line.split("|", 5)
-        if len(fields) == 6 and fields[0].strip().endswith(MESSAGE_PREFIX):
+        if len(fields) == 6 and fields[0].strip() == MESSAGE_PREFIX:
             result["warning_category"] = _safe_token(fields[2])
             source = fields[3].strip()
             if source:

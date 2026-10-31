@@ -3219,12 +3219,20 @@ and M2 physical-client acceptance NOT RUN; independent R6/R8 blockers remain.
   warning-before-plugin-load fixtures. The Qt offscreen invalid-primary
   fixture, R7 native callback-retirement and GUI/status tests are reused;
   no new test executable, dependency or CMake registration.
-- Source inspection: no first-party QColorSpace misuse or genuine positive
-  R2/R3 Share/GraphicsReady macOS attachment demonstrated. Local syntax,
-  unittest, Debug/Release/full CTest: **NOT RUN** (connector-only).
-  Exact publication-SHA hosted CI: **PENDING**. Owner packaged warning stack,
-  physical macOS capture/input: **NOT RUN / unauthorized**. Next: owner-safe
-  probe and matching caller stack; Agent 10 to compose original R2/R3 lifetimes.
+- Follow-up review on current main parent `005ba9de48a987eb415be5ac792a239403cfdfa0`: structured diagnostic
+  fields now require the exact controlled `RDP_QCOLOR` marker; a lookalike
+  prefix can still report that the raw warning reproduced but cannot claim a
+  Qt source/category/line or emitter. This closes an attribution over-classifier
+  without changing Qt, capture, profiles or native runtime behavior.
+- R10 has since resolved the earlier transport-admission dependency through
+  protected first-MCS intake and delivered Connect-Response. R2 already exposes
+  protected Erect/Attach/Join, Client Info, PersonalDesktop licensing,
+  Share/ApplicationTrafficReady and Graphics operations. The remaining live R7
+  blocker is R10 serialization of those post-Connect-Response stages through
+  genuine Share/GraphicsReady before any `attachAuthenticatedSession()` call.
+  Local Python/full CTest: **NOT RUN** (connector-only); exact-publication hosted
+  CI **PENDING**. Physical capture/input and owner warning stack remain
+  **NOT RUN / unauthorized**.
 
 ## R1 pre-TLS accounting fixture CI correction — 2026-10-29
 

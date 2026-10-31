@@ -758,6 +758,33 @@ public:
         return descriptor_ >= 0 && ::shutdown(descriptor_, SHUT_WR) == 0;
     }
 
+    [[nodiscard]] bool sendAbortiveReset() noexcept
+    {
+        if (descriptor_ < 0 || !tls_)
+            return false;
+
+        // A zero-linger socket close sends TCP RST, not TLS close_notify.
+        // Release SSL's borrowed BIOs without closing the descriptor twice.
+        linger abortiveClose{};
+        abortiveClose.l_onoff = 1;
+        abortiveClose.l_linger = 0;
+        if (::setsockopt(descriptor_, SOL_SOCKET, SO_LINGER,
+                         &abortiveClose, sizeof(abortiveClose)) != 0)
+            return false;
+
+        BIO *const readBio = SSL_get_rbio(tls_.get());
+        BIO *const writeBio = SSL_get_wbio(tls_.get());
+        if (readBio != nullptr)
+            BIO_set_close(readBio, BIO_NOCLOSE);
+        if (writeBio != nullptr && writeBio != readBio)
+            BIO_set_close(writeBio, BIO_NOCLOSE);
+        tls_.reset();
+
+        const int ownedDescriptor = descriptor_;
+        descriptor_ = -1;
+        return ::close(ownedDescriptor) == 0;
+    }
+
     [[nodiscard]] std::optional<Bytes> readFrame() noexcept
     {
         if (!tls_)
@@ -1290,6 +1317,7 @@ enum class PostTypeTwoPeerAction : std::uint8_t
     CompleteNonTypeThreeTsRequest,
     TlsCloseNotify,
     OrderlyFin,
+    AbortiveReset,
 };
 
 [[nodiscard]] PeerResult runPostTypeTwoObservationPeer(
@@ -1343,6 +1371,9 @@ enum class PostTypeTwoPeerAction : std::uint8_t
         break;
     case PostTypeTwoPeerAction::OrderlyFin:
         applied = client.sendOrderlyFin();
+        break;
+    case PostTypeTwoPeerAction::AbortiveReset:
+        applied = client.sendAbortiveReset();
         break;
     }
 
@@ -1962,6 +1993,8 @@ int main(int argc, char** argv)
         testCase == "direct-ntlm-post-type2-tls-close-notify";
     const bool postTypeTwoOrderlyFinOnly =
         testCase == "direct-ntlm-post-type2-orderly-fin";
+    const bool postTypeTwoAbortiveResetOnly =
+        testCase == "direct-ntlm-post-type2-abortive-reset-classification";
     const bool postTypeTwoImmediateRetryOnly =
         testCase == "direct-ntlm-post-type2-immediate-retry";
     const bool postTypeTwoObservationOnly =
@@ -1969,7 +2002,7 @@ int main(int argc, char** argv)
         postTypeTwoPartialTsRequestFinOnly ||
         postTypeTwoNonTypeThreeTsRequestOnly ||
         postTypeTwoCloseNotifyOnly || postTypeTwoOrderlyFinOnly ||
-        postTypeTwoImmediateRetryOnly;
+        postTypeTwoAbortiveResetOnly || postTypeTwoImmediateRetryOnly;
     const bool typeTwoTimeoutOnly =
         testCase == "direct-ntlm-type2-waits-for-preauth-timeout";
     const bool peerCloseClassificationOnly =
@@ -2545,6 +2578,8 @@ int main(int argc, char** argv)
             action = PostTypeTwoPeerAction::TlsCloseNotify;
         else if (postTypeTwoOrderlyFinOnly || postTypeTwoImmediateRetryOnly)
             action = PostTypeTwoPeerAction::OrderlyFin;
+        else if (postTypeTwoAbortiveResetOnly)
+            action = PostTypeTwoPeerAction::AbortiveReset;
 
         std::atomic<bool> typeTwoReceived{false};
         std::atomic<bool> performAction{false};
@@ -2642,6 +2677,26 @@ int main(int argc, char** argv)
             assert(diagnostics.postTypeTwoTcpFinReceived);
             assert(!diagnostics.postTypeTwoTcpResetReceived);
             assert(diagnostics.directNtlmTypeTwoToPeerEofAvailable);
+        }
+        else if (postTypeTwoAbortiveResetOnly)
+        {
+            // The exact accepted R1 TLS owner must distinguish a reset from
+            // FIN and TLS close_notify, without ever gaining native authority.
+            assert(diagnostics.postTypeTwoClientTlsBytes == 0U);
+            assert(!diagnostics.postTypeTwoFirstClientTlsByteAvailable);
+            assert(diagnostics.postTypeTwoPlaintextBytes == 0U);
+            assert(diagnostics.postTypeTwoCompleteTsRequestCount == 0U);
+            assert(diagnostics.postTypeTwoPartialTsRequestBytes == 0U);
+            assert(diagnostics.postTypeTwoTlsAlertsReceived == 0U);
+            assert(!diagnostics.postTypeTwoTlsCloseNotifyReceived);
+            assert(!diagnostics.postTypeTwoTcpFinReceived);
+            assert(diagnostics.postTypeTwoTcpResetReceived);
+            assert(diagnostics.termination ==
+                   RuntimeAcceptedClientTermination::PeerReset);
+            assert(diagnostics.preType3Termination ==
+                   RuntimeAcceptedClientPreType3Termination::PeerReset);
+            assert(!diagnostics.preauthElapsedAtPeerEofAvailable);
+            assert(!diagnostics.directNtlmTypeTwoToPeerEofAvailable);
         }
         else if (postTypeTwoPartialTlsRecordOnly)
         {

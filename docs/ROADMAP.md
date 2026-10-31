@@ -244,6 +244,38 @@ R2's prepared owner-consent epoch fence is present via `e469ce9707965c888988fc27
 
 ## R1 Round 3 exact-SHA qualification — queued plaintext/FIN drain (2026-10-30)
 
+**R1 first-round Type-2/FIN audit (2026-10-30; baseline c88dc60f9e218797ddcd640af6bba1693adca1d7):**
+The owner reports TLS 1.3, Direct NTLM Type 1 and locally committed Type 2,
+then TCP FIN approximately 9.5 ms later with no subsequent observed TLS
+ciphertext/plaintext, Type 3, TLS alert or close_notify. This is local
+receive-side evidence only, not client Type-2 receipt, password failure
+or justification for timeout tuning. Existing production-backed CTests cover
+silence, orderly FIN, partial TLS record, queued one-byte TSRequest then FIN,
+complete non-Type-3 TSRequest, close_notify, final-authInfo fragmentation and
+coalesced tail, and same-listener retry. The missing real-socket negative
+was post-Type-2 TCP reset: the new ordinary Linux CTest
+runtime.linux-direct-ntlm-post-type2-abortive-reset-classification requires
+PeerReset without FIN/close_notify, Type 3 or native/MCS/Share authority.
+No production R1 socket/TLS/Type-2/timing behavior changes.
+
+Agent 6's same-attempt private receipt must correlate exact server SHA,
+listener generation and accepted-client opaque ID to its own client record;
+record queued vs locally committed Type 2, post-commit encrypted-byte delta,
+first-byte availability/age, decrypted bytes, complete/partial TSRequest
+counts, alert/close_notify, FIN/RST and typed terminal category. A missing
+first-byte timestamp is not a 0-us event. Type-2-to-peer-EOF is FIN-only,
+and poll/ready-to-service durations are non-additive subsets of R1
+Read/Write wall dwell. Share only redacted facts, no credentials, token
+contents, endpoints or persistent client identifiers.
+Exact baseline hosted protocol jobs on Ubuntu, macOS OpenSSL 4.1.0 and
+Windows and R9 sanitizers PASS; the overall Actions workflow 41167358674
+still awaited a separate clean-Windows job at inspection. Local canonical
+build, focused/full CTest and new regression execution NOT RUN; publication
+SHA CI PENDING. Physical client testing remains BLOCKED/NOT RUN until R9
+exact-SHA nomination and separate owner permission. The remaining external
+unknown is whether the Microsoft client received/processed Type 2 and why
+it sent FIN.
+
 **Implementation SHA:** `452ce336efcb779adb21979f7c22a63bf23535c9`. Standalone structure workflow
 `41111017232` **PASS**. Primary workflow `41111017558`, Ubuntu job
 `124253216902`: full Debug CTest **994/994 PASS** and full Release CTest

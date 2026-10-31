@@ -798,6 +798,10 @@ if(TARGET rdp-server-linux-host-control)
     add_test(NAME runtime.linux-direct-ntlm-post-type2-orderly-fin
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             direct-ntlm-post-type2-orderly-fin)
+    # RST classification was only checked negatively by the existing FIN cases.
+    add_test(NAME runtime.linux-direct-ntlm-post-type2-abortive-reset-classification
+        COMMAND test_linux_runtime_direct_ntlm_lifecycle
+            direct-ntlm-post-type2-abortive-reset-classification)
     add_test(NAME runtime.linux-direct-ntlm-post-type2-immediate-retry
         COMMAND test_linux_runtime_direct_ntlm_lifecycle
             direct-ntlm-post-type2-immediate-retry)
@@ -808,6 +812,7 @@ if(TARGET rdp-server-linux-host-control)
         runtime.linux-direct-ntlm-post-type2-non-type3-tsrequest
         runtime.linux-direct-ntlm-post-type2-tls-close-notify
         runtime.linux-direct-ntlm-post-type2-orderly-fin
+        runtime.linux-direct-ntlm-post-type2-abortive-reset-classification
         runtime.linux-direct-ntlm-post-type2-immediate-retry
         PROPERTIES
             LABELS "runtime;security;transport;tls;credssp;authentication;diagnostics;lifecycle;linux;native-environment"

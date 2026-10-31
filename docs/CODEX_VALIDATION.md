@@ -1,3 +1,44 @@
+## R1 Type-2/FIN source audit and post-Type-2 TCP reset test (2026-10-30)
+
+- Baseline: c88dc60f9e218797ddcd640af6bba1693adca1d7. Read all
+  required project policies, the single R1 socket/BIO/SSL owner,
+  the R10 pre-admission scheduler, bounded CredSSP reader/writer and
+  relevant real-socket Direct-NTLM CTest registration and assertions.
+- Owner-provided 9.5-ms local Type-2-commit to TCP FIN: zero
+  subsequently observed encrypted/plaintext TLS bytes, no Type 3,
+  close_notify or alert. The server's local R1 SSL_write_ex completion
+  and generation-pinned releaseReply() do not prove peer receipt.
+  This observation does not establish credential failure or a
+  timeout/performance target.
+- Existing negative cases already cover silence, orderly FIN,
+  TLS partial record, queued one-byte DER plaintext then FIN,
+  complete non-Type-3 TSRequest, close_notify, fragmentation and
+  same-listener retry. Review found no production R1 change justified.
+  A real post-Type-2 RST was only asserted absent in those FIN tests.
+  New runtime.linux-direct-ntlm-post-type2-abortive-reset-classification
+  adds a zero-linger RST, explicit PeerReset classification, zero new
+  application authority and FIN-only timestamp non-availability;
+  existing CTest executable and registry are reused. No production
+  source, wire format, policy, timeout or new build root.
+- Timing/counter review: monotonic steady_clock observations,
+  availability flags separate from zero durations, bounded/saturated
+  cumulative counts, first encrypted-byte latency latched only on
+  actual receive delta, FIN-only Type-2-to-peer-EOF timestamp, and
+  wall Read/Write dwell distinguished from non-additive poll and
+  ready-to-service subsets. The Type-2 local write is not a TCP ACK.
+- Exact baseline Actions 41167358674: protocol macOS job
+  124437727562 PASS on OpenSSL 4.1.0, Ubuntu protocol
+  124437727625 PASS, Windows protocol 124437727522 PASS, and
+  R9 sanitizers 124437727576 PASS. Overall workflow still queued
+  for clean-Windows self-hosted job at inspection. New-regression
+  local focused/full Debug/Release CTest, ASan/UBSan: NOT RUN
+  (no approved ~/rdp-server/build checkout in connector environment).
+  Exact-publication-SHA CI PENDING; physical client NOT RUN and
+  unauthorized. Next gate: same-SHA hosted test evidence, R9 manual
+  owner candidate and separately authorized paired R6 client trace.
+  The unresolved external boundary is client receipt/processing of
+  Type 2 and the true initiating cause of its FIN.
+
 ## R2 macOS grant reentry hardening, R3 private-gate audit — 2026-10-30
 
 - Audited main base `c88dc60f9e218797ddcd640af6bba1693adca1d7` and existing R2 native authorization,

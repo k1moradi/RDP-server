@@ -1,3 +1,20 @@
+## R1 post-Type-2 abortive TCP reset negative gate (2026-10-30)
+
+The ordinary Linux production-backed
+runtime.linux-direct-ntlm-post-type2-abortive-reset-classification CTest
+uses the existing real accepted-socket listener, R1 TLS/Direct-NTLM
+owner and client fixture. After the exact server Type-2 reply is locally
+committed and received by the synthetic client, a zero-linger abortive
+close must classify TCP PeerReset, not FIN, TLS close_notify or a TLS
+alert. Check zero post-Type-2 encrypted and plaintext bytes, no
+complete/partial TSRequest, no Type 3, MCS, Share or native authority,
+and no availability for the FIN-only Type-2-to-peer-EOF clock.
+This fixture sends no physical client and no OS input or clipboard.
+Do not replace the existing ordinary FIN, queued plaintext/FIN,
+partial TLS record, close_notify or same-listener retry regressions.
+Authoring inspection PASS; local and exact-publication-SHA execution
+NOT RUN/PENDING.
+
 ## R2 macOS standalone original-generation visitor denials (2026-10-30)
 
 Ordinary offline CTest

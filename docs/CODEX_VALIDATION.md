@@ -1,3 +1,25 @@
+## macOS coalesced-Erect Release fixture race correction (2026-10-31)
+
+Reviewed exact head `3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9` and Actions `41221183682`.
+Ubuntu and Windows protocol jobs and R9 security-protocol sanitizers **PASS**.
+macOS full Debug ran the new
+`security.macos-protected-ssl-buffered-erect-after-response` **PASS**, while
+the subsequent Release full CTest failed that same case at
+`header.outcome == Progress && header.bytes == 4`. The server performed the
+read immediately after client `SSL_write_ex` success without first allowing
+the nonblocking TCP ciphertext to become ready. This is a fixture scheduling
+assumption, not evidence of a production Erect/R2 failure.
+
+The test now accumulates the exact first-MCS header/body through the existing
+R1 application reader and bounded `pollSocketOnce()` on WANT_READ/WANT_WRITE.
+The core regression remains strict: after R3's exact Connect-Response receipt,
+the coalesced Erect must already satisfy `tlsApplicationReadReady()` and is
+read without a second native readiness wait. No production source changed.
+The R2 `security.macos-protected-post-mcs-semantic-audit-loss` case passed
+on this failed head and has macOS/Ubuntu/Windows protocol plus R9 sanitizer
+PASS evidence on Actions `41219859982`. Local owner build/full CTest
+**NOT RUN**; corrective publication CI **PENDING**.
+
 ## R10 follow-up review — macOS View/Input broker scope and buffered Erect (2026-10-31)
 
 Reviewed `main` at `8c68f687173d7396b4bb77625620bdaee6959987`.

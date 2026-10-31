@@ -1,3 +1,17 @@
+## macOS coalesced-Erect nonblocking fixture readiness (2026-10-31)
+
+A client-side successful `SSL_write_ex` proves that the client TLS owner
+accepted plaintext; it does not prove the server's nonblocking native socket
+is already readable. Production-backed tests that need the first encrypted
+record must tolerate R1 `NeedRead`/`NeedWrite`, drive the existing bounded
+`pollSocketOnce()` readiness path, and accumulate only the exact requested
+application span. This must not weaken a later SSL-buffering assertion:
+`security.macos-protected-ssl-buffered-erect-after-response` still requires
+coalesced Erect to remain in R1/OpenSSL pending plaintext after first MCS and
+to need no second native POLLIN after Connect-Response. Exact parent
+`3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9` macOS Debug passed and Release failed only at the premature first
+read; corrective exact-SHA CI pending.
+
 ## R10 owner permission-scope replacement and buffered Erect review (2026-10-31)
 
 New `runtime.macos-host-control-consent-scope-replacement-denials`

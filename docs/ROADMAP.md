@@ -1,3 +1,27 @@
+## R2/R3 macOS coalesced-Erect fixture readiness correction (2026-10-31)
+
+**Parent:** `3c8d09dcb0344794ba6d7d73bbf2f9542b1b2cd9`. Exact-head Actions `41221183682` showed the new
+`security.macos-protected-ssl-buffered-erect-after-response` case PASS in
+macOS Debug but FAIL in Release at its first four-byte R1 application read.
+The client-side nonblocking `SSL_write_ex` had accepted the coalesced
+Connect-Initial+Erect plaintext, but the test incorrectly assumed that made
+the peer native socket immediately readable. Ubuntu/Windows protocol and R9
+security sanitizers were PASS; the R2 post-MCS audit-loss case was PASS.
+
+The regression now drives the existing R1 `pollSocketOnce()` readiness path
+only while receiving the exact bounded first-MCS bytes, accepting partial
+progress and WANT_READ/WANT_WRITE. It still requires, after complete
+Connect-Response delivery, that Erect is already available through
+`tlsApplicationReadReady()` and is consumed without any second native
+readiness notification. No production R1/R2/R3/R10 code, TLS policy, timeout,
+permission scope or protocol bytes change. My prior R2
+`security.macos-protected-post-mcs-semantic-audit-loss` is independently
+PASS on descendant Actions `41219859982` macOS/Ubuntu/Windows protocol and
+R9 security sanitizer jobs. Local owner build/full CTest **NOT RUN**;
+corrective publication-SHA hosted CI **PENDING**. R10 has resolved the
+View/Input scope blocker; Attach/Confirm remains the next runtime increment.
+Physical macOS/client admission remains **NOT RUN / unauthorized**.
+
 ## R10 P0 owner View/Input scope and buffered Erect correctness (2026-10-31)
 
 **Reviewed exact parent:** `8c68f687173d7396b4bb77625620bdaee6959987`.

@@ -8243,17 +8243,49 @@ void testMacProtectedPostMcsSemanticAuditLoss()
      assert(sent);
      assert(fixture->broker.revalidate(kConsoleViewPermission));
 
+     // A successful nonblocking client SSL_write_ex accepts plaintext into
+     // the client TLS owner; it does not guarantee that the peer socket is
+     // already readable. Drive only the existing R1 readiness path until the
+     // exact bounded first-MCS bytes arrive. This initial wait is distinct
+     // from the assertion below that coalesced Erect needs no second POLLIN.
+     auto readExactFirstMcsBytes =
+         [&](std::span<std::uint8_t> destination) {
+             std::size_t receivedBytes = 0U;
+             for (std::size_t attempt = 0U;
+                  attempt < 2048U &&
+                  receivedBytes < destination.size() &&
+                  std::chrono::steady_clock::now() < deadline;
+                  ++attempt)
+             {
+                 const auto remaining =
+                     destination.subspan(receivedBytes);
+                 const auto result =
+                     fixture->connection.readTlsApplicationData(remaining);
+                 if (result.outcome == Outcome::Progress)
+                 {
+                     assert(result.bytes > 0U &&
+                            result.bytes <= remaining.size());
+                     receivedBytes += result.bytes;
+                     continue;
+                 }
+
+                 assert(result.bytes == 0U);
+                 assert(result.outcome == Outcome::NeedRead ||
+                        result.outcome == Outcome::NeedWrite);
+                 const auto polled = fixture->connection.pollSocketOnce(
+                     deadline, kMaximumTcpPollWait);
+                 assert(polled.outcome == TcpConnectionPollOutcome::Dispatched ||
+                        polled.outcome == TcpConnectionPollOutcome::NoEvent);
+             }
+             assert(receivedBytes == destination.size());
+         };
+
      // The single R1 SSL reader consumes exactly Connect-Initial, leaving
      // the coalesced Erect decrypted but not visible to the R3 parser yet.
      std::vector<std::uint8_t> receivedFirstMcs(firstMcs.size());
-     const auto header = fixture->connection.readTlsApplicationData(
-         std::span(receivedFirstMcs).first(4U));
-     assert(header.outcome == Outcome::Progress && header.bytes == 4U);
+     readExactFirstMcsBytes(std::span(receivedFirstMcs).first(4U));
      assert(fixture->broker.revalidate(kConsoleViewPermission));
-     const auto body = fixture->connection.readTlsApplicationData(
-         std::span(receivedFirstMcs).subspan(4U));
-     assert(body.outcome == Outcome::Progress &&
-            body.bytes == firstMcs.size() - 4U);
+     readExactFirstMcsBytes(std::span(receivedFirstMcs).subspan(4U));
      assert(receivedFirstMcs == firstMcs);
      assert(fixture->broker.revalidate(kConsoleViewPermission));
      assert(fixture->connection.tlsApplicationReadReady());

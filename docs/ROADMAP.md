@@ -700,6 +700,8 @@ and requires the old R1/R3 terminal receipt before a fresh reconnect.
 The offline `linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials`
 CTest exercises cross-socket/owner/ACK splicing and missing retirement,
 separately from preexisting connection-pinning and fixed native sanitizers.
+The existing same-numeric-frame-ID reconnect fixture now pins the v4 inbound
+ACK frame identity separately, avoiding a false-negative offline test.
 These labels are noncryptographic operator-provided observations; they
 cannot mint native consent. No new Linux runtime owner or live operation.
 

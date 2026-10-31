@@ -6,77 +6,10 @@ pins per-attempt R10 accepted-socket and R2 native-owner lifetimes against R3
 Share, R5 capture, exact R1 frame acceptance, inbound client FRAME_ACK
 frame ID, and prior terminal R1/R3 cancellation. It rejects crossed producers,
 equal numeric owner reuse and missing cancellation before reconnect. The fixed
-45-case native sanitizer selection is unchanged. Owner-local focused/full
+45-case native sanitizer selection is unchanged. The existing legitimate
+reused-frame-ID reconnect case must update its independent inbound ACK
+frame pin too. Owner-local focused/full
 CTest and sanitizers **NOT RUN**; publication-SHA hosted CI **PENDING**.
-
-## R9 per-commit production source / central CTest registry gate (2026-10-31)
-
-The existing push-time `scripts/check_documentation_cochange.py` ensured
-a Markdown co-change but did not catch production C/C++ edits without a
-`tests/CMakeLists.txt` registry update. The R10 protected Erect Domain
-increment at `9b1861ec32c9b03a566e04c6ecd7613ccd1fe13e` exposed that
-assurance gap: its pre-existing lower-level R2/R3 Erect test cannot execute
-the newly added positive MacRuntimeHostControl Erect branch. The check now
-fails any affected individual commit touching `src/` C/C++ source/header
-without the central registry file in the same commit; docs-only,
-fixture-only, script-only and non-C/C++ resources keep their previous
-behavior. This co-change rule is a necessary structural guard, **not**
-proof that the registered case really executes the new behavior. R10
-still owes that dedicated positive production-path regression.
-
-Six isolated Python fixtures validate the source/co-change distinction,
-missing Markdown, mixed-commit evasion and unaffected non-production edits.
-The dedicated offline CTest is
-`project.production-source-ctest-registry-cochange-denials`. It does not
-touch the fixed R5 45-case X11, R8 107-case clipboard or other sanitizer
-censuses. Authoring parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`; connector source/syntax and
-in-memory logic checks PASS, full owner-local Python/CTest/ASan NOT RUN,
-new exact-publication-SHA hosted jobs PENDING. Next: hosted same-SHA full
-Linux/macOS/Windows CTest and sanitizer checks; no owner candidate or
-physical desktop/clipboard/client acceptance is authorized.
-
-## R2 post-first-MCS semantic acceptance with post-callback audit loss (2026-10-31)
-
-The dedicated offline behavior `security.macos-protected-post-mcs-semantic-audit-loss`
-reuses one real accepted R1 HYBRID/TLS transport and the original production
-R2 broker/R3 lifecycle. A deterministic test-only macOS evidence source
-observes the unchanged original audit session before the protected R3
-Connect-Initial callback, then changes its audit-session ID during the
-authorization post-check, after the R3 phase has reached
-AwaitConnectResponse. R2 must deny publication, close R3, cancel R1,
-reject any Connect-Response write and never allow reprepare. Credentials
-and macOS native evidence remain explicitly synthetic and never constitute
-product-valid admission. No global sanitizer test inventory is expanded.
-Canonical local full CTest/ASan/UBSan NOT RUN in connector-only environment;
-new exact-SHA hosted CI pending.
-
-## R3/R10 coalesced Erect after protected R1 TLS reply (2026-10-31)
-
-Ordinary `security.macos-protected-ssl-buffered-erect-after-response`
-uses a real R1 HYBRID TLS client that coalesces first MCS and Erect in one
-record. After exact R1 plaintext accepted-byte receipts complete the original
-R2/R3 Connect-Response, the Erect TPKT remains decrypted in the sole SSL
-without a new socket event. Fresh protected R2 checks admit that Erect,
-then duplicate Erect terminally closes the original R1/R2/R3.
-Synthetic proof/native evidence is fixture mechanics, not physical macOS
-admission. Preserve fixed 171-case MCS table and all sanitizer selections.
-
-## R7 tray connected-device count requires native/Share-visible projection (2026-10-31)
-
-The system tray must count only peers in the already filtered R7
-`HostStatus::clients`: R10 product state Connected, native desktop ready,
-client Share activated, desktop visible and no outstanding authentication.
-`RuntimeProductHostStatus::clientCount` counts accepted peers, including
-peers still authenticating, and cannot be presented as confirmed connected
-devices. A mixed ready/pending group counts only its confirmed peers; with no
-confirmed peers, accepted peers are "connecting". Terminal or non-Connected
-product states may not retain a tray connected claim. Reuse the existing
-projection, never recreate authorization or second protocol authority.
-
-Run the existing Qt offscreen fixture
-`gui.offscreen-tray-share-native-ready-client-count-denials`; it drives the
-production `DesktopWindow` and typed `HostControl` with contradictory/mixed
-runtime status, requiring no listener, authentication, TCC, capture or input.
 
 ## R9 per-commit production source / central CTest registry gate (2026-10-31)
 

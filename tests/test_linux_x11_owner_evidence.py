@@ -476,6 +476,9 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
         pins = independent_pins(self.evidence)
         pins["reconnect_first_frame_id"] = 7
         pins["reconnect_matching_ack_frame_id"] = 7
+        # v4 independently pins the actual inbound ACK frame, not just
+        # the reported R3/R4 numeric frame identity.
+        pins["reconnect_client_ack_inbound_frame_id"] = 7
         self.evidence.validate(same_frame_id)
         self.evidence.validate_independent_pins(same_frame_id, pins)
 

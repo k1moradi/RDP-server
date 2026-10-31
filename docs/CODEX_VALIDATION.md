@@ -17,7 +17,9 @@ write and inbound R3/R4 ACK (including original frame ID), and original
 R1/R3 terminal retirement for a reconnect. The new
 `linux.x11-owner-private-evidence-accepted-socket-native-lifetime-denials`
 offline Python CTest exercises crossed producer, native owner, inbound
-ACK and missing-terminal receipts. This does not authenticate handwritten
+ACK and missing-terminal receipts. The existing positive same-frame-ID reconnect fixture must also pin the
+actual v4 inbound client ACK frame ID; that fixture is corrected here.
+This does not authenticate handwritten
 evidence or grant native authority; 45 native sanitizer CTests unchanged.
 
 Source-backed audit and CTest registration inspected. Connector-local
@@ -26,102 +28,6 @@ publication-SHA hosted CI **NOT RUN/PENDING**. Physical Linux seat0,
 Microsoft client, capture, XTEST, RandR and reconnect **NOT RUN /
 unauthorized**. R9 exact-SHA manual candidate and separate owner
 authorization are still required before any physical stage.
-
-## R9 production-source CTest registry co-change policy (2026-10-31)
-
-Audit parent `389bd5202c9b6eb6cd3044eaf8352d0b082e57f3`: `AGENTS.md` requires one new centralized
-behavior-named CTest on each production implementation increment. R10's
-new positive macOS HostControl Erect intake changed source and the fixture
-but omitted `tests/CMakeLists.txt`; the old Markdown-only push check
-could not report the missing registration. Extend that same check narrowly
-to require a centralized registry file change whenever a commit changes
-C/C++ under `src/`, preserving documentation checks and commit-by-commit
-atomicity. Six offline regression cases exercise denial and allowed
-boundaries without Git, credentials, sockets or native UI. A registry
-co-change is necessary but not proof of actual positive branch coverage.
-
-Validation: source review PASS; Python syntax and pure in-memory
-classification PASS; the newly registered offline Python CTest,
-owner canonical Debug/full CTest, native platform qualification and
-ASan/UBSan are NOT RUN in this connector environment. Exact-head CI
-PENDING; owner candidate NOT NOMINATED. R10 still needs a dedicated
-real-production-path Erect/Attach positive test, and macOS Share/Graphics
-composition and owner-approved physical acceptance remain BLOCKED.
-
-## R2 post-MCS callback native audit replacement regression (2026-10-31)
-
-Audited exact parent `8c68f687173d7396b4bb77625620bdaee6959987`. R10 now has a protected first-MCS,
-Connect-Response and Erect Domain consumer; the prior R1/R3 primitive gap
-is resolved. R2's `MacNativeDesktopAuthorization::visit` already performs
-native/proof/consent checks before and after the visitor, and its broker
-does not publish Admitted until this whole visit passes. There was no
-separate regression for audit-session change **after** successful R3 first-MCS
-semantic mutation but **before** publishing that result to R10.
-Added `security.macos-protected-post-mcs-semantic-audit-loss` using the
-existing real accepted HYBRID/TLS owner and production R2/R3 code plus
-controlled synthetic macOS evidence. The reader verifies the R3 state is
-AwaitConnectResponse when the second audit sample changes; R2 must return
-AdmissionDenied and terminally close the old R3/R1. This is a test-only
-assurance increment, not a product-valid OS login or standalone proof.
-Connector-local compile, focused/full CTest and sanitizers **NOT RUN**;
-exact-publication hosted CI **PENDING**. R10 still owns View+Input scope
-selection, Attach/Join/Share composition and genuine macOS physical-client
-acceptance. No new admission issuer, public API, permission relaxation or
-measured performance claim.
-
-## R3/R10 coalesced buffered Erect TLS-read liveness correction (2026-10-31)
-
-Authored against `9cd8fc12e9fbf1f60d3ebc5e882671535bf3f102`. The newly landed R10 post-Connect-Response
-Erect state called `poll(POLLIN)` even if R1's sole SSL had already decrypted
-the Erect TPKT during the preceding first-MCS read. A minimal production
-condition reuses the same effective-Read-interest `tlsApplicationReadReady()`
-shortcut for both first MCS and Erect. R1 retains sole socket/TLS/plaintext
-read/write ownership; R2 still revalidates original native proof and consent
-before/after every read; R3 remains sole admission-bound protocol/receipt
-owner.
-
-New ordinary production-linked
-`security.macos-protected-ssl-buffered-erect-after-response` CTest uses
-one real R1 HYBRID/TLS client record with Connect-Initial and Erect. The
-concrete macOS R2 broker enters R3, exact one-byte accepted R1 plaintext
-receipts complete the original Connect-Response, and R1 reads the already
-decrypted Erect without a new socket readiness event. Replayed Erect
-terminally closes R1/R2/R3. Synthetic credential/native fixture proof is
-internal mechanics only, **not** real product macOS admission, Share or
-physical client acceptance. No R3 public admission API or fixed sanitizer
-selection changed.
-
-Source/registration and Microsoft MS-RDPBCGR sequence review: PASS by
-inspection. Connector-local canonical build, focused/full CTest and
-sanitizers: **NOT RUN** (approved owner checkout unavailable).
-Exact publication SHA hosted CI: **PENDING**.
-Owner command: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON`,
-`cmake --build build --config Debug --parallel 2`,
-`ctest --test-dir build -C Debug -R '^security[.]macos-protected-ssl-buffered-erect-after-response$' --output-on-failure`,
-then `ctest --test-dir build -C Debug --output-on-failure`.
-Next R10: private Attach User/Confirm through the same serialized loop,
-with complete TPKT intake, accepted-byte receipts and fresh R2 validation.
-Owner-native macOS admission/client **NOT RUN / unauthorized**.
-
-## R7 tray verified-client count after R10 Erect integration (2026-10-31)
-
-- Authoring parent `13fc699b31a1a487ab8c3b92a25a044bf2fb1cfe`. The Main activity already gates
-  `HostStatus::clients` on product Connected, native desktop ready,
-  ShareActivated, desktopVisible and nonauthenticating per-peer flags.
-  The tray instead used the total accepted client count whenever product
-  Connected, mislabeling a ready/authenticating mix as all connected.
-- Fixed the tray to reuse the filtered list size and retain accepted count
-  for the separate "connecting" label. One new CTest
-  `gui.offscreen-tray-share-native-ready-client-count-denials` reuses the
-  existing GUI test binary to exercise no-native, pre-Share, pre-visibility,
-  mixed/all-ready, stale product-state and empty-client conditions.
-  No R1/R2/R3/R4/runtime/native/color behavior changes.
-- Dependency audit: R10 now reaches genuine broker-protected Erect Domain;
-  Attach/Confirm, joins, Client Info, licensing, Share/GraphicsReady remain
-  R10-owned and are not yet wired into live macOS HostControl.
-- Local canonical build/focused/full CTest **NOT RUN** (connector-only, no
-  checkout). Exact-publication hosted CI **PENDING**. Physical capture/input,
-  client test and owner QColorSpace warning-site stack **NOT RUN / unauthorized**.
 
 ## R9 production-source CTest registry co-change policy (2026-10-31)
 

@@ -148,9 +148,8 @@ round-one preparation.
 ## Independently pinned accepted connection and owner grant
 
 The closed private v3 manifest checks stage attempt IDs, R10 listener,
-complete R1 TLS-write and inbound R3 client-FRAME_ACK identity, with
-independently pinned R2/native provenance and consent epochs.
-but cannot detect a *whole* internally consistent relabeling to a different
+complete R1 TLS-write and inbound R3 client-FRAME_ACK identity, with independently pinned R2/native provenance and consent epochs, but
+cannot detect a *whole* internally consistent relabeling to a different
 R10 accepted client or an independently incorrect owner epoch. Privately
 copy **separate** R9 nominated source SHA, R10 accepted-client ID for each
 attempt and owner sharing-grant generation, rather than copying these from

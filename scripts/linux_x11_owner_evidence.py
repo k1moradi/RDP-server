@@ -72,7 +72,7 @@ def validate(record):
     """Return a safe public projection, or raise without leaking private data."""
     require_fields(record, (
         "schema", "source_sha", "client", "sharing", "credentials", "seat",
-        "generations", "stages", "input", "randr", "retirements", "reconnect",
+        "generations", "stages", "frame", "input", "randr", "retirements", "reconnect",
     ), "record")
     if record["schema"] != PRIVATE_SCHEMA:
         raise EvidenceError("unsupported private schema")
@@ -135,6 +135,18 @@ def validate(record):
     if stages["first_frame"] == "PASS" and generations["native_capture"] is None:
         raise EvidenceError("first frame requires native capture generation")
 
+    frame = require_fields(record["frame"], ("first_frame_capture_generation", "ack_capture_generation"), "frame")
+    for name in frame:
+        require_generation(frame[name], f"frame.{name}", nullable=True)
+    if (stages["first_frame"] == "PASS") != (frame["first_frame_capture_generation"] is not None):
+        raise EvidenceError("frame generation disagrees with first-frame stage")
+    if frame["first_frame_capture_generation"] is not None and frame["first_frame_capture_generation"] != generations["native_capture"]:
+        raise EvidenceError("first frame does not match native capture generation")
+    if (stages["matching_ack"] == "PASS") != (frame["ack_capture_generation"] is not None):
+        raise EvidenceError("ACK generation disagrees with matching-ACK stage")
+    if frame["ack_capture_generation"] is not None and frame["ack_capture_generation"] != frame["first_frame_capture_generation"]:
+        raise EvidenceError("ACK generation does not match first-frame generation")
+
     input_facts = require_fields(record["input"], (
         "keyboard_posts", "mouse_posts", "posts_after_revocation",
     ), "input")
@@ -180,13 +192,21 @@ def validate(record):
     reconnect = require_fields(record["reconnect"], (
         "observed", "owner_grant_recorded", "consent_generation", "linux_session_generation",
         "r2_admission_generation", "native_capture_generation", "stages",
-        "posts_after_revocation",
+        "first_frame_capture_generation", "ack_capture_generation", "posts_after_revocation",
     ), "reconnect")
     for name in ("observed", "owner_grant_recorded"):
         require_bool(reconnect[name], f"reconnect.{name}")
     for name in ("consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation"):
         require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
     require_stages(reconnect["stages"], RECONNECT_STAGES, "reconnect.stages")
+    for name, stage in (("first_frame_capture_generation", "first_frame"), ("ack_capture_generation", "matching_ack")):
+        require_generation(reconnect[name], f"reconnect.{name}", nullable=True)
+        if (reconnect["stages"][stage] == "PASS") != (reconnect[name] is not None):
+            raise EvidenceError("reconnect frame or ACK generation disagrees with stage")
+    if reconnect["first_frame_capture_generation"] is not None and reconnect["first_frame_capture_generation"] != reconnect["native_capture_generation"]:
+        raise EvidenceError("reconnect frame has stale capture generation")
+    if reconnect["ack_capture_generation"] is not None and reconnect["ack_capture_generation"] != reconnect["first_frame_capture_generation"]:
+        raise EvidenceError("reconnect ACK does not match new frame")
     require_counter(reconnect["posts_after_revocation"], "reconnect.posts_after_revocation")
     if reconnect["posts_after_revocation"] != 0:
         raise EvidenceError("reconnect posted input after revocation")
@@ -212,7 +232,7 @@ def validate(record):
             raise EvidenceError("session-changing reconnect reused old Linux session")
     elif (reconnect["owner_grant_recorded"] or
           any(reconnect[name] is not None for name in (
-              "consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation")) or
+              "consent_generation", "linux_session_generation", "r2_admission_generation", "native_capture_generation", "first_frame_capture_generation", "ack_capture_generation")) or
           any(stage != "NOT_OBSERVED" for stage in reconnect["stages"].values())):
         raise EvidenceError("unobserved reconnect contains claimed evidence")
 
@@ -225,6 +245,10 @@ def validate(record):
         "retirement_outcomes": {kind: "PASS" for kind in sorted(seen_kinds)},
         "input_after_revocation": "PASS" if retirements else "NOT_OBSERVED",
         "generation_matches": {
+            "initial_frame_matches_capture": frame["first_frame_capture_generation"] is not None and frame["first_frame_capture_generation"] == generations["native_capture"],
+            "initial_ack_matches_frame": frame["ack_capture_generation"] is not None and frame["ack_capture_generation"] == frame["first_frame_capture_generation"],
+            "reconnect_frame_matches_capture": reconnect["first_frame_capture_generation"] is not None and reconnect["first_frame_capture_generation"] == reconnect["native_capture_generation"],
+            "reconnect_ack_matches_frame": reconnect["ack_capture_generation"] is not None and reconnect["ack_capture_generation"] == reconnect["first_frame_capture_generation"],
             "randr_capture_replaced": replacement is not None,
             "reconnect_consent_changed": reconnect["observed"] and reconnect["consent_generation"] != sharing["consent_generation"],
             "reconnect_r2_changed": reconnect["observed"] and reconnect["r2_admission_generation"] != generations["r2_admission"],

@@ -1,3 +1,13 @@
+## R2 Client Info callback compile and terminal replay correction (2026-10-31)
+
+Hosted Ubuntu/macOS protocol compilation of `2b348139` reported the
+undefined identifier at mac_console_admission.cpp:807 (not a CTest
+failure). The corrected callback returns a typed optional result.
+Existing production-backed `security.native-authorization-macos-console-protected-attach-join-clientinfo-denials`
+now additionally asserts the broker's admission generation is erased
+after terminal Client Info denial and duplicate intake remains denied.
+Hosted exact-correction-SHA compile/full CTest is separate pending evidence.
+
 ## R2 protected macOS Demand/Share denial registry (2026-10-31)
 
 `security.native-authorization-macos-console-protected-mac-demand-share-denials`

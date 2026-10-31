@@ -1,3 +1,12 @@
+## R2 callback return type must preserve positive Client Info (2026-10-31)
+
+The macOS broker's Client Info checked-visitor returns
+`operation.outcome.has_value()` after the private, stateful R3
+`acceptVerifiedR2ClientInfoPacket()` call; it must not use a non-C++
+placeholder or treat a failed parse as a successful transition. The existing
+post-visitor R1/consent/native/proof check remains mandatory and any failure
+terminates the original R1/R3 owners.
+
 ## R2 protected macOS Demand Active and Share (2026-10-31)
 
 The sole R2 macOS broker prepares only R3's private macOS-specific Demand

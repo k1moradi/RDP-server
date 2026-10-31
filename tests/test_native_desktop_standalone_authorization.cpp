@@ -1024,6 +1024,8 @@ void testMacConsoleProtectedAttachJoinClientInfoDenials()
         assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
         assert(session.phase() == McsSessionPhase::Closed);
         assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+        assert(fixture.broker.admissionGeneration() == 0U);
+        assert(!fixture.broker.authorizeR3ClientInfoPacket(session, {}));
     }
 }
 

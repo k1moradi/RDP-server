@@ -1,3 +1,15 @@
+## R2 Client Info callback compile correction (2026-10-31)
+
+**Known failing evidence:** hosted Ubuntu and macOS C++23 compilation
+of `2b348139` reached the R2 translation unit and failed on a
+mistaken `return undefined;` in private Client Info acceptance.
+The R2 callback now returns the typed optional acceptance Boolean and
+the existing production-linked premature Client Info CTest also checks
+erased broker generation and closed replay. Corrective exact-head
+CI **PENDING**; local canonical build **NOT RUN**. This is a build fix,
+not a new native admission proof. Remaining R2 post-Share and genuine
+R1 TLS callback-time completion coverage unchanged.
+
 ## R8 sanitizer selector completes destroyed-owner X11 coverage (2026-10-31)
 
 **Authoring main parent:** `ca4c90aece8c1fc83cf0040f5f39598abca638b6`. The prior registry-taxonomy configure

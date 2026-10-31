@@ -804,7 +804,7 @@ MacConsoleAdmissionBroker::authorizeR3ClientInfoPacket(
             return false;
         operation.outcome = operation.session->acceptVerifiedR2ClientInfoPacket(
             *provenance, operation.completeTpkt);
-        return undefined;
+        return operation.outcome.has_value();
     };
 
     if (!visitR3ProtectedOperation(

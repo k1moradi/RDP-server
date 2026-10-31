@@ -1,3 +1,18 @@
+## R2 Client Info C++23 build correction (2026-10-31)
+
+**FAIL** hosted `2b34813974a1062e540c795de097341227238137`,
+Actions `41188494237`: Ubuntu and macOS protocol compile failed at
+`src/server/security/mac_console_admission.cpp:807` because a generated
+checked-visitor returned non-C++ `undefined`; Windows remained in progress
+at inspection. This was introduced by the R2 Attach/Client Info increment,
+not a native authority failure. Replaced that placeholder with
+`operation.outcome.has_value()`, and strengthened the existing
+production-linked offline replay denial to assert the terminal broker
+generation is zero. Exact-correction-SHA hosted CI **PENDING**;
+local canonical compilation/full/focused CTest/sanitizer **NOT RUN**
+(no approved checkout in the connector environment). Do not count
+`2b348139` as protocol PASS.
+
 ## R8 X11 callback sanitizer selector completion (2026-10-31)
 
 - Audited current main parent `ca4c90aece8c1fc83cf0040f5f39598abca638b6`: the earlier global CTest taxonomy

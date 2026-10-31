@@ -1,3 +1,39 @@
+## R7 callback-retirement hosted qualification and dependency recheck — 2026-10-30
+
+- Qualified implementation SHA:
+  `34e508105d7f7f9f503d3d29475949269dd370cf`.
+- Primary workflow `41157153368`: macOS native lifecycle
+  `124407093817` **PASS**, including
+  `macos.native-desktop-owner-borrow-callback-retirement` in Debug and
+  Release focused selections (22/22 each); macOS protocol
+  `124407093927` **PASS** with the new regression in ordinary full CTest;
+  macOS portable GUI `124407094074` **PASS**; macOS session sanitizers
+  `124407093868` **PASS**; R9 security/protocol sanitizer
+  `124407093911` **PASS**; macOS/Ubuntu owner GUI parity
+  `124407093974` / `124407093879` **PASS**.
+- R9 GUI Round 2 job `124410451261` **PASS** and emits
+  `GUI ROUND 2 PASS: 34e508105d7f7f9f503d3d29475949269dd370cf`.
+  The self-hosted clean-Windows job is a distinct release-evidence track and
+  remained queued; it is not a prerequisite for this R7 native/macOS fix.
+- Descendant audit head `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f`: R7 macOS native lifecycle, portable GUI,
+  session sanitizers, owner GUI parity and Round 2 remain **PASS**. The
+  descendant macOS protocol job `124407094700` fails at compile time in
+  R1-owned `runtime_tls_context.cpp` with OpenSSL 4.1 expansion of
+  `::sk_GENERAL_NAME_value`; no R7 source participates.
+- QColorSpace attribution remains negative by source/package inspection:
+  no first-party `QColorSpace`, custom Qt primaries, ICC/profile conversion
+  into Qt, application message handler or global warning suppression was found.
+  No R4 pixel change is authorized without runtime provenance.
+- Current macOS HostControl still does not positively call
+  `RuntimePlatformNativeDesktop::attachAuthenticatedSession()`. Native
+  readiness therefore remains impossible from TCP/TLS/Username/
+  CredentialsVerified/GUI Sharing alone. R10/R2 must supply the future genuine
+  accepted-client authenticated/admitted authority; R7 does not duplicate it.
+- Local canonical build, local offscreen/package warning reproduction and
+  physical native desktop: **NOT RUN**. Hosted R7 implementation evidence is
+  complete; live native attachment remains **BLOCKED** on R10/R2 composition,
+  manual R9 exact-SHA candidate qualification and separate owner permission.
+
 ## R6 private two-client A/B validation authoring — 2026-10-30
 
 - Reviewed current main and existing R5 macOS evidence path, MSVC/CLANG64

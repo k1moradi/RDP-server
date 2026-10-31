@@ -876,6 +876,38 @@ void testMacConsoleAdmissionExplicitTerminalRevocation()
     assert(!fixture.broker.revalidate(kConsoleViewPermission));
 }
 
+// R1/R2 boundary: an independently prepared macOS authorization lifetime
+// cannot transition an inactive/unverified R1 connection into MCS. The fake
+// proof tests only the broker's ordering; it cannot create native admission.
+void testMacConsolePreparedTransportDormancy()
+{
+    using rdp_server::server::transport::PreauthStage;
+
+    MacConsoleBrokerFixture fixture;
+    const PreauthStage initialStage = fixture.connection.stage();
+    assert(initialStage != PreauthStage::AwaitMcsConnectInitial);
+    assert(!fixture.connection.active());
+    assert(fixture.connection.establishedTls() == nullptr);
+
+    fixture.prepare(kConsoleViewPermission);
+    bool visited = false;
+    assert(fixture.broker.visitNativeAuthorization(
+        kConsoleViewPermission, &markMacConsoleBrokerVisitor, &visited));
+    assert(visited);
+    assert(fixture.broker.revalidate(kConsoleViewPermission));
+    assert(fixture.connection.stage() == initialStage);
+    assert(fixture.connection.establishedTls() == nullptr);
+    assert(fixture.connection.transportGeneration() == 0U);
+
+    fixture.broker.revoke(
+        MacConsoleAdmissionRevocationReason::ListenerReplacement);
+    assert(!fixture.broker.revalidate(kConsoleViewPermission));
+    assert(fixture.connection.stage() == initialStage);
+    fixture.connection.cancel();
+    assert(fixture.connection.stage() == PreauthStage::Closed);
+    assert(!fixture.connection.active());
+}
+
 } // namespace
 
 int main(int argumentCount, char **arguments)
@@ -942,6 +974,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-admission-explicit-terminal-revocation")
     {
         testMacConsoleAdmissionExplicitTerminalRevocation();
+        return 0;
+    }
+    if (testCase == "macos-console-prepared-transport-dormancy")
+    {
+        testMacConsolePreparedTransportDormancy();
         return 0;
     }
     return 2;

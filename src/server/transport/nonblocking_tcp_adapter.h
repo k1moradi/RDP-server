@@ -18,6 +18,7 @@
 namespace rdp_server::server::security
 {
 class LinuxConsoleAdmissionBroker;
+class MacConsoleAdmissionBroker;
 }
 
 namespace rdp_server::server::transport
@@ -588,6 +589,7 @@ private:
 
  private:
      friend class rdp_server::server::security::LinuxConsoleAdmissionBroker;
+     friend class rdp_server::server::security::MacConsoleAdmissionBroker;
 
      // Only the concrete R2 broker may advance the exact R1 HYBRID owner
      // after final credentials and native desktop admission both succeed.

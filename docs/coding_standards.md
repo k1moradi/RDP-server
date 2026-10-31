@@ -1,3 +1,16 @@
+## R1 macOS R2 private transport edge (2026-10-31)
+
+`OwnedPreauthTcpConnection::completeCredSspAdmission()` remains private to
+only the existing Linux broker and the now-concrete
+`rdp_server::server::security::MacConsoleAdmissionBroker`. This friend edge
+is compile-time access, not native admission. R1 alone checks the exact live
+SSL/BIO, pending TLS application operation, HYBRID provenance, pinned selected
+certificate and pre-MCS stage. Only R2 may invoke it after current owned
+CredSSP/credential proof, listener/consent epoch and independent native
+authorization are verified. R2 must terminally cancel R1 on any callback-time
+post-check failure before a first-MCS read; R3's private generation binding is
+still mandatory. No R10 friend, alternate TLS reader, or policy/timing change.
+
 ## R3 private macOS R2 protocol entry (2026-10-30)
 
 The exact macOS production issuer is the R2-owned

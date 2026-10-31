@@ -1,3 +1,17 @@
+## R1 prepared macOS admission never advances transport (2026-10-31)
+
+Ordinary production-linked CTest
+`security.native-authorization-macos-console-prepared-transport-dormancy`
+reuses `test_native_desktop_standalone_authorization` and its fake R2 proof
+and inactive `OwnedPreauthTcpConnection`. It proves that successful prepared
+R2 authorization and a protected visit do not promote the R1 connection into
+MCS, create SSL/TLS ownership or change transport generation, and that explicit
+broker listener retirement cannot authorize the connection. This is **offline
+negative coverage only**, not completed CredSSP, a positive private R1 call or
+a native OS session. Agent 2 must separately register a production-backed
+positive-completion/post-callback-revocation test when it implements its R1/R3
+private issuer handoff. Do not change fixed sanitizer selector inventories.
+
 ## R3 macOS private-entry generation denial gate (2026-10-30)
 
 Register

@@ -1,3 +1,13 @@
+## R1 macOS concrete admission friend access (2026-10-31)
+
+A forward declaration and exact R2 broker friend in the existing portable R1
+header introduce no target, linked dependency, native framework, second reader,
+thread or build root. The new offline denial mode reuses the existing R2
+native-authorization test executable and shared CTest registry. Validate on the
+single checkout-local `build/` root with Debug/full CTest and relevant
+sanitizers. Connector-only local build and CTest: **NOT RUN**; exact-SHA hosted
+qualification must be checked on the published commit.
+
 ## R3 macOS private-entry build scope (2026-10-30)
 
 No new production library or dependency is introduced. The existing

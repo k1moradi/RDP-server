@@ -1313,7 +1313,8 @@ foreach(standalone_native_authorization_case IN ITEMS
         macos-console-admission-nested-visitor-reentry-denial
         macos-console-admission-session-replacement-denial
         macos-console-admission-post-callback-authority-loss-denial
-        macos-console-admission-explicit-terminal-revocation)
+        macos-console-admission-explicit-terminal-revocation
+        macos-console-prepared-transport-dormancy)
     add_test(
         NAME "security.native-authorization-${standalone_native_authorization_case}"
         COMMAND test_native_desktop_standalone_authorization

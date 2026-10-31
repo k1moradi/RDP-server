@@ -1,3 +1,23 @@
+## R1 macOS concrete private access and prepared-only denial (2026-10-31)
+
+- Agent 2's `MacConsoleAdmissionBroker` and Agent 3's private R3 friend edge
+  are now on current `main`. The R1 increment adds only that same concrete
+  R2 class as a private friend of `OwnedPreauthTcpConnection` and preserves
+  every existing TLS/connection/admission check. No method becomes public.
+- New `security.native-authorization-macos-console-prepared-transport-dormancy`
+  reuses the existing production R1/R2 executable and asserts that preparation,
+  protected R2 visit and listener-replacement retirement never promote an
+  inactive accepted connection to first-MCS. It fabricates no native lease.
+- Local canonical configure/build/focused/full CTest and sanitizers: **NOT RUN**
+  (GitHub connector environment lacks the approved checkout; direct clone DNS
+  resolution is unavailable). Source/CTest registration: **PASS by inspection**.
+  Exact-publication-SHA hosted CI: **PENDING**; physical clients and native
+  admission: **NOT RUN / unauthorized**.
+- Next gate: Agent 2 extends this existing concrete broker with the successful
+  private R1 call and R3 generation-bound transition inside an independently
+  checked native visitor. Its new positive/post-callback-loss regression must
+  terminally retire R1 before any first-MCS byte on lost authority.
+
 ## R8 callback-time source fence — exact descendant sanitizer qualification (2026-10-31)
 
 - Published R8 production/test/docs correction: `bd68b5a063bf33d993854f22f4ff3c8da255a59c`.

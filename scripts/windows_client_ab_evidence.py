@@ -57,6 +57,7 @@ ERROR_SOURCES = {"core", "ui", "ui-error", "core-and-ui", "windows-ui",
 SHA40 = re.compile(r"[0-9a-fA-F]{40}\Z")
 SHA256 = re.compile(r"[0-9a-fA-F]{64}\Z")
 PROFILE = re.compile(r"[a-zA-Z0-9._-]{1,96}\Z")
+WINDOWS_VERSION = re.compile(r"[0-9]{1,8}(?:\.[0-9]{1,8}){0,5}\Z")
 
 
 def _fields(value: object, required: set[str], name: str) -> dict:
@@ -79,6 +80,24 @@ def _utc(value: object, name: str) -> datetime:
     if timestamp.tzinfo is None or timestamp.utcoffset() is None:
         raise ValueError(f"{name} must include a UTC offset")
     return timestamp.astimezone(timezone.utc)
+
+
+def _redacted_stage(value: object, allowed: set[str], fallback: str) -> str:
+    # Malformed private input must never be mirrored into shared output.
+    return value if isinstance(value, str) and value in allowed else fallback
+
+
+def _redacted_client_stages(stages: object) -> dict[str, str]:
+    observed = stages if isinstance(stages, dict) else {}
+    return {
+        name: _redacted_stage(observed.get(name), CLIENT_STAGE_STATES, "NOT_OBSERVED")
+        for name in CLIENT_SECURITY_STAGES
+    }
+
+
+def _redacted_windows_version(value: object) -> str:
+    # Only dotted numeric OS/file versions are safe to project verbatim.
+    return value if isinstance(value, str) and WINDOWS_VERSION.fullmatch(value) else "INVALID"
 
 
 def _stage_failures(stage: object, native_admission: object,
@@ -350,6 +369,9 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
 
     for field in ("windows_11_build", "mstsc_file_version", "client_visible_result"):
         _text(windows[field], field)
+    if any(_redacted_windows_version(windows[field]) == "INVALID"
+           for field in ("windows_11_build", "mstsc_file_version")):
+        failures.append("WINDOWS_VERSION_INVALID")
     if (not PROFILE.fullmatch(_text(macos_row["server_tls_configuration_profile"], "macOS profile")) or
             not PROFILE.fullmatch(_text(windows["server_tls_configuration_profile"], "Windows profile"))):
         failures.append("SERVER_PROFILE_INVALID")
@@ -494,8 +516,12 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
         failures.append("WINDOWS_ATTEMPT_CORRELATION_INVALID")
 
     # Treat every input string as private. Only enumerated, redacted facts enter stdout.
-    macos_type3 = macos_manifest.get("server_stage_matrix", {}).get("type3_received")
-    windows_type3 = windows_stage.get("type3_received") if isinstance(windows_stage, dict) else None
+    macos_type3 = _redacted_stage(
+        macos_manifest.get("server_stage_matrix", {}).get("type3_received"),
+        STAGE_STATES, "NOT_REACHED")
+    windows_type3 = _redacted_stage(
+        windows_stage.get("type3_received") if isinstance(windows_stage, dict) else None,
+        STAGE_STATES, "NOT_REACHED")
     comparison = "INCONCLUSIVE"
     if not failures:
         if macos_type3 == "PASS" and windows_type3 == "PASS":
@@ -520,22 +546,21 @@ def validate_pair(macos_manifest: dict, pair: dict) -> dict:
             "app": "Windows App", "version": macos_summary.get("windows_app"),
             "first_client_error_category": macos_summary.get("client_error", {}).get("first_typed_category"),
             "type3_received": macos_type3,
-            "client_security_stages": {
-                name: macos_row["client_security_stages"][name]
-                for name in CLIENT_SECURITY_STAGES
-            },
-            "native_admission": macos_row["native_admission"],
+            "client_security_stages": _redacted_client_stages(
+                macos_row["client_security_stages"]),
+            "native_admission": _redacted_stage(
+                macos_row["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },
         "windows": {
-            "app": "mstsc.exe", "windows_11_build": windows["windows_11_build"],
-            "mstsc_file_version": windows["mstsc_file_version"],
+            "app": "mstsc.exe",
+            "windows_11_build": _redacted_windows_version(windows["windows_11_build"]),
+            "mstsc_file_version": _redacted_windows_version(windows["mstsc_file_version"]),
             "first_client_error_category": windows["first_client_error"].get("normalized_category"),
             "type3_received": windows_type3,
-            "client_security_stages": {
-                name: windows["client_security_stages"][name]
-                for name in CLIENT_SECURITY_STAGES
-            },
-            "native_admission": windows["native_admission"],
+            "client_security_stages": _redacted_client_stages(
+                windows["client_security_stages"]),
+            "native_admission": _redacted_stage(
+                windows["native_admission"], STAGE_STATES, "NOT_REACHED"),
         },
     }
 

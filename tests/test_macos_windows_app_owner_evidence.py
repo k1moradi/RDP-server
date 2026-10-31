@@ -773,6 +773,44 @@ class OwnerEvidenceTests(unittest.TestCase):
         self.assertIn("WINDOWS_CLIENT_TYPE2_RECEIVED_EVENT_OUTSIDE_ATTEMPT",
                       failures)
 
+    def test_paired_private_invalid_values_cannot_leak_into_shared_summary(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        private_marker = "private-session-password-sentinel"
+        pair["macos"]["client_security_stages"]["type2_received"] = private_marker
+        pair["macos"]["native_admission"] = private_marker
+        pair["windows"]["client_security_stages"]["type3_generated"] = private_marker
+        pair["windows"]["server_stage_matrix"]["type3_received"] = private_marker
+        pair["windows"]["native_admission"] = private_marker
+        pair["windows"]["windows_11_build"] = private_marker
+        pair["windows"]["mstsc_file_version"] = private_marker
+
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_VERSION_INVALID", summary["evidence_failures"])
+        self.assertNotIn(private_marker, json.dumps(summary, sort_keys=True))
+        self.assertEqual(summary["macos"]["client_security_stages"]["type2_received"],
+                         "NOT_OBSERVED")
+        self.assertEqual(summary["windows"]["client_security_stages"]["type3_generated"],
+                         "NOT_OBSERVED")
+        self.assertEqual(summary["windows"]["type3_received"], "NOT_REACHED")
+        self.assertEqual(summary["macos"]["native_admission"], "NOT_REACHED")
+        self.assertEqual(summary["windows"]["native_admission"], "NOT_REACHED")
+        self.assertEqual(summary["windows"]["windows_11_build"], "INVALID")
+        self.assertEqual(summary["windows"]["mstsc_file_version"], "INVALID")
+
+    def test_paired_private_missing_client_stage_remains_fail_closed(self):
+        manifest = evidence.build_manifest(self.options)
+        pair = self._paired_record(manifest)
+        del pair["windows"]["client_security_stages"]["type2_received"]
+
+        summary = ab_evidence.validate_pair(manifest, pair)
+        self.assertEqual(summary["evidence_status"], "FAIL")
+        self.assertIn("WINDOWS_CLIENT_STAGES_INCOMPLETE",
+                      summary["evidence_failures"])
+        self.assertEqual(summary["windows"]["client_security_stages"]["type2_received"],
+                         "NOT_OBSERVED")
+
     def test_paired_unapproved_private_secret_field_denied(self):
         manifest = evidence.build_manifest(self.options)
         pair = self._paired_record(manifest)

@@ -1,3 +1,20 @@
+## R6 P0 privacy correction for rejected Microsoft client evidence (2026-10-31)
+
+The v3 A/B validator previously mirrored malformed private client stage,
+Type-3, native-admission and Windows build/version input into a shared FAIL
+summary. It now projects allowlisted enums and numeric version values only,
+using fixed NOT_OBSERVED/NOT_REACHED/INVALID for malformed input while
+preserving evidence FAIL and denial codes. Missing stages fail closed.
+Dedicated offline `interop.windows-client-ab-invalid-private-summary-redaction`
+checks a private sentinel and missing stage. Source/registry inspection PASS;
+owner-local/full CTest NOT RUN; publication-SHA CI PENDING. Hosted R6 SSPI
+COMPLETE_PASS does not prove physical Windows App Type-2 reception or Type 3.
+R9 same-SHA green producers, explicit manual candidate PASS and separate
+owner authorization remain REQUIRED before physical Windows App/mstsc A/B.
+No change to R1 Type 2/TLS, R2 authority, credentials or R6 Windows native;
+positive Windows native activation remains disabled pending R2 SID/WTS and
+R10 lifetime composition.
+
 ## R9 per-commit production source / central CTest registry gate (2026-10-31)
 
 The existing push-time `scripts/check_documentation_cochange.py` ensured

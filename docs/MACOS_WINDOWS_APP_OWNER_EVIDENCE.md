@@ -1,3 +1,14 @@
+## R6 rejected-private-summary fixed-output contract (2026-10-31)
+
+A v3 pair with invalid client-stage, Type-3, native-admission or Windows
+build/mstsc numeric-version input returns FAIL and fixed redacted fallback
+NOT_OBSERVED/NOT_REACHED/INVALID, never the original private string. Windows
+versions are dotted numeric; nonconforming originals remain owner-private.
+Absent client-stage keys also report FAIL instead of leaking an exception.
+The offline `interop.windows-client-ab-invalid-private-summary-redaction`
+fixture tests sentinel non-disclosure and missing-stage rejection; no real
+client, packet diagnostic, credential, TLS policy or native owner is enabled.
+
 ## R6 current closed-schema paired client-source evidence v3 (2026-10-31)
 
 The R5 private macOS collection manifest stays

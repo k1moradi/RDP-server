@@ -1,3 +1,17 @@
+## R6 offline A/B FAIL redaction correction (2026-10-31)
+
+A reviewed v3 validator path copied unapproved private strings from malformed
+client-stage, server-Type-3, native-admission and Windows version values into
+the redacted JSON even when the evidence verdict was FAIL; a missing stage key
+could raise during output. Restrict output to allowlisted fixed statuses and
+dotted numeric Windows versions, preserve typed failure codes, and add two
+secret-sentinel/missing-key fixture denials plus one ordinary CTest.
+Source/registry reviewed; local tests NOT RUN; exact-new-SHA CI PENDING.
+Earlier R6 anti-splice CTests and hosted Microsoft SSPI COMPLETE_PASS cannot
+replace original physical Windows App/mstsc receipts. R9 manual candidate and
+owner authorization remain blocked/unperformed; native Windows authority
+remains disabled. No RDP wire, TLS, credential or Windows native changes.
+
 ## R5 original accepted socket/native owner provenance audit (2026-10-31)
 
 Audited the single R10 Linux accepted-socket/owner lifetime, concrete

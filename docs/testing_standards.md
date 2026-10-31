@@ -1,3 +1,13 @@
+## R6 redacted FAIL summary secret-sentinel regression (2026-10-31)
+
+Dedicated offline `interop.windows-client-ab-invalid-private-summary-redaction`
+CTest in the existing paired evidence fixture rejects accidental private
+string echo from invalid client/server/native stages or Windows numeric build
+and mstsc versions, and requires a fail-closed summary for missing stage keys.
+Project only fixed NOT_OBSERVED/NOT_REACHED/INVALID on malformed input;
+retain evidence FAIL. No physical client, packet capture or credentials.
+Local CTest NOT RUN and new exact-SHA hosted CI PENDING.
+
 ## R5 original accepted socket/native authority splice denial (2026-10-31)
 
 A dedicated offline Python CTest

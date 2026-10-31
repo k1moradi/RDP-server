@@ -1,10 +1,27 @@
 ## R9 current-head qualification dependency repair (2026-10-30)
 
-**Current architectural head audited:** `1042d62715900b585e82da8178715172177728f8` after R10's macOS accepted-client pre-admission increment. That production change resets the earlier candidate SHA as required. Its independent structure run [41169537267](https://github.com/k1moradi/RDP-server/actions/runs/41169537267) fails before the roadmap guard because R8 `92f25e6362848c2fb28a397e1f1672a94f2eebdc` legitimately advanced the clipboard ASan/UBSan inventory **107 -> 109** while R9's workflow validator still required the old token. Current `.github/workflows/ci.yml` already selects the two added finalization-generation replacement tests and requires `clipboard_expected_test_count=109`; the test registry contains both cases. A full comparison of all 376 R9 required workflow tokens found this as the **only** missing token.
+The structure failures after R8 terminalization work exposed a test-inventory
+coordination error, not a production clipboard defect. R8's initial publication
+added two portable finalization cases to the clipboard label and changed the
+sanitizer census 107 -> 109; the later R9 validator change followed that
+registration. The owner contract for this increment, however, requires the
+already-qualified **107-case** clipboard sanitizer selection to remain fixed.
 
-R9 updates only its structural assertion **107 -> 109**. No R8 production/test behavior, selector regex, R3/R4/R5 counts or workflow semantics are weakened. The existing `project.ci-workflow-structure-denials` self-test remains the behavior gate. The earlier canonical-roadmap integrity change is present on current main but its standalone structure job never reached that checker because of this stale R9 token.
+R8 therefore consolidates the two injected macOS/Windows behavior modes behind
+one ordinary production-backed CTest,
+clipboard.file-destination-finalization-generation-replacement. That CTest is
+outside the fixed clipboard label census and is run separately under the same
+sanitizer build. The primary workflow and independent R9 structural validator
+both return to clipboard_expected_test_count=107; the validator also requires
+the combined terminalization test name. This changes no production clipboard
+state, R3 route semantics or native activation.
 
-**Candidate state:** reset by R10 architectural commit. After this R9 correction, the next eligible SHA is the correction's publication SHA only if its complete hosted producer/dependency matrix is green and no later architectural commit lands. Manual owner-candidate dispatch remains **NOT RUN** and requires explicit owner instruction. Owner Linux 1060/1060 remains **SHA MISSING**; Linux/X11, Windows CLANG64/Clang 23 and macOS 27 M1 owner-native same-SHA receipts remain separate and unverified. No physical-client authorization or M1 freeze is implied.
+**Candidate state:** reset by the latest architectural/runtime changes and this
+test-structure correction. Exact-publication-SHA structure/full hosted CI and
+the 107-case sanitizer census plus focused terminalization CTest are
+**PENDING**. Manual owner-candidate dispatch and physical testing remain
+**NOT RUN**. Owner Linux/X11, Windows CLANG64/Clang 23 and macOS 27 same-SHA M1
+receipts remain separate requirements.
 
 ## R9 exact-SHA qualification, restored-roadmap audit and integrity gate (2026-10-30)
 
@@ -266,21 +283,26 @@ client was used.
 
 ## R8 FileContents destination write-time generation retirement (2026-10-30)
 
-**R8 terminalization follow-up (2026-10-30; source audit):** Mac and Windows
-finishComplete() may synchronously reenter RemoteTransfer generation changes
-from the final resize, flush or close boundary after the previously qualified
-write-time check. The correction revalidates exact generation/source epoch
-after each callback, terminalizes before recursive cleanup, detaches the native
-duplicate before close, and never reports Complete or exposes a local path for
-a replaced source. A close-time replacement cannot retroactively truncate
-an already-closed duplicate; local publication remains denied. Two separate
-portable fake-native CTests exercise current-source completion and all three
-replacement boundaries, without host files or clipboard. R9 explicit
-clipboard sanitizer selector retains its 107 existing names plus two new
-ones (expected 109); 109 is not the prior owner's unrelated broad label count.
-Canonical local build/CTest/sanitizer **NOT RUN** (connector-only environment);
-hosted exact-SHA evidence **PENDING**, so no claimed PASS for the new cases.
-Linux direct pwrite/fsync is unchanged; production activation remains false.
+**R8 terminalization follow-up (2026-10-30; corrected test census):** Mac and
+Windows finishComplete() may synchronously reenter RemoteTransfer generation
+changes from final resize, flush or close after the qualified write-time check.
+The production correction revalidates exact generation/source epoch after each
+callback, terminalizes before recursive cleanup, detaches the native duplicate
+before close, and never reports Complete or exposes a local path for a replaced
+source. A close-time replacement cannot retroactively truncate an already
+closed duplicate; local publication remains denied.
+
+The two injected platform behavior modes are consolidated into the single
+ordinary CTest
+clipboard.file-destination-finalization-generation-replacement. It runs both
+existing production-backed executables, remains outside the fixed clipboard
+label census, and is executed separately under the sanitizer build. The
+qualified clipboard sanitizer selector remains **107 cases**, matching the
+owner completion requirement; the earlier 109 registration/count is
+superseded. Canonical local build/CTest/sanitizer: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted structure/full/sanitizer evidence:
+**PENDING**. Linux direct pwrite/fsync and production activation remain
+unchanged.
 
 **R8 -> R10 dormant activation contract (written, not permission):** R10 alone
 owns the accepted client, live R1 TCP/TLS writer, R2 genuine authenticated

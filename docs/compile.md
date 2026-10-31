@@ -22,13 +22,14 @@ linking or build root. Canonical local configure/build/CTest/sanitizers are
 
 ## R8 terminalization callback regression build contract (2026-10-30)
 
-The two native file-destination implementations and their existing
-cross-platform injected-operation CTest executables receive only scoped
-finalization checks and two behavior modes. No new library, target, OS file,
-clipboard, build root or live activation is introduced. R9's explicit
-clipboard sanitizer inventory preserves its previous 107 cases and adds two,
-for 109 selected cases. Keep C++23 strict warnings and the sole canonical
-`~/rdp-server/build/` root. Local build/full CTest and sanitizer:
+The macOS and Windows destination implementations retain their existing
+cross-platform injected-operation executables and behavior modes. One CMake
+script-backed CTest invokes both binaries sequentially; no new C++ target,
+library, OS file, clipboard, build root or live activation is introduced.
+The fixed R9 clipboard sanitizer census remains **107**. The combined
+terminalization CTest is outside that label census and is executed separately
+under the same sanitizer build. Keep C++23 strict warnings and the sole
+canonical ~/rdp-server/build/ root. Local build/full CTest and sanitizer:
 **NOT RUN** (approved checkout unavailable in connector environment);
 exact-publication SHA hosted validation **PENDING**.
 

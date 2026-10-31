@@ -1,3 +1,25 @@
+## R8 terminalization CI-census reconciliation (2026-10-30)
+
+- Current reconciliation parent: c749f938af9217166ae5e20f0dc6f58156cca137. The independent structure failure
+  on R8 publication 92f25e6362848c2fb28a397e1f1672a94f2eebdc was real, but
+  the subsequent R9 count-only change to 109 followed the initial R8
+  registration rather than the owner's explicit requirement to revalidate the
+  existing **107-case** clipboard sanitizer selector.
+- Corrective test structure: retain both production-backed injected behavior
+  modes but expose exactly one ordinary CTest,
+  clipboard.file-destination-finalization-generation-replacement, which runs
+  macOS then Windows. It is intentionally outside the fixed clipboard label
+  census. The sanitizer job first enumerates/runs the unchanged 107-case
+  census, then executes this combined terminalization CTest separately under
+  the same ASan/UBSan build.
+- Workflow validator returns to clipboard_expected_test_count=107 and also
+  requires the combined test name. No production R8 code, wire behavior,
+  authority, native file access or activation flag changes in this correction.
+- Source/registration reconciliation: **PASS by inspection**. Local configure,
+  build/full CTest, combined focused CTest and ASan/UBSan: **NOT RUN** in the
+  connector environment. Exact-publication-SHA structure/full/sanitizer:
+  **PENDING**. Physical clipboard/client/files remain **NOT RUN / unauthorized**.
+
 ## R9 current-head structure diagnosis — R8 clipboard inventory 109 (2026-10-30)
 
 - Current audited architectural head: `1042d62715900b585e82da8178715172177728f8`; R10's production commit resets prior candidate qualification.

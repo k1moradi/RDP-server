@@ -4416,7 +4416,6 @@ foreach(case_name IN ITEMS
         macos-file-destination-size-cancel
         macos-file-destination-destructor-retirement
         macos-file-destination-write-generation-replacement
-        macos-file-destination-finalization-generation-replacement
         macos-file-destination-denials
         macos-completed-file-url-handoff
         macos-completed-multi-file-url-handoff)
@@ -4483,7 +4482,6 @@ foreach(case_name IN ITEMS
         windows-file-destination-size-cancel
         windows-file-destination-destructor-retirement
         windows-file-destination-write-generation-replacement
-        windows-file-destination-finalization-generation-replacement
         windows-file-destination-denials
         windows-completed-file-hdrop-handoff
         windows-completed-multi-file-hdrop-handoff
@@ -4503,6 +4501,18 @@ if(WIN32)
         clipboard.windows-file-destination-native-handle
         PROPERTIES LABELS "protocol;clipboard;win32-file-destination;native;offline")
 endif()
+
+# R8 finalization reentrancy is one production-backed behavior gate that
+# executes both portable injected native seams. Keep it outside the fixed
+# clipboard label census; R9 runs it separately under the same sanitizer build.
+add_test(NAME clipboard.file-destination-finalization-generation-replacement
+    COMMAND "${CMAKE_COMMAND}"
+        "-DMACOS_FILE_TEST=$<TARGET_FILE:test_macos_clipboard_file_destination>"
+        "-DWINDOWS_FILE_TEST=$<TARGET_FILE:test_windows_clipboard_file_destination>"
+        -P "${PROJECT_SOURCE_DIR}/tests/run_clipboard_file_destination_finalization.cmake")
+set_tests_properties(
+    clipboard.file-destination-finalization-generation-replacement
+    PROPERTIES LABELS "protocol;r8-terminalization;offline" TIMEOUT 20)
 
 # R8 Windows clipboard presentation. Every case uses deterministic injected
 # native operations; no ordinary CTest opens or mutates the host clipboard.

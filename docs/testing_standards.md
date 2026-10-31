@@ -1,6 +1,16 @@
-## R9 sanitizer inventory validator follows the current registered selector (2026-10-30)
+## R9 sanitizer inventory validator follows the fixed R8 census (2026-10-30)
 
-When an owning road intentionally advances a fail-closed sanitizer inventory and updates the primary workflow atomically, R9's structural validator must advance to that exact count after independently confirming the new registered cases and selector. R8 commit `92f25e6362848c2fb28a397e1f1672a94f2eebdc` adds the macOS and Windows file-destination finalization-generation replacement cases and changes the clipboard selector count **107 -> 109**. Keeping the validator at 107 is a CI-policy defect, not evidence that R8 should drop tests. Preserve all existing R3 CAL, R3 Graphics DVC, R4 x264 and R5 X11 selector/count contracts.
+R8 terminalization coverage must not silently change the already-qualified
+107-case clipboard ASan/UBSan census. The initial R8 publication registered
+two new portable cases under the clipboard label and changed the count to
+109; that conflicted with the owner requirement to revalidate the existing
+107-case selector. Consolidate the macOS and Windows injected finalization
+behaviors behind one ordinary production-backed CTest, keep that CTest outside
+the fixed clipboard label census, and execute it separately under the same
+sanitizer build. R9's structural validator therefore remains pinned to
+clipboard_expected_test_count=107 and additionally requires the combined
+terminalization test name in the workflow. Preserve all existing R3 CAL,
+R3 Graphics DVC, R4 x264 and R5 X11 selector/count contracts.
 
 ## R10 macOS pre-admission production regression (2026-10-30)
 
@@ -24,21 +34,22 @@ Register the offline behavior-named `project.canonical-roadmap-integrity-and-tru
 
 ## R8 macOS/Windows file terminalization callback authority (2026-10-30)
 
-Ordinary production-backed portable CTests
-`clipboard.macos-file-destination-finalization-generation-replacement` and
-`clipboard.windows-file-destination-finalization-generation-replacement`
-exercise genuine destination finishComplete() against injected native
-resize/flush/close callbacks. A current source completes exactly once;
-replacing the generation in any finalization callback, including synchronous
-onRemoteGenerationChanged() reentry, must deny Complete and any completed
-local URL/path; resize/flush replacements must truncate the owned duplicate,
-and all replacements must close it exactly once. Close-time revocation cannot
-reopen a duplicate to truncate after native close; assert terminal denial and
-single close, not a fictitious rollback. This is separate from both existing
-write-time replacement cases. Add both behavior names to the R9 clipboard
-ASan/UBSan selector, preserving all 107 prior cases and updating its expected
-inventory to 109. Focused/full hosted execution at publication SHA must be
-recorded separately; source review is not a test PASS.
+The ordinary production-backed
+clipboard.file-destination-finalization-generation-replacement CTest runs
+both existing injected-native test executables: macOS first, then Windows.
+Each implementation proves current-source completion and replacement during
+final resize, flush and close. Reentrant onRemoteGenerationChanged() must deny
+Complete and local URL/path handoff; resize/flush replacement truncates the
+still-owned duplicate, while close-time replacement asserts single close and
+denial without pretending a closed destination can be reopened. The existing
+write-time replacement CTests remain unchanged.
+
+This regression is deliberately outside the fixed clipboard label census so
+the already-qualified R9 sanitizer selection remains exactly **107 cases**.
+The R9 sanitizer job must enumerate/pass those 107 cases unchanged and then run
+the single terminalization CTest separately under the same ASan/UBSan build.
+Focused/full hosted execution at publication SHA must be recorded separately;
+source review is not a test PASS.
 
 ## R5 offline Linux X11 owner-private evidence contradiction CTest (2026-10-30)
 

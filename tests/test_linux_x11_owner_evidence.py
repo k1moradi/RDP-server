@@ -34,7 +34,7 @@ def admitted_attempt(evidence):
         "input": {"keyboard_posts": 1, "mouse_posts": 2, "posts_after_revocation": 0},
         "randr": {"replacement_capture_generation": 41},
         "retirements": [{"kind": "stop", "r2_retired": True, "capture_retired": True,
-                         "posts_after_revocation": 0, "linux_session_generation_after": 20}],
+                         "posts_after_revocation": 0, "frames_after_revocation": 0, "linux_session_generation_after": 20}],
         "reconnect": {"observed": True, "owner_grant_recorded": True, "consent_generation": 11,
                       "linux_session_generation": 20, "r2_admission_generation": 31,
                       "native_capture_generation": 42,
@@ -91,6 +91,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
     def test_input_post_after_revocation(self):
         self.reject(lambda record: record["input"].update(posts_after_revocation=1))
         self.reject(lambda record: record["retirements"][0].update(posts_after_revocation=1))
+        self.reject(lambda record: record["retirements"][0].update(frames_after_revocation=1))
         self.reject(lambda record: record["reconnect"].update(posts_after_revocation=1))
 
     def test_reconnect_reuses_retired_ownership_generation(self):
@@ -117,6 +118,7 @@ class LinuxX11OwnerEvidenceTests(unittest.TestCase):
 
     def test_retirement_and_session_change(self):
         self.reject(lambda record: record["retirements"][0].update(capture_retired=False))
+        self.reject(lambda record: record["retirements"].append(copy.deepcopy(record["retirements"][0])))
         def switch_without_session_change(record):
             record["retirements"][0]["kind"] = "switch_user"
         self.reject(switch_without_session_change)

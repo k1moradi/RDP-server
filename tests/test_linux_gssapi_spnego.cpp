@@ -61,17 +61,27 @@ namespace rdp_server::server::security
 {
 struct LinuxConsoleAdmissionBrokerTestAccess final
 {
+    // Keep the exact grant and policy snapshots across split prepare/complete.
+    struct PreparedAdmissionState final
+    {
+        std::uint64_t policyGeneration{};
+        OwnerSharingAuthorizationEpoch ownerAuthorizationEpoch{};
+    };
+
     static bool prepare(
         LinuxConsoleAdmissionBroker &broker,
         LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request,
-        std::uint64_t &policyGeneration) noexcept
+        PreparedAdmissionState &preparedAdmission) noexcept
     {
+        preparedAdmission = {};
         broker.lastAdmissionFailureReason_ =
             LinuxConsoleAdmissionFailureReason::None;
         return broker.prepareAdmission(
-            principalProof, connection, request, policyGeneration);
+            principalProof, connection, request,
+            preparedAdmission.policyGeneration,
+            preparedAdmission.ownerAuthorizationEpoch);
     }
 
     static std::optional<LinuxConsoleAdmissionLease> complete(
@@ -79,7 +89,7 @@ struct LinuxConsoleAdmissionBrokerTestAccess final
         LinuxAuthenticatedPrincipalProof &principalProof,
         rdp_server::server::transport::OwnedPreauthTcpConnection &connection,
         const ConsoleEvidenceRequest &request,
-        std::uint64_t policyGeneration,
+        const PreparedAdmissionState &preparedAdmission,
         ConsoleOsEvidenceSource &evidenceSource,
         std::unique_ptr<ConsoleSessionChangeSource> changes,
         bool monitorAvailable = true) noexcept
@@ -87,7 +97,9 @@ struct LinuxConsoleAdmissionBrokerTestAccess final
         if (!changes)
             return std::nullopt;
         return broker.issueWithSources(
-            principalProof, connection, request, policyGeneration,
+            principalProof, connection, request,
+            preparedAdmission.policyGeneration,
+            preparedAdmission.ownerAuthorizationEpoch,
             evidenceSource, *changes, monitorAvailable, nullptr, nullptr);
     }
 
@@ -100,15 +112,15 @@ struct LinuxConsoleAdmissionBrokerTestAccess final
         std::unique_ptr<ConsoleSessionChangeSource> changes,
         bool monitorAvailable = true) noexcept
     {
-        std::uint64_t policyGeneration = 0U;
+        PreparedAdmissionState preparedAdmission{};
         if (!prepare(
                 broker, principalProof, connection, request,
-                policyGeneration))
+                preparedAdmission))
         {
             return std::nullopt;
         }
         return complete(
-            broker, principalProof, connection, request, policyGeneration,
+            broker, principalProof, connection, request, preparedAdmission,
             evidenceSource, std::move(changes), monitorAvailable);
     }
 };
@@ -935,19 +947,47 @@ void testNativeAdmissionReasonTaxonomyAndPositiveFixture()
     DeterministicStandaloneProof generationProof{"remote-application-user"};
     LinuxConsoleAdmissionBroker generationBroker(
         generationPolicy, &ownerAuthority);
-    std::uint64_t capturedGeneration = 0U;
+    TestAccess::PreparedAdmissionState generationPreparation{};
     assert(TestAccess::prepare(
         generationBroker, generationProof, hybrid.connection(),
-        baseRequest, capturedGeneration));
-    assert(capturedGeneration != 0U);
+        baseRequest, generationPreparation));
+    assert(generationPreparation.policyGeneration != 0U);
+    assert(generationPreparation.ownerAuthorizationEpoch.grantGeneration != 0U);
     assert(generationPolicy.revokeAll());
     auto generationLease = TestAccess::complete(
         generationBroker, generationProof, hybrid.connection(),
-        baseRequest, capturedGeneration, nativeEvidence,
+        baseRequest, generationPreparation, nativeEvidence,
         std::make_unique<DeterministicSessionChangeSource>());
     assert(!generationLease.has_value());
     assert(generationBroker.lastAdmissionFailureReason() ==
            Failure::PolicyGenerationChanged);
+
+    // Completion must use preparation's original consent epoch, even when
+    // an otherwise identical owner grant replaces it before native sampling.
+    DeterministicStandaloneProof consentReplacementProof{
+        "remote-application-user"};
+    LinuxConsoleAdmissionBroker consentReplacementBroker(
+        policy, &ownerAuthority);
+    TestAccess::PreparedAdmissionState consentPreparation{};
+    assert(TestAccess::prepare(
+        consentReplacementBroker, consentReplacementProof,
+        hybrid.connection(), baseRequest, consentPreparation));
+    const auto preparedEpoch = consentPreparation.ownerAuthorizationEpoch;
+    assert(preparedEpoch.grantGeneration != 0U);
+    assert(ownerAuthority.requestConsent(
+               {kConsoleViewPermission | kConsoleInputPermission, 10'000U}) ==
+           OwnerConsentRequestResult::Granted);
+    const auto replacementEpoch =
+        ownerAuthority.authorizationEpoch(baseRequest.requestedPermissions);
+    assert(replacementEpoch.has_value());
+    assert(*replacementEpoch != preparedEpoch);
+    auto consentReplacementLease = TestAccess::complete(
+        consentReplacementBroker, consentReplacementProof,
+        hybrid.connection(), baseRequest, consentPreparation, nativeEvidence,
+        std::make_unique<DeterministicSessionChangeSource>());
+    assert(!consentReplacementLease.has_value());
+    assert(consentReplacementBroker.lastAdmissionFailureReason() ==
+           Failure::OwnerConsentMissing);
 
     expectBrokerFailure(
         Failure::NativeProofCompletionFailed, policy, baseRequest,

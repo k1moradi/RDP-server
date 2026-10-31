@@ -1,3 +1,17 @@
+## R3 post-Connect-Response domain ordering (2026-10-30)
+
+The ordinary offline
+`transport.mcs-session-post-response-domain-ordering-denials` CTest
+runs in the existing `test_owned_mcs_connect_initial` executable.
+It HYBRID-replays the checked-in Microsoft 416-byte packet, advances
+the private production R3 state machine through a fully accepted
+Connect-Response, and asserts early Attach, early Join and duplicate Erect
+all terminate without joined user/channel membership, licensing or Share.
+The test-only friend supplies fixture scalar generations, *not* a
+native R2 broker lease. Never use it to simulate runtime admission.
+Keep the shared CMake registry and fixed 171-case MCS dispatch synchronized;
+the existing R9 sanitizer selections remain unchanged.
+
 ## R1 runtime TLS SAN-only OpenSSL 4.1 compatibility (2026-10-30)
 
 Ordinary offline production-backed

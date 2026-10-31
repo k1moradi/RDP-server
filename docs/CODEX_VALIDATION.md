@@ -1,3 +1,18 @@
+## R3 pure protocol post-Connect-Response domain ordering — 2026-10-30
+
+Source baseline: `e43414099f5451d59538668445fdcf3764e153b3`. Added
+`transport.mcs-session-post-response-domain-ordering-denials` through
+the existing production R3 state machine and private test-only friend.
+Verified MS-RDPBCGR basic-settings/channel ordering and MS-RDPELE personal
+terminal-server CAL decision by normative review. Source and CTest
+registration inspection: **PASS**; compile, focused/full CTest, R9
+sanitizers and macOS/OpenSSL 4.1 CAL suite: **NOT RUN** (no approved
+`~/rdp-server/build` checkout). Exact-publication-SHA hosted CI:
+**PENDING**. Native R2 admission / Microsoft client / graphics:
+**NOT RUN / unauthorized**. No benchmark. Next live proof is one
+genuine native R2 lease revalidated at first MCS read, semantic
+dispatch, protected writes and accepted-byte receipts.
+
 ## R1 OpenSSL 4.1 SAN-only endpoint matching compatibility — 2026-10-30
 
 - Authoring source SHA: `7a065715165b342786f7e8f53c7154572f542e85`; publication SHA must be taken from the atomic main commit. No separate branch, TLS/security policy modification, or physical test.

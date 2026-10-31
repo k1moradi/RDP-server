@@ -1,3 +1,28 @@
+## R3 protocol-only post-Connect-Response domain ordering fence (2026-10-30)
+
+The 416-byte Microsoft Connect-Initial, HYBRID GCC replay, Connect-Response,
+Erect/Attach/Join, Client Info, PersonalDesktop licensing, Demand/Confirm
+Active and Share finalization already have independent offline behavior tests.
+The genuine uncovered protocol boundary was duplicate or out-of-order domain
+intake *after successful Connect-Response delivery*, not before admission.
+New `transport.mcs-session-post-response-domain-ordering-denials` uses
+the private R3 state machine through a fixture-only Connect-Response accepted
+receipt and rejects early Attach/Join and duplicate Erect. It requires
+terminal joined-channel, licensing and Share retirement. Fixture generations
+are not native R2 authority or a live admission lease.
+
+No production wire, CAL decision, R1 TLS, R2 authority, R8 serialization,
+sanitizer count or clipboard activation changes. MCS test array cardinality
+increases 170 -> 171 and the shared CMake CTest is registered. Canonical
+local compile/CTest, sanitizers, macOS OpenSSL 4.1 CAL execution: **NOT RUN**
+(no approved checkout in the connector); exact-head hosted three-platform
+CTest and R9 qualification **PENDING**. Current R1/Agent-2 blockers remain
+independent. The first unproved **live** R3 positive remains genuine native
+R2 Admission -> authorized first MCS TPKT -> Connect-Response ->
+Erect/Attach/Join -> Client Info -> PersonalDesktop licensing ->
+Demand/Confirm Active -> ShareActivated. No synthetic lease or physical
+client was used.
+
 ## R8 FileContents destination write-time generation retirement (2026-10-30)
 
 Close the next transfer-layer gap after initialization: a FileContents RANGE

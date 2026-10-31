@@ -1,3 +1,14 @@
+## R3 offline post-Connect-Response ordering test (2026-10-30)
+
+`transport.mcs-session-post-response-domain-ordering-denials` reuses
+the existing `test_owned_mcs_connect_initial` target, checked-in
+416-byte fixture and R3 fixture friend. The 171-case table and shared
+CMake registry are the only build-registration edits. No production
+source, dependency, warning flag, native R2 lease, separate target or
+alternate build root is added. Local canonical compilation/full CTest:
+**NOT RUN** (connector-only). Exact-SHA hosted platform and R9 runs
+are **PENDING**.
+
 ## R1 OpenSSL 4.1 runtime endpoint identity compile gate (2026-10-30)
 
 Build `rdp-server-runtime-tls` and `test_runtime_tls_context` with the

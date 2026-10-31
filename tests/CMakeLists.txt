@@ -1470,6 +1470,7 @@ function(add_rdp_test source_file suite behavior)
                 mcs-send-indication-joined-denials
                 mcs-session-unverified-connect
                 mcs-session-unverified-ordering
+                mcs-session-post-response-domain-ordering-denials
                 mcs-session-first-envelope-size-bounds
                 mcs-session-unadmitted-domain-size-bounds
                 mcs-session-first-failure-boundaries

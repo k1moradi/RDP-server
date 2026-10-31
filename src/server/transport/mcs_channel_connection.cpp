@@ -2144,6 +2144,25 @@ McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
     const SecurityNegotiationProvenance &provenance,
     RdpDemandActiveFeature features) noexcept
 {
+    return prepareVerifiedR2DemandActiveProfileForPlatform(
+        provenance, RdpDemandActivePlatform::LinuxX11, features);
+}
+
+std::optional<RdpDemandActiveProfileView>
+McsSessionLifecycle::prepareVerifiedR2MacDemandActiveProfile(
+    const SecurityNegotiationProvenance &provenance,
+    RdpDemandActiveFeature features) noexcept
+{
+    return prepareVerifiedR2DemandActiveProfileForPlatform(
+        provenance, RdpDemandActivePlatform::MacOS, features);
+}
+
+std::optional<RdpDemandActiveProfileView>
+McsSessionLifecycle::prepareVerifiedR2DemandActiveProfileForPlatform(
+    const SecurityNegotiationProvenance &provenance,
+    RdpDemandActivePlatform platform,
+    RdpDemandActiveFeature features) noexcept
+{
     if (phase_ != McsSessionPhase::AwaitDemandActive ||
         admissionGeneration_ == 0U || sessionGeneration_ == 0U ||
         allocatedUserId_ == 0U || !connectResponseAllocation_ ||
@@ -2176,7 +2195,7 @@ McsSessionLifecycle::prepareVerifiedR2DemandActiveProfile(
     const RdpDemandActiveProfilePolicy profilePolicy{
         connectResponseClientSettings_.requestedWidth,
         connectResponseClientSettings_.requestedHeight,
-        RdpDemandActivePlatform::LinuxX11,
+        platform,
         features};
     const auto profile =
         demandActiveProfileProvider_.prepare(sessionGeneration_, profilePolicy);

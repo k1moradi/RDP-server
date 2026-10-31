@@ -1,3 +1,25 @@
+## R3 macOS private-entry generation denial gate (2026-10-30)
+
+Register
+`transport.mcs-macos-r2-private-gateway-generation-denials` as an ordinary
+production-linked offline CTest outside the fixed 171-case MCS table. Its
+R2-scoped `MacConsoleAdmissionR3TestAccess` fixture may invoke the same private
+R3 methods as the concrete broker but fabricates no macOS native proof. It must
+prove public `onConnectInitial()` remains denial-only, zero-byte and partial
+Connect-Response progress remains bound to the original admission/authorization
+pair, and a wrong/retired pair rejects completion or the next Erect transition
+with no retained user/channel/licensing/Share state.
+
+The concurrent R4 delivered-frame retirement case remains a separate ordinary
+CTest rather than a 172nd `kMcsTestCases` initializer. Preserve the 171-case
+MCS table, user-channel range 1001..65536 inclusive, CAL SignedData checks,
+Linux positive behavior and PersonalDesktop no-CAL tests.
+
+Existing Demand Active `policy-variants` also verifies macOS General
+Capability OS identity while Linux exact-wire coverage is unchanged. These are
+offline protocol/security tests, not native macOS admission or physical-client
+acceptance.
+
 ## R10 completed macOS CredSSP without native-admission regression (2026-10-30)
 
 The ordinary production-backed

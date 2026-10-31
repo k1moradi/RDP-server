@@ -69,8 +69,22 @@ void writeLe32(std::span<std::uint8_t> bytes,
     constexpr std::uint32_t kSupportedFeatures =
         kSlowPathInput | kDynamicVirtualChannels;
     const auto featureBits = static_cast<std::uint32_t>(policy.features);
+    std::uint16_t osMajorType = 0U;
+    std::uint16_t osMinorType = 0U;
+    switch (policy.platform)
+    {
+    case RdpDemandActivePlatform::LinuxX11:
+        osMajorType = 4U; // OSMAJORTYPE_UNIX
+        osMinorType = 7U; // OSMINORTYPE_NATIVE_XSERVER
+        break;
+    case RdpDemandActivePlatform::MacOS:
+        osMajorType = 6U; // OSMAJORTYPE_OSX
+        osMinorType = 0U; // OSMINORTYPE_UNSPECIFIED
+        break;
+    default:
+        return false;
+    }
     if (policy.desktopWidth == 0U || policy.desktopHeight == 0U ||
-        policy.platform != RdpDemandActivePlatform::LinuxX11 ||
         (featureBits & ~kSupportedFeatures) != 0U)
         return false;
 
@@ -92,12 +106,12 @@ void writeLe32(std::span<std::uint8_t> bytes,
     writeLe16(output, offset + 4U, 1002U);
     offset += 8U;
 
-    // 2.2.7.1.1. Advertise only the protocol version and actual UNIX/X11
-    // identity. No fast-path, reconnect, bulk-compression or refresh/suppress.
+    // MS-RDPBCGR 2.2.7.1.1. Advertise only the actual server platform plus
+    // protocol version. No fast-path, reconnect, compression or refresh flags.
     if (!append(1U, 24U))
         return false;
-    writeLe16(output, offset + 4U, 4U);  // OSMAJORTYPE_UNIX
-    writeLe16(output, offset + 6U, 7U);  // OSMINORTYPE_NATIVE_XSERVER
+    writeLe16(output, offset + 4U, osMajorType);
+    writeLe16(output, offset + 6U, osMinorType);
     writeLe16(output, offset + 8U, 0x0200U);
     offset += 24U;
 

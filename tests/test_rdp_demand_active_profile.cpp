@@ -118,11 +118,21 @@ void testPolicyVariants()
     assert(readLe32(dvcCaps, 152U) == 0U);
     assert(readLe32(dvcCaps, 156U) == 1600U);
 
+    auto macPolicy = basePolicy();
+    macPolicy.platform = RdpDemandActivePlatform::MacOS;
+    RdpDemandActiveProfileProvider mac;
+    const auto macProfile = mac.prepare(4U, macPolicy);
+    assert(macProfile && macProfile->capabilityCount() == 4U);
+    const auto macCapabilities = macProfile->capabilitySets();
+    // General Capability Set: OSMAJORTYPE_OSX / OSMINORTYPE_UNSPECIFIED.
+    assert(readLe16(macCapabilities, 12U) == 6U);
+    assert(readLe16(macCapabilities, 14U) == 0U);
+
     auto bothPolicy = basePolicy();
     bothPolicy.features = RdpDemandActiveFeature::SlowPathInput |
                           RdpDemandActiveFeature::DynamicVirtualChannels;
     RdpDemandActiveProfileProvider both;
-    const auto bothProfile = both.prepare(4U, bothPolicy);
+    const auto bothProfile = both.prepare(5U, bothPolicy);
     assert(bothProfile && bothProfile->capabilityCount() == 6U);
     assert(bothProfile->capabilitySets().size() ==
            kMaximumRdpDemandActiveCapabilityBytes);

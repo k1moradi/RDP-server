@@ -1509,7 +1509,7 @@ function(add_rdp_test source_file suite behavior)
     get_filename_component(test_target "${source_file}" NAME_WE)
     add_executable("${test_target}" "${source_file}")
     target_link_libraries("${test_target}" PRIVATE rdp-server-protocol)
-    if(test_target MATCHES "mcs_connect_initial|gcc_conference_create|preauth_session")
+    if(test_target MATCHES "mcs_connect_initial|gcc_conference_create|preauth_session|macos_r2_mcs_gateway")
         target_compile_definitions("${test_target}" PRIVATE
             "OWNED_MCS_FIXTURE_PATH=\"${PROJECT_SOURCE_DIR}/tests/fixtures/ms_rdpbcgr_4_1_3_mcs_connect_initial.hex\"")
     endif()
@@ -2091,6 +2091,17 @@ endfunction()
 add_rdp_test(test_owned_rdp_x224.cpp transport x224)
 add_rdp_test(test_owned_security_negotiation.cpp transport security-negotiation)
 add_rdp_test(test_owned_mcs_connect_initial.cpp transport mcs-connect-initial)
+add_rdp_test(test_macos_r2_mcs_gateway.cpp transport
+    mcs-macos-r2-private-gateway-generation-denials)
+if(MSVC)
+    target_compile_options(test_macos_r2_mcs_gateway PRIVATE /W4)
+else()
+    target_compile_options(test_macos_r2_mcs_gateway PRIVATE
+        -Wall -Wextra -Wpedantic -Werror)
+endif()
+set_tests_properties(
+    transport.mcs-macos-r2-private-gateway-generation-denials
+    PROPERTIES LABELS "protocol;transport;security;macos;admission;offline")
 
 # R3 canonical production Demand Active profile. These cases are pure offline
 # protocol tests and mint no positive R2 admission lease.

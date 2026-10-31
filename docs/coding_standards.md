@@ -1,3 +1,37 @@
+## R3 private macOS R2 protocol entry (2026-10-30)
+
+The exact macOS production issuer is the R2-owned
+`rdp_server::server::security::MacConsoleAdmissionBroker`. R3 grants private
+friend access to that concrete type only, matching the existing Linux broker
+pattern. Do not friend `MacRuntimeHostControl`, a
+`MacNativeDesktopAuthorizationView`, a generic callback or a public
+generation-bearing API. Public `McsSessionLifecycle::onConnectInitial()`
+remains denial-only.
+
+The broker's R3 admission-generation value is its private
+`admissionGeneration_`; the R3 session-generation value is the original
+`MacNativeDesktopAuthorization` generation captured in
+`prepared_.authorizationGeneration`. The first protected Connect-Initial binds
+that exact pair. Before every later private MCS/GCC transition, every borrowed
+write slice and every accepted-byte receipt, the broker must call
+`revokeUnlessAdmissionBindingMatches()` with the same pair and then perform its
+fresh R1/authenticated-proof/native/owner-consent check. If the protected
+native visitor loses authority during the callback, the broker must revoke R3
+before returning success to R10.
+
+Zero-byte and partial writes never transfer authority. If R2 is revoked or
+replaced between preparation and completion, the next revalidation closes R3
+before the receipt can advance; closing retires joins, licensing, Share,
+static/dynamic routes and Graphics/ACK state. The private positive sequence is
+Connect-Initial -> Connect-Response -> Erect -> Attach/Confirm -> joins ->
+Client Info -> PersonalDesktop licensing/Valid Client -> Demand/Confirm Active
+-> Share -> protected channel/graphics operations. PersonalDesktop retains its
+no-CAL behavior without weakening native Admission.
+
+For macOS Demand Active, General Capability uses the MS-RDPBCGR
+OSMAJORTYPE_OSX value with OSMINORTYPE_UNSPECIFIED. Linux/X11 keeps its
+existing exact wire identity. No R1 TLS or R10 scheduling behavior changes.
+
 ## R2 concrete macOS admission preparation gateway (2026-10-30)
 
 The R2-owned type is

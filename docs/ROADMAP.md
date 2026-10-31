@@ -209,31 +209,52 @@ Dedicated ordinary offline production-backed CTest:
 No Linux broker, prepared consent-epoch/GSSAPI friend fixture, R1 transport,
 R3 wire/visibility, GUI or physical OS behavior is changed.
 
-**Exact missing private R3 integration:** at the audited base, the private
-`McsSessionLifecycle::onVerifiedR2ConnectInitial()` and admission-binding
-methods friend `LinuxConsoleAdmissionBroker`, not a macOS R2 issuer.
-Agent 3 must coordinate the narrow R3 friend/private gate before R2 can
-implement a protected macOS first-MCS and subsequent transition wrapper. R10
-must own one accepted R1 TLS/socket connection and synchronously borrow the
-real `StandalonePasswordAuthenticatedPrincipalProof` bound to that exact
-connection and credential generation; independent macOS native console/audit/
-Security-session evidence, lock/session-change revocation and fresh owner
-consent must be checked by R2. Only R2 may mint/retain private admission and
-session identity, invoke R3's private Connect-Initial and all subsequent R3
-semantic/accepted-byte receipt transitions, and terminally revoke on either
-pre/post callback authority loss. R10 receives a serialized permitted call
-graph, never an authorization bool or numeric generation capability.
+**R3 private edge now authored:** R3 follows the exact Agent-2 contract and
+friends only `rdp_server::server::security::MacConsoleAdmissionBroker` in
+addition to the existing Linux issuer and test-only scoped fixtures. Public
+`McsSessionLifecycle::onConnectInitial()` remains denial-only; R10,
+`MacNativeDesktopAuthorizationView`, generic callbacks and public
+generation-bearing methods receive no positive access.
 
-**Qualification:** source/contract/registry review only. Canonical owner
-`~/rdp-server/build` configure/build/focused/full Debug/Release CTest and
-ASan/UBSan **NOT RUN** in this connector environment (approved checkout absent).
-Same-SHA Linux/GCC, macOS/Clang, Windows/MSVC and R9 sanitizer evidence
-**PENDING**. Agent 3 private macOS R3 gate **UNAVAILABLE** at audited base;
-end-to-end macOS native Admission/MCS/Share/graphics/clipboard **BLOCKED /
-NOT RUN**. No physical test, listener or OS permission was exercised.
-**Next gate:** Agent 3 private interface review and direct-to-main integration,
-then exact-SHA CI/R9 and separately authorized owner-native acceptance.
-Benchmark **NOT RUN**.
+For the second R2 round, the broker binds R3 admission generation to its
+private `admissionGeneration_` and R3 session generation to the original
+native-authorization generation captured in
+`prepared_.authorizationGeneration`. The first protected Connect-Initial
+binds that pair. Before every subsequent private transition, borrowed write
+slice and accepted-byte receipt, R2 must call
+`revokeUnlessAdmissionBindingMatches()` with the same pair and then perform
+its existing fresh proof/R1/native/consent revalidation. The protected visitor's
+post-callback check remains mandatory: if authority is lost during the R3 call,
+R2 terminally revokes R3 before returning success to R10.
+
+The audited positive sequence is Connect-Response, Erect Domain, Attach User
+and confirm, all required channel joins, Client Info, PersonalDesktop
+licensing/Valid Client, Demand/Confirm Active, Share, then protected
+post-Share classification, CLIPRDR, input and Graphics DVC/ACK/frame
+operations. Zero-byte or partial writes do not transfer authority; an R2
+replacement/revocation before a later completion closes R3 and retires joins,
+licensing, Share, channel routes and graphics credit. macOS Demand Active uses
+MS-RDPBCGR OSMAJORTYPE_OSX with unspecified minor; Linux/X11 exact wire stays
+unchanged. PersonalDesktop remains no-CAL only after genuine native Admission.
+
+Dedicated ordinary offline CTest
+`transport.mcs-macos-r2-private-gateway-generation-denials` is outside the
+fixed 171-case MCS table and proves public denial plus zero/partial receipt and
+stale-generation rejection without fabricating native proof. The concurrent R4
+delivered-frame-retirement regression remains a separate ordinary CTest, not a
+172nd fixed-table initializer.
+
+**Qualification:** source/contract/registry review PASS by inspection.
+Canonical local configure/build/focused/full Debug/Release CTest, ASan/UBSan
+and benchmark are **NOT RUN** in this connector environment. Exact-publication
+Linux/macOS/Windows hosted CI is **PENDING**. R3's private edge is now available;
+Agent 2 still owns the second-round positive wrappers that consume it and R10
+still owns composition. End-to-end macOS native Admission/MCS/Share/graphics/
+clipboard and physical client testing remain **BLOCKED / NOT RUN /
+unauthorized**. **Next gate:** Agent 2 lands those protected wrappers against
+this exact private edge, then Agent 10 composes them without receiving
+authority scalars, followed by R9 exact-SHA qualification and separately
+authorized owner-native acceptance.
 
 **Complementary R2 nested-visit fence (2026-10-30):** The existing
 original-generation/snapshot fix now guards against recursive protected
@@ -244,8 +265,9 @@ retains the previously documented preservation policy. Dedicated ordinary
 `security.native-authorization-macos-standalone-nested-visitor-denials`
 CTest is registered. Source review **PASS by inspection**; local build/CTest,
 sanitizers and physical testing **NOT RUN**; exact-publication hosted CI
-**PENDING**. R3 macOS private first-MCS and subsequent transition gates remain
-**BLOCKED** on Agent 3's interface; do not add R10 scalar admission.
+**PENDING**. R3's private macOS edge is now authored; the remaining dependency
+is Agent 2's second-round protected R3 wrappers in `MacConsoleAdmissionBroker`,
+then R10 composition. Do not add R10 scalar admission.
 
 ## R7 callback-retirement exact-SHA qualification and current dependency audit (2026-10-30)
 
@@ -699,9 +721,9 @@ Local macOS build/full CTest and exact-publication-SHA hosted qualification are
 NOT RUN/PENDING at authoring; physical clients remain NOT RUN/unauthorized.
 Agent 2's `MacConsoleAdmissionBroker` now provides R2-owned prepared native
 authority for the exact proof/R1 connection, but its `Prepared` state is
-explicitly non-admitting. The positive pipeline remains BLOCKED until Agent 3
-publishes the private macOS R3 positive route and R2 exposes the corresponding
-protected transition. R10 must consume those APIs without becoming an R3 friend
+explicitly non-admitting. The R3 private macOS route is now authored; the positive pipeline remains
+BLOCKED until Agent 2 exposes the corresponding protected R3 transition from
+`MacConsoleAdmissionBroker`. R10 must consume that R2 API without becoming an R3 friend
 or minting scalar authority, then compose R7 only after genuine R2 admission
 and R3 Share.
 

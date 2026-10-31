@@ -1,3 +1,33 @@
+## R3 macOS concrete R2 private entry authoring (2026-10-30)
+
+- Reconciled authoring parent: `de2c6f79b851a0aabe0ab9dafb13aa13a2e55189`, including Agent 2's concrete
+  `MacConsoleAdmissionBroker` and R10's completed-CredSSP pre-admission
+  denial coverage; no active M1 publication freeze was present.
+- R3 friends exactly that concrete R2 issuer, never R10 or a native-view/generic
+  callback. Public MCS Connect-Initial stays denial-only.
+- Generation contract: R3 admission generation =
+  `MacConsoleAdmissionBroker::admissionGeneration_`; R3 session generation =
+  the broker's captured `prepared_.authorizationGeneration`. Every later
+  transition/write/receipt must revalidate that pair before fresh protected R2
+  checks; callback-time authority loss must revoke R3 before success escapes.
+- Audited private path covers Connect-Response, Erect, Attach/Confirm, joins,
+  Client Info, PersonalDesktop licensing/Valid Client, macOS Demand/Confirm
+  Active, Share, post-Share classifier, CLIPRDR, slow-path input and Graphics
+  DVC/ACK/frame publication.
+- Dedicated offline CTest covers public denial, zero/partial write receipt
+  continuity, wrong-generation completion and stale-generation next-MCS denial
+  without fabricating native proof.
+- Concurrent R4 work had added a 172nd initializer to
+  `std::array<McsTestCase, 171>`. Preserve the R4 CTest/all-cases execution but
+  dispatch that case outside the fixed 171-entry table.
+- MS-RDPBCGR review preserved Connect-Response/Erect/Attach/Join ordering,
+  Enhanced Security separation, user-channel 1001..65536, and macOS General
+  Capability OSMAJORTYPE_OSX/unspecified-minor identity.
+- Source/registry review: PASS by inspection. Local canonical build/full CTest,
+  sanitizers and benchmark: NOT RUN in this connector environment. Hosted exact
+  publication-SHA CI: PENDING. Physical native admission/client testing:
+  NOT RUN / unauthorized.
+
 ## R6 paired Microsoft interop/evidence qualification — 2026-10-30
 
 **Authoring parent:** `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`. No new physical or hosted R6 qualification

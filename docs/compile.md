@@ -1,3 +1,19 @@
+## R3 macOS private-entry build scope (2026-10-30)
+
+No new production library or dependency is introduced. The existing
+`rdp-server-protocol` target gains only the R3 friend declaration and macOS
+Demand Active platform serialization. One
+`test_macos_r2_mcs_gateway` executable links the existing protocol library and
+checked-in MS-RDPBCGR Connect-Initial fixture, with GCC/Clang
+`-Wall -Wextra -Wpedantic -Werror` and MSVC `/W4`.
+
+Keep `std::array<McsTestCase, 171>`. The concurrently added R4
+`dvc-graphics-frame-delivered-session-retirement-before-ack` behavior is
+dispatched explicitly outside that fixed array, preserving its CTest without a
+172-initializer compile failure. Use the canonical `~/rdp-server/build/`.
+Connector-side local configure/build/CTest and benchmark are NOT RUN;
+publication-SHA hosted build/CTest remains required.
+
 ## R2 macOS console admission gateway build boundary (2026-10-30)
 
 `rdp-server-mac-console-admission` is a noninstalled portable C++23 static

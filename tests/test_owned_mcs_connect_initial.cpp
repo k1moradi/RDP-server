@@ -13105,8 +13105,6 @@ constexpr std::array<McsTestCase, 171> kMcsTestCases{{
     {"dvc-graphics-frame-header-partial-abort", &testGraphicsFrameHeaderPartialAbort},
     {"dvc-graphics-frame-payload-partial-abort", &testGraphicsFramePayloadPartialAbort},
     {"dvc-graphics-frame-stale-receipt", &testGraphicsFrameStaleReceiptAbort},
-    {"dvc-graphics-frame-delivered-session-retirement-before-ack",
-     &testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge},
     {"dvc-graphics-frame-share-loss-abort", &testGraphicsFrameShareLossAbort},
     {"dvc-graphics-data-malformed-first", &testGraphicsDataFirstMalformed},
     {"dvc-graphics-data-wrong-channel", &testGraphicsDataWrongChannel},
@@ -13153,10 +13151,19 @@ int main(int argc, char **argv)
     {
         for (const auto &test : kMcsTestCases)
             test.run();
+        // Deliberately outside the fixed 171-case protocol table; the ordinary
+        // R4 assurance CTest still executes in an all-cases invocation.
+        testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
         return 0;
     }
     if (argc != 2)
         return 2;
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-delivered-session-retirement-before-ack")
+    {
+        testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
+        return 0;
+    }
     for (const auto &test : kMcsTestCases)
     {
         if (std::string_view{argv[1]} == test.name)

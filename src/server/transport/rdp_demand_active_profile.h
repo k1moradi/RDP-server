@@ -38,6 +38,7 @@ enum class RdpDemandActiveFeature : std::uint32_t
 enum class RdpDemandActivePlatform : std::uint8_t
 {
     LinuxX11 = 1U,
+    MacOS = 2U,
 };
 
 struct RdpDemandActiveProfilePolicy

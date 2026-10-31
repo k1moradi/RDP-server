@@ -19,6 +19,7 @@
 namespace rdp_server::server::security
 {
 class LinuxConsoleAdmissionBroker;
+class MacConsoleAdmissionBroker;
 }
 
 namespace rdp_server::server::transport
@@ -1518,6 +1519,8 @@ struct RdpFirstClientAcceptanceObservability
     }
 };
 
+class MacConsoleAdmissionR3TestAccess;
+
 class McsSessionLifecycle final
 {
 public:
@@ -1655,11 +1658,14 @@ public:
 
 private:
     friend class rdp_server::server::security::LinuxConsoleAdmissionBroker;
+    friend class rdp_server::server::security::MacConsoleAdmissionBroker;
+    friend class MacConsoleAdmissionR3TestAccess;
     friend class McsSessionLifecycleTestAccess;
 
-    // Private positive R2 -> R3 handoff. Only the concrete Linux broker can
-    // call this immediately after authorizes(kConsoleViewPermission) succeeds.
-    // The generation pair is bound into this R3 owner for all later checks.
+    // Private positive R2 -> R3 handoff. Only the concrete Linux broker or
+    // MacConsoleAdmissionBroker may call this after their own fresh native/R1
+    // authorization succeeds. The generation pair is bound into this R3 owner
+    // for all later protected transition and accepted-byte receipt checks.
     [[nodiscard]] McsSessionIntake onVerifiedR2ConnectInitial(
         std::uint64_t admissionGeneration,
         std::uint64_t sessionGeneration,
@@ -1812,6 +1818,15 @@ private:
     [[nodiscard]] std::optional<RdpDemandActiveProfileView>
     prepareVerifiedR2DemandActiveProfile(
         const SecurityNegotiationProvenance &provenance,
+        RdpDemandActiveFeature features) noexcept;
+    [[nodiscard]] std::optional<RdpDemandActiveProfileView>
+    prepareVerifiedR2MacDemandActiveProfile(
+        const SecurityNegotiationProvenance &provenance,
+        RdpDemandActiveFeature features) noexcept;
+    [[nodiscard]] std::optional<RdpDemandActiveProfileView>
+    prepareVerifiedR2DemandActiveProfileForPlatform(
+        const SecurityNegotiationProvenance &provenance,
+        RdpDemandActivePlatform platform,
         RdpDemandActiveFeature features) noexcept;
 
     // Share activation accepts only the view minted by this exact session's

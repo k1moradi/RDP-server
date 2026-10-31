@@ -30,6 +30,28 @@ MESSAGE_PATTERN = (
 MAX_DIAGNOSTIC_BYTES = 256 * 1024
 MAX_PROFILE_HEADER_BYTES = 128
 MAX_ICC_PROFILE_BYTES = 64 * 1024 * 1024
+MAX_ACTIVE_DISPLAYS = 32
+MALFORMED_PROFILE_HEADER_STATUSES = frozenset({
+    "truncated-header",
+    "invalid-signature",
+    "invalid-length",
+    "truncated-profile",
+})
+PLAUSIBLE_PROFILE_HEADER_STATUSES = frozenset({
+    "recognized-header",
+    "unknown-class",
+})
+PROFILE_HEADER_STATUS_ORDER = (
+    "truncated-header",
+    "invalid-signature",
+    "invalid-length",
+    "truncated-profile",
+    "color-space-unavailable",
+    "profile-unavailable",
+    "query-unavailable",
+    "unknown-class",
+    "recognized-header",
+)
 KNOWN_PROFILE_CLASSES = {
     b"scnr": "scnr",
     b"mntr": "mntr",
@@ -160,65 +182,155 @@ def profile_class_signature(header: bytes, total_length: int | None = None) -> s
     return inspect_profile_header(header, total_length)[0]
 
 
+def _load_color_frameworks():
+    core_graphics = ctypes.CDLL(
+        "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+    core_foundation = ctypes.CDLL(
+        "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
+
+    core_graphics.CGMainDisplayID.restype = ctypes.c_uint32
+    core_graphics.CGGetActiveDisplayList.argtypes = [
+        ctypes.c_uint32,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    core_graphics.CGGetActiveDisplayList.restype = ctypes.c_int32
+    core_graphics.CGDisplayCopyColorSpace.argtypes = [ctypes.c_uint32]
+    core_graphics.CGDisplayCopyColorSpace.restype = ctypes.c_void_p
+    core_graphics.CGColorSpaceGetModel.argtypes = [ctypes.c_void_p]
+    core_graphics.CGColorSpaceGetModel.restype = ctypes.c_int32
+    core_graphics.CGColorSpaceCopyICCData.argtypes = [ctypes.c_void_p]
+    core_graphics.CGColorSpaceCopyICCData.restype = ctypes.c_void_p
+    core_graphics.CGColorSpaceRelease.argtypes = [ctypes.c_void_p]
+    core_graphics.CGColorSpaceRelease.restype = None
+    core_foundation.CFDataGetLength.argtypes = [ctypes.c_void_p]
+    core_foundation.CFDataGetLength.restype = ctypes.c_long
+    core_foundation.CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
+    core_foundation.CFDataGetBytePtr.restype = ctypes.POINTER(ctypes.c_uint8)
+    core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
+    core_foundation.CFRelease.restype = None
+    return core_graphics, core_foundation
+
+
+def _query_display_profile(core_graphics, core_foundation, display_id: int):
+    color_space = core_graphics.CGDisplayCopyColorSpace(display_id)
+    if not color_space:
+        return ("unavailable", "unavailable", "color-space-unavailable")
+    try:
+        model = COLOR_MODELS.get(
+            int(core_graphics.CGColorSpaceGetModel(color_space)), "unknown")
+        profile_data = core_graphics.CGColorSpaceCopyICCData(color_space)
+        if not profile_data:
+            return (model, "unavailable", "profile-unavailable")
+        try:
+            length = int(core_foundation.CFDataGetLength(profile_data))
+            if length < 0 or length > MAX_ICC_PROFILE_BYTES:
+                return (model, "invalid", "invalid-length")
+            if length < MAX_PROFILE_HEADER_BYTES:
+                return (model, "unavailable", "truncated-header")
+            pointer = core_foundation.CFDataGetBytePtr(profile_data)
+            if not pointer:
+                return (model, "unavailable", "profile-unavailable")
+            header = ctypes.string_at(pointer, MAX_PROFILE_HEADER_BYTES)
+            profile_class, header_status = inspect_profile_header(header, length)
+            return (model, profile_class, header_status)
+        finally:
+            core_foundation.CFRelease(profile_data)
+    finally:
+        core_graphics.CGColorSpaceRelease(color_space)
+
+
+def _enumerate_active_display_ids(core_graphics) -> tuple[str, int, tuple[int, ...]]:
+    """Return a bounded private ID list; callers must never print the IDs."""
+    display_count = ctypes.c_uint32()
+    if core_graphics.CGGetActiveDisplayList(
+            0, None, ctypes.byref(display_count)) != 0:
+        return ("enumeration-unavailable", 0, ())
+    if display_count.value == 0:
+        return ("no-active-displays", 0, ())
+    if display_count.value > MAX_ACTIVE_DISPLAYS:
+        return ("display-limit-exceeded", int(display_count.value), ())
+
+    display_ids = (ctypes.c_uint32 * display_count.value)()
+    returned_count = ctypes.c_uint32()
+    if core_graphics.CGGetActiveDisplayList(
+            display_count.value, display_ids,
+            ctypes.byref(returned_count)) != 0:
+        return ("enumeration-unavailable", 0, ())
+    if returned_count.value != display_count.value:
+        return ("display-set-changed", int(display_count.value), ())
+    return (
+        "observed",
+        int(returned_count.value),
+        tuple(int(display_ids[index]) for index in range(returned_count.value)),
+    )
+
+
+def format_profile_header_status_counts(statuses: tuple[str, ...]) -> str:
+    """Summarize only controlled profile-status tokens; never display IDs."""
+    if not statuses:
+        return "unavailable"
+    if any(status not in PROFILE_HEADER_STATUS_ORDER for status in statuses):
+        return "unavailable"
+    fields = []
+    for status in PROFILE_HEADER_STATUS_ORDER:
+        count = statuses.count(status)
+        if count:
+            fields.append(f"{status}:{count}")
+    return ",".join(fields) if fields else "unavailable"
+
+
+def classify_active_display_profile_evidence(statuses: tuple[str, ...]) -> str:
+    if not statuses:
+        return "unavailable"
+    if any(status in MALFORMED_PROFILE_HEADER_STATUSES for status in statuses):
+        return "malformed-active-profile-observed"
+    if all(status in PLAUSIBLE_PROFILE_HEADER_STATUSES for status in statuses):
+        return "plausible-headers-only"
+    if any(status in PLAUSIBLE_PROFILE_HEADER_STATUSES for status in statuses):
+        return "incomplete-profile-metadata"
+    return "profile-metadata-unavailable"
+
+
+def query_active_display_profile_headers() -> tuple[str, int, tuple[str, ...]]:
+    """Read bounded ICC header status for every active display, never its ID."""
+    if sys.platform != "darwin":
+        return ("query-unavailable", 0, ())
+
+    try:
+        core_graphics, core_foundation = _load_color_frameworks()
+        enumeration_status, display_count, display_ids = (
+            _enumerate_active_display_ids(core_graphics))
+        if enumeration_status != "observed":
+            return (enumeration_status, display_count, ())
+
+        statuses = []
+        for display_id in display_ids:
+            try:
+                statuses.append(
+                    _query_display_profile(
+                        core_graphics, core_foundation, display_id)[2])
+            except (AttributeError, OSError, TypeError, ValueError):
+                statuses.append("query-unavailable")
+        return (enumeration_status, display_count, tuple(statuses))
+    except (AttributeError, OSError, TypeError, ValueError):
+        return ("query-unavailable", 0, ())
+
+
 def query_display_profile_class() -> tuple[str, str, str]:
     """Read only the main display's color model and ICC header class."""
     if sys.platform != "darwin":
         return ("unavailable", "unavailable", "query-unavailable")
 
     try:
-        core_graphics = ctypes.CDLL(
-            "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
-        core_foundation = ctypes.CDLL(
-            "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
-
-        core_graphics.CGMainDisplayID.restype = ctypes.c_uint32
-        core_graphics.CGDisplayCopyColorSpace.argtypes = [ctypes.c_uint32]
-        core_graphics.CGDisplayCopyColorSpace.restype = ctypes.c_void_p
-        core_graphics.CGColorSpaceGetModel.argtypes = [ctypes.c_void_p]
-        core_graphics.CGColorSpaceGetModel.restype = ctypes.c_int32
-        core_graphics.CGColorSpaceCopyICCData.argtypes = [ctypes.c_void_p]
-        core_graphics.CGColorSpaceCopyICCData.restype = ctypes.c_void_p
-        core_graphics.CGColorSpaceRelease.argtypes = [ctypes.c_void_p]
-        core_graphics.CGColorSpaceRelease.restype = None
-
-        core_foundation.CFDataGetLength.argtypes = [ctypes.c_void_p]
-        core_foundation.CFDataGetLength.restype = ctypes.c_long
-        core_foundation.CFDataGetBytePtr.argtypes = [ctypes.c_void_p]
-        core_foundation.CFDataGetBytePtr.restype = ctypes.POINTER(ctypes.c_uint8)
-        core_foundation.CFRelease.argtypes = [ctypes.c_void_p]
-        core_foundation.CFRelease.restype = None
-
+        core_graphics, core_foundation = _load_color_frameworks()
         display_id = core_graphics.CGMainDisplayID()
         if display_id == 0:
             return ("unavailable", "unavailable", "display-unavailable")
-        color_space = core_graphics.CGDisplayCopyColorSpace(display_id)
-        if not color_space:
-            return ("unavailable", "unavailable", "color-space-unavailable")
-        try:
-            model = COLOR_MODELS.get(
-                int(core_graphics.CGColorSpaceGetModel(color_space)), "unknown")
-            profile_data = core_graphics.CGColorSpaceCopyICCData(color_space)
-            if not profile_data:
-                return (model, "unavailable", "profile-unavailable")
-            try:
-                length = int(core_foundation.CFDataGetLength(profile_data))
-                if length < MAX_PROFILE_HEADER_BYTES:
-                    return (model, "unavailable", "truncated-header")
-                if length > MAX_ICC_PROFILE_BYTES:
-                    return (model, "invalid", "invalid-length")
-                pointer = core_foundation.CFDataGetBytePtr(profile_data)
-                if not pointer:
-                    return (model, "unavailable", "profile-unavailable")
-                header = ctypes.string_at(pointer, MAX_PROFILE_HEADER_BYTES)
-                profile_class, header_status = inspect_profile_header(header, length)
-                return (model, profile_class, header_status)
-            finally:
-                core_foundation.CFRelease(profile_data)
-        finally:
-            core_graphics.CGColorSpaceRelease(color_space)
+        return _query_display_profile(
+            core_graphics, core_foundation, int(display_id))
     except (AttributeError, OSError, TypeError, ValueError):
         return ("unavailable", "unavailable", "query-unavailable")
-
 
 def diagnostic_environment(source: dict[str, str] | None = None) -> dict[str, str]:
     environment = dict(os.environ if source is None else source)
@@ -309,6 +421,11 @@ def run_probe(app: Path, duration_seconds: float) -> dict[str, str]:
     app = _validate_app(app)
     executable = app / "Contents/MacOS" / EXECUTABLE_NAME
     model, profile_class, profile_header_status = query_display_profile_class()
+    (
+        active_display_enumeration,
+        active_display_count,
+        active_display_profile_statuses,
+    ) = query_active_display_profile_headers()
 
     process = subprocess.Popen(
         [str(executable)],
@@ -358,6 +475,18 @@ def run_probe(app: Path, duration_seconds: float) -> dict[str, str]:
         "display_color_model": model,
         "display_profile_class": profile_class,
         "display_profile_header_status": profile_header_status,
+        "active_display_enumeration": active_display_enumeration,
+        "active_display_count": (
+            str(active_display_count)
+            if active_display_enumeration in {
+                "observed", "no-active-displays", "display-limit-exceeded"}
+            else "unavailable"
+        ),
+        "active_display_profile_headers":
+            format_profile_header_status_counts(active_display_profile_statuses),
+        "active_display_profile_evidence":
+            classify_active_display_profile_evidence(
+                active_display_profile_statuses),
         "stderr_capture_truncated": "yes" if capture.truncated else "no",
     })
     return diagnostics
@@ -382,6 +511,14 @@ def print_summary(result: dict[str, str]) -> None:
     print(f"display-color-model={result['display_color_model']}")
     print(f"display-profile-class={result['display_profile_class']}")
     print(f"display-profile-header-status={result['display_profile_header_status']}")
+    print(f"active-display-enumeration={result['active_display_enumeration']}")
+    print(f"active-display-count={result['active_display_count']}")
+    print(
+        "active-display-profile-headers="
+        f"{result['active_display_profile_headers']}")
+    print(
+        "coregraphics-profile-evidence="
+        f"{result['active_display_profile_evidence']}")
     print(f"qcolor-warning={result['warning']}")
     print(
         "warning-source="
@@ -390,6 +527,12 @@ def print_summary(result: dict[str, str]) -> None:
     print(f"warning-emitter={result['warning_emitter']}")
     print(f"cocoa-load-before-warning={result['cocoa_load_before_warning']}")
     print("warning-caller=UNATTRIBUTED")
+    attribution_requirement = (
+        "STACK_REQUIRED" if result["warning"] == "REPRODUCED"
+        else "NOT_APPLICABLE")
+    print(f"first-party-qcolorspace-caller={attribution_requirement}")
+    print(f"qt-cocoa-caller={attribution_requirement}")
+    print(f"colorsync-caller={attribution_requirement}")
     print(f"stderr-capture-truncated={result['stderr_capture_truncated']}")
     print("sharing=OFF")
     print("tcp-listener=absent")

@@ -68,6 +68,91 @@ class MacQColorProvenanceTests(unittest.TestCase):
         header[0:4] = (128).to_bytes(4, byteorder="big")
         self.assertEqual(probe.profile_class_signature(bytes(header), 127), "invalid")
 
+    def test_active_display_enumeration_is_bounded_and_fail_closed(self):
+        class FakeCoreGraphics:
+            def __init__(
+                self, display_ids=(), first_error=0, second_error=0,
+                second_count=None
+            ):
+                self.display_ids = tuple(display_ids)
+                self.first_error = first_error
+                self.second_error = second_error
+                self.second_count = second_count
+
+            def CGGetActiveDisplayList(
+                self, maximum, display_ids, display_count
+            ):
+                if display_ids is None:
+                    display_count._obj.value = len(self.display_ids)
+                    return self.first_error
+                returned = (
+                    len(self.display_ids)
+                    if self.second_count is None else self.second_count
+                )
+                display_count._obj.value = returned
+                for index, display_id in enumerate(
+                    self.display_ids[:min(maximum, returned)]
+                ):
+                    display_ids[index] = display_id
+                return self.second_error
+
+        self.assertEqual(
+            probe._enumerate_active_display_ids(FakeCoreGraphics((7, 9))),
+            ("observed", 2, (7, 9)))
+        self.assertEqual(
+            probe._enumerate_active_display_ids(
+                FakeCoreGraphics(first_error=1)),
+            ("enumeration-unavailable", 0, ()))
+        self.assertEqual(
+            probe._enumerate_active_display_ids(
+                FakeCoreGraphics((7, 9), second_error=1)),
+            ("enumeration-unavailable", 0, ()))
+        self.assertEqual(
+            probe._enumerate_active_display_ids(FakeCoreGraphics(())),
+            ("no-active-displays", 0, ()))
+
+        too_many = tuple(range(probe.MAX_ACTIVE_DISPLAYS + 1))
+        status, count, display_ids = probe._enumerate_active_display_ids(
+            FakeCoreGraphics(too_many))
+        self.assertEqual(status, "display-limit-exceeded")
+        self.assertEqual(count, len(too_many))
+        self.assertEqual(display_ids, ())
+
+        self.assertEqual(
+            probe._enumerate_active_display_ids(
+                FakeCoreGraphics((7, 9), second_count=1)),
+            ("display-set-changed", 2, ()))
+
+    def test_active_display_profile_summary_distinguishes_malformed_metadata(self):
+        statuses = (
+            "recognized-header",
+            "invalid-signature",
+            "truncated-profile",
+            "profile-unavailable",
+        )
+        self.assertEqual(
+            probe.format_profile_header_status_counts(statuses),
+            "invalid-signature:1,truncated-profile:1,"
+            "profile-unavailable:1,recognized-header:1")
+        self.assertEqual(
+            probe.classify_active_display_profile_evidence(statuses),
+            "malformed-active-profile-observed")
+        self.assertEqual(
+            probe.classify_active_display_profile_evidence(
+                ("recognized-header", "unknown-class")),
+            "plausible-headers-only")
+        self.assertEqual(
+            probe.classify_active_display_profile_evidence(
+                ("recognized-header", "profile-unavailable")),
+            "incomplete-profile-metadata")
+        self.assertEqual(
+            probe.classify_active_display_profile_evidence(
+                ("profile-unavailable",)),
+            "profile-metadata-unavailable")
+        self.assertEqual(
+            probe.format_profile_header_status_counts(("unexpected",)),
+            "unavailable")
+
     def test_qt_warning_summary_drops_paths_and_chromaticity_values(self):
         raw = (
             'qt.core.plugin: loaded library '
@@ -93,6 +178,12 @@ class MacQColorProvenanceTests(unittest.TestCase):
             "display_color_model": "rgb",
             "display_profile_class": "mntr",
             "display_profile_header_status": "recognized-header",
+            "active_display_enumeration": "observed",
+            "active_display_count": "2",
+            "active_display_profile_headers":
+                "invalid-signature:1,recognized-header:1",
+            "active_display_profile_evidence":
+                "malformed-active-profile-observed",
             "stderr_capture_truncated": "no",
         })
         import contextlib
@@ -110,6 +201,17 @@ class MacQColorProvenanceTests(unittest.TestCase):
         self.assertIn("warning-emitter=qt-qcolorspace-reported", summary)
         self.assertIn("cocoa-load-before-warning=observed", summary)
         self.assertIn("display-profile-header-status=recognized-header", summary)
+        self.assertIn("active-display-enumeration=observed", summary)
+        self.assertIn("active-display-count=2", summary)
+        self.assertIn(
+            "active-display-profile-headers="
+            "invalid-signature:1,recognized-header:1", summary)
+        self.assertIn(
+            "coregraphics-profile-evidence=malformed-active-profile-observed",
+            summary)
+        self.assertIn("first-party-qcolorspace-caller=STACK_REQUIRED", summary)
+        self.assertIn("qt-cocoa-caller=STACK_REQUIRED", summary)
+        self.assertIn("colorsync-caller=STACK_REQUIRED", summary)
 
     def test_failed_cocoa_plugin_lookup_is_not_loaded_provenance(self):
         diagnostics = (

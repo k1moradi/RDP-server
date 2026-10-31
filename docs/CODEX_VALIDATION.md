@@ -1,3 +1,57 @@
+## R7 active-display QColorSpace provenance and native attachment contract (2026-10-31)
+
+Reviewed parent `f468fef6bb8fe16dcf6dd9af479b60ebbd9a322f` against the
+mandatory architecture/testing documents, the Qt GUI, macOS native owner and
+R10 HostControl. Production first-party GUI/runtime source still contains no
+direct `QColorSpace`, `QImage` or `QPixmap` construction. Existing
+offscreen Qt coverage already distinguishes valid sRGB/custom primaries,
+malformed ICC input and invalid chromaticity, so no production color fix,
+warning suppression, Qt rewrite or monitor-profile change is justified.
+
+One concrete diagnostic gap was present: the opt-in provenance collector read
+only `CGMainDisplayID()`. It now performs bounded two-pass active-display
+enumeration and reuses the existing 128-byte ICC header validator for every
+active display. Public output contains only an active-display count and
+aggregate controlled status tokens; display IDs, paths, ICC payloads and
+primaries are never emitted. Offline fixtures cover first/second enumeration
+failure, zero displays, the enumeration bound, display-set change and malformed
+versus plausible/incomplete profile metadata. A malformed profile is
+CoreGraphics metadata evidence only. Warning caller attribution remains
+`UNATTRIBUTED`; first-party, Qt Cocoa and ColorSync caller questions are
+explicitly `STACK_REQUIRED` when the warning reproduces.
+
+R10 has advanced through protected Channel Join/Confirm and Client Info and now
+stops at `AwaitServerLicenseRequest`. Native attachment is still blocked on
+genuine PersonalDesktop licensing, Demand/Confirm Active, Share and
+GraphicsReady composition. `CredentialsVerified`, `TransportAdmitted`,
+MCS establishment and Client Info are insufficient. When the positive path is
+wired, `RuntimePlatformNativeDesktop::attachAuthenticatedSession()` may run
+only for that same real R2-admitted R3 session after Share/GraphicsReady.
+Its authenticated proof and current-owner authority are borrowed for the whole
+native lifetime: close upstream R2/R3 routing first, retire native state while
+those borrows still exist, then destroy proof/R1 state. Current
+`retireAcceptedClient()` destroys the proof before several subsequent native
+retirement calls, so Agent 10 must split/reorder that teardown before positive
+attachment is enabled.
+
+`MacNativeDesktopFrameConsumer` is synchronous and non-reentrant; its
+`FramebufferView` is callback-only borrowed storage. Correlate the supplied
+geometry generation, admitted-session generation and frame sequence, but those
+scalars never recreate authority and R4 remains the sole transport/frame-ACK
+owner.
+
+Baseline exact-head evidence at
+`379f05d3ff3a31df5ae80cd7f437b508c23653f9`, Actions
+`41250520319`: macOS full Debug/Release protocol CTest PASS; R7 native
+lifecycle Debug/Release PASS; R7 portable GUI/offscreen/package/no-listener
+launch PASS; R7 session sanitizers PASS; macOS owner-GUI parity PASS; portable
+no-argument bootstrap PASS. Ubuntu full Debug was 1055/1056 with the sole
+failure in unrelated R5
+`x11.input-native-failure-terminal-retirement-no-xtest`; the registered
+QColorSpace provenance parser/redaction CTest itself PASSed. Connector-local
+compile/CTest and all live capture/TCC/input/profile/physical-client operations
+are NOT RUN. Publication-SHA hosted CI for this increment is PENDING.
+
 ## R10 protected Channel Join/Client Info composition (2026-10-31)
 
 Authoring parent `8075abac48a6d5d0ca0bf582b61d96413a8dfe70`. The current dependency audit finds no missing

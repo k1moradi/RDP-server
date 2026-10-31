@@ -195,6 +195,41 @@ public:
         std::uint64_t replySequence, std::uint64_t writeSliceSequence,
         std::size_t acceptedBytes) noexcept;
 
+    // Only the macOS General Capability identity is sent, with R3-owned
+    // GCC dimensions and original R2 view/input scope; each activation
+    // packet and accepted-byte Share receipt stays inside a fresh visitor.
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
+    authorizeR3PersonalDesktopMacDemandActiveProfile(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        rdp_server::server::transport::RdpDemandActiveFeature features) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+    authorizeR3PersonalDesktopShareActivation(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        const rdp_server::server::transport::RdpDemandActiveProfileView
+            &profile) noexcept;
+    [[nodiscard]] std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+    authorizeR3PersonalDesktopShareActivationWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpShareActivationWriteOutcome
+    completeR3PersonalDesktopShareActivationWrite(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::uint64_t replySequence, std::uint64_t writeSliceSequence,
+        std::size_t acceptedBytes) noexcept;
+    [[nodiscard]] rdp_server::server::transport::RdpShareActivationClientIntake
+    authorizeR3PersonalDesktopShareActivationPdu(
+        rdp_server::server::transport::McsSessionLifecycle &session,
+        const rdp_server::server::runtime::RuntimeDeploymentPolicy
+            &deploymentPolicy,
+        std::span<const std::uint8_t> completeTpkt) noexcept;
+
     // Read-only preflight, never a transfer of R3 mutation authority.
     [[nodiscard]] bool authorizeR3ProtectedTransition(
         rdp_server::server::transport::McsSessionLifecycle &session,
@@ -249,7 +284,8 @@ private:
         const rdp_server::server::runtime::RuntimeDeploymentPolicy
             &deploymentPolicy,
         MacNativeDesktopAuthorizationVisitor visitor,
-        void *context) noexcept;
+        void *context,
+        std::uint32_t requiredPermissions = kConsoleViewPermission) noexcept;
     [[nodiscard]] bool authenticatedConnectionCurrent() const noexcept;
     [[nodiscard]] bool preparedAuthenticationCurrent() const noexcept;
     [[nodiscard]] bool viewMatchesPreparedLifetime(

@@ -1,3 +1,17 @@
+## R2 protected macOS Demand Active and Share wrappers (2026-10-31)
+
+Five private R3 Demand/Share methods are now available only inside the
+existing R2 protected native/consent visitor: macOS Demand Active profile,
+begin Share, pending write, exact tuple completion, and client Share intake.
+Optional Input feature requires independent native input permission.
+Dedicated offline production-broker CTest denies premature/policy-less
+Share and stale receipt entry; it is not a positive native lease. No
+Linux/R10 scheduling or TLS reader changes. Local canonical
+build/focused/full CTest, sanitizer and benchmarks **NOT RUN** (approved
+checkout unavailable). Hosted publication-SHA CI **PENDING**.
+Remaining: post-Share/CLIPRDR/input/DVC/Graphics/ACK, real R1 TLS positive
+completion/callback-loss fixture and R10 integrated owner composition.
+
 ## R2 macOS PersonalDesktop protected licensing increment (2026-10-31)
 
 The original R2 visitor now protects one immutable policy identity through

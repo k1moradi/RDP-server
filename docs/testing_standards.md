@@ -1,3 +1,14 @@
+## R2 protected macOS Demand/Share denial registry (2026-10-31)
+
+`security.native-authorization-macos-console-protected-mac-demand-share-denials`
+is an ordinary production-linked offline CTest using the existing R2 broker.
+It exercises absent immutable PersonalDesktop policy before macOS Demand Active,
+Share reply borrowing, Share accepted-byte receipt and client activation PDU.
+Every premature path terminally retires the original R1/R3 owners. No
+product-valid native lease, Share success or physical client is simulated.
+The genuine TLS/R1 callback-after-completion and positive/partial broker
+receipt fixture remains required.
+
 ## R2 protected personal licensing policy denials (2026-10-31)
 
 The dedicated ordinary offline CTest

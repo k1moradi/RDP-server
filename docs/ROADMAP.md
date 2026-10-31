@@ -1,3 +1,17 @@
+## R2 macOS native-authorized Demand Active and Share progression (2026-10-31)
+
+The original broker now has fresh protected R3 macOS Demand Active profile,
+Share begin/pending/exact accepted-byte completion and client intake. It
+requires the identical immutable R10 PersonalDesktop policy and independent
+Input permission when negotiated. Denial before any positive R1/native
+authority is production-CTest-covered; R3 controls zero/partial receipts
+and no success is claimed without a physical lease. **P0 still open:**
+complete post-Share protected CLIPRDR/input/DRDYNVC/Graphics/ACK
+and resizing APIs, genuine production R1 positive completion and
+post-callback revocation/exact broker receipt CTest, and R10 assembly.
+CI at this exact publication SHA **PENDING**, local build/CTest
+**NOT RUN**. No native capture, TCC or real client testing.
+
 ## R2 macOS PersonalDesktop licensing via original native issuer (2026-10-31)
 
 One policy-identity-bound R2 increment extends protected Client Info to

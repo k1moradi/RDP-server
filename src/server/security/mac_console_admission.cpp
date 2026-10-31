@@ -829,11 +829,12 @@ bool MacConsoleAdmissionBroker::visitPersonalDesktopR3Operation(
     const rdp_server::server::runtime::RuntimeDeploymentPolicy
         &deploymentPolicy,
     MacNativeDesktopAuthorizationVisitor visitor,
-    void *context) noexcept
+    void *context,
+    std::uint32_t requiredPermissions) noexcept
 {
     if (!personalDesktopPolicyMatches(deploymentPolicy) ||
         !visitR3ProtectedOperation(
-            session, kConsoleViewPermission, visitor, context) ||
+            session, requiredPermissions, visitor, context) ||
         !personalDesktopPolicyMatches(deploymentPolicy))
     {
         session.close();
@@ -1061,6 +1062,194 @@ MacConsoleAdmissionBroker::completeR3PersonalDesktopValidClientWrite(
     if (!visitPersonalDesktopR3Operation(
             session, deploymentPolicy, invoke, &operation))
         return RdpPersonalDesktopValidClientWriteOutcome::Rejected;
+    return operation.outcome;
+}
+
+std::optional<rdp_server::server::transport::RdpDemandActiveProfileView>
+MacConsoleAdmissionBroker::authorizeR3PersonalDesktopMacDemandActiveProfile(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    rdp_server::server::transport::RdpDemandActiveFeature features) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct ProfileContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        RdpDemandActiveFeature features{};
+        std::optional<RdpDemandActiveProfileView> profile{};
+    } operation{this, &session, features};
+
+    const auto prepare = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<ProfileContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.profile =
+            operation.session->prepareVerifiedR2MacDemandActiveProfile(
+                *provenance, operation.features);
+        return operation.profile.has_value();
+    };
+
+    std::uint32_t requiredPermissions = kConsoleViewPermission;
+    if (hasRdpDemandActiveFeature(
+            features, RdpDemandActiveFeature::SlowPathInput))
+        requiredPermissions |= kConsoleInputPermission;
+    if (!visitPersonalDesktopR3Operation(
+            session, deploymentPolicy, prepare, &operation, requiredPermissions))
+        return std::nullopt;
+    return operation.profile;
+}
+
+std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+MacConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivation(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    const rdp_server::server::transport::RdpDemandActiveProfileView &profile) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct BeginContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        const RdpDemandActiveProfileView *profile{};
+        std::optional<RdpShareActivationWriteView> pending{};
+    } operation{this, &session, &profile};
+
+    const auto begin = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<BeginContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.pending = operation.session->beginVerifiedR2ShareActivation(
+            *provenance, *operation.profile);
+        return operation.pending.has_value();
+    };
+
+    std::uint32_t requiredPermissions = kConsoleViewPermission;
+    if (hasRdpDemandActiveFeature(
+            profile.features(), RdpDemandActiveFeature::SlowPathInput))
+        requiredPermissions |= kConsoleInputPermission;
+    if (!visitPersonalDesktopR3Operation(
+            session, deploymentPolicy, begin, &operation, requiredPermissions))
+        return std::nullopt;
+    return operation.pending;
+}
+
+std::optional<rdp_server::server::transport::RdpShareActivationWriteView>
+MacConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct WriteContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::optional<RdpShareActivationWriteView> pending{};
+    } operation{this, &session};
+
+    const auto prepare = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<WriteContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.pending =
+            operation.session->pendingVerifiedR2ShareActivationWrite(*provenance);
+        return operation.pending.has_value();
+    };
+    if (!visitPersonalDesktopR3Operation(
+            session, deploymentPolicy, prepare, &operation))
+        return std::nullopt;
+    return operation.pending;
+}
+
+rdp_server::server::transport::RdpShareActivationWriteOutcome
+MacConsoleAdmissionBroker::completeR3PersonalDesktopShareActivationWrite(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::uint64_t replySequence,
+    std::uint64_t writeSliceSequence,
+    std::size_t acceptedBytes) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct ReceiptContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::uint64_t replySequence{};
+        std::uint64_t writeSliceSequence{};
+        std::size_t acceptedBytes{};
+        RdpShareActivationWriteOutcome outcome{
+            RdpShareActivationWriteOutcome::Rejected};
+    } operation{this, &session, replySequence, writeSliceSequence, acceptedBytes};
+
+    const auto complete = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<ReceiptContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome =
+            operation.session->completeVerifiedR2ShareActivationWrite(
+                *provenance, operation.replySequence,
+                operation.writeSliceSequence, operation.acceptedBytes);
+        return operation.outcome != RdpShareActivationWriteOutcome::Rejected;
+    };
+    if (!visitPersonalDesktopR3Operation(
+            session, deploymentPolicy, complete, &operation))
+        return RdpShareActivationWriteOutcome::Rejected;
+    return operation.outcome;
+}
+
+rdp_server::server::transport::RdpShareActivationClientIntake
+MacConsoleAdmissionBroker::authorizeR3PersonalDesktopShareActivationPdu(
+    rdp_server::server::transport::McsSessionLifecycle &session,
+    const rdp_server::server::runtime::RuntimeDeploymentPolicy
+        &deploymentPolicy,
+    std::span<const std::uint8_t> completeTpkt) noexcept
+{
+    using namespace rdp_server::server::transport;
+    struct IntakeContext final
+    {
+        MacConsoleAdmissionBroker *broker{};
+        McsSessionLifecycle *session{};
+        std::span<const std::uint8_t> completeTpkt{};
+        RdpShareActivationClientIntake outcome{
+            RdpShareActivationClientIntake::Rejected};
+    } operation{this, &session, completeTpkt};
+
+    const auto accept = +[](
+        const MacNativeDesktopAuthorizationView & /* authorization */,
+        void *context) noexcept -> bool {
+        auto &operation = *static_cast<IntakeContext *>(context);
+        const auto provenance =
+            operation.broker->connection_->securityNegotiationProvenance();
+        if (!provenance)
+            return false;
+        operation.outcome = operation.session->acceptVerifiedR2ShareActivationPdu(
+            *provenance, operation.completeTpkt);
+        return operation.outcome != RdpShareActivationClientIntake::Rejected &&
+               operation.outcome != RdpShareActivationClientIntake::Closed;
+    };
+    if (!visitPersonalDesktopR3Operation(
+            session, deploymentPolicy, accept, &operation))
+        return RdpShareActivationClientIntake::Rejected;
     return operation.outcome;
 }
 

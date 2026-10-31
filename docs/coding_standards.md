@@ -1,3 +1,16 @@
+## R2 protected macOS Demand Active and Share (2026-10-31)
+
+The sole R2 macOS broker prepares only R3's private macOS-specific Demand
+Active General Capability (OSX identity and GCC desktop geometry), then
+begin/pending/exact accepted-byte Share activation writes and input PDUs,
+each under a fresh original-generation R3/SSL/native/consent/proof visitor.
+SlowPathInput in the immutable R3 profile additionally requires
+`kConsoleInputPermission` at profile creation and Share begin. A replacement
+R10 PersonalDesktop policy, an R3 rejection, callback-time revocation or
+stale receipt closes the exact R1 and R3 owners before returning authority.
+Zero/partial writes retain only R3's exact slice, never a Share activation
+or frame credit. No alternative Share scheduler or native capture is created.
+
 ## R2 macOS immutable PersonalDesktop licensing gate (2026-10-31)
 
 The original R2 macOS broker now selects the R3 PersonalDesktop branch only

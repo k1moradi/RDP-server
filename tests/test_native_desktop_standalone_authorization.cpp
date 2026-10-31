@@ -1056,6 +1056,38 @@ void testMacConsoleProtectedPersonalDesktopLicensingDenials()
     }
 }
 
+// A missing immutable R10 policy, Prepared-only broker and an inactive R1
+// must never publish a Demand Active profile or any Share progress/receipt.
+void testMacConsoleProtectedMacDemandShareDenials()
+{
+    using namespace rdp_server::server::transport;
+    rdp_server::server::runtime::RuntimeDeploymentPolicy unconfiguredPolicy;
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3PersonalDesktopMacDemandActiveProfile(
+            session, unconfiguredPolicy, RdpDemandActiveFeature{}));
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+    {
+        MacConsoleBrokerFixture fixture;
+        fixture.prepare(kConsoleViewPermission);
+        McsSessionLifecycle session;
+        assert(!fixture.broker.authorizeR3PersonalDesktopShareActivationWrite(
+            session, unconfiguredPolicy));
+        assert(fixture.broker.completeR3PersonalDesktopShareActivationWrite(
+                   session, unconfiguredPolicy, 1U, 1U, 0U) ==
+               RdpShareActivationWriteOutcome::Rejected);
+        assert(fixture.broker.authorizeR3PersonalDesktopShareActivationPdu(
+                   session, unconfiguredPolicy, {}) ==
+               RdpShareActivationClientIntake::Rejected);
+        assert(session.phase() == McsSessionPhase::Closed);
+        assert(fixture.broker.state() == MacConsoleAdmissionState::Revoked);
+    }
+}
+
 void testMacConsoleProtectedIssuerPrematureReceipts()
 {
     using namespace rdp_server::server::transport;
@@ -1165,6 +1197,11 @@ int main(int argumentCount, char **arguments)
     if (testCase == "macos-console-protected-personal-licensing-denials")
     {
         testMacConsoleProtectedPersonalDesktopLicensingDenials();
+        return 0;
+    }
+    if (testCase == "macos-console-protected-mac-demand-share-denials")
+    {
+        testMacConsoleProtectedMacDemandShareDenials();
         return 0;
     }
     if (testCase == "macos-console-protected-issuer-premature-receipts")

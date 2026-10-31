@@ -34,6 +34,7 @@ jobs:
             --fixture-root tests/fixtures/ci_workflow_structure \
             --self-test
           python3 tests/test_r9_clean_windows_gate.py
+          python3 scripts/verify_canonical_roadmap.py docs/ROADMAP.md --self-test
 
   r2-linux-production-runtime-security:
     needs: ci-workflow-structure
@@ -3328,17 +3329,20 @@ jobs:
 
   documentation-policy:
     needs: ci-workflow-structure
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check documentation for every implementation commit
+        if: github.event_name == 'push'
         env:
           BEFORE_SHA: ${{ github.event.before }}
           AFTER_SHA: ${{ github.sha }}
         run: python3 scripts/check_documentation_cochange.py "$BEFORE_SHA" "$AFTER_SHA"
+      - name: Verify the canonical living roadmap
+        run: python3 scripts/verify_canonical_roadmap.py docs/ROADMAP.md --self-test
 
   publish-protocol-prerelease:
     # Deploy ONLY tested protocol-library artifacts, never a server.

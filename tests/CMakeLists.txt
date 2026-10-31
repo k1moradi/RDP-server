@@ -1414,6 +1414,14 @@ if(APPLE)
     set_tests_properties(packaging.macos-user-launch-agent-offline-contract PROPERTIES
         LABELS "macos;packaging;security;offline" TIMEOUT 20)
 endif()
+# R9 canonical roadmap integrity and truncation regressions (offline).
+add_test(NAME project.canonical-roadmap-integrity-and-truncation-denials
+    COMMAND "${Python3_EXECUTABLE}"
+        "${PROJECT_SOURCE_DIR}/scripts/verify_canonical_roadmap.py"
+        "${PROJECT_SOURCE_DIR}/docs/ROADMAP.md" --self-test)
+set_tests_properties(project.canonical-roadmap-integrity-and-truncation-denials
+    PROPERTIES LABELS "project-policy;documentation;offline" TIMEOUT 15)
+
 add_test(NAME project.ci-workflow-structure-denials
     COMMAND "${Python3_EXECUTABLE}"
         "${PROJECT_SOURCE_DIR}/scripts/validate_ci_workflow.py"

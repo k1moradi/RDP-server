@@ -1,3 +1,10 @@
+## R9 same-SHA interop/sanitizer baseline and roadmap guard (2026-10-30)
+
+- Baseline `c88dc60f9e218797ddcd640af6bba1693adca1d7`, [Actions 41167358674](https://github.com/k1moradi/RDP-server/actions/runs/41167358674): Linux **1004/1004** Debug/Release, macOS/OpenSSL4.1 **782/782**, Windows CLANG64 **885/885**; R2/R7/R9/GUI/bootstrap/docs **PASS**. Sanitizer R5 **45/45**, clipboard **107/107**, R3 CAL **9/9**, Graphics DVC **23/23**, R4 x264 **29/29**.
+- Downloaded Microsoft interop artifact `13029796352` **COMPLETE_PASS**: production credentials verified, no authInfo empty/failure, bad-binding and required Type-2 AV negatives **PASS**, native admission **NO**. Clean-Windows **QUEUED** and candidate **SKIPPED on push** are distinct.
+- R9 adds canonical-roadmap integrity negative CTest and CI guard; local synthetic validator smoke **PASS**; approved owner checkout/full CTest **NOT RUN**; new exact-publication-SHA hosted CI **PENDING**.
+- Owner Linux 1060/1060 lacks verified tested SHA/toolchain/configuration/command; M1 owner same-SHA evidence **MISSING**. Manual gate **NOT DISPATCHED**; physical test authorization **NOT GRANTED**.
+
 ## R2 macOS nested protected visitor denial — 2026-10-30
 
 - Independent follow-up after R2 published

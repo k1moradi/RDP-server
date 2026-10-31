@@ -1,3 +1,13 @@
+## R9 exact-SHA qualification, restored-roadmap audit and integrity gate (2026-10-30)
+
+**Audited hosted baseline:** `c88dc60f9e218797ddcd640af6bba1693adca1d7`, [Actions 41167358674](https://github.com/k1moradi/RDP-server/actions/runs/41167358674). Linux Debug/Release **1004/1004**, macOS/OpenSSL 4.1 **782/782**, Windows CLANG64 **885/885** and the required R2/R7/R9/GUI/bootstrap/docs producers **PASS**. Actual R9 ASan/UBSan CTest: R5 X11 **45/45**, R8 clipboard **107/107**, R3 CAL **9/9**, R3 Graphics DVC **23/23**, R4 x264 **29/29**. No other road's selector/count changes.
+
+Downloaded `r9-microsoft-interop-c88dc60f9e218797ddcd640af6bba1693adca1d7` artifact: `interop-matrix-final=COMPLETE_PASS`, production `credentials-verified=yes`, `authinfo=yes`, `production-authinfo-failure=none`, `production-authinfo-empty-fields=none`, `native-admission=no`, bad-binding negative and required Type-2 AV negatives **PASS**. `delegation-returned=no` is the SSPI delegation flag, not evidence that production authInfo is empty. Clean-Windows **QUEUED** is a separate release job and not in candidate `needs:`; candidate **SKIPPED on push** is not PASS.
+
+Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda8483159` roadmap confirms that R1–R10 board rows, M1–M6 gates, shared-main and decision anchors are retained. Github Contents API's large-file empty result does not mean an empty blob. R9 adds an offline full-CTest guard for empty/25-line/missing-anchor/board/policy regressions; independent structure and main structure/documentation CI must run it. Legitimate consolidation is not blocked by a fixed byte size. The manual candidate's documentation-policy `needs:` edge was previously push-only/skipped; it is now dispatch-enabled while push co-change checking stays push-only.
+
+**Candidate remains BLOCKED pending this change's own full exact-SHA hosted producer matrix and the manual-candidate prerequisites.** The claimed owner Linux 1060/1060 test is **SHA MISSING**, without independent `git rev-parse HEAD`, toolchain/configuration and command receipt. Recover attribution from the existing run if possible; do not infer it. M1 owner-native Linux/X11, Windows CLANG64/Clang23 and macOS27 same-SHA receipts remain **NOT VERIFIED**. Manual gate and physical client tests remain **NOT RUN/unauthorized**. No M1 freeze was nominated. Any later architectural commit resets the candidate.
+
 ## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
 
 **Current delivery work:** reconcile PR #39 into `main` directly without

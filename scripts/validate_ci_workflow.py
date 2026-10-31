@@ -620,6 +620,14 @@ def validate(path: Path, full: bool) -> tuple[str, int]:
     validate_shell(lines)
 
     if full:
+        require(
+            text.count("python3 scripts/verify_canonical_roadmap.py docs/ROADMAP.md --self-test") == 2,
+            "canonical roadmap integrity missing from structure/documentation CI",
+        )
+        require(
+            "if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in text,
+            "manual candidate documentation policy cannot run on dispatch",
+        )
         missing = sorted(REQUIRED_JOBS - {job for job, _ in found_jobs})
         require(not missing, f"missing required jobs: {', '.join(missing)}")
         for token in REQUIRED_TOKENS:

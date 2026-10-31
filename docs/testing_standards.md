@@ -1,3 +1,7 @@
+## R9 canonical-roadmap integrity and manual candidate CI (2026-10-30)
+
+Register the offline behavior-named `project.canonical-roadmap-integrity-and-truncation-denials` CTest and run the canonical checker in independent structure and main structure/documentation CI. Negative fixtures reject empty/25-line, missing M1–M6/R1–R10, missing direct-main/freeze policy and duplicate headings; a substantial legitimate consolidation must still pass. No fixed roadmap byte count or immutable historical status. Co-change remains push-only; documentation-policy must independently succeed on manual dispatch for the R9 candidate's `needs:` graph. A push-skipped candidate is NOT RUN, not PASS.
+
 ## R8 macOS/Windows file terminalization callback authority (2026-10-30)
 
 Ordinary production-backed portable CTests

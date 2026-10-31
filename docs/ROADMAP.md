@@ -1,12 +1,10 @@
-## R10 P0 canonical-roadmap recovery (2026-10-31)
+## R10 P0 canonical roadmap repair and protected first-MCS integration (2026-10-31)
 
-The canonical roadmap was accidentally truncated to zero bytes on recent
-main ancestors. This restores the preserved authoritative M1–M6 gates,
-R1–R10 board, current decision ledger and shared-main coordination contract
-from `033061f53cc7`, before the truncation. This is historical recovery;
-later verified evidence remains in the existing standards/validation files
-until reconciled against these milestone records. No physical M1/M2 acceptance
-is inferred from restoration.
+The previous R10 artifact mistakenly treated GitHub's over-1-MiB Contents
+API empty-content response as an empty canonical roadmap. Restore the exact
+parent `2d5e7389` roadmap blob (including all contemporary R1-R10 work,
+milestones and decisions) and add only the bounded R10 admission increment.
+This is a documentation correction, not a new milestone or a release pass.
 
 ## R10 macOS protected first-MCS production integration — P0, qualification pending
 
@@ -20,6 +18,954 @@ is inferred from restoration.
 - [ ] **Candidate coordination:** notify Agent 9 and separately qualify any new publication SHA before manual candidate nomination; no candidate is nominated by this increment
 
 The offline R2 real-TLS completion/zero/partial/late-receipt test uses synthetic native proof and does not certify physical Admission. Preserve the macOS no-native-authority denial and first-MCS dormancy tests.
+
+## R8 macOS independent Clipboard scope after R1 transport admission (2026-10-31)
+
+**Authoring parent:** `6282f6f151c7c67524cb6dca68d36b839fa25b2b`. A new separate ordinary,
+production-linked `security.macos-transport-admitted-clipboard-permission-denials`
+CTest reuses real accepted R1 loopback HYBRID/TLS and the original R2/R3 macOS
+broker. The synthetic native/credential fixture positively revalidates
+View/Input, but not independent Clipboard, at Prepared, TransportAdmitted and
+R3 Admitted. Trying `authorizeR3JoinedClipboardChannel()` retires R1/R2/R3;
+post-retirement activated-route, CLIPRDR intake, queued/pending bytes and a
+fabricated late positive write receipt cannot expose data or FileContents.
+This proves an internal fail-closed boundary, **not** physical native admission,
+ShareActivated, Enabled, successful native files or client clipboard.
+
+**R10 future integration gate:** check at the actual publication boundary
+the same current R1 TLS/CredSSP identity, original revocable R2 lease/consent,
+separate Clipboard native permission, R3 ShareActivated and exact joined
+`cliprdr` route, current native owner/source epoch, R1's sole writer and
+complete bounded generation/reply/slice/accepted-byte receipt. Numeric IDs,
+pre-Share join, View/Input and partial/late receipts grant no publication.
+R3ClipboardTransferBridge, RemoteTransfer, native destinations and X11
+selection/INCR keep their sole existing ownership; do not add adapters.
+`kLinuxProductionClipboardActivationApproved = false` remains literal.
+The fixed 107-case clipboard ASan/UBSan census and separate finalization
+and three X11 callback-retirement regressions are unchanged.
+
+**Evidence:** source/registration review **PASS**. Canonical owner build/full
+CTest **NOT RUN**; exact-publication-SHA hosted CI/sanitizers **PENDING**.
+Ancestor `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6` alone has
+107/107 clipboard + 1/1 finalization + 3/3 X11 sanitizer **PASS**.
+Next: qualify the newly published SHA before physical permission-gated
+R10 composition. Physical client, native clipboard and file tests **NOT RUN**.
+
+## R2 production R1 transport completion and broker receipt coverage (2026-10-31)
+
+Parent `2383df14eeed95b1ab90b90ece778b8eb3de59c0`: the remaining broker-internal R1/TLS transition and receipt
+gap now has a dedicated production-transport fixture. It uses a real accepted
+loopback R1 HYBRID connection, exact SSL/BIO/certificate provenance and the
+private `authorizeR1CredSspAdmission()` path; synthetic proof/native sources
+remain test-only and are not a physical Admission receipt. The fixture covers
+successful transport completion, duplicate completion, protected R3
+Connect-Initial, zero/partial Connect-Response receipts backed by actual R1 TLS
+plaintext acceptance, late receipt rejection after consent revocation, and
+native-session replacement after R1 completion while first-MCS plaintext is
+already buffered. R2 must close R3 and cancel R1 before buffered MCS intake.
+
+**Remaining integration gate:** R10 still must compose the real
+`StandalonePasswordAuthenticatedPrincipalProof`, production native evidence,
+single R1 reader/writer and R3 session into the macOS HostControl positive path.
+The R1 and R3 private interfaces are available; this is no longer blocked on
+Agent 1 or Agent 3. Physical macOS/TCC/client evidence remains separately
+unauthorized and is not required for this offline increment. Local validation
+**NOT RUN**; publication-SHA hosted CI **PENDING**.
+
+## R2 joined CLIPRDR protected operation (2026-10-31)
+
+Parent `b23951da2708ab431342467dbc3cb176d109a892`: dependency review confirmed R1 and R3 private friend edges
+and all later R3 mechanics are available. One R2-owned sequence gap remained:
+the optional joined CLIPRDR role before Client Info/licensing had no macOS
+broker wrapper. The broker now routes that exact private R3 operation only
+through its original-generation owner-thread protected visit and independent
+Clipboard permission. macOS native authorization remains View|Input, therefore
+Clipboard is deliberately positive-path fail-closed. Dedicated offline denial
+CTest added; no Share/native clipboard/product-valid lease is fabricated.
+Local canonical validation **NOT RUN**; publication-SHA hosted CI **PENDING**.
+
+**Remaining R2 P0:** genuine production R1 HYBRID/TLS/CredSSP successful
+`authorizeR1CredSspAdmission()`, synchronous authority loss after that partial
+transition, and broker-owned zero/partial/late Connect-Response receipt
+coverage. **R10 remaining dependency:** compose the existing broker into the
+single-reader/single-writer macOS runtime after TransportAdmitted; R1/R3
+interfaces are no longer blockers. The concurrent R10 zero-wait dormancy test
+fix on `b23951da` is retained and is not positive R2 admission.
+
+## R10 macOS zero-wait accepted-client regression correction (2026-10-31)
+
+The existing production-linked `runtime.macos-host-control-accepted-pre-admission-dormancy`
+case incorrectly required one zero-wait owner tick to observe a kernel
+nonblocking TCP accept immediately after synthetic local `connect()`.
+At R10 authoring parent `8afaced67524add47c847e9cdf3ea486a9a6f9f5`,
+hosted `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6` macOS Debug 814/815
+passed, with this test aborting specifically on
+`accepted.stage == ClientAuthenticating` before its incomplete first TPKT;
+the Ubuntu and Windows protocol jobs and R9 sanitizers passed.
+The corrected test performs at most 32 **serial, zero-wait owner ticks**
+until exact `ClientAuthenticating`, failing on any other stage and never
+sleeping, reconnecting, weakening the protocol assertions or converting
+a post-connect failure to SKIP. The incomplete TPKT, pre-MCS, no-Share,
+no-native-attachment and Stop denials stay unchanged.
+Local canonical compile/CTest: **NOT RUN** (no owner checkout).
+Publication-SHA macOS full CI: **PENDING**; prior SHA is not its PASS.
+R10 positive native/first-MCS composition remains **BLOCKED** pending
+R2 genuine accepted production-R1 HYBRID/TLS/CredSSP completion,
+native/proof callback-loss and zero/partial/late broker receipt evidence;
+no physical authorization or real desktop is claimed.
+
+## R4 partial-DATA retirement / successor-frame acceptance (2026-10-31)
+
+Parent inspected: `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`. Upstream
+R2 has now published private macOS Share/post-Share/Graphics DVC/ACK and
+resize wrappers; the previous Client Info compile blocker was corrected.
+A distinct uncovered R3/R4 boundary now has an ordinary production-backed
+`graphics.frame-partial-data-retirement-successor-generation` CTest:
+positive partial DATA with borrowed suffix and zero R4 credit, terminal
+retirement and late old-owner receipt/ACK denial, then one newly delivered
+successor frame and exactly one current ACK. Keep the existing complete-
+delivery retirement regression, 171-case MCS table and 23-case Graphics DVC
+sanitizer selection unchanged; no codec, capture or R1 writer edit.
+**Verification:** source and registration reviewed; canonical local build,
+focused/full CTest and sanitizers **NOT RUN** (GitHub connector cannot access
+the approved local build root); exact-publication hosted CI **PENDING**.
+**Still blocked:** R2 real accepted TLS/CredSSP positive + callback-time
+revocation/partial-receipt fixture; R10 macOS host owner-loop composition,
+exact-head R9 owner-native qualification and explicit physical-client
+permission. R1 still owns any pending TLS output; do not cancel R3 bytes until
+that borrow is conclusively retired. No client-visible frame asserted.
+
+## R8 hosted X11 callback sanitizer qualification on current descendant (2026-10-31)
+
+**Verified exact descendant:** `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
+[Actions 41191351163](https://github.com/k1moradi/RDP-server/actions/runs/41191351163),
+R9 sanitizer job `124508630924` **PASS**. The shared-main R2
+CTest taxonomy and Client Info compile blockers are now resolved. The
+R8 destroyed-owner production fix `d99360ec` and corrected workflow
+`184a140c` are ancestors; no new X11 production modification was required.
+
+**Executed R8 sanitizer results:** fixed `clipboard` census
+**107/107 PASS**, separately named macOS/Windows destination finalization
+**1/1 PASS**, and **3/3 PASS** for X11 synchronous source retirement,
+native owner destruction during `setSelectionOwner`, and
+notification/INCR callback retirement. Each of the three X11 tests
+was actually selected and executed under the same sanitizer build,
+without expanding the 107-case census or enabling a real clipboard.
+Ubuntu and Windows full protocol jobs PASS on this exact SHA.
+
+**Different whole-project blocker:** macOS full Debug CTest
+**814/815 PASS**, with
+`runtime.macos-host-control-accepted-pre-admission-dormancy`
+aborting at `tests/test_macos_runtime_host_control.cpp:1587` because
+the observed `accepted.stage` did not match
+`RuntimeHostStage::ClientAuthenticating`. This pre-admission
+HostControl failure is not a failed R8 clipboard test and prevents
+declaring the overall workflow green. Coordinate with the macOS
+HostControl owner; do not modify another road's runtime on R8's behalf.
+
+**Remaining activation dependency graph:** genuine fresh R2 original
+accepted R1/HYBRID/TLS admission/proof and independent Clipboard
+permission -> native authorization/consent owner epoch ->
+ShareActivated/GraphicsReady and exact joined `cliprdr` route ->
+current R8 native publication owner and RemoteTransfer source epoch ->
+single R1 TLS writer and complete bounded R3 accepted-byte receipts ->
+R9 same-SHA qualification and explicit physical authorization. R2
+macOS wrappers now protect post-Share CLIPRDR and Graphics transitions,
+but View|Input-only native macOS scope still denies Clipboard, and
+R2 positive TLS completion/callback revocation/partial receipt proof
+and R10 real owner composition are not complete. R8 has no warrant
+to enable production Clipboard. Keep
+`kLinuxProductionClipboardActivationApproved = false`. Local
+canonical build/CTest and physical clipboard/native files remain
+**NOT RUN** in the connector-only environment.
+
+## R2 protected owner-thread CTest stage invariant correction (2026-10-31)
+
+The new synthetic R1 fixture begins with an invalid socket and can
+already be Closed at construction. Assert that off-owner R1/R3 calls
+preserve that **original** stage instead of assuming an open socket;
+retain explicit terminal owner-thread denial and the same one CTest.
+No protocol/authorization behavior changed. Exact-head CI pending.
+
+## R2 macOS owner-thread protected entry enforcement (2026-10-31)
+
+Parent `64d4d0c70e28251b892b3b1b93b42396c4d8c7d0`: the existing noncopyable R2 broker now denies
+off-owner preparation, native visitation, R1 CredSSP completion, R3
+Connect-Initial, later protected R3 receipt/transition and PersonalDesktop
+policy paths before touching R1/R3 or mutable native grant state. New
+ordinary offline owner-thread-isolation CTest uses the production broker
+with joined worker and inactive TLS fixture; no physical native admission.
+Exact-publication hosted CI pending and local canonical CTest NOT RUN.
+**Remaining R2 P0:** production-backed genuine positive R1/TLS completion,
+callback-time post-completion authority loss, R3 zero/partial broker receipt
+fixture. **R10 dependency:** compose the native-positive owner-thread
+read/write/Connect-Initial loop, which remains deliberately inactive.
+
+## R2 offline Windows multi-fixture stack correction (2026-10-31)
+
+The Windows 33a601cc hosted CTest job demonstrated 2 crashing
+multi-scope R2 native-denial tests (Attach/Join/ClientInfo and
+post-Share), while Ubuntu tests and R9 sanitizers passed. They now
+heap-own each large noncopyable broker/R1 fixture and R3 session
+through scoped RAII rather than asking one Windows test stack to
+reserve four copies of large contiguous protocol state; Graphics
+two-scope test is likewise guarded. This is an unverified hypothesis
+until exact-head Windows CI passes, not a positive native admission
+or TLS proof. Separate remaining R2 positive R1/TLS callback/
+receipt fixture and R10 integration still required.
+
+## R2 protected macOS Graphics DVC/ACK and surface closure (2026-10-31)
+
+The original R2 broker now covers the complete private R3 protected
+sequence through post-Share application readiness, static clipboard
+fail-closed routing, input, DRDYNVC/Graphics DVC, ACK credit,
+geometry reconfiguration, ClearCodec frame and cancel/abort. Every
+transition and exact accepted-byte receipt revalidates original R1
+HYBRID proof/certificate/credential, owner-consent epoch and current
+native authorization before and after visitor callbacks. No public
+R3 issuer or secondary TLS/presentation owner was created.
+Dedicated production-broker offline Graphics DVC/ACK rejection CTest
+is registered; no synthetic native lease was promoted. **P0 remaining:**
+positive genuine R1 TLS completion/postcallback native revocation and
+partial Connect-Response broker receipt CTest; independent Clipboard
+native scope must be approved before positive Clipboard. R10 must
+assemble exact R1/R3/native/consent lifetime and owner-thread first-MCS
+read. Hosted exact-publication-SHA CI PENDING; local CTest NOT RUN.
+
+## R2 macOS post-Share protected channel first increment (2026-10-31)
+
+The existing noncopyable broker now wraps all R3 private post-Share
+application readiness/classification, static CLIPRDR input/output/receipts,
+slow-path Input and static DRDYNVC channel resolution inside independently
+fresh original native authorization/proof/consent/SSL generation visits.
+Unsupported macOS Clipboard native permission is explicitly terminal
+fail-closed; it does not become authority from Share or a View-only token.
+Dedicated offline premature/callback-time revocation denial CTest added,
+without inventing a physical macOS lease. Remaining R2 P0 is Graphics
+DVC/ACK/resize/frame publication, a real accepted TLS/CredSSP positive R1
+completion and subsequent authority loss/partial receipt fixture. R10
+must preserve one TLS reader/writer and borrowed broker lifetime.
+Exact publication SHA CI PENDING; local CTest NOT RUN.
+
+## R8 qualification resumes after R2 compile repair (2026-10-31)
+
+Parent `ec261416f13b2eaa9530f27ff6245a1e56c824e2` resolves the shared R2 macOS Client Info compile blocker.
+R8 can therefore resume exact-SHA qualification once the malformed workflow
+from `c0e518c4` is corrected. The corrective workflow restores the exact
+pre-change file and then selects exactly all three separate X11 callback
+regressions for ASan/UBSan execution. Do not count `c0e518c4` as evidence.
+The broad clipboard selector remains **107** and Linux production clipboard
+activation remains disabled.
+
+## R2 Client Info callback compile correction (2026-10-31)
+
+**Known failing evidence:** hosted Ubuntu and macOS C++23 compilation
+of `2b348139` reached the R2 translation unit and failed on a
+mistaken `return undefined;` in private Client Info acceptance.
+The R2 callback now returns the typed optional acceptance Boolean and
+the existing production-linked premature Client Info CTest also checks
+erased broker generation and closed replay. Corrective exact-head
+CI **PENDING**; local canonical build **NOT RUN**. This is a build fix,
+not a new native admission proof. Remaining R2 post-Share and genuine
+R1 TLS callback-time completion coverage unchanged.
+
+## R8 sanitizer selector completes destroyed-owner X11 coverage (2026-10-31)
+
+**Authoring main parent:** `ca4c90aece8c1fc83cf0040f5f39598abca638b6`. The prior registry-taxonomy configure
+blocker has been resolved by R2's durable CTest rename, so R8 continued its
+qualification audit. One R8-owned gap remained: the sanitizer job explicitly
+enumerated only the older source-retirement and notification/INCR X11 callback
+tests, so the new destroyed-owner regression could not receive exact-SHA
+ASan/UBSan evidence even if the job was green. The workflow now selects exactly
+all three separate X11 callback-retirement tests, and the independent structure
+validator requires every name. The fixed broad `clipboard` census remains
+**107**, and the macOS/Windows finalization regression remains separately named.
+
+**Current external blocker:** current main's common protocol target still fails
+compilation in R2-owned `src/server/security/mac_console_admission.cpp:807`
+because `undefined` is undeclared. That blocks R9 sanitizer qualification
+before the R8 tests can execute. R8 must not patch R2 macOS admission ownership.
+After that R2 correction lands, rerun exact-head full CI plus **107/107**, the
+separate native finalization case and all three X11 callback cases.
+`kLinuxProductionClipboardActivationApproved = false` remains unchanged;
+physical clipboard/files/client testing is unauthorized.
+
+## R2 macOS native-authorized Demand Active and Share progression (2026-10-31)
+
+The original broker now has fresh protected R3 macOS Demand Active profile,
+Share begin/pending/exact accepted-byte completion and client intake. It
+requires the identical immutable R10 PersonalDesktop policy and independent
+Input permission when negotiated. Denial before any positive R1/native
+authority is production-CTest-covered; R3 controls zero/partial receipts
+and no success is claimed without a physical lease. **P0 still open:**
+complete post-Share protected CLIPRDR/input/DRDYNVC/Graphics/ACK
+and resizing APIs, genuine production R1 positive completion and
+post-callback revocation/exact broker receipt CTest, and R10 assembly.
+CI at this exact publication SHA **PENDING**, local build/CTest
+**NOT RUN**. No native capture, TCC or real client testing.
+
+## R2 macOS PersonalDesktop licensing via original native issuer (2026-10-31)
+
+One policy-identity-bound R2 increment extends protected Client Info to
+PersonalDesktop licensing: require immutable R10 PersonalDesktop policy,
+native revocation and one-session limit, use R3's private Server License
+Request/receipt, client licensing message and Valid Client/receipt through
+the original R2 visitor. No caller-supplied CAL authority; no AppServer
+shortcut or synthetic product admission. Dedicated offline missing-policy
+CTest registered; legacy R2 CTest name updated to durable transport wording.
+**Still required:** R1 positive TLS/post-callback fixture, native
+Mac Demand Active/Share and protected CLIPRDR/input/Graphics ACK/resize,
+then R10 actual owner composition. CI exact-head PENDING; local canonical
+build/full CTest NOT RUN. Global registry CTest taxonomy conflict is being
+coordinated with R10 in GitHub issue #40.
+
+## R8 X11 destroyed-owner claim callback fence (2026-10-31)
+
+**Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time
+native owner lifetime gap: during injected `setSelectionOwner`, `disconnect()`
+could clear the X11 owner window and atom while leaving `RemoteTransfer`
+generation/source epoch unchanged. The old post-check compared two
+`XCB_WINDOW_NONE` values and could report successful ownership after the
+window was destroyed. The minimal production fence captures the exact native
+window/atom/ownership epoch before the call, rechecks adapter validity and
+the unchanged `RemoteTransfer` source afterward, and refuses the retired
+claim. The new offline production-linked
+`clipboard.x11-native-callback-owner-retirement` CTest checks false return,
+no stale ownership/INCR/pending state, zero selection, and no success notify.
+It is separately labeled; **107** fixed clipboard sanitizer cases and the
+two existing separately named X11 cases remain unchanged.
+
+**Qualification at authoring:** source and CTest registration reviewed; local
+single-root Debug/full CTest and ASan/UBSan **NOT RUN** (GitHub connector
+environment has no approved checkout and cannot resolve GitHub for a clone).
+Exact publication-SHA hosted full and focused CI **PENDING**, to be read from
+Actions before any PASS claim. Linux's direct thread-affine `pwrite`,
+macOS/Windows destination terminalization, R3 and R2 authority, and the
+literal `kLinuxProductionClipboardActivationApproved = false` are untouched.
+Next R10 gate remains a genuine fresh R2 clipboard-permitted native lease,
+activated Share/GraphicsReady, exact joined `cliprdr`, current native owner,
+one R1 writer and bounded accepted-byte receipts; owner/R9 same-SHA
+qualification and explicit physical authorization are still required.
+
+## R8 X11 destroyed-owner claim callback fence (2026-10-31)
+
+**Authoring main parent:** `f4e89610a62470d0f7e6a1f1827ad3af03ba81f4`. Source audit found a distinct claim-time
+native owner lifetime gap: during injected `setSelectionOwner`, `disconnect()`
+could clear the X11 owner window and atom while leaving `RemoteTransfer`
+generation/source epoch unchanged. The old post-check compared two
+`XCB_WINDOW_NONE` values and could report successful ownership after the
+window was destroyed. The minimal production fence captures the exact native
+window/atom/ownership epoch before the call, rechecks adapter validity and
+the unchanged `RemoteTransfer` source afterward, and refuses the retired
+claim. The new offline production-linked
+`clipboard.x11-native-callback-owner-retirement` CTest checks false return,
+no stale ownership/INCR/pending state, zero selection, and no success notify.
+It is separately labeled; **107** fixed clipboard sanitizer cases and the
+two existing separately named X11 cases remain unchanged.
+
+**Qualification at authoring:** source and CTest registration reviewed; local
+single-root Debug/full CTest and ASan/UBSan **NOT RUN** (GitHub connector
+environment has no approved checkout and cannot resolve GitHub for a clone).
+Exact publication-SHA hosted full and focused CI **PENDING**, to be read from
+Actions before any PASS claim. Linux's direct thread-affine `pwrite`,
+macOS/Windows destination terminalization, R3 and R2 authority, and the
+literal `kLinuxProductionClipboardActivationApproved = false` are untouched.
+Next R10 gate remains a genuine fresh R2 clipboard-permitted native lease,
+activated Share/GraphicsReady, exact joined `cliprdr`, current native owner,
+one R1 writer and bounded accepted-byte receipts; owner/R9 same-SHA
+qualification and explicit physical authorization are still required.
+
+## R2 macOS post-Erect private issuer coverage (2026-10-31)
+
+R2 now has original-native-visitor protected private wrappers for Attach
+User/Confirm and every bounded Channel Join/Confirm receipt, plus the
+single consuming Client Info method (which internally validates the
+syntax-only R3 envelope route). Each performs fresh exact-generation
+R3 binding and native/proof/consent/R1 provenance checks before/after,
+and refuses a stale or Prepared-only operation terminally. A dedicated
+production-linked offline denial CTest covers premature calls, stale
+completion and no Client Info advancement. This is one incremental
+positive *code path*, **not** a product-valid physical macOS authority
+lease or end-to-end client. **R2 remaining:** original R1 positive
+completion/post-callback revocation and broker-level accepted-byte receipt
+integration fixture; PersonalDesktop license/Valid Client, Demand/Share,
+CLIPRDR/input, Graphics DVC/ACK/resize publication wrappers. **R10
+remaining:** single-reader/session/lease assembly after these paths. Hosted
+exact-head CI PENDING; connector-only local build/CTest NOT RUN.
+
+## R2 macOS first-MCS permission ordering correction (2026-10-31)
+
+**P0 dependency resolved by this increment:** the previous positive issuer
+required R10 to provide a complete first-MCS TPKT *before* R1 completion,
+contradicting the no-MCS-read-on-Prepared rule. Existing
+`MacConsoleAdmissionBroker` now calls its private R1 completion in a distinct
+native-authorized `authorizeR1CredSspAdmission(session)` step, enrolls the
+same R3 owner for terminal cleanup, and publishes `TransportAdmitted` only
+after fresh original proof/consent/native revalidation. A later independent
+native-authorized `authorizeR3McsConnectInitial(session, completeTpkt)`
+binds original generations after R10 has read the TPKT with fresh R2
+authorization. Failure at either step closes R3 and cancels R1; zero new
+public R3 issuers or TLS readers. Offline first-MCS ordering/double-attempt
+CTest is added, but no real-TLS positive test or physical lease is claimed.
+**Remaining R2 P0:** finish protected Attach/Join, Client Info, personal
+licensing, macOS Demand/Share and post-Share/channel/Graphics wrappers;
+exercise a production R1 TLS successful completion and synchronous authority
+loss after that completion with exact accepted-byte receipts. R10 must preserve
+one reader/writer and never consume MCS under Prepared alone. Canonical local
+build/CTest/sanitizers **NOT RUN** (connector-only); exact-head CI **PENDING**.
+
+## R6 paired-client anti-splice evidence and exact interop audit (2026-10-30)
+
+**Authoring parent:** `96b9e8ccee1eb5f13499f2a50e7ca5a573319063`. No new R6 physical or hosted qualification
+is inferred from this batch. Artifact 13029796352 remains exact-source
+`c88dc60f...` and `COMPLETE_PASS` for the Microsoft interop matrix; its
+nonempty authInfo/CredentialsVerified result remains separate from
+`delegation-returned=no` and `native-admission=no`.
+
+Paired schema v2 binds supplemental server facts to exact SHA, certificate,
+destination/service endpoint, attempt, connection, terminal time and bounded
+observation window, and keeps client Type2 receipt/CredSSP acceptance/Type3
+generation/local delivery independent of server stages. The current
+approximately 68 ms Type-2-to-FIN record and earlier approximately 9.5 ms
+attempt with a different certificate remain separate. Existing WTS/DXGI/
+SendInput regressions already cover in-flight authority loss, so no duplicate
+native regression is justified. Physical A/B/native Admission remain
+**BLOCKED / NOT RUN** pending R9 same-SHA candidate PASS and separate owner
+authorization; exact-publication test/CI is **PENDING**.
+
+## R4 admitted-frame delivery and pre-ACK retirement assurance (2026-10-30)
+
+**Authoring parent:** `b76f62917479ff3a1e512d7c6c791157d97d2f2c`. The first-round R4 audit traced the current
+production route from a current R2 lease and `GraphicsReady` through joined
+`drdynvc`, RDPGFX CAPS/CREATE, exact CREATE_SURFACE/MAP_SURFACE_TO_OUTPUT
+accepted-byte receipts, synchronous native framebuffer borrow, ClearCodec
+preparation, bounded DATA_FIRST/DATA publication and R4 ACK membership. R2 is
+revalidated before every graphics write slice, when accepted bytes are committed
+into R3, before client Graphics DATA intake and before/after ACK consumption.
+Only the last fully accepted frame record calls R4
+`completeFrameDelivery(..., deliveredWireBytes)`; zero progress, deferred
+credit, conclusively unwritten cancellation and partial publication do not create
+ACK membership.
+
+**Uncovered assurance boundary:** existing tests separately covered complete
+DATA -> ACK, pending DATA -> Share/DVC loss, and isolated R4 delivered-credit ->
+generation retirement, but did not exercise the production R3 DVC order
+**fully delivered frame -> one R4 ACK credit -> session/DVC retirement -> late
+FRAME_ACK**. Add ordinary production-backed CTest
+`graphics.frame-delivery-session-retirement-before-ack` using the existing
+`test_owned_mcs_connect_initial` executable. It fully accepts every outer
+frame record, proves one outstanding R4 frame, invokes the same DVC
+`close()` reached by `McsSessionLifecycle::close()` and R2 session
+retirement, then proves a late ACK returns `Closed` with zero outstanding
+credit and no buffered Graphics DATA. This is a test-only assurance increment:
+**no production source, codec, frame scheduling or ACK policy changes**.
+
+**Agent 10 frame-acceptance contract:** a frame is eligible only while the exact
+R2 lease is current, MCS/PersonalDesktop Share is activated, the advertised
+Client Core 0x0100 RDPGFX capability is present, the joined `drdynvc` route
+owns a current DVC generation, RDPGFX VERSION8/VERSION81 negotiation is
+confirmed, and CREATE_SURFACE plus MAP_SURFACE_TO_OUTPUT have completed for the
+current geometry. Native geometry/capture generation must still match at the
+synchronous borrow. R3 may report frame publication complete only after every
+outer TLS plaintext slice is positively accepted and the mapped frame payload
+equals the prepared owned wire extent; only then may R4 add the exact frame ID
+to its bounded 64-entry ACK window. Resize must drain or explicitly suspend old
+ACK membership before DELETE/CREATE/MAP; same-DVC remap fences retired frame
+IDs. Share/R2/native-owner retirement closes R3/R4 before later ACK callbacks.
+A genuine first-frame acceptance claim requires both the exact frame write
+receipt and a matching current-generation FRAME_ACK; the former alone is not
+client-visible presentation evidence.
+
+**Future owner-private physical checklist:** on one R9-approved exact SHA and
+only after separate owner authorization, record the admitted connection/session
+generation, verified R2 native lease, Share activation and joined `drdynvc`;
+Client Core 0x0100 and selected RDPGFX VERSION8/VERSION81; exact CREATE/MAP
+receipts and mapped geometry; native capture generation/stride/extent; first
+ClearCodec frame ID and total prepared wire bytes; every positive R1 accepted
+slice through the final DATA record; R4 outstanding credit changing 0 -> 1;
+matching client FRAME_ACK changing 1 -> 0; resize DELETE/CREATE/MAP and first
+post-remap frame/ACK; then Stop/lock/logout/session replacement and reconnect
+with a fresh R2/DVC generation and no stale ACK effect. Stop at the first
+missing boundary and mark later stages NOT REACHED. Do not record pixels,
+credentials or other private identifiers.
+
+The fixed sanitizer inventories remain unchanged: R3 Graphics DVC **23**, R4
+portable graphics **45**, x264/BGRA **29**, ClearCodec **4**, and R5 X11 **45**.
+The new CTest name is intentionally outside the fixed
+`^transport\.dvc-graphics-` selector while still running under ordinary full
+CTest. Source/registration audit: **PASS by inspection**. Local canonical
+build/focused/full CTest and sanitizers: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted CI: **PENDING**. Physical client,
+native Admission and desktop capture: **NOT RUN / unauthorized**.
+
+## R9 current-head CTest taxonomy repair (2026-10-30)
+
+Exact R8 corrective head `ef807b3f37729523be3514d54ba8122ab47c8090` restores the fixed 107-case clipboard sanitizer census and passes both independent/main workflow structure parsing, but hosted configuration fails cross-platform before compilation. The common first boundary is the repository's deliberate durable-label guard: combined test `clipboard.file-destination-finalization-generation-replacement` was registered with internal label `r8-terminalization`, and `tests/CMakeLists.txt` rejects every `r1`–`r10` CTest label.
+
+R9 changes **only that label** to durable `protocol;file-destination;terminalization;offline`. The test name, wrapper, two production-backed platform behavior modes, timeout and separate ASan/UBSan execution are unchanged. The label intentionally does not include `clipboard`, so the established `ctest -L clipboard` count remains **107**. This does not weaken an R8 assertion or modify clipboard production code.
+
+**Candidate state:** `ef807b3f...` is disqualified by the configure failure. The publication SHA containing this taxonomy-only correction becomes the next possible candidate only after its complete hosted matrix is green and no later architectural change lands. Manual owner-candidate dispatch remains NOT RUN; owner-native same-SHA receipts and physical authorization remain separate.
+
+## R9 current-head qualification dependency repair (2026-10-30)
+
+The structure failures after R8 terminalization work exposed a test-inventory
+coordination error, not a production clipboard defect. R8's initial publication
+added two portable finalization cases to the clipboard label and changed the
+sanitizer census 107 -> 109; the later R9 validator change followed that
+registration. The owner contract for this increment, however, requires the
+already-qualified **107-case** clipboard sanitizer selection to remain fixed.
+
+R8 therefore consolidates the two injected macOS/Windows behavior modes behind
+one ordinary production-backed CTest,
+clipboard.file-destination-finalization-generation-replacement. That CTest is
+outside the fixed clipboard label census and is run separately under the same
+sanitizer build. The primary workflow and independent R9 structural validator
+both return to clipboard_expected_test_count=107; the validator also requires
+the combined terminalization test name. This changes no production clipboard
+state, R3 route semantics or native activation.
+
+**Candidate state:** reset by the latest architectural/runtime changes and this
+test-structure correction. Exact-publication-SHA structure/full hosted CI and
+the 107-case sanitizer census plus focused terminalization CTest are
+**PENDING**. Manual owner-candidate dispatch and physical testing remain
+**NOT RUN**. Owner Linux/X11, Windows CLANG64/Clang 23 and macOS 27 same-SHA M1
+receipts remain separate requirements.
+
+## R9 exact-SHA qualification, restored-roadmap audit and integrity gate (2026-10-30)
+
+**Audited hosted baseline:** `c88dc60f9e218797ddcd640af6bba1693adca1d7`, [Actions 41167358674](https://github.com/k1moradi/RDP-server/actions/runs/41167358674). Linux Debug/Release **1004/1004**, macOS/OpenSSL 4.1 **782/782**, Windows CLANG64 **885/885** and the required R2/R7/R9/GUI/bootstrap/docs producers **PASS**. Actual R9 ASan/UBSan CTest: R5 X11 **45/45**, R8 clipboard **107/107**, R3 CAL **9/9**, R3 Graphics DVC **23/23**, R4 x264 **29/29**. No other road's selector/count changes.
+
+Downloaded `r9-microsoft-interop-c88dc60f9e218797ddcd640af6bba1693adca1d7` artifact: `interop-matrix-final=COMPLETE_PASS`, production `credentials-verified=yes`, `authinfo=yes`, `production-authinfo-failure=none`, `production-authinfo-empty-fields=none`, `native-admission=no`, bad-binding negative and required Type-2 AV negatives **PASS**. `delegation-returned=no` is the SSPI delegation flag, not evidence that production authInfo is empty. Clean-Windows **QUEUED** is a separate release job and not in candidate `needs:`; candidate **SKIPPED on push** is not PASS.
+
+Git blob comparison with the earlier intact `4a79a54ff397a6aaff61ee048d2850fda8483159` roadmap confirms that R1–R10 board rows, M1–M6 gates, shared-main and decision anchors are retained. Github Contents API's large-file empty result does not mean an empty blob. R9 adds an offline full-CTest guard for empty/25-line/missing-anchor/board/policy regressions; independent structure and main structure/documentation CI must run it. Legitimate consolidation is not blocked by a fixed byte size. The manual candidate's documentation-policy `needs:` edge was previously push-only/skipped; it is now dispatch-enabled while push co-change checking stays push-only.
+
+**Candidate remains BLOCKED pending this change's own full exact-SHA hosted producer matrix and the manual-candidate prerequisites.** The claimed owner Linux 1060/1060 test is **SHA MISSING**, without independent `git rev-parse HEAD`, toolchain/configuration and command receipt. Recover attribution from the existing run if possible; do not infer it. M1 owner-native Linux/X11, Windows CLANG64/Clang23 and macOS27 same-SHA receipts remain **NOT VERIFIED**. Manual gate and physical client tests remain **NOT RUN/unauthorized**. No M1 freeze was nominated. Any later architectural commit resets the candidate.
+
+## R5 direct-main Linux/X11 owner-private acceptance evidence (2026-10-30)
+
+**R5 exact-descendant hosted qualification receipt (2026-10-31):**
+At exact source SHA `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
+[CI run 41191351163](https://github.com/k1moradi/RDP-server/actions/runs/41191351163),
+Linux protocol Debug **1038/1038 PASS** and Release **1038/1038 PASS**;
+Windows protocol Debug **860/860 PASS** and Release **860/860 PASS**.
+The three ordinary offline owner-private CTests (validation, attempt-provenance,
+independent-connection-pinning) **3/3 PASS** on Linux, Windows and macOS
+(in the macOS full Debug suite, even though its unrelated test failed).
+R9 Clang ASan/UBSan `Run all R5 native X11 CTests with sanitizers`
+**45/45 PASS** including reentrant XDamage and in-flight XShm
+retirement; the fixed sanitizer selection was not widened.
+Recorded exact CI commands: `ctest --test-dir build --build-config Debug
+--timeout 60 --output-on-failure` and corresponding `Release`
+on Linux/Windows, plus the R9 native X11 sanitizer selection in the
+same Actions run. No physical X11/input/client was run.
+
+**First remaining cross-road gate at this SHA:** macOS Debug
+**814/815 PASS, one FAIL**:
+`runtime.macos-host-control-accepted-pre-admission-dormancy`
+(`tests/test_macos_runtime_host_control.cpp:1587`, expected
+`RuntimeHostStage::ClientAuthenticating`); macOS Release therefore
+**NOT RUN**. This is R10/R2 macOS HostControl, **not R5**.
+The primary exact-SHA CI was not wholly green, the R9 owner-candidate
+manual gate was **SKIPPED** on push, and three owner-local same-SHA
+Debug receipts remain **NOT VERIFIED**. This receipt describes the
+tested descendant only, not any later documentation/implementation SHA.
+**Next:** R2/R10 correct the first macOS runtime boundary, R9 verify
+fully green same-SHA CI, R10 coordinate candidate and owner-local receipts;
+owner-private seat0 physical run remains **NOT RUN / unauthorized**.
+
+
+**Agent 5 independently pinned evidence audit (2026-10-31):** The
+closed private v2 manifest validates stage-local accepted-client attempt
+IDs, owner-consent and R2 generation equality, frame/ACK capture generations,
+and fresh reconnect. A coherent whole-attempt relabel or changed consent
+epoch could nevertheless pass internal tests even when the real accepted
+R10 client differs while Linux session number remains the same. The offline
+validator CLI now requires a separate closed 4-KiB pins file with
+independently copied R9 exact SHA, R10 initial/reconnect client IDs and
+owner grant epochs, rejecting such splices without changing private v2 or
+public v1 manifest schemas. Dedicated ordinary offline CTest
+`linux.x11-owner-private-evidence-independent-connection-pinning-denials`
+remains outside the fixed native 45-case ASan/UBSan selector.
+
+R5 native source already enforces capture-generation retirement, callbacks
+fenced after XShm borrow, queued XDamage/RandR replacement, and suppressing
+XTEST held-state loss; no duplicate native fix or new owner is justified.
+R10's frame-write completion is not a matching client R4 FRAME_ACK.
+Owner-only [Linux evidence procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md)
+specifies SHA, client, Admission, Share, CREATE/MAP, frame/ACK, input, resize,
+reconnect and resource teardown. The independent pins can detect accidental
+mixing, not cryptographically certify copied evidence or mint R2 authority.
+Canonical local/focused/full CTest, 45-case sanitizer and exact-head hosted
+CI **NOT RUN/PENDING**; physical seat0/client/capture/XTEST **NOT RUN /
+unauthorized**. Next: full exact-SHA hosted validation and manual R9
+candidate plus separate owner authorization.
+
+
+**Current R5 re-audit baseline:** `4a6594e29fd2554a2032d5721180782521390090`. The production Linux/X11 hot
+path remains correct after R2's original owner-grant epoch hardening and needs
+no R5 mutation. R10 authorizes current PersonalDesktop application traffic
+before native X11 event service and repeats that R2 check before network input
+or framebuffer work. Each decoded input event re-enters R2 immediately before
+the native sink; framebuffer publication retains the current R2/R3 preflight
+plus R5 capture-generation/geometry checks before and after the synchronous
+XShm borrow. R2's protected revalidation includes the exact prepared
+`OwnerSharingAuthorizationEpoch`, so equal Linux session-generation scalars
+cannot revive a replaced owner grant.
+
+Existing Xvfb regressions already cover queued and reentrant XDamage retirement,
+same-pixel/RandR generation replacement, in-flight XShm callback retirement,
+same numeric native-session generation across replacement owners, graceful
+held-input release and terminal no-post XTEST retirement. The fixed native X11
+ASan/UBSan selector therefore remains exactly **45 cases**; no production X11
+hot-path change and no 46th native test are justified.
+
+**Distinct evidence gap:** private manifest v1 said “same attempt” but did not
+machine-check producer correlation. Private schema v2 adds one bounded
+owner-private attempt ID and requires observed CredentialsVerified, native
+Admission, Share, first frame, matching ACK, input and RandR receipts to match
+that attempt. Native Admission additionally names the fixed
+`linux-console-admission-broker` producer class. Reconnect requires a
+different attempt ID while retaining fresh owner-consent, R2 admission and
+capture generations. Matching scalars alone still never prove Admission.
+The focused offline
+`linux.x11-owner-private-evidence-attempt-provenance-denials` CTest exercises
+crossed IDs and missing/wrong R2 producer provenance; it is outside the 45-case
+native sanitizer inventory and carries no internal road label.
+
+The repository contains an owner-local **1060/1060** summary, not a verifiable
+1066/1066 receipt. It has no independently recorded `git rev-parse HEAD`,
+toolchain/configuration and command receipt, so it remains **SHA MISSING /
+UNPINNED** and does not count toward M1. Do not infer a SHA from nearby CI,
+roadmap text or current main.
+
+Real seat0/Sharing-ON/native R2 Admission/frame/ACK/input/RandR/Stop/lock/
+logout/switch/reconnect remain **BLOCKED / NOT RUN**. The maintained
+[Linux owner-private procedure](LINUX_X11_OWNER_PRIVATE_EVIDENCE.md) requires
+one R9-nominated exact main SHA, same-SHA hosted/native qualification and
+separate owner authorization before any physical step. Publication-SHA
+ordinary CTest, the focused provenance test and unchanged 45/45 sanitizer
+receipt are **PENDING** for this increment; no physical step or benchmark was
+run.
+## R2 macOS standalone original-grant reentrancy fence and R3 private-gate dependency (2026-10-30)
+
+**R3 protected post-Attach/Join gate (2026-10-31):** Existing private R3
+entry and all receipt-capable lifecycle primitives remain sufficient for the
+concrete R2 issuer; no new public entry, friend, native proof owner or TLS
+writer is justified. R3 adds ordinary production-linked
+`transport.mcs-macos-post-attach-join-revocation-denials` outside the fixed 171-case MCS table.
+It checks the uncovered boundary after fully delivered Attach/Join receipts:
+R2 authorization-generation replacement before the next Join retires prior
+membership, and zero/partial confirmation receipts cannot advance after
+generation loss. This is **offline R3 protocol evidence**, never native
+macOS Admission. Agent 2 still owns a fresh, protected R1/R3 handoff within
+`MacConsoleAdmissionBroker`; Agent 10 must not activate a positive macOS
+HostControl route before that broker and its callback-time revocation gates
+are landed. R3 local build/CTest/sanitizers **NOT RUN** (no owner checkout);
+publication-SHA hosted CI **PENDING**, physical clients **NOT RUN**.
+
+
+**Concrete gateway first round (2026-10-30):**
+`rdp_server::server::security::MacConsoleAdmissionBroker` is now the named R2
+owner for the macOS standalone admission preparation lifetime. It binds the
+existing authenticated-proof contract to the exact accepted R1 connection,
+configured credential generation, `MacNativeDesktopAuthorization`, original
+owner-consent epoch, requested permissions and fresh audit/Security-session
+evidence. Every protected native borrow revalidates before and after callbacks;
+nested visits deny without retiring a valid outer borrow, while
+credential/proof/consent/native-session loss and explicit Stop/listener
+replacement are terminal. This first commit is intentionally **Prepared-only**
+and contains no R1/R3 private positive call. Eight ordinary cross-platform
+production-backed denial CTests are registered; local build/full CTest is
+**NOT RUN** in the connector environment and exact-SHA hosted qualification is
+**PENDING**. R5 X11 45 and R8 clipboard 107 sanitizer censuses are unchanged.
+
+**Private-edge contract:** the exact future friend type for both private edges is
+`rdp_server::server::security::MacConsoleAdmissionBroker`. R1 must friend only
+this type for `OwnedPreauthTcpConnection::completeCredSspAdmission()`; R3 must
+friend only this type for the existing private verified-R2 transition methods.
+Do not expose those methods publicly and do not make R10 an issuer. After both
+edges land on current `main`, R2 completes positive R1 admission plus protected
+R3 transition wrappers in a second atomic direct-main commit.
+
+**Audited base `c88dc60f9e218797ddcd640af6bba1693adca1d7`.** First-round R2-only correction: the existing
+`MacNativeDesktopAuthorization::visit()` previously stored its borrowed view
+against mutable grant evidence and could report success for a replacement grant
+created synchronously within the callback. It now snapshots evidence for the
+callback, compares the exact original authorization generation before and after
+the visitor/native sampling, denies the stale operation without clearing a new
+grant, and repeats the owner-consent epoch check after fresh native evidence.
+Dedicated ordinary offline production-backed CTest:
+`security.native-authorization-macos-standalone-reentrant-generation-denials`.
+No Linux broker, prepared consent-epoch/GSSAPI friend fixture, R1 transport,
+R3 wire/visibility, GUI or physical OS behavior is changed.
+
+**R3 private edge now authored:** R3 follows the exact Agent-2 contract and
+friends only `rdp_server::server::security::MacConsoleAdmissionBroker` in
+addition to the existing Linux issuer and test-only scoped fixtures. Public
+`McsSessionLifecycle::onConnectInitial()` remains denial-only; R10,
+`MacNativeDesktopAuthorizationView`, generic callbacks and public
+generation-bearing methods receive no positive access.
+
+For the second R2 round, the broker binds R3 admission generation to its
+private `admissionGeneration_` and R3 session generation to the original
+native-authorization generation captured in
+`prepared_.authorizationGeneration`. The first protected Connect-Initial
+binds that pair. Before every subsequent private transition, borrowed write
+slice and accepted-byte receipt, R2 must call
+`revokeUnlessAdmissionBindingMatches()` with the same pair and then perform
+its existing fresh proof/R1/native/consent revalidation. The protected visitor's
+post-callback check remains mandatory: if authority is lost during the R3 call,
+R2 terminally revokes R3 before returning success to R10.
+
+The audited positive sequence is Connect-Response, Erect Domain, Attach User
+and confirm, all required channel joins, Client Info, PersonalDesktop
+licensing/Valid Client, Demand/Confirm Active, Share, then protected
+post-Share classification, CLIPRDR, input and Graphics DVC/ACK/frame
+operations. Zero-byte or partial writes do not transfer authority; an R2
+replacement/revocation before a later completion closes R3 and retires joins,
+licensing, Share, channel routes and graphics credit. macOS Demand Active uses
+MS-RDPBCGR OSMAJORTYPE_OSX with unspecified minor; Linux/X11 exact wire stays
+unchanged. PersonalDesktop remains no-CAL only after genuine native Admission.
+
+Dedicated ordinary offline CTest
+`transport.mcs-macos-private-admission-generation-denials` is outside the
+fixed 171-case MCS table and proves public denial plus zero/partial receipt and
+stale-generation rejection without fabricating native proof. The concurrent R4
+delivered-frame-retirement regression remains a separate ordinary CTest, not a
+172nd fixed-table initializer.
+
+**Qualification:** corrective descendant
+`4f1a5931c75daa468996b6a0d6465de197772b21`, primary Actions
+`41178462215`. The dedicated
+`transport.mcs-macos-private-admission-generation-denials` builds and
+**PASSes** on Ubuntu/GCC (357/1023), macOS/Clang (311/801) and Windows/MSVC
+(312/847); R9 security/protocol ASan+UBSan also **PASSes**. All three ordinary
+protocol jobs are aggregate **BLOCKED**, not R3 failures: the same unrelated
+`macos.gui-qcolor-provenance-parser-and-redaction` test is **NOT RUN** after
+its CTest command captures an empty Python executable. The R3 gate compiled and
+passed before that boundary. Canonical owner-local full Debug/Release CTest and
+benchmark remain **NOT RUN**. R3's private edge is compile-tested and available;
+Agent 2 still owns the protected positive wrappers that consume it and R10
+still owns composition. End-to-end macOS native Admission/MCS/Share/graphics/
+clipboard and physical client testing remain **BLOCKED / NOT RUN /
+unauthorized**. **Next gate:** Agent 2 lands those wrappers using the exact
+method/revalidation contract recorded in CODEX_VALIDATION, then Agent 10
+composes them without receiving authority scalars, followed by R9 exact-SHA
+qualification and separately authorized owner-native acceptance.
+
+**Complementary R2 nested-visit fence (2026-10-30):** The existing
+original-generation/snapshot fix now guards against recursive protected
+`MacNativeDesktopAuthorization::visit` calls during native evidence or
+consumer callbacks. A nested visitor cannot dispatch, while an unchanged
+outer grant remains usable and a reentrant independently rebound new grant
+retains the previously documented preservation policy. Dedicated ordinary
+`security.native-authorization-macos-standalone-nested-visitor-denials`
+CTest is registered. Source review **PASS by inspection**; local build/CTest,
+sanitizers and physical testing **NOT RUN**; exact-publication hosted CI
+**PENDING**. R3's private macOS edge is now authored; the remaining dependency
+is Agent 2's second-round protected R3 wrappers in `MacConsoleAdmissionBroker`,
+then R10 composition. Do not add R10 scalar admission.
+
+## R7 callback-retirement exact-SHA qualification and current dependency audit (2026-10-30)
+
+**Qualified R7 implementation:** `34e508105d7f7f9f503d3d29475949269dd370cf`.
+Primary workflow `41157153368` provides the missing hosted evidence: R7 macOS
+native lifecycle job `124407093817` **PASS** with the focused
+`macos.native-desktop-owner-borrow-callback-retirement` regression included in
+both Debug and Release 22/22 selections; macOS protocol job
+`124407093927` **PASS** and the new regression is present in the ordinary
+full CTest; R7 macOS portable GUI `124407094074` **PASS**; R7 session
+sanitizers `124407093868` **PASS**; R9 security/protocol sanitizers
+`124407093911` **PASS**; macOS and Ubuntu owner-GUI credential parity
+`124407093974` / `124407093879` **PASS**; R9 GUI Round 2
+`124410451261` **PASS** with exact receipt
+`GUI ROUND 2 PASS: 34e508105d7f7f9f503d3d29475949269dd370cf`.
+The separate clean-Windows self-hosted job remained queued and is not an R7
+native/macOS qualification dependency.
+
+**Current descendant audit head:** `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f`. R7's macOS native-lifecycle,
+portable-GUI, session-sanitizer, GUI-parity and Round-2 jobs remain **PASS** on
+that descendant. Its repository-wide macOS protocol job fails while compiling
+`src/server/runtime/runtime_tls_context.cpp` under OpenSSL 4.1 at
+`::sk_GENERAL_NAME_value`; this is an R1 TLS compatibility defect introduced
+outside R7 and does not involve the R7 native-owner or Qt sources. R7 does not
+modify that R1 owner.
+
+**QColorSpace first-round attribution (owner observation 2026-10-30):**
+The owner has now reproduced `QColorSpace attempted constructed from invalid
+primaries` with four `QPointF` coordinates in their local runtime. This
+proves a runtime diagnostic, **not its caller**. Upstream Qt6
+`src/gui/painting/qcolorspace.cpp` emits this exact signature when its
+`QColorSpace::PrimaryPoints` validation rejects white/red/green/blue points;
+that identifies the emitter but does not assign the invalid points to R7,
+Qt Cocoa or the OS display profile. The owner's exact Qt build, loaded
+`libqcocoa.dylib`, display/profile provenance and warning-site stack have not
+been recorded. Existing `gui.round2-qcolor-warning-classification` confirms
+there is no first-party `QColorSpace` constructor or Qt message handler in
+`src/`; R7 ScreenCaptureKit explicitly requests BGRA and passes bounded
+pixel/geometry views, not ICC/EDID/Qt color-profile metadata. Qt widget/style
+startup and Cocoa platform-screen/profile discovery remain possible indirect
+routes, not established causes.
+
+**Next R7 provenance gate (opt-in, no Sharing):** On the owner's extracted,
+checksum-verified macOS `.app`, first run the existing
+`scripts/smoke_macos_gui_open.py --app <extracted-app>` (no arguments to
+the GUI; no TCP listener). Record the exact server SHA and macOS/QtCore
+framework and Cocoa-plugin versions/paths. Compare the existing offscreen
+GUI CTests with a direct no-argument Cocoa launch using
+`QT_DEBUG_PLUGINS=1` and
+`QT_MESSAGE_PATTERN='[%{type} %{category} %{file}:%{line}] %{message}'`;
+retain the full output privately and share only a redacted warning result.
+If necessary, use an owner-opt-in LLDB `QColorSpace::QColorSpace` constructor
+breakpoint, record the first relevant module/caller backtrace at the warning,
+then quit without turning Sharing ON. See the exact safe procedure in
+`docs/testing_standards.md` under the existing R7/R9 GUI Round 2 contract.
+No ScreenCaptureKit stream, TCC prompt, physical capture, RDP client, input,
+profile mutation or service mutation is permitted for this gate.
+
+**Decision:** Caller attribution **BLOCKED / NOT RUN** in the connector-only
+environment; source-route audit **PASS by inspection**. Do not invent color
+primaries, strip ICC data, suppress warnings or change R4 conversion. A
+future proven first-party path needs validation/fallback and one dedicated
+production-backed offline CTest; a proven Qt/platform path needs exact
+version/plugin/profile provenance and safe operator guidance.
+
+**R7 exact-head registry qualification (2026-10-31):** At
+`0f87e435e9bef42d3b55b7d0c53dcd5bd29f4202`, primary Actions
+`41179872107` has full Debug Ubuntu **1024/1024 PASS**, macOS
+**802/802 PASS**, and Windows **848/848 PASS**, including the repaired
+`macos.gui-qcolor-provenance-parser-and-redaction` CTest in both Debug
+and Release on all three platforms. R7 macOS native lifecycle is
+**22/22 PASS** in Debug/Release, including the original FrameMailbox
+callback-retirement test; portable GUI, session sanitizers, GUI parity
+and independent structure `41179872115` **PASS**. The one existing
+Python interpreter discovery now precedes CTest registration and its
+empty-interpreter configure denial remains source-verified, without a
+separate injected negative configuration run.
+
+The R7 diagnostic-only follow-up distinguishes truncated ICC headers,
+invalid `acsp` signatures and declared-length truncation from an unrecognized
+ICC device class. It reports the Qt warning **emitter**, not the caller,
+and whether a successful Cocoa-plugin load line preceded the warning;
+neither a plausible 128-byte profile header nor load-line order proves a
+ColorSync/QCocoa origin. The same registered offline Python CTest now covers
+these discrete classes and the reverse warning/load order. No production Qt,
+color or native behavior changes. Local canonical tests **NOT RUN**;
+publication-SHA hosted CI **PENDING**. The owner's repeated QColorSpace warning **remains
+unattributed** without an owner-opt-in no-Sharing Cocoa run/stack.
+R2 preparation, private macOS R3 protocol entry and synthetic R10
+CredSSP do not authorize native Admission, Share, capture or input.
+The positive R10/R2-to-R3/Share/GraphicsReady attachment is still
+**BLOCKED** on independent authorization and owner evidence.
+
+**R7 provenance artifact update:** current source audit still finds no
+first-party Qt QColorSpace/QImage/QPixmap conversion path. The opt-in
+`scripts/diagnose_macos_qcolor_provenance.py` now gives the owner a bounded
+zero-argument packaged-Cocoa probe: exact package SHA when available, bundled
+QtCore/QtGui version, observed `libqcocoa.dylib`, main-display color model,
+ICC device-class signature and first warning source basename/line/category,
+with no raw ICC/profile path, primaries, username/session data, capture or TCC;
+path-bearing subprocess/native exceptions are reduced to closed diagnostic text.
+It verifies the launched process has no TCP listener before termination.
+Offline `macos.gui-qcolor-provenance-parser-and-redaction` pins that
+redaction/bounds contract; `gui.offscreen-qcolor-valid-and-malformed-metadata`
+reuses the Qt harness to prove valid and malformed metadata behavior without a
+physical display. Initial exact-SHA macOS GUI execution at `4a6594e29fd2...`
+showed that duplicate red/green points are still individually valid under Qt
+6.12's chromaticity sanity rule. Corrective SHA
+`c2be669ed8044ef4188d13279d5a6e535da1e769` uses `x + y > 1` and is
+hosted-green in the R7 macOS portable-GUI lane: Qt 6.12.0 / Apple Clang 21.0.0,
+real app compile PASS, `gui.offscreen-*` **53/53 PASS**, QColorSpace case
+PASS, package integrity **3/3 PASS**, and extracted zero-argument Cocoa
+no-TCP-listener smoke PASS. Its focused native lifecycle lane is also
+**22/22 Debug + 22/22 Release PASS**, including the existing FrameMailbox
+callback-retirement case. Full repository CTest is separately blocked before
+execution by an unrelated MCS test-table compile error; the provenance-parser
+CTest is therefore NOT RUN on that SHA. Owner provenance execution/backtrace
+is still **NOT RUN**, so the actual warning caller remains
+**BLOCKED/unattributed** and no production color fix is authorized.
+
+**macOS native attachment dependency:** `RuntimePlatformNativeDesktop`
+continues to expose `attachAuthenticatedSession()` as an R2-proof consumer,
+but current `MacRuntimeHostControl` has no positive call that attaches it.
+Accepted TCP, TLS, configured Username, standalone `CredentialsVerified` and
+GUI Sharing therefore still cannot make the macOS native desktop ready. The
+remaining live-desktop dependency is R10 composition of the exact accepted
+client with genuine R2 authenticated/admitted authority; R7 must not implement
+that state machine. Physical native attachment remains **BLOCKED / NOT RUN**
+until that composition exists, an R9 exact-SHA owner candidate is manually
+qualified, and the owner separately authorizes the attempt.
+
+Local canonical build/CTest, local Qt warning reproduction and physical
+capture/input remain **NOT RUN** in this connector environment. R7 has no
+unresolved code blocker of its own after the hosted callback-retirement
+qualification; its next live step is dependency-bound to R10/R2.
+
+## R6 current incremental gate — paired physical Windows clients (2026-10-30)
+
+The previously verified delegated Microsoft memory-BIO positive reaches
+production CredentialsVerified, has no authInfo failure or observed empty
+fields, and never creates native Admission. Negative server binding and
+malformed required-AV controls remain prerequisite oracles. The live
+macOS Windows App Type-2-commit/zero-post-Type-2-bytes/FIN observation
+still has no client-attributed cause; it does not prove a bad password,
+TLS error or Type-2 defect.
+
+R6 supplies an offline strict paired A/B validator for the existing private
+R5 macOS manifest plus the owner-controlled Windows 11 mstsc row, a
+dedicated ordinary CTest denial suite and read-only owner instructions
+in docs/MACOS_WINDOWS_APP_OWNER_EVIDENCE.md. It rejects contradictory
+Type3/bytes, authInfo/credentials/native admission, saved/re-entered
+credential claims, unobserved TLS alert attribution and SHA/profile/IP/
+certificate mismatches. No R1 wire or Windows native production change.
+Python syntax and seven stub-R5 local synthetic checks PASS, but real
+integrated CTest and newest-head Windows MSVC/CLANG64 CI NOT RUN/PENDING.
+Next gate: exact published SHA full CTest/oracle receipts, R9 manual
+candidate PASS, separate owner permission, then physical two-client A/B.
+WTS/DXGI/SendInput already have reviewed offline negative coverage; no
+new genuine missing denial boundary was proved. Benchmark NOT RUN.
+
+## R7 macOS frame-consumer reentrant retirement and R10 handoff (2026-10-30)
+
+**Authoring parent:** `033061f53cc715368d92eb27ee9cb4d14742caf9`. Source review found a native lifetime
+defect: `FrameMailbox::borrow()` held its mutex through the borrowed R4 consumer,
+while synchronous `MacNativeDesktopOwner::revoke()` tries to retire that
+mailbox under the same mutex. R7 releases the mutex for the callback, pins the
+shared mailbox owner and defers storage destruction until the callback returns;
+concurrent capture is dropped rather than overwriting borrowed bytes. A
+post-retirement callback result cannot publish a frame. Dedicated
+`macos.native-desktop-owner-borrow-callback-retirement` is registered in
+ordinary Apple CTest and both Debug/Release focused native CI lists.
+
+**QColorSpace attribution:** project GUI/capture code and macOS packaging
+assets contain no `QColorSpace` constructor, custom Qt primaries, ICC->Qt
+translation or application warning suppression; the existing
+`gui.round2-qcolor-warning-classification` source guard covers all
+first-party `src/*.{cpp,h,mm}`. No reproducible project-owned source
+of the previously observed Qt warning was found. Local Qt/offscreen and
+extracted macOS package execution **NOT RUN** (no approved local checkout,
+Qt6 installation or macOS GUI in the connector environment). Do not change
+R4 conversion or classify the warning without runtime provenance.
+
+**R7 -> R10 contract:** `RuntimePlatformNativeDesktop` remains an owner-thread
+consumer of a current R2 native authorization bound to the actual authenticated
+client, not TCP acceptance, TLS, configured Username, standalone
+`CredentialsVerified` or GUI Sharing. R10 must join the same accepted-client
+generation and R2 authenticated/admitted lease before invoking native attach,
+must freshly revalidate protected authority for MCS/Share and every native
+borrow/input step, and must revoke routing before native retirement on
+Stop/reconnect, permission/session/display/capture generation loss. R7 must
+not build the R10 accepted-client machine or create a duplicate verifier.
+The current macOS HostControl still has no positive native attach call.
+
+**Validation:** source-level correction and registry review **PASS by
+inspection**. Local canonical build, full Debug/Release CTest, ASan/UBSan,
+offscreen/package reproduction and physical capture/input **NOT RUN**;
+exact-publication-SHA hosted macOS Debug/Release/native and GUI qualification
+**PENDING**. No network listener, native capture/input, TCC prompt or
+OS/firewall state was exercised. Next gate: hosted test/compile receipts,
+then separately authorized R9/R2 genuine native admission before physical
+desktop attachment.
 
 ## R3 protocol-only post-Connect-Response domain ordering fence (2026-10-30)
 
@@ -47,6 +993,51 @@ Demand/Confirm Active -> ShareActivated. No synthetic lease or physical
 client was used.
 
 ## R8 FileContents destination write-time generation retirement (2026-10-30)
+
+**R8 terminalization follow-up (2026-10-30; corrected test census):** Mac and
+Windows finishComplete() may synchronously reenter RemoteTransfer generation
+changes from final resize, flush or close after the qualified write-time check.
+The production correction revalidates exact generation/source epoch after each
+callback, terminalizes before recursive cleanup, detaches the native duplicate
+before close, and never reports Complete or exposes a local path for a replaced
+source. A close-time replacement cannot retroactively truncate an already
+closed duplicate; local publication remains denied.
+
+The two injected platform behavior modes are consolidated into the single
+ordinary CTest
+clipboard.file-destination-finalization-generation-replacement. It runs both
+existing production-backed executables, remains outside the fixed clipboard
+label census, and is executed separately under the sanitizer build. The
+qualified clipboard sanitizer selector remains **107 cases**, matching the
+owner completion requirement; the earlier 109 registration/count is
+superseded. Canonical local build/CTest/sanitizer: **NOT RUN** in this connector
+environment. Exact-publication-SHA hosted structure/full/sanitizer evidence:
+**PENDING**. Linux direct pwrite/fsync and production activation remain
+unchanged.
+
+**R8 -> R10 dormant activation contract (written, not permission):** R10 alone
+owns the accepted client, live R1 TCP/TLS writer, R2 genuine authenticated
+native admission lease and protected visitor, R3 Share/GraphicsReady lifecycle
+and route/writer receipts. Never construct or invoke R8 merely because a GUI
+Sharing switch, configured Username, CredentialsVerified or a synthetic fixture
+exists. On ShareActivated + GraphicsReady, R10 must freshly revalidate the
+same R2 lease and exact joined cliprdr static channel (user ID, channel ID,
+route generation), then let the dormant bridge stage server CB_CLIP_CAPS;
+R3's sole accepted-byte writer must deliver it before CB_MONITOR_READY.
+Client capabilities/optional temporary directory and initial Format List
+must be admitted in protocol order, with the initial CB_FORMAT_LIST_RESPONSE
+fully Delivered before any server-local generation/Format List publication.
+Every later local generation invalidates the prior borrowed route observation
+and requires a fresh R2/R3 protected route visit; R3 remains sole owner of
+queued write slices and (routeGeneration, replySequence, writeSliceSequence,
+acceptedBytes) receipts. Any missing/partial/uncertain receipt, lost Share,
+R2 revocation, remote/local clipboard ownership replacement, reconnect or
+Stop retires the exact route and late callbacks; never mint R2 admission from
+R8 or publish native clipboard bytes without current R2 + Share + R3 authority.
+Keep `kLinuxProductionClipboardActivationApproved = false` until R10/R9
+separately qualify and the owner explicitly approves physical activation.
+
+
 
 Close the next transfer-layer gap after initialization: a FileContents RANGE
 response may be fully correlated to the outstanding stream, yet the remote
@@ -112,6 +1103,38 @@ R2's prepared owner-consent epoch fence is present via `e469ce9707965c888988fc27
 **Prepared owner-only physical Linux/X11 acceptance sequence — BLOCKED / NOT RUN:** (1) R9 names one exact main SHA and manually dispatches `r9_credssp_owner_candidate=true`; verify full same-SHA Linux/Windows/macOS receipt and the unresolved R3/OpenSSL macOS gate. (2) On the owner machine privately verify process UID, logind graphical `seat0`, current unlocked session and selected X11 display before any listener. (3) Launch normally with Sharing OFF and no XCB/XShm/XDamage/XFixes/XTEST native owner; configure Session Password without exposing it; then explicitly enable Sharing ON, record fresh consent/grant generation and listener. (4) Use Windows App for macOS or Windows 11 mstsc with the configured exact Username and independent Session Password; capture correlated TLS/Type1/Type2/Type3/pubKeyAuth/authInfo/`CredentialsVerified`, then **separate** real R2 lease bound to TLS/principal, matching UID/seat/session and grant generation. A Type2/FIN is terminal rejection, not acceptance. (5) Require R3 MCS/GCC/licensing/Share/GraphicsReady, first real XShm framebuffer delivered and matching R4 frame ACK for that exact generation. (6) Observe separately authorized keyboard/mouse posts, XFixes cursor update and RandR resize/reconfiguration without stale frames. (7) In separate owner-authorized attempts, Stop, lock, logout, switch user and replacement session: terminal revoke before further capture/input, no XTEST releases into a replaced desktop, and old XCB children torn down before XCB connection. (8) Re-unlock and explicitly re-grant consent, reconnect and prove a new R2 admission/session and X11 capture generation; deny old XID-equivalent stale geometry/frame/ACK/input and observe fresh capture/ACK. Every step must have a private same-attempt receipt or be marked `NOT OBSERVED`; physical run remains unauthorized until owner approval. Benchmark **NOT RUN**, not inferred from CTest.
 
 ## R1 Round 3 exact-SHA qualification — queued plaintext/FIN drain (2026-10-30)
+
+**R1 first-round Type-2/FIN audit (2026-10-30; baseline c88dc60f9e218797ddcd640af6bba1693adca1d7):**
+The owner reports TLS 1.3, Direct NTLM Type 1 and locally committed Type 2,
+then TCP FIN approximately 9.5 ms later with no subsequent observed TLS
+ciphertext/plaintext, Type 3, TLS alert or close_notify. This is local
+receive-side evidence only, not client Type-2 receipt, password failure
+or justification for timeout tuning. Existing production-backed CTests cover
+silence, orderly FIN, partial TLS record, queued one-byte TSRequest then FIN,
+complete non-Type-3 TSRequest, close_notify, final-authInfo fragmentation and
+coalesced tail, and same-listener retry. The missing real-socket negative
+was post-Type-2 TCP reset: the new ordinary Linux CTest
+runtime.linux-direct-ntlm-post-type2-abortive-reset-classification requires
+PeerReset without FIN/close_notify, Type 3 or native/MCS/Share authority.
+No production R1 socket/TLS/Type-2/timing behavior changes.
+
+Agent 6's same-attempt private receipt must correlate exact server SHA,
+listener generation and accepted-client opaque ID to its own client record;
+record queued vs locally committed Type 2, post-commit encrypted-byte delta,
+first-byte availability/age, decrypted bytes, complete/partial TSRequest
+counts, alert/close_notify, FIN/RST and typed terminal category. A missing
+first-byte timestamp is not a 0-us event. Type-2-to-peer-EOF is FIN-only,
+and poll/ready-to-service durations are non-additive subsets of R1
+Read/Write wall dwell. Share only redacted facts, no credentials, token
+contents, endpoints or persistent client identifiers.
+Exact baseline hosted protocol jobs on Ubuntu, macOS OpenSSL 4.1.0 and
+Windows and R9 sanitizers PASS; the overall Actions workflow 41167358674
+still awaited a separate clean-Windows job at inspection. Local canonical
+build, focused/full CTest and new regression execution NOT RUN; publication
+SHA CI PENDING. Physical client testing remains BLOCKED/NOT RUN until R9
+exact-SHA nomination and separate owner permission. The remaining external
+unknown is whether the Microsoft client received/processed Type 2 and why
+it sent FIN.
 
 **Implementation SHA:** `452ce336efcb779adb21979f7c22a63bf23535c9`. Standalone structure workflow
 `41111017232` **PASS**. Primary workflow `41111017558`, Ubuntu job
@@ -206,6 +1229,74 @@ files, physical clients **NOT RUN / unauthorized**. Benchmark **NOT RUN /
 not applicable**; only cold-path control state changed.
 
 ## R10 first genuinely admitted runtime handoff and physical-client critical path (2026-10-30)
+
+**R10 macOS pre-admission owner-thread increment (authoring, 2026-10-30):**
+The existing macOS HostControl now advances one accepted R1 X.224/HYBRID
+Confirm, server-certificate-bound TLS and production standalone CredSSP
+TSRequest frame/reply step from its existing GUI service tick. It pins exact
+listener, credential and current-owner consent epochs and retires the R2
+framer/proof before R1 SSL/BIO/socket. Successful owned-connection
+`CredentialsVerified` leaves the Mac client pre-MCS: no native R2 admission
+lease, R3 positive macOS entry or desktop attachment has been fabricated.
+`runtime.macos-host-control-accepted-pre-admission-dormancy` retains the
+partial-TPKT/Stop boundary. Reconciled publication base
+`c2be669ed8044ef4188d13279d5a6e535da1e769` adds
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`:
+a production HostControl + real local HYBRID/TLS/direct-NTLM CredSSP peer
+reaches exact `CredentialsVerified`, queues the checked-in Microsoft
+Connect-Initial and proves repeated owner steps remain pre-MCS with no Share,
+graphics, native attachment or clipboard. The same CTest separately retires
+that authenticated/pre-admission owner through Stop, same-permission consent
+epoch replacement and native session replacement; Stop is the required barrier
+before credential replacement, whose new generation cannot revive the retired
+proof. Missing eligible local endpoint/bind/connect is SKIP 77, never PASS.
+Hosted descendant `4f1a5931c75daa468996b6a0d6465de197772b21`,
+primary Actions `41178462215`, macOS protocol job `124470806387`: Debug
+configure/compile **PASS** and
+`runtime.macos-host-control-completed-credssp-without-native-admission-denials`
+**PASS (0.69 s)** as test 73/801. Repository-wide Debug CTest is **BLOCKED**
+at 800/801 by unrelated R7
+`macos.gui-qcolor-provenance-parser-and-redaction` **NOT RUN** because its
+CTest command captured an empty `Python3_EXECUTABLE`; Release therefore did
+not run in that job. Ubuntu full CTest is blocked by the same R7 registration.
+Canonical owner-local build/full CTest remains **NOT RUN**, and physical clients
+remain **NOT RUN/unauthorized**.
+Agent 2's `MacConsoleAdmissionBroker` now provides R2-owned prepared native
+authority for the exact proof/R1 connection, but its `Prepared` state is
+explicitly non-admitting. The R3 private macOS route is now authored; the positive pipeline remains
+BLOCKED until Agent 2 exposes the corresponding protected R3 transition from
+`MacConsoleAdmissionBroker`. R10 must consume that R2 API without becoming an R3 friend
+or minting scalar authority, then compose R7 only after genuine R2 admission
+and R3 Share.
+
+**Exact macOS accepted-client state graph and cancellation contract:**
+`Stopped` (R10 owns no listener/client; R2 credential may survive ordinary
+Stop) -> `CredentialsConfigured` (R2 memory-only generation, no listener)
+-> `ListenerAvailable` (R10 owner-grant epoch and R1 bound TLS identity;
+no accepted peer) -> `ClientAuthenticating`:
+R1 `AwaitConnectionRequest` / X.224 HYBRID Confirm queued/delivered
+-> R1 `AwaitTls` / exact R1 SSL/BIO socket handshake
+-> R1 `AwaitCredSsp` + one R2 DER framer/NTLM acceptor/reply writer
+-> R2 `CredentialsVerified` proof (R10 keeps the existing
+`ClientAuthenticating` stage; no MCS authority).
+Stop/revoke, selected-credential or TLS generation loss, owner-consent
+epoch change, listener replacement, EOF, malformed/partial expired frame
+and timeout cancel the active connection, R2 proof/reader/writer, R1
+SSL/BIO/socket and any pending decrypted post-auth data before future
+native attachment. The protected future positive path, NOT IMPLEMENTED
+without R2/R3 APIs: R2 `issueAdmission` on the exact live proof and native
+owner evidence -> authorized first R1 MCS TPKT -> R3 Connect-Response,
+Erect/Attach/Join, Client Info, PersonalDesktop license Valid Client,
+Demand/Confirm Active and Share/GraphicsReady -> R10
+`RuntimePlatformNativeDesktop::attachAuthenticatedSession` with the
+original live R2 proof and `CurrentOwnerSharingAuthority`, followed by
+R4 frames and R5/R7 native operations. Any lifetime change revokes
+R2/R3 routing first, then native children, then R1 transport; no UID/TCC
+scalar, diagnostics or cached generation may substitute for the R2 lease.
+
+
+
+
 
 **Current contract:** R10 remains a coordinator only. R1 owns the sole TCP/BIO/SSL and bounded TLS reader/writer; R2 owns CredSSP principal proof, native authority and the lease; R3 owns MCS/Share/static-channel state and accepted-byte receipts; R4 owns frame/ACK lifecycle; R5 owns X11 capture/input; R7 owns GUI; R8 owns clipboard application state. `kLinuxProductionClipboardActivationApproved = false`.
 
@@ -15186,14 +16277,14 @@ Each row has **one active next action**, one code owner and a concrete dependent
 
 | Road / domain | Verified component state | Next action and dependency |
 | --- | --- | --- |
-| **R1 · TCP/TLS/X.224** | **ACTIVE / LAN listener and accepted-socket transport hosted-green; live host-control integration blocked on R10 backend.** R10 `10baf2c1` transfers the move-only accepted loopback socket into one `LinuxRuntimeConnection`, borrowing only the exact R1 descriptor for bounded readiness. R1 `25991580` extends `runtime.linux-connection-pre-admission-native-poll` over real HYBRID TLS and rejected encrypted CredSSP; R2 `4c47b268` enrolled native-poll and deadline revocation, and R2 `46405df8` now adds Connect Response no-lease/terminal denial to the 31-case direct sanitizer selector. Linux-only `transport.tcp-owned-tls-application-tcp-rst-terminal` covers real pending read/write reset, native POLLERR termination and already-decrypted plaintext revocation (`024b879a`, `4704121e`). R9 repair `4655f062` restores the exact-one-test R1 TCP-reset sanitizer sentinel after malformed `44fff0de`; neither commit is PASS evidence until the repaired descendant executes. R10 `b7f0ab66` publishes R3's exact Connect Response suffix solely through R1 TLS after genuine R2 lease; R1 WANT direction overrides POLLOUT on pending writes, with R2 checking positive receipts before R3 advances. Existing real-loopback `transport.tcp-owned-r3-connect-response-slice` proves positive 1 KiB suffix/sequence and WANT retry identity as non-authorizing transport coverage. Existing close_notify/EOF cases remain; R10 scheduler correction `76813ac4` is landed, not an open defect. **No new hosted PASS is claimed until this descendant executes.**  LAN binding increment: `transport/lan_listener.h/.cpp` offers explicit-interface numeric-address non-wildcard TCP listening without accepting, owning SSL, or authenticating peers. R10 GUI consent, SAN/fingerprint coordination and owner-native validation remain BLOCKED; this is not live LAN acceptance. R1 corrective `dfc69f48` is hosted-green across Linux/macOS/Windows; Linux Debug/Release report `702/702`, including the LAN listener, native-poll and TCP-RST selectors, with Windows/macOS listener CTests also PASS. `c9362721` adds exact validated interface identity, fixed redacted GUI errors and production IPv6 bind/scope coverage when the host owns a real eligible ULA/link-local address. Its R1 listener CTest PASSes on Linux, macOS and Windows; the overall `c9362721` primary run failed only in the unrelated R5 GUI packaging assertion later repaired by R9. Owner-native interface-removal/live-client validation remains NOT RUN. | **Next R1 action:** R1 has now audited the landed Erect Domain, Attach User/Confirm, Channel Join/Confirm, Client Info and the new R3 production Demand Active/Share writer path: WANT direction, accepted-byte suffix accounting, R2 receipt reauthorization, terminal teardown and late-event denial remain consistent with the sole R1 SSL/BIO owner. No additional R1 transport defect is demonstrated. R1 `40e2cab0` now exposes a fail-closed TLS endpoint-identity check requiring numeric IP SAN or DNS SAN (no CN fallback) plus the SHA-256 configured leaf fingerprint for R10/R7 display; this does not install trust or suppress client certificate warnings. Exact publication CI `39124493115` is fully hosted-green, including Linux/macOS/Windows. The SAN regression fixture is valid from 2020 through 2120 to avoid clock-edge acceptance. R10 `e6fa65c4` has now landed the single R2-selected X11 owner/native-watch composition; R1 audited that diff and found no second acceptor/socket/SSL/BIO/TLS-plaintext owner. Its Linux hosted failure is the stale R10 Graphics source guard expecting immediate revocation after `Ready`, while `transport.lan-listener-native-bind-denials` remains PASS. R2 `880011cf` now exposes post-Share slow-path input only through a protected `LinuxRuntimeConnection` gateway that explicitly requires complete TPKTs from R1's sole TLS reader; R5 `a5a0ac84` services bounded XCB events on the same R2-selected owner, and R3 `f6bcc214` owns Confirm Active capability state/early-input discard without adding a transport reader. R1 audited these increments and found no competing socket/SSL/BIO/TLS-plaintext owner. R8 `b44fe41e` resolved the optional-broker compile defect; on descendant `746bf766`, Ubuntu full protocol and the R9 sanitizer jobs PASS. R5 `746bf766` also consumes the protected slow-path gateway only from a caller-owned complete TPKT and adds no socket/TLS reader. That descendant exposed one R1 macOS Release CTest race: after a successful client `connect()`, the test assumed the nonblocking listener was immediately accept-ready. R1 `1eb4b3d8` fixes only the production-backed test by bounded-polling the real listener descriptor before calling the unchanged nonblocking acceptor. Exact `1eb4b3d8` macOS protocol, Ubuntu protocol, both R2 Linux production lanes and the R9 sanitizer lane PASS; the primary workflow fails only in unrelated R7 macOS GUI packaging. Descendant `aaff05a9` preserves those R1/Linux/macOS protocol PASSes. R1 also audited the new post-Share router dependency: `LinuxRuntimeMcsTpktFrameReader` already exists as an R10-owned fixed-capacity exact-TPKT framer that performs no TLS I/O or admission, while R1 already exposes the sole bounded `readTlsApplicationData()` owner. A second R1 framer/reader would duplicate ownership rather than unblock the design; the missing seam is R10's persistent single-reader packet router/lifetime. Exact `9d48ca00` hosted jobs now confirm macOS protocol, Ubuntu protocol, both R2 Linux production variants, documentation policy, R5 Linux GUI ZIP and the R9 security-protocol sanitizer lane PASS; that primary workflow's only failure is unrelated R7 macOS portable-GUI packaging. R8 `225e3a7e` subsequently production-links its dormant clipboard bridge/X11 adapter under build guards while explicitly forbidding live construction/dispatch until the same R10 persistent router exists; R1 audited this increment and found no second listener, scheduler, socket, SSL/BIO owner or TLS plaintext read path. The next live R1 integration is therefore still BLOCKED specifically until R10 provides a concrete serialized `RuntimeHostControl` Start/Stop backend that obtains consent, validates the selected TLS endpoint identity and adopts `OwnedLanListener`; the current runtime implementation remains deny-only. **R1 P0 OpenSSL 4.1 runtime endpoint-name migration (2026-10-30; authoring parent `7a065715165b342786f7e8f53c7154572f542e85`):** OpenSSL 4.1 deprecates the X509_check_ip_asc/X509_check_host identity-only helpers. R1 uses bounded decoded leaf iPAddress/dNSName SAN comparison on 4.1+, retains the legacy matching API for older OpenSSL/LibreSSL, and deliberately does not call X509_verify_cert or change trust, TLS, listener, session, Type-2, readiness or diagnostics. One production-backed offline CTest `runtime.tls-endpoint-san-only-openssl-compatibility` covers IPv4/IPv6/DNS, full-label wildcard, partial-wildcard denial, CN-only and invalid/missing endpoints; existing tests use 4.1-safe ASN.1 length accessors. Source/registry review **PASS by inspection**; owner-local focused/full Debug/Release/ASan **NOT RUN** (no approved checkout; GitHub DNS unavailable), exact-publication-SHA Linux/Windows/macOS OpenSSL 4.1 Actions **PENDING**. **Next R1/R9 gate:** same-SHA macOS 4.1 build/full CTest, older OpenSSL and Windows tests, and sanitizer selection; physical client evidence remains **NOT RUN / unauthorized**. Positive CredSSP→MCS/Microsoft-client proof remains **BLOCKED** on an owner-authorized physical Linux X11 `seat0` with Kerberos/PAM/NSS/logind. R1 buffered-TLS readiness correction: the R10 native-socket poll now immediately surfaces the R1-owned decrypted application bytes only under effective Read interest, after deadline/terminal/native-descriptor checks; outstanding WANT/write direction retains priority. Dedicated offline `runtime.linux-connection-buffered-tls-read-dispatch` CTest guards the decision and its fail-closed branches. Source parent `197d5715ef32b9598b6cc259956a762a23b88159`; local build/full CTest **NOT RUN** (GitHub checkout cannot be resolved from the execution container), exact publication-SHA hosted CI **PENDING**. Persistent R10 post-Share router and concrete HostControl LAN Start/Stop still remain **BLOCKED**, with no real-client evidence. R1 live post-Share TLS read/write handoff (2026-10-18; source parent `57103ca14b941a6e7fb5a2c2ebb353d8a3d3c994`): R10's persistent app loop now exists, but a quiet peer leaves R1 SSL_read_ex in WANT_READ while R10 must publish R4/R3 frames. The former R1 guard rejected the subsequent SSL_write_ex. R1 now permits OpenSSL-supported read-WANT → write interleaving, preserving exact-length pending SSL-write retry and all sole SSL/BIO/socket ownership. A real loopback CTest `transport.tcp-owned-tls-read-want-interleaved-frame-write` verifies blocked reader, frame delivery, resumed client packet and cancellation. Local build/CTest **NOT RUN** (approved local checkout absent); exact publication CI **PENDING**. Next: R10 concrete GUI LAN Start/Stop and owner-authorized client/seat0 verification remain **BLOCKED**. R1/R8 clipboard TLS readiness follow-up (2026-10-18; source parent `f7226e60c1b1c55b3a485c27c8018b6b2bacdc8a`): after the protected R8 `advancePersonalDesktopClipboardTlsWrite` landed, R1's shared `ioInterest()` projection omitted its current write-in-progress and SSL-WANT retry facts. The one existing derived selector now requests Write for queued/positive-partial CLIPRDR output and yields to R1's exact SSL_write_ex WANT_READ/WANT_WRITE direction. New offline `runtime.linux-connection-clipboard-outbound-want-precedence` CTest covers queued suffix, SSL WANT, buffered-read priority and revoke; no second transport owner, R3 receipt or OS authority. Owner-local full CTest **NOT RUN**, hosted exact-SHA CI **PENDING**. R10 live clipboard composition, concrete LAN Start/Stop and owner-native Microsoft-client acceptance **BLOCKED / NOT RUN**. R1 remains the sole SSL/BIO socket and TLS application-I/O owner; do not introduce another SSL reader/writer. |
-| **R2 · GSS/CredSSP/native admission** | **HOSTED-GREEN / OS-account lifecycle + protected input/status contracts consumed; live positive BLOCKED.** R2's generation-fenced OS-account policy replacement/revocation, GSS→CredSSP→PAM/NSS/logind admission broker, bounded peer/account throttling, selected-native-session freshness, protected input gateway, and redacted `AuthenticationRateLimited` / `HostSessionStale` GUI outcomes are present. Production `main.cpp` now keeps the exact R2-selected X11 owner and borrowed logind watch alive in one serialized post-Share loop, reads application TPKTs only through R1's sole TLS owner, classifies them through R2/R3, dispatches `Kind::SlowPathInput` through `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt`, and publishes R2-gated ClearCodec frames. R7 descendants `17bbd4dd` and `f08c653b` consume the typed terminal-session lifecycle and keep unsupported independent-password collection absent. Existing ordinary/source CTests cover policy replacement/revocation, production R2/PAM ordering, persistent post-Share ownership, classified input dispatch, stale-session/rate-limit projection and unsupported application-password workflow without fabricating positive admission. | **Next dependency:** there is no remaining demonstrated offline R2 authorization primitive blocking Linux video/input composition. The product blocker is the still-absent concrete `RuntimeHostControl` LAN Start/Stop backend: `src/gui/main.cpp` continues to instantiate `UnavailableRuntimeHostControl`. That backend must reuse R10's one verified listener and invoke R2 set/change/revoke plus independently trustworthy per-live-session owner consent/lock handling; GUI state may not mint either authority. After that, positive acceptance requires explicit owner authorization for a real physical X11 `seat0`, TERMSRV Kerberos/GSS, PAM/NSS/logind, TLS/CredSSP and Microsoft `mstsc.exe` / Windows App traces. Independent GUI-password NLA remains **BLOCKED** pending a separately reviewed interoperable mechanism and secret-storage design. |
-| **R3 · MCS/licensing/Share/DVC** | **OFFLINE R3 POST-SHARE ROUTER, RDPGFX PRESENTATION AND FRAME_ACK HANDOFF VERIFIED; FRAME-CREDIT HANDOFF LANDED FOR R10.** R3's authenticated, non-mutating complete-TPKT classifier routes the current joined global-I/O, DRDYNVC and CLIPRDR channel identities through R2 without mutating Share, channel or native state. R10 has consumed that classifier in its persistent single-reader Linux post-Share loop and dispatches admitted Graphics DATA/FRAME_ACK, R2-protected R5 input and synchronous captured ClearCodec frames. R3 retains the one mapped surface and R4's frame receipt/ACK window; R8 has a separate R2/R3 receipt-gated outbound clipboard TLS step, but R10 still owns native clipboard. R3's nonmutating classifier now rejects mismatched Graphics dynamic-channel IDs/commands on the shared DRDYNVC static channel. Exact `2a3f06b0` macOS protocol CI run `39139376815` PASS **610/610**, including all 3 classifier CTests, Graphics presentation, 3 FRAME_ACK handoff cases and frame publication/cancellation; its R9 sanitizer job PASS. Ubuntu ordinary CTest at the same SHA FAIL **3/754** on R10/R5 source-composition source guards (not R3 tests); Windows CI and aggregate remain unverified. No owner-native/local or real-client acceptance. | **Next R3 action:** R4's 64-frame ACK saturation boundary is the demonstrated R3→R10 gap. R3 now publishes a read-only, R2-revalidated frame-credit preflight that distinguishes Ready, DeferredForFrameAcknowledge and Rejected without preparing pixels, reserving a frame or changing ACK state. R10 must consume Deferred as scheduler backpressure rather than revocation; every actual frame begin still reauthorizes and R4 remains the sole ACK owner. R10 must deliver durable GUI Start/Stop/LAN HostControl and R8 clipboard composition independently; R2 genuine Kerberos/PAM/NSS/logind physical-X11 `seat0` with explicit owner consent remains mandatory before real mstsc.exe/Windows App testing. Neither R10's persistent loop nor synthetic CI constitutes live admission. |
+| **R1 · TCP/TLS/X.224** | **ACTIVE / LAN listener and accepted-socket transport hosted-green; live host-control integration blocked on R10 backend.** R10 `10baf2c1` transfers the move-only accepted loopback socket into one `LinuxRuntimeConnection`, borrowing only the exact R1 descriptor for bounded readiness. R1 `25991580` extends `runtime.linux-connection-pre-admission-native-poll` over real HYBRID TLS and rejected encrypted CredSSP; R2 `4c47b268` enrolled native-poll and deadline revocation, and R2 `46405df8` now adds Connect Response no-lease/terminal denial to the 31-case direct sanitizer selector. Linux-only `transport.tcp-owned-tls-application-tcp-rst-terminal` covers real pending read/write reset, native POLLERR termination and already-decrypted plaintext revocation (`024b879a`, `4704121e`). R9 repair `4655f062` restores the exact-one-test R1 TCP-reset sanitizer sentinel after malformed `44fff0de`; neither commit is PASS evidence until the repaired descendant executes. R10 `b7f0ab66` publishes R3's exact Connect Response suffix solely through R1 TLS after genuine R2 lease; R1 WANT direction overrides POLLOUT on pending writes, with R2 checking positive receipts before R3 advances. Existing real-loopback `transport.tcp-owned-r3-connect-response-slice` proves positive 1 KiB suffix/sequence and WANT retry identity as non-authorizing transport coverage. Existing close_notify/EOF cases remain; R10 scheduler correction `76813ac4` is landed, not an open defect. **No new hosted PASS is claimed until this descendant executes.**  LAN binding increment: `transport/lan_listener.h/.cpp` offers explicit-interface numeric-address non-wildcard TCP listening without accepting, owning SSL, or authenticating peers. R10 GUI consent, SAN/fingerprint coordination and owner-native validation remain BLOCKED; this is not live LAN acceptance. R1 corrective `dfc69f48` is hosted-green across Linux/macOS/Windows; Linux Debug/Release report `702/702`, including the LAN listener, native-poll and TCP-RST selectors, with Windows/macOS listener CTests also PASS. `c9362721` adds exact validated interface identity, fixed redacted GUI errors and production IPv6 bind/scope coverage when the host owns a real eligible ULA/link-local address. Its R1 listener CTest PASSes on Linux, macOS and Windows; the overall `c9362721` primary run failed only in the unrelated R5 GUI packaging assertion later repaired by R9. Owner-native interface-removal/live-client validation remains NOT RUN. | **Next R1 action:** R1 has now audited the landed Erect Domain, Attach User/Confirm, Channel Join/Confirm, Client Info and the new R3 production Demand Active/Share writer path: WANT direction, accepted-byte suffix accounting, R2 receipt reauthorization, terminal teardown and late-event denial remain consistent with the sole R1 SSL/BIO owner. No additional R1 transport defect is demonstrated. R1 `40e2cab0` now exposes a fail-closed TLS endpoint-identity check requiring numeric IP SAN or DNS SAN (no CN fallback) plus the SHA-256 configured leaf fingerprint for R10/R7 display; this does not install trust or suppress client certificate warnings. Exact publication CI `39124493115` is fully hosted-green, including Linux/macOS/Windows. The SAN regression fixture is valid from 2020 through 2120 to avoid clock-edge acceptance. R10 `e6fa65c4` has now landed the single R2-selected X11 owner/native-watch composition; R1 audited that diff and found no second acceptor/socket/SSL/BIO/TLS-plaintext owner. Its Linux hosted failure is the stale R10 Graphics source guard expecting immediate revocation after `Ready`, while `transport.lan-listener-native-bind-denials` remains PASS. R2 `880011cf` now exposes post-Share slow-path input only through a protected `LinuxRuntimeConnection` gateway that explicitly requires complete TPKTs from R1's sole TLS reader; R5 `a5a0ac84` services bounded XCB events on the same R2-selected owner, and R3 `f6bcc214` owns Confirm Active capability state/early-input discard without adding a transport reader. R1 audited these increments and found no competing socket/SSL/BIO/TLS-plaintext owner. R8 `b44fe41e` resolved the optional-broker compile defect; on descendant `746bf766`, Ubuntu full protocol and the R9 sanitizer jobs PASS. R5 `746bf766` also consumes the protected slow-path gateway only from a caller-owned complete TPKT and adds no socket/TLS reader. That descendant exposed one R1 macOS Release CTest race: after a successful client `connect()`, the test assumed the nonblocking listener was immediately accept-ready. R1 `1eb4b3d8` fixes only the production-backed test by bounded-polling the real listener descriptor before calling the unchanged nonblocking acceptor. Exact `1eb4b3d8` macOS protocol, Ubuntu protocol, both R2 Linux production lanes and the R9 sanitizer lane PASS; the primary workflow fails only in unrelated R7 macOS GUI packaging. Descendant `aaff05a9` preserves those R1/Linux/macOS protocol PASSes. R1 also audited the new post-Share router dependency: `LinuxRuntimeMcsTpktFrameReader` already exists as an R10-owned fixed-capacity exact-TPKT framer that performs no TLS I/O or admission, while R1 already exposes the sole bounded `readTlsApplicationData()` owner. A second R1 framer/reader would duplicate ownership rather than unblock the design; the missing seam is R10's persistent single-reader packet router/lifetime. Exact `9d48ca00` hosted jobs now confirm macOS protocol, Ubuntu protocol, both R2 Linux production variants, documentation policy, R5 Linux GUI ZIP and the R9 security-protocol sanitizer lane PASS; that primary workflow's only failure is unrelated R7 macOS portable-GUI packaging. R8 `225e3a7e` subsequently production-links its dormant clipboard bridge/X11 adapter under build guards while explicitly forbidding live construction/dispatch until the same R10 persistent router exists; R1 audited this increment and found no second listener, scheduler, socket, SSL/BIO owner or TLS plaintext read path. The next live R1 integration is therefore still BLOCKED specifically until R10 provides a concrete serialized `RuntimeHostControl` Start/Stop backend that obtains consent, validates the selected TLS endpoint identity and adopts `OwnedLanListener`; the current runtime implementation remains deny-only. **R1 P0 OpenSSL 4.1 runtime endpoint-name migration (2026-10-30; authoring parent `7a065715165b342786f7e8f53c7154572f542e85`):** OpenSSL 4.1 deprecates the X509_check_ip_asc/X509_check_host identity-only helpers. R1 uses bounded decoded leaf iPAddress/dNSName SAN comparison on 4.1+, retains the legacy matching API for older OpenSSL/LibreSSL, and deliberately does not call X509_verify_cert or change trust, TLS, listener, session, Type-2, readiness or diagnostics. One production-backed offline CTest `runtime.tls-endpoint-san-only-openssl-compatibility` covers IPv4/IPv6/DNS, full-label wildcard, partial-wildcard denial, CN-only and invalid/missing endpoints; existing tests use 4.1-safe ASN.1 length accessors. Source/registry review **PASS by inspection**; owner-local focused/full Debug/Release/ASan **NOT RUN** (no approved checkout; GitHub DNS unavailable), exact-publication-SHA Linux/Windows/macOS OpenSSL 4.1 Actions **PENDING**. **Next R1/R9 gate:** same-SHA macOS 4.1 build/full CTest, older OpenSSL and Windows tests, and sanitizer selection; physical client evidence remains **NOT RUN / unauthorized**. **OpenSSL 4.1 follow-up:** the prior R1 publication was green on hosted macOS OpenSSL 4.0.3, but descendant `a267f37c4df9e8ac69c67e6ef165fa3db7dbae0f` macOS/OpenSSL 4.1.0 fails compile at a C++ scope-qualified generated `sk_GENERAL_NAME_value` macro (job `124407094700`). R1 removes scope qualification from the generated GENERAL_NAME stack macros in production/test code only; identity-only SAN semantics and all transport behavior remain unchanged. Corrective exact-SHA macOS 4.1/full cross-platform/sanitizer evidence **PENDING**, local canonical build **NOT RUN**, physical testing **NOT RUN / unauthorized**. Positive CredSSP→MCS/Microsoft-client proof remains **BLOCKED** on an owner-authorized physical Linux X11 `seat0` with Kerberos/PAM/NSS/logind. R1 buffered-TLS readiness correction: the R10 native-socket poll now immediately surfaces the R1-owned decrypted application bytes only under effective Read interest, after deadline/terminal/native-descriptor checks; outstanding WANT/write direction retains priority. Dedicated offline `runtime.linux-connection-buffered-tls-read-dispatch` CTest guards the decision and its fail-closed branches. Source parent `197d5715ef32b9598b6cc259956a762a23b88159`; local build/full CTest **NOT RUN** (GitHub checkout cannot be resolved from the execution container), exact publication-SHA hosted CI **PENDING**. Persistent R10 post-Share router and concrete HostControl LAN Start/Stop still remain **BLOCKED**, with no real-client evidence. R1 live post-Share TLS read/write handoff (2026-10-18; source parent `57103ca14b941a6e7fb5a2c2ebb353d8a3d3c994`): R10's persistent app loop now exists, but a quiet peer leaves R1 SSL_read_ex in WANT_READ while R10 must publish R4/R3 frames. The former R1 guard rejected the subsequent SSL_write_ex. R1 now permits OpenSSL-supported read-WANT → write interleaving, preserving exact-length pending SSL-write retry and all sole SSL/BIO/socket ownership. A real loopback CTest `transport.tcp-owned-tls-read-want-interleaved-frame-write` verifies blocked reader, frame delivery, resumed client packet and cancellation. Local build/CTest **NOT RUN** (approved local checkout absent); exact publication CI **PENDING**. Next: R10 concrete GUI LAN Start/Stop and owner-authorized client/seat0 verification remain **BLOCKED**. R1/R8 clipboard TLS readiness follow-up (2026-10-18; source parent `f7226e60c1b1c55b3a485c27c8018b6b2bacdc8a`): after the protected R8 `advancePersonalDesktopClipboardTlsWrite` landed, R1's shared `ioInterest()` projection omitted its current write-in-progress and SSL-WANT retry facts. The one existing derived selector now requests Write for queued/positive-partial CLIPRDR output and yields to R1's exact SSL_write_ex WANT_READ/WANT_WRITE direction. New offline `runtime.linux-connection-clipboard-outbound-want-precedence` CTest covers queued suffix, SSL WANT, buffered-read priority and revoke; no second transport owner, R3 receipt or OS authority. Owner-local full CTest **NOT RUN**, hosted exact-SHA CI **PENDING**. R10 live clipboard composition, concrete LAN Start/Stop and owner-native Microsoft-client acceptance **BLOCKED / NOT RUN**. R1 macOS R2 private friend edge (2026-10-31): exact concrete MacConsoleAdmissionBroker is now the only added R1 private friend, following landed R2 preparation and R3 private edges. New offline production-backed prepared-transport-dormancy CTest proves synthetic preparation does not advance the R1 TLS/MCS stage; source/registry review PASS by inspection, canonical local compile/full CTest/sanitizers NOT RUN, exact-publication hosted CI PENDING. R1 private-completion source audit (2026-10-31): exact owned SSL/BIO, current pinned selected certificate, HYBRID selection and no unfinished application operation gate the one-shot transport stage change. That change is NOT native admission; R2 alone may publish its current lease after a protected native callback plus post-check. Agent 2 must cancel the exact R1 owner synchronously when proof/consent/native evidence fails after R1 completion, before any R1 first-MCS read, and must revalidate the resulting R2 lease before R3 generation-bound Connect-Initial. Existing R1 terminal/FIN/RST/close_notify, no-Type-3, socket teardown and prepared-only macOS tests are preserved; no R1 wire defect or new R1 behavior test was demonstrated. Connector-only inspection PASS; local build/CTest NOT RUN, new publication-SHA hosted CI/sanitizers PENDING, physical clients NOT RUN/unauthorized. Next Agent-2 dependency: implement genuine private completion and a focused positive-completion/post-callback-revocation CTest without minting production native authority from fixtures; R10 still cannot activate macOS native admission. R1 remains the sole SSL/BIO socket and TLS application-I/O owner; do not introduce another SSL reader/writer. |
+| **R2 · GSS/CredSSP/native admission** | **HOSTED-GREEN / OS-account lifecycle + protected input/status contracts consumed; live positive BLOCKED.** R2's generation-fenced OS-account policy replacement/revocation, GSS→CredSSP→PAM/NSS/logind admission broker, bounded peer/account throttling, selected-native-session freshness, protected input gateway, and redacted `AuthenticationRateLimited` / `HostSessionStale` GUI outcomes are present. Production `main.cpp` now keeps the exact R2-selected X11 owner and borrowed logind watch alive in one serialized post-Share loop, reads application TPKTs only through R1's sole TLS owner, classifies them through R2/R3, dispatches `Kind::SlowPathInput` through `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt`, and publishes R2-gated ClearCodec frames. R7 descendants `17bbd4dd` and `f08c653b` consume the typed terminal-session lifecycle and keep unsupported independent-password collection absent. Existing ordinary/source CTests cover policy replacement/revocation, production R2/PAM ordering, persistent post-Share ownership, classified input dispatch, stale-session/rate-limit projection and unsupported application-password workflow without fabricating positive admission. **macOS R2 issuer review (2026-10-31; parent `1d95156e`):** Protected private R1/R3 completion, first MCS, Attach/Join/Client Info, PersonalDesktop licensing, Share, Graphics/ACK/resize and CLIPRDR denial wrappers are now in source. The production-backed real accepted R1 HYBRID/TLS regression uses synthetic proof/native observations and does not validate a physical login. A same-owner duplicate `prepareAdmission()` from Prepared/TransportAdmitted/Admitted now terminally revokes the original lifetime; separate `security.macos-protected-admission-reprepare-premcs-audit-retirement` CTest covers R1/R3 retirement and changed native audit ID before first MCS. **Agent 10 contract:** R10 owns and retains the exact accepted R1/TLS, verified standalone CredSSP proof, original listener/credential identity, owner-consent epoch, native evidence and the unique R3 session; it must revoke/destroy the borrowing R2 broker before any owner is replaced. R2 alone issues protected R1/R3 transitions, independently rechecking native console/audit/Security session and original consent before/after callbacks. View permits visual/protocol work; Input exclusively native input; Clipboard only clipboard and remains denied by the present macOS View|Input mask. **Still blocked:** R10 genuine proof-to-broker positive consumer, independent native login/consent proof, exact-publication CI and owner-authorized physical clients. Local build/full CTest/sanitizers NOT RUN; synthetic positive mechanics never imply product admission.  | **Next dependency:** there is no remaining demonstrated offline R2 authorization primitive blocking Linux video/input composition. The product blocker is the still-absent concrete `RuntimeHostControl` LAN Start/Stop backend: `src/gui/main.cpp` continues to instantiate `UnavailableRuntimeHostControl`. That backend must reuse R10's one verified listener and invoke R2 set/change/revoke plus independently trustworthy per-live-session owner consent/lock handling; GUI state may not mint either authority. After that, positive acceptance requires explicit owner authorization for a real physical X11 `seat0`, TERMSRV Kerberos/GSS, PAM/NSS/logind, TLS/CredSSP and Microsoft `mstsc.exe` / Windows App traces. Independent GUI-password NLA remains **BLOCKED** pending a separately reviewed interoperable mechanism and secret-storage design. |
+| **R3 · MCS/licensing/Share/DVC** | **OFFLINE R3 POST-SHARE ROUTER, RDPGFX PRESENTATION AND FRAME_ACK HANDOFF VERIFIED; FRAME-CREDIT HANDOFF LANDED FOR R10.** R3's authenticated, non-mutating complete-TPKT classifier routes the current joined global-I/O, DRDYNVC and CLIPRDR channel identities through R2 without mutating Share, channel or native state. R10 has consumed that classifier in its persistent single-reader Linux post-Share loop and dispatches admitted Graphics DATA/FRAME_ACK, R2-protected R5 input and synchronous captured ClearCodec frames. R3 retains the one mapped surface and R4's frame receipt/ACK window; R8 has a separate R2/R3 receipt-gated outbound clipboard TLS step, but R10 still owns native clipboard. R3's nonmutating classifier now rejects mismatched Graphics dynamic-channel IDs/commands on the shared DRDYNVC static channel. Exact `2a3f06b0` macOS protocol CI run `39139376815` PASS **610/610**, including all 3 classifier CTests, Graphics presentation, 3 FRAME_ACK handoff cases and frame publication/cancellation; its R9 sanitizer job PASS. Ubuntu ordinary CTest at the same SHA FAIL **3/754** on R10/R5 source-composition source guards (not R3 tests); Windows CI and aggregate remain unverified. No owner-native/local or real-client acceptance. | **Next R3 action:** R3 first-live macOS MCS handoff audit (2026-10-31, parent `b0bd3a213cf6163afbd36ae64cc515966d0cdab1`): inspected the concrete protected R2/R3 first-MCS, Connect-Response, Erect/Attach/Join, Client Info, PersonalDesktop licensing and Demand/Share wrappers. Added ordinary production-linked R1 HYBRID/TLS + concrete R2 broker CTest for zero/partial/exact resumed Connect-Response and Attach Confirm bytes, positive Erect/Attach, premature Erect denial and second Attach terminal rejection. Synthetic native/proof fixture only, not physical admission; local build/focused/full CTest and sanitizers NOT RUN (no approved checkout); publication-SHA CI PENDING. R10 still owns live single R1 reader/writer and true native admission composition. R4's 64-frame ACK saturation boundary is the demonstrated R3→R10 gap. R3 now publishes a read-only, R2-revalidated frame-credit preflight that distinguishes Ready, DeferredForFrameAcknowledge and Rejected without preparing pixels, reserving a frame or changing ACK state. R10 must consume Deferred as scheduler backpressure rather than revocation; every actual frame begin still reauthorizes and R4 remains the sole ACK owner. R10 must deliver durable GUI Start/Stop/LAN HostControl and R8 clipboard composition independently; R2 genuine Kerberos/PAM/NSS/logind physical-X11 `seat0` with explicit owner consent remains mandatory before real mstsc.exe/Windows App testing. Neither R10's persistent loop nor synthetic CI constitutes live admission. |
 | **R4 · AVC420/x264/RDPGFX** | **P1 ACTIVE / offline first-frame capability and lifecycle compatibility qualification.** R10 `4795c6dd` and `2a3f06b0` now keep one R2-selected X11/logind desktop alive in the serialized post-Share loop, borrow XShm pixels synchronously into R3's existing ClearCodec publication, use R1's sole TLS reader/writer, dispatch R3 Graphics DATA/FRAME_ACK and R5-protected input, and retire on authorization loss. R1 `e267f42d` fixes server Graphics writes following an idle SSL_read WANT. R3 `bde4fae5` supplies the client FRAME_ACK consumer; `549a12c0` also tightens post-Share Graphics dynamic-channel ID/command routing. At R4 test SHA `33b6ae76`, that same ACK-capacity CTest is hosted-green across Linux, macOS, Windows and R9 sanitizers. R4's same-generation surface-ID reference fence is reconciled from legacy PR #28 onto current main parent `67ea710697dfbcdc9dafb1badb047c50b61ece07`: the x264 producer resets before the first otherwise-valid picture for a different R3-owned surface, with dedicated `graphics.x264-segmented-surface-remap-idr` and a 29-case focused x264/BGRA inventory. This does **not** activate AVC420 after remap; R3 PR #24 remains fail-closed there and mandatory ClearCodec stays first-frame-safe. Source/ownership review PASS; owner-local full CTest NOT RUN. Direct-descendant `e9c4abb43efb59ff24c9eceda594da3c6503452a` hosted acceptance PASSes 42/42 portable R4, 29/29 x264/BGRA (including `graphics.x264-segmented-surface-remap-idr` under ASan/UBSan), 4/4 AVC420 capability and 4/4 ClearCodec; Ubuntu/macOS/Windows protocol jobs complete SUCCESS. Exact authoring SHA `571f77a7c862c95a0e60ef58882e26f2bced8186` itself was compile-blocked by an inherited R6/R9 malformed Python fixture, so only the repaired direct descendant is the compile/test acceptance SHA. The existing `graphics.clearcodec-denials` CTest now also asserts that captured geometry mismatching a mapped R3 surface refuses without mutating output, receipt, frame credit or codec sequence; after receipt-safe DELETE/CREATE/MAP the newly sized frame publishes and accepts its ACK (new exact-SHA CI PENDING). R4's existing move-only segmented frame, zero-outer-byte cancellation, partial-write terminal abort, ClearCodec lossless fallback and x264 external-cancellation IDR recovery remain authoritative; no second frame scheduler or client-ACK owner is justified. Exact `549a12c0` hosted focused R9 ASan/UBSan passes **42/42** portable graphics, **28/28** x264/BGRA, **4/4** ClearCodec, **19/19** R3 Graphics DVC/ACK and **94/94** bounded R1/R3 transport. These are offline/loopback protocol results, **not** genuine R2 OS admission or visible Microsoft-client pixels. The first-live trace is now explicitly limited to read-only correlation: R10 projects whether R5 handed over a current-generation framebuffer, while the existing R3/R4 observability remains authoritative for first ClearCodec preparation, the exact committed frame write, current outstanding ACK count and the first genuine matching FRAME_ACK. This projection owns no frame ID, receipt or ACK credit and cannot advance graphics. The Ubuntu full matrix at that SHA fails one unrelated R2 PAM source CTest; R2 correction `79efe8f2` landed, exact-head full CI **PENDING**. Owner physical seat0 and local full Debug CTest **NOT RUN**. **R4 P1 offline compatibility update (2026-10-29):** normative review found one missing structural gate: production could begin the Graphics DVC without first requiring the parsed Client Core 0x0100 Graphics Pipeline flag. R3 now checks that flag before DVC allocation while preserving every R2/Share/joined-channel authority gate; if absent, the current PersonalDesktop runtime fails graphics startup closed because no legacy bitmap-update publication path exists. Current selected graphics remains deliberately limited to RDPGFX VERSION8/VERSION81, mandatory ClearCodec fallback and VERSION81 AVC420 only when AVC420_ENABLED is selected; VERSION10+ and unsupported flags remain denied. New `transport.rdpgfx-client-core-capability-gate` and `graphics.first-frame-compatibility-contract` CTests cover the structural bit, initial surface, first ClearCodec logical frame, malformed/genuine ACKs and revocation, while existing cases retain malformed-dimension, duplicate/stale ID, unsupported codec and 64-credit coverage. Runtime source guards now pin fresh R2/Graphics authority before native framebuffer construction and bounded ACK-credit deferral before XShm capture. Authentication, admission, native desktop authority and AVC runtime activation are unchanged. Canonical local build/full CTest **NOT RUN** because this connector environment has no approved checkout; exact publication-SHA CI **PENDING**. Benchmark **NOT RUN / not applicable** to this compatibility-only increment; no desktop-performance claim is made. | **R4 next gate remains the owner-authorized integrated Microsoft-client first-frame/FRAME_ACK and recovery trace after genuine R2 admission; no authentication or codec rewrite is authorized by this offline qualification. ClearCodec, AVC420, FRAME_ACK and frame-credit behavior changes are BLOCKED until the first real Microsoft client reaches graphics.** R10/R3 must prevent routine ACK-window credit exhaustion (R4 safely caps at 64 pending) from becoming a terminal connection via an authorized non-mutating defer/credit decision; correctly reconcile admitted Client Core Graphics surface dimensions versus R5 X11 capture and RandR resize generation; and keep a bounded poll timeout during a pending R1 Graphics TLS WANT/partial write. R10 owns this sole scheduler, R3 owns surface/channel/receipt and R4 owns only encoder/lifecycle/ACK bookkeeping. R8 CLIPRDR remains safely disabled for native live publication and is not a first-video blocker. R10's GUI LAN Start/Stop backend is still deny-only. Final M2 requires owner-consented physical X11 seat0 Kerberos/PAM/NSS/logind and each actual Windows App/mstsc visible frame, client FRAME_ACK, input, logout/reconnect with same-SHA receipts; do not infer any of this from offline CTests. See [R4 handoff #21](https://github.com/k1moradi/RDP-server/issues/21). |
 | **R5 · Linux/X11** | **OFFLINE X11 CAPTURE/INPUT/RESIZE CHAIN GREEN; PHYSICAL-SEAT HARNESS PREPARED, R2 AUTHORITY + R10 POSITIVE LISTENER START LANDED, LIVE TEST BLOCKED ON R10 ACCEPTED-SOCKET SERVICING.** R10 owns the sole R2-selected `X11DesktopResources` and a bounded XCB dispatch after logind borrowed-watch unregistration; R2 now publishes a genuine, per-event post-Share slow-path callback gateway. R5 adds `X11AuthorizedInputRoute::dispatchAuthenticatedSlowPathTpkt`, which accepts only one R10-owned complete TPKT and calls the private native callback exclusively through R2's `LinuxRuntimeConnection::dispatchPersonalDesktopSlowPathInputPdu`. R2/R3 rechecks the exact lease, TLS/GSS, native seat/session generations, negotiated input and permission before each callback. R5 rechecks its capture generation directly beside `handleAuthorizedInput()`; mismatch, unsupported decoded event, native failure or admission denial retires with no additional XTEST release and revokes the connection. Deterministic X11 input conversions initially cover exact TS_POINTER_EVENT MOVE, single left/right/middle press/release, and lock synchronization. Set-1 scancode keys (bounded US PC-101 baseline, modifier and E0 press/release, held-key repeat suppression and stale-first-repeat denial) now translate inside the existing R2-protected owner; E1/Pause, unknown OEM keys, Unicode and relative events remain unsupported; vertical/horizontal wheel now maps signed 9-bit RDP rotation to the existing bounded X11 scroll controller without client-coordinate pointer motion; negotiated MouseX XBUTTON1/2 maps to X11 8/9 only after R2's per-event authorization; no packet/session can grant permission by itself. Dedicated offline CTests `x11.input-r2-authorized-slow-path-native-mapping-denials`, `x11.input-rdp-mousex-side-button-bounds-and-flag-denials` and new `x11.input-rdp-wheel-sign-extension-axis-and-coordinate-denials` check supported/rejected R2-routed native conversions; previous Xvfb no-lease denials remain. Owner native full CTest: **NOT RUN**; exact publication-SHA hosted CI: **PENDING**. | **Next R5/R10:** Dedicated offline `x11.input-scancode-make-release-modifier-extended-denials` plus Xvfb `x11.input-native-keyboard-sequence-and-reconnect`, `x11.input-native-keyboard-logout-no-native-post`, `x11.input-r2-policy-replacement-keyboard-denial` and `x11.input-native-keyboard-layout-change-revokes-owner` are authored. Native owner build/full CTest **NOT RUN** (no Linux checkout/toolchain in connector environment); exact published-SHA hosted CI **PENDING**. Xvfb fixtures are not OS admission. The owner-authorized Ubuntu 24.04 / GNOME 46 / Xorg physical-seat run sheet is now prepared in [testing standards](testing_standards.md): the existing Qt preflight records process/session UID, seat/type/Active/Remote/State, advisory LockedHint and DISPLAY plus the GUI-selected R10 interface/address without opening an X11 owner. Capture geometry/generation is intentionally **unavailable before genuine R2 admission** and is recorded only from the one R2-selected `X11DesktopResources` owner before first publication; creating a diagnostic XCB owner early is forbidden. R2 positive current-owner authority and R10's provisioned GUI listener Start have landed. The live run remains **BLOCKED / NOT RUN** until R10 services that exact GUI-owned listener into the existing serialized `LinuxRuntimeConnection` / persistent X11 owner; listener readiness alone is not accepted-client or native-desktop evidence. R5's exact synchronous XShm→R4 borrow and one-XCB-owner event/retirement contract is in [Linux server bundle](linux_server_test_bundle.md). R10 must keep the one X11 owner and R2 logind watch alive in the post-Share application/TLS-read loop, forward each R1-owned complete TPKT through this R2-protected gateway and implement remaining negotiated scancode/Unicode/relative semantics with tests before enabling those formats. R10/R3/R4's synchronous typed XShm BGRA → mapped Graphics → accepted-byte/FRAME_ACK path and resize scheduler are already offline-green; the remaining requirement is physical-client evidence under genuine authority. Parent `4e885e06` moved terminal teardown behind R1's local `retireNativeCandidate()` helper; the R5 source sentinel is reconciled to verify that helper still retires native state before R3/R1 revoke and that its final invocation follows the persistent X11 loop, with no production change. R10's persistent post-Share loop now invokes the linked `rdp-server-linux-x11-authorized-input` bridge for authenticated slow-path input and uses the same R2-selected owner for typed XShm frame borrows; this composition still does NOT authenticate a real client, create owner consent, or claim physical-seat XTEST/frame acceptance. Host physical seat0/Microsoft-client tests remain **BLOCKED / NOT RUN** pending explicit owner authorization. |
 | **R6 · Windows native** | **HOSTED PACKAGE/LIFECYCLE GREEN at `9f2ef97f`; native serving still BLOCKED.** Exact-head primary Actions `39106560615` and structure `39106560683` passed; Windows/MSVC and MSYS2 CLANG64 full Debug/Release each **597/597**, R6 native preflight each **59/59**, Windows SERVER-TEST Release dependency closure and three-OS startup-disabled aggregate PASS. `e0598ef` already added the five PowerShell native integrity/path negatives; their aggregate CTest passed but the reparse subcase could skip on restricted symlink creation. R6 now adds a junction fallback + fail-on-hosted-skip dedicated reparse CTest and deterministic candidate WTS-number reuse / LUID / logon-time denial CTest, **new publication-SHA CI NOT RUN / pending**. Existing DXGI Acquire→Map→Consume→Unmap→ReleaseFrame, child-before-parent COM retirement, generation/device replacement, and no-post SendInput teardown remain unchanged. R6 P1 also defines the cross-platform automatic-bootstrap storage/lifetime contract: no-argument desktop startup; current TLS bootstrap defaults to process memory; persistent TLS/licensing identity, if used, belongs in private per-user app data; non-secret preferences use per-user config; Session Password remains memory-only; read-only ZIP and fail-closed path replacement are required; no automatic listener/service/firewall/system-RDP mutation is allowed. Packaging manifests/smokes now treat no-argument launch as canonical. R1's endpoint-generated TLS path is already consumed by Linux HostControl on current main. This is portability/bootstrap qualification only; the owner-observed no-argument provisioning gap is not fully closed and GUI Round 2 is not end-to-end readiness. | **R2→R10→R6 gate:** R2 must issue genuine SSPI/CredSSP-authenticated SID ownership verified against the exact active physical-console WTS, LSA LUID, logon time and revocable admission/session generations. R10 alone serializes WTS registration/event/unregistration, native owner lifetime, permission checks and terminal revocation. R6 consumes fresh view/input authorization plus matching native device/session generation for each capture or SendInput call; retirement discards held input without native post, then unmaps/releases child frames before COM parents. No fake lease, Session 0 service, autostart, elevation, firewall, scheduled task or Start enablement. Windows App/mstsc remain Linux-server clients; Windows native is not first human-test critical. **Bootstrap dependency update:** R1 automatic endpoint-bound TLS is resolved in process memory. R3 must decide/provide any required generated persistent PersonalDesktop licensing identity under the private app-data contract, and R2/R10 must complete the no-config Session Password, current-local-owner authority and runtime composition. Linux implementation proceeds independently of Windows/macOS native-host activation. |
 | **R7 · macOS native + GUI shell** | **PACKAGING VERIFIED / native serving still BLOCKED.** Corrective shared implementation SHA `a948ddd32d8f774db975408468764e8cf3cf4381` is hosted-green in primary Actions `39102167839` and structure `39102167861`: macOS **557/557 Debug + 557/557 Release**, dedicated R7 native lifecycle PASS, R7 session sanitizer PASS, early pure-Python macOS bundle preflight PASS on Linux/macOS/Windows, protocol test-bundle PASS, startup-disabled arm64 SERVER-TEST PASS, and the three-platform SERVER-TEST aggregate PASS. The optional Aqua LaunchAgent remains disabled-by-default with `RunAtLoad=false` and `KeepAlive=false`; no TCC/network/capture/input authority is inferred from packaging. | **New R7 GUI increment (2026-10-18):** Optional C++23 Qt Widgets shell, deny-only production HostControl, dedicated offscreen GUI navigation/security CTest. Source delivered; new host-projected GUI choice and window-close revoke CTest added (build/CTest **NOT RUN**); R10 typed API contract **LANDED**; R7 now consumes it through one non-authorizing Qt adapter. R2's generation-fenced existing-OS-account access-policy lifecycle also **LANDED**; R7 now exposes explicit OS-account setup and host-permission requests only through R10, with authoritative status required before readiness. The only current R10 implementation remains deny-only, so live Start is still **BLOCKED**. R5 Linux relocatable GUI ZIP and R6 Windows bundle contracts landed. R7 now adds the missing macOS arm64 PORTABLE-GUI builder for a real `rdp-server-desktop.app` with local `macdeployqt` closure and R9-compatible manifest; dedicated hosted arm64 build/package/Mach-O closure assurance is authored in `r7-macos-portable-gui`; the `1b32443a` correction reached and PASSed the arm64 tool preflight, real Qt `.app` build and `packaging.macos-portable-gui-app-integrity-denials`, then exposed Homebrew's symlinked `macdeployqt` path as the next packager defect. R7 resolves that caller-supplied path to a regular executable target while keeping archive/app symlink denials unchanged. Hosted `42e14927` then built the real app and passed the archive CTest, but broad default `macdeployqt` plugin deployment pulled unused QtPdf/QtSvg/QtVirtualKeyboard/QML dependencies and left Homebrew paths/signature failures. R7 disables automatic plugin deployment/signing, stages only the required Cocoa QPA plugin, and asks `macdeployqt` to patch/deploy dependencies for the app plus that explicit plugin. Exact `a2b36360` hosted CI is otherwise green and now passes real app build, package CTest, `macdeployqt` and the common R9 archive verifier; the remaining Mach-O audit entries are staged framework/dylib absolute install IDs (`brotli`, QtCore/QtGui/QtDBus), not missing archive files. R7 now normalizes absolute staged framework/plugin install IDs to bundle-relative `@rpath` IDs and then ad-hoc signs the finished preview app; exact correction-SHA Mach-O closure evidence is pending, while extracted first-screen launch and release signing/notarization evidence remain pending. **Live native blockers:** R3 Graphics DATA source is now hosted-green as part of the same matrix, but R2 still lacks a genuine credential-bound revocable macOS UID lease and R10 still lacks the macOS AppKit/session runtime owner. Until those authority/composition gates land, Screen Recording/Accessibility remain prerequisite observations only, `retireWithoutNativeInput()` remains mandatory on authority loss, and owner macOS 27/live-client M5 is **NOT RUN**. |
-| **R8 · CLIPRDR/files** | **R3 + SHARE + X11 CONSTRUCTION RESOLVED / bridge hosted-green; runtime gateway + production linkage authored, live publication safe-disabled.** `da43a967e2d547bb73e2b51b8d61211219136842` passed primary `39112263911` and structure `39112263835`, including all **87/87** bridge/native clipboard sanitizer CTests. R10 `5e164e46` reaches genuine `ShareActivated`, `0257b57f` reaches Graphics DVC `Ready`, and `e6fa65c4` constructs the exact R2-selected X11 owner/native watch. R8 now exposes only the five existing broker operations through `LinuxRuntimeConnection`, with no TLS I/O, route generation, native publication or scheduler ownership; the new deny-only runtime CTest expands the direct runtime-security sanitizer selection **38→39**. The production Linux server also conditionally links the dormant R8 bridge/X11 adapter under the complete authorized-runtime/X11 build graph; a dedicated source/build CTest forbids any live construction or dispatch before the persistent R10 router exists. Current hosted Linux compilation exposed and this correction fixes a wrapper-only type error in `completePersonalDesktopClipboardWrite()`: `broker_` is `std::optional`, so presence is checked with `has_value()` rather than a pointer/null comparison. Authorization behavior is unchanged; the existing `runtime.linux-connection-personal-desktop-clipboard-gateway-denials` CTest remains the behavior guard. Exact correction-SHA CI **PENDING**. | **Live blocker is R8/R10 native composition, not the persistent loop:** R10 keeps the R2-selected X11/logind and R1 TLS owner alive with cooperative Stop. R8 scalar-safe write receipts are staged, but R10 still rejects CLIPRDR pending fresh R2-gated inbound/outbound routing and exact native X11 clipboard/INCR lifetime. Once that lands, bind the existing bridge through these five gateways, reauthorize every native publication/late receipt, and retire R8/native state before route replacement. Directory-tree materialization remains unsupported without reviewed handle-relative creation; remote names grant no filesystem authority. |
+| **R8 · CLIPRDR/files** | **OFFLINE R8 SANITIZER QUALIFIED / Linux activation still deliberately disabled.** On descendant `2f7ee6d0`, Actions `41179113155` / R9 sanitizer job `124472700546`: existing clipboard **107/107 PASS**, separate combined native finalization **1/1 PASS**, new X11 callback-source-retirement **1/1 PASS**, R3 CLIPRDR routing **9/9 PASS**. Cross-platform Debug compilation PASS; full CTest remains red solely on unrelated R7 empty-Python-executable registration. The X11 source-retirement correction derives from `bd68b5a0`. R3/R2 routing remains protected by fresh joined-`cliprdr` observations and exact route/reply/slice receipts. macOS/Windows write and resize/flush/close reentrancy fences remain unchanged; Linux file materialization remains direct thread-affine `pwrite`. New production-backed offline CTest `clipboard.x11-native-callback-source-retirement` replaces the source synchronously during X11 owner claim/direct publication/INCR marker/chunk while reusing the numeric generation and advancing source epoch; stale native ownership/property/INCR state must be withdrawn. The test is outside the fixed `clipboard` label census and runs separately under sanitizers. **R8 callback audit (2026-10-31):** the direct success `sendSelectionNotify` path lacked a post-callback source/ownership check despite the existing INCR path having one. The minimal R8 correction now deletes a stale direct requestor property, withdraws native selection and reports failure if the notification callback retires the original source. Dedicated production-linked offline `clipboard.x11-notification-and-incr-retirement` covers direct notify, INCR event-mask registration, INCR notify and zero-byte terminator (after every 64-KiB/payload remainder chunk) using same-generation/new-source-epoch replacement; the separate fixture order was corrected before treating it as CI evidence. Both X11 cases are selected separately under ASan/UBSan without changing the existing **107** clipboard cases or combined macOS/Windows finalization case. Source/registry review PASS; owner-local full CTest NOT RUN (no available checkout/network); new publication-SHA hosted CI PENDING. No native file or physical clipboard was exercised. `kLinuxProductionClipboardActivationApproved = false` remains unchanged. | **Next R8/R10 integration contract:** activation may begin only with one fresh admitted R2 lease including clipboard permission, genuine R3 `ShareActivated`, `GraphicsReady`, the exact current joined `cliprdr` route/generation, and one current native clipboard owner. R8 initialization is capabilities -> Monitor Ready -> client initialization -> delivered initial Format List response before local publication. Every outbound PDU uses the sole R1 writer and exact bounded R3 accepted-byte receipts; every native publication revalidates R2/route/source/native generations. Stop, reconnect, R2/Share/route loss, source replacement or native-owner loss is terminal: cancel pending Format Data/FileContents/INCR, retire native publication before bridge/source destruction, and accept no late receipt. Keep 64 KiB FileContents RANGE bounds, metadata-only remote names and caller-owned local paths. Revalidate unchanged 107-case clipboard sanitizer selector, unchanged combined finalization 1-case and the new exact X11 callback case. Live clipboard/files/browser/file-manager/physical-client testing remains **NOT RUN / unauthorized**. |
 | **R9 · assurance/CI** | **ACTIVE / R10 cooperative Stop and R5 terminal native-input source tests separately pinned at exact-two in R9 focused CI; R7 Qt PlainText constructor-order regression now pinned at exact-one in the macOS PORTABLE-GUI packaging lane.** R10's live serialized R1/R2/R3/R5 poll, input, Graphics ACK and first-frame code has landed. R9 now pins the new scheduler source guard without altering the existing two post-Share executable sanitizer denials, 40-case R2 security selection, 87-case R8 component inventory, or native input/clipboard linkage guards. Recent arm64 macOS portable-GUI Actions 39140555244 validates real framework symlink-preserving ZIP packaging and extracted `codesign --verify --deep --strict` PASS; this is hosted ad-hoc code-integrity evidence only, not a real Aqua/owner-native macOS 27 launch, production trust/notarization, release approval, or complete primary green. Exact R9 publication CI is **PENDING**; physical owner-native receipts **NOT RUN**. Windows MSVC and CLANG64 Debug/full CTest previously failed only because the test mock matched POSIX `/QtGui` and not Windows `\\QtGui`, so the mock now compares the basename via `Path(...).name`; the macOS install-ID assertions remain exact. The separate R10 sanitizer selection pins both production-backed classifier-authority and single-R1-reader denial tests with an exact-two inventory. All new exact-publication-SHA hosted results are **PENDING**, and no human-client/native-host acceptance is claimed. R3 `7b330d9` adds the 19-case Graphics sanitizer selector, but its independent structure run `39137594458` fails on R9's stale 15-case token. This R9 correction updates only the structure validator to require the presentation-wire case, three FRAME_ACK cases, and the 19-case count. Exact publication-SHA hosted PASS is **PENDING**; owner-native tests remain **NOT RUN**. Descendant `aaff05a9` proves the Windows CLANG64 job fully green, including real PORTABLE-GUI packaging, recursive PE closure and extracted deny-only/normal first-screen no-socket/firewall smoke. The R9 sanitizer lane is green with the 39-case R5 X11 inventory, and this road now also pins the two dormant production-linkage guards for R5 input and R8 clipboard without changing executable counts. R7 `19e4dfff` landed staged macOS install-ID normalization/ad-hoc preview signing, but its first hosted run fails before exercising that behavior because the new synthetic normalization fixture recreates the already-existing `Contents/MacOS` directory without `exist_ok=True`; Ubuntu and macOS ordinary CTest show the same `FileExistsError`. This R9 test-only correction makes that shared fixture directory creation idempotent while preserving every normalization/signing assertion. **R7 Windows offline-firewall source audit (2026-10-28):** inspected `10802b9f2096217122fd18f5e3216a6a22a0f90e`; Actions run `40753865293`, Windows CLANG64 job `123047482903` completes GUI ZIP/PE closure and then FAILs at `scripts/smoke_windows_portable_gui.ps1` line 47 (`FirewallRules`). The packaged Windows `RDP-server-GUI.exe` compiles `windows_gui_main.cpp` (not `src/gui/main.cpp`) with the shared Qt view and deny-only `UnavailableRuntimeHostControl`; its two smoke offline modes, twice-launched no-argument first screen, Windows username query and normal close contain no reachable first-party firewall, service, registry or OS-RDP mutator. The separate Windows conflict probe is read-only and not linked to this GUI. Existing `windows.gui-offline-no-side-effects`, `windows.gui-start-denied-without-authority` and `windows.gui-offline-system-state-mutation-denials` pin negative behavior; source/target audit **PASS by inspection**, independent Windows repro/owner native execution **NOT RUN**. This failure compares unnormalized `netsh advfirewall firewall show rule name=all` text snapshots; it is evidence of a difference, not yet proof of either GUI mutation, background rule change or nondeterministic enumeration. | **Next:** R9 must reproduce with consecutive no-GUI baseline snapshots and before/after GUI snapshots, preserve raw output, compare order-insensitive complete rule-block multisets (including duplicates) and stable rule/filter properties, and identify any genuinely added/removed/modified rule or external policy event; keep the original fail-closed firewall/profile gate until evidence justifies an order-only normalization and negative regression. Then require corrected exact-head ordinary CTest plus native macOS Mach-O closure PASS; if closure is green, add only the remaining extracted Aqua first-screen and signing/notarization trust-state assurance justified by native evidence. Operational PORTABLE-GUI remains blocked on concrete live R10 host control and the persistent post-Share R1/TLS router/owner needed for first R4→R3 frame publication plus the already-linked R5 input and R8 clipboard bridges, followed by genuine R2 owner/client acceptance, same-SHA owner receipts and explicit owner approval. |
 | **R10 · runtime/service/licensing/M1 lead** | **ACTIVE / MCS through PersonalDesktop licensing completion is now hosted-green in descendant `da43a967e2d547bb73e2b51b8d61211219136842`.** Primary `39112263911` passes the ordinary production tests and R9's **38/38** direct runtime-security sanitizer selection covering Erect, Attach/Confirm, ChannelJoin/Confirm, Client Info/bounded framing and the PersonalDesktop licensing sequence. This still proves only fail-closed/offline composition; no positive owner-host admission or Microsoft-client result is inferred. **R10 host-control contract (2026-10-18):** `src/server/runtime/runtime_host_control.h` now defines the in-process owner-thread `RuntimeHostControl` API for local interface inventory, redacted structured status/prerequisites/errors, non-secret settings, R2 credential/permission requests, Start/Stop, active clients, disconnect and revoke. Its initial `UnavailableRuntimeHostControl` is deny-only and grants no listener, R2 admission or Share. R7 now connects its Qt view to this contract through a thin `HostControl` adapter with no independent authority; the adapter maps only R10 status and commands and never turns a command result into sharing success. Two offline production-header CTests `runtime.host-control-unavailable-denials` and `runtime.host-control-credential-setup-denials` are registered. Authoring base `24d265f45350351cd7893b61b67731e9e4f268e1`; local checkout/build/CTest **NOT RUN** (GitHub DNS unavailable in local container); publication CI **PENDING**, owner-platform verification **NOT RUN**. Neither real interface enumeration, persisted settings nor Start/Stop backend is claimed. R3's canonical production Demand Active profile still missing and `ValidClientStep::Delivered` remains fail-closed. **R10 Share activation increment (2026-10-18):** R3 blocker `7908c02f` is consumed. The production R3 preparation path now derives bitmap geometry from the exact admitted GCC Client Core instead of accepting R10-supplied dimensions; R10 supplies only `DynamicVirtualChannels` plus `SlowPathInput` when the configured requested permissions include input, while R2 independently revalidates that permission and R3 requires the real joined `drdynvc` role. The serialized serve loop no longer revokes at `STATUS_VALID_CLIENT`: it prepares the exact session-owned profile, starts the existing Share transcript and drives R1/R2/R3 readiness until `ShareActivated`, which by construction requires the real Confirm Active, Synchronize, Control and Font transitions. It then deliberately revokes because Graphics/native publication is the next separately audited increment. New offline guard `runtime.linux-serve-share-activation-composition` checks that the live serve path uses the canonical profile and existing activation owner without caller-supplied Share/session IDs or capability bytes. Authoring base `409d50524f9b16a832e4d98a76bf9751acb6166b`; local owner build/full CTest **NOT RUN** in this connector environment; publication-SHA hosted CI **PENDING**; live Microsoft client **NOT RUN / BLOCKED** on explicit owner-authorized physical seat0 credentials/admission. **R10 Graphics control increment (2026-10-18):** after genuine `ShareActivated`, the same serialized connection now starts and drives the existing R3 Graphics DVC owner through DRDYNVC capabilities, `Microsoft::Windows::RDS::Graphics` CREATE and RDPGFX CAPS until `Ready`; fresh R2 authorization remains on every transition/receipt and `authorizePersonalDesktopApplicationTraffic()` is required afterward. No R4 frame is fabricated or published; the runtime deliberately revokes at this boundary. Dedicated offline guard `runtime.linux-serve-graphics-dvc-composition` enforces control composition while rejecting any serve-loop call to frame publication before the native owner exists. Authoring base `5e164e46258487b712d63bc091fa54f82a78c789`; owner-local build/full CTest **NOT RUN** here; hosted CI **PENDING**; live client **NOT RUN**. **R10 native-owner increment (2026-10-18):** when the complete R5 X11 aggregate target exists, the production executable now links it and constructs exactly one nonmoving `X11DesktopResources` only inside `visitNativeDesktopSelection()` from R2's ephemeral `selection.display()`; configured/environment/client DISPLAY is never consulted. R10 binds a 16,777,216-pixel / 64-MiB BGRX XShm arena ceiling, captures the exact R2 admission/session generations, registers the borrowed logind monitor, includes that descriptor plus the sole R5 XCB fd in an actual bounded poll call, acknowledges unregistration before any R2 dispatch, and uses `retireAfterAuthorizationLoss()` for change/error paths. Normal temporary shutdown disconnects while authority is current. No R4 frame or XTEST input is published yet. Dedicated offline guard `runtime.linux-serve-r2-selected-x11-owner-composition` checks this production boundary without fabricating positive admission. Authoring base `40e2cab05450aacde767ae638be0ef54e4b666c0`; owner-local build/full CTest **NOT RUN** here; exact publication-SHA hosted CI **PENDING**; live seat0 **NOT RUN / BLOCKED** on explicit owner authorization. **R10 protected-input dependency increment (2026-10-18):** R5 `746bf766` resolved the prior decoded-event→X11 adapter blocker. The production `rdp-server` target now conditionally links `rdp-server-linux-x11-authorized-input` and defines `RDP_SERVER_HAVE_LINUX_X11_AUTHORIZED_INPUT` only when the complete R2/R5 dependency target exists. Dedicated offline CTest `runtime.linux-x11-authorized-input-production-linkage` guards that dependency while explicitly forbidding a premature `main.cpp` call to `dispatchAuthenticatedSlowPathTpkt`; linkage grants no input authority. Authoring base `fac0024b37074241c1857950239c9848550ffa95`; owner-local build/full CTest **NOT RUN** here; exact publication-SHA hosted CI **PENDING**; live XTEST **NOT RUN / BLOCKED**. | **Next R10:** the remaining runtime blocker before invoking the newly linked R5 bridge is one serialized post-Share R1 complete-TPKT reader/router that can classify and hand each packet to the existing R3 Graphics, R2-protected slow-path input, or R8 clipboard gateway without destructive trial parsing or a second socket/TLS owner. R3 now supplies the authenticated R4 presentation/surface initialization and a protected ClearCodec frame start that accepts no caller generation/surface state. The remaining live blocker is the serialized post-Share R1 complete-TPKT router plus persistent X11/logind owner loop; once that lands, publish XShm→R4→R3 DATA with exact zero-write cancel/partial-write abort and dispatch input immediately before R5 XTEST. R1's LAN listener/TLS identity remains ready for the subsequent concrete HostControl backend. Positive physical-seat0 Microsoft-client acceptance remains **BLOCKED / NOT RUN**. |
 

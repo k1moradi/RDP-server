@@ -193,26 +193,42 @@ this increment are **NOT RUN / PENDING** at authoring.
 - Added offline `macos.gui-qcolor-provenance-parser-and-redaction` for ICC
   header bounds, environment isolation and output redaction, plus
   `gui.offscreen-qcolor-valid-and-malformed-metadata` in the existing Qt
-  harness for valid sRGB/custom primaries and malformed ICC/degenerate-primary
-  rejection. The synthetic malformed case can reproduce Qt's validation
-  boundary but cannot attribute the owner's Cocoa warning.
+  harness for valid sRGB/custom primaries, a malformed ICC blob and an invalid
+  chromaticity with `x + y > 1`. The synthetic malformed case can exercise
+  Qt's validation boundary but cannot attribute the owner's Cocoa warning.
 - Initial exact-SHA GUI evidence at `4a6594e29fd2554a2032d5721180782521390090`
   compiled `test_desktop_gui_offline` with Apple Clang 21.0.0, then
   `gui.offscreen-qcolor-valid-and-malformed-metadata` **FAILED** because the
   attempted duplicate red/green negative remained valid in Qt 6.12. Qt's
-  chromaticity sanity rule validates each point independently. The corrective
-  fixture now uses an unambiguously invalid blue point with `x + y > 1`;
-  corrective exact-SHA GUI execution is **PENDING**.
-- Existing `macos.native-desktop-owner-borrow-callback-retirement` remains the
-  single FrameMailbox reentrant-retirement regression and is not duplicated.
-  R10 still owns the future accepted-client R2->R3/Share/GraphicsReady gate;
-  current macOS HostControl has no positive native attach and R7 adds none.
-- Source/CMake/package/authorization review: **PASS by inspection**. Canonical
-  local compile/focused/full CTest, owner packaged no-Sharing probe and LLDB:
-  **NOT RUN** in this connector environment. Exact-publication-SHA hosted
-  compile/CTest: **PENDING**. Caller attribution remains **BLOCKED** until the
-  owner's packaged Cocoa probe records a matching source/caller; no R4 pixel,
-  monitor profile, warning suppression or production color correction changed.
+  chromaticity sanity rule validates each point independently.
+- Corrective exact SHA `c2be669ed8044ef4188d13279d5a6e535da1e769`,
+  Actions run `41177821199`, job `124468954004`: arm64 macOS, Qt **6.12.0**,
+  Apple Clang **21.0.0 (clang-2100.1.1.101)**. Real
+  `rdp-server-desktop.app` compilation **PASS**; portable-GUI integrity
+  **3/3 PASS**; complete `gui.offscreen-*` batch **53/53 PASS**, including
+  `gui.offscreen-qcolor-valid-and-malformed-metadata` **PASS (0.04 s)**,
+  credential guidance, Advanced security/authentication redaction, empty
+  Session Password default and listener-readiness gates. The same extracted
+  archive's canonical zero-argument Cocoa LaunchServices smoke **PASS** with
+  no TCP listener. No Sharing, TCC, capture, input or physical client ran.
+- Same corrective SHA, job `124468954030`: focused R7 native lifecycle
+  Debug **22/22 PASS** and Release **22/22 PASS** with Apple Clang 21.0.0;
+  `macos.native-desktop-owner-borrow-callback-retirement` **PASS (0.02 s)**
+  in both configurations. It remains the single FrameMailbox
+  reentrant-retirement regression and is not duplicated.
+- The repository-wide macOS protocol job at the corrective SHA still stops
+  during an unrelated R3/R4 MCS test-table compile failure
+  (`test_owned_mcs_connect_initial.cpp`, excess
+  `share-finalization-exchange-denials` initializer), so the separately
+  registered Python provenance-parser CTest is **NOT RUN** in full CTest at
+  this SHA. This does not invalidate the independently green R7 GUI/native
+  jobs and is outside R7 ownership.
+- Source/CMake/package/authorization review: **PASS by inspection**. Owner
+  packaged no-Sharing provenance probe and LLDB backtrace: **NOT RUN**.
+  Caller attribution remains **BLOCKED** until the owner's packaged Cocoa
+  probe records a matching source/caller; no R4 pixel, monitor profile,
+  warning suppression or production color correction changed. R10 still owns
+  future accepted-client R2->R3/Share/GraphicsReady composition; R7 adds none.
 
 ## R4 admitted-frame delivery / revocation assurance authoring (2026-10-30)
 

@@ -347,10 +347,18 @@ redaction/bounds contract; `gui.offscreen-qcolor-valid-and-malformed-metadata`
 reuses the Qt harness to prove valid and malformed metadata behavior without a
 physical display. Initial exact-SHA macOS GUI execution at `4a6594e29fd2...`
 showed that duplicate red/green points are still individually valid under Qt
-6.12's chromaticity sanity rule; the corrected negative uses `x + y > 1` and
-its exact-SHA GUI rerun is **PENDING**. Owner Cocoa execution/backtrace is still **NOT RUN**, so the
-actual caller remains **BLOCKED/unattributed** and no production color fix is
-authorized.
+6.12's chromaticity sanity rule. Corrective SHA
+`c2be669ed8044ef4188d13279d5a6e535da1e769` uses `x + y > 1` and is
+hosted-green in the R7 macOS portable-GUI lane: Qt 6.12.0 / Apple Clang 21.0.0,
+real app compile PASS, `gui.offscreen-*` **53/53 PASS**, QColorSpace case
+PASS, package integrity **3/3 PASS**, and extracted zero-argument Cocoa
+no-TCP-listener smoke PASS. Its focused native lifecycle lane is also
+**22/22 Debug + 22/22 Release PASS**, including the existing FrameMailbox
+callback-retirement case. Full repository CTest is separately blocked before
+execution by an unrelated MCS test-table compile error; the provenance-parser
+CTest is therefore NOT RUN on that SHA. Owner provenance execution/backtrace
+is still **NOT RUN**, so the actual warning caller remains
+**BLOCKED/unattributed** and no production color fix is authorized.
 
 **macOS native attachment dependency:** `RuntimePlatformNativeDesktop`
 continues to expose `attachAuthenticatedSession()` as an R2-proof consumer,

@@ -1751,6 +1751,12 @@ function(add_rdp_test source_file suite behavior)
         set_tests_properties(
             graphics.frame-delivery-session-retirement-before-ack
             PROPERTIES LABELS "protocol;graphics;transport;offline")
+        add_test(NAME graphics.frame-partial-data-retirement-successor-generation
+            COMMAND "${test_target}"
+                "dvc-graphics-frame-partial-data-retirement-successor-generation")
+        set_tests_properties(
+            graphics.frame-partial-data-retirement-successor-generation
+            PROPERTIES LABELS "protocol;graphics;transport;offline")
     elseif(test_target STREQUAL "test_owned_preauth_session")
         # Behavior groups from ONE existing executable: no duplicate
         # compilation, executables, state controllers or fixture sources.

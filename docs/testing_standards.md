@@ -1,3 +1,18 @@
+## R4 partial-DATA retirement and successor graphics-credit isolation (2026-10-31)
+
+The separate production-backed offline CTest
+`graphics.frame-partial-data-retirement-successor-generation` reuses the
+existing R3 Graphics DVC owner and R4 presentation/ACK window. It accepts a
+positive first DATA payload byte, verifies there is no ACK credit, rejects
+unsent cancellation, then retires the owner with a borrowed write suffix
+outstanding. Stale accepted-byte receipts and ACKs reach only the closed
+retired owner; a freshly mapped successor with the same numeric channel/frame
+ID earns one new credit only after its own complete DATA receipt and retires
+it on its own ACK. Never dereference an invalidated borrowed span. The test
+is outside the fixed 171-case MCS table and the fixed 23-case R3 sanitizer
+selector. This is offline owner isolation, not proof that an R1 socket has
+retired an OpenSSL pending write or a client has displayed pixels.
+
 ## R2 macOS wrong-thread protected admission denial (2026-10-31)
 
 Ordinary production-linked offline CTest

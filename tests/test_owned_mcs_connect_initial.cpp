@@ -6005,6 +6005,113 @@ void testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge()
     assert(dvc.pendingClientGraphicsData().empty());
 }
 
+
+void testGraphicsFramePartialDataRetirementSuccessorGeneration()
+{
+    constexpr RdpDynamicVirtualChannelAllocation retiredAllocation{14U, 214U};
+    constexpr RdpDynamicVirtualChannelAllocation successorAllocation{14U, 215U};
+    constexpr std::uint32_t frameId = 108U;
+    constexpr std::uint32_t clientUserId = 1007U;
+    constexpr std::uint16_t drdynvcChannelId = 1005U;
+
+    // A positive R1 receipt including one payload byte leaves a borrowed
+    // DATA suffix pending; R4 must still have zero FRAME_ACK membership.
+    RdpGraphicsDynamicVirtualChannelLifecycle retired;
+    completeGraphicsDynamicVirtualChannelReady(
+        retired, retiredAllocation, clientUserId, drdynvcChannelId);
+    rdp_server::rdp::GfxAvc420SegmentedFrame preparedFrame;
+    prepareTestClearCodecFrame(retired, frameId, preparedFrame);
+    assert(retired.beginFramePublication(
+        std::move(preparedFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+
+    const auto originalWrite = retired.pendingServerWrite();
+    const auto record = retired.frameRecordMap().front();
+    const std::size_t headerBytes =
+        record.outerPlaintextBytes - record.frameBytes;
+    assert(originalWrite &&
+           originalWrite.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData &&
+           headerBytes + 1U < originalWrite.bytes.size());
+    assert(retired.onServerBytesWritten(
+               originalWrite.channelGeneration, originalWrite.replySequence,
+               originalWrite.writeSliceSequence, headerBytes + 1U) ==
+           RdpGraphicsDvcWriteOutcome::Pending);
+    assert(retired.outstandingGraphicsFrames() == 0U);
+    assert(!retired.cancelUnwrittenFramePublication(
+        retiredAllocation.generation));
+
+    // Borrowed spans expire on close. Save only the scalar receipt identity
+    // before revocation, and never inspect the retired borrowed byte view.
+    const auto borrowedSuffix = retired.pendingServerWrite();
+    assert(borrowedSuffix &&
+           borrowedSuffix.writeSliceSequence !=
+               originalWrite.writeSliceSequence);
+    const std::uint64_t retiredReplySequence = borrowedSuffix.replySequence;
+    const std::uint64_t retiredWriteSliceSequence =
+        borrowedSuffix.writeSliceSequence;
+    const std::size_t retiredSuffixBytes = borrowedSuffix.bytes.size();
+
+    retired.close();
+    assert(retired.phase() == RdpGraphicsDvcPhase::Closed);
+    assert(!retired.presentationMapped());
+    assert(retired.outstandingGraphicsFrames() == 0U);
+    assert(!retired.pendingServerWrite());
+    assert(retired.frameRecordMap().empty());
+    assert(retired.onServerBytesWritten(
+               retiredAllocation.generation, retiredReplySequence,
+               retiredWriteSliceSequence, retiredSuffixBytes) ==
+           RdpGraphicsDvcWriteOutcome::Rejected);
+
+    // The next admitted graphics owner may reuse the numeric channel/frame ID,
+    // but it must not inherit any partial DATA or credit from the old owner.
+    RdpGraphicsDynamicVirtualChannelLifecycle successor;
+    completeGraphicsDynamicVirtualChannelReady(
+        successor, successorAllocation, clientUserId, drdynvcChannelId);
+    rdp_server::rdp::GfxAvc420SegmentedFrame successorFrame;
+    prepareTestClearCodecFrame(successor, frameId, successorFrame);
+    assert(successor.beginFramePublication(
+        std::move(successorFrame), RdpGraphicsFrameCodec::ClearCodec,
+        kRdpStaticVirtualChannelDefaultChunkBytes));
+    assert(successor.outstandingGraphicsFrames() == 0U);
+
+    const auto lateAcknowledge = makeR3GraphicsFrameAcknowledgeTpkt(
+        retiredAllocation.channelId, frameId, 4096U, 1U);
+    assert(retired.onClientTpkt(
+               retiredAllocation.generation, lateAcknowledge) ==
+           RdpGraphicsDvcClientIntake::Closed);
+    assert(successor.outstandingGraphicsFrames() == 0U);
+
+    auto outcome = RdpGraphicsDvcWriteOutcome::Pending;
+    for (std::size_t attempt = 0U;
+         attempt < 256U && outcome == RdpGraphicsDvcWriteOutcome::Pending;
+         ++attempt)
+    {
+        const auto write = successor.pendingServerWrite();
+        assert(write &&
+               write.kind == RdpGraphicsDvcWriteKind::GraphicsFrameData &&
+               write.channelGeneration == successorAllocation.generation);
+        outcome = successor.onServerBytesWritten(
+            write.channelGeneration, write.replySequence,
+            write.writeSliceSequence, write.bytes.size());
+    }
+    assert(outcome == RdpGraphicsDvcWriteOutcome::Delivered);
+    assert(successor.outstandingGraphicsFrames() == 1U);
+
+    // An old-TLS-owner ACK is rejected by its closed owner; only the
+    // successor's own admitted intake can retire the successor's one credit.
+    assert(retired.onClientTpkt(
+               retiredAllocation.generation, lateAcknowledge) ==
+           RdpGraphicsDvcClientIntake::Closed);
+    assert(successor.outstandingGraphicsFrames() == 1U);
+    assert(successor.onClientTpkt(
+               successorAllocation.generation, lateAcknowledge) ==
+           RdpGraphicsDvcClientIntake::GraphicsDataAccepted);
+    assert(successor.consumePendingClientFrameAcknowledge(
+               successorAllocation.generation) ==
+           RdpGraphicsFrameAcknowledgeIntake::Acknowledged);
+    assert(successor.outstandingGraphicsFrames() == 0U);
+}
+
 void testGraphicsFrameShareLossAbort()
 {
     constexpr RdpDynamicVirtualChannelAllocation allocation{6U, 86U};
@@ -13154,6 +13261,7 @@ int main(int argc, char **argv)
         // Deliberately outside the fixed 171-case protocol table; the ordinary
         // R4 assurance CTest still executes in an all-cases invocation.
         testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
+        testGraphicsFramePartialDataRetirementSuccessorGeneration();
         return 0;
     }
     if (argc != 2)
@@ -13162,6 +13270,12 @@ int main(int argc, char **argv)
         "dvc-graphics-frame-delivered-session-retirement-before-ack")
     {
         testGraphicsFrameDeliveredSessionRetirementBeforeAcknowledge();
+        return 0;
+    }
+    if (std::string_view{argv[1]} ==
+        "dvc-graphics-frame-partial-data-retirement-successor-generation")
+    {
+        testGraphicsFramePartialDataRetirementSuccessorGeneration();
         return 0;
     }
     for (const auto &test : kMcsTestCases)

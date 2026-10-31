@@ -1,3 +1,24 @@
+## R4 partial-DATA retirement / successor-frame acceptance (2026-10-31)
+
+Parent inspected: `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`. Upstream
+R2 has now published private macOS Share/post-Share/Graphics DVC/ACK and
+resize wrappers; the previous Client Info compile blocker was corrected.
+A distinct uncovered R3/R4 boundary now has an ordinary production-backed
+`graphics.frame-partial-data-retirement-successor-generation` CTest:
+positive partial DATA with borrowed suffix and zero R4 credit, terminal
+retirement and late old-owner receipt/ACK denial, then one newly delivered
+successor frame and exactly one current ACK. Keep the existing complete-
+delivery retirement regression, 171-case MCS table and 23-case Graphics DVC
+sanitizer selection unchanged; no codec, capture or R1 writer edit.
+**Verification:** source and registration reviewed; canonical local build,
+focused/full CTest and sanitizers **NOT RUN** (GitHub connector cannot access
+the approved local build root); exact-publication hosted CI **PENDING**.
+**Still blocked:** R2 real accepted TLS/CredSSP positive + callback-time
+revocation/partial-receipt fixture; R10 macOS host owner-loop composition,
+exact-head R9 owner-native qualification and explicit physical-client
+permission. R1 still owns any pending TLS output; do not cancel R3 bytes until
+that borrow is conclusively retired. No client-visible frame asserted.
+
 ## R8 hosted X11 callback sanitizer qualification on current descendant (2026-10-31)
 
 **Verified exact descendant:** `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,

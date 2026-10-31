@@ -1,3 +1,17 @@
+## R4 partial accepted-DATA revocation / successor generation (2026-10-31)
+
+Inspection base `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`:
+existing `graphics.frame-delivery-session-retirement-before-ack` covers a
+fully delivered frame, whereas `transport.dvc-graphics-frame-payload-partial-abort`
+and `transport.dvc-graphics-frame-share-loss-abort` do not combine positive
+partial DATA, borrowed suffix retirement, new owner, reused frame ID and
+matching successor ACK. One new production-backed separate CTest covers that
+boundary without growing the 171-case MCS table or fixed sanitizer census.
+Local compile, full/focused CTest and ASan/UBSan: **NOT RUN** in GitHub-only
+context. Hosted exact-publication CI: **PENDING**. Real R1 TLS pending-write
+cancellation and live R2/R10 admission remain independent integration gates;
+no physical first frame or client ACK is claimed.
+
 ## R8 exact-descendant X11 clipboard sanitizer qualification (2026-10-31)
 
 - **Audited exact SHA:** `8e0dc8e6fd0f5e27df638be0371112e98a3a17b6`,
